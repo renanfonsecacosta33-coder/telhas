@@ -539,7 +539,11 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={!form.data || !form.produto}>
+          <Button onClick={() => {
+            if (!form.data) { alert("Informe a data do pedido."); return; }
+            if (!form.produto) { alert("Selecione o tipo de produto."); return; }
+            handleSave();
+          }}>
             {isEditing ? "Salvar Alterações" : "Registrar Pedido"}
           </Button>
         </DialogFooter>
