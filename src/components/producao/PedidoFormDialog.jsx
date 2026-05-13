@@ -94,6 +94,12 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     enabled: open
   });
 
+  const { data: isopores = [] } = useQuery({
+    queryKey: ["isopores"],
+    queryFn: () => base44.entities.Isopor.list(),
+    enabled: open
+  });
+
   // Modelos filtrados pelo produto selecionado
   const modelosFiltrados = useMemo(() =>
   modelosCad.filter((m) => !form.produto || m.produto === form.produto),
@@ -201,9 +207,15 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     // Quantidade de telhas = metros / (metragem_mm / 1000)
     newForm.quantidade_telhas = calcQtdTelhas(val, form.metragem_mm);
 
-    // Quantidade de isopor = ceil(metragem_total_em_metros / 2), cada peça = 2m
+    // Quantidade de isopor: cada peça = 2m
     const metragemTotalM = metros * ((Number(form.metragem_mm) || 0) / 1000);
-    newForm.isopor_utilizado = metragemTotalM > 0 ? Math.ceil(metragemTotalM / 2) : "";
+    if (metragemTotalM > 0) {
+      const pecasInteiras = Math.floor(metragemTotalM / 2);
+      const metragem_resto = +(metragemTotalM - (pecasInteiras * 2)).toFixed(2);
+      newForm.isopor_utilizado = { pecasInteiras, metragem_resto, total: metragemTotalM };
+    } else {
+      newForm.isopor_utilizado = "";
+    }
 
     if (bobinaSuperiorObj) {
       const labelSup = bobinaSuperiorObj.chapa + (bobinaSuperiorObj.qualidade?.toLowerCase().includes("rvm") ? " RVM" : "");
@@ -222,10 +234,16 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   const handleMetragemMmChange = (val) => {
     const newForm = { ...form, metragem_mm: val };
     newForm.quantidade_telhas = calcQtdTelhas(form.metros, val);
-    // Recalcula isopor com nova metragem
+    // Recalcula isopor com nova metragem: cada peça = 2m
     const metros = Number(form.metros) || 0;
     const metragemTotalM = metros * ((Number(val) || 0) / 1000);
-    newForm.isopor_utilizado = metragemTotalM > 0 ? Math.ceil(metragemTotalM / 2) : "";
+    if (metragemTotalM > 0) {
+      const pecasInteiras = Math.floor(metragemTotalM / 2);
+      const metragem_resto = +(metragemTotalM - (pecasInteiras * 2)).toFixed(2);
+      newForm.isopor_utilizado = { pecasInteiras, metragem_resto, total: metragemTotalM };
+    } else {
+      newForm.isopor_utilizado = "";
+    }
     setForm(newForm);
   };
 
@@ -235,13 +253,34 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     return s + i > 0 ? +(s + i).toFixed(1) : "";
   };
 
-  const handleSave = () => {
-    // Salva ID da bobina mas também guarda texto legível para exibição
+  const handleSave = async () => {
+    // Validação de dados obrigatórios
+    if (!form.data) { alert("Informe a data do pedido."); return; }
+    if (!form.produto) { alert("Selecione o tipo de produto."); return; }
+
+    // Validação de estoque de isopor se necessário
+    if (precisaEPS && form.isopor_utilizado) {
+      const isoporTipo = form.eps;
+      const isopor = isopores.find((i) => i.tipo === isoporTipo);
+      
+      if (!isopor) {
+        alert(`Nenhum estoque de ${isoporTipo} cadastrado.`);
+        return;
+      }
+
+      const pecasNecessarias = form.isopor_utilizado.pecasInteiras + (form.isopor_utilizado.metragem_resto > 0 ? 1 : 0);
+      
+      if (isopor.quantidade < pecasNecessarias) {
+        alert(`Estoque insuficiente de ${isoporTipo}. Disponível: ${isopor.quantidade} peças. Necessário: ${pecasNecessarias} peças.`);
+        return;
+      }
+    }
+
+    // Monta dados do pedido
     const bobinaSupTexto = bobinaSuperiorObj ? labelBobina(bobinaSuperiorObj) : form.bobina_superior;
     const bobinaInfTexto = bobinaInferiorObj ? labelBobina(bobinaInferiorObj) : form.bobina_inferior;
     const data = {
       ...form,
-      // Guarda o ID como bobina_superior_id e texto como bobina_superior para compatibilidade
       bobina_superior_id: form.bobina_superior,
       bobina_inferior_id: form.bobina_inferior,
       bobina_superior: bobinaSupTexto,
@@ -253,8 +292,19 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
       metragem_mm: form.metragem_mm ? Number(form.metragem_mm) : undefined,
       quantidade_telhas: form.quantidade_telhas ? Number(form.quantidade_telhas) : undefined,
       metragem_planejada: form.metragem_planejada ? Number(form.metragem_planejada) : undefined,
-      isopor_utilizado: form.isopor_utilizado ? Number(form.isopor_utilizado) : undefined
+      isopor_utilizado: form.isopor_utilizado ? form.isopor_utilizado.pecasInteiras : undefined,
+      isopor_metragem_resto: form.isopor_utilizado ? form.isopor_utilizado.metragem_resto : undefined
     };
+
+    // Desconta isopor do estoque
+    if (precisaEPS && form.isopor_utilizado) {
+      const pecasNecessarias = form.isopor_utilizado.pecasInteiras + (form.isopor_utilizado.metragem_resto > 0 ? 1 : 0);
+      const isoporAtualizado = isopores.find((i) => i.tipo === form.eps);
+      await base44.entities.Isopor.update(isoporAtualizado.id, {
+        quantidade: isoporAtualizado.quantidade - pecasNecessarias
+      });
+    }
+
     onSave(data);
   };
 
@@ -439,16 +489,25 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                 </div>
               </div>
               {/* Quantidade de isopor calculada automaticamente */}
-              <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-orange-800">Placas de Isopor Necessárias</p>
-                  <p className="text-xs text-orange-600">Cada peça = 2m · baseado nos metros pedidos</p>
+              {form.isopor_utilizado ? (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-orange-800">Placas de Isopor Necessárias</p>
+                    <p className="text-xs text-orange-600">Cada peça = 2m</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-lg font-bold text-orange-700">
+                      {form.isopor_utilizado.pecasInteiras} peça{form.isopor_utilizado.pecasInteiras !== 1 ? 's' : ''} (2m)
+                      {form.isopor_utilizado.metragem_resto > 0 && ` + ${form.isopor_utilizado.metragem_resto}m`}
+                    </span>
+                    <p className="text-xs text-orange-600">Total: {form.isopor_utilizado.total.toFixed(2)}m</p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-2xl font-bold text-orange-700">{form.isopor_utilizado || "—"}</span>
-                  <p className="text-xs text-orange-600">peças</p>
+              ) : (
+                <div className="bg-muted/40 border border-border rounded-lg px-3 py-2 text-xs text-muted-foreground">
+                  Preencha as quantidades para calcular isopor
                 </div>
-              </div>
+              )}
             </div>
           }
 
@@ -544,11 +603,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={() => {
-            if (!form.data) { alert("Informe a data do pedido."); return; }
-            if (!form.produto) { alert("Selecione o tipo de produto."); return; }
-            handleSave();
-          }}>
+          <Button onClick={handleSave}>
             {isEditing ? "Salvar Alterações" : "Registrar Pedido"}
           </Button>
         </DialogFooter>
