@@ -2,57 +2,73 @@
   "name": "Bobina",
   "type": "object",
   "properties": {
+    "data_recebimento": {
+      "type": "string",
+      "description": "Data de recebimento"
+    },
     "cor": {
       "type": "string",
-      "enum": [
-        "Natural",
-        "Amadeirada 3D",
-        "Amadeirada Lisa",
-        "Azul - 5010",
-        "Bege - 1015",
-        "Branca - 9003",
-        "Ceramica - 8023",
-        "Chocolate - 8024",
-        "Cinza - 7035",
-        "Cinza - 7040",
-        "Grafite - 7024",
-        "Marrom - 8024",
-        "Pinh\u00e3o - 8012",
-        "Preta - 9005",
-        "Verde - 6002",
-        "Verde - 6005",
-        "Vermelho - 3000"
-      ],
-      "description": "Cor da bobina"
+      "description": "RVM / Cor da bobina"
     },
-    "espessura": {
+    "qualidade": {
       "type": "string",
-      "enum": [
-        "0,43 (NACIONAL)",
-        "0,43 RVM",
-        "0,50 (NACIONAL)",
-        "0,65 (NACIONAL)",
-        "0,43 (IMPORTADA)",
-        "0,50 (IMPORTADA)",
-        "0,65 (IMPORTADA)"
-      ],
-      "description": "Espessura da bobina"
+      "description": "Qualidade (GV, FF, PP, FQ)"
+    },
+    "chapa": {
+      "type": "string",
+      "description": "Espessura da chapa (ex: 0,43)"
+    },
+    "largura_mm": {
+      "type": "number",
+      "description": "Largura em mm"
     },
     "peso_kg": {
       "type": "number",
-      "description": "Peso em kg"
+      "description": "Peso l\u00edquido em kg"
     },
-    "quantidade": {
+    "peso_inicial": {
       "type": "number",
-      "description": "Quantidade em estoque"
+      "description": "Peso inicial em kg"
+    },
+    "metragem": {
+      "type": "number",
+      "description": "Metragem em metros"
+    },
+    "codigo": {
+      "type": "string",
+      "description": "C\u00f3digo da bobina"
+    },
+    "nf": {
+      "type": "string",
+      "description": "N\u00famero da NF"
+    },
+    "custo": {
+      "type": "number",
+      "description": "Custo por kg"
+    },
+    "status": {
+      "type": "string",
+      "description": "Status da bobina"
+    },
+    "fornecedor": {
+      "type": "string",
+      "description": "Fornecedor"
+    },
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "Telha"
+      ],
+      "description": "Tipo de uso",
+      "default": "Telha"
     },
     "observacoes": {
       "type": "string",
-      "description": "Observa\u00e7\u00f5es adicionais"
+      "description": "Observa\u00e7\u00f5es"
     }
   },
   "required": [
     "cor",
-    "espessura"
+    "chapa"
   ]
 }
