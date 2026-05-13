@@ -1,0 +1,84 @@
+{
+  "name": "ProducaoDiaria",
+  "type": "object",
+  "properties": {
+    "data": {
+      "type": "string",
+      "format": "date",
+      "description": "Data da produ\u00e7\u00e3o"
+    },
+    "unidade": {
+      "type": "string",
+      "enum": [
+        "Matriz AJL",
+        "Pinhais",
+        "Ivaipor\u00e3"
+      ],
+      "description": "Unidade produtora"
+    },
+    "bobina_id": {
+      "type": "string",
+      "description": "ID da bobina em uso"
+    },
+    "bobina_codigo": {
+      "type": "string",
+      "description": "C\u00f3digo da bobina (para refer\u00eancia)"
+    },
+    "bobina_cor": {
+      "type": "string",
+      "description": "Cor da bobina"
+    },
+    "metros_perfiladeira": {
+      "type": "number",
+      "description": "Metros tirados na perfiladeira"
+    },
+    "metros_colagem": {
+      "type": "number",
+      "description": "Metros tirados na colagem"
+    },
+    "metros_total": {
+      "type": "number",
+      "description": "Total de metros produzidos"
+    },
+    "telha_simples": {
+      "type": "number",
+      "description": "Telha simples (m)"
+    },
+    "telha_eps": {
+      "type": "number",
+      "description": "Telha + EPS (m)"
+    },
+    "telha_eps_manta": {
+      "type": "number",
+      "description": "Telha + EPS + Manta (m)"
+    },
+    "telha_eps_telha": {
+      "type": "number",
+      "description": "Telha + EPS + Telha (m)"
+    },
+    "telha_bandeja": {
+      "type": "number",
+      "description": "Telha Bandeja (m)"
+    },
+    "bobininha": {
+      "type": "number",
+      "description": "Bobininha (m)"
+    },
+    "cumeeira": {
+      "type": "number",
+      "description": "Cumeeira (m)"
+    },
+    "painel": {
+      "type": "number",
+      "description": "Painel (m)"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es"
+    }
+  },
+  "required": [
+    "data",
+    "unidade"
+  ]
+}

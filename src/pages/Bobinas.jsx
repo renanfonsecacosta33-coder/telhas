@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Pencil, Trash2, Circle, Weight, Ruler, CalendarDays } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Circle, Weight, Ruler, CalendarDays, Archive, ArchiveRestore } from "lucide-react";
 import { toast } from "sonner";
 import StatsCard from "@/components/stock/StatsCard";
 import BobinaFormDialog from "@/components/bobinas/BobinaFormDialog";
@@ -37,6 +37,7 @@ export default function Bobinas() {
   const [deleteItem, setDeleteItem] = useState(null);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [showArquivadas, setShowArquivadas] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: bobinas = [], isLoading } = useQuery({
@@ -59,15 +60,30 @@ export default function Bobinas() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); setDeleteItem(null); toast.success("Bobina excluída!"); },
   });
 
+  const arquivarMutation = useMutation({
+    mutationFn: ({ id, arquivada }) => base44.entities.Bobina.update(id, {
+      arquivada,
+      data_encerramento: arquivada ? new Date().toISOString().split("T")[0] : null,
+      status: arquivada ? "Finalizada" : undefined,
+    }),
+    onSuccess: (_, { arquivada }) => {
+      queryClient.invalidateQueries({ queryKey: ["bobinas"] });
+      toast.success(arquivada ? "Bobina arquivada!" : "Bobina restaurada!");
+    },
+  });
+
   const handleSave = (data) => {
     if (editItem) updateMutation.mutate({ id: editItem.id, data });
     else createMutation.mutate(data);
   };
 
-  const totalPeso = bobinas.reduce((s, b) => s + (b.peso_kg || 0), 0);
-  const statusList = [...new Set(bobinas.map(b => b.status).filter(Boolean))].sort();
+  const ativas = bobinas.filter(b => !b.arquivada);
+  const arquivadas = bobinas.filter(b => b.arquivada);
+  const totalPeso = ativas.reduce((s, b) => s + (b.peso_kg || 0), 0);
+  const statusList = [...new Set(ativas.map(b => b.status).filter(Boolean))].sort();
 
-  const filtered = bobinas.filter((b) => {
+  const base = showArquivadas ? arquivadas : ativas;
+  const filtered = base.filter((b) => {
     const q = search.toLowerCase();
     const matchSearch = b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q) ||
       b.codigo?.toLowerCase().includes(q) || b.fornecedor?.toLowerCase().includes(q) ||
@@ -76,7 +92,7 @@ export default function Bobinas() {
     return matchSearch && matchStatus;
   });
 
-  const abertas = bobinas.filter(b => b.status === "Aberta").length;
+  const abertas = ativas.filter(b => b.status === "Aberta").length;
 
   return (
     <div className="space-y-6">
@@ -97,9 +113,9 @@ export default function Bobinas() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatsCard title="Total de Bobinas" value={bobinas.length} subtitle={`${abertas} abertas`} icon={Circle} color="blue" />
+        <StatsCard title="Em Estoque" value={ativas.length} subtitle={`${abertas} abertas`} icon={Circle} color="blue" />
         <StatsCard title="Peso Total" value={`${totalPeso.toLocaleString("pt-BR")} kg`} subtitle="peso líquido em estoque" icon={Weight} color="green" />
-        <StatsCard title="Cores Distintas" value={[...new Set(bobinas.map(b => b.cor))].length} subtitle="diferentes colorações" icon={Ruler} color="orange" />
+        <StatsCard title="Arquivadas" value={arquivadas.length} subtitle="bobinas finalizadas" icon={Archive} color="orange" />
       </div>
 
       {/* Filters */}
@@ -109,10 +125,23 @@ export default function Bobinas() {
           <Input placeholder="Buscar por cor, chapa, código..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant={filterStatus === "all" ? "default" : "outline"} size="sm" onClick={() => setFilterStatus("all")}>Todas</Button>
-          {statusList.map(s => (
-            <Button key={s} variant={filterStatus === s ? "default" : "outline"} size="sm" onClick={() => setFilterStatus(s)}>{s}</Button>
-          ))}
+          <Button
+            variant={showArquivadas ? "default" : "outline"}
+            size="sm"
+            onClick={() => { setShowArquivadas(!showArquivadas); setFilterStatus("all"); }}
+            className="gap-1"
+          >
+            <Archive className="w-3 h-3" />
+            {showArquivadas ? "Ver em estoque" : `Arquivadas (${arquivadas.length})`}
+          </Button>
+          {!showArquivadas && (
+            <>
+              <Button variant={filterStatus === "all" ? "default" : "outline"} size="sm" onClick={() => setFilterStatus("all")}>Todas</Button>
+              {statusList.map(s => (
+                <Button key={s} variant={filterStatus === s ? "default" : "outline"} size="sm" onClick={() => setFilterStatus(s)}>{s}</Button>
+              ))}
+            </>
+          )}
         </div>
       </div>
 
@@ -173,6 +202,23 @@ export default function Bobinas() {
                 </div>
                 {/* Actions */}
                 <div className="flex items-center gap-1">
+                  {!bobina.arquivada ? (
+                    <Button
+                      variant="ghost" size="icon" className="h-8 w-8 text-amber-600 hover:text-amber-700"
+                      title="Arquivar bobina (acabou)"
+                      onClick={() => arquivarMutation.mutate({ id: bobina.id, arquivada: true })}
+                    >
+                      <Archive className="w-4 h-4" />
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:text-green-700"
+                      title="Restaurar bobina"
+                      onClick={() => arquivarMutation.mutate({ id: bobina.id, arquivada: false })}
+                    >
+                      <ArchiveRestore className="w-4 h-4" />
+                    </Button>
+                  )}
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditItem(bobina); setDialogOpen(true); }}>
                     <Pencil className="w-4 h-4" />
                   </Button>

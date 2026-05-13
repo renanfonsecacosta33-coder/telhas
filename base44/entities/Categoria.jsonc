@@ -1,0 +1,35 @@
+{
+  "name": "Categoria",
+  "type": "object",
+  "properties": {
+    "nome": {
+      "type": "string",
+      "description": "Nome da categoria"
+    },
+    "icone": {
+      "type": "string",
+      "description": "Nome do \u00edcone Lucide"
+    },
+    "path": {
+      "type": "string",
+      "description": "Rota da p\u00e1gina"
+    },
+    "ordem": {
+      "type": "number",
+      "description": "Ordem de exibi\u00e7\u00e3o na sidebar"
+    },
+    "ativa": {
+      "type": "boolean",
+      "description": "Se est\u00e1 vis\u00edvel na sidebar",
+      "default": true
+    },
+    "cor": {
+      "type": "string",
+      "description": "Cor de destaque"
+    }
+  },
+  "required": [
+    "nome",
+    "path"
+  ]
+}

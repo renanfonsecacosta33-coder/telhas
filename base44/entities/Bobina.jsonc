@@ -24,7 +24,7 @@
     },
     "peso_kg": {
       "type": "number",
-      "description": "Peso l\u00edquido em kg"
+      "description": "Peso l\u00edquido atual em kg"
     },
     "peso_inicial": {
       "type": "number",
@@ -32,11 +32,15 @@
     },
     "metragem": {
       "type": "number",
-      "description": "Metragem em metros"
+      "description": "Metragem total em metros"
+    },
+    "metragem_restante": {
+      "type": "number",
+      "description": "Metragem restante em metros"
     },
     "codigo": {
       "type": "string",
-      "description": "C\u00f3digo da bobina"
+      "description": "C\u00f3digo da bobina (AA\u041c\u041cNNNN)"
     },
     "nf": {
       "type": "string",
@@ -44,7 +48,11 @@
     },
     "custo": {
       "type": "number",
-      "description": "Custo por kg"
+      "description": "Custo por kg (R$/kg)"
+    },
+    "custo_total": {
+      "type": "number",
+      "description": "Custo total da bobina (R$)"
     },
     "status": {
       "type": "string",
@@ -61,6 +69,15 @@
       ],
       "description": "Tipo de uso",
       "default": "Telha"
+    },
+    "arquivada": {
+      "type": "boolean",
+      "description": "Bobina arquivada (acabou)",
+      "default": false
+    },
+    "data_encerramento": {
+      "type": "string",
+      "description": "Data que a bobina foi encerrada"
     },
     "observacoes": {
       "type": "string",

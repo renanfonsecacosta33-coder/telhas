@@ -53,6 +53,24 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
+  // Auto-gera código: AAММ + 4 últimos dígitos da NF
+  const gerarCodigo = (nf) => {
+    if (!nf) return "";
+    const now = new Date();
+    const ano = String(now.getFullYear()).slice(2);
+    const mes = String(now.getMonth() + 1).padStart(2, "0");
+    const nfStr = String(nf).replace(/\D/g, "");
+    const ultimos4 = nfStr.slice(-4).padStart(4, "0");
+    return `${ano}${mes}${ultimos4}`;
+  };
+
+  const handleNFChange = (val) => {
+    set("nf", val);
+    if (val && !editItem) {
+      set("codigo", gerarCodigo(val));
+    }
+  };
+
   const handleSave = () => {
     onSave({
       ...form,
@@ -122,12 +140,12 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Código</Label>
-              <Input placeholder="Ex: 26042246" value={form.codigo} onChange={e => set("codigo", e.target.value)} />
+              <Label>Código (auto)</Label>
+              <Input placeholder="Preenchido automático pela NF" value={form.codigo} onChange={e => set("codigo", e.target.value)} className="font-mono" />
             </div>
             <div className="space-y-1">
               <Label>NF</Label>
-              <Input placeholder="Número da NF" value={form.nf} onChange={e => set("nf", e.target.value)} />
+              <Input placeholder="Número da NF" value={form.nf} onChange={e => handleNFChange(e.target.value)} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
