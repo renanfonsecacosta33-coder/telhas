@@ -185,13 +185,21 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     setForm(novoForm);
   };
 
+  // Recalcula quantidade de telhas: metros / comprimento_telha_em_m
+  const calcQtdTelhas = (metros, metragem_mm) => {
+    const m = Number(metros) || 0;
+    const comp = Number(metragem_mm) || 0;
+    if (m <= 0 || comp <= 0) return "";
+    return Math.ceil(m / (comp / 1000));
+  };
+
   // Quando metros mudar, recalcula kg, quantidade de telhas e isopor automaticamente
   const handleMetrosChange = (val) => {
     const metros = Number(val) || 0;
     const newForm = { ...form, metros: val };
 
-    // Quantidade de telhas = metros (1 telha = 1m linear)
-    newForm.quantidade_telhas = metros > 0 ? metros : "";
+    // Quantidade de telhas = metros / (metragem_mm / 1000)
+    newForm.quantidade_telhas = calcQtdTelhas(val, form.metragem_mm);
 
     // Quantidade de isopor = ceil(metros / 2), cada peça = 2m
     newForm.isopor_utilizado = metros > 0 ? Math.ceil(metros / 2) : "";
@@ -207,6 +215,12 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
       if (pesoInf > 0) newForm.kg_inferior = metros > 0 ? +(metros * pesoInf).toFixed(1) : "";
     }
     newForm.kg_total = recalcTotal(newForm.kg_superior, newForm.kg_inferior);
+    setForm(newForm);
+  };
+
+  const handleMetragemMmChange = (val) => {
+    const newForm = { ...form, metragem_mm: val };
+    newForm.quantidade_telhas = calcQtdTelhas(form.metros, val);
     setForm(newForm);
   };
 
@@ -452,7 +466,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
             {/* Quantidade de Telhas + Metragem em mm */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">Quantidade de Telhas <span className="text-muted-foreground font-normal">— automático</span></Label>
+                <Label className="text-xs">Qtd. Telhas <span className="text-muted-foreground font-normal">— metros ÷ comprimento</span></Label>
                 <Input
                   type="number"
                   placeholder="Auto"
@@ -472,7 +486,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                   type="number"
                   placeholder="ex: 5000 mm"
                   value={form.metragem_mm}
-                  onChange={e => set("metragem_mm", e.target.value)}
+                  onChange={e => handleMetragemMmChange(e.target.value)}
                 />
               </div>
             </div>
