@@ -1,0 +1,148 @@
+{
+  "name": "Pedido",
+  "type": "object",
+  "properties": {
+    "data": {
+      "type": "string",
+      "format": "date",
+      "description": "Data do pedido"
+    },
+    "vendedor": {
+      "type": "string",
+      "description": "Nome do vendedor"
+    },
+    "cliente": {
+      "type": "string",
+      "description": "Nome do cliente"
+    },
+    "numero_pedido": {
+      "type": "string",
+      "description": "N\u00famero do pedido"
+    },
+    "produto": {
+      "type": "string",
+      "enum": [
+        "TELHA",
+        "TELHA + EPS",
+        "TELHA + EPS + MANTA",
+        "TELHA + EPS + TELHA",
+        "TELHA BANDEJA",
+        "BOBININHA",
+        "CUMEEIRA",
+        "PAINEL"
+      ],
+      "description": "Tipo de produto"
+    },
+    "maquina": {
+      "type": "string",
+      "enum": [
+        "TP - 25",
+        "TP - 40",
+        "ONDULADA",
+        "COLONIAL",
+        "BANDEJA",
+        "DESBOBINADOR",
+        "CUMEEIRA",
+        "COLAGEM"
+      ],
+      "description": "M\u00e1quina respons\u00e1vel"
+    },
+    "bobina_superior": {
+      "type": "string",
+      "description": "Bobina superior (ex: 0,43 NACIONAL)"
+    },
+    "bobina_inferior": {
+      "type": "string",
+      "description": "Bobina inferior"
+    },
+    "rvm_superior": {
+      "type": "string",
+      "description": "RVM / Cor superior"
+    },
+    "rvm_inferior": {
+      "type": "string",
+      "description": "RVM / Cor inferior"
+    },
+    "eps": {
+      "type": "string",
+      "description": "Tipo de EPS (se aplic\u00e1vel)"
+    },
+    "maquinario_superior": {
+      "type": "string",
+      "description": "Maquin\u00e1rio superior"
+    },
+    "maquinario_inferior": {
+      "type": "string",
+      "description": "Maquin\u00e1rio inferior"
+    },
+    "kg_superior": {
+      "type": "number",
+      "description": "KG superior"
+    },
+    "kg_inferior": {
+      "type": "number",
+      "description": "KG inferior"
+    },
+    "kg_total": {
+      "type": "number",
+      "description": "KG total"
+    },
+    "metros": {
+      "type": "number",
+      "description": "Metros do pedido"
+    },
+    "valor": {
+      "type": "number",
+      "description": "Valor do pedido (R$)"
+    },
+    "metragem_utilizada": {
+      "type": "number",
+      "description": "Metragem utilizada de bobina"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pendente",
+        "em_producao",
+        "finalizado",
+        "cancelado"
+      ],
+      "default": "pendente",
+      "description": "Status do pedido"
+    },
+    "data_pedido": {
+      "type": "string",
+      "format": "date",
+      "description": "Data do pedido original"
+    },
+    "data_prevista": {
+      "type": "string",
+      "format": "date",
+      "description": "Data prevista de entrega"
+    },
+    "data_finalizacao": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de finaliza\u00e7\u00e3o"
+    },
+    "unidade": {
+      "type": "string",
+      "enum": [
+        "Matriz AJL",
+        "Pinhais",
+        "Ivaipor\u00e3"
+      ],
+      "default": "Matriz AJL",
+      "description": "Unidade produtora"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es"
+    }
+  },
+  "required": [
+    "data",
+    "produto",
+    "maquina"
+  ]
+}

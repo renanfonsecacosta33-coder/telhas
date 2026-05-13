@@ -13,6 +13,7 @@ import Isopor from '@/pages/Isopor';
 import Estoque from '@/pages/Estoque';
 import Producao from '@/pages/Producao';
 import Configuracoes from '@/pages/Configuracoes';
+import GerenciarUsuarios from '@/pages/GerenciarUsuarios';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -48,6 +49,7 @@ const AuthenticatedApp = () => {
         <Route path="/estoque" element={<Estoque />} />
         <Route path="/producao" element={<Producao />} />
         <Route path="/configuracoes" element={<Configuracoes />} />
+        <Route path="/usuarios" element={<GerenciarUsuarios />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

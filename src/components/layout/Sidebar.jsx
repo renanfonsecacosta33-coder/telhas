@@ -1,11 +1,11 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, Circle, Snowflake, Package, Menu, X, ChevronRight,
   Factory, Settings, Droplets, Wrench, Layers, Box, ShoppingCart,
-  Truck, BarChart2, FileText, Tag, Archive, Zap
+  Truck, BarChart2, FileText, Tag, Archive, Zap, Users, LogOut
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +25,13 @@ const FIXED_NAV = [
 
 export default function Sidebar({ isOpen, onToggle }) {
   const location = useLocation();
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    base44.auth.me().then(setUser).catch(() => {});
+  }, []);
+
+  const isAdmin = user?.role === "admin";
 
   const { data: categorias = [] } = useQuery({
     queryKey: ["categorias"],
@@ -91,6 +98,19 @@ export default function Sidebar({ isOpen, onToggle }) {
               <p className="text-xs text-sidebar-foreground/60">ERP Estoque</p>
             </div>
           </div>
+          {user && (
+            <div className="mt-3 px-1">
+              <p className="text-xs font-semibold text-sidebar-foreground/80 truncate">{user.full_name || user.email}</p>
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                  user.role === "admin" ? "bg-red-900/40 text-red-300" :
+                  user.role === "operador" ? "bg-blue-900/40 text-blue-300" :
+                  "bg-green-900/40 text-green-300"
+                }`}>{user.role || "user"}</span>
+                {user.maquina && <span className="text-xs text-sidebar-foreground/50">· {user.maquina}</span>}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Navigation */}
@@ -108,12 +128,29 @@ export default function Sidebar({ isOpen, onToggle }) {
               {dynamicItems.map(renderLink)}
             </>
           )}
+
+          {/* Admin only */}
+          {isAdmin && (
+            <>
+              <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mt-5 mb-3">
+                Administração
+              </p>
+              {renderLink({ path: "/usuarios", label: "Usuários", icon: Users })}
+            </>
+          )}
         </nav>
 
         {/* Settings at bottom */}
         <div className="p-4 border-t border-sidebar-border space-y-1">
-          {renderLink({ path: "/configuracoes", label: "Configurações", icon: Settings })}
-          <p className="text-xs text-sidebar-foreground/40 text-center mt-2">AJL ERP v2.0</p>
+          {isAdmin && renderLink({ path: "/configuracoes", label: "Configurações", icon: Settings })}
+          <button
+            onClick={() => base44.auth.logout()}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Sair</span>
+          </button>
+          <p className="text-xs text-sidebar-foreground/30 text-center mt-1">AJL ERP v2.0</p>
         </div>
       </aside>
     </>
