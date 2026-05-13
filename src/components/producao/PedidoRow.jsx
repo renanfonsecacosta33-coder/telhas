@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee } from "lucide-react";
 import { format } from "date-fns";
+import { base44 } from "@/api/base44Client";
 
 const PRODUTO_BG = {
   "TELHA":               "border-l-blue-400",
@@ -126,18 +127,46 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
     });
   };
 
-  const handleFinalizar = () => {
+  const handleFinalizar = async () => {
     // Acumula tempo produção final
     let prodSeg = p.tempo_producao_seg || 0;
     if (p.inicio_producao_ts) {
       prodSeg += Math.floor((Date.now() - new Date(p.inicio_producao_ts).getTime()) / 1000);
     }
+
+    // --- Desconta bobinas ao finalizar na máquina (não na colagem) ---
+    if (p.maquina !== "COLAGEM") {
+      if (p.bobina_superior_id && p.kg_superior > 0) {
+        const bobSup = await base44.entities.Bobina.get(p.bobina_superior_id).catch(() => null);
+        if (bobSup) {
+          const novoKg = Math.max(0, (bobSup.peso_kg || 0) - p.kg_superior);
+          await base44.entities.Bobina.update(p.bobina_superior_id, { peso_kg: novoKg });
+        }
+      }
+      if (p.bobina_inferior_id && p.kg_inferior > 0) {
+        const bobInf = await base44.entities.Bobina.get(p.bobina_inferior_id).catch(() => null);
+        if (bobInf) {
+          const novoKg = Math.max(0, (bobInf.peso_kg || 0) - p.kg_inferior);
+          await base44.entities.Bobina.update(p.bobina_inferior_id, { peso_kg: novoKg });
+        }
+      }
+    }
+
+    // --- Desconta isopor ao finalizar na COLAGEM ---
+    if (p.maquina === "COLAGEM" && p.eps && p.isopor_utilizado > 0) {
+      const isopores = await base44.entities.Isopor.list().catch(() => []);
+      const isoporItem = isopores.find(i => i.tipo === p.eps);
+      if (isoporItem) {
+        const novaQtd = Math.max(0, (isoporItem.quantidade || 0) - p.isopor_utilizado);
+        await base44.entities.Isopor.update(isoporItem.id, { quantidade: novaQtd });
+      }
+    }
+
     const novoStatus = precisaColagem ? "aguardando_colagem" : "finalizado";
     onStatusChange(p, novoStatus, {
       tempo_producao_seg: prodSeg,
       inicio_producao_ts: null,
       data_finalizacao: format(new Date(), "yyyy-MM-dd"),
-      // Se vai pra colagem, muda a máquina
       ...(precisaColagem ? { maquina: "COLAGEM" } : {}),
     });
   };

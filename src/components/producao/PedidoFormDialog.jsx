@@ -258,24 +258,6 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     if (!form.data) { alert("Informe a data do pedido."); return; }
     if (!form.produto) { alert("Selecione o tipo de produto."); return; }
 
-    // Validação de estoque de isopor se necessário
-    if (precisaEPS && form.isopor_utilizado) {
-      const isoporTipo = form.eps;
-      const isopor = isopores.find((i) => i.tipo === isoporTipo);
-      
-      if (!isopor) {
-        alert(`Nenhum estoque de ${isoporTipo} cadastrado.`);
-        return;
-      }
-
-      const pecasNecessarias = form.isopor_utilizado.pecasInteiras + (form.isopor_utilizado.metragem_resto > 0 ? 1 : 0);
-      
-      if (isopor.quantidade < pecasNecessarias) {
-        alert(`Estoque insuficiente de ${isoporTipo}. Disponível: ${isopor.quantidade} peças. Necessário: ${pecasNecessarias} peças.`);
-        return;
-      }
-    }
-
     // Monta dados do pedido
     const bobinaSupTexto = bobinaSuperiorObj ? labelBobina(bobinaSuperiorObj) : form.bobina_superior;
     const bobinaInfTexto = bobinaInferiorObj ? labelBobina(bobinaInferiorObj) : form.bobina_inferior;
@@ -295,15 +277,6 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
       isopor_utilizado: form.isopor_utilizado ? form.isopor_utilizado.pecasInteiras : undefined,
       isopor_metragem_resto: form.isopor_utilizado ? form.isopor_utilizado.metragem_resto : undefined
     };
-
-    // Desconta isopor do estoque
-    if (precisaEPS && form.isopor_utilizado) {
-      const pecasNecessarias = form.isopor_utilizado.pecasInteiras + (form.isopor_utilizado.metragem_resto > 0 ? 1 : 0);
-      const isoporAtualizado = isopores.find((i) => i.tipo === form.eps);
-      await base44.entities.Isopor.update(isoporAtualizado.id, {
-        quantidade: isoporAtualizado.quantidade - pecasNecessarias
-      });
-    }
 
     onSave(data);
   };
