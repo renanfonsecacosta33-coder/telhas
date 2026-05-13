@@ -177,6 +177,14 @@
       "type": "number",
       "description": "Tempo total em setup de m\u00e1quina (segundos acumulados)"
     },
+    "tempo_colagem_seg": {
+      "type": "number",
+      "description": "Tempo total em colagem (segundos acumulados)"
+    },
+    "tempo_pausa_colagem_seg": {
+      "type": "number",
+      "description": "Tempo total em pausa durante colagem (segundos acumulados)"
+    },
     "inicio_producao_ts": {
       "type": "string",
       "description": "Timestamp ISO de quando entrou em produ\u00e7\u00e3o (sess\u00e3o atual)"

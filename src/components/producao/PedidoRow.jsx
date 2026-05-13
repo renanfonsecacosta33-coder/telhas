@@ -61,6 +61,10 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
   let tempoPausaVivo = p.tempo_pausa_seg || 0;
   let tempoSetupVivo = p.tempo_setup_seg || 0;
 
+  // Tempos específicos de colagem
+  let tempoColagemVivo = p.tempo_colagem_seg || 0;
+  let tempoPausaColagemVivo = p.tempo_pausa_colagem_seg || 0;
+
   if (p.status === "em_producao" && p.inicio_producao_ts) {
     tempoProducaoVivo += Math.floor((now - new Date(p.inicio_producao_ts).getTime()) / 1000);
   }
@@ -70,10 +74,22 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
     else tempoPausaVivo += pausaSeg;
   }
 
+  // Se está em colagem
+  if (p.maquina === "COLAGEM" && p.status === "em_producao" && p.inicio_producao_ts) {
+    tempoColagemVivo = p.tempo_colagem_seg || 0;
+    tempoColagemVivo += Math.floor((now - new Date(p.inicio_producao_ts).getTime()) / 1000);
+  }
+  if (p.maquina === "COLAGEM" && p.status === "pausado" && p.inicio_pausa_ts) {
+    tempoPausaColagemVivo = p.tempo_pausa_colagem_seg || 0;
+    tempoPausaColagemVivo += Math.floor((now - new Date(p.inicio_pausa_ts).getTime()) / 1000);
+  }
+
   const handleIniciar = () => {
-    onStatusChange(p, "em_producao", {
+    // Se é colagem, marca que começou a colagem (não reabrir)
+    const updates = {
       inicio_producao_ts: new Date().toISOString(),
-    });
+    };
+    onStatusChange(p, "em_producao", updates);
   };
 
   const handlePausar = () => {
@@ -128,37 +144,48 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
   };
 
   const handleFinalizar = async () => {
-    // Acumula tempo produção final
+    // Se é colagem — finaliza colagem com tempo específico
+    if (p.maquina === "COLAGEM") {
+      let colagSeg = p.tempo_colagem_seg || 0;
+      if (p.inicio_producao_ts) {
+        colagSeg += Math.floor((Date.now() - new Date(p.inicio_producao_ts).getTime()) / 1000);
+      }
+      // Desconta isopor ao finalizar colagem
+      if (p.eps && p.isopor_utilizado > 0) {
+        const isopores = await base44.entities.Isopor.list().catch(() => []);
+        const isoporItem = isopores.find(i => i.tipo === p.eps);
+        if (isoporItem) {
+          const novaQtd = Math.max(0, (isoporItem.quantidade || 0) - p.isopor_utilizado);
+          await base44.entities.Isopor.update(isoporItem.id, { quantidade: novaQtd });
+        }
+      }
+      onStatusChange(p, "finalizado", {
+        tempo_colagem_seg: colagSeg,
+        inicio_producao_ts: null,
+        data_finalizacao: format(new Date(), "yyyy-MM-dd"),
+      });
+      return;
+    }
+
+    // Caso contrário: finaliza máquina comum
     let prodSeg = p.tempo_producao_seg || 0;
     if (p.inicio_producao_ts) {
       prodSeg += Math.floor((Date.now() - new Date(p.inicio_producao_ts).getTime()) / 1000);
     }
 
-    // --- Desconta bobinas ao finalizar na máquina (não na colagem) ---
-    if (p.maquina !== "COLAGEM") {
-      if (p.bobina_superior_id && p.kg_superior > 0) {
-        const bobSup = await base44.entities.Bobina.get(p.bobina_superior_id).catch(() => null);
-        if (bobSup) {
-          const novoKg = Math.max(0, (bobSup.peso_kg || 0) - p.kg_superior);
-          await base44.entities.Bobina.update(p.bobina_superior_id, { peso_kg: novoKg });
-        }
-      }
-      if (p.bobina_inferior_id && p.kg_inferior > 0) {
-        const bobInf = await base44.entities.Bobina.get(p.bobina_inferior_id).catch(() => null);
-        if (bobInf) {
-          const novoKg = Math.max(0, (bobInf.peso_kg || 0) - p.kg_inferior);
-          await base44.entities.Bobina.update(p.bobina_inferior_id, { peso_kg: novoKg });
-        }
+    // Desconta bobinas ao finalizar na máquina
+    if (p.bobina_superior_id && p.kg_superior > 0) {
+      const bobSup = await base44.entities.Bobina.get(p.bobina_superior_id).catch(() => null);
+      if (bobSup) {
+        const novoKg = Math.max(0, (bobSup.peso_kg || 0) - p.kg_superior);
+        await base44.entities.Bobina.update(p.bobina_superior_id, { peso_kg: novoKg });
       }
     }
-
-    // --- Desconta isopor ao finalizar na COLAGEM ---
-    if (p.maquina === "COLAGEM" && p.eps && p.isopor_utilizado > 0) {
-      const isopores = await base44.entities.Isopor.list().catch(() => []);
-      const isoporItem = isopores.find(i => i.tipo === p.eps);
-      if (isoporItem) {
-        const novaQtd = Math.max(0, (isoporItem.quantidade || 0) - p.isopor_utilizado);
-        await base44.entities.Isopor.update(isoporItem.id, { quantidade: novaQtd });
+    if (p.bobina_inferior_id && p.kg_inferior > 0) {
+      const bobInf = await base44.entities.Bobina.get(p.bobina_inferior_id).catch(() => null);
+      if (bobInf) {
+        const novoKg = Math.max(0, (bobInf.peso_kg || 0) - p.kg_inferior);
+        await base44.entities.Bobina.update(p.bobina_inferior_id, { peso_kg: novoKg });
       }
     }
 
@@ -239,37 +266,66 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
           </div>
         )}
 
-        {/* Cronômetros — só aparecem quando há tempo */}
-        {(p.status === "em_producao" || p.status === "pausado" || tempoProducaoVivo > 0) && (
-          <div className="grid grid-cols-3 gap-2 mb-3">
-            <div className={`rounded-lg px-3 py-2 text-center ${p.status === "em_producao" ? "bg-green-50 border border-green-200" : "bg-slate-50 border border-border"}`}>
-              <div className="flex items-center justify-center gap-1 mb-0.5">
-                <Timer className="w-3 h-3 text-green-600" />
-                <span className="text-xs text-muted-foreground">Produção</span>
+        {/* Cronômetros — separa tempos de máquina vs colagem */}
+        {p.maquina === "COLAGEM" ? (
+          // Para colagem: só mostra tempo de colagem
+          (p.status === "em_producao" || p.status === "pausado" || tempoColagemVivo > 0) && (
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <div className={`rounded-lg px-3 py-2 text-center ${p.status === "em_producao" ? "bg-red-50 border border-red-200" : "bg-slate-50 border border-border"}`}>
+                <div className="flex items-center justify-center gap-1 mb-0.5">
+                  <Timer className="w-3 h-3 text-red-600" />
+                  <span className="text-xs text-muted-foreground">Colagem</span>
+                </div>
+                <p className={`text-sm font-bold tabular-nums ${p.status === "em_producao" ? "text-red-700" : "text-slate-600"}`}>
+                  {formatTempo(tempoColagemVivo)}
+                </p>
               </div>
-              <p className={`text-sm font-bold tabular-nums ${p.status === "em_producao" ? "text-green-700" : "text-slate-600"}`}>
-                {formatTempo(tempoProducaoVivo)}
-              </p>
+              {p.tempo_producao_seg > 0 && (
+                <div className="rounded-lg px-3 py-2 text-center bg-slate-50 border border-border">
+                  <div className="flex items-center justify-center gap-1 mb-0.5">
+                    <Timer className="w-3 h-3 text-slate-400" />
+                    <span className="text-xs text-muted-foreground">Máquina</span>
+                  </div>
+                  <p className="text-sm font-bold tabular-nums text-slate-600">
+                    {formatTempo(p.tempo_producao_seg)}
+                  </p>
+                </div>
+              )}
             </div>
-            <div className={`rounded-lg px-3 py-2 text-center ${p.status === "pausado" && p.motivo_pausa !== "setup" ? "bg-amber-50 border border-amber-200" : "bg-slate-50 border border-border"}`}>
-              <div className="flex items-center justify-center gap-1 mb-0.5">
-                <Coffee className="w-3 h-3 text-amber-600" />
-                <span className="text-xs text-muted-foreground">Pausa</span>
+          )
+        ) : (
+          // Para máquinas: Produção + Pausa + Setup
+          (p.status === "em_producao" || p.status === "pausado" || tempoProducaoVivo > 0) && (
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <div className={`rounded-lg px-3 py-2 text-center ${p.status === "em_producao" ? "bg-green-50 border border-green-200" : "bg-slate-50 border border-border"}`}>
+                <div className="flex items-center justify-center gap-1 mb-0.5">
+                  <Timer className="w-3 h-3 text-green-600" />
+                  <span className="text-xs text-muted-foreground">Produção</span>
+                </div>
+                <p className={`text-sm font-bold tabular-nums ${p.status === "em_producao" ? "text-green-700" : "text-slate-600"}`}>
+                  {formatTempo(tempoProducaoVivo)}
+                </p>
               </div>
-              <p className={`text-sm font-bold tabular-nums ${p.status === "pausado" && p.motivo_pausa !== "setup" ? "text-amber-700" : "text-slate-600"}`}>
-                {formatTempo(tempoPausaVivo)}
-              </p>
-            </div>
-            <div className={`rounded-lg px-3 py-2 text-center ${p.status === "pausado" && p.motivo_pausa === "setup" ? "bg-purple-50 border border-purple-200" : "bg-slate-50 border border-border"}`}>
-              <div className="flex items-center justify-center gap-1 mb-0.5">
-                <Square className="w-3 h-3 text-purple-600" />
-                <span className="text-xs text-muted-foreground">Setup</span>
+              <div className={`rounded-lg px-3 py-2 text-center ${p.status === "pausado" && p.motivo_pausa !== "setup" ? "bg-amber-50 border border-amber-200" : "bg-slate-50 border border-border"}`}>
+                <div className="flex items-center justify-center gap-1 mb-0.5">
+                  <Coffee className="w-3 h-3 text-amber-600" />
+                  <span className="text-xs text-muted-foreground">Pausa</span>
+                </div>
+                <p className={`text-sm font-bold tabular-nums ${p.status === "pausado" && p.motivo_pausa !== "setup" ? "text-amber-700" : "text-slate-600"}`}>
+                  {formatTempo(tempoPausaVivo)}
+                </p>
               </div>
-              <p className={`text-sm font-bold tabular-nums ${p.status === "pausado" && p.motivo_pausa === "setup" ? "text-purple-700" : "text-slate-600"}`}>
-                {formatTempo(tempoSetupVivo)}
-              </p>
+              <div className={`rounded-lg px-3 py-2 text-center ${p.status === "pausado" && p.motivo_pausa === "setup" ? "bg-purple-50 border border-purple-200" : "bg-slate-50 border border-border"}`}>
+                <div className="flex items-center justify-center gap-1 mb-0.5">
+                  <Square className="w-3 h-3 text-purple-600" />
+                  <span className="text-xs text-muted-foreground">Setup</span>
+                </div>
+                <p className={`text-sm font-bold tabular-nums ${p.status === "pausado" && p.motivo_pausa === "setup" ? "text-purple-700" : "text-slate-600"}`}>
+                  {formatTempo(tempoSetupVivo)}
+                </p>
+              </div>
             </div>
-          </div>
+          )
         )}
 
         {/* Etapas */}
@@ -295,7 +351,7 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
         <div className="flex items-center justify-end gap-2 mt-3">
           {p.status === "pendente" && (
             <Button size="sm" className="gap-1 bg-amber-500 hover:bg-amber-600 text-white border-0" onClick={handleIniciar}>
-              <Play className="w-3 h-3" /> Iniciar
+              <Play className="w-3 h-3" /> {p.maquina === "COLAGEM" ? "Iniciar Colagem" : "Iniciar"}
             </Button>
           )}
 
@@ -317,7 +373,13 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
             </Button>
           )}
 
-          {(p.status === "finalizado" || p.status === "aguardando_colagem") && (
+          {p.status === "aguardando_colagem" && (
+            <Button size="sm" variant="outline" className="gap-1 text-amber-600 border-amber-300 hover:bg-amber-50" onClick={() => onStatusChange(p, "pendente", { inicio_producao_ts: null })}>
+              ↩ Retornar
+            </Button>
+          )}
+
+          {p.status === "finalizado" && p.maquina !== "COLAGEM" && (
             <Button size="sm" variant="outline" className="gap-1 text-slate-500" onClick={() => onStatusChange(p, "pendente", { inicio_producao_ts: null })}>
               ↩ Reabrir
             </Button>
