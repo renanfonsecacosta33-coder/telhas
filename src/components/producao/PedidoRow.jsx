@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee } from "lucide-react";
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
@@ -43,6 +44,8 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
   const [pauseDialog, setPauseDialog] = useState(false);
   const [pauseMotivo, setPauseMotivo] = useState("");
   const [pauseTipo, setPauseTipo] = useState("setup"); // "setup" | "outro"
+  const [metragemDialog, setMetragemDialog] = useState(false);
+  const [metragemReal, setMetragemReal] = useState("");
   const [tick, setTick] = useState(0);
   const intervalRef = useRef(null);
 
@@ -143,8 +146,20 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
     });
   };
 
-  const handleFinalizar = async () => {
-    // Se é colagem — finaliza colagem com tempo específico
+  const handleFinalizar = () => {
+    // Abre dialog de confirmação de metragem
+    setMetragemReal(p.metragem_planejada?.toString() || "");
+    setMetragemDialog(true);
+  };
+
+  const confirmarFinalizacao = async () => {
+    const metragemRealNum = Number(metragemReal) || 0;
+    if (metragemRealNum <= 0) {
+      alert("Informe a metragem real (maior que 0)");
+      return;
+    }
+
+    // Se é colagem — finaliza colagem
     if (p.maquina === "COLAGEM") {
       let colagSeg = p.tempo_colagem_seg || 0;
       if (p.inicio_producao_ts) {
@@ -161,41 +176,60 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
       }
       onStatusChange(p, "finalizado", {
         tempo_colagem_seg: colagSeg,
+        metragem_utilizada: metragemRealNum,
         inicio_producao_ts: null,
         data_finalizacao: format(new Date(), "yyyy-MM-dd"),
       });
+      setMetragemDialog(false);
       return;
     }
 
-    // Caso contrário: finaliza máquina comum
+    // Máquina comum: precisa descontar KG baseado em metragem real
     let prodSeg = p.tempo_producao_seg || 0;
     if (p.inicio_producao_ts) {
       prodSeg += Math.floor((Date.now() - new Date(p.inicio_producao_ts).getTime()) / 1000);
     }
 
-    // Desconta bobinas ao finalizar na máquina
-    if (p.bobina_superior_id && p.kg_superior > 0) {
+    // Calcula diferença de metragem e ajusta KG proporcionalmente
+    const metragemPlanejada = Number(p.metragem_planejada) || 0;
+    const razao = metragemPlanejada > 0 ? metragemRealNum / metragemPlanejada : 1;
+
+    let kgSuperiorReal = (Number(p.kg_superior) || 0) * razao;
+    let kgInferiorReal = (Number(p.kg_inferior) || 0) * razao;
+
+    // Desconta bobinas com metragem real
+    if (p.bobina_superior_id && kgSuperiorReal > 0) {
       const bobSup = await base44.entities.Bobina.get(p.bobina_superior_id).catch(() => null);
       if (bobSup) {
-        const novoKg = Math.max(0, (bobSup.peso_kg || 0) - p.kg_superior);
-        await base44.entities.Bobina.update(p.bobina_superior_id, { peso_kg: novoKg });
+        const novoKg = Math.max(0, (bobSup.peso_kg || 0) - kgSuperiorReal);
+        const metragemRestante = bobSup.metragem_restante ? (bobSup.metragem_restante - metragemRealNum) : undefined;
+        await base44.entities.Bobina.update(p.bobina_superior_id, {
+          peso_kg: novoKg,
+          ...(metragemRestante !== undefined ? { metragem_restante: Math.max(0, metragemRestante) } : {})
+        });
       }
     }
-    if (p.bobina_inferior_id && p.kg_inferior > 0) {
+    if (p.bobina_inferior_id && kgInferiorReal > 0) {
       const bobInf = await base44.entities.Bobina.get(p.bobina_inferior_id).catch(() => null);
       if (bobInf) {
-        const novoKg = Math.max(0, (bobInf.peso_kg || 0) - p.kg_inferior);
-        await base44.entities.Bobina.update(p.bobina_inferior_id, { peso_kg: novoKg });
+        const novoKg = Math.max(0, (bobInf.peso_kg || 0) - kgInferiorReal);
+        const metragemRestante = bobInf.metragem_restante ? (bobInf.metragem_restante - metragemRealNum) : undefined;
+        await base44.entities.Bobina.update(p.bobina_inferior_id, {
+          peso_kg: novoKg,
+          ...(metragemRestante !== undefined ? { metragem_restante: Math.max(0, metragemRestante) } : {})
+        });
       }
     }
 
     const novoStatus = precisaColagem ? "aguardando_colagem" : "finalizado";
     onStatusChange(p, novoStatus, {
       tempo_producao_seg: prodSeg,
+      metragem_utilizada: metragemRealNum,
       inicio_producao_ts: null,
       data_finalizacao: format(new Date(), "yyyy-MM-dd"),
       ...(precisaColagem ? { maquina: "COLAGEM" } : {}),
     });
+    setMetragemDialog(false);
   };
 
   const steps = ETAPAS[p.produto];
@@ -431,6 +465,57 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
               className="gap-1"
             >
               <Pause className="w-4 h-4" /> Confirmar Pausa
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de confirmação de metragem */}
+      <Dialog open={metragemDialog} onOpenChange={setMetragemDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirmar Metragem {p.maquina === "COLAGEM" ? "de Colagem" : "Produzida"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 space-y-2">
+              <p className="text-xs font-semibold text-blue-900 uppercase">Metragem Planejada</p>
+              <p className="text-2xl font-bold text-blue-700">{p.metragem_planejada || 0}m</p>
+            </div>
+
+            {p.kg_superior > 0 && (
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-slate-600 uppercase">KG da Bobina Superior</p>
+                <p className="text-lg font-bold text-slate-700">{p.kg_superior}kg</p>
+              </div>
+            )}
+            {p.kg_inferior > 0 && (
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-slate-600 uppercase">KG da Bobina Inferior</p>
+                <p className="text-lg font-bold text-slate-700">{p.kg_inferior}kg</p>
+              </div>
+            )}
+
+            <div className="space-y-1 border-t pt-4">
+              <Label className="text-sm font-semibold">Metragem Real {p.maquina === "COLAGEM" ? "de Colagem" : "Produzida"}</Label>
+              <input
+                type="number"
+                value={metragemReal}
+                onChange={(e) => setMetragemReal(e.target.value)}
+                placeholder="0"
+                className="w-full px-3 py-2 border border-border rounded-lg font-bold text-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">Se for diferente do planejado, o KG será ajustado proporcionalmente</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMetragemDialog(false)}>Cancelar</Button>
+            <Button
+              onClick={confirmarFinalizacao}
+              disabled={!metragemReal || Number(metragemReal) <= 0}
+              className="gap-1 bg-green-600 hover:bg-green-700"
+            >
+              <CheckCircle2 className="w-4 h-4" /> Confirmar e Finalizar
             </Button>
           </DialogFooter>
         </DialogContent>
