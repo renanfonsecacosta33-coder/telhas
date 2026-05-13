@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Clock, Circle, ChevronLeft, ChevronRight, AlertCircle, Layers } from "lucide-react";
+import { CheckCircle2, Clock, Circle, ChevronLeft, ChevronRight, AlertCircle, Layers, ArrowLeft } from "lucide-react";
 import { format, addDays, subDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -209,6 +210,7 @@ function EtapasProducao({ produto }) {
 }
 
 export default function MaquinaPanel({ maquina }) {
+  const navigate = useNavigate();
   const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
   const queryClient = useQueryClient();
 
@@ -255,6 +257,17 @@ export default function MaquinaPanel({ maquina }) {
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
+      {/* Botão de voltar */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => navigate("/producao")}
+        className="gap-2 text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Voltar para Produção
+      </Button>
+
       {/* Header máquina */}
       <div className="bg-gradient-to-r from-primary to-primary/80 rounded-2xl p-6 text-primary-foreground shadow-lg">
         <p className="text-sm opacity-75 font-medium uppercase tracking-wide">Painel da Máquina</p>
