@@ -2,10 +2,11 @@ import React from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Circle, Snowflake, Package, ArrowRight, Ruler } from "lucide-react";
+import { Circle, Snowflake, Package, ArrowRight, Ruler, Factory, Clock, CheckCircle2, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import StatsCard from "@/components/stock/StatsCard";
+import { format } from "date-fns";
 
 export default function Dashboard() {
   const { data: bobinas = [] } = useQuery({
@@ -22,6 +23,18 @@ export default function Dashboard() {
     queryKey: ["produtos"],
     queryFn: () => base44.entities.Produto.list(),
   });
+
+  const { data: pedidos = [] } = useQuery({
+    queryKey: ["pedidos-dash"],
+    queryFn: () => base44.entities.Pedido.list("-data", 200),
+  });
+
+  const hoje = format(new Date(), "yyyy-MM-dd");
+  const pedidosHoje = pedidos.filter(p => p.data === hoje);
+  const emProducaoAgora = pedidos.filter(p => p.status === "em_producao" || p.status === "pausado").length;
+  const finalizadosHoje = pedidosHoje.filter(p => p.status === "finalizado").length;
+  const metrosHoje = pedidosHoje.reduce((s, p) => s + (p.metros || 0), 0);
+  const aguardandoColagem = pedidos.filter(p => p.status === "aguardando_colagem").length;
 
   const totalBobinas = bobinas.length;
   const totalIsopor = isopores.length;
@@ -93,12 +106,42 @@ export default function Dashboard() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Visão geral do estoque AJL Ferro e Aço</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Visão geral do estoque AJL Ferro e Aço</p>
+        </div>
+        <Link to="/dashboard-producao">
+          <Button variant="outline" className="gap-2">
+            <TrendingUp className="w-4 h-4" />
+            Dashboard Produção
+          </Button>
+        </Link>
       </div>
 
-      {/* Stats */}
+      {/* Produção hoje */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: "Metros Hoje", value: `${metrosHoje.toFixed(0)}m`, icon: TrendingUp, color: "text-primary", bg: "bg-primary/10", link: "/dashboard-producao" },
+          { label: "Em Produção Agora", value: emProducaoAgora, icon: Clock, color: "text-amber-600", bg: "bg-amber-50", link: "/producao" },
+          { label: "Finalizados Hoje", value: finalizadosHoje, icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50", link: "/producao" },
+          { label: "Aguard. Colagem", value: aguardandoColagem, icon: Factory, color: "text-orange-600", bg: "bg-orange-50", link: "/maquina/colagem" },
+        ].map(k => (
+          <Link key={k.label} to={k.link}>
+            <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3 hover:shadow-md transition-shadow cursor-pointer">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${k.bg}`}>
+                <k.icon className={`w-4 h-4 ${k.color}`} />
+              </div>
+              <div>
+                <p className={`text-xl font-black ${k.color}`}>{k.value}</p>
+                <p className="text-xs text-muted-foreground leading-tight">{k.label}</p>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {/* Stats estoque */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard title="Bobinas" value={totalBobinas} subtitle="itens cadastrados" icon={Circle} color="blue" />
         <StatsCard title="Isopor" value={totalIsopor} subtitle="tipos em estoque" icon={Snowflake} color="orange" />

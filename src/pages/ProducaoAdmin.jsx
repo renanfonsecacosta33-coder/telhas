@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, Cog } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, TrendingUp } from "lucide-react";
 import { Link } from "react-router-dom";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -138,13 +138,13 @@ export default function ProducaoAdmin() {
           <Factory className="w-4 h-4" />
           Produção
         </button>
-        <button
-          onClick={() => setActiveTab("colagem")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "colagem" ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+        <Link
+          to="/maquina/colagem"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all text-muted-foreground hover:bg-card hover:text-foreground hover:shadow"
         >
-          <Factory className="w-4 h-4" />
+          <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
           Colagem
-        </button>
+        </Link>
 
         {/* Separador visual */}
         <div className="w-px bg-border mx-1 self-stretch" />
@@ -178,6 +178,17 @@ export default function ProducaoAdmin() {
           <Database className="w-4 h-4" />
           Dados
         </button>
+
+        {/* Separador visual */}
+        <div className="w-px bg-border mx-1 self-stretch" />
+
+        <Link
+          to="/dashboard-producao"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all text-muted-foreground hover:bg-card hover:text-foreground hover:shadow"
+        >
+          <TrendingUp className="w-4 h-4" />
+          Dashboard
+        </Link>
       </div>
 
       {activeTab === "dados" && <ProducaoDados />}

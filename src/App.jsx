@@ -21,6 +21,8 @@ import Colonial from '@/pages/maquinas/Colonial';
 import Bandeja from '@/pages/maquinas/Bandeja';
 import Desbobinador from '@/pages/maquinas/Desbobinador';
 import Cumeeira from '@/pages/maquinas/Cumeeira';
+import Colagem from '@/pages/maquinas/Colagem';
+import DashboardProducao from '@/pages/DashboardProducao';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -64,6 +66,8 @@ const AuthenticatedApp = () => {
         <Route path="/maquina/bandeja" element={<Bandeja />} />
         <Route path="/maquina/desbobinador" element={<Desbobinador />} />
         <Route path="/maquina/cumeeira" element={<Cumeeira />} />
+        <Route path="/maquina/colagem" element={<Colagem />} />
+        <Route path="/dashboard-producao" element={<DashboardProducao />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
