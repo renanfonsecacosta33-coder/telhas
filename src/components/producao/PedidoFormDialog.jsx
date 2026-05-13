@@ -247,39 +247,39 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Linha 1: Data / Máquina / Produto */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Linha 1: Data / Produto */}
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Data *</Label>
               <Input type="date" value={form.data} onChange={e => set("data", e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Máquina *</Label>
-              <Select value={form.maquina} onValueChange={v => set("maquina", v)}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>{MAQUINAS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
               <Label>Produto *</Label>
-              <Select value={form.produto} onValueChange={v => set("produto", v)}>
+              <Select value={form.produto} onValueChange={v => { set("produto", v); set("modelo", ""); set("maquina", ""); }}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>{PRODUTOS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
               </Select>
             </div>
           </div>
 
-          {/* Modelo — select do cadastro */}
+          {/* Modelo — select do cadastro (substitui Máquina) */}
           <div className="space-y-1">
             <Label>Modelo *</Label>
-            <Select value={form.modelo} onValueChange={v => set("modelo", v)}>
+            <Select
+              value={form.modelo}
+              onValueChange={v => {
+                const modeloObj = modelosCad.find(m => m.modelo === v);
+                // Preenche máquina automaticamente com base no modelo
+                const maquinaAuto = modeloObj?.maquinas?.split(",")[0]?.trim() || "";
+                setForm(f => ({ ...f, modelo: v, maquina: maquinaAuto }));
+              }}
+            >
               <SelectTrigger><SelectValue placeholder={form.produto ? "Selecione o modelo..." : "Selecione o produto primeiro"} /></SelectTrigger>
               <SelectContent>
                 {modelosFiltrados.map(m => (
                   <SelectItem key={m.id} value={m.modelo}>
                     <span className="font-medium">{m.modelo}</span>
-                    {m.maquinas && <span className="text-muted-foreground text-xs ml-2">({m.maquinas})</span>}
-                    {m.espessuras && <span className="text-muted-foreground text-xs ml-1">· {m.espessuras}</span>}
+                    {m.espessuras && <span className="text-muted-foreground text-xs ml-2">· {m.espessuras}</span>}
                   </SelectItem>
                 ))}
                 {modelosFiltrados.length === 0 && (
@@ -287,6 +287,9 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                 )}
               </SelectContent>
             </Select>
+            {form.maquina && (
+              <p className="text-xs text-muted-foreground">Máquina: <strong>{form.maquina}</strong></p>
+            )}
           </div>
 
           {/* Vendedor / Cliente / Pedido */}
@@ -294,9 +297,9 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
             <div className="space-y-1">
               <Label>Vendedor</Label>
               <Select value={form.vendedor} onValueChange={v => set("vendedor", v)}>
-                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Selecione o vendedor" /></SelectTrigger>
                 <SelectContent>
-                  {dadosVendedores.map(v => <SelectItem key={v.id} value={v.valor}>{v.valor}</SelectItem>)}
+                  {dadosVendedores.map(d => <SelectItem key={d.id} value={d.valor}>{d.valor}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
