@@ -23,6 +23,14 @@ import Desbobinador from '@/pages/maquinas/Desbobinador';
 import Cumeeira from '@/pages/maquinas/Cumeeira';
 import Colagem from '@/pages/maquinas/Colagem';
 import DashboardProducao from '@/pages/DashboardProducao';
+import DashboardTP40 from '@/pages/maquinas/DashboardTP40';
+import DashboardTP25 from '@/pages/maquinas/DashboardTP25';
+import DashboardOndulada from '@/pages/maquinas/DashboardOndulada';
+import DashboardColonial from '@/pages/maquinas/DashboardColonial';
+import DashboardBandeja from '@/pages/maquinas/DashboardBandeja';
+import DashboardDesbobinador from '@/pages/maquinas/DashboardDesbobinador';
+import DashboardCumeeira from '@/pages/maquinas/DashboardCumeeira';
+import DashboardColagem from '@/pages/maquinas/DashboardColagem';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -68,6 +76,14 @@ const AuthenticatedApp = () => {
         <Route path="/maquina/cumeeira" element={<Cumeeira />} />
         <Route path="/maquina/colagem" element={<Colagem />} />
         <Route path="/dashboard-producao" element={<DashboardProducao />} />
+        <Route path="/dashboard/tp40" element={<DashboardTP40 />} />
+        <Route path="/dashboard/tp25" element={<DashboardTP25 />} />
+        <Route path="/dashboard/ondulada" element={<DashboardOndulada />} />
+        <Route path="/dashboard/colonial" element={<DashboardColonial />} />
+        <Route path="/dashboard/bandeja" element={<DashboardBandeja />} />
+        <Route path="/dashboard/desbobinador" element={<DashboardDesbobinador />} />
+        <Route path="/dashboard/cumeeira" element={<DashboardCumeeira />} />
+        <Route path="/dashboard/colagem" element={<DashboardColagem />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

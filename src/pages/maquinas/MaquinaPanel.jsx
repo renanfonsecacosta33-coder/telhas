@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Circle, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
+import { Circle, ChevronLeft, ChevronRight, ArrowLeft, BarChart2 } from "lucide-react";
 import { format, addDays, subDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -15,6 +15,17 @@ import PedidoRow from "@/components/producao/PedidoRow";
 
 
 
+
+const DASH_PATHS = {
+  "TP - 40": "/dashboard/tp40",
+  "TP - 25": "/dashboard/tp25",
+  "ONDULADA": "/dashboard/ondulada",
+  "COLONIAL": "/dashboard/colonial",
+  "BANDEJA": "/dashboard/bandeja",
+  "DESBOBINADOR": "/dashboard/desbobinador",
+  "CUMEEIRA": "/dashboard/cumeeira",
+  "COLAGEM": "/dashboard/colagem",
+};
 
 export default function MaquinaPanel({ maquina }) {
   const navigate = useNavigate();
@@ -63,16 +74,26 @@ export default function MaquinaPanel({ maquina }) {
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
-      {/* Botão de voltar */}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => navigate("/producao")}
-        className="gap-2 text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Voltar para Produção
-      </Button>
+      {/* Botão de voltar + Dashboard */}
+      <div className="flex items-center justify-between">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate("/producao")}
+          className="gap-2 text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Voltar para Produção
+        </Button>
+        {DASH_PATHS[maquina] && (
+          <Link to={DASH_PATHS[maquina]}>
+            <Button variant="outline" size="sm" className="gap-2">
+              <BarChart2 className="w-4 h-4" />
+              Dashboard {maquina}
+            </Button>
+          </Link>
+        )}
+      </div>
 
       {/* Header máquina */}
       <div className="bg-gradient-to-r from-primary to-primary/80 rounded-2xl p-6 text-primary-foreground shadow-lg">
