@@ -190,9 +190,9 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
       prodSeg += Math.floor((Date.now() - new Date(p.inicio_producao_ts).getTime()) / 1000);
     }
 
-    // Calcula diferença de metragem e ajusta KG proporcionalmente
-    const metragemPlanejada = Number(p.metragem_planejada) || 0;
-    const razao = metragemPlanejada > 0 ? metragemRealNum / metragemPlanejada : 1;
+    // Calcula metragem total do pedido (metros × metragem_mm / 1000)
+    const metragemTotalPedido = (Number(p.metros) || 0) * ((Number(p.metragem_mm) || 0) / 1000);
+    const razao = metragemTotalPedido > 0 ? metragemRealNum / metragemTotalPedido : 1;
 
     let kgSuperiorReal = (Number(p.kg_superior) || 0) * razao;
     let kgInferiorReal = (Number(p.kg_inferior) || 0) * razao;
@@ -478,8 +478,11 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 space-y-2">
-              <p className="text-xs font-semibold text-blue-900 uppercase">Metragem Planejada</p>
-              <p className="text-2xl font-bold text-blue-700">{p.metragem_planejada || 0}m</p>
+              <p className="text-xs font-semibold text-blue-900 uppercase">Metragem Total do Pedido</p>
+              <p className="text-2xl font-bold text-blue-700">
+                {((Number(p.metros) || 0) * ((Number(p.metragem_mm) || 0) / 1000)).toFixed(2)}m
+              </p>
+              <p className="text-xs text-blue-600">({p.metros} telhas × {Number(p.metragem_mm) || 0}mm)</p>
             </div>
 
             {p.kg_superior > 0 && (
