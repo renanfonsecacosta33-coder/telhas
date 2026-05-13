@@ -451,53 +451,49 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           <div className="border border-border rounded-lg p-3 space-y-3">
             <p className="text-sm font-semibold">Quantidades</p>
 
-            {/* Metros — campo principal */}
-            <div className="space-y-1">
-              <Label className="text-xs">Quantidade</Label>
-              <Input
-                type="number"
-                placeholder="0"
-                value={form.metros}
-                onChange={(e) => handleMetrosChange(e.target.value)}
-                className="font-bold text-lg border-primary/50 focus:border-primary" />
-              
-            </div>
-
-            {/* Quantidade de Telhas + Metragem em mm */}
+            {/* Linha: Quantidade de telhas + Metragem individual em mm */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">
-                  Metragem Total do Pedido:
-                  {form.quantidade_telhas && form.metragem_mm && (
-                    <span className="text-muted-foreground font-normal ml-1">
-                      {+(Number(form.quantidade_telhas) * Number(form.metragem_mm)).toFixed(0)}mm
-                      ({+(Number(form.quantidade_telhas) * (Number(form.metragem_mm) / 1000)).toFixed(2)}m)
-                    </span>
-                  )}
-                </Label>
+                <Label className="text-xs">Quantidade de Telhas</Label>
                 <Input
                   type="number"
-                  placeholder="Auto"
-                  value={form.quantidade_telhas}
-                  onChange={(e) => set("quantidade_telhas", e.target.value)}
-                  className="bg-muted/40" />
-                
+                  placeholder="0"
+                  value={form.metros}
+                  onChange={(e) => handleMetrosChange(e.target.value)}
+                  className="font-bold text-lg border-primary/50 focus:border-primary" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">
-                  Metragem (mm)
+                  Metragem Individual (mm)
                   {form.metragem_mm && Number(form.metragem_mm) > 0 &&
-                  <span className="text-muted-foreground ml-1">({(Number(form.metragem_mm) / 1000).toFixed(3)}m)</span>
+                    <span className="text-muted-foreground ml-1">({(Number(form.metragem_mm) / 1000).toFixed(3)}m)</span>
                   }
                 </Label>
                 <Input
                   type="number"
-                  placeholder="ex: 5000 mm"
+                  placeholder="ex: 5000"
                   value={form.metragem_mm}
                   onChange={(e) => handleMetragemMmChange(e.target.value)} />
-                
               </div>
             </div>
+
+            {/* Metragem Total — somente leitura */}
+            {form.metros && form.metragem_mm && Number(form.metros) > 0 && Number(form.metragem_mm) > 0 && (
+              <div className="bg-primary/5 border border-primary/20 rounded-lg px-4 py-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Metragem Total do Pedido</p>
+                  <p className="text-xs text-muted-foreground">{Number(form.metros)} telhas × {Number(form.metragem_mm)}mm</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-xl font-bold text-primary">
+                    {+(Number(form.metros) * Number(form.metragem_mm)).toFixed(0)}mm
+                  </span>
+                  <p className="text-sm font-semibold text-primary/80">
+                    ({+(Number(form.metros) * (Number(form.metragem_mm) / 1000)).toFixed(2)}m)
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-1">
               <Label className="text-xs">Metragem Planejada de Bobina</Label>
