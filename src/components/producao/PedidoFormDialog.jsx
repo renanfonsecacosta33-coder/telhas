@@ -280,9 +280,20 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
               value={form.modelo}
               onValueChange={v => {
                 const modeloObj = modelosCad.find(m => m.modelo === v);
-                // Preenche máquina automaticamente com base no modelo
                 const maquinaAuto = modeloObj?.maquinas?.split(",")[0]?.trim() || "";
-                setForm(f => ({ ...f, modelo: v, maquina: maquinaAuto }));
+                // Deriva EPS automaticamente a partir do modelo
+                // Ex: "TP - 40" → "EPS - TP 40", "COLONIAL" → "EPS - COLONIAL"
+                let epsAuto = "";
+                if (v) {
+                  const vUp = v.toUpperCase();
+                  if (vUp.includes("TP - 25") || vUp.includes("TP25") || vUp.includes("TP-25")) epsAuto = "EPS - TP 25";
+                  else if (vUp.includes("BANDEJA")) epsAuto = "EPS - TP 40 BANDEJA";
+                  else if (vUp.includes("TP - 40") || vUp.includes("TP40") || vUp.includes("TP-40")) epsAuto = "EPS - TP 40";
+                  else if (vUp.includes("COLONIAL BANDEJA")) epsAuto = "EPS - COLONIAL BANDEJA";
+                  else if (vUp.includes("COLONIAL")) epsAuto = "EPS - COLONIAL";
+                  else if (vUp.includes("ONDULAD")) epsAuto = "EPS - ONDULADO";
+                }
+                setForm(f => ({ ...f, modelo: v, maquina: maquinaAuto, eps: epsAuto || f.eps }));
               }}
             >
               <SelectTrigger><SelectValue placeholder={form.produto ? "Selecione o modelo..." : "Selecione o produto primeiro"} /></SelectTrigger>
@@ -401,21 +412,11 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           {/* EPS */}
           {precisaEPS && (
             <div className="border border-border rounded-lg p-3 space-y-3">
-              <p className="text-sm font-semibold">EPS / Isopor</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">Tipo de EPS</Label>
-                  <Select value={form.eps} onValueChange={v => set("eps", v)}>
-                    <SelectTrigger><SelectValue placeholder="Selecione o EPS" /></SelectTrigger>
-                    <SelectContent>{tiposEPS.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Maquinário</Label>
-                  <Select value={form.maquinario_superior} onValueChange={v => set("maquinario_superior", v)}>
-                    <SelectTrigger><SelectValue placeholder="Maquinário" /></SelectTrigger>
-                    <SelectContent>{MAQUINAS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-                  </Select>
+              <p className="text-sm font-semibold">EPS / Isopor <span className="text-xs font-normal text-muted-foreground">— processo: COLAGEM</span></p>
+              <div className="space-y-1">
+                <Label className="text-xs">Tipo de EPS</Label>
+                <div className="bg-muted/40 border border-border rounded-md px-3 py-2 text-sm font-medium">
+                  {form.eps || <span className="text-muted-foreground">Selecione o modelo para definir o EPS</span>}
                 </div>
               </div>
               {/* Quantidade de isopor calculada automaticamente */}
