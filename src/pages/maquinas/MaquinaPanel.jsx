@@ -4,210 +4,17 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Clock, Circle, ChevronLeft, ChevronRight, AlertCircle, Layers, ArrowLeft } from "lucide-react";
+import { Circle, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
 import { format, addDays, subDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import PedidoRow from "@/components/producao/PedidoRow";
 
-const STATUS_CONFIG = {
-  pendente:    { label: "Pendente",    Icon: Circle,       color: "bg-slate-100 text-slate-600 border-slate-200",  dot: "bg-slate-400" },
-  em_producao: { label: "Em Produção", Icon: Clock,        color: "bg-amber-100 text-amber-700 border-amber-200",  dot: "bg-amber-500" },
-  finalizado:  { label: "Finalizado",  Icon: CheckCircle2, color: "bg-green-100 text-green-700 border-green-200",  dot: "bg-green-500" },
-  cancelado:   { label: "Cancelado",   Icon: AlertCircle,  color: "bg-red-100 text-red-700 border-red-200",        dot: "bg-red-400"   },
-};
 
-const PRODUTO_BG = {
-  "TELHA":              "border-l-blue-400",
-  "TELHA + EPS":        "border-l-emerald-400",
-  "TELHA + EPS + MANTA":"border-l-teal-400",
-  "TELHA + EPS + TELHA":"border-l-indigo-400",
-  "TELHA BANDEJA":      "border-l-pink-400",
-  "BOBININHA":          "border-l-yellow-400",
-  "CUMEEIRA":           "border-l-orange-400",
-  "PAINEL":             "border-l-purple-400",
-};
 
-function PedidoRow({ pedido: p, onStatusChange }) {
-  const st = STATUS_CONFIG[p.status] || STATUS_CONFIG.pendente;
-  const borderColor = PRODUTO_BG[p.produto] || "border-l-slate-300";
 
-  const nextStatus = p.status === "pendente" ? "em_producao"
-    : p.status === "em_producao" ? "finalizado"
-    : p.status === "finalizado" ? "pendente"
-    : "pendente";
 
-  const actionLabel = p.status === "pendente" ? "▶ Iniciar"
-    : p.status === "em_producao" ? "✓ Finalizar"
-    : "↩ Reabrir";
 
-  const actionClass = p.status === "pendente"
-    ? "border-amber-300 text-amber-700 hover:bg-amber-50"
-    : p.status === "em_producao"
-    ? "bg-green-600 text-white hover:bg-green-700 border-green-600"
-    : "border-slate-300 text-slate-600 hover:bg-slate-50";
-
-  return (
-    <div className={`border-l-4 ${borderColor} bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow`}>
-      {/* Header row */}
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span className="font-bold text-base">{p.produto}</span>
-            <Badge className={`border text-xs ${st.color}`}>
-              <st.Icon className="w-3 h-3 mr-1" />
-              {st.label}
-            </Badge>
-          </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
-            {p.cliente && (
-              <span className="font-semibold text-slate-700">{p.cliente}</span>
-            )}
-            {p.vendedor && (
-              <span className="text-muted-foreground">{p.vendedor}</span>
-            )}
-            {p.numero_pedido && (
-              <span className="text-muted-foreground font-mono text-xs">#{p.numero_pedido}</span>
-            )}
-          </div>
-        </div>
-
-        {/* Metros destaque */}
-        <div className="text-right flex-shrink-0">
-          <p className="text-3xl font-black text-primary leading-none">
-            {(p.metros || 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
-            <span className="text-base font-normal text-muted-foreground">m</span>
-          </p>
-          {p.valor > 0 && (
-            <p className="text-xs text-muted-foreground mt-0.5">
-              R$ {Number(p.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Detalhes técnicos */}
-      <div className="flex flex-wrap gap-2 mb-3">
-        {p.bobina_superior && (
-          <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full">
-            Bobina: {p.bobina_superior}
-          </span>
-        )}
-        {p.rvm_superior && (
-          <span className="bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded-full">
-            {p.rvm_superior}{p.rvm_inferior ? ` / ${p.rvm_inferior}` : ""}
-          </span>
-        )}
-        {p.eps && (
-          <span className="bg-emerald-50 text-emerald-700 text-xs px-2 py-0.5 rounded-full">
-            EPS: {p.eps}
-          </span>
-        )}
-        {p.kg_total > 0 && (
-          <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full">
-            {p.kg_total} kg
-          </span>
-        )}
-        {p.maquinario_superior && (
-          <span className="bg-purple-50 text-purple-700 text-xs px-2 py-0.5 rounded-full">
-            Maq: {p.maquinario_superior}
-          </span>
-        )}
-        {p.data_prevista && (
-          <span className="bg-orange-50 text-orange-700 text-xs px-2 py-0.5 rounded-full">
-            Previsto: {format(new Date(p.data_prevista + "T12:00:00"), "dd/MM")}
-          </span>
-        )}
-      </div>
-
-      {p.observacoes && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-1.5 text-xs text-yellow-800 mb-3">
-          {p.observacoes}
-        </div>
-      )}
-
-      {/* Etapas de produção do produto */}
-      <EtapasProducao produto={p.produto} />
-
-      {/* Botão de ação */}
-      <div className="mt-3 flex justify-end">
-        <Button
-          size="sm"
-          variant="outline"
-          className={`gap-1 font-semibold ${actionClass}`}
-          onClick={() => onStatusChange(p, nextStatus)}
-        >
-          {actionLabel}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function EtapasProducao({ produto }) {
-  const etapas = {
-    "TELHA": [
-      "Verificar bobina metálica (espessura e cor)",
-      "Passar pela perfiladeira",
-      "Cortar no tamanho",
-    ],
-    "TELHA + EPS": [
-      "Verificar bobina superior (metal)",
-      "Separar bloco de EPS",
-      "Colar EPS na chapa (cola + fita)",
-      "Passar pela colagem",
-    ],
-    "TELHA + EPS + TELHA": [
-      "Verificar bobina superior",
-      "Verificar bobina inferior",
-      "Separar EPS do tipo correto",
-      "Colar EPS na chapa superior",
-      "Colar chapa inferior (cola x2 + fita)",
-      "Passar pela colagem",
-    ],
-    "TELHA + EPS + MANTA": [
-      "Verificar bobina superior",
-      "Separar EPS",
-      "Preparar manta térmica",
-      "Colar EPS + manta na chapa (cola + fita)",
-    ],
-    "TELHA BANDEJA": [
-      "Verificar bobina superior",
-      "Verificar bobina inferior (Bandeja)",
-      "Separar EPS específico Bandeja",
-      "Colar com cola x2 nas duas faces",
-    ],
-    "BOBININHA": [
-      "Preparar desbobinador",
-      "Cortar e rebobinar",
-    ],
-    "CUMEEIRA": [
-      "Verificar bobina e cor",
-      "Passar pela cumeeira",
-      "Cortar e empacotar",
-    ],
-  };
-
-  const steps = etapas[produto];
-  if (!steps) return null;
-
-  return (
-    <div className="bg-slate-50 rounded-lg p-3">
-      <div className="flex items-center gap-1.5 mb-2">
-        <Layers className="w-3 h-3 text-slate-500" />
-        <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Etapas de Produção</span>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {steps.map((step, i) => (
-          <div key={i} className="flex items-center gap-1.5 text-xs text-slate-600">
-            <span className="w-4 h-4 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs flex-shrink-0">{i + 1}</span>
-            <span>{step}</span>
-            {i < steps.length - 1 && <span className="text-slate-300 ml-1">›</span>}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export default function MaquinaPanel({ maquina }) {
   const navigate = useNavigate();
@@ -217,7 +24,7 @@ export default function MaquinaPanel({ maquina }) {
   const { data: pedidos = [], isLoading } = useQuery({
     queryKey: ["pedidos-maquina", maquina],
     queryFn: () => base44.entities.Pedido.filter({ maquina }, "-data", 300),
-    refetchInterval: 30000,
+    refetchInterval: 10000,
   });
 
   const updateMutation = useMutation({
@@ -228,25 +35,24 @@ export default function MaquinaPanel({ maquina }) {
     },
   });
 
-  const handleStatusChange = (pedido, novoStatus) => {
-    const data = { ...pedido, status: novoStatus };
-    if (novoStatus === "finalizado") data.data_finalizacao = format(new Date(), "yyyy-MM-dd");
+  const handleStatusChange = (pedido, novoStatus, extraData = {}) => {
+    const data = { ...pedido, status: novoStatus, ...extraData };
     updateMutation.mutate({ id: pedido.id, data });
   };
 
   const pedidosDia = useMemo(() => {
-    return pedidos.filter(p => p.data === selectedDay);
+    return pedidos.filter(p => p.data === selectedDay || p.status === "pausado" || p.status === "em_producao");
   }, [pedidos, selectedDay]);
 
   const hoje = isToday(new Date(selectedDay + "T12:00:00"));
   const totalMetros = pedidosDia.reduce((s, p) => s + (p.metros || 0), 0);
-  const finalizados = pedidosDia.filter(p => p.status === "finalizado").length;
-  const emProducao = pedidosDia.filter(p => p.status === "em_producao").length;
+  const finalizados = pedidosDia.filter(p => p.status === "finalizado" || p.status === "aguardando_colagem").length;
+  const emProducao = pedidosDia.filter(p => p.status === "em_producao" || p.status === "pausado").length;
   const pendentes = pedidosDia.filter(p => p.status === "pendente").length;
 
   const ordenados = useMemo(() => {
-    const order = { em_producao: 0, pendente: 1, finalizado: 2, cancelado: 3 };
-    return [...pedidosDia].sort((a, b) => (order[a.status] || 1) - (order[b.status] || 1));
+    const order = { em_producao: 0, pausado: 1, pendente: 2, aguardando_colagem: 3, finalizado: 4, cancelado: 5 };
+    return [...pedidosDia].sort((a, b) => (order[a.status] ?? 2) - (order[b.status] ?? 2));
   }, [pedidosDia]);
 
   // Próximos dias com pedidos
@@ -368,7 +174,7 @@ export default function MaquinaPanel({ maquina }) {
       ) : (
         <div className="space-y-4">
           {ordenados.map(p => (
-            <PedidoRow key={p.id} pedido={p} onStatusChange={handleStatusChange} />
+            <PedidoRow key={p.id} pedido={p} onStatusChange={handleStatusChange} onUpdate={handleStatusChange} />
           ))}
         </div>
       )}
