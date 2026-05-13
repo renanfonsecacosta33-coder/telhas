@@ -465,7 +465,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={!form.data || !form.maquina || !form.produto}>
+          <Button onClick={handleSave} disabled={!form.data || !form.produto}>
             {isEditing ? "Salvar Alterações" : "Registrar Pedido"}
           </Button>
         </DialogFooter>
