@@ -4,17 +4,39 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Pencil, Trash2, Circle, Weight } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Circle, Weight, Ruler, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
+import StatsCard from "@/components/stock/StatsCard";
 import BobinaFormDialog from "@/components/bobinas/BobinaFormDialog";
 import DeleteConfirmDialog from "@/components/stock/DeleteConfirmDialog";
 import EmptyState from "@/components/stock/EmptyState";
+
+const statusColors = {
+  "Aberta": "bg-green-500/10 text-green-700 border-green-300",
+  "Fechada": "bg-gray-500/10 text-gray-600 border-gray-300",
+  "Finalizada": "bg-blue-500/10 text-blue-700 border-blue-300",
+  "Na TP40": "bg-amber-500/10 text-amber-700 border-amber-300",
+  "Na BOBININHA": "bg-purple-500/10 text-purple-700 border-purple-300",
+  "Matriz AJL": "bg-orange-500/10 text-orange-700 border-orange-300",
+  "Pinhais": "bg-teal-500/10 text-teal-700 border-teal-300",
+  "Ivaiporã": "bg-rose-500/10 text-rose-700 border-rose-300",
+  "Matriz - Frisada": "bg-indigo-500/10 text-indigo-700 border-indigo-300",
+  "RESERVADA": "bg-yellow-500/10 text-yellow-700 border-yellow-300",
+};
+
+const qualidadeBadge = {
+  "GV": "bg-blue-100 text-blue-800",
+  "PP": "bg-pink-100 text-pink-800",
+  "FF": "bg-gray-100 text-gray-700",
+  "FQ": "bg-emerald-100 text-emerald-800",
+};
 
 export default function Bobinas() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [deleteItem, setDeleteItem] = useState(null);
   const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
   const queryClient = useQueryClient();
 
   const { data: bobinas = [], isLoading } = useQuery({
@@ -24,56 +46,48 @@ export default function Bobinas() {
 
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.Bobina.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["bobinas"] });
-      setDialogOpen(false);
-      toast.success("Bobina adicionada!");
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); toast.success("Bobina adicionada!"); },
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Bobina.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["bobinas"] });
-      setDialogOpen(false);
-      setEditItem(null);
-      toast.success("Bobina atualizada!");
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); setEditItem(null); toast.success("Bobina atualizada!"); },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Bobina.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["bobinas"] });
-      setDeleteItem(null);
-      toast.success("Bobina excluída!");
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); setDeleteItem(null); toast.success("Bobina excluída!"); },
   });
 
   const handleSave = (data) => {
-    if (editItem) {
-      updateMutation.mutate({ id: editItem.id, data });
-    } else {
-      createMutation.mutate(data);
-    }
+    if (editItem) updateMutation.mutate({ id: editItem.id, data });
+    else createMutation.mutate(data);
   };
+
+  const totalPeso = bobinas.reduce((s, b) => s + (b.peso_kg || 0), 0);
+  const statusList = [...new Set(bobinas.map(b => b.status).filter(Boolean))].sort();
 
   const filtered = bobinas.filter((b) => {
     const q = search.toLowerCase();
-    return (
-      b.cor?.toLowerCase().includes(q) ||
-      b.espessura?.toLowerCase().includes(q) ||
-      b.observacoes?.toLowerCase().includes(q)
-    );
+    const matchSearch = b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q) ||
+      b.codigo?.toLowerCase().includes(q) || b.fornecedor?.toLowerCase().includes(q) ||
+      b.status?.toLowerCase().includes(q) || b.qualidade?.toLowerCase().includes(q);
+    const matchStatus = filterStatus === "all" || b.status === filterStatus;
+    return matchSearch && matchStatus;
   });
+
+  const abertas = bobinas.filter(b => b.status === "Aberta").length;
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Bobinas</h1>
-          <p className="text-sm text-muted-foreground">Gerencie o estoque de bobinas de aço</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight">Bobinas</h1>
+            <Badge variant="outline">Telhas</Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">Bobinas de aço para produção de telhas</p>
         </div>
         <Button onClick={() => { setEditItem(null); setDialogOpen(true); }} className="gap-2">
           <Plus className="w-4 h-4" />
@@ -81,91 +95,99 @@ export default function Bobinas() {
         </Button>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por cor, espessura..."
-          className="pl-9"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      {/* Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatsCard title="Total de Bobinas" value={bobinas.length} subtitle={`${abertas} abertas`} icon={Circle} color="blue" />
+        <StatsCard title="Peso Total" value={`${totalPeso.toLocaleString("pt-BR")} kg`} subtitle="peso líquido em estoque" icon={Weight} color="green" />
+        <StatsCard title="Cores Distintas" value={[...new Set(bobinas.map(b => b.cor))].length} subtitle="diferentes colorações" icon={Ruler} color="orange" />
       </div>
 
-      {/* Content */}
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Buscar por cor, chapa, código..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant={filterStatus === "all" ? "default" : "outline"} size="sm" onClick={() => setFilterStatus("all")}>Todas</Button>
+          {statusList.map(s => (
+            <Button key={s} variant={filterStatus === s ? "default" : "outline"} size="sm" onClick={() => setFilterStatus(s)}>{s}</Button>
+          ))}
+        </div>
+      </div>
+
+      {/* Table-style list */}
       {isLoading ? (
         <div className="flex items-center justify-center py-16">
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
         </div>
       ) : filtered.length === 0 ? (
-        <EmptyState
-          title="Nenhuma bobina encontrada"
-          description="Adicione bobinas ao estoque para começar a gerenciar."
-          onAdd={() => { setEditItem(null); setDialogOpen(true); }}
-        />
+        <EmptyState title="Nenhuma bobina encontrada" description="Adicione bobinas ao estoque." onAdd={() => { setEditItem(null); setDialogOpen(true); }} />
       ) : (
-        <div className="grid gap-3">
-          {filtered.map((bobina) => (
-            <div
-              key={bobina.id}
-              className="bg-card border border-border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-center gap-4 flex-1 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <Circle className="w-5 h-5 text-primary" />
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          {/* Table Header */}
+          <div className="hidden sm:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto] gap-3 px-4 py-3 bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
+            <span>Cor / Fornecedor</span>
+            <span>Chapa / Qualidade</span>
+            <span>Peso (kg)</span>
+            <span>Metragem</span>
+            <span>Código</span>
+            <span>Status</span>
+            <span></span>
+          </div>
+          <div className="divide-y divide-border">
+            {filtered.map((bobina) => (
+              <div key={bobina.id} className="grid grid-cols-1 sm:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto] gap-3 px-4 py-3 items-center hover:bg-muted/20 transition-colors">
+                {/* Cor / Fornecedor */}
+                <div>
+                  <p className="font-semibold text-sm">{bobina.cor}</p>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    {bobina.data_recebimento && <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" />{bobina.data_recebimento}</span>}
+                    {bobina.fornecedor && <span>· {bobina.fornecedor}</span>}
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="font-semibold truncate">{bobina.cor}</p>
-                  <p className="text-sm text-muted-foreground">{bobina.espessura}</p>
+                {/* Chapa / Qualidade */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">{bobina.chapa}</span>
+                  {bobina.qualidade && <Badge variant="outline" className={`text-xs ${qualidadeBadge[bobina.qualidade] || ""}`}>{bobina.qualidade}</Badge>}
                 </div>
-              </div>
-              <div className="flex items-center gap-3 flex-wrap">
-                {bobina.peso_kg && (
-                  <Badge variant="secondary" className="gap-1">
-                    <Weight className="w-3 h-3" />
-                    {bobina.peso_kg} kg
-                  </Badge>
-                )}
-                {bobina.quantidade && (
-                  <Badge variant="outline">Qtd: {bobina.quantidade}</Badge>
-                )}
+                {/* Peso */}
+                <div>
+                  <p className="text-sm font-semibold">{bobina.peso_kg ? `${bobina.peso_kg.toLocaleString("pt-BR")}` : "-"}</p>
+                  {bobina.peso_inicial && bobina.peso_inicial !== bobina.peso_kg && (
+                    <p className="text-xs text-muted-foreground">Inicial: {bobina.peso_inicial.toLocaleString("pt-BR")}</p>
+                  )}
+                </div>
+                {/* Metragem */}
+                <div className="text-sm">{bobina.metragem ? `${bobina.metragem.toLocaleString("pt-BR")}m` : "-"}</div>
+                {/* Código */}
+                <div className="text-xs text-muted-foreground">
+                  <p>{bobina.codigo || "-"}</p>
+                  {bobina.nf && <p>NF: {bobina.nf}</p>}
+                </div>
+                {/* Status */}
+                <div>
+                  {bobina.status && (
+                    <Badge variant="outline" className={`text-xs ${statusColors[bobina.status] || ""}`}>{bobina.status}</Badge>
+                  )}
+                </div>
+                {/* Actions */}
                 <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => { setEditItem(bobina); setDialogOpen(true); }}
-                  >
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditItem(bobina); setDialogOpen(true); }}>
                     <Pencil className="w-4 h-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive"
-                    onClick={() => setDeleteItem(bobina)}
-                  >
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteItem(bobina)}>
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
-      <BobinaFormDialog
-        open={dialogOpen}
-        onClose={() => { setDialogOpen(false); setEditItem(null); }}
-        onSave={handleSave}
-        editItem={editItem}
-      />
-
-      <DeleteConfirmDialog
-        open={!!deleteItem}
-        onClose={() => setDeleteItem(null)}
-        onConfirm={() => deleteMutation.mutate(deleteItem.id)}
-        itemName={deleteItem ? `${deleteItem.cor} - ${deleteItem.espessura}` : ""}
-      />
+      <BobinaFormDialog open={dialogOpen} onClose={() => { setDialogOpen(false); setEditItem(null); }} onSave={handleSave} editItem={editItem} />
+      <DeleteConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} onConfirm={() => deleteMutation.mutate(deleteItem.id)} itemName={deleteItem ? `${deleteItem.cor} - ${deleteItem.chapa}` : ""} />
     </div>
   );
 }
