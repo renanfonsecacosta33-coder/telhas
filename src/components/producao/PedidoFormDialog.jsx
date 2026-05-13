@@ -347,12 +347,17 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                 </SelectContent>
               </Select>
               {bobinaSuperiorObj && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-800 flex flex-wrap gap-3">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-800 flex flex-wrap gap-3 items-center">
                   <span>Cód: <strong>{bobinaSuperiorObj.codigo || "—"}</strong></span>
                   <span>Cor/RVM: <strong>{bobinaSuperiorObj.cor || "—"}</strong></span>
                   <span>Qualidade: <strong>{bobinaSuperiorObj.qualidade || "—"}</strong></span>
-                  <span>Estoque: <strong>{bobinaSuperiorObj.peso_kg || 0}kg</strong></span>
+                  <span>Estoque atual: <strong>{bobinaSuperiorObj.peso_kg || 0}kg</strong></span>
                   {bobinaSuperiorObj.metragem_restante && <span>Metragem: <strong>{bobinaSuperiorObj.metragem_restante}m restantes</strong></span>}
+                  {form.kg_superior && (
+                    <span className="ml-auto bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold text-xs">
+                      ↓ {form.kg_superior} kg serão usados
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -377,11 +382,16 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                   </SelectContent>
                 </Select>
                 {bobinaInferiorObj && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-800 flex flex-wrap gap-3">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-800 flex flex-wrap gap-3 items-center">
                     <span>Cód: <strong>{bobinaInferiorObj.codigo || "—"}</strong></span>
                     <span>Cor/RVM: <strong>{bobinaInferiorObj.cor || "—"}</strong></span>
                     <span>Qualidade: <strong>{bobinaInferiorObj.qualidade || "—"}</strong></span>
-                    <span>Estoque: <strong>{bobinaInferiorObj.peso_kg || 0}kg</strong></span>
+                    <span>Estoque atual: <strong>{bobinaInferiorObj.peso_kg || 0}kg</strong></span>
+                    {form.kg_inferior && (
+                      <span className="ml-auto bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold text-xs">
+                        ↓ {form.kg_inferior} kg serão usados
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
