@@ -3,7 +3,8 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, Cog } from "lucide-react";
+import { Link } from "react-router-dom";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -129,7 +130,7 @@ export default function ProducaoAdmin() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-muted/50 rounded-xl p-1 w-fit">
+      <div className="flex flex-wrap gap-1 bg-muted/50 rounded-xl p-1 w-fit">
         <button
           onClick={() => setActiveTab("producao")}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "producao" ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
@@ -144,6 +145,32 @@ export default function ProducaoAdmin() {
           <Factory className="w-4 h-4" />
           Colagem
         </button>
+
+        {/* Separador visual */}
+        <div className="w-px bg-border mx-1 self-stretch" />
+
+        {[
+          { tab: "maq-tp40",         label: "TP - 40",       color: "bg-green-500",  path: "/maquina/tp40" },
+          { tab: "maq-tp25",         label: "TP - 25",       color: "bg-blue-500",   path: "/maquina/tp25" },
+          { tab: "maq-ondulada",     label: "Ondulada",      color: "bg-purple-500", path: "/maquina/ondulada" },
+          { tab: "maq-colonial",     label: "Colonial",      color: "bg-orange-500", path: "/maquina/colonial" },
+          { tab: "maq-bandeja",      label: "Bandeja",       color: "bg-pink-500",   path: "/maquina/bandeja" },
+          { tab: "maq-desbobinador", label: "Desbobinador",  color: "bg-yellow-500", path: "/maquina/desbobinador" },
+          { tab: "maq-cumeeira",     label: "Cumeeira",      color: "bg-teal-500",   path: "/maquina/cumeeira" },
+        ].map(m => (
+          <Link
+            key={m.tab}
+            to={m.path}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all text-muted-foreground hover:bg-card hover:text-foreground hover:shadow"
+          >
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${m.color}`} />
+            {m.label}
+          </Link>
+        ))}
+
+        {/* Separador visual */}
+        <div className="w-px bg-border mx-1 self-stretch" />
+
         <button
           onClick={() => setActiveTab("dados")}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "dados" ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
