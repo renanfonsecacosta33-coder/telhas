@@ -53,6 +53,30 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
+  // Calcula metragem automaticamente: metros = peso_kg / (largura_m × espessura_m × 7850 kg/m³)
+  const calcMetragem = (peso, largura, chapa) => {
+    const p = Number(peso);
+    const l = Number(largura) / 1000; // mm → m
+    const esp = parseFloat(String(chapa).replace(",", ".")) / 1000; // mm → m
+    if (p > 0 && l > 0 && esp > 0) return Math.round(p / (l * esp * 7850));
+    return "";
+  };
+
+  const handlePesoChange = (val) => {
+    const metragem = calcMetragem(val, form.largura_mm, form.chapa);
+    setForm(f => ({ ...f, peso_kg: val, metragem }));
+  };
+
+  const handleLarguraChange = (val) => {
+    const metragem = calcMetragem(form.peso_kg, val, form.chapa);
+    setForm(f => ({ ...f, largura_mm: val, metragem }));
+  };
+
+  const handleChapaChange = (val) => {
+    const metragem = calcMetragem(form.peso_kg, form.largura_mm, val);
+    setForm(f => ({ ...f, chapa: val, metragem }));
+  };
+
   // Auto-gera código: AAММ + 4 últimos dígitos da NF
   const gerarCodigo = (nf) => {
     if (!nf) return "";
@@ -99,7 +123,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
             </div>
             <div className="space-y-1">
               <Label>Chapa *</Label>
-              <Input placeholder="Ex: 0,43" value={form.chapa} onChange={e => set("chapa", e.target.value)} />
+              <Input placeholder="Ex: 0,43" value={form.chapa} onChange={e => handleChapaChange(e.target.value)} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -121,7 +145,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Peso Líquido (kg)</Label>
-              <Input type="number" placeholder="0" value={form.peso_kg} onChange={e => set("peso_kg", e.target.value)} />
+              <Input type="number" placeholder="0" value={form.peso_kg} onChange={e => handlePesoChange(e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>Peso Inicial (kg)</Label>
@@ -131,11 +155,11 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Largura (mm)</Label>
-              <Input type="number" placeholder="1200" value={form.largura_mm} onChange={e => set("largura_mm", e.target.value)} />
+              <Input type="number" placeholder="1200" value={form.largura_mm} onChange={e => handleLarguraChange(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Metragem (m)</Label>
-              <Input type="number" placeholder="0" value={form.metragem} onChange={e => set("metragem", e.target.value)} />
+              <Label>Metragem (m) <span className="text-xs text-muted-foreground font-normal">— calculada automaticamente</span></Label>
+              <Input type="number" placeholder="Auto" value={form.metragem} onChange={e => set("metragem", e.target.value)} className="bg-muted/40" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
