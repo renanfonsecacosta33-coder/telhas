@@ -51,8 +51,9 @@ const emptyForm = {
   kg_inferior: "",
   kg_total: "",
   metros: "",
+  metragem_mm: "",
+  quantidade_telhas: "",
   metragem_planejada: "",
-  valor: "",
   status: "pendente",
   data_pedido: "",
   data_prevista: "",
@@ -130,8 +131,9 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           kg_inferior: editItem.kg_inferior || "",
           kg_total: editItem.kg_total || "",
           metros: editItem.metros || "",
+          metragem_mm: editItem.metragem_mm || "",
+          quantidade_telhas: editItem.quantidade_telhas || "",
           metragem_planejada: editItem.metragem_planejada || "",
-          valor: editItem.valor || "",
           status: editItem.status || "pendente",
           data_pedido: editItem.data_pedido || "",
           data_prevista: editItem.data_prevista || "",
@@ -222,8 +224,9 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
       kg_inferior: form.kg_inferior !== "" ? Number(form.kg_inferior) : undefined,
       kg_total: form.kg_total !== "" ? Number(form.kg_total) : undefined,
       metros: form.metros ? Number(form.metros) : undefined,
+      metragem_mm: form.metragem_mm ? Number(form.metragem_mm) : undefined,
+      quantidade_telhas: form.quantidade_telhas ? Number(form.quantidade_telhas) : undefined,
       metragem_planejada: form.metragem_planejada ? Number(form.metragem_planejada) : undefined,
-      valor: form.valor ? Number(form.valor) : undefined,
     };
     onSave(data);
   };
@@ -416,6 +419,33 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
               />
             </div>
 
+            {/* Quantidade de Telhas + Metragem em mm */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Quantidade de Telhas</Label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={form.quantidade_telhas}
+                  onChange={e => set("quantidade_telhas", e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">
+                  Metragem (mm)
+                  {form.metragem_mm && Number(form.metragem_mm) > 0 && (
+                    <span className="text-muted-foreground ml-1">({(Number(form.metragem_mm) / 1000).toFixed(3)}m)</span>
+                  )}
+                </Label>
+                <Input
+                  type="number"
+                  placeholder="ex: 5000 mm"
+                  value={form.metragem_mm}
+                  onChange={e => set("metragem_mm", e.target.value)}
+                />
+              </div>
+            </div>
+
             <div className="space-y-1">
               <Label className="text-xs">Metragem Planejada de Bobina</Label>
               <Input
@@ -425,11 +455,6 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                 onChange={e => set("metragem_planejada", e.target.value)}
               />
               <p className="text-xs text-muted-foreground">O operador vai registrar o que realmente usou na máquina</p>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs">Valor (R$)</Label>
-              <Input type="number" placeholder="0.00" value={form.valor} onChange={e => set("valor", e.target.value)} />
             </div>
           </div>
 

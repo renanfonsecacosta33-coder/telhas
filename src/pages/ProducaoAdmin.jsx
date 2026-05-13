@@ -138,6 +138,13 @@ export default function ProducaoAdmin() {
           Produção
         </button>
         <button
+          onClick={() => setActiveTab("colagem")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "colagem" ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          <Factory className="w-4 h-4" />
+          Colagem
+        </button>
+        <button
           onClick={() => setActiveTab("dados")}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "dados" ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
         >
@@ -147,6 +154,37 @@ export default function ProducaoAdmin() {
       </div>
 
       {activeTab === "dados" && <ProducaoDados />}
+
+      {activeTab === "colagem" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold">Pedidos de Colagem</h2>
+            <Button size="sm" onClick={() => { setActiveTab("producao"); setTimeout(() => openNew(selectedDay, "COLAGEM"), 100); }} className="gap-1">
+              <Plus className="w-3 h-3" />
+              Novo Pedido Colagem
+            </Button>
+          </div>
+          {pedidos.filter(p => p.maquina === "COLAGEM").length === 0 ? (
+            <div className="bg-card border border-border rounded-xl p-8 text-center text-muted-foreground">
+              Nenhum pedido de colagem cadastrado
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {pedidos.filter(p => p.maquina === "COLAGEM").sort((a, b) => b.data?.localeCompare(a.data)).map(p => (
+                <PedidoCard key={p.id} pedido={p} maquinaCores={MAQUINA_CORES} onEdit={(p) => { setEditItem(p); setDialogOpen(true); }} onDelete={(id) => deleteMutation.mutate(id)} onStatusChange={(p, status) => updateMutation.mutate({ id: p.id, data: { ...p, status } })} />
+              ))}
+            </div>
+          )}
+          <PedidoFormDialog
+            open={dialogOpen}
+            onClose={() => { setDialogOpen(false); setEditItem(null); }}
+            onSave={handleSave}
+            editItem={editItem}
+            defaultDate={selectedDay}
+          />
+        </div>
+      )}
+
       {activeTab === "producao" && (<>
 
       {/* Navegação de semana */}
