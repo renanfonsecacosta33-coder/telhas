@@ -54,6 +54,7 @@ const emptyForm = {
   metragem_mm: "",
   quantidade_telhas: "",
   metragem_planejada: "",
+  isopor_utilizado: "",
   status: "pendente",
   data_pedido: "",
   data_prevista: "",
@@ -184,10 +185,16 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     setForm(novoForm);
   };
 
-  // Quando metros mudar, recalcula kg automaticamente
+  // Quando metros mudar, recalcula kg, quantidade de telhas e isopor automaticamente
   const handleMetrosChange = (val) => {
     const metros = Number(val) || 0;
     const newForm = { ...form, metros: val };
+
+    // Quantidade de telhas = metros (1 telha = 1m linear)
+    newForm.quantidade_telhas = metros > 0 ? metros : "";
+
+    // Quantidade de isopor = ceil(metros / 2), cada peça = 2m
+    newForm.isopor_utilizado = metros > 0 ? Math.ceil(metros / 2) : "";
 
     if (bobinaSuperiorObj) {
       const labelSup = bobinaSuperiorObj.chapa + (bobinaSuperiorObj.qualidade?.toLowerCase().includes("rvm") ? " RVM" : "");
@@ -227,6 +234,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
       metragem_mm: form.metragem_mm ? Number(form.metragem_mm) : undefined,
       quantidade_telhas: form.quantidade_telhas ? Number(form.quantidade_telhas) : undefined,
       metragem_planejada: form.metragem_planejada ? Number(form.metragem_planejada) : undefined,
+      isopor_utilizado: form.isopor_utilizado ? Number(form.isopor_utilizado) : undefined,
     };
     onSave(data);
   };
@@ -400,6 +408,17 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                   </Select>
                 </div>
               </div>
+              {/* Quantidade de isopor calculada automaticamente */}
+              <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-orange-800">Placas de Isopor Necessárias</p>
+                  <p className="text-xs text-orange-600">Cada peça = 2m · baseado nos metros pedidos</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-2xl font-bold text-orange-700">{form.isopor_utilizado || "—"}</span>
+                  <p className="text-xs text-orange-600">peças</p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -422,12 +441,13 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
             {/* Quantidade de Telhas + Metragem em mm */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">Quantidade de Telhas</Label>
+                <Label className="text-xs">Quantidade de Telhas <span className="text-muted-foreground font-normal">— automático</span></Label>
                 <Input
                   type="number"
-                  placeholder="0"
+                  placeholder="Auto"
                   value={form.quantidade_telhas}
                   onChange={e => set("quantidade_telhas", e.target.value)}
+                  className="bg-muted/40"
                 />
               </div>
               <div className="space-y-1">
