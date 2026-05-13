@@ -466,7 +466,15 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
             {/* Quantidade de Telhas + Metragem em mm */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">Qtd. Telhas <span className="text-muted-foreground font-normal">— automático (qtd × comp)</span></Label>
+                <Label className="text-xs">
+                  Qtd. Telhas
+                  {form.quantidade_telhas && form.metragem_mm && (
+                    <span className="text-muted-foreground font-normal ml-1">
+                      — {+(Number(form.quantidade_telhas) * Number(form.metragem_mm)).toFixed(0)}mm
+                      ({+(Number(form.quantidade_telhas) * (Number(form.metragem_mm) / 1000)).toFixed(2)}m)
+                    </span>
+                  )}
+                </Label>
                 <Input
                   type="number"
                   placeholder="Auto"
