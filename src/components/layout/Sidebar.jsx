@@ -5,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, Circle, Snowflake, Package, Menu, X, ChevronRight,
   Factory, Settings, Droplets, Wrench, Layers, Box, ShoppingCart,
-  Truck, BarChart2, FileText, Tag, Archive, Zap, Users, LogOut
+  Truck, BarChart2, FileText, Tag, Archive, Zap, Users, LogOut, Cog
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -128,6 +128,41 @@ export default function Sidebar({ isOpen, onToggle }) {
               {dynamicItems.map(renderLink)}
             </>
           )}
+
+          {/* Maquinários */}
+          <>
+            <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mt-5 mb-3">
+              Maquinários
+            </p>
+            {[
+              { path: "/maquina/tp40",         label: "TP - 40",       color: "bg-green-500" },
+              { path: "/maquina/tp25",         label: "TP - 25",       color: "bg-blue-500" },
+              { path: "/maquina/ondulada",     label: "Ondulada",      color: "bg-purple-500" },
+              { path: "/maquina/colonial",     label: "Colonial",      color: "bg-orange-500" },
+              { path: "/maquina/bandeja",      label: "Bandeja",       color: "bg-pink-500" },
+              { path: "/maquina/desbobinador", label: "Desbobinador",  color: "bg-yellow-500" },
+              { path: "/maquina/cumeeira",     label: "Cumeeira",      color: "bg-teal-500" },
+            ].map(item => {
+              const isActive = location.pathname === item.path;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={() => window.innerWidth < 1024 && onToggle()}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+                    isActive
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  )}
+                >
+                  <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${item.color}`} />
+                  <span className="flex-1">{item.label}</span>
+                  {isActive && <ChevronRight className="w-4 h-4 opacity-60" />}
+                </Link>
+              );
+            })}
+          </>
 
           {/* Admin only */}
           {isAdmin && (

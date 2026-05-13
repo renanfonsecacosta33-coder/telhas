@@ -14,6 +14,13 @@ import Estoque from '@/pages/Estoque';
 import Producao from '@/pages/Producao';
 import Configuracoes from '@/pages/Configuracoes';
 import GerenciarUsuarios from '@/pages/GerenciarUsuarios';
+import TP40 from '@/pages/maquinas/TP40';
+import TP25 from '@/pages/maquinas/TP25';
+import Ondulada from '@/pages/maquinas/Ondulada';
+import Colonial from '@/pages/maquinas/Colonial';
+import Bandeja from '@/pages/maquinas/Bandeja';
+import Desbobinador from '@/pages/maquinas/Desbobinador';
+import Cumeeira from '@/pages/maquinas/Cumeeira';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -50,6 +57,13 @@ const AuthenticatedApp = () => {
         <Route path="/producao" element={<Producao />} />
         <Route path="/configuracoes" element={<Configuracoes />} />
         <Route path="/usuarios" element={<GerenciarUsuarios />} />
+        <Route path="/maquina/tp40" element={<TP40 />} />
+        <Route path="/maquina/tp25" element={<TP25 />} />
+        <Route path="/maquina/ondulada" element={<Ondulada />} />
+        <Route path="/maquina/colonial" element={<Colonial />} />
+        <Route path="/maquina/bandeja" element={<Bandeja />} />
+        <Route path="/maquina/desbobinador" element={<Desbobinador />} />
+        <Route path="/maquina/cumeeira" element={<Cumeeira />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
