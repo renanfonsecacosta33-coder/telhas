@@ -201,8 +201,9 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     // Quantidade de telhas = metros / (metragem_mm / 1000)
     newForm.quantidade_telhas = calcQtdTelhas(val, form.metragem_mm);
 
-    // Quantidade de isopor = ceil(metros / 2), cada peça = 2m
-    newForm.isopor_utilizado = metros > 0 ? Math.ceil(metros / 2) : "";
+    // Quantidade de isopor = ceil(metragem_total_em_metros / 2), cada peça = 2m
+    const metragemTotalM = metros * ((Number(form.metragem_mm) || 0) / 1000);
+    newForm.isopor_utilizado = metragemTotalM > 0 ? Math.ceil(metragemTotalM / 2) : "";
 
     if (bobinaSuperiorObj) {
       const labelSup = bobinaSuperiorObj.chapa + (bobinaSuperiorObj.qualidade?.toLowerCase().includes("rvm") ? " RVM" : "");
@@ -221,6 +222,10 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   const handleMetragemMmChange = (val) => {
     const newForm = { ...form, metragem_mm: val };
     newForm.quantidade_telhas = calcQtdTelhas(form.metros, val);
+    // Recalcula isopor com nova metragem
+    const metros = Number(form.metros) || 0;
+    const metragemTotalM = metros * ((Number(val) || 0) / 1000);
+    newForm.isopor_utilizado = metragemTotalM > 0 ? Math.ceil(metragemTotalM / 2) : "";
     setForm(newForm);
   };
 
