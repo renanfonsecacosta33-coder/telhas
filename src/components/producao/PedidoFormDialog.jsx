@@ -11,8 +11,6 @@ import { useQuery } from "@tanstack/react-query";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 const PRODUTOS = ["TELHA", "TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA", "BOBININHA", "CUMEEIRA", "PAINEL"];
-const UNIDADES = ["Matriz AJL", "Pinhais", "Ivaiporã"];
-const TIPOS_EPS = ["EPS - TP 25", "EPS - TP 40", "EPS - TP 40 BANDEJA", "EPS - COLONIAL", "EPS - COLONIAL BANDEJA", "EPS - ONDULADO"];
 
 // Peso por metro linear conforme espessura
 function calcKgPorMetro(bobinaTexto) {
@@ -69,6 +67,41 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     queryFn: () => base44.entities.Bobina.filter({ arquivada: false }),
     enabled: open,
   });
+
+  const { data: modelosCad = [] } = useQuery({
+    queryKey: ["modelos-produto"],
+    queryFn: () => base44.entities.ModeloProduto.list("produto"),
+    enabled: open,
+  });
+
+  const { data: dadosEPS = [] } = useQuery({
+    queryKey: ["dados-producao", "eps"],
+    queryFn: () => base44.entities.DadosProducao.filter({ tipo: "eps", ativo: true }),
+    enabled: open,
+  });
+
+  const { data: dadosRVM = [] } = useQuery({
+    queryKey: ["dados-producao", "rvm"],
+    queryFn: () => base44.entities.DadosProducao.filter({ tipo: "rvm", ativo: true }),
+    enabled: open,
+  });
+
+  const { data: dadosVendedores = [] } = useQuery({
+    queryKey: ["dados-producao", "vendedor"],
+    queryFn: () => base44.entities.DadosProducao.filter({ tipo: "vendedor", ativo: true }),
+    enabled: open,
+  });
+
+  // Modelos filtrados pelo produto selecionado
+  const modelosFiltrados = useMemo(() =>
+    modelosCad.filter(m => !form.produto || m.produto === form.produto),
+    [modelosCad, form.produto]
+  );
+
+  // Tipos de EPS: usa cadastro se existir, senão fallback
+  const tiposEPS = dadosEPS.length > 0
+    ? dadosEPS.map(d => d.valor)
+    : ["EPS - TP 25", "EPS - TP 40", "EPS - TP 40 BANDEJA", "EPS - COLONIAL", "EPS - COLONIAL BANDEJA", "EPS - ONDULADO"];
 
   // Encontra bobina selecionada (superior e inferior)
   const bobinaSuperiorObj = useMemo(() => bobinas.find(b => b.id === form.bobina_superior), [bobinas, form.bobina_superior]);
@@ -236,17 +269,36 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
             </div>
           </div>
 
-          {/* Modelo */}
+          {/* Modelo — select do cadastro */}
           <div className="space-y-1">
-            <Label>Modelo / Especificação</Label>
-            <Input placeholder="Ex: TP-40 RVM, Colonial 500mm, Bandeja Branca..." value={form.modelo} onChange={e => set("modelo", e.target.value)} />
+            <Label>Modelo *</Label>
+            <Select value={form.modelo} onValueChange={v => set("modelo", v)}>
+              <SelectTrigger><SelectValue placeholder={form.produto ? "Selecione o modelo..." : "Selecione o produto primeiro"} /></SelectTrigger>
+              <SelectContent>
+                {modelosFiltrados.map(m => (
+                  <SelectItem key={m.id} value={m.modelo}>
+                    <span className="font-medium">{m.modelo}</span>
+                    {m.maquinas && <span className="text-muted-foreground text-xs ml-2">({m.maquinas})</span>}
+                    {m.espessuras && <span className="text-muted-foreground text-xs ml-1">· {m.espessuras}</span>}
+                  </SelectItem>
+                ))}
+                {modelosFiltrados.length === 0 && (
+                  <SelectItem value="_nenhum" disabled>Nenhum modelo cadastrado para este produto</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Vendedor / Cliente / Pedido */}
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label>Vendedor</Label>
-              <Input placeholder="Ex: VERA (PG)" value={form.vendedor} onChange={e => set("vendedor", e.target.value)} />
+              <Select value={form.vendedor} onValueChange={v => set("vendedor", v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>
+                  {dadosVendedores.map(v => <SelectItem key={v.id} value={v.valor}>{v.valor}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label>Cliente</Label>
@@ -331,7 +383,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                   <Label className="text-xs">Tipo de EPS</Label>
                   <Select value={form.eps} onValueChange={v => set("eps", v)}>
                     <SelectTrigger><SelectValue placeholder="Selecione o EPS" /></SelectTrigger>
-                    <SelectContent>{TIPOS_EPS.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
+                    <SelectContent>{tiposEPS.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
@@ -370,48 +422,6 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                 onChange={e => set("metragem_planejada", e.target.value)}
               />
               <p className="text-xs text-muted-foreground">O operador vai registrar o que realmente usou na máquina</p>
-            </div>
-
-            {/* KG — automáticos */}
-            <div className={`grid gap-3 ${precisaBobinaInferior ? "grid-cols-3" : "grid-cols-2"}`}>
-              <div className="space-y-1">
-                <Label className="text-xs">KG Superior {bobinaSuperiorObj ? <span className="text-green-600">(auto)</span> : ""}</Label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={form.kg_superior}
-                  onChange={e => {
-                    const v = e.target.value;
-                    setForm(f => ({ ...f, kg_superior: v, kg_total: recalcTotal(v, f.kg_inferior) }));
-                  }}
-                  className={bobinaSuperiorObj ? "bg-green-50 border-green-200" : ""}
-                />
-              </div>
-              {precisaBobinaInferior && (
-                <div className="space-y-1">
-                  <Label className="text-xs">KG Inferior {bobinaInferiorObj ? <span className="text-green-600">(auto)</span> : ""}</Label>
-                  <Input
-                    type="number"
-                    placeholder="0"
-                    value={form.kg_inferior}
-                    onChange={e => {
-                      const v = e.target.value;
-                      setForm(f => ({ ...f, kg_inferior: v, kg_total: recalcTotal(f.kg_superior, v) }));
-                    }}
-                    className={bobinaInferiorObj ? "bg-green-50 border-green-200" : ""}
-                  />
-                </div>
-              )}
-              <div className="space-y-1">
-                <Label className="text-xs font-bold">KG Total</Label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={form.kg_total}
-                  onChange={e => set("kg_total", e.target.value)}
-                  className="font-bold bg-slate-50"
-                />
-              </div>
             </div>
 
             <div className="space-y-1">

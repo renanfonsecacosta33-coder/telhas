@@ -3,13 +3,14 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import PedidoFormDialog from "@/components/producao/PedidoFormDialog";
 import PedidoCard from "@/components/producao/PedidoCard";
 import DiaResumoCard from "@/components/producao/DiaResumoCard";
+import ProducaoDados from "@/pages/ProducaoDados";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 
@@ -30,6 +31,7 @@ export default function ProducaoAdmin() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [viewMode, setViewMode] = useState("semana"); // "semana" | "dia"
+  const [activeTab, setActiveTab] = useState("producao"); // "producao" | "dados"
   const queryClient = useQueryClient();
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
@@ -101,7 +103,7 @@ export default function ProducaoAdmin() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header + Abas */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
@@ -111,16 +113,41 @@ export default function ProducaoAdmin() {
           <p className="text-sm text-muted-foreground">Todos os pedidos e produção diária</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={exportarSemana} className="gap-1">
-            <Download className="w-4 h-4" />
-            Exportar
-          </Button>
-          <Button onClick={() => openNew()} className="gap-2">
-            <Plus className="w-4 h-4" />
-            Novo Pedido
-          </Button>
+          {activeTab === "producao" && (
+            <>
+              <Button variant="outline" size="sm" onClick={exportarSemana} className="gap-1">
+                <Download className="w-4 h-4" />
+                Exportar
+              </Button>
+              <Button onClick={() => openNew()} className="gap-2">
+                <Plus className="w-4 h-4" />
+                Novo Pedido
+              </Button>
+            </>
+          )}
         </div>
       </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 bg-muted/50 rounded-xl p-1 w-fit">
+        <button
+          onClick={() => setActiveTab("producao")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "producao" ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          <Factory className="w-4 h-4" />
+          Produção
+        </button>
+        <button
+          onClick={() => setActiveTab("dados")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "dados" ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          <Database className="w-4 h-4" />
+          Dados
+        </button>
+      </div>
+
+      {activeTab === "dados" && <ProducaoDados />}
+      {activeTab === "producao" && (<>
 
       {/* Navegação de semana */}
       <div className="bg-card border border-border rounded-xl p-4">
@@ -277,6 +304,7 @@ export default function ProducaoAdmin() {
         editItem={editItem}
         defaultDate={selectedDay}
       />
+      </>)}
     </div>
   );
 }

@@ -1,0 +1,33 @@
+{
+  "name": "DadosProducao",
+  "type": "object",
+  "properties": {
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "vendedor",
+        "rvm",
+        "maquinario",
+        "eps"
+      ],
+      "description": "Tipo de dado"
+    },
+    "valor": {
+      "type": "string",
+      "description": "Valor do dado (nome do vendedor, cor RVM, nome do maquin\u00e1rio, tipo de EPS)"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o adicional"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se est\u00e1 ativo"
+    }
+  },
+  "required": [
+    "tipo",
+    "valor"
+  ]
+}

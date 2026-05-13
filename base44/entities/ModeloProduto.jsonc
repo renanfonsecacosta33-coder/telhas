@@ -1,0 +1,45 @@
+{
+  "name": "ModeloProduto",
+  "type": "object",
+  "properties": {
+    "produto": {
+      "type": "string",
+      "enum": [
+        "TELHA",
+        "TELHA + EPS",
+        "TELHA + EPS + MANTA",
+        "TELHA + EPS + TELHA",
+        "TELHA BANDEJA",
+        "BOBININHA",
+        "CUMEEIRA",
+        "PAINEL"
+      ],
+      "description": "Tipo de produto"
+    },
+    "modelo": {
+      "type": "string",
+      "description": "Nome do modelo (ex: TP-40 RVM, Colonial 500mm)"
+    },
+    "maquinas": {
+      "type": "string",
+      "description": "M\u00e1quinas que fazem este modelo (ex: TP-25, TP-40)"
+    },
+    "espessuras": {
+      "type": "string",
+      "description": "Espessuras dispon\u00edveis (ex: 0,43 / 0,50 / 0,65)"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se o modelo est\u00e1 ativo"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es adicionais"
+    }
+  },
+  "required": [
+    "produto",
+    "modelo"
+  ]
+}
