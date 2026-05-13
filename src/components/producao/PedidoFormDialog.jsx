@@ -165,11 +165,11 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     const novoForm = { ...form, bobina_superior: bobinaId };
     if (b) {
       novoForm.rvm_superior = b.cor || "";
-      // Recalcula KG com metros atuais
-      const pesoMetro = calcKgPorMetro(b.chapa + (b.qualidade?.includes("RVM") ? " RVM" : ""));
-      const metros = Number(form.metros) || 0;
-      if (metros > 0 && pesoMetro > 0) {
-        novoForm.kg_superior = +(metros * pesoMetro).toFixed(1);
+      // Calcula KG: espessura (chapa) × metragem total do pedido (em metros)
+      const metragemTotal = (Number(form.metros) || 0) * ((Number(form.metragem_mm) || 0) / 1000);
+      const chapa = Number(b.chapa) || 0;
+      if (metragemTotal > 0 && chapa > 0) {
+        novoForm.kg_superior = +(chapa * metragemTotal).toFixed(1);
         novoForm.kg_total = recalcTotal(novoForm.kg_superior, form.kg_inferior);
       }
     }
@@ -181,10 +181,10 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     const novoForm = { ...form, bobina_inferior: bobinaId };
     if (b) {
       novoForm.rvm_inferior = b.cor || "";
-      const pesoMetro = calcKgPorMetro(b.chapa + (b.qualidade?.includes("RVM") ? " RVM" : ""));
-      const metros = Number(form.metros) || 0;
-      if (metros > 0 && pesoMetro > 0) {
-        novoForm.kg_inferior = +(metros * pesoMetro).toFixed(1);
+      const metragemTotal = (Number(form.metros) || 0) * ((Number(form.metragem_mm) || 0) / 1000);
+      const chapa = Number(b.chapa) || 0;
+      if (metragemTotal > 0 && chapa > 0) {
+        novoForm.kg_inferior = +(chapa * metragemTotal).toFixed(1);
         novoForm.kg_total = recalcTotal(form.kg_superior, novoForm.kg_inferior);
       }
     }
@@ -207,8 +207,10 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     // Quantidade de telhas = metros / (metragem_mm / 1000)
     newForm.quantidade_telhas = calcQtdTelhas(val, form.metragem_mm);
 
-    // Quantidade de isopor: cada peça = 2m
+    // Metragem total do pedido
     const metragemTotalM = metros * ((Number(form.metragem_mm) || 0) / 1000);
+    
+    // Quantidade de isopor: cada peça = 2m
     if (metragemTotalM > 0) {
       const pecasInteiras = Math.floor(metragemTotalM / 2);
       const metragem_resto = +(metragemTotalM - (pecasInteiras * 2)).toFixed(2);
@@ -217,15 +219,14 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
       newForm.isopor_utilizado = "";
     }
 
-    if (bobinaSuperiorObj) {
-      const labelSup = bobinaSuperiorObj.chapa + (bobinaSuperiorObj.qualidade?.toLowerCase().includes("rvm") ? " RVM" : "");
-      const pesoSup = calcKgPorMetro(labelSup);
-      if (pesoSup > 0) newForm.kg_superior = metros > 0 ? +(metros * pesoSup).toFixed(1) : "";
+    // KG = chapa × metragem total
+    if (bobinaSuperiorObj && metragemTotalM > 0) {
+      const chapa = Number(bobinaSuperiorObj.chapa) || 0;
+      if (chapa > 0) newForm.kg_superior = +(chapa * metragemTotalM).toFixed(1);
     }
-    if (bobinaInferiorObj) {
-      const labelInf = bobinaInferiorObj.chapa + (bobinaInferiorObj.qualidade?.toLowerCase().includes("rvm") ? " RVM" : "");
-      const pesoInf = calcKgPorMetro(labelInf);
-      if (pesoInf > 0) newForm.kg_inferior = metros > 0 ? +(metros * pesoInf).toFixed(1) : "";
+    if (bobinaInferiorObj && metragemTotalM > 0) {
+      const chapa = Number(bobinaInferiorObj.chapa) || 0;
+      if (chapa > 0) newForm.kg_inferior = +(chapa * metragemTotalM).toFixed(1);
     }
     newForm.kg_total = recalcTotal(newForm.kg_superior, newForm.kg_inferior);
     setForm(newForm);
@@ -233,10 +234,12 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
 
   const handleMetragemMmChange = (val) => {
     const newForm = { ...form, metragem_mm: val };
-    newForm.quantidade_telhas = calcQtdTelhas(form.metros, val);
-    // Recalcula isopor com nova metragem: cada peça = 2m
     const metros = Number(form.metros) || 0;
     const metragemTotalM = metros * ((Number(val) || 0) / 1000);
+    
+    newForm.quantidade_telhas = calcQtdTelhas(form.metros, val);
+    
+    // Recalcula isopor com nova metragem: cada peça = 2m
     if (metragemTotalM > 0) {
       const pecasInteiras = Math.floor(metragemTotalM / 2);
       const metragem_resto = +(metragemTotalM - (pecasInteiras * 2)).toFixed(2);
@@ -244,6 +247,17 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     } else {
       newForm.isopor_utilizado = "";
     }
+
+    // KG = chapa × metragem total
+    if (bobinaSuperiorObj && metragemTotalM > 0) {
+      const chapa = Number(bobinaSuperiorObj.chapa) || 0;
+      if (chapa > 0) newForm.kg_superior = +(chapa * metragemTotalM).toFixed(1);
+    }
+    if (bobinaInferiorObj && metragemTotalM > 0) {
+      const chapa = Number(bobinaInferiorObj.chapa) || 0;
+      if (chapa > 0) newForm.kg_inferior = +(chapa * metragemTotalM).toFixed(1);
+    }
+    newForm.kg_total = recalcTotal(newForm.kg_superior, newForm.kg_inferior);
     setForm(newForm);
   };
 
