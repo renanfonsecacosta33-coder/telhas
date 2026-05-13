@@ -1,0 +1,248 @@
+import React, { useState } from "react";
+import { base44 } from "@/api/base44Client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Search, Pencil, Trash2, Snowflake, Ruler, Package } from "lucide-react";
+import { toast } from "sonner";
+import StatsCard from "@/components/stock/StatsCard";
+import IsoporFormDialog from "@/components/isopor/IsoporFormDialog";
+import DeleteConfirmDialog from "@/components/stock/DeleteConfirmDialog";
+import EmptyState from "@/components/stock/EmptyState";
+
+export default function Isopor() {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const [deleteItem, setDeleteItem] = useState(null);
+  const [search, setSearch] = useState("");
+  const [filterTipo, setFilterTipo] = useState("all");
+  const queryClient = useQueryClient();
+
+  const { data: isopores = [], isLoading } = useQuery({
+    queryKey: ["isopores"],
+    queryFn: () => base44.entities.Isopor.list("-created_date"),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data) => base44.entities.Isopor.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["isopores"] });
+      setDialogOpen(false);
+      toast.success("Isopor adicionado!");
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.Isopor.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["isopores"] });
+      setDialogOpen(false);
+      setEditItem(null);
+      toast.success("Isopor atualizado!");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => base44.entities.Isopor.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["isopores"] });
+      setDeleteItem(null);
+      toast.success("Isopor excluído!");
+    },
+  });
+
+  const handleSave = (data) => {
+    if (editItem) {
+      updateMutation.mutate({ id: editItem.id, data });
+    } else {
+      createMutation.mutate(data);
+    }
+  };
+
+  const totalQuantidade = isopores.reduce((sum, i) => sum + (i.quantidade || 0), 0);
+  const totalMetragem = isopores.reduce((sum, i) => sum + (i.metragem_total || 0), 0);
+  const tipos = [...new Set(isopores.map((i) => i.tipo))];
+
+  const filtered = isopores.filter((item) => {
+    const q = search.toLowerCase();
+    const matchSearch =
+      item.tipo?.toLowerCase().includes(q) ||
+      item.observacoes?.toLowerCase().includes(q);
+    const matchTipo = filterTipo === "all" || item.tipo === filterTipo;
+    return matchSearch && matchTipo;
+  });
+
+  const tipoColors = {
+    "EPS - TP 25": "bg-blue-500/10 text-blue-700 border-blue-200",
+    "EPS - TP 40": "bg-green-500/10 text-green-700 border-green-200",
+    "EPS - TP 40 BANDEJA": "bg-emerald-500/10 text-emerald-700 border-emerald-200",
+    "EPS - COLONIAL": "bg-amber-500/10 text-amber-700 border-amber-200",
+    "EPS - COLONIAL BANDEJA": "bg-orange-500/10 text-orange-700 border-orange-200",
+    "EPS - ONDULADO": "bg-purple-500/10 text-purple-700 border-purple-200",
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight">Isopor</h1>
+            <Badge className="bg-accent text-accent-foreground">Foco</Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">Gerencie o estoque de isopor EPS</p>
+        </div>
+        <Button onClick={() => { setEditItem(null); setDialogOpen(true); }} className="gap-2">
+          <Plus className="w-4 h-4" />
+          Novo Isopor
+        </Button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatsCard
+          title="Total de Itens"
+          value={isopores.length}
+          subtitle="tipos cadastrados"
+          icon={Snowflake}
+          color="blue"
+        />
+        <StatsCard
+          title="Quantidade Total"
+          value={totalQuantidade}
+          subtitle="unidades em estoque"
+          icon={Package}
+          color="green"
+        />
+        <StatsCard
+          title="Metragem Total"
+          value={`${totalMetragem}m`}
+          subtitle={`${(totalMetragem / 1000).toFixed(1)}km linear`}
+          icon={Ruler}
+          color="orange"
+        />
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por tipo..."
+            className="pl-9"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            variant={filterTipo === "all" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilterTipo("all")}
+          >
+            Todos
+          </Button>
+          {tipos.map((tipo) => (
+            <Button
+              key={tipo}
+              variant={filterTipo === tipo ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilterTipo(tipo)}
+            >
+              {tipo.replace("EPS - ", "")}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-16">
+          <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          title="Nenhum isopor encontrado"
+          description="Adicione isopor ao estoque para começar a gerenciar."
+          onAdd={() => { setEditItem(null); setDialogOpen(true); }}
+        />
+      ) : (
+        <div className="grid gap-3">
+          {filtered.map((item) => (
+            <div
+              key={item.id}
+              className="bg-card border border-border rounded-xl p-4 hover:shadow-md transition-shadow"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
+                    <Snowflake className="w-5 h-5 text-accent-foreground" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold">{item.tipo}</p>
+                      <Badge variant="outline" className={tipoColors[item.tipo] || ""}>
+                        {item.tipo.replace("EPS - ", "")}
+                      </Badge>
+                    </div>
+                    {item.observacoes && (
+                      <p className="text-sm text-muted-foreground truncate">{item.observacoes}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  {item.espessura_mm && (
+                    <Badge variant="secondary">{item.espessura_mm}mm</Badge>
+                  )}
+                  {item.quantidade && (
+                    <Badge variant="outline" className="font-semibold">
+                      {item.quantidade} un
+                    </Badge>
+                  )}
+                  {item.metragem_total && (
+                    <Badge className="bg-primary/10 text-primary border border-primary/20">
+                      {item.metragem_total}m
+                    </Badge>
+                  )}
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => { setEditItem(item); setDialogOpen(true); }}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      onClick={() => setDeleteItem(item)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <IsoporFormDialog
+        open={dialogOpen}
+        onClose={() => { setDialogOpen(false); setEditItem(null); }}
+        onSave={handleSave}
+        editItem={editItem}
+      />
+
+      <DeleteConfirmDialog
+        open={!!deleteItem}
+        onClose={() => setDeleteItem(null)}
+        onConfirm={() => deleteMutation.mutate(deleteItem.id)}
+        itemName={deleteItem ? deleteItem.tipo : ""}
+      />
+    </div>
+  );
+}

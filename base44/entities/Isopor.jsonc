@@ -1,0 +1,37 @@
+{
+  "name": "Isopor",
+  "type": "object",
+  "properties": {
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "EPS - TP 25",
+        "EPS - TP 40",
+        "EPS - TP 40 BANDEJA",
+        "EPS - COLONIAL",
+        "EPS - COLONIAL BANDEJA",
+        "EPS - ONDULADO"
+      ],
+      "description": "Tipo do isopor"
+    },
+    "espessura_mm": {
+      "type": "number",
+      "description": "Espessura em mm"
+    },
+    "quantidade": {
+      "type": "number",
+      "description": "Quantidade em estoque (unidades)"
+    },
+    "metragem_total": {
+      "type": "number",
+      "description": "Metragem total em metros (cada unidade = 2m)"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es adicionais"
+    }
+  },
+  "required": [
+    "tipo"
+  ]
+}
