@@ -453,7 +453,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
 
             {/* Metros — campo principal */}
             <div className="space-y-1">
-              <Label className="text-xs">Wuan*</Label>
+              <Label className="text-xs">Quantidade</Label>
               <Input
                 type="number"
                 placeholder="0"
