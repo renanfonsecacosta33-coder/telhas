@@ -185,12 +185,12 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     setForm(novoForm);
   };
 
-  // Recalcula quantidade de telhas: metros / comprimento_telha_em_m
+  // Recalcula quantidade de telhas: quantidade × comprimento_telha_em_m
   const calcQtdTelhas = (metros, metragem_mm) => {
     const m = Number(metros) || 0;
     const comp = Number(metragem_mm) || 0;
     if (m <= 0 || comp <= 0) return "";
-    return Math.ceil(m / (comp / 1000));
+    return +(m * (comp / 1000)).toFixed(2);
   };
 
   // Quando metros mudar, recalcula kg, quantidade de telhas e isopor automaticamente
@@ -466,7 +466,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
             {/* Quantidade de Telhas + Metragem em mm */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">Qtd. Telhas <span className="text-muted-foreground font-normal">— metros ÷ comprimento</span></Label>
+                <Label className="text-xs">Qtd. Telhas <span className="text-muted-foreground font-normal">— automático (qtd × comp)</span></Label>
                 <Input
                   type="number"
                   placeholder="Auto"
