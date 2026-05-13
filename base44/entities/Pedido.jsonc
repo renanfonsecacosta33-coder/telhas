@@ -5,7 +5,7 @@
     "data": {
       "type": "string",
       "format": "date",
-      "description": "Data do pedido"
+      "description": "Data de produ\u00e7\u00e3o planejada"
     },
     "vendedor": {
       "type": "string",
@@ -33,6 +33,10 @@
       ],
       "description": "Tipo de produto"
     },
+    "modelo": {
+      "type": "string",
+      "description": "Modelo / especifica\u00e7\u00e3o do produto (ex: TP-40 RVM, Bandeja Branca)"
+    },
     "maquina": {
       "type": "string",
       "enum": [
@@ -47,13 +51,21 @@
       ],
       "description": "M\u00e1quina respons\u00e1vel"
     },
+    "bobina_superior_id": {
+      "type": "string",
+      "description": "ID da bobina superior no estoque"
+    },
+    "bobina_inferior_id": {
+      "type": "string",
+      "description": "ID da bobina inferior no estoque"
+    },
     "bobina_superior": {
       "type": "string",
-      "description": "Bobina superior (ex: 0,43 NACIONAL)"
+      "description": "Texto descritivo da bobina superior (chapa, cor, qualidade)"
     },
     "bobina_inferior": {
       "type": "string",
-      "description": "Bobina inferior"
+      "description": "Texto descritivo da bobina inferior"
     },
     "rvm_superior": {
       "type": "string",
@@ -77,7 +89,7 @@
     },
     "kg_superior": {
       "type": "number",
-      "description": "KG superior"
+      "description": "KG superior (calculado automaticamente pela metragem \u00d7 peso/m)"
     },
     "kg_inferior": {
       "type": "number",
@@ -91,13 +103,17 @@
       "type": "number",
       "description": "Metros do pedido"
     },
-    "valor": {
+    "metragem_planejada": {
       "type": "number",
-      "description": "Valor do pedido (R$)"
+      "description": "Metragem planejada de bobina a ser usada (admin define; operador registra o real)"
     },
     "metragem_utilizada": {
       "type": "number",
-      "description": "Metragem utilizada de bobina"
+      "description": "Metragem real utilizada pelo operador na produ\u00e7\u00e3o"
+    },
+    "valor": {
+      "type": "number",
+      "description": "Valor do pedido (R$)"
     },
     "status": {
       "type": "string",
@@ -134,6 +150,10 @@
       ],
       "default": "Matriz AJL",
       "description": "Unidade produtora"
+    },
+    "isopor_utilizado": {
+      "type": "number",
+      "description": "Quantidade de pe\u00e7as de isopor utilizadas (preenchido pelo operador de colagem)"
     },
     "observacoes": {
       "type": "string",
