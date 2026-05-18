@@ -24,7 +24,7 @@ const ETAPAS = {
   "TELHA + EPS": ["Verificar bobina superior (metal)", "Separar bloco de EPS", "Colar EPS na chapa (cola + fita)", "Passar pela colagem"],
   "TELHA + EPS + TELHA": ["Verificar bobina superior", "Verificar bobina inferior", "Separar EPS do tipo correto", "Colar EPS na chapa superior", "Colar chapa inferior (cola x2 + fita)", "Passar pela colagem"],
   "TELHA + EPS + MANTA": ["Verificar bobina superior", "Separar EPS", "Preparar manta térmica", "Colar EPS + manta na chapa (cola + fita)"],
-  "TELHA BANDEJA": ["Verificar bobina superior", "Verificar bobina inferior (Bandeja)", "Separar EPS específico Bandeja", "Colar com cola x2 nas duas faces"],
+  "TELHA BANDEJA": ["TP-40: Perfilar chapa superior", "BANDEJA: Perfilar chapa inferior (Bandeja)", "Separar EPS específico Bandeja", "COLAGEM: Colar com cola x2 nas duas faces"],
   "BOBININHA": ["Preparar desbobinador", "Cortar e rebobinar"],
   "CUMEEIRA": ["Verificar bobina e cor", "Passar pela cumeeira", "Cortar e empacotar"],
 };
@@ -274,7 +274,11 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
               <span className="font-bold text-base">{p.produto}</span>
               <StatusBadge status={p.status} />
               {p.status === "aguardando_colagem" && (
-                <Badge className="bg-orange-100 text-orange-700 border-orange-300 text-xs">→ Colagem</Badge>
+                <Badge className="bg-orange-100 text-orange-700 border-orange-300 text-xs">
+                  {p.produto === "TELHA BANDEJA" && p.maquina === "BANDEJA" ? "→ Bandeja" :
+                   p.produto === "TELHA BANDEJA" && p.maquina === "COLAGEM" ? "→ Colagem" :
+                   "→ Colagem"}
+                </Badge>
               )}
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
@@ -426,7 +430,9 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
               </Button>
               <Button size="sm" className="gap-1 bg-green-600 hover:bg-green-700 text-white border-0" onClick={handleFinalizar}>
                 <CheckCircle2 className="w-3 h-3" />
-                {precisaColagem ? "Finalizar → Colagem" : "✓ Finalizar"}
+                {isBandejaTp40 && proximaEtapaBandeja
+                  ? `Finalizar ${labelProximaEtapa(p.maquina)}`
+                  : precisaColagem ? "Finalizar → Colagem" : "✓ Finalizar"}
               </Button>
             </>
           )}
