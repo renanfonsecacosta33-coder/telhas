@@ -31,6 +31,7 @@ import DashboardBandeja from '@/pages/maquinas/DashboardBandeja';
 import DashboardDesbobinador from '@/pages/maquinas/DashboardDesbobinador';
 import DashboardCumeeira from '@/pages/maquinas/DashboardCumeeira';
 import DashboardColagem from '@/pages/maquinas/DashboardColagem';
+import CalculadoraIsopor from '@/pages/CalculadoraIsopor';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -84,6 +85,7 @@ const AuthenticatedApp = () => {
         <Route path="/dashboard/desbobinador" element={<DashboardDesbobinador />} />
         <Route path="/dashboard/cumeeira" element={<DashboardCumeeira />} />
         <Route path="/dashboard/colagem" element={<DashboardColagem />} />
+        <Route path="/calculadora-isopor" element={<CalculadoraIsopor />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

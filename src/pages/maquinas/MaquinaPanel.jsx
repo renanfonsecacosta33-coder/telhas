@@ -4,11 +4,12 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Circle, ChevronLeft, ChevronRight, ArrowLeft, BarChart2 } from "lucide-react";
+import { Circle, ChevronLeft, ChevronRight, ArrowLeft, BarChart2, Plus } from "lucide-react";
 import { format, addDays, subDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import PedidoRow from "@/components/producao/PedidoRow";
+import PedidoFormDialog from "@/components/producao/PedidoFormDialog";
 
 
 
@@ -30,6 +31,7 @@ const DASH_PATHS = {
 export default function MaquinaPanel({ maquina }) {
   const navigate = useNavigate();
   const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [novoPedidoOpen, setNovoPedidoOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: pedidos = [], isLoading } = useQuery({
@@ -43,6 +45,15 @@ export default function MaquinaPanel({ maquina }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pedidos-maquina", maquina] });
       toast.success("Status atualizado!");
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data) => base44.entities.Pedido.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pedidos-maquina", maquina] });
+      setNovoPedidoOpen(false);
+      toast.success("Pedido criado!");
     },
   });
 
@@ -74,7 +85,7 @@ export default function MaquinaPanel({ maquina }) {
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
-      {/* Botão de voltar + Dashboard */}
+      {/* Botão de voltar + Dashboard + Novo Pedido */}
       <div className="flex items-center justify-between">
         <Button
           variant="ghost"
@@ -85,14 +96,20 @@ export default function MaquinaPanel({ maquina }) {
           <ArrowLeft className="w-4 h-4" />
           Voltar para Produção
         </Button>
-        {DASH_PATHS[maquina] && (
-          <Link to={DASH_PATHS[maquina]}>
-            <Button variant="outline" size="sm" className="gap-2">
-              <BarChart2 className="w-4 h-4" />
-              Dashboard {maquina}
-            </Button>
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          {DASH_PATHS[maquina] && (
+            <Link to={DASH_PATHS[maquina]}>
+              <Button variant="outline" size="sm" className="gap-2">
+                <BarChart2 className="w-4 h-4" />
+                Dashboard
+              </Button>
+            </Link>
+          )}
+          <Button size="sm" className="gap-2" onClick={() => setNovoPedidoOpen(true)}>
+            <Plus className="w-4 h-4" />
+            Novo Pedido
+          </Button>
+        </div>
       </div>
 
       {/* Header máquina */}
@@ -172,6 +189,15 @@ export default function MaquinaPanel({ maquina }) {
           ))}
         </div>
       )}
+
+      {/* Dialog novo pedido */}
+      <PedidoFormDialog
+        open={novoPedidoOpen}
+        onClose={() => setNovoPedidoOpen(false)}
+        onSave={(data) => createMutation.mutate({ ...data, maquina, data: selectedDay })}
+        defaultDate={selectedDay}
+        editItem={{ _presets: { maquina, data: selectedDay } }}
+      />
 
       {/* Lista de pedidos */}
       {isLoading ? (

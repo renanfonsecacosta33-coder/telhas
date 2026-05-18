@@ -31,6 +31,21 @@ const ETAPAS = {
 
 const PRODUTOS_COM_EPS = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"];
 
+// TELHA BANDEJA TP-40: fluxo TP-40 → BANDEJA → COLAGEM
+// Retorna a próxima máquina no fluxo da TELHA BANDEJA, ou null se for a última
+function proximaMaquinaBandeja(maquinaAtual) {
+  const fluxo = ["TP - 40", "BANDEJA", "COLAGEM"];
+  const idx = fluxo.indexOf(maquinaAtual);
+  if (idx === -1 || idx === fluxo.length - 1) return null;
+  return fluxo[idx + 1];
+}
+
+function labelProximaEtapa(maquinaAtual) {
+  const prox = proximaMaquinaBandeja(maquinaAtual);
+  if (!prox) return null;
+  return prox === "BANDEJA" ? "→ Bandeja" : prox === "COLAGEM" ? "→ Colagem" : null;
+}
+
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
   const h = Math.floor(s / 3600);
@@ -57,6 +72,9 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
 
   const borderColor = PRODUTO_BG[p.produto] || "border-l-slate-300";
   const precisaColagem = PRODUTOS_COM_EPS.includes(p.produto);
+  // TELHA BANDEJA TP-40 tem fluxo especial de 3 etapas
+  const isBandejaTp40 = p.produto === "TELHA BANDEJA" && ["TP - 40", "BANDEJA", "COLAGEM"].includes(p.maquina);
+  const proximaEtapaBandeja = isBandejaTp40 ? proximaMaquinaBandeja(p.maquina) : null;
 
   // Calcula tempo ao vivo
   const now = Date.now();
@@ -219,6 +237,18 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
           ...(metragemRestante !== undefined ? { metragem_restante: Math.max(0, metragemRestante) } : {})
         });
       }
+    }
+
+    // TELHA BANDEJA TP-40: avança pelo fluxo TP-40 → BANDEJA → COLAGEM
+    if (isBandejaTp40 && proximaEtapaBandeja) {
+      onStatusChange(p, "aguardando_colagem", {
+        tempo_producao_seg: prodSeg,
+        metragem_utilizada: metragemRealNum,
+        inicio_producao_ts: null,
+        maquina: proximaEtapaBandeja,
+      });
+      setMetragemDialog(false);
+      return;
     }
 
     const novoStatus = precisaColagem ? "aguardando_colagem" : "finalizado";

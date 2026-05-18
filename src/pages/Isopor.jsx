@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Pencil, Trash2, Snowflake, Ruler, Package } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Snowflake, Ruler, Package, Calculator } from "lucide-react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import StatsCard from "@/components/stock/StatsCard";
 import IsoporFormDialog from "@/components/isopor/IsoporFormDialog";
@@ -93,10 +94,18 @@ export default function Isopor() {
           </div>
           <p className="text-sm text-muted-foreground">Gerencie o estoque de isopor EPS</p>
         </div>
-        <Button onClick={() => { setEditItem(null); setDialogOpen(true); }} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Novo Isopor
-        </Button>
+        <div className="flex gap-2">
+          <Link to="/calculadora-isopor">
+            <Button variant="outline" className="gap-2">
+              <Calculator className="w-4 h-4" />
+              Calculadora
+            </Button>
+          </Link>
+          <Button onClick={() => { setEditItem(null); setDialogOpen(true); }} className="gap-2">
+            <Plus className="w-4 h-4" />
+            Novo Isopor
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
