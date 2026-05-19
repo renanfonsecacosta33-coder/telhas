@@ -336,10 +336,12 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
               value={form.modelo}
               onValueChange={(v) => {
                 const modeloObj = modelosCad.find((m) => m.modelo === v);
-                // TELHA BANDEJA TP-40 sempre começa na TP-40
                 let maquinaAuto = modeloObj?.maquinas?.split(",")[0]?.trim() || "";
-                if (form.produto === "TELHA BANDEJA" && v.toUpperCase().includes("TP") && v.toUpperCase().includes("40")) {
-                  maquinaAuto = "TP - 40";
+                // TELHA BANDEJA: define máquina inicial pelo modelo
+                if (form.produto === "TELHA BANDEJA") {
+                  const vUp = v.toUpperCase();
+                  if (vUp.includes("COLONIAL")) maquinaAuto = "COLONIAL";
+                  else if (vUp.includes("TP") && vUp.includes("40")) maquinaAuto = "TP - 40";
                 }
                 // Deriva EPS automaticamente a partir do modelo
                 // Ex: "TP - 40" → "EPS - TP 40", "COLONIAL" → "EPS - COLONIAL"

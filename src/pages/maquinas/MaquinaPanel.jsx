@@ -62,13 +62,23 @@ export default function MaquinaPanel({ maquina }) {
     updateMutation.mutate({ id: pedido.id, data });
   };
 
+  // Pedidos que "passaram" por esta máquina (foram para outra após aqui)
+  // Busca também pedidos com histórico nesta máquina
   const pedidosDia = useMemo(() => {
     return pedidos.filter(p => p.data === selectedDay || p.status === "pausado" || p.status === "em_producao");
   }, [pedidos, selectedDay]);
 
   const hoje = isToday(new Date(selectedDay + "T12:00:00"));
   const totalMetros = pedidosDia.reduce((s, p) => s + (p.metros || 0), 0);
-  const finalizados = pedidosDia.filter(p => p.status === "finalizado" || p.status === "aguardando_colagem").length;
+  
+  // Para o dashboard da máquina: "finalizado" = finalizado OU aguardando_colagem (passou por aqui e foi para outra)
+  // Mas se aguardando_colagem e maquina mudou (está em outra), conta como finalizado nessa máquina
+  const finalizados = pedidosDia.filter(p => {
+    if (p.status === "finalizado") return true;
+    // aguardando_colagem e máquina atual é diferente desta → passou por aqui
+    if (p.status === "aguardando_colagem" && p.maquina !== maquina) return true;
+    return false;
+  }).length;
   const emProducao = pedidosDia.filter(p => p.status === "em_producao" || p.status === "pausado").length;
   const pendentes = pedidosDia.filter(p => p.status === "pendente").length;
 

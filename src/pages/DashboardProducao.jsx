@@ -107,6 +107,29 @@ export default function DashboardProducao() {
   const pedidosAtivos = useMemo(() => pedidos.filter(p => p.status === "em_producao" || p.status === "pausado"), [pedidos]);
   const aguardandoColagem = pedidos.filter(p => p.status === "aguardando_colagem").length;
 
+  // Pedidos em trânsito (multi-etapa: aguardando próxima máquina)
+  const pedidosTransito = useMemo(() => pedidos.filter(p => p.status === "aguardando_colagem"), [pedidos]);
+
+  // Fluxos de máquinas conhecidos para rastreamento visual
+  const FLUXOS = {
+    "TELHA BANDEJA": { "TP - 40": ["TP - 40", "BANDEJA", "COLAGEM"], "COLONIAL": ["COLONIAL", "BANDEJA", "COLAGEM"] },
+    "TELHA + EPS": { default: ["TP - 40", "COLAGEM"] },
+    "TELHA + EPS + TELHA": { default: ["TP - 40", "COLAGEM"] },
+    "TELHA + EPS + MANTA": { default: ["TP - 40", "COLAGEM"] },
+  };
+
+  function getMaquinasPercorridas(pedido) {
+    // Tenta determinar quais máquinas o pedido já passou
+    const maquinaAtual = pedido.maquina;
+    const produto = pedido.produto;
+    const fluxoProduto = FLUXOS[produto];
+    if (!fluxoProduto) return null;
+    const fluxo = fluxoProduto[maquinaAtual] || fluxoProduto.default;
+    if (!fluxo) return null;
+    const idxAtual = fluxo.indexOf(maquinaAtual);
+    return { fluxo, idxAtual };
+  }
+
   // Histórico de pausas hoje — todos
   const pausasHoje = useMemo(() => {
     const lista = [];
@@ -314,6 +337,75 @@ export default function DashboardProducao() {
           )}
         </div>
       </div>
+
+      {/* Rastreamento de Pedidos em Andamento / Trânsito */}
+      {(pedidosAtivos.length > 0 || pedidosTransito.length > 0) && (
+        <div className="bg-card border border-border rounded-xl p-4">
+          <h2 className="font-bold text-sm mb-3 flex items-center gap-2">
+            <ArrowRight className="w-4 h-4 text-primary" />
+            Rastreamento de Pedidos — Onde estão agora
+          </h2>
+          <div className="space-y-2 max-h-72 overflow-y-auto">
+            {[...pedidosAtivos, ...pedidosTransito].map(p => {
+              const rastreio = getMaquinasPercorridas(p);
+              return (
+                <div key={p.id} className="border border-border rounded-xl p-3 bg-muted/30">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div>
+                      <span className="font-bold text-sm">{p.produto}</span>
+                      {p.cliente && <span className="text-xs text-muted-foreground ml-2">· {p.cliente}</span>}
+                      {p.numero_pedido && <span className="text-xs text-muted-foreground ml-1">#{p.numero_pedido}</span>}
+                    </div>
+                    <Badge className={`text-xs border flex-shrink-0 ${
+                      p.status === "em_producao" ? "bg-amber-100 text-amber-700 border-amber-300" :
+                      p.status === "pausado" ? "bg-purple-100 text-purple-700 border-purple-300" :
+                      "bg-orange-100 text-orange-700 border-orange-300"
+                    }`}>
+                      {p.status === "em_producao" ? "🔄 Produzindo" : p.status === "pausado" ? "⏸ Pausado" : "⏳ Aguardando"}
+                    </Badge>
+                  </div>
+                  {/* Fluxo de máquinas */}
+                  {rastreio ? (
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {rastreio.fluxo.map((maq, i) => {
+                        const passou = i < rastreio.idxAtual;
+                        const atual = i === rastreio.idxAtual;
+                        const futuro = i > rastreio.idxAtual;
+                        return (
+                          <React.Fragment key={maq}>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${
+                              passou ? "bg-green-100 text-green-700 border-green-300 line-through opacity-70" :
+                              atual ? "bg-primary text-primary-foreground border-primary" :
+                              "bg-muted text-muted-foreground border-border"
+                            }`}>
+                              {passou ? "✓ " : atual ? "▶ " : ""}{maq}
+                            </span>
+                            {i < rastreio.fluxo.length - 1 && (
+                              <ArrowRight className={`w-3 h-3 ${passou ? "text-green-400" : "text-muted-foreground/40"}`} />
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs px-2 py-0.5 rounded-full font-semibold border bg-primary text-primary-foreground border-primary">
+                        ▶ {p.maquina}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                    {p.metros > 0 && <span>{Number(p.metros).toLocaleString("pt-BR")} telhas</span>}
+                    {p.metragem_mm > 0 && <span>{Number(p.metragem_mm)}mm</span>}
+                    {p.metros > 0 && p.metragem_mm > 0 && <span className="text-primary font-semibold">{(p.metros * p.metragem_mm / 1000).toFixed(1)}m total</span>}
+                    {p.data_prevista && <span>· Prev: {format(new Date(p.data_prevista + "T12:00:00"), "dd/MM")}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Status por Máquina — hoje */}
       <div>

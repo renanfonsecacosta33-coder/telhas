@@ -24,26 +24,30 @@ const ETAPAS = {
   "TELHA + EPS": ["Verificar bobina superior (metal)", "Separar bloco de EPS", "Colar EPS na chapa (cola + fita)", "Passar pela colagem"],
   "TELHA + EPS + TELHA": ["Verificar bobina superior", "Verificar bobina inferior", "Separar EPS do tipo correto", "Colar EPS na chapa superior", "Colar chapa inferior (cola x2 + fita)", "Passar pela colagem"],
   "TELHA + EPS + MANTA": ["Verificar bobina superior", "Separar EPS", "Preparar manta térmica", "Colar EPS + manta na chapa (cola + fita)"],
-  "TELHA BANDEJA": ["TP-40: Perfilar chapa superior", "BANDEJA: Perfilar chapa inferior (Bandeja)", "Separar EPS específico Bandeja", "COLAGEM: Colar com cola x2 nas duas faces"],
+  "TELHA BANDEJA": ["TP-40 ou COLONIAL: Perfilar chapa superior", "BANDEJA: Perfilar chapa inferior (Bandeja)", "Separar EPS específico Bandeja", "COLAGEM: Colar com cola x2 nas duas faces"],
   "BOBININHA": ["Preparar desbobinador", "Cortar e rebobinar"],
   "CUMEEIRA": ["Verificar bobina e cor", "Passar pela cumeeira", "Cortar e empacotar"],
 };
 
 const PRODUTOS_COM_EPS = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"];
 
-// TELHA BANDEJA TP-40: fluxo TP-40 → BANDEJA → COLAGEM
-// Retorna a próxima máquina no fluxo da TELHA BANDEJA, ou null se for a última
-function proximaMaquinaBandeja(maquinaAtual) {
-  const fluxo = ["TP - 40", "BANDEJA", "COLAGEM"];
-  const idx = fluxo.indexOf(maquinaAtual);
-  if (idx === -1 || idx === fluxo.length - 1) return null;
-  return fluxo[idx + 1];
+// Fluxos de máquinas para produtos multi-etapa
+function proximaMaquinaFluxo(produto, maquinaAtual) {
+  // TELHA BANDEJA: TP-40 ou COLONIAL → BANDEJA → COLAGEM
+  if (produto === "TELHA BANDEJA") {
+    const fluxo = maquinaAtual === "COLONIAL" ? ["COLONIAL", "BANDEJA", "COLAGEM"]
+                : ["TP - 40", "BANDEJA", "COLAGEM"];
+    const idx = fluxo.indexOf(maquinaAtual);
+    if (idx === -1 || idx === fluxo.length - 1) return null;
+    return fluxo[idx + 1];
+  }
+  return null;
 }
 
-function labelProximaEtapa(maquinaAtual) {
-  const prox = proximaMaquinaBandeja(maquinaAtual);
+function labelProximaEtapa(produto, maquinaAtual) {
+  const prox = proximaMaquinaFluxo(produto, maquinaAtual);
   if (!prox) return null;
-  return prox === "BANDEJA" ? "→ Bandeja" : prox === "COLAGEM" ? "→ Colagem" : null;
+  return `→ ${prox === "TP - 40" ? "TP-40" : prox.charAt(0) + prox.slice(1).toLowerCase()}`;
 }
 
 function formatTempo(segundos) {
@@ -61,6 +65,9 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
   const [pauseTipo, setPauseTipo] = useState("setup"); // "setup" | "outro"
   const [metragemDialog, setMetragemDialog] = useState(false);
   const [metragemReal, setMetragemReal] = useState("");
+  const [telhasSandwichDialog, setTelhasSandwichDialog] = useState(false);
+  const [telhaSupOk, setTelhaSupOk] = useState(false);
+  const [telhaInfOk, setTelhaInfOk] = useState(false);
   const [tick, setTick] = useState(0);
   const intervalRef = useRef(null);
 
@@ -73,8 +80,8 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
   const borderColor = PRODUTO_BG[p.produto] || "border-l-slate-300";
   const precisaColagem = PRODUTOS_COM_EPS.includes(p.produto);
   // TELHA BANDEJA TP-40 tem fluxo especial de 3 etapas
-  const isBandejaTp40 = p.produto === "TELHA BANDEJA" && ["TP - 40", "BANDEJA", "COLAGEM"].includes(p.maquina);
-  const proximaEtapaBandeja = isBandejaTp40 ? proximaMaquinaBandeja(p.maquina) : null;
+  const isBandejaMultiEtapa = p.produto === "TELHA BANDEJA" && ["TP - 40", "COLONIAL", "BANDEJA", "COLAGEM"].includes(p.maquina);
+  const proximaEtapaBandeja = isBandejaMultiEtapa ? proximaMaquinaFluxo(p.produto, p.maquina) : null;
 
   // Calcula tempo ao vivo
   const now = Date.now();
@@ -165,7 +172,20 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
   };
 
   const handleFinalizar = () => {
+    // TELHA + EPS + TELHA: pede checklist de telhas antes
+    if (p.produto === "TELHA + EPS + TELHA" && p.maquina !== "COLAGEM") {
+      setTelhaSupOk(false);
+      setTelhaInfOk(false);
+      setTelhasSandwichDialog(true);
+      return;
+    }
     // Abre dialog de confirmação de metragem
+    setMetragemReal(p.metragem_planejada?.toString() || "");
+    setMetragemDialog(true);
+  };
+
+  const confirmarTelhasSandwich = () => {
+    setTelhasSandwichDialog(false);
     setMetragemReal(p.metragem_planejada?.toString() || "");
     setMetragemDialog(true);
   };
@@ -239,11 +259,12 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
       }
     }
 
-    // TELHA BANDEJA TP-40: avança pelo fluxo TP-40 → BANDEJA → COLAGEM
-    if (isBandejaTp40 && proximaEtapaBandeja) {
+    // TELHA BANDEJA multi-etapa: avança pelo fluxo
+    if (isBandejaMultiEtapa && proximaEtapaBandeja) {
       onStatusChange(p, "aguardando_colagem", {
         tempo_producao_seg: prodSeg,
         metragem_utilizada: metragemRealNum,
+        metragem_planejada: metragemRealNum, // atualiza planejado com real
         inicio_producao_ts: null,
         maquina: proximaEtapaBandeja,
       });
@@ -255,8 +276,9 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
     onStatusChange(p, novoStatus, {
       tempo_producao_seg: prodSeg,
       metragem_utilizada: metragemRealNum,
+      metragem_planejada: metragemRealNum, // atualiza planejado com real para próxima etapa
       inicio_producao_ts: null,
-      data_finalizacao: format(new Date(), "yyyy-MM-dd"),
+      data_finalizacao: novoStatus === "finalizado" ? format(new Date(), "yyyy-MM-dd") : undefined,
       ...(precisaColagem ? { maquina: "COLAGEM" } : {}),
     });
     setMetragemDialog(false);
@@ -294,6 +316,35 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
             </p>
           </div>
         </div>
+
+        {/* Destaque: Quantidade de Telhas + Metragem individual */}
+        {(p.metros > 0 || p.metragem_mm > 0) && (
+          <div className="flex items-stretch gap-2 mb-3">
+            {p.metros > 0 && (
+              <div className="flex-1 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2 text-center">
+                <p className="text-xs font-semibold text-indigo-500 uppercase tracking-wide">Qtd. Telhas</p>
+                <p className="text-2xl font-black text-indigo-700 leading-none">{Number(p.metros).toLocaleString("pt-BR")}</p>
+                <p className="text-xs text-indigo-400 font-medium">peças</p>
+              </div>
+            )}
+            {p.metragem_mm > 0 && (
+              <div className="flex-1 bg-teal-50 border border-teal-200 rounded-xl px-3 py-2 text-center">
+                <p className="text-xs font-semibold text-teal-500 uppercase tracking-wide">Comprimento</p>
+                <p className="text-2xl font-black text-teal-700 leading-none">{Number(p.metragem_mm).toLocaleString("pt-BR")}</p>
+                <p className="text-xs text-teal-400 font-medium">mm por peça</p>
+              </div>
+            )}
+            {p.metros > 0 && p.metragem_mm > 0 && (
+              <div className="flex-1 bg-primary/5 border border-primary/20 rounded-xl px-3 py-2 text-center">
+                <p className="text-xs font-semibold text-primary/60 uppercase tracking-wide">Total</p>
+                <p className="text-2xl font-black text-primary leading-none">
+                  {(Number(p.metros) * (Number(p.metragem_mm) / 1000)).toFixed(1)}
+                </p>
+                <p className="text-xs text-primary/50 font-medium">metros</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Detalhes técnicos */}
         <div className="flex flex-wrap gap-2 mb-3">
@@ -430,8 +481,8 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
               </Button>
               <Button size="sm" className="gap-1 bg-green-600 hover:bg-green-700 text-white border-0" onClick={handleFinalizar}>
                 <CheckCircle2 className="w-3 h-3" />
-                {isBandejaTp40 && proximaEtapaBandeja
-                  ? `Finalizar ${labelProximaEtapa(p.maquina)}`
+                {isBandejaMultiEtapa && proximaEtapaBandeja
+                  ? `Finalizar ${labelProximaEtapa(p.produto, p.maquina)}`
                   : precisaColagem ? "Finalizar → Colagem" : "✓ Finalizar"}
               </Button>
             </>
@@ -501,6 +552,54 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
               className="gap-1"
             >
               <Pause className="w-4 h-4" /> Confirmar Pausa
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog checklist TELHA + EPS + TELHA */}
+      <Dialog open={telhasSandwichDialog} onOpenChange={setTelhasSandwichDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Checklist — TELHA + EPS + TELHA</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">Confirme antes de ir para a Colagem:</p>
+            <div className="space-y-3">
+              <button
+                onClick={() => setTelhaSupOk(!telhaSupOk)}
+                className={`w-full flex items-center gap-3 border-2 rounded-xl p-4 text-left transition-all ${telhaSupOk ? "border-green-500 bg-green-50" : "border-border hover:border-primary/50"}`}
+              >
+                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${telhaSupOk ? "border-green-500 bg-green-500" : "border-slate-300"}`}>
+                  {telhaSupOk && <CheckCircle2 className="w-4 h-4 text-white" />}
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">Telha Superior retirada ✓</p>
+                  <p className="text-xs text-muted-foreground">A chapa superior foi perfilada e está pronta</p>
+                </div>
+              </button>
+              <button
+                onClick={() => setTelhaInfOk(!telhaInfOk)}
+                className={`w-full flex items-center gap-3 border-2 rounded-xl p-4 text-left transition-all ${telhaInfOk ? "border-green-500 bg-green-50" : "border-border hover:border-primary/50"}`}
+              >
+                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${telhaInfOk ? "border-green-500 bg-green-500" : "border-slate-300"}`}>
+                  {telhaInfOk && <CheckCircle2 className="w-4 h-4 text-white" />}
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">Telha Inferior retirada ✓</p>
+                  <p className="text-xs text-muted-foreground">A chapa inferior foi perfilada e está pronta</p>
+                </div>
+              </button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTelhasSandwichDialog(false)}>Cancelar</Button>
+            <Button
+              onClick={confirmarTelhasSandwich}
+              disabled={!telhaSupOk || !telhaInfOk}
+              className="gap-1 bg-green-600 hover:bg-green-700"
+            >
+              <CheckCircle2 className="w-4 h-4" /> Confirmar → Colagem
             </Button>
           </DialogFooter>
         </DialogContent>
