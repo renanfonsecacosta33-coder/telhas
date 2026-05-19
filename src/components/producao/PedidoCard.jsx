@@ -1,7 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2, CheckCircle2, Clock, Circle } from "lucide-react";
+import { Pencil, Trash2, CheckCircle2, Clock, Circle, Printer } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -12,7 +12,7 @@ const STATUS_CONFIG = {
   cancelado: { label: "Cancelado", icon: Circle, badge: "bg-red-100 text-red-700 border-red-200" },
 };
 
-export default function PedidoCard({ pedido: p, maquinaCores, onEdit, onDelete, onStatusChange }) {
+export default function PedidoCard({ pedido: p, maquinaCores, onEdit, onDelete, onStatusChange, onPrintOP }) {
   const st = STATUS_CONFIG[p.status] || STATUS_CONFIG.pendente;
   const Icon = st.icon;
 
@@ -53,6 +53,11 @@ export default function PedidoCard({ pedido: p, maquinaCores, onEdit, onDelete, 
           {p.status !== "finalizado" && (
             <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600 hover:text-green-700" title="Finalizar" onClick={() => onStatusChange(p, "finalizado")}>
               <CheckCircle2 className="w-4 h-4" />
+            </Button>
+          )}
+          {onPrintOP && (
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:text-blue-700" title="Imprimir OP" onClick={() => onPrintOP(p)}>
+              <Printer className="w-3 h-3" />
             </Button>
           )}
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(p)}>

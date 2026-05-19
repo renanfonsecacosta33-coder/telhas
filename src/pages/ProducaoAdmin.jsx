@@ -12,6 +12,8 @@ import PedidoFormDialog from "@/components/producao/PedidoFormDialog";
 import PedidoCard from "@/components/producao/PedidoCard";
 import DiaResumoCard from "@/components/producao/DiaResumoCard";
 import ProducaoDados from "@/pages/ProducaoDados";
+import AlertasEstoque from "@/components/producao/AlertasEstoque";
+import OPImpressao from "@/components/producao/OPImpressao";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 
@@ -33,6 +35,9 @@ export default function ProducaoAdmin() {
   const [editItem, setEditItem] = useState(null);
   const [viewMode, setViewMode] = useState("semana"); // "semana" | "dia"
   const [activeTab, setActiveTab] = useState("producao"); // "producao" | "dados"
+  const [opOpen, setOpOpen] = useState(false);
+  const [opPedido, setOpPedido] = useState(null);
+  const [alertasVisivel, setAlertasVisivel] = useState(true);
   const queryClient = useQueryClient();
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
@@ -74,6 +79,8 @@ export default function ProducaoAdmin() {
 
   const openEdit = (p) => { setEditItem(p); setDialogOpen(true); };
 
+  const abrirOP = (p) => { setOpPedido(p); setOpOpen(true); };
+
   // Pedidos da semana atual
   const pedidosSemana = useMemo(() => {
     const startStr = format(weekStart, "yyyy-MM-dd");
@@ -104,6 +111,9 @@ export default function ProducaoAdmin() {
 
   return (
     <div className="space-y-6">
+      {/* Alertas de Estoque */}
+      {alertasVisivel && <AlertasEstoque onClose={() => setAlertasVisivel(false)} />}
+
       {/* Header + Abas */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -183,6 +193,14 @@ export default function ProducaoAdmin() {
         <div className="w-px bg-border mx-1 self-stretch" />
 
         <Link
+          to="/dashboard-performance"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all text-muted-foreground hover:bg-card hover:text-foreground hover:shadow"
+        >
+          <TrendingUp className="w-4 h-4" />
+          Performance
+        </Link>
+
+        <Link
           to="/dashboard-producao"
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all text-muted-foreground hover:bg-card hover:text-foreground hover:shadow"
         >
@@ -209,7 +227,7 @@ export default function ProducaoAdmin() {
           ) : (
             <div className="space-y-2">
               {pedidos.filter(p => p.maquina === "COLAGEM").sort((a, b) => b.data?.localeCompare(a.data)).map(p => (
-                <PedidoCard key={p.id} pedido={p} maquinaCores={MAQUINA_CORES} onEdit={(p) => { setEditItem(p); setDialogOpen(true); }} onDelete={(id) => deleteMutation.mutate(id)} onStatusChange={(p, status) => updateMutation.mutate({ id: p.id, data: { ...p, status } })} />
+                <PedidoCard key={p.id} pedido={p} maquinaCores={MAQUINA_CORES} onEdit={(p) => { setEditItem(p); setDialogOpen(true); }} onDelete={(id) => deleteMutation.mutate(id)} onStatusChange={(p, status) => updateMutation.mutate({ id: p.id, data: { ...p, status } })} onPrintOP={abrirOP} />
               ))}
             </div>
           )}
@@ -363,7 +381,7 @@ export default function ProducaoAdmin() {
                 ) : (
                   <div className="divide-y divide-border">
                     {pedidosMaquina.map(p => (
-                      <PedidoCard key={p.id} pedido={p} maquinaCores={MAQUINA_CORES} onEdit={openEdit} onDelete={(id) => deleteMutation.mutate(id)} onStatusChange={(p, status) => updateMutation.mutate({ id: p.id, data: { ...p, status } })} />
+                      <PedidoCard key={p.id} pedido={p} maquinaCores={MAQUINA_CORES} onEdit={openEdit} onDelete={(id) => deleteMutation.mutate(id)} onStatusChange={(p, status) => updateMutation.mutate({ id: p.id, data: { ...p, status } })} onPrintOP={abrirOP} />
                     ))}
                   </div>
                 )}
@@ -381,6 +399,8 @@ export default function ProducaoAdmin() {
         defaultDate={selectedDay}
       />
       </>)}
+
+      <OPImpressao open={opOpen} onClose={() => setOpOpen(false)} pedido={opPedido} />
     </div>
   );
 }
