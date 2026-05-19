@@ -35,10 +35,19 @@ export default function CalculadoraIsopor() {
   const metragemTotalM = (Number(qtdTelhas) || 0) * ((Number(comprimento_mm) || 0) / 1000);
   const larguraMm = LARGURAS_EPS[tipoEPS] || 0;
 
-  // Cada placa cobre 2m de comprimento
-  const placasNecessarias = metragemTotalM > 0 ? Math.ceil(metragemTotalM / COMPRIMENTO_PLACA) : 0;
-  const placasInteiras = metragemTotalM > 0 ? Math.floor(metragemTotalM / COMPRIMENTO_PLACA) : 0;
-  const sobra = +(metragemTotalM - placasInteiras * COMPRIMENTO_PLACA).toFixed(2);
+  // Cada TELHA consome placas individualmente (não compartilha entre telhas)
+  // Ex: telha de 5,25m → ceil(5,25/2) = 3 placas por telha
+  const comprimentoTelhaM = (Number(comprimento_mm) || 0) / 1000;
+  const placasPorTelha = comprimentoTelhaM > 0 ? Math.ceil(comprimentoTelhaM / COMPRIMENTO_PLACA) : 0;
+  const qtdTelhasNum = Number(qtdTelhas) || 0;
+  const placasNecessarias = placasPorTelha * qtdTelhasNum;
+
+  // Detalhamento: placas inteiras (cabem exatas) e pedaços (sobra)
+  const placasInteirasPorTelha = comprimentoTelhaM > 0 ? Math.floor(comprimentoTelhaM / COMPRIMENTO_PLACA) : 0;
+  const sobraPorTelha = +(comprimentoTelhaM - placasInteirasPorTelha * COMPRIMENTO_PLACA).toFixed(4);
+  const placasInteiras = placasInteirasPorTelha * qtdTelhasNum;
+  const pedacos = sobraPorTelha > 0 ? qtdTelhasNum : 0;
+  const sobra = sobraPorTelha; // sobra de cada pedaço
 
   // Area total coberta
   const areaTotalM2 = metragemTotalM * (larguraMm / 1000);
@@ -141,13 +150,24 @@ export default function CalculadoraIsopor() {
 
           {/* Card principal */}
           <div className="bg-emerald-50 border border-emerald-300 rounded-xl px-5 py-4 text-center">
-            <p className="text-xs font-semibold text-emerald-800 uppercase tracking-wide mb-1">Placas Necessárias</p>
+            <p className="text-xs font-semibold text-emerald-800 uppercase tracking-wide mb-1">Total de Placas a Comprar</p>
             <p className="text-5xl font-black text-emerald-700">{placasNecessarias}</p>
-            <p className="text-sm text-emerald-600 mt-1">
-              {placasInteiras > 0 && `${placasInteiras} placa${placasInteiras !== 1 ? 's' : ''} inteira${placasInteiras !== 1 ? 's' : ''} (${placasInteiras * COMPRIMENTO_PLACA}m)`}
-              {sobra > 0 && placasInteiras > 0 && ' + '}
-              {sobra > 0 && `1 placa cortada em ${sobra}m`}
-            </p>
+          </div>
+
+          {/* Detalhamento inteiras + pedaços */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">Placas Inteiras</p>
+              <p className="text-4xl font-black text-blue-700">{placasInteiras}</p>
+              <p className="text-xs text-blue-500 mt-1">de {COMPRIMENTO_PLACA},000m ({COMPRIMENTO_PLACA},000m) cada</p>
+            </div>
+            {pedacos > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+                <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">Pedaços</p>
+                <p className="text-4xl font-black text-amber-700">{pedacos}</p>
+                <p className="text-xs text-amber-500 mt-1">de {(sobra * 1000).toFixed(0)}mm ({sobra.toFixed(3)}m) cada</p>
+              </div>
+            )}
           </div>
 
           {/* Detalhamento */}

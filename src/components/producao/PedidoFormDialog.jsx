@@ -210,11 +210,16 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     // Metragem total do pedido
     const metragemTotalM = metros * ((Number(form.metragem_mm) || 0) / 1000);
     
-    // Quantidade de isopor: cada peça = 2m
-    if (metragemTotalM > 0) {
-      const pecasInteiras = Math.floor(metragemTotalM / 2);
-      const metragem_resto = +(metragemTotalM - (pecasInteiras * 2)).toFixed(2);
-      newForm.isopor_utilizado = { pecasInteiras, metragem_resto, total: metragemTotalM };
+    // Isopor: cada telha consome ceil(comprimento_telha / 2) placas individualmente
+    const comprTelhaM = (Number(form.metragem_mm) || 0) / 1000;
+    if (metros > 0 && comprTelhaM > 0) {
+      const placasPorTelha = Math.ceil(comprTelhaM / 2);
+      const placasInteirasPorTelha = Math.floor(comprTelhaM / 2);
+      const sobraPorTelha = +(comprTelhaM - placasInteirasPorTelha * 2).toFixed(4);
+      const totalPlacas = placasPorTelha * metros;
+      const totalInteiras = placasInteirasPorTelha * metros;
+      const totalPedacos = sobraPorTelha > 0 ? metros : 0;
+      newForm.isopor_utilizado = { total: totalPlacas, pecasInteiras: totalInteiras, pedacos: totalPedacos, sobraMm: Math.round(sobraPorTelha * 1000) };
     } else {
       newForm.isopor_utilizado = "";
     }
@@ -239,11 +244,17 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     
     newForm.quantidade_telhas = calcQtdTelhas(form.metros, val);
     
-    // Recalcula isopor com nova metragem: cada peça = 2m
-    if (metragemTotalM > 0) {
-      const pecasInteiras = Math.floor(metragemTotalM / 2);
-      const metragem_resto = +(metragemTotalM - (pecasInteiras * 2)).toFixed(2);
-      newForm.isopor_utilizado = { pecasInteiras, metragem_resto, total: metragemTotalM };
+    // Isopor: cada telha consome ceil(comprimento_telha / 2) placas individualmente
+    const comprTelhaMVal = (Number(val) || 0) / 1000;
+    const metrosAtual = Number(form.metros) || 0;
+    if (metrosAtual > 0 && comprTelhaMVal > 0) {
+      const placasPorTelha = Math.ceil(comprTelhaMVal / 2);
+      const placasInteirasPorTelha = Math.floor(comprTelhaMVal / 2);
+      const sobraPorTelha = +(comprTelhaMVal - placasInteirasPorTelha * 2).toFixed(4);
+      const totalPlacas = placasPorTelha * metrosAtual;
+      const totalInteiras = placasInteirasPorTelha * metrosAtual;
+      const totalPedacos = sobraPorTelha > 0 ? metrosAtual : 0;
+      newForm.isopor_utilizado = { total: totalPlacas, pecasInteiras: totalInteiras, pedacos: totalPedacos, sobraMm: Math.round(sobraPorTelha * 1000) };
     } else {
       newForm.isopor_utilizado = "";
     }
@@ -288,8 +299,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
       metragem_mm: form.metragem_mm ? Number(form.metragem_mm) : undefined,
       quantidade_telhas: form.quantidade_telhas ? Number(form.quantidade_telhas) : undefined,
       metragem_planejada: form.metragem_planejada ? Number(form.metragem_planejada) : undefined,
-      isopor_utilizado: form.isopor_utilizado ? form.isopor_utilizado.pecasInteiras : undefined,
-      isopor_metragem_resto: form.isopor_utilizado ? form.isopor_utilizado.metragem_resto : undefined
+      isopor_utilizado: form.isopor_utilizado ? form.isopor_utilizado.total : undefined
     };
 
     onSave(data);
@@ -483,17 +493,22 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
               </div>
               {/* Quantidade de isopor calculada automaticamente */}
               {form.isopor_utilizado ? (
-                <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 flex items-center justify-between">
-                  <div>
+                <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 space-y-2">
+                  <div className="flex items-center justify-between">
                     <p className="text-xs font-medium text-orange-800">Placas de Isopor Necessárias</p>
-                    <p className="text-xs text-orange-600">Cada peça = 2m</p>
+                    <span className="text-xl font-black text-orange-700">{form.isopor_utilizado.total} placas</span>
                   </div>
-                  <div className="text-right">
-                    <span className="text-lg font-bold text-orange-700">
-                      {form.isopor_utilizado.pecasInteiras} peça{form.isopor_utilizado.pecasInteiras !== 1 ? 's' : ''} (2m)
-                      {form.isopor_utilizado.metragem_resto > 0 && ` + ${form.isopor_utilizado.metragem_resto}m`}
-                    </span>
-                    <p className="text-xs text-orange-600">Total: {form.isopor_utilizado.total.toFixed(2)}m</p>
+                  <div className="flex gap-2 text-xs">
+                    {form.isopor_utilizado.pecasInteiras > 0 && (
+                      <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
+                        {form.isopor_utilizado.pecasInteiras} inteiras (2m)
+                      </span>
+                    )}
+                    {form.isopor_utilizado.pedacos > 0 && (
+                      <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
+                        {form.isopor_utilizado.pedacos} pedaços ({form.isopor_utilizado.sobraMm}mm)
+                      </span>
+                    )}
                   </div>
                 </div>
               ) : (
