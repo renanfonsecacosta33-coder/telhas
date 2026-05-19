@@ -197,13 +197,13 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
       return;
     }
 
-    // Se é colagem — finaliza colagem
+    // ── COLAGEM: desconta isopor e finaliza (NÃO desconta bobinas aqui) ──
     if (p.maquina === "COLAGEM") {
       let colagSeg = p.tempo_colagem_seg || 0;
       if (p.inicio_producao_ts) {
         colagSeg += Math.floor((Date.now() - new Date(p.inicio_producao_ts).getTime()) / 1000);
       }
-      // Desconta isopor ao finalizar colagem
+      // Desconta isopor somente na finalização da colagem
       if (p.eps && p.isopor_utilizado > 0) {
         const isopores = await base44.entities.Isopor.list().catch(() => []);
         const isoporItem = isopores.find(i => i.tipo === p.eps);
@@ -222,49 +222,44 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
       return;
     }
 
-    // Máquina comum: precisa descontar KG baseado em metragem real
+    // ── MÁQUINA (não é colagem): desconta bobinas, NÃO desconta isopor ──
     let prodSeg = p.tempo_producao_seg || 0;
     if (p.inicio_producao_ts) {
       prodSeg += Math.floor((Date.now() - new Date(p.inicio_producao_ts).getTime()) / 1000);
     }
 
-    // Calcula metragem total do pedido (metros × metragem_mm / 1000)
+    // Calcula razão real/planejado para ajuste proporcional de KG
     const metragemTotalPedido = (Number(p.metros) || 0) * ((Number(p.metragem_mm) || 0) / 1000);
     const razao = metragemTotalPedido > 0 ? metragemRealNum / metragemTotalPedido : 1;
+    const kgSuperiorReal = (Number(p.kg_superior) || 0) * razao;
+    const kgInferiorReal = (Number(p.kg_inferior) || 0) * razao;
 
-    let kgSuperiorReal = (Number(p.kg_superior) || 0) * razao;
-    let kgInferiorReal = (Number(p.kg_inferior) || 0) * razao;
-
-    // Desconta bobinas com metragem real
+    // Desconta bobinas proporcionalmente à metragem real
     if (p.bobina_superior_id && kgSuperiorReal > 0) {
       const bobSup = await base44.entities.Bobina.get(p.bobina_superior_id).catch(() => null);
       if (bobSup) {
-        const novoKg = Math.max(0, (bobSup.peso_kg || 0) - kgSuperiorReal);
-        const metragemRestante = bobSup.metragem_restante ? (bobSup.metragem_restante - metragemRealNum) : undefined;
         await base44.entities.Bobina.update(p.bobina_superior_id, {
-          peso_kg: novoKg,
-          ...(metragemRestante !== undefined ? { metragem_restante: Math.max(0, metragemRestante) } : {})
+          peso_kg: Math.max(0, (bobSup.peso_kg || 0) - kgSuperiorReal),
+          ...(bobSup.metragem_restante != null ? { metragem_restante: Math.max(0, bobSup.metragem_restante - metragemRealNum) } : {})
         });
       }
     }
     if (p.bobina_inferior_id && kgInferiorReal > 0) {
       const bobInf = await base44.entities.Bobina.get(p.bobina_inferior_id).catch(() => null);
       if (bobInf) {
-        const novoKg = Math.max(0, (bobInf.peso_kg || 0) - kgInferiorReal);
-        const metragemRestante = bobInf.metragem_restante ? (bobInf.metragem_restante - metragemRealNum) : undefined;
         await base44.entities.Bobina.update(p.bobina_inferior_id, {
-          peso_kg: novoKg,
-          ...(metragemRestante !== undefined ? { metragem_restante: Math.max(0, metragemRestante) } : {})
+          peso_kg: Math.max(0, (bobInf.peso_kg || 0) - kgInferiorReal),
+          ...(bobInf.metragem_restante != null ? { metragem_restante: Math.max(0, bobInf.metragem_restante - metragemRealNum) } : {})
         });
       }
     }
 
-    // TELHA BANDEJA multi-etapa: avança pelo fluxo
+    // TELHA BANDEJA multi-etapa: avança pelo fluxo (COLAGEM ainda virá depois)
     if (isBandejaMultiEtapa && proximaEtapaBandeja) {
       onStatusChange(p, "aguardando_colagem", {
         tempo_producao_seg: prodSeg,
         metragem_utilizada: metragemRealNum,
-        metragem_planejada: metragemRealNum, // atualiza planejado com real
+        metragem_planejada: metragemRealNum,
         inicio_producao_ts: null,
         maquina: proximaEtapaBandeja,
       });
@@ -272,11 +267,12 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
       return;
     }
 
+    // Produto sem colagem → finaliza direto; com colagem → vai pra COLAGEM
     const novoStatus = precisaColagem ? "aguardando_colagem" : "finalizado";
     onStatusChange(p, novoStatus, {
       tempo_producao_seg: prodSeg,
       metragem_utilizada: metragemRealNum,
-      metragem_planejada: metragemRealNum, // atualiza planejado com real para próxima etapa
+      metragem_planejada: metragemRealNum,
       inicio_producao_ts: null,
       data_finalizacao: novoStatus === "finalizado" ? format(new Date(), "yyyy-MM-dd") : undefined,
       ...(precisaColagem ? { maquina: "COLAGEM" } : {}),
