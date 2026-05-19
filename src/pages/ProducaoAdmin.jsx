@@ -3,7 +3,8 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, TrendingUp } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, TrendingUp, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Link } from "react-router-dom";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -38,6 +39,7 @@ export default function ProducaoAdmin() {
   const [opOpen, setOpOpen] = useState(false);
   const [opPedido, setOpPedido] = useState(null);
   const [alertasVisivel, setAlertasVisivel] = useState(true);
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // pedido a excluir
   const queryClient = useQueryClient();
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
@@ -80,6 +82,11 @@ export default function ProducaoAdmin() {
   const openEdit = (p) => { setEditItem(p); setDialogOpen(true); };
 
   const abrirOP = (p) => { setOpPedido(p); setOpOpen(true); };
+
+  const confirmarDelete = (id) => {
+    const p = pedidos.find(x => x.id === id);
+    setDeleteConfirm(p || { id });
+  };
 
   // Pedidos da semana atual
   const pedidosSemana = useMemo(() => {
@@ -227,7 +234,7 @@ export default function ProducaoAdmin() {
           ) : (
             <div className="space-y-2">
               {pedidos.filter(p => p.maquina === "COLAGEM").sort((a, b) => b.data?.localeCompare(a.data)).map(p => (
-                <PedidoCard key={p.id} pedido={p} maquinaCores={MAQUINA_CORES} onEdit={(p) => { setEditItem(p); setDialogOpen(true); }} onDelete={(id) => deleteMutation.mutate(id)} onStatusChange={(p, status) => updateMutation.mutate({ id: p.id, data: { ...p, status } })} onPrintOP={abrirOP} />
+                <PedidoCard key={p.id} pedido={p} maquinaCores={MAQUINA_CORES} onEdit={(p) => { setEditItem(p); setDialogOpen(true); }} onDelete={confirmarDelete} onStatusChange={(p, status) => updateMutation.mutate({ id: p.id, data: { ...p, status } })} onPrintOP={abrirOP} />
               ))}
             </div>
           )}
@@ -381,7 +388,7 @@ export default function ProducaoAdmin() {
                 ) : (
                   <div className="divide-y divide-border">
                     {pedidosMaquina.map(p => (
-                      <PedidoCard key={p.id} pedido={p} maquinaCores={MAQUINA_CORES} onEdit={openEdit} onDelete={(id) => deleteMutation.mutate(id)} onStatusChange={(p, status) => updateMutation.mutate({ id: p.id, data: { ...p, status } })} onPrintOP={abrirOP} />
+                      <PedidoCard key={p.id} pedido={p} maquinaCores={MAQUINA_CORES} onEdit={openEdit} onDelete={confirmarDelete} onStatusChange={(p, status) => updateMutation.mutate({ id: p.id, data: { ...p, status } })} onPrintOP={abrirOP} />
                     ))}
                   </div>
                 )}
@@ -401,6 +408,38 @@ export default function ProducaoAdmin() {
       </>)}
 
       <OPImpressao open={opOpen} onClose={() => setOpOpen(false)} pedido={opPedido} />
+
+      {/* Dialog de confirmação de exclusão */}
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(v) => !v && setDeleteConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="w-5 h-5" />
+              Excluir Pedido
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>Tem certeza que deseja excluir este pedido? Esta ação é irreversível.</p>
+              {deleteConfirm && (
+                <div className="bg-muted rounded-lg px-3 py-2 text-sm text-foreground space-y-0.5">
+                  {deleteConfirm.produto && <p><strong>Produto:</strong> {deleteConfirm.produto}</p>}
+                  {deleteConfirm.cliente && <p><strong>Cliente:</strong> {deleteConfirm.cliente}</p>}
+                  {deleteConfirm.data && <p><strong>Data:</strong> {deleteConfirm.data}</p>}
+                  {deleteConfirm.metros && <p><strong>Metros:</strong> {deleteConfirm.metros}m</p>}
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => { deleteMutation.mutate(deleteConfirm.id); setDeleteConfirm(null); }}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
