@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Pencil, Trash2, Snowflake, Ruler, Package, Calculator, History, MinusCircle, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Snowflake, Ruler, Package, Calculator, History, MinusCircle, AlertTriangle, CheckCircle2, Settings2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import StatsCard from "@/components/stock/StatsCard";
@@ -13,6 +13,7 @@ import DeleteConfirmDialog from "@/components/stock/DeleteConfirmDialog";
 import EmptyState from "@/components/stock/EmptyState";
 import UsarIsoporDialog from "@/components/isopor/UsarIsoporDialog";
 import HistoricoIsoporDialog from "@/components/isopor/HistoricoIsoporDialog";
+import LimitesEstoqueDialog from "@/components/isopor/LimitesEstoqueDialog";
 
 export default function Isopor() {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -22,6 +23,13 @@ export default function Isopor() {
   const [filterTipo, setFilterTipo] = useState("all");
   const [usarOpen, setUsarOpen] = useState(false);
   const [historicoOpen, setHistoricoOpen] = useState(false);
+  const [limitesOpen, setLimitesOpen] = useState(false);
+  const [limites, setLimites] = useState(() => {
+    try {
+      const saved = localStorage.getItem("isopor_limites");
+      return saved ? JSON.parse(saved) : { critico: 5, baixo: 20 };
+    } catch { return { critico: 5, baixo: 20 }; }
+  });
   const queryClient = useQueryClient();
 
   const { data: isopores = [], isLoading } = useQuery({
@@ -163,15 +171,27 @@ export default function Isopor() {
       {/* KPIs por modelo */}
       {isopores.length > 0 && (
         <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-border flex items-center gap-2">
-            <Snowflake className="w-4 h-4 text-primary" />
-            <h2 className="font-semibold text-sm">Estoque por Modelo</h2>
+          <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Snowflake className="w-4 h-4 text-primary" />
+              <h2 className="font-semibold text-sm">Estoque por Modelo</h2>
+              <span className="text-xs text-muted-foreground">
+                · crítico &lt;{limites.critico} · baixo &lt;{limites.baixo}
+              </span>
+            </div>
+            <button
+              onClick={() => setLimitesOpen(true)}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Settings2 className="w-3.5 h-3.5" />
+              Editar limites
+            </button>
           </div>
           <div className="divide-y divide-border">
             {isopores.map((item) => {
               const pct = totalQuantidade > 0 ? (item.quantidade || 0) / totalQuantidade * 100 : 0;
-              const baixo = (item.quantidade || 0) < 20;
-              const critico = (item.quantidade || 0) < 5;
+              const baixo = (item.quantidade || 0) < limites.baixo;
+              const critico = (item.quantidade || 0) < limites.critico;
               return (
                 <div key={item.id} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -344,6 +364,17 @@ export default function Isopor() {
       <HistoricoIsoporDialog
         open={historicoOpen}
         onClose={() => setHistoricoOpen(false)}
+      />
+
+      <LimitesEstoqueDialog
+        open={limitesOpen}
+        onClose={() => setLimitesOpen(false)}
+        limites={limites}
+        onSave={(novosLimites) => {
+          setLimites(novosLimites);
+          localStorage.setItem("isopor_limites", JSON.stringify(novosLimites));
+          toast.success("Limites atualizados!");
+        }}
       />
     </div>
   );
