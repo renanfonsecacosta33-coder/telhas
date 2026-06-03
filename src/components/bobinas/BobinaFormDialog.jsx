@@ -47,7 +47,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
         tipo: "Telha",
       });
     } else {
-      setForm({ cor: "", chapa: "", qualidade: "", largura_mm: "", peso_kg: "", peso_inicial: "", metragem: "", codigo: "", nf: "", custo: "", status: "", fornecedor: "", data_recebimento: "", observacoes: "", tipo: "Telha" });
+      setForm({ cor: "", chapa: "", qualidade: "", largura_mm: "", peso_kg: "", peso_inicial: "", metragem: "", codigo: "", nf: "", custo: "", status: "", fornecedor: "", data_recebimento: new Date().toISOString().slice(0, 10), observacoes: "", tipo: "Telha" });
     }
   }, [editItem, open]);
 
