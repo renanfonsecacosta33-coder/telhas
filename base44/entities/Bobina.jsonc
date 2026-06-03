@@ -82,6 +82,22 @@
     "observacoes": {
       "type": "string",
       "description": "Observa\u00e7\u00f5es"
+    },
+    "anexo_nf_url": {
+      "type": "string",
+      "description": "URL do arquivo da Nota Fiscal anexada"
+    },
+    "anexo_nf_nome": {
+      "type": "string",
+      "description": "Nome do arquivo da NF"
+    },
+    "anexo_cert_url": {
+      "type": "string",
+      "description": "URL do certificado digital anexado"
+    },
+    "anexo_cert_nome": {
+      "type": "string",
+      "description": "Nome do arquivo do certificado digital"
     }
   },
   "required": [

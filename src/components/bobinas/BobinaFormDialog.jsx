@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { base44 } from "@/api/base44Client";
+import { Paperclip, FileCheck, X, Loader2, ShieldCheck } from "lucide-react";
 
 const CORES = [
   "Natural", "Amadeirada 3D", "Amadeirada Lisa", "Azul - 5010", "Bege - 1015",
@@ -24,8 +26,14 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
   const [form, setForm] = useState({
     cor: "", chapa: "", qualidade: "", largura_mm: "", peso_kg: "", peso_inicial: "",
     metragem: "", codigo: "", nf: "", custo: "", status: "", fornecedor: "",
-    data_recebimento: "", observacoes: "", tipo: "Telha"
+    data_recebimento: "", observacoes: "", tipo: "Telha",
+    anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
   });
+
+  const [uploadingNF, setUploadingNF] = useState(false);
+  const [uploadingCert, setUploadingCert] = useState(false);
+  const nfInputRef = useRef();
+  const certInputRef = useRef();
 
   useEffect(() => {
     if (editItem) {
@@ -45,19 +53,27 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
         data_recebimento: editItem.data_recebimento || "",
         observacoes: editItem.observacoes || "",
         tipo: "Telha",
+        anexo_nf_url: editItem.anexo_nf_url || "",
+        anexo_nf_nome: editItem.anexo_nf_nome || "",
+        anexo_cert_url: editItem.anexo_cert_url || "",
+        anexo_cert_nome: editItem.anexo_cert_nome || "",
       });
     } else {
-      setForm({ cor: "", chapa: "", qualidade: "", largura_mm: "", peso_kg: "", peso_inicial: "", metragem: "", codigo: "", nf: "", custo: "", status: "", fornecedor: "", data_recebimento: new Date().toISOString().slice(0, 10), observacoes: "", tipo: "Telha" });
+      setForm({
+        cor: "", chapa: "", qualidade: "", largura_mm: "", peso_kg: "", peso_inicial: "",
+        metragem: "", codigo: "", nf: "", custo: "", status: "", fornecedor: "",
+        data_recebimento: new Date().toISOString().slice(0, 10), observacoes: "", tipo: "Telha",
+        anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
+      });
     }
   }, [editItem, open]);
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
-  // Calcula metragem automaticamente: metros = peso_kg / (largura_m × espessura_m × 7850 kg/m³)
   const calcMetragem = (peso, largura, chapa) => {
     const p = Number(peso);
-    const l = Number(largura) / 1000; // mm → m
-    const esp = parseFloat(String(chapa).replace(",", ".")) / 1000; // mm → m
+    const l = Number(largura) / 1000;
+    const esp = parseFloat(String(chapa).replace(",", ".")) / 1000;
     if (p > 0 && l > 0 && esp > 0) return Math.round(p / (l * esp * 7850));
     return "";
   };
@@ -77,7 +93,6 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
     setForm(f => ({ ...f, chapa: val, metragem }));
   };
 
-  // Auto-gera código: AAММ + 4 últimos dígitos da NF
   const gerarCodigo = (nf) => {
     if (!nf) return "";
     const now = new Date();
@@ -90,12 +105,30 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
 
   const handleNFChange = (val) => {
     set("nf", val);
-    if (val && !editItem) {
-      set("codigo", gerarCodigo(val));
+    if (val && !editItem) set("codigo", gerarCodigo(val));
+  };
+
+  const handleUpload = async (file, tipo) => {
+    if (!file) return;
+    if (tipo === "nf") setUploadingNF(true);
+    else setUploadingCert(true);
+
+    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+
+    if (tipo === "nf") {
+      setForm(f => ({ ...f, anexo_nf_url: file_url, anexo_nf_nome: file.name }));
+      setUploadingNF(false);
+    } else {
+      setForm(f => ({ ...f, anexo_cert_url: file_url, anexo_cert_nome: file.name }));
+      setUploadingCert(false);
     }
   };
 
   const handleSave = () => {
+    if (!form.anexo_nf_url) {
+      alert("Anexe a Nota Fiscal (NF) antes de salvar a bobina.");
+      return;
+    }
     onSave({
       ...form,
       largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
@@ -105,6 +138,8 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
       custo: form.custo ? Number(form.custo) : undefined,
     });
   };
+
+  const canSave = form.cor && form.chapa && form.anexo_nf_url;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -190,10 +225,79 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
             <Label>Observações</Label>
             <Textarea placeholder="Anotações..." value={form.observacoes} onChange={e => set("observacoes", e.target.value)} />
           </div>
+
+          {/* Anexos */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1">
+              Anexos
+              <span className="text-xs text-destructive font-normal ml-1">— NF obrigatória</span>
+            </Label>
+            <div className="grid grid-cols-2 gap-3">
+              {/* NF */}
+              <div>
+                <input ref={nfInputRef} type="file" className="hidden" accept="image/*,.pdf"
+                  onChange={e => handleUpload(e.target.files[0], "nf")} />
+                {form.anexo_nf_url ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                    <FileCheck className="w-4 h-4 shrink-0 text-emerald-600" />
+                    <a href={form.anexo_nf_url} target="_blank" rel="noopener noreferrer"
+                      className="truncate flex-1 underline underline-offset-2 font-medium" title={form.anexo_nf_nome}>
+                      {form.anexo_nf_nome || "NF anexada"}
+                    </a>
+                    <button onClick={() => setForm(f => ({ ...f, anexo_nf_url: "", anexo_nf_nome: "" }))}
+                      className="ml-auto text-emerald-600 hover:text-red-500 shrink-0">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <Button type="button" variant="outline" size="sm"
+                    className="w-full border-dashed border-2 h-10 text-xs gap-2"
+                    onClick={() => nfInputRef.current.click()}
+                    disabled={uploadingNF}>
+                    {uploadingNF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+                    {uploadingNF ? "Enviando..." : "Anexar NF *"}
+                  </Button>
+                )}
+              </div>
+
+              {/* Certificado Digital */}
+              <div>
+                <input ref={certInputRef} type="file" className="hidden" accept="image/*,.pdf,.p7b,.cer,.crt"
+                  onChange={e => handleUpload(e.target.files[0], "cert")} />
+                {form.anexo_cert_url ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                    <ShieldCheck className="w-4 h-4 shrink-0 text-blue-600" />
+                    <a href={form.anexo_cert_url} target="_blank" rel="noopener noreferrer"
+                      className="truncate flex-1 underline underline-offset-2 font-medium" title={form.anexo_cert_nome}>
+                      {form.anexo_cert_nome || "Certificado"}
+                    </a>
+                    <button onClick={() => setForm(f => ({ ...f, anexo_cert_url: "", anexo_cert_nome: "" }))}
+                      className="ml-auto text-blue-600 hover:text-red-500 shrink-0">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <Button type="button" variant="outline" size="sm"
+                    className="w-full border-dashed border-2 h-10 text-xs gap-2"
+                    onClick={() => certInputRef.current.click()}
+                    disabled={uploadingCert}>
+                    {uploadingCert ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                    {uploadingCert ? "Enviando..." : "Certificado Digital"}
+                  </Button>
+                )}
+              </div>
+            </div>
+            {!form.anexo_nf_url && (
+              <p className="text-xs text-destructive">⚠ Anexe a NF para poder salvar a bobina.</p>
+            )}
+          </div>
         </div>
+
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={!form.cor || !form.chapa}>{editItem ? "Salvar" : "Adicionar"}</Button>
+          <Button onClick={handleSave} disabled={!canSave}>
+            {editItem ? "Salvar" : "Adicionar"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
