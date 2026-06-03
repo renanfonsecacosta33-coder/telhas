@@ -32,6 +32,8 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
 
   const [uploadingNF, setUploadingNF] = useState(false);
   const [uploadingCert, setUploadingCert] = useState(false);
+  const [semCertAssinatura, setSemCertAssinatura] = useState("");
+  const [confirmarSemCert, setConfirmarSemCert] = useState(false);
   const nfInputRef = useRef();
   const certInputRef = useRef();
 
@@ -65,6 +67,8 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
         data_recebimento: new Date().toISOString().slice(0, 10), observacoes: "", tipo: "Telha",
         anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
       });
+      setSemCertAssinatura("");
+      setConfirmarSemCert(false);
     }
   }, [editItem, open]);
 
@@ -136,10 +140,12 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
       peso_inicial: form.peso_inicial ? Number(form.peso_inicial) : undefined,
       metragem: form.metragem ? Number(form.metragem) : undefined,
       custo: form.custo ? Number(form.custo) : undefined,
+      anexo_cert_ausencia: (!form.anexo_cert_url && confirmarSemCert) ? semCertAssinatura.trim() : undefined,
     });
   };
 
-  const canSave = form.cor && form.chapa && form.anexo_nf_url;
+  const certOk = form.anexo_cert_url || (confirmarSemCert && semCertAssinatura.trim().length >= 5);
+  const canSave = form.cor && form.chapa && form.anexo_nf_url && certOk;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -263,7 +269,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
               {/* Certificado Digital */}
               <div>
                 <input ref={certInputRef} type="file" className="hidden" accept="image/*,.pdf,.p7b,.cer,.crt"
-                  onChange={e => handleUpload(e.target.files[0], "cert")} />
+                  onChange={e => { handleUpload(e.target.files[0], "cert"); setConfirmarSemCert(false); setSemCertAssinatura(""); }} />
                 {form.anexo_cert_url ? (
                   <div className="flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs text-blue-800">
                     <ShieldCheck className="w-4 h-4 shrink-0 text-blue-600" />
@@ -282,13 +288,49 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
                     onClick={() => certInputRef.current.click()}
                     disabled={uploadingCert}>
                     {uploadingCert ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                    {uploadingCert ? "Enviando..." : "Certificado Digital"}
+                    {uploadingCert ? "Enviando..." : "Certificado Digital *"}
                   </Button>
                 )}
               </div>
             </div>
+
+            {/* Opção: declarar ausência de certificado */}
+            {!form.anexo_cert_url && (
+              <div className="mt-2">
+                {!confirmarSemCert ? (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmarSemCert(true)}
+                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
+                    Não tenho o certificado digital
+                  </button>
+                ) : (
+                  <div className="rounded-lg border border-orange-300 bg-orange-50 p-3 space-y-2">
+                    <p className="text-xs text-orange-800 font-medium">
+                      ⚠ Declare seu nome completo confirmando que o certificado não foi fornecido:
+                    </p>
+                    <Input
+                      placeholder="Nome completo do responsável"
+                      value={semCertAssinatura}
+                      onChange={e => setSemCertAssinatura(e.target.value)}
+                      className="h-8 text-xs bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => { setConfirmarSemCert(false); setSemCertAssinatura(""); }}
+                      className="text-xs text-orange-600 underline underline-offset-2">
+                      Cancelar — vou anexar o certificado
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {!form.anexo_nf_url && (
               <p className="text-xs text-destructive">⚠ Anexe a NF para poder salvar a bobina.</p>
+            )}
+            {!form.anexo_cert_url && !certOk && (
+              <p className="text-xs text-destructive">⚠ Anexe o Certificado Digital ou declare seu nome para confirmar a ausência.</p>
             )}
           </div>
         </div>
