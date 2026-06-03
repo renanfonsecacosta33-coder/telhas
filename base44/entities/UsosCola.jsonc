@@ -1,0 +1,44 @@
+{
+  "name": "UsosCola",
+  "type": "object",
+  "properties": {
+    "cola_id": {
+      "type": "string",
+      "description": "ID do estoque de cola utilizado"
+    },
+    "cola_tipo": {
+      "type": "string",
+      "description": "Tipo de cola (snapshot)"
+    },
+    "pedido_info": {
+      "type": "string",
+      "description": "N\u00famero do pedido / refer\u00eancia"
+    },
+    "sacos_usados": {
+      "type": "number",
+      "description": "Quantidade de sacos utilizados"
+    },
+    "kg_usados": {
+      "type": "number",
+      "description": "Kg total utilizados"
+    },
+    "metros_colados": {
+      "type": "number",
+      "description": "Metros de telha colados nesse uso"
+    },
+    "data_uso": {
+      "type": "string",
+      "format": "date",
+      "description": "Data do uso"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es"
+    }
+  },
+  "required": [
+    "cola_id",
+    "sacos_usados",
+    "data_uso"
+  ]
+}

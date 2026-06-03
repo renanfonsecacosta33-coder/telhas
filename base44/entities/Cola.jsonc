@@ -1,0 +1,63 @@
+{
+  "name": "Cola",
+  "type": "object",
+  "properties": {
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "Cola Termofus\u00edvel",
+        "Cola PUR",
+        "Cola Base \u00c1gua",
+        "Cola Poliuretano",
+        "Outro"
+      ],
+      "description": "Tipo de cola"
+    },
+    "fornecedor": {
+      "type": "string",
+      "description": "Fornecedor da cola"
+    },
+    "tambores_qtd": {
+      "type": "number",
+      "description": "Quantidade de tambores em estoque"
+    },
+    "tambor_peso_kg": {
+      "type": "number",
+      "description": "Peso por tambor em kg",
+      "default": 200
+    },
+    "sacos_qtd": {
+      "type": "number",
+      "description": "Quantidade de sacos em estoque"
+    },
+    "saco_peso_kg": {
+      "type": "number",
+      "description": "Peso por saco em kg",
+      "default": 3.75
+    },
+    "kg_total": {
+      "type": "number",
+      "description": "Total de kg em estoque (calculado)"
+    },
+    "custo_tambor": {
+      "type": "number",
+      "description": "Custo por tambor (R$)"
+    },
+    "lote": {
+      "type": "string",
+      "description": "N\u00famero do lote / NF"
+    },
+    "data_validade": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de validade"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es adicionais"
+    }
+  },
+  "required": [
+    "tipo"
+  ]
+}

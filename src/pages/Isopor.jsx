@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search, Pencil, Trash2, Snowflake, Ruler, Package, Calculator, History, MinusCircle, AlertTriangle, CheckCircle2, Settings2 } from "lucide-react";
-import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import StatsCard from "@/components/stock/StatsCard";
 import IsoporFormDialog from "@/components/isopor/IsoporFormDialog";
@@ -14,6 +13,7 @@ import EmptyState from "@/components/stock/EmptyState";
 import UsarIsoporDialog from "@/components/isopor/UsarIsoporDialog";
 import HistoricoIsoporDialog from "@/components/isopor/HistoricoIsoporDialog";
 import LimitesEstoqueDialog from "@/components/isopor/LimitesEstoqueDialog";
+import CalculadoraIsoporInline from "@/components/isopor/CalculadoraIsoporInline";
 
 export default function Isopor() {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -23,6 +23,7 @@ export default function Isopor() {
   const [filterTipo, setFilterTipo] = useState("all");
   const [usarOpen, setUsarOpen] = useState(false);
   const [historicoOpen, setHistoricoOpen] = useState(false);
+  const [showCalc, setShowCalc] = useState(false);
   const [limitesOpen, setLimitesOpen] = useState(false);
   const [limites, setLimites] = useState(() => {
     try {
@@ -126,12 +127,14 @@ export default function Isopor() {
             <History className="w-4 h-4" />
             Histórico
           </Button>
-          <Link to="/calculadora-isopor">
-            <Button variant="outline" className="gap-2">
-              <Calculator className="w-4 h-4" />
-              Calculadora
-            </Button>
-          </Link>
+          <Button
+            variant="outline"
+            onClick={() => setShowCalc((v) => !v)}
+            className={`gap-2 ${showCalc ? "border-emerald-400 text-emerald-700 bg-emerald-50" : ""}`}
+          >
+            <Calculator className="w-4 h-4" />
+            Calculadora
+          </Button>
           <Button variant="outline" onClick={() => setUsarOpen(true)} className="gap-2 border-orange-300 text-orange-700 hover:bg-orange-50">
             <MinusCircle className="w-4 h-4" />
             Usar Isopor
@@ -142,6 +145,9 @@ export default function Isopor() {
           </Button>
         </div>
       </div>
+
+      {/* Calculadora inline */}
+      {showCalc && <CalculadoraIsoporInline />}
 
       {/* Stats globais */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

@@ -33,6 +33,7 @@ import DashboardCumeeira from '@/pages/maquinas/DashboardCumeeira';
 import DashboardColagem from '@/pages/maquinas/DashboardColagem';
 import CalculadoraIsopor from '@/pages/CalculadoraIsopor';
 import DashboardPerformance from '@/pages/DashboardPerformance';
+import Cola from '@/pages/Cola';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -88,6 +89,7 @@ const AuthenticatedApp = () => {
         <Route path="/dashboard/colagem" element={<DashboardColagem />} />
         <Route path="/calculadora-isopor" element={<CalculadoraIsopor />} />
         <Route path="/dashboard-performance" element={<DashboardPerformance />} />
+        <Route path="/cola" element={<Cola />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

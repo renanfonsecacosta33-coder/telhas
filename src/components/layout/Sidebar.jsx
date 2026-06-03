@@ -5,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, Circle, Snowflake, Package, Menu, X, ChevronRight,
   Factory, Settings, Droplets, Wrench, Layers, Box, ShoppingCart,
-  Truck, BarChart2, FileText, Tag, Archive, Zap, Users, LogOut, Cog
+  Truck, BarChart2, FileText, Tag, Archive, Zap, Users, LogOut, Cog, FlaskConical
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +20,7 @@ const FIXED_NAV = [
   { path: "/producao", label: "Produção", icon: Factory },
   { path: "/bobinas", label: "Bobinas", icon: Circle },
   { path: "/isopor", label: "Isopor", icon: Snowflake },
+  { path: "/cola", label: "Cola", icon: FlaskConical },
   { path: "/estoque", label: "Outros Produtos", icon: Package },
 ];
 
