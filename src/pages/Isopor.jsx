@@ -4,13 +4,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Pencil, Trash2, Snowflake, Ruler, Package, Calculator } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Snowflake, Ruler, Package, Calculator, History, MinusCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import StatsCard from "@/components/stock/StatsCard";
 import IsoporFormDialog from "@/components/isopor/IsoporFormDialog";
 import DeleteConfirmDialog from "@/components/stock/DeleteConfirmDialog";
 import EmptyState from "@/components/stock/EmptyState";
+import UsarIsoporDialog from "@/components/isopor/UsarIsoporDialog";
+import HistoricoIsoporDialog from "@/components/isopor/HistoricoIsoporDialog";
 
 export default function Isopor() {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -18,6 +20,8 @@ export default function Isopor() {
   const [deleteItem, setDeleteItem] = useState(null);
   const [search, setSearch] = useState("");
   const [filterTipo, setFilterTipo] = useState("all");
+  const [usarOpen, setUsarOpen] = useState(false);
+  const [historicoOpen, setHistoricoOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: isopores = [], isLoading } = useQuery({
@@ -61,6 +65,21 @@ export default function Isopor() {
     }
   };
 
+  const handleUsarIsopor = async (usoData, isoporObj) => {
+    // Registra o uso no histórico
+    await base44.entities.UsoIsopor.create(usoData);
+    // Desconta do estoque
+    const novaQtd = (isoporObj.quantidade || 0) - usoData.quantidade;
+    const novaMetragem = novaQtd * 2; // cada placa = 2m
+    await base44.entities.Isopor.update(isoporObj.id, {
+      quantidade: novaQtd,
+      metragem_total: novaMetragem,
+    });
+    queryClient.invalidateQueries({ queryKey: ["isopores"] });
+    setUsarOpen(false);
+    toast.success(`${usoData.quantidade} placas descontadas do estoque!`);
+  };
+
   const totalQuantidade = isopores.reduce((sum, i) => sum + (i.quantidade || 0), 0);
   const totalMetragem = isopores.reduce((sum, i) => sum + (i.metragem_total || 0), 0);
   const tipos = [...new Set(isopores.map((i) => i.tipo))];
@@ -94,13 +113,21 @@ export default function Isopor() {
           </div>
           <p className="text-sm text-muted-foreground">Gerencie o estoque de isopor EPS</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => setHistoricoOpen(true)} className="gap-2">
+            <History className="w-4 h-4" />
+            Histórico
+          </Button>
           <Link to="/calculadora-isopor">
             <Button variant="outline" className="gap-2">
               <Calculator className="w-4 h-4" />
               Calculadora
             </Button>
           </Link>
+          <Button variant="outline" onClick={() => setUsarOpen(true)} className="gap-2 border-orange-300 text-orange-700 hover:bg-orange-50">
+            <MinusCircle className="w-4 h-4" />
+            Usar Isopor
+          </Button>
           <Button onClick={() => { setEditItem(null); setDialogOpen(true); }} className="gap-2">
             <Plus className="w-4 h-4" />
             Novo Isopor
@@ -251,6 +278,18 @@ export default function Isopor() {
         onClose={() => setDeleteItem(null)}
         onConfirm={() => deleteMutation.mutate(deleteItem.id)}
         itemName={deleteItem ? deleteItem.tipo : ""}
+      />
+
+      <UsarIsoporDialog
+        open={usarOpen}
+        onClose={() => setUsarOpen(false)}
+        onConfirm={handleUsarIsopor}
+        isopores={isopores}
+      />
+
+      <HistoricoIsoporDialog
+        open={historicoOpen}
+        onClose={() => setHistoricoOpen(false)}
       />
     </div>
   );

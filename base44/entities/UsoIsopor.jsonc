@@ -1,0 +1,40 @@
+{
+  "name": "UsoIsopor",
+  "type": "object",
+  "properties": {
+    "isopor_id": {
+      "type": "string",
+      "description": "ID do isopor utilizado"
+    },
+    "isopor_tipo": {
+      "type": "string",
+      "description": "Tipo do isopor (snapshot)"
+    },
+    "pedido_id": {
+      "type": "string",
+      "description": "ID do pedido vinculado"
+    },
+    "pedido_info": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o do pedido (snapshot: cliente, produto, data)"
+    },
+    "quantidade": {
+      "type": "number",
+      "description": "Quantidade de placas utilizadas"
+    },
+    "data_uso": {
+      "type": "string",
+      "format": "date",
+      "description": "Data do uso"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es"
+    }
+  },
+  "required": [
+    "isopor_id",
+    "quantidade",
+    "data_uso"
+  ]
+}
