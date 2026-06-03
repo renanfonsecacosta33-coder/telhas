@@ -5,30 +5,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { base44 } from "@/api/base44Client";
-import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 
 export default function UsarIsoporDialog({ open, onClose, onConfirm, isopores }) {
   const [form, setForm] = useState({
     isopor_id: "",
-    pedido_id: "",
+    numero_pedido: "",
     quantidade: "",
     data_uso: format(new Date(), "yyyy-MM-dd"),
     observacoes: "",
-  });
-
-  const { data: pedidos = [] } = useQuery({
-    queryKey: ["pedidos-uso-isopor"],
-    queryFn: () => base44.entities.Pedido.list("-data", 200),
-    enabled: open,
   });
 
   useEffect(() => {
     if (open) {
       setForm({
         isopor_id: "",
-        pedido_id: "",
+        numero_pedido: "",
         quantidade: "",
         data_uso: format(new Date(), "yyyy-MM-dd"),
         observacoes: "",
@@ -39,7 +31,6 @@ export default function UsarIsoporDialog({ open, onClose, onConfirm, isopores })
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const isoporSelecionado = isopores.find((i) => i.id === form.isopor_id);
-  const pedidoSelecionado = pedidos.find((p) => p.id === form.pedido_id);
 
   const handleConfirm = () => {
     if (!form.isopor_id) { alert("Selecione o tipo de isopor."); return; }
@@ -49,25 +40,15 @@ export default function UsarIsoporDialog({ open, onClose, onConfirm, isopores })
       return;
     }
 
-    const pedidoInfo = pedidoSelecionado
-      ? `${pedidoSelecionado.cliente || "Sem cliente"} — ${pedidoSelecionado.produto || ""} — ${pedidoSelecionado.data || ""}`
-      : "";
-
     onConfirm({
       isopor_id: form.isopor_id,
       isopor_tipo: isoporSelecionado?.tipo || "",
-      pedido_id: form.pedido_id || undefined,
-      pedido_info: pedidoInfo,
+      pedido_info: form.numero_pedido || "",
       quantidade: Number(form.quantidade),
       data_uso: form.data_uso,
       observacoes: form.observacoes,
     }, isoporSelecionado);
   };
-
-  // Pedidos recentes (últimos 60 dias) não finalizados/cancelados
-  const pedidosAtivos = pedidos.filter(
-    (p) => p.status !== "cancelado" && p.status !== "finalizado"
-  ).slice(0, 100);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -89,7 +70,7 @@ export default function UsarIsoporDialog({ open, onClose, onConfirm, isopores })
                   <SelectItem key={iso.id} value={iso.id}>
                     <span className="font-medium">{iso.tipo}</span>
                     {iso.espessura_mm && <span className="text-muted-foreground text-xs ml-2">· {iso.espessura_mm}mm</span>}
-                    <span className="text-muted-foreground text-xs ml-2">· {iso.quantidade || 0} un em estoque</span>
+                    <span className="text-muted-foreground text-xs ml-2">· {iso.quantidade || 0} un</span>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -119,24 +100,14 @@ export default function UsarIsoporDialog({ open, onClose, onConfirm, isopores })
             )}
           </div>
 
-          {/* Pedido vinculado (opcional) */}
+          {/* Número do Pedido (texto livre) */}
           <div className="space-y-1">
-            <Label>Pedido Vinculado <span className="text-muted-foreground font-normal">(opcional)</span></Label>
-            <Select value={form.pedido_id} onValueChange={(v) => set("pedido_id", v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um pedido..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="_sem_pedido">Sem pedido vinculado</SelectItem>
-                {pedidosAtivos.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    <span className="font-medium">{p.cliente || "Sem cliente"}</span>
-                    {p.produto && <span className="text-muted-foreground text-xs ml-2">· {p.produto}</span>}
-                    {p.data && <span className="text-muted-foreground text-xs ml-2">· {p.data}</span>}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Número do Pedido <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+            <Input
+              placeholder="Ex: 283427"
+              value={form.numero_pedido}
+              onChange={(e) => set("numero_pedido", e.target.value)}
+            />
           </div>
 
           {/* Data */}

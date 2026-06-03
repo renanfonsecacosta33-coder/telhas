@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Pencil, Trash2, Snowflake, Ruler, Package, Calculator, History, MinusCircle } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Snowflake, Ruler, Package, Calculator, History, MinusCircle, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import StatsCard from "@/components/stock/StatsCard";
@@ -135,19 +135,19 @@ export default function Isopor() {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Stats globais */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatsCard
-          title="Total de Itens"
+          title="Tipos Cadastrados"
           value={isopores.length}
-          subtitle="tipos cadastrados"
+          subtitle="modelos de EPS"
           icon={Snowflake}
           color="blue"
         />
         <StatsCard
           title="Quantidade Total"
           value={totalQuantidade}
-          subtitle="unidades em estoque"
+          subtitle="placas em estoque"
           icon={Package}
           color="green"
         />
@@ -159,6 +159,60 @@ export default function Isopor() {
           color="orange"
         />
       </div>
+
+      {/* KPIs por modelo */}
+      {isopores.length > 0 && (
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+            <Snowflake className="w-4 h-4 text-primary" />
+            <h2 className="font-semibold text-sm">Estoque por Modelo</h2>
+          </div>
+          <div className="divide-y divide-border">
+            {isopores.map((item) => {
+              const pct = totalQuantidade > 0 ? (item.quantidade || 0) / totalQuantidade * 100 : 0;
+              const baixo = (item.quantidade || 0) < 20;
+              const critico = (item.quantidade || 0) < 5;
+              return (
+                <div key={item.id} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${critico ? "bg-red-500" : baixo ? "bg-amber-400" : "bg-green-500"}`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm">{item.tipo}</span>
+                        {item.espessura_mm && <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{item.espessura_mm}mm</span>}
+                        {critico && <span className="flex items-center gap-1 text-xs text-red-600 font-semibold"><AlertTriangle className="w-3 h-3" />Crítico</span>}
+                        {baixo && !critico && <span className="text-xs text-amber-600 font-semibold">Baixo</span>}
+                        {!baixo && <span className="flex items-center gap-1 text-xs text-green-600"><CheckCircle2 className="w-3 h-3" />OK</span>}
+                      </div>
+                      {/* Barra de progresso */}
+                      <div className="mt-1.5 h-1.5 bg-muted rounded-full overflow-hidden w-full max-w-xs">
+                        <div
+                          className={`h-full rounded-full transition-all ${critico ? "bg-red-500" : baixo ? "bg-amber-400" : "bg-green-500"}`}
+                          style={{ width: `${Math.min(pct, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 flex-shrink-0 text-right sm:text-left">
+                    <div>
+                      <p className="text-lg font-bold">{item.quantidade || 0}</p>
+                      <p className="text-xs text-muted-foreground">placas</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-primary">{(item.metragem_total || 0)}m</p>
+                      <p className="text-xs text-muted-foreground">metragem</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-muted-foreground">{pct.toFixed(1)}%</p>
+                      <p className="text-xs text-muted-foreground">do total</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
