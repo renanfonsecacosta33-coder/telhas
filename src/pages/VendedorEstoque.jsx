@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Search, LogOut, Lock } from "lucide-react";
 
-const SENHA = "ajl2024"; // Senha única para todos os vendedores
+const SENHA = "ajl1234"; // Senha única para todos os vendedores
 const STORAGE_KEY = "vendedor_autenticado";
 
 export default function VendedorEstoque() {
