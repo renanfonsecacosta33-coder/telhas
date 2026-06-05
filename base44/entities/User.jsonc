@@ -12,35 +12,23 @@
       "default": "operador",
       "description": "Papel do usu\u00e1rio no sistema"
     },
-    "maquina": {
+    "setor": {
       "type": "string",
       "enum": [
-        "TP - 25",
-        "TP - 40",
-        "ONDULADA",
-        "COLONIAL",
-        "BANDEJA",
-        "DESBOBINADOR",
-        "CUMEEIRA",
-        "COLAGEM",
-        ""
+        "telhas",
+        "corte_dobra",
+        "ambos"
       ],
+      "default": "telhas",
+      "description": "Setor ao qual o usu\u00e1rio pertence"
+    },
+    "maquina": {
+      "type": "string",
       "description": "M\u00e1quina associada ao operador"
     },
     "unidade": {
       "type": "string",
-      "enum": [
-        "Matriz AJL",
-        "Pinhais",
-        "Ivaipor\u00e3",
-        ""
-      ],
-      "description": "Unidade do usu\u00e1rio"
-    },
-    "ativo": {
-      "type": "boolean",
-      "default": true,
-      "description": "Usu\u00e1rio ativo"
+      "description": "Unidade produtora"
     }
   }
 }

@@ -2,6 +2,15 @@
   "name": "Bobina",
   "type": "object",
   "properties": {
+    "setor": {
+      "type": "string",
+      "enum": [
+        "telhas",
+        "corte_dobra"
+      ],
+      "default": "telhas",
+      "description": "Setor ao qual pertence esta bobina"
+    },
     "data_recebimento": {
       "type": "string",
       "description": "Data de recebimento"
@@ -40,7 +49,7 @@
     },
     "codigo": {
       "type": "string",
-      "description": "C\u00f3digo da bobina (AA\u041c\u041cNNNN)"
+      "description": "C\u00f3digo da bobina (AAMMNNNN)"
     },
     "nf": {
       "type": "string",

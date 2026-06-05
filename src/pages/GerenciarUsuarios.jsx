@@ -17,6 +17,16 @@ const ROLES = [
   { value: "operador", label: "Operador", desc: "Vê pedidos da sua máquina" },
   { value: "vendedor", label: "Vendedor", desc: "Cadastra e acompanha pedidos" },
 ];
+const SETORES = [
+  { value: "telhas", label: "🏗️ Telhas" },
+  { value: "corte_dobra", label: "✂️ Corte e Dobra" },
+  { value: "ambos", label: "🏭 Ambos os setores" },
+];
+const SETOR_COLORS = {
+  telhas: "bg-blue-100 text-blue-700 border-blue-200",
+  corte_dobra: "bg-orange-100 text-orange-700 border-orange-200",
+  ambos: "bg-purple-100 text-purple-700 border-purple-200",
+};
 
 const ROLE_COLORS = {
   admin: "bg-red-100 text-red-700 border-red-200",
@@ -60,7 +70,7 @@ export default function GerenciarUsuarios() {
 
   const handleUpdateUser = () => {
     if (!editUser) return;
-    updateMutation.mutate({ id: editUser.id, data: { role: editUser.role, maquina: editUser.maquina || "", unidade: editUser.unidade || "" } });
+    updateMutation.mutate({ id: editUser.id, data: { role: editUser.role, maquina: editUser.maquina || "", unidade: editUser.unidade || "", setor: editUser.setor || "telhas" } });
   };
 
   return (
@@ -114,6 +124,7 @@ export default function GerenciarUsuarios() {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap justify-end">
                   {u.role && <Badge className={`border text-xs ${ROLE_COLORS[u.role] || "bg-gray-100 text-gray-700 border-gray-200"}`}>{u.role}</Badge>}
+                  {u.setor && <Badge className={`border text-xs ${SETOR_COLORS[u.setor] || ""}`}>{SETORES.find(s => s.value === u.setor)?.label || u.setor}</Badge>}
                   {u.maquina && (
                     <Badge variant="outline" className="text-xs gap-1">
                       <Monitor className="w-3 h-3" />
@@ -191,6 +202,16 @@ export default function GerenciarUsuarios() {
                     {ROLES.map(r => <SelectItem key={r.value} value={r.value}>{r.label} — {r.desc}</SelectItem>)}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Setor</Label>
+                <Select value={editUser.setor || "telhas"} onValueChange={v => setEditUser(u => ({ ...u, setor: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SETORES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Define em qual setor este usuário trabalha</p>
               </div>
               {editUser.role === "operador" && (
                 <div className="space-y-1">
