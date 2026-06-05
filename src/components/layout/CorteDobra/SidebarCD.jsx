@@ -1,30 +1,25 @@
 import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import {
-  LayoutDashboard, Circle, Snowflake, Package, Menu, X, ChevronRight,
-  Factory, Settings, Droplets, Wrench, Layers, Box, ShoppingCart,
-  Truck, BarChart2, FileText, Tag, Archive, Zap, Users, LogOut, Cog, FlaskConical, ArrowLeftRight
+  LayoutDashboard, Circle, Factory, Users, Menu, X, ChevronRight,
+  LogOut, Layers, ShieldCheck, ArrowLeftRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const ICON_MAP = {
-  LayoutDashboard, Circle, Snowflake, Package, Factory, Settings,
-  Droplets, Wrench, Layers, Box, ShoppingCart, Truck, BarChart: BarChart2,
-  FileText, Tag, Archive, Zap
-};
-
-const FIXED_NAV = [
-  { path: "/", label: "Dashboard", icon: LayoutDashboard },
-  { path: "/producao", label: "Produção", icon: Factory },
-  { path: "/bobinas", label: "Bobinas", icon: Circle },
-  { path: "/isopor", label: "Isopor", icon: Snowflake },
-  { path: "/cola", label: "Cola", icon: FlaskConical },
-  { path: "/estoque", label: "Outros Produtos", icon: Package },
+const NAV = [
+  { path: "/corte-dobra", label: "Dashboard", icon: LayoutDashboard },
+  { path: "/corte-dobra/producao", label: "Produção", icon: Factory },
+  { path: "/corte-dobra/bobinas", label: "Bobinas", icon: Circle },
+  { path: "/corte-dobra/chaparia", label: "Chaparia", icon: Layers },
+  { path: "/corte-dobra/epi", label: "EPI", icon: ShieldCheck },
 ];
 
-export default function Sidebar({ isOpen, onToggle }) {
+const ADMIN_NAV = [
+  { path: "/corte-dobra/usuarios", label: "Usuários", icon: Users },
+];
+
+export default function SidebarCD({ isOpen, onToggle }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -35,21 +30,6 @@ export default function Sidebar({ isOpen, onToggle }) {
 
   const isAdmin = user?.role === "admin";
   const isAmbos = user?.setor === "ambos" || isAdmin;
-
-  const { data: categorias = [] } = useQuery({
-    queryKey: ["categorias"],
-    queryFn: () => base44.entities.Categoria.list("ordem"),
-    staleTime: 30000,
-  });
-
-  const dynamicItems = categorias
-    .filter(c => c.ativa !== false)
-    .map(c => ({
-      path: `/${c.path}`,
-      label: c.nome,
-      icon: ICON_MAP[c.icone] || Package,
-      cor: c.cor,
-    }));
 
   const renderLink = (item) => {
     const isActive = location.pathname === item.path;
@@ -93,12 +73,12 @@ export default function Sidebar({ isOpen, onToggle }) {
         {/* Logo */}
         <div className="p-6 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-sidebar-primary flex items-center justify-center">
-              <span className="text-sidebar-primary-foreground font-bold text-lg">A</span>
+            <div className="w-10 h-10 rounded-xl bg-orange-600 flex items-center justify-center">
+              <span className="text-white font-bold text-lg">✂</span>
             </div>
             <div>
               <h1 className="font-bold text-lg tracking-tight text-sidebar-foreground">AJL</h1>
-              <p className="text-xs text-sidebar-foreground/60">ERP Estoque</p>
+              <p className="text-xs text-orange-400">Corte e Dobra</p>
             </div>
           </div>
           {user && (
@@ -110,7 +90,6 @@ export default function Sidebar({ isOpen, onToggle }) {
                   user.role === "operador" ? "bg-blue-900/40 text-blue-300" :
                   "bg-green-900/40 text-green-300"
                 }`}>{user.role || "user"}</span>
-                {user.maquina && <span className="text-xs text-sidebar-foreground/50">· {user.maquina}</span>}
               </div>
             </div>
           )}
@@ -121,33 +100,20 @@ export default function Sidebar({ isOpen, onToggle }) {
           <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mb-3">
             Principal
           </p>
-          {FIXED_NAV.map(renderLink)}
+          {NAV.map(renderLink)}
 
-          {dynamicItems.length > 0 && (
-            <>
-              <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mt-5 mb-3">
-                Categorias
-              </p>
-              {dynamicItems.map(renderLink)}
-            </>
-          )}
-
-
-
-          {/* Admin only */}
           {isAdmin && (
             <>
               <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mt-5 mb-3">
                 Administração
               </p>
-              {renderLink({ path: "/usuarios", label: "Usuários", icon: Users })}
+              {ADMIN_NAV.map(renderLink)}
             </>
           )}
         </nav>
 
-        {/* Settings at bottom */}
+        {/* Bottom */}
         <div className="p-4 border-t border-sidebar-border space-y-1">
-          {isAdmin && renderLink({ path: "/configuracoes", label: "Configurações", icon: Settings })}
           {isAmbos && (
             <button
               onClick={() => navigate("/setor")}

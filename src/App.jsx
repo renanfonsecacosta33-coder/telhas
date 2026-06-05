@@ -35,6 +35,14 @@ import CalculadoraIsopor from '@/pages/CalculadoraIsopor';
 import DashboardPerformance from '@/pages/DashboardPerformance';
 import Cola from '@/pages/Cola';
 import VendedorEstoque from '@/pages/VendedorEstoque';
+import SeletorSetor from '@/pages/SeletorSetor';
+import AppLayoutCD from '@/components/layout/CorteDobra/AppLayoutCD';
+import DashboardCD from '@/pages/corte-dobra/Dashboard';
+import ProducaoCD from '@/pages/corte-dobra/Producao';
+import BobinasCD from '@/pages/corte-dobra/Bobinas';
+import Chaparia from '@/pages/corte-dobra/Chaparia';
+import EPI from '@/pages/corte-dobra/EPI';
+import UsuariosCD from '@/pages/corte-dobra/Usuarios';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -93,6 +101,15 @@ const AuthenticatedApp = () => {
         <Route path="/cola" element={<Cola />} />
       </Route>
       <Route path="/vendedor" element={<VendedorEstoque />} />
+      <Route path="/setor" element={<SeletorSetor />} />
+      <Route element={<AppLayoutCD />}>
+        <Route path="/corte-dobra" element={<DashboardCD />} />
+        <Route path="/corte-dobra/producao" element={<ProducaoCD />} />
+        <Route path="/corte-dobra/bobinas" element={<BobinasCD />} />
+        <Route path="/corte-dobra/chaparia" element={<Chaparia />} />
+        <Route path="/corte-dobra/epi" element={<EPI />} />
+        <Route path="/corte-dobra/usuarios" element={<UsuariosCD />} />
+      </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
