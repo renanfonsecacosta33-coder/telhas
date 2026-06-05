@@ -6,12 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Calculator, Plus, Search, CheckCircle2, Clock, AlertTriangle,
-  ChevronDown, ChevronUp, Layers, Ruler, Settings, ShoppingCart, Eye
+  ChevronDown, ChevronUp, Layers, Ruler, Settings, ShoppingCart, Eye, BarChart2
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import DesenvolvimentoFormDialog from "@/components/corte-dobra/DesenvolvimentoFormDialog";
+import AproveitamentoBlank from "@/components/corte-dobra/AproveitamentoBlank";
 
 const STATUS_CONFIG = {
   rascunho:    { label: "Rascunho",     className: "bg-slate-100 text-slate-600 border-slate-200",  icon: Clock },
@@ -26,6 +27,8 @@ export default function DesenvolvimentoCD() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
+  const [aba, setAba] = useState("lista"); // "lista" | "aproveitamento"
+  const [devAproveitamento, setDevAproveitamento] = useState(null);
   const queryClient = useQueryClient();
 
   const { data: desenvolvimentos = [], isLoading } = useQuery({
@@ -81,10 +84,48 @@ export default function DesenvolvimentoCD() {
           </h1>
           <p className="text-sm text-muted-foreground">Planificação, Fator K e parâmetros técnicos antes da OP</p>
         </div>
-        <Button onClick={() => { setEditItem(null); setDialogOpen(true); }} className="gap-2 bg-orange-500 hover:bg-orange-600">
-          <Plus className="w-4 h-4" /> Novo Desenvolvimento
-        </Button>
+        {aba === "lista" && (
+          <Button onClick={() => { setEditItem(null); setDialogOpen(true); }} className="gap-2 bg-orange-500 hover:bg-orange-600">
+            <Plus className="w-4 h-4" /> Novo Desenvolvimento
+          </Button>
+        )}
       </div>
+
+      {/* Abas */}
+      <div className="flex gap-1 bg-muted p-1 rounded-xl w-fit">
+        <button
+          onClick={() => setAba("lista")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${aba === "lista" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          <Calculator className="w-4 h-4" /> Desenvolvimentos
+        </button>
+        <button
+          onClick={() => { setAba("aproveitamento"); setDevAproveitamento(null); }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${aba === "aproveitamento" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          <BarChart2 className="w-4 h-4" /> Aproveitamento / Blank
+        </button>
+      </div>
+
+      {/* Aba Aproveitamento */}
+      {aba === "aproveitamento" && (
+        <div className="bg-card border border-border rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-bold flex items-center gap-2">
+              <BarChart2 className="w-5 h-5 text-orange-500" />
+              Calculadora de Aproveitamento de Blank
+            </h2>
+            {devAproveitamento && (
+              <Button variant="outline" size="sm" onClick={() => setDevAproveitamento(null)} className="text-xs">
+                Limpar vinculo
+              </Button>
+            )}
+          </div>
+          <AproveitamentoBlank dev={devAproveitamento} />
+        </div>
+      )}
+
+      {aba !== "lista" ? null : <>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -208,12 +249,18 @@ export default function DesenvolvimentoCD() {
                       </div>
                     )}
 
-                    {dev.status === "rascunho" && (
-                      <Button size="sm" className="bg-green-600 hover:bg-green-700 gap-1 text-xs"
-                        onClick={() => updateMutation.mutate({ id: dev.id, data: { status: "aprovado" } })}>
-                        <CheckCircle2 className="w-3 h-3" /> Aprovar Desenvolvimento
+                    <div className="flex flex-wrap gap-2">
+                      {dev.status === "rascunho" && (
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700 gap-1 text-xs"
+                          onClick={() => updateMutation.mutate({ id: dev.id, data: { status: "aprovado" } })}>
+                          <CheckCircle2 className="w-3 h-3" /> Aprovar Desenvolvimento
+                        </Button>
+                      )}
+                      <Button size="sm" variant="outline" className="gap-1 text-xs border-orange-200 text-orange-700 hover:bg-orange-50"
+                        onClick={() => { setDevAproveitamento(dev); setAba("aproveitamento"); }}>
+                        <BarChart2 className="w-3 h-3" /> Calcular Aproveitamento
                       </Button>
-                    )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -221,6 +268,7 @@ export default function DesenvolvimentoCD() {
           })}
         </div>
       )}
+      </>}
 
       <DesenvolvimentoFormDialog
         open={dialogOpen}

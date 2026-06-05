@@ -20,28 +20,98 @@ export const CATEGORIAS_CATALOGO = [
 export const MAQUINAS_CORTE = ["CORTE 3M", "CORTE 6M"];
 export const MAQUINAS_DOBRA = ["DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M", "PERFILADEIRA"];
 
-// Espessuras disponíveis das chapas (mm)
+// ─── ESPESSURAS COMPLETAS ─────────────────────────────────────────────────────
+// Categorias: bobina_ff, bobina_galv, bobina_slitter_ff, bobina_slitter_galv, chapa_grossa
+// valor em mm (decimal americano), label para exibição, tipo: FF / GALV / Slitter / Chapa
 export const ESPESSURAS_CHAPA = [
-  { label: "Chapa 28 (0,43mm)", valor: 0.43 },
-  { label: "Chapa 26 (0,50mm)", valor: 0.50 },
-  { label: "Chapa 24 (0,60mm)", valor: 0.60 },
-  { label: "Chapa 22 (0,75mm)", valor: 0.75 },
-  { label: "Chapa 20 (0,90mm)", valor: 0.90 },
-  { label: "Chapa 18 (1,20mm)", valor: 1.20 },
-  { label: "Chapa 16 (1,50mm)", valor: 1.50 },
-  { label: "Chapa 14 (2,00mm)", valor: 2.00 },
-  { label: "Chapa 13 (2,25mm)", valor: 2.25 },
-  { label: "Chapa 12 (2,65mm)", valor: 2.65 },
-  { label: "Chapa 11 (3,00mm)", valor: 3.00 },
-  { label: "Chapa 10 (3,35mm)", valor: 3.35 },
-  { label: "Chapa 9 (3,75mm)",  valor: 3.75 },
-  { label: "Chapa 8 (4,25mm)",  valor: 4.25 },
-  { label: "Chapa 3/16\" (4,75mm)", valor: 4.75 },
-  { label: "Chapa 1/4\" (6,30mm)",  valor: 6.30 },
-  { label: "Chapa 5/16\" (8,00mm)", valor: 8.00 },
-  { label: "Chapa 3/8\" (9,50mm)",  valor: 9.50 },
-  { label: "Chapa 1/2\" (12,70mm)", valor: 12.70 },
+  // ─ Bobinas padrão FF ─
+  { valor: 0.35,  label: "0,35 FF",          tipo: "FF",     origem: "bobina" },
+  { valor: 0.45,  label: "0,45 FF",          tipo: "FF",     origem: "bobina" },
+  { valor: 0.50,  label: "0,50 FF",          tipo: "FF",     origem: "bobina" },
+  { valor: 0.75,  label: "0,75 FF",          tipo: "FF",     origem: "bobina" },
+  { valor: 0.90,  label: "0,90 FF",          tipo: "FF",     origem: "bobina" },
+  { valor: 1.06,  label: "1,06 FF",          tipo: "FF",     origem: "bobina" },
+  { valor: 1.20,  label: "1,20 FF",          tipo: "FF",     origem: "bobina" },
+  { valor: 1.50,  label: "1,50 FF",          tipo: "FF",     origem: "bobina" },
+  { valor: 1.90,  label: "1,90 FF",          tipo: "FF",     origem: "bobina" },
+  { valor: 2.00,  label: "2,00 FF",          tipo: "FF",     origem: "bobina" },
+  { valor: 2.25,  label: "2,25 FF",          tipo: "FF",     origem: "bobina" },
+  { valor: 2.65,  label: "2,65 FF",          tipo: "FF",     origem: "bobina" },
+  { valor: 3.00,  label: "3,00 FF",          tipo: "FF",     origem: "bobina" },
+  { valor: 3.35,  label: "3,35 FF",          tipo: "FF",     origem: "bobina" },
+  { valor: 3.75,  label: "3,75 FF",          tipo: "FF",     origem: "bobina" },
+  { valor: 4.25,  label: "4,25 FF",          tipo: "FF",     origem: "bobina" },
+  // ─ Bobinas padrão GALV ─
+  { valor: 0.40,  label: "0,40 GALV",        tipo: "GALV",   origem: "bobina" },
+  { valor: 0.43,  label: "0,43 GALV",        tipo: "GALV",   origem: "bobina" },
+  { valor: 0.50,  label: "0,50 GALV",        tipo: "GALV",   origem: "bobina", id_extra: "0.50_galv" },
+  { valor: 0.65,  label: "0,65 GALV",        tipo: "GALV",   origem: "bobina" },
+  { valor: 0.80,  label: "0,80 GALV",        tipo: "GALV",   origem: "bobina" },
+  { valor: 0.95,  label: "0,95 GALV",        tipo: "GALV",   origem: "bobina" },
+  { valor: 1.11,  label: "1,11 GALV",        tipo: "GALV",   origem: "bobina" },
+  { valor: 1.25,  label: "1,25 GALV",        tipo: "GALV",   origem: "bobina" },
+  { valor: 1.55,  label: "1,55 GALV",        tipo: "GALV",   origem: "bobina" },
+  { valor: 1.95,  label: "1,95 GALV",        tipo: "GALV",   origem: "bobina" },
+  { valor: 2.25,  label: "2,25 GALV",        tipo: "GALV",   origem: "bobina", id_extra: "2.25_galv" },
+  { valor: 2.65,  label: "2,65 GALV",        tipo: "GALV",   origem: "bobina", id_extra: "2.65_galv" },
+  { valor: 3.00,  label: "3,00 GALV",        tipo: "GALV",   origem: "bobina", id_extra: "3.00_galv" },
+  { valor: 3.75,  label: "3,75 GALV",        tipo: "GALV",   origem: "bobina", id_extra: "3.75_galv" },
+  { valor: 4.25,  label: "4,25 GALV",        tipo: "GALV",   origem: "bobina", id_extra: "4.25_galv" },
+  // ─ Bobinas Slitter FF ─
+  { valor: 0.35,  label: "0,35 FF (Slitter)", tipo: "FF",    origem: "slitter" },
+  { valor: 0.45,  label: "0,45 FF (Slitter)", tipo: "FF",    origem: "slitter" },
+  { valor: 0.50,  label: "0,50 FF (Slitter)", tipo: "FF",    origem: "slitter" },
+  { valor: 0.75,  label: "0,75 FF (Slitter)", tipo: "FF",    origem: "slitter" },
+  { valor: 0.90,  label: "0,90 FF (Slitter)", tipo: "FF",    origem: "slitter" },
+  { valor: 1.06,  label: "1,06 FF (Slitter)", tipo: "FF",    origem: "slitter" },
+  { valor: 1.20,  label: "1,20 FF (Slitter)", tipo: "FF",    origem: "slitter" },
+  { valor: 1.50,  label: "1,50 FF (Slitter)", tipo: "FF",    origem: "slitter" },
+  { valor: 1.90,  label: "1,90 FF (Slitter)", tipo: "FF",    origem: "slitter" },
+  { valor: 2.00,  label: "2,00 FF (Slitter)", tipo: "FF",    origem: "slitter" },
+  { valor: 2.25,  label: "2,25 FF (Slitter)", tipo: "FF",    origem: "slitter" },
+  { valor: 2.65,  label: "2,65 FF (Slitter)", tipo: "FF",    origem: "slitter" },
+  { valor: 3.00,  label: "3,00 FF (Slitter)", tipo: "FF",    origem: "slitter" },
+  { valor: 3.35,  label: "3,35 FF (Slitter)", tipo: "FF",    origem: "slitter" },
+  { valor: 3.75,  label: "3,75 FF (Slitter)", tipo: "FF",    origem: "slitter" },
+  { valor: 4.25,  label: "4,25 FF (Slitter)", tipo: "FF",    origem: "slitter" },
+  // ─ Bobinas Slitter GALV ─
+  { valor: 0.40,  label: "0,40 GALV (Slitter)", tipo: "GALV", origem: "slitter" },
+  { valor: 0.43,  label: "0,43 GALV (Slitter)", tipo: "GALV", origem: "slitter" },
+  { valor: 0.50,  label: "0,50 GALV (Slitter)", tipo: "GALV", origem: "slitter" },
+  { valor: 0.65,  label: "0,65 GALV (Slitter)", tipo: "GALV", origem: "slitter" },
+  { valor: 0.80,  label: "0,80 GALV (Slitter)", tipo: "GALV", origem: "slitter" },
+  { valor: 0.95,  label: "0,95 GALV (Slitter)", tipo: "GALV", origem: "slitter" },
+  { valor: 1.11,  label: "1,11 GALV (Slitter)", tipo: "GALV", origem: "slitter" },
+  { valor: 1.25,  label: "1,25 GALV (Slitter)", tipo: "GALV", origem: "slitter" },
+  { valor: 1.55,  label: "1,55 GALV (Slitter)", tipo: "GALV", origem: "slitter" },
+  { valor: 1.95,  label: "1,95 GALV (Slitter)", tipo: "GALV", origem: "slitter" },
+  { valor: 2.25,  label: "2,25 GALV (Slitter)", tipo: "GALV", origem: "slitter" },
+  { valor: 2.65,  label: "2,65 GALV (Slitter)", tipo: "GALV", origem: "slitter" },
+  { valor: 3.00,  label: "3,00 GALV (Slitter)", tipo: "GALV", origem: "slitter" },
+  { valor: 3.75,  label: "3,75 GALV (Slitter)", tipo: "GALV", origem: "slitter" },
+  { valor: 4.25,  label: "4,25 GALV (Slitter)", tipo: "GALV", origem: "slitter" },
+  // ─ Chapas Grossas (laminadas/chatas, sem bobina) ─
+  { valor: 2.30,  label: "2,3 mm (Chapa)",   tipo: "chapa",  origem: "chapa" },
+  { valor: 2.70,  label: "2,7 mm (Chapa)",   tipo: "chapa",  origem: "chapa" },
+  { valor: 4.75,  label: "4,75 mm (3/16\")", tipo: "chapa",  origem: "chapa" },
+  { valor: 6.35,  label: "6,35 mm (1/4\")",  tipo: "chapa",  origem: "chapa" },
+  { valor: 7.94,  label: "7,94 mm (5/16\")", tipo: "chapa",  origem: "chapa" },
+  { valor: 9.25,  label: "9,25 mm",          tipo: "chapa",  origem: "chapa" },
+  { valor: 9.52,  label: "9,52 mm (3/8\")",  tipo: "chapa",  origem: "chapa" },
+  { valor: 12.70, label: "12,70 mm (1/2\")", tipo: "chapa",  origem: "chapa" },
 ];
+
+// Retorna label único para exibição
+export function labelEspessura(valor, label) {
+  if (label) return label;
+  const found = ESPESSURAS_CHAPA.find(e => e.valor === valor);
+  return found ? found.label : `${valor} mm`;
+}
+
+// Gera um ID único por espessura (valor + label normalizado)
+export function idEspessura(e) {
+  return `${e.label.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_,]/g, "")}`;
+}
 
 // ─── Função: calcula comprimento desenvolvido aproximado via BD simplificada
 // para perfis U simples: soma das abas externas - n_dobras * 2 * espessura
@@ -50,6 +120,56 @@ export function calcDesenvolvido(abas_mm, n_dobras_90, espessura_mm) {
   const soma = abas_mm.reduce((s, a) => s + a, 0);
   const deducao = n_dobras_90 * 2 * espessura_mm;
   return Math.round(soma - deducao);
+}
+
+// ─── Cálculo de aproveitamento do blank ──────────────────────────────────────
+// Dado: comprimento desenvolvido da peça (mm), largura da peça desenvolvida (mm),
+//       largura da chapa/bobina disponível (mm), comprimento da chapa (mm)
+// Retorna: qtd peças por chapa, sobra, percentual aproveitamento
+export function calcAproveitamentoBlank({
+  comp_peca_mm,      // comprimento desenvolvido (blank) da peça
+  larg_peca_mm,      // largura desenvolvida da peça (blank)
+  comp_chapa_mm,     // comprimento da chapa disponível
+  larg_chapa_mm,     // largura da chapa/bobina
+  qtd_desejada = 1,  // quantidade de peças que se quer produzir
+}) {
+  if (!comp_peca_mm || !larg_peca_mm || !comp_chapa_mm || !larg_chapa_mm) return null;
+
+  // Layouts possíveis (orientação normal e rotacionada 90°)
+  const layouts = [
+    {
+      label: "Normal",
+      cols: Math.floor(larg_chapa_mm / larg_peca_mm),
+      rows: Math.floor(comp_chapa_mm / comp_peca_mm),
+    },
+    {
+      label: "Rotacionado 90°",
+      cols: Math.floor(larg_chapa_mm / comp_peca_mm),
+      rows: Math.floor(comp_chapa_mm / larg_peca_mm),
+    },
+  ];
+
+  const results = layouts.map(l => {
+    const qtd_por_chapa = l.cols * l.rows;
+    const area_chapa = comp_chapa_mm * larg_chapa_mm;
+    const area_pecas = qtd_por_chapa * comp_peca_mm * larg_peca_mm;
+    const aproveitamento_pct = area_chapa > 0 ? (area_pecas / area_chapa) * 100 : 0;
+    const sobra_comp = comp_chapa_mm - (l.rows * comp_peca_mm);
+    const sobra_larg = larg_chapa_mm - (l.cols * larg_peca_mm);
+    const chapas_necessarias = qtd_por_chapa > 0 ? Math.ceil(qtd_desejada / qtd_por_chapa) : null;
+    return {
+      ...l,
+      qtd_por_chapa,
+      aproveitamento_pct: aproveitamento_pct.toFixed(1),
+      sobra_comp_mm: Math.round(sobra_comp),
+      sobra_larg_mm: Math.round(sobra_larg),
+      chapas_necessarias,
+    };
+  });
+
+  // Retorna o melhor layout (maior aproveitamento)
+  results.sort((a, b) => parseFloat(b.aproveitamento_pct) - parseFloat(a.aproveitamento_pct));
+  return results;
 }
 
 // ─── CATÁLOGO DE PRODUTOS ───────────────────────────────────────────────────
@@ -195,13 +315,17 @@ export const CATALOGO = [
   // ─── CHAPAS PLANAS (Blanks) ───
   {
     id: "chapa_1200x3000", categoria: "chapa_plana",
-    nome: "Chapa Plana 1200x3000", codigo: "Chapa",
-    dimensoes: "1200x3000", abas: [1200, 3000], dobras: 0,
-    largura_necessaria_mm: 1200,
-    espessuras_disponiveis: [0.43,0.50,0.60,0.75,0.90,1.20,1.50,2.00,2.25,2.65,3.00,3.35,3.75,4.25,4.75,6.30,8.00,9.50,12.70],
+    nome: "Chapa Plana / Blank sob medida", codigo: "Blank",
+    dimensoes: "Sob medida", abas: [], dobras: 0,
+    largura_necessaria_mm: null,
+    espessuras_disponiveis: [
+      0.35,0.40,0.43,0.45,0.50,0.65,0.75,0.80,0.90,0.95,
+      1.06,1.11,1.20,1.25,1.50,1.55,1.90,1.95,2.00,2.25,2.65,
+      3.00,3.35,3.75,4.25,2.30,2.70,4.75,6.35,7.94,9.25,9.52,12.70
+    ],
     maquina_corte: "CORTE 6M", maquina_dobra: null,
     comprimento_padrao_mm: 3000,
-    observacao: "Chapa cortada na guilhotina conforme medida solicitada.",
+    observacao: "Chapa cortada na guilhotina conforme medida solicitada. Usar calculadora de aproveitamento.",
   },
 
   // ─── PERFIS SERRALHEIRO U ───
@@ -462,7 +586,7 @@ export const CATALOGO = [
     dimensoes: "-", abas: [], dobras: 0,
     largura_necessaria_mm: null, espessuras_disponiveis: [0.43, 0.50],
     maquina_corte: "CORTE 3M", maquina_dobra: "PERFILADEIRA", comprimento_padrao_mm: 3000,
-    observacao: "Chapas 26 (0,50mm) e 28 (0,43mm). Sob medida.",
+    observacao: "Chapas GALV 0,43 e 0,50mm. Sob medida.",
   },
 ];
 

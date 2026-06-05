@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { Calculator, Plus, Trash2, AlertTriangle, CheckCircle2, Info } from "lucide-react";
+import EspessuraSelect from "./EspessuraSelect";
 
 // ─── Fórmulas de planificação ───────────────────────────────────────────────
 // Comprimento do arco neutro de uma dobra
@@ -46,6 +47,7 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
     data_desenvolvimento: format(new Date(), "yyyy-MM-dd"),
     material: "",
     espessura_mm: "",
+    espessura_label: "",
     largura_mm: "",
     fator_k: "0.33",
     comprimento_final_mm: "",
@@ -75,6 +77,7 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
         data_desenvolvimento: editItem.data_desenvolvimento || format(new Date(), "yyyy-MM-dd"),
         material: editItem.material || "",
         espessura_mm: editItem.espessura_mm || "",
+        espessura_label: editItem.espessura_mm ? String(editItem.espessura_mm) : "",
         largura_mm: editItem.largura_mm || "",
         fator_k: editItem.fator_k || "0.33",
         comprimento_final_mm: editItem.comprimento_final_mm || "",
@@ -95,7 +98,7 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
       setForm({
         nome_peca: "", numero_pedido: "", cliente: "", responsavel: "",
         data_desenvolvimento: format(new Date(), "yyyy-MM-dd"),
-        material: "", espessura_mm: "", largura_mm: "", fator_k: "0.33",
+        material: "", espessura_mm: "", espessura_label: "", largura_mm: "", fator_k: "0.33",
         comprimento_final_mm: "", largura_final_mm: "", altura_final_mm: "",
         raio_dobra_mm: "", maquina_corte: "", maquina_dobra: "",
         ferramental: "", quantidade_peca: "", sequencia_dobras: "", observacoes_tecnicas: "",
@@ -209,8 +212,16 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label>Espessura (mm) *</Label>
-                <Input type="number" step="0.01" placeholder="Ex: 1.25" value={form.espessura_mm} onChange={e => set("espessura_mm", e.target.value)} />
+                <Label>Espessura / Material *</Label>
+                <EspessuraSelect
+                  value={form.espessura_label || (form.espessura_mm ? String(form.espessura_mm) : "")}
+                  onChange={(label, valor) => {
+                    setForm(f => ({ ...f, espessura_mm: valor, espessura_label: label }));
+                  }}
+                />
+                {form.espessura_mm && (
+                  <p className="text-[10px] text-muted-foreground">Valor: {form.espessura_mm} mm</p>
+                )}
               </div>
               <div className="space-y-1">
                 <Label>Largura da Bobina (mm)</Label>
