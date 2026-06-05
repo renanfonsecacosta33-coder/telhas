@@ -7,11 +7,37 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Users, Plus, Pencil, Mail, Settings2, Monitor } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Users, Plus, Mail, Settings2, Monitor } from "lucide-react";
 import { toast } from "sonner";
 
-const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM", ""];
+const MAQUINAS_TELHAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
+const MAQUINAS_CD = ["CORTE 3M", "CORTE 6M", "DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M", "PERFILADEIRA", "DESBOBINADEIRA"];
 const UNIDADES = ["Matriz AJL", "Pinhais", "Ivaiporã", ""];
+
+function getMaquinasPorSetor(setor) {
+  if (setor === "telhas") return MAQUINAS_TELHAS;
+  if (setor === "corte_dobra") return MAQUINAS_CD;
+  return [...MAQUINAS_TELHAS, ...MAQUINAS_CD];
+}
+
+// Parse maquina field: pode ser string simples ou JSON array
+function parseMaquinas(maquina) {
+  if (!maquina) return [];
+  try {
+    const parsed = JSON.parse(maquina);
+    if (Array.isArray(parsed)) return parsed;
+    return [parsed];
+  } catch {
+    return [maquina];
+  }
+}
+
+function serializeMaquinas(arr) {
+  if (!arr || arr.length === 0) return "";
+  if (arr.length === 1) return arr[0];
+  return JSON.stringify(arr);
+}
 const ROLES = [
   { value: "admin", label: "Administrador", desc: "Acesso total ao sistema" },
   { value: "operador", label: "Operador", desc: "Vê pedidos da sua máquina" },
@@ -70,7 +96,20 @@ export default function GerenciarUsuarios() {
 
   const handleUpdateUser = () => {
     if (!editUser) return;
-    updateMutation.mutate({ id: editUser.id, data: { role: editUser.role, maquina: editUser.maquina || "", unidade: editUser.unidade || "", setor: editUser.setor || "telhas" } });
+    updateMutation.mutate({ id: editUser.id, data: {
+      role: editUser.role,
+      maquina: serializeMaquinas(editUser.maquinas || []),
+      unidade: editUser.unidade || "",
+      setor: editUser.setor || "telhas",
+    }});
+  };
+
+  const toggleMaquina = (m) => {
+    setEditUser(u => {
+      const maquinas = u.maquinas || [];
+      const exists = maquinas.includes(m);
+      return { ...u, maquinas: exists ? maquinas.filter(x => x !== m) : [...maquinas, m] };
+    });
   };
 
   return (
@@ -125,14 +164,14 @@ export default function GerenciarUsuarios() {
                 <div className="flex items-center gap-2 flex-wrap justify-end">
                   {u.role && <Badge className={`border text-xs ${ROLE_COLORS[u.role] || "bg-gray-100 text-gray-700 border-gray-200"}`}>{u.role}</Badge>}
                   {u.setor && <Badge className={`border text-xs ${SETOR_COLORS[u.setor] || ""}`}>{SETORES.find(s => s.value === u.setor)?.label || u.setor}</Badge>}
-                  {u.maquina && (
-                    <Badge variant="outline" className="text-xs gap-1">
+                  {parseMaquinas(u.maquina).map(m => (
+                    <Badge key={m} variant="outline" className="text-xs gap-1">
                       <Monitor className="w-3 h-3" />
-                      {u.maquina}
+                      {m}
                     </Badge>
-                  )}
+                  ))}
                   {u.unidade && <Badge variant="secondary" className="text-xs">{u.unidade}</Badge>}
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditUser({ ...u }); setEditOpen(true); }}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditUser({ ...u, maquinas: parseMaquinas(u.maquina) }); setEditOpen(true); }}>
                     <Settings2 className="w-4 h-4" />
                   </Button>
                 </div>
@@ -205,7 +244,7 @@ export default function GerenciarUsuarios() {
               </div>
               <div className="space-y-1">
                 <Label>Setor</Label>
-                <Select value={editUser.setor || "telhas"} onValueChange={v => setEditUser(u => ({ ...u, setor: v }))}>
+                <Select value={editUser.setor || "telhas"} onValueChange={v => setEditUser(u => ({ ...u, setor: v, maquinas: [] }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {SETORES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
@@ -214,16 +253,25 @@ export default function GerenciarUsuarios() {
                 <p className="text-xs text-muted-foreground">Define em qual setor este usuário trabalha</p>
               </div>
               {editUser.role === "operador" && (
-                <div className="space-y-1">
-                  <Label>Máquina Associada</Label>
-                  <Select value={editUser.maquina || ""} onValueChange={v => setEditUser(u => ({ ...u, maquina: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Selecione a máquina" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={null}>Nenhuma</SelectItem>
-                      {MAQUINAS.filter(m => m).map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">O operador verá apenas os pedidos desta máquina</p>
+                <div className="space-y-2">
+                  <Label>Máquinas Associadas</Label>
+                  <div className="border border-border rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
+                    {getMaquinasPorSetor(editUser.setor || "telhas").map(m => (
+                      <label key={m} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5">
+                        <Checkbox
+                          checked={(editUser.maquinas || []).includes(m)}
+                          onCheckedChange={() => toggleMaquina(m)}
+                        />
+                        <span className="text-sm">{m}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {(editUser.maquinas || []).length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {(editUser.maquinas || []).length} máquina(s) selecionada(s): {(editUser.maquinas || []).join(", ")}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">O operador verá apenas os pedidos das máquinas selecionadas</p>
                 </div>
               )}
               <div className="space-y-1">
