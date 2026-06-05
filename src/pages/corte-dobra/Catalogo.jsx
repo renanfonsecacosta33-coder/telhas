@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -155,7 +155,8 @@ export default function CatalogoCD() {
 }
 
 function PedidoRapidoDialog({ produto, desenvolvimentos, onClose, onSaved }) {
-  const [espessura, setEspessura] = useState(produto.espessuras_disponiveis?.[0] || "");
+  const [espessura, setEspessura] = useState("");
+  const [materialSel, setMaterialSel] = useState(null); // objeto do estoque selecionado
   const [comprimento, setComprimento] = useState("");
   const [quantidade, setQuantidade] = useState("1");
   const [cliente, setCliente] = useState("");
@@ -163,6 +164,62 @@ function PedidoRapidoDialog({ produto, desenvolvimentos, onClose, onSaved }) {
   const [data, setData] = useState(format(new Date(), "yyyy-MM-dd"));
   const [devId, setDevId] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Buscar bobinas CD e chapas disponíveis em estoque
+  const { data: bobinasCD = [] } = useQuery({
+    queryKey: ["bobinas-cd-estoque"],
+    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false }),
+  });
+  const { data: chapasCD = [] } = useQuery({
+    queryKey: ["chapas-cd-disponiveis"],
+    queryFn: () => base44.entities.ChapaCD.filter({ status: "disponivel" }),
+  });
+
+  // Materiais do estoque compatíveis com este produto
+  // Compatibilidade: espessura do catálogo deve bater com a chapa/bobina
+  const materiaisCompativeis = useMemo(() => {
+    const result = [];
+    // Bobinas com largura compatível
+    bobinasCD.forEach(b => {
+      const esp = parseFloat(b.chapa);
+      if (!esp) return;
+      if (produto.espessuras_disponiveis?.length && !produto.espessuras_disponiveis.some(e => Math.abs(e - esp) < 0.05)) return;
+      if (produto.largura_necessaria_mm && b.largura_mm && b.largura_mm < produto.largura_necessaria_mm) return;
+      result.push({
+        id: `bobina_${b.id}`,
+        label: `[Bobina] ${b.codigo || "—"} · ${b.chapa}mm · ${b.largura_mm || "?"}mm · ${b.cor || ""}`,
+        espessura: esp,
+        largura_mm: b.largura_mm,
+        origem: "bobina",
+        estoque_ref: b,
+      });
+    });
+    // Chapas disponíveis
+    chapasCD.forEach(c => {
+      const desc = c.bobina_descricao || "";
+      // tenta extrair espessura da descrição (padrão: "0,43" ou "0.43")
+      const match = desc.match(/(\d+[.,]\d+)\s*mm/i) || desc.match(/ch[:\s]*(\d+[.,]\d+)/i);
+      const esp = match ? parseFloat(match[1].replace(",", ".")) : null;
+      if (esp && produto.espessuras_disponiveis?.length && !produto.espessuras_disponiveis.some(e => Math.abs(e - esp) < 0.05)) return;
+      result.push({
+        id: `chapa_${c.id}`,
+        label: `[Chaparia] ${c.bobina_descricao || "—"} · ${c.comprimento_mm}mm · ${c.quantidade_disponivel}pç disp.`,
+        espessura: esp,
+        largura_mm: c.largura_mm,
+        comprimento_mm: c.comprimento_mm,
+        origem: "chapa",
+        estoque_ref: c,
+      });
+    });
+    return result;
+  }, [bobinasCD, chapasCD, produto]);
+
+  // Quando seleciona material, atualiza espessura automaticamente
+  const handleSelecionarMaterial = (id) => {
+    const mat = materiaisCompativeis.find(m => m.id === id);
+    setMaterialSel(mat || null);
+    if (mat?.espessura) setEspessura(String(mat.espessura));
+  };
 
   const desenv = espessura ? calcDesenvolvido(produto.abas || [], produto.dobras || 0, parseFloat(espessura)) : null;
 
@@ -256,19 +313,52 @@ function PedidoRapidoDialog({ produto, desenvolvimentos, onClose, onSaved }) {
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Espessura (mm)</Label>
-              <Select value={String(espessura)} onValueChange={v => setEspessura(v)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+          {/* Material do estoque */}
+          <div className="space-y-1">
+            <Label>Material do Estoque *</Label>
+            {materiaisCompativeis.length === 0 ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                ⚠ Nenhuma bobina ou chapa compatível encontrada no estoque. Verifique o estoque de Bobinas CD e Chaparia.
+              </div>
+            ) : (
+              <Select value={materialSel?.id || ""} onValueChange={handleSelecionarMaterial}>
+                <SelectTrigger><SelectValue placeholder="Selecione do estoque..." /></SelectTrigger>
                 <SelectContent>
-                  {produto.espessuras_disponiveis?.map(e => (
-                    <SelectItem key={e} value={String(e)}>{e}mm</SelectItem>
+                  {materiaisCompativeis.filter(m => m.origem === "bobina").length > 0 && (
+                    <SelectItem value="_sep_bob" disabled className="text-xs font-bold text-muted-foreground uppercase">🪙 Bobinas</SelectItem>
+                  )}
+                  {materiaisCompativeis.filter(m => m.origem === "bobina").map(m => (
+                    <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
+                  ))}
+                  {materiaisCompativeis.filter(m => m.origem === "chapa").length > 0 && (
+                    <SelectItem value="_sep_ch" disabled className="text-xs font-bold text-muted-foreground uppercase">📦 Chaparia</SelectItem>
+                  )}
+                  {materiaisCompativeis.filter(m => m.origem === "chapa").map(m => (
+                    <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            )}
+            {materialSel && (
+              <div className="bg-muted/50 border border-border rounded-lg px-3 py-2 text-xs flex flex-wrap gap-3">
+                {materialSel.espessura && <span>Esp: <strong>{materialSel.espessura}mm</strong></span>}
+                {materialSel.largura_mm && <span>Largura: <strong>{materialSel.largura_mm}mm</strong></span>}
+                {materialSel.comprimento_mm && <span>Comp. chapa: <strong>{materialSel.comprimento_mm}mm</strong></span>}
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Espessura (mm)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="Ex: 1.25"
+                value={espessura}
+                onChange={e => setEspessura(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Preenchida automaticamente ao selecionar material</p>
             </div>
             <div className="space-y-1">
               <Label>Comprimento das peças (mm)</Label>
