@@ -1,10 +1,11 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { Map, Trash2, Plus, Save, RotateCcw, ZoomIn, ZoomOut, Move, Settings } from "lucide-react";
+import { Map, Trash2, Plus, Save, RotateCcw, ZoomIn, ZoomOut, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
 
 const TIPOS = {
@@ -155,20 +156,32 @@ export default function MapaBarracao() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button size="sm" variant="outline" onClick={() => setZoom(z => Math.max(0.3, +(z - 0.1).toFixed(1)))} className="gap-1">
-            <ZoomOut className="w-4 h-4" /> {Math.round(zoom * 100)}%
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setZoom(z => Math.min(2, +(z + 0.1).toFixed(1)))} className="gap-1">
-            <ZoomIn className="w-4 h-4" />
-          </Button>
+          {/* Zoom slider */}
+          <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
+            <ZoomOut className="w-4 h-4 text-muted-foreground cursor-pointer hover:text-foreground" onClick={() => setZoom(z => Math.max(0.3, +(z - 0.1).toFixed(1)))} />
+            <Slider
+              min={30} max={200} step={5}
+              value={[Math.round(zoom * 100)]}
+              onValueChange={([v]) => setZoom(v / 100)}
+              className="w-28"
+            />
+            <ZoomIn className="w-4 h-4 text-muted-foreground cursor-pointer hover:text-foreground" onClick={() => setZoom(z => Math.min(2, +(z + 0.1).toFixed(1)))} />
+            <span className="text-xs font-mono w-9 text-center">{Math.round(zoom * 100)}%</span>
+          </div>
           <Button size="sm" variant="outline" onClick={() => setConfigDialog(true)} className="gap-1">
             <Settings className="w-4 h-4" /> Tamanho
           </Button>
           <Button size="sm" variant="outline" onClick={() => { setAddDialog(true); setNewTipo("maquina_corte"); setNewLabel(""); }} className="gap-1">
             <Plus className="w-4 h-4" /> Adicionar
           </Button>
-          <Button size="sm" variant="outline" onClick={handleReset} className="gap-1 text-destructive border-destructive/30 hover:bg-destructive/10">
-            <RotateCcw className="w-4 h-4" /> Limpar
+          {selected && (
+            <Button size="sm" variant="outline" onClick={() => handleDelete(selected)}
+              className="gap-1 text-destructive border-destructive/40 hover:bg-destructive hover:text-white">
+              <Trash2 className="w-4 h-4" /> Apagar
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={handleReset} className="gap-1 text-muted-foreground">
+            <RotateCcw className="w-4 h-4" /> Limpar tudo
           </Button>
           <Button size="sm" onClick={handleSave} className="gap-1 bg-orange-500 hover:bg-orange-600">
             <Save className="w-4 h-4" /> Salvar
