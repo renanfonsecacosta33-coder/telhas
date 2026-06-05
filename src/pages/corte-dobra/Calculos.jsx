@@ -81,28 +81,117 @@ function Chapas() {
   const [l, setL] = useState("");
   const [c, setC] = useState("");
   const [q, setQ] = useState("");
+  const [kg, setKg] = useState("");
+  const [modo, setModo] = useState("peso"); // "peso" ou "quantidade"
   const [res, setRes] = useState(null);
 
   const calc = () => {
-    const E = parseFloat(e), L = parseFloat(l), C = parseFloat(c), Q = parseFloat(q);
-    if (!E || !L || !C || !Q) return;
-    // Peso = E × L × C × ρ × Q (mm → kg)
-    const peso = (E / 10) * (L / 10) * (C / 10) * DENSIDADE_ACO * Q / 1000;
-    setRes(peso);
+    if (modo === "peso") {
+      const E = parseFloat(e), L = parseFloat(l), C = parseFloat(c), Q = parseFloat(q);
+      if (!E || !L || !C || !Q) return;
+      // Peso = E × L × C × ρ × Q (mm → kg)
+      const peso = (E / 10) * (L / 10) * (C / 10) * DENSIDADE_ACO * Q / 1000;
+      setRes(peso);
+    } else {
+      const E = parseFloat(e), L = parseFloat(l), C = parseFloat(c), K = parseFloat(kg);
+      if (!E || !L || !C || !K) return;
+      // Peso unitário = E × L × C × ρ / 1000
+      const pesoUnitario = (E / 10) * (L / 10) * (C / 10) * DENSIDADE_ACO / 1000;
+      const qtd = K / pesoUnitario;
+      setRes(qtd);
+    }
   };
 
   return (
-    <CalcRow
-      label="Peso Teórico de Chapas / Blocos / Retalhos"
-      fields={[
-        { key: "e", label: "Espessura (mm)", placeholder: "ex: 0.95", value: e, onChange: setE },
-        { key: "l", label: "Largura (mm)", placeholder: "ex: 1000", value: l, onChange: setL },
-        { key: "c", label: "Comprimento (mm)", placeholder: "ex: 6000", value: c, onChange: setC },
-        { key: "q", label: "Quantidade (UN)", placeholder: "ex: 10", value: q, onChange: setQ },
-      ]}
-      onCalc={calc}
-      resultado={res}
-    />
+    <div className="rounded-xl overflow-hidden border border-border shadow-sm">
+      <div className="bg-gray-900 text-white flex items-center justify-between px-4 py-2.5">
+        <span className="font-bold text-sm tracking-wide">Peso Teórico de Chapas / Blocos / Retalhos</span>
+        <div className="flex gap-2">
+          <button
+            onClick={() => { setModo("peso"); setRes(null); }}
+            className={`text-xs font-bold px-3 py-1.5 rounded transition-colors ${modo === "peso" ? "bg-blue-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"}`}
+          >
+            Calcular Peso
+          </button>
+          <button
+            onClick={() => { setModo("quantidade"); setRes(null); }}
+            className={`text-xs font-bold px-3 py-1.5 rounded transition-colors ${modo === "quantidade" ? "bg-blue-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"}`}
+          >
+            Calcular Quantidade
+          </button>
+        </div>
+      </div>
+      <div className="bg-gray-700 text-white grid text-xs font-semibold"
+        style={{ gridTemplateColumns: modo === "peso" ? "repeat(4, 1fr) auto 120px" : "repeat(3, 1fr) auto 120px" }}>
+        <div className="px-3 py-2 text-center border-r border-gray-600">Espessura (mm)</div>
+        <div className="px-3 py-2 text-center border-r border-gray-600">Largura (mm)</div>
+        <div className="px-3 py-2 text-center border-r border-gray-600">Comprimento (mm)</div>
+        {modo === "peso" ? (
+          <div className="px-3 py-2 text-center border-r border-gray-600">Quantidade (UN)</div>
+        ) : (
+          <div className="px-3 py-2 text-center border-r border-gray-600">Peso Total (Kg)</div>
+        )}
+        <div className="px-3 py-2 text-center border-r border-gray-600" />
+        <div className="px-3 py-2 text-center">
+          {modo === "peso" ? "Peso Total (Kg)" : "Quantidade (UN)"}
+        </div>
+      </div>
+      <div className="bg-white grid items-center"
+        style={{ gridTemplateColumns: modo === "peso" ? "repeat(4, 1fr) auto 120px" : "repeat(3, 1fr) auto 120px" }}>
+        <input
+          type="number"
+          step="any"
+          placeholder="ex: 0.95"
+          value={e}
+          onChange={ev => setE(ev.target.value)}
+          className="h-10 px-3 text-sm border-r border-gray-200 focus:outline-none focus:bg-gray-50 w-full text-gray-800"
+        />
+        <input
+          type="number"
+          step="any"
+          placeholder="ex: 1000"
+          value={l}
+          onChange={ev => setL(ev.target.value)}
+          className="h-10 px-3 text-sm border-r border-gray-200 focus:outline-none focus:bg-gray-50 w-full text-gray-800"
+        />
+        <input
+          type="number"
+          step="any"
+          placeholder="ex: 6000"
+          value={c}
+          onChange={ev => setC(ev.target.value)}
+          className="h-10 px-3 text-sm border-r border-gray-200 focus:outline-none focus:bg-gray-50 w-full text-gray-800"
+        />
+        {modo === "peso" ? (
+          <input
+            type="number"
+            step="any"
+            placeholder="ex: 10"
+            value={q}
+            onChange={ev => setQ(ev.target.value)}
+            className="h-10 px-3 text-sm border-r border-gray-200 focus:outline-none focus:bg-gray-50 w-full text-gray-800"
+          />
+        ) : (
+          <input
+            type="number"
+            step="any"
+            placeholder="ex: 500"
+            value={kg}
+            onChange={ev => setKg(ev.target.value)}
+            className="h-10 px-3 text-sm border-r border-gray-200 focus:outline-none focus:bg-gray-50 w-full text-gray-800"
+          />
+        )}
+        <button
+          onClick={calc}
+          className="bg-gray-900 hover:bg-gray-700 text-white text-xs font-bold px-4 py-2 h-10 whitespace-nowrap transition-colors"
+        >
+          CALCULAR
+        </button>
+        <div className="h-10 flex items-center justify-center text-sm font-bold text-gray-800 bg-gray-100 border-l border-gray-200">
+          {res !== null ? res.toFixed(2) : "—"}
+        </div>
+      </div>
+    </div>
   );
 }
 
