@@ -10,24 +10,33 @@ import { toast } from "sonner";
 import OrdemFormDialogCD from "@/components/corte-dobra/OrdemFormDialogCD";
 import OrdemDesbobinadiraRow from "@/components/corte-dobra/OrdemDesbobinadiraRow";
 import DiaResumoCardCD from "@/components/corte-dobra/DiaResumoCardCD";
+import OrdemMaquinaFormDialog from "@/components/corte-dobra/OrdemMaquinaFormDialog.jsx";
+import OrdemMaquinaRow from "@/components/corte-dobra/OrdemMaquinaRow.jsx";
 
-const MAQUINAS_CD = ["DESBOBINADEIRA", "DOBRADEIRA", "GUILHOTINA", "CALANDRA", "PRENSA"];
-
-const MAQUINA_CORES = {
-  "DESBOBINADEIRA": "bg-orange-100 text-orange-800 border-orange-200",
-  "DOBRADEIRA":     "bg-blue-100 text-blue-800 border-blue-200",
-  "GUILHOTINA":     "bg-purple-100 text-purple-800 border-purple-200",
-  "CALANDRA":       "bg-green-100 text-green-800 border-green-200",
-  "PRENSA":         "bg-pink-100 text-pink-800 border-pink-200",
-};
+const MAQUINAS_OUTRAS = [
+  { id: "CORTE 3M",       label: "Guilhotina 3m",       cor: "bg-purple-100 text-purple-800 border-purple-200" },
+  { id: "DOBRA 3M",       label: "Dobradeira 3m",        cor: "bg-blue-100 text-blue-800 border-blue-200" },
+  { id: "CORTE 6M",       label: "Guilhotina 6m",        cor: "bg-indigo-100 text-indigo-800 border-indigo-200" },
+  { id: "DOBRA FUNDO 6M", label: "Dobradeira Fundo 6m",  cor: "bg-teal-100 text-teal-800 border-teal-200" },
+  { id: "DOBRA INICIO 6M",label: "Dobradeira Início 6m", cor: "bg-cyan-100 text-cyan-800 border-cyan-200" },
+  { id: "PERFILADEIRA",   label: "Perfiladeira",         cor: "bg-green-100 text-green-800 border-green-200" },
+];
 
 export default function ProducaoCD() {
   const [user, setUser] = useState(null);
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [viewMode, setViewMode] = useState("semana"); // "semana" | "dia"
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editItem, setEditItem] = useState(null);
+  const [viewMode, setViewMode] = useState("semana");
+
+  // Dialog Desbobinadeira
+  const [dialogDesb, setDialogDesb] = useState(false);
+  const [editDesb, setEditDesb] = useState(null);
+
+  // Dialog outras máquinas
+  const [dialogMaq, setDialogMaq] = useState(false);
+  const [editMaq, setEditMaq] = useState(null);
+  const [maquinaAtiva, setMaquinaAtiva] = useState(null);
+
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -38,72 +47,91 @@ export default function ProducaoCD() {
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
   const diasDaSemana = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
+  // Ordens Desbobinadeira
   const { data: ordens = [], isLoading } = useQuery({
     queryKey: ["ordens-desbobinadeira"],
     queryFn: () => base44.entities.OrdemDesbobinadeira.list("-data", 500),
     refetchInterval: 10000,
   });
 
-  const createMutation = useMutation({
-    mutationFn: (data) => base44.entities.OrdemDesbobinadeira.create(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] }); setDialogOpen(false); toast.success("Ordem criada!"); },
+  // Ordens outras máquinas
+  const { data: ordensMaq = [] } = useQuery({
+    queryKey: ["ordens-maquina-cd"],
+    queryFn: () => base44.entities.OrdemMaquinaCD.list("-data", 500),
+    refetchInterval: 10000,
   });
 
-  const updateMutation = useMutation({
+  // Mutations Desbobinadeira
+  const createDesb = useMutation({
+    mutationFn: (data) => base44.entities.OrdemDesbobinadeira.create(data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] }); setDialogDesb(false); toast.success("Ordem criada!"); },
+  });
+  const updateDesb = useMutation({
     mutationFn: ({ id, data }) => base44.entities.OrdemDesbobinadeira.update(id, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] }),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id) => base44.entities.OrdemDesbobinadeira.delete(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] }); toast.success("Ordem excluída!"); },
+  // Mutations outras máquinas
+  const createMaq = useMutation({
+    mutationFn: (data) => base44.entities.OrdemMaquinaCD.create(data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] }); setDialogMaq(false); toast.success("Ordem criada!"); },
   });
-
-  const handleUpdate = (id, data) => updateMutation.mutate({ id, data });
-
-  const openNew = (date = null) => {
-    setEditItem(null);
-    setDialogOpen(true);
-    if (date) setEditItem({ _presets: { data: date } });
-  };
-
-  const openEdit = (item) => { setEditItem(item); setDialogOpen(true); };
-  const handleClose = () => { setDialogOpen(false); setEditItem(null); };
-
-  const handleSave = (data) => {
-    if (editItem && !editItem._presets && editItem.id) {
-      updateMutation.mutate({ id: editItem.id, data });
-      handleClose();
-    } else {
-      createMutation.mutate(data);
-    }
-  };
+  const updateMaq = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.OrdemMaquinaCD.update(id, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] }),
+  });
 
   const isGestor = user?.role === "admin" || user?.full_name?.toLowerCase().includes("hudson");
 
-  // Dados da semana
+  const openNewDesb = (date = null) => {
+    setEditDesb(date ? { _presets: { data: date } } : null);
+    setDialogDesb(true);
+  };
+  const openEditDesb = (item) => { setEditDesb(item); setDialogDesb(true); };
+  const handleSaveDesb = (data) => {
+    if (editDesb && !editDesb._presets && editDesb.id) { updateDesb.mutate({ id: editDesb.id, data }); setDialogDesb(false); }
+    else createDesb.mutate(data);
+  };
+
+  const openNewMaq = (maquina, date = null) => {
+    setMaquinaAtiva(maquina);
+    setEditMaq(date ? { _presets: { data: date } } : null);
+    setDialogMaq(true);
+  };
+  const openEditMaq = (item) => { setMaquinaAtiva(item.maquina); setEditMaq(item); setDialogMaq(true); };
+  const handleSaveMaq = (data) => {
+    if (editMaq && !editMaq._presets && editMaq.id) { updateMaq.mutate({ id: editMaq.id, data }); setDialogMaq(false); }
+    else createMaq.mutate(data);
+  };
+
+  // Dados semana (Desbobinadeira)
   const ordensSemana = useMemo(() => {
-    const startStr = format(weekStart, "yyyy-MM-dd");
-    const endStr = format(weekEnd, "yyyy-MM-dd");
-    return ordens.filter(o => o.data >= startStr && o.data <= endStr);
+    const s = format(weekStart, "yyyy-MM-dd");
+    const e = format(weekEnd, "yyyy-MM-dd");
+    return ordens.filter(o => o.data >= s && o.data <= e);
   }, [ordens, weekStart, weekEnd]);
 
   const ordensDia = useMemo(() => ordens.filter(o => o.data === selectedDay), [ordens, selectedDay]);
+  const ordensMaqDia = useMemo(() => ordensMaq.filter(o => o.data === selectedDay), [ordensMaq, selectedDay]);
 
   const totalSemanaOrdens = ordensSemana.length;
   const totalSemanaPecas = ordensSemana.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
 
   const exportarSemana = () => {
-    const linhas = ["Dia,Bobina,Comprimento(mm),Quantidade,Status"];
+    const linhas = ["Dia,Maquina,Bobina/Chapa,Tipo Peça,Quantidade,Status"];
     ordensSemana.forEach(o => {
-      linhas.push(`${o.data},${o.bobina_descricao || ""},${o.comprimento_mm || 0},${o.quantidade || 0},${o.status || ""}`);
+      linhas.push(`${o.data},DESBOBINADEIRA,${o.bobina_descricao || ""},—,${o.quantidade || 0},${o.status || ""}`);
+    });
+    ordensMaq.filter(o => {
+      const s = format(weekStart, "yyyy-MM-dd"); const e = format(weekEnd, "yyyy-MM-dd");
+      return o.data >= s && o.data <= e;
+    }).forEach(o => {
+      linhas.push(`${o.data},${o.maquina},${o.chapa_descricao || ""},${o.tipo_peca || ""},${o.quantidade || 0},${o.status || ""}`);
     });
     const blob = new Blob([linhas.join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `cd_semana_${format(weekStart, "dd-MM-yyyy")}.csv`;
-    a.click();
+    const a = document.createElement("a"); a.href = url;
+    a.download = `cd_semana_${format(weekStart, "dd-MM-yyyy")}.csv`; a.click();
     toast.success("Exportado!");
   };
 
@@ -111,6 +139,8 @@ export default function ProducaoCD() {
     const order = { em_producao: 0, pausado: 1, pendente: 2, finalizado: 3, cancelado: 4 };
     return (order[a.status] ?? 2) - (order[b.status] ?? 2);
   });
+
+  const totalOrdensDia = ordensDia.length + ordensMaqDia.length;
 
   return (
     <div className="space-y-6">
@@ -128,7 +158,7 @@ export default function ProducaoCD() {
             <Download className="w-4 h-4" /> Exportar
           </Button>
           {isGestor && (
-            <Button onClick={() => openNew()} className="gap-2 bg-orange-500 hover:bg-orange-600">
+            <Button onClick={() => openNewDesb(selectedDay)} className="gap-2 bg-orange-500 hover:bg-orange-600">
               <Plus className="w-4 h-4" /> Nova Ordem
             </Button>
           )}
@@ -153,8 +183,6 @@ export default function ProducaoCD() {
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
-
-        {/* Dias da semana como abas */}
         <div className="grid grid-cols-7 gap-1">
           {diasDaSemana.map(dia => {
             const diaStr = format(dia, "yyyy-MM-dd");
@@ -163,14 +191,8 @@ export default function ProducaoCD() {
             const isSelected = selectedDay === diaStr;
             const isHoje = isToday(dia);
             return (
-              <button
-                key={diaStr}
-                onClick={() => { setSelectedDay(diaStr); setViewMode("dia"); }}
-                className={`rounded-lg p-2 text-center transition-all border ${
-                  isSelected ? "bg-orange-500 text-white border-orange-500" :
-                  isHoje ? "border-orange-400/50 bg-orange-50" : "border-border hover:bg-muted/50"
-                }`}
-              >
+              <button key={diaStr} onClick={() => { setSelectedDay(diaStr); setViewMode("dia"); }}
+                className={`rounded-lg p-2 text-center transition-all border ${isSelected ? "bg-orange-500 text-white border-orange-500" : isHoje ? "border-orange-400/50 bg-orange-50" : "border-border hover:bg-muted/50"}`}>
                 <p className="text-xs font-semibold uppercase">{format(dia, "EEE", { locale: ptBR })}</p>
                 <p className={`text-lg font-bold ${isSelected ? "" : isHoje ? "text-orange-500" : ""}`}>{format(dia, "dd")}</p>
                 {ordensDoDia.length > 0 && (
@@ -184,11 +206,9 @@ export default function ProducaoCD() {
         </div>
       </div>
 
-      {/* Toggle semana / dia */}
+      {/* Toggle */}
       <div className="flex items-center gap-2 flex-wrap">
-        <Button variant={viewMode === "semana" ? "default" : "outline"} size="sm" onClick={() => setViewMode("semana")}>
-          Visão Semana
-        </Button>
+        <Button variant={viewMode === "semana" ? "default" : "outline"} size="sm" onClick={() => setViewMode("semana")}>Visão Semana</Button>
         <Button variant={viewMode === "dia" ? "default" : "outline"} size="sm" onClick={() => setViewMode("dia")}
           className={viewMode === "dia" ? "bg-orange-500 hover:bg-orange-600 border-0" : ""}>
           Visão Dia — {format(new Date(selectedDay + "T12:00:00"), "dd/MM", { locale: ptBR })}
@@ -199,23 +219,16 @@ export default function ProducaoCD() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12">
-          <div className="w-8 h-8 border-4 border-muted border-t-orange-500 rounded-full animate-spin" />
-        </div>
+        <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-muted border-t-orange-500 rounded-full animate-spin" /></div>
       ) : viewMode === "semana" ? (
-        // ── VISÃO SEMANA ──
         <div className="space-y-3">
           {diasDaSemana.map(dia => {
             const diaStr = format(dia, "yyyy-MM-dd");
             const ordensDoDia = ordensSemana.filter(o => o.data === diaStr);
             return (
-              <DiaResumoCardCD
-                key={diaStr}
-                dia={dia}
-                ordens={ordensDoDia}
+              <DiaResumoCardCD key={diaStr} dia={dia} ordens={ordensDoDia}
                 onVerDia={() => { setSelectedDay(diaStr); setViewMode("dia"); }}
-                onNovaOrdem={() => { openNew(diaStr); }}
-              />
+                onNovaOrdem={() => openNewDesb(diaStr)} />
             );
           })}
         </div>
@@ -226,84 +239,110 @@ export default function ProducaoCD() {
             <h2 className="text-lg font-bold capitalize">
               {format(new Date(selectedDay + "T12:00:00"), "EEEE, dd 'de' MMMM", { locale: ptBR })}
             </h2>
-            <div className="flex items-center gap-2">
-              <Badge className="bg-orange-100 text-orange-700 border-orange-200">
-                {ordensDia.length} ordens
-              </Badge>
-              {isGestor && (
-                <Button size="sm" onClick={() => openNew(selectedDay)} className="gap-1 bg-orange-500 hover:bg-orange-600">
-                  <Plus className="w-3 h-3" /> Ordem
-                </Button>
-              )}
-            </div>
+            <Badge className="bg-orange-100 text-orange-700 border-orange-200">{totalOrdensDia} ordens no total</Badge>
           </div>
 
-          {/* Bloco DESBOBINADEIRA (única máquina ativa por enquanto) */}
-          <div className="bg-card border border-border rounded-xl overflow-hidden">
-            <div className="px-4 py-3 flex items-center justify-between border-b border-border">
-              <div className="flex items-center gap-3">
-                <Badge className="border bg-orange-100 text-orange-800 border-orange-200">DESBOBINADEIRA</Badge>
-                <span className="text-sm text-muted-foreground">{ordensDia.length} ordem(ns)</span>
-                {ordensDia.filter(o => o.status === "finalizado").length > 0 && (
-                  <span className="text-sm font-bold text-green-600">
-                    {ordensDia.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0)} peças ✓
-                  </span>
+          {/* ── DESBOBINADEIRA ── */}
+          <MaquinaBloco
+            label="DESBOBINADEIRA"
+            cor="bg-orange-100 text-orange-800 border-orange-200"
+            ordens={ordensDiaOrdenadas}
+            isGestor={isGestor}
+            onAdd={() => openNewDesb(selectedDay)}
+            renderRow={(o) => (
+              <div key={o.id}>
+                <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateDesb.mutate({ id, data })} isGestor={isGestor} />
+                {isGestor && o.status === "pendente" && (
+                  <div className="flex justify-end mt-1">
+                    <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEditDesb(o)}>✏️ Editar</Button>
+                  </div>
                 )}
               </div>
-              {isGestor && (
-                <Button variant="ghost" size="sm" onClick={() => openNew(selectedDay)} className="h-7 gap-1 text-xs">
-                  <Plus className="w-3 h-3" /> Adicionar
-                </Button>
-              )}
-            </div>
+            )}
+          />
 
-            {ordensDiaOrdenadas.length === 0 ? (
-              <div className="px-4 py-8 flex flex-col items-center gap-3">
-                <Factory className="w-8 h-8 text-muted-foreground/30" />
-                <p className="text-sm text-muted-foreground">Sem ordens para este dia</p>
-                {isGestor && (
-                  <Button size="sm" onClick={() => openNew(selectedDay)} className="gap-1 bg-orange-500 hover:bg-orange-600">
-                    <Plus className="w-3 h-3" /> Nova Ordem
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <div className="p-4 space-y-4">
-                {ordensDiaOrdenadas.map(o => (
+          {/* ── OUTRAS MÁQUINAS ── */}
+          {MAQUINAS_OUTRAS.map(maq => {
+            const ordensDaMaq = ordensMaqDia.filter(o => o.maquina === maq.id).sort((a, b) => {
+              const order = { em_producao: 0, pausado: 1, pendente: 2, finalizado: 3, cancelado: 4 };
+              return (order[a.status] ?? 2) - (order[b.status] ?? 2);
+            });
+            return (
+              <MaquinaBloco key={maq.id}
+                label={maq.label}
+                cor={maq.cor}
+                ordens={ordensDaMaq}
+                isGestor={isGestor}
+                onAdd={() => openNewMaq(maq.id, selectedDay)}
+                renderRow={(o) => (
                   <div key={o.id}>
-                    <OrdemDesbobinadiraRow ordem={o} onUpdate={handleUpdate} isGestor={isGestor} />
+                    <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} />
                     {isGestor && o.status === "pendente" && (
                       <div className="flex justify-end mt-1">
-                        <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>
-                          ✏️ Editar
-                        </Button>
+                        <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEditMaq(o)}>✏️ Editar</Button>
                       </div>
                     )}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Outras máquinas — em breve */}
-          {MAQUINAS_CD.filter(m => m !== "DESBOBINADEIRA").map(maquina => (
-            <div key={maquina} className="bg-card border border-dashed border-border rounded-xl overflow-hidden opacity-50">
-              <div className="px-4 py-3 flex items-center justify-between">
-                <Badge className={`border ${MAQUINA_CORES[maquina]}`}>{maquina}</Badge>
-                <span className="text-xs text-muted-foreground italic">Em breve</span>
-              </div>
-            </div>
-          ))}
+                )}
+              />
+            );
+          })}
         </div>
       )}
 
       <OrdemFormDialogCD
-        open={dialogOpen}
-        onClose={handleClose}
-        onSave={handleSave}
-        editItem={editItem && !editItem._presets ? editItem : null}
-        defaultDate={editItem?._presets?.data || selectedDay}
+        open={dialogDesb}
+        onClose={() => { setDialogDesb(false); setEditDesb(null); }}
+        onSave={handleSaveDesb}
+        editItem={editDesb && !editDesb._presets ? editDesb : null}
+        defaultDate={editDesb?._presets?.data || selectedDay}
       />
+
+      <OrdemMaquinaFormDialog
+        open={dialogMaq}
+        onClose={() => { setDialogMaq(false); setEditMaq(null); }}
+        onSave={handleSaveMaq}
+        editItem={editMaq && !editMaq._presets ? editMaq : null}
+        defaultDate={editMaq?._presets?.data || selectedDay}
+        maquina={maquinaAtiva}
+      />
+    </div>
+  );
+}
+
+function MaquinaBloco({ label, cor, ordens, isGestor, onAdd, renderRow }) {
+  return (
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="px-4 py-3 flex items-center justify-between border-b border-border">
+        <div className="flex items-center gap-3">
+          <Badge className={`border ${cor}`}>{label}</Badge>
+          <span className="text-sm text-muted-foreground">{ordens.length} ordem(ns)</span>
+          {ordens.filter(o => o.status === "finalizado").length > 0 && (
+            <span className="text-sm font-bold text-green-600">
+              {ordens.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0)} pç ✓
+            </span>
+          )}
+        </div>
+        {isGestor && (
+          <Button variant="ghost" size="sm" onClick={onAdd} className="h-7 gap-1 text-xs">
+            <Plus className="w-3 h-3" /> Adicionar
+          </Button>
+        )}
+      </div>
+
+      {ordens.length === 0 ? (
+        <div className="px-4 py-6 flex flex-col items-center gap-2">
+          <Factory className="w-7 h-7 text-muted-foreground/20" />
+          <p className="text-xs text-muted-foreground">Sem ordens para este dia</p>
+          {isGestor && (
+            <Button size="sm" onClick={onAdd} className="gap-1 bg-orange-500 hover:bg-orange-600 mt-1">
+              <Plus className="w-3 h-3" /> Nova Ordem
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="p-4 space-y-3">{ordens.map(o => renderRow(o))}</div>
+      )}
     </div>
   );
 }
