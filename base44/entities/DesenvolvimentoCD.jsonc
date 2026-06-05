@@ -85,8 +85,7 @@
       "enum": [
         "CORTE 3M",
         "CORTE 6M",
-        "Laser",
-        "Plasma"
+        "Laser"
       ],
       "description": "M\u00e1quina de corte recomendada"
     },

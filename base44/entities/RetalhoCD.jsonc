@@ -1,0 +1,78 @@
+{
+  "name": "RetalhoCD",
+  "type": "object",
+  "properties": {
+    "origem": {
+      "type": "string",
+      "enum": [
+        "corte_chapa",
+        "sobra_producao",
+        "chapa_parcial"
+      ],
+      "default": "sobra_producao",
+      "description": "Como o retalho foi gerado"
+    },
+    "ordem_id": {
+      "type": "string",
+      "description": "ID da OrdemMaquinaCD ou OrdemDesbobinadeira que gerou o retalho"
+    },
+    "material": {
+      "type": "string",
+      "description": "Material (ex: A\u00e7o galvanizado, A\u00e7o carbono)"
+    },
+    "espessura_mm": {
+      "type": "number",
+      "description": "Espessura em mm"
+    },
+    "comprimento_mm": {
+      "type": "number",
+      "description": "Comprimento do retalho em mm"
+    },
+    "largura_mm": {
+      "type": "number",
+      "description": "Largura do retalho em mm"
+    },
+    "area_cm2": {
+      "type": "number",
+      "description": "\u00c1rea em cm\u00b2 (calculado)"
+    },
+    "peso_estimado_kg": {
+      "type": "number",
+      "description": "Peso estimado em kg"
+    },
+    "localizacao": {
+      "type": "string",
+      "description": "Onde est\u00e1 armazenado (ex: Prateleira A3, Pallet 2)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "disponivel",
+        "reservado",
+        "consumido",
+        "descartado"
+      ],
+      "default": "disponivel",
+      "description": "Status do retalho"
+    },
+    "produtos_compativeis": {
+      "type": "string",
+      "description": "JSON: lista de produtos do cat\u00e1logo que cabem neste retalho"
+    },
+    "data_entrada": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de entrada no estoque"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es"
+    }
+  },
+  "required": [
+    "espessura_mm",
+    "comprimento_mm",
+    "largura_mm",
+    "data_entrada"
+  ]
+}

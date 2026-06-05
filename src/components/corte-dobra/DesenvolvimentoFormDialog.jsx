@@ -339,7 +339,6 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
                     <SelectItem value="CORTE 3M">Guilhotina 3m</SelectItem>
                     <SelectItem value="CORTE 6M">Guilhotina 6m</SelectItem>
                     <SelectItem value="Laser">Laser</SelectItem>
-                    <SelectItem value="Plasma">Plasma</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
