@@ -3,12 +3,13 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, Circle, Factory, Users, Menu, X, ChevronRight,
-  LogOut, Layers, ShieldCheck, ArrowLeftRight
+  LogOut, Layers, ShieldCheck, ArrowLeftRight, Calculator
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
   { path: "/corte-dobra", label: "Dashboard", icon: LayoutDashboard },
+  { path: "/corte-dobra/desenvolvimento", label: "Desenvolvimento", icon: Calculator },
   { path: "/corte-dobra/producao", label: "Produção", icon: Factory },
   { path: "/corte-dobra/bobinas", label: "Bobinas", icon: Circle },
   { path: "/corte-dobra/chaparia", label: "Chaparia", icon: Layers },

@@ -43,6 +43,7 @@ import BobinasCD from '@/pages/corte-dobra/Bobinas';
 import Chaparia from '@/pages/corte-dobra/Chaparia';
 import EPI from '@/pages/corte-dobra/EPI';
 import UsuariosCD from '@/pages/corte-dobra/Usuarios';
+import DesenvolvimentoCD from '@/pages/corte-dobra/Desenvolvimento';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -109,6 +110,7 @@ const AuthenticatedApp = () => {
         <Route path="/corte-dobra/chaparia" element={<Chaparia />} />
         <Route path="/corte-dobra/epi" element={<EPI />} />
         <Route path="/corte-dobra/usuarios" element={<UsuariosCD />} />
+        <Route path="/corte-dobra/desenvolvimento" element={<DesenvolvimentoCD />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

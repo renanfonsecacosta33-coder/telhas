@@ -1,0 +1,141 @@
+{
+  "name": "DesenvolvimentoCD",
+  "type": "object",
+  "properties": {
+    "numero": {
+      "type": "string",
+      "description": "N\u00famero/c\u00f3digo do desenvolvimento (ex: DEV-2024-001)"
+    },
+    "nome_peca": {
+      "type": "string",
+      "description": "Nome da pe\u00e7a ou componente"
+    },
+    "numero_pedido": {
+      "type": "string",
+      "description": "N\u00famero do pedido do cliente"
+    },
+    "cliente": {
+      "type": "string",
+      "description": "Nome do cliente"
+    },
+    "responsavel": {
+      "type": "string",
+      "description": "Nome do respons\u00e1vel pelo desenvolvimento"
+    },
+    "data_desenvolvimento": {
+      "type": "string",
+      "format": "date",
+      "description": "Data do desenvolvimento"
+    },
+    "material": {
+      "type": "string",
+      "description": "Material utilizado (ex: A\u00e7o galvanizado, A\u00e7o inox 304)"
+    },
+    "espessura_mm": {
+      "type": "number",
+      "description": "Espessura da chapa em mm"
+    },
+    "largura_mm": {
+      "type": "number",
+      "description": "Largura da chapa/bobina em mm"
+    },
+    "fator_k": {
+      "type": "number",
+      "description": "Fator K utilizado no c\u00e1lculo (0.3 a 0.5, padr\u00e3o 0.33)",
+      "default": 0.33
+    },
+    "comprimento_desenvolvido_mm": {
+      "type": "number",
+      "description": "Comprimento desenvolvido total (planifica\u00e7\u00e3o) em mm"
+    },
+    "comprimento_final_mm": {
+      "type": "number",
+      "description": "Comprimento final da pe\u00e7a dobrada em mm"
+    },
+    "largura_final_mm": {
+      "type": "number",
+      "description": "Largura final da pe\u00e7a dobrada em mm"
+    },
+    "altura_final_mm": {
+      "type": "number",
+      "description": "Altura final da pe\u00e7a dobrada em mm"
+    },
+    "numero_dobras": {
+      "type": "number",
+      "description": "N\u00famero total de dobras"
+    },
+    "angulo_dobras": {
+      "type": "string",
+      "description": "\u00c2ngulos das dobras (ex: 90\u00b0, 90\u00b0, 135\u00b0)"
+    },
+    "raio_dobra_mm": {
+      "type": "number",
+      "description": "Raio interno de dobra em mm"
+    },
+    "dobras_json": {
+      "type": "string",
+      "description": "JSON com detalhes de cada dobra [{angulo, raio, deducao, ba}]"
+    },
+    "sequencia_dobras": {
+      "type": "string",
+      "description": "Sequ\u00eancia de dobras recomendada para evitar colis\u00e3o"
+    },
+    "maquina_corte": {
+      "type": "string",
+      "enum": [
+        "CORTE 3M",
+        "CORTE 6M",
+        "Laser",
+        "Plasma"
+      ],
+      "description": "M\u00e1quina de corte recomendada"
+    },
+    "maquina_dobra": {
+      "type": "string",
+      "enum": [
+        "DOBRA 3M",
+        "DOBRA FUNDO 6M",
+        "DOBRA INICIO 6M",
+        "PERFILADEIRA"
+      ],
+      "description": "M\u00e1quina de dobra recomendada"
+    },
+    "ferramental": {
+      "type": "string",
+      "description": "Ferramentas/estampos necess\u00e1rios"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "rascunho",
+        "aprovado",
+        "em_producao",
+        "concluido",
+        "cancelado"
+      ],
+      "default": "rascunho",
+      "description": "Status do desenvolvimento"
+    },
+    "quantidade_peca": {
+      "type": "number",
+      "description": "Quantidade total de pe\u00e7as a produzir"
+    },
+    "observacoes_tecnicas": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es t\u00e9cnicas, toler\u00e2ncias, acabamento"
+    },
+    "arquivo_cad_url": {
+      "type": "string",
+      "description": "URL do arquivo CAD/desenho t\u00e9cnico"
+    },
+    "foto_peca_url": {
+      "type": "string",
+      "description": "URL da foto de refer\u00eancia da pe\u00e7a"
+    }
+  },
+  "required": [
+    "nome_peca",
+    "espessura_mm",
+    "data_desenvolvimento"
+  ]
+}
