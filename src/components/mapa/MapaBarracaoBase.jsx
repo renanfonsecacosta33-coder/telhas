@@ -33,6 +33,7 @@ export default function MapaBarracaoBase({ storageKey, titulo, subtitulo, tipos 
   const [barracaoW, setBarracaoW] = useState(saved?.barracaoW || 1200);
   const [barracaoH, setBarracaoH] = useState(saved?.barracaoH || 700);
   const [zoom, setZoom] = useState(0.9);
+  const [viewAngle, setViewAngle] = useState("topo"); // "topo" | "frente" | "lado"
   const [selected, setSelected] = useState(null);
   const [addDialog, setAddDialog] = useState(false);
   const [configDialog, setConfigDialog] = useState(false);
@@ -178,6 +179,7 @@ export default function MapaBarracaoBase({ storageKey, titulo, subtitulo, tipos 
 
   const selectedItem = selected ? items.find(i => i.id === selected) : null;
   const tiposLegenda = Object.entries(tipos).filter(([k]) => !["parede","porta","outro"].includes(k));
+  const viewAngleLabel = { topo: "Vista Superior (2D)", frente: "Vista Frontal (3D)", lado: "Vista Lateral (3D)" }[viewAngle];
 
   // Alças de resize: 8 direções
   const HANDLES = [
@@ -213,6 +215,15 @@ export default function MapaBarracaoBase({ storageKey, titulo, subtitulo, tipos 
             <ZoomIn className="w-4 h-4 text-muted-foreground cursor-pointer hover:text-foreground"
               onClick={() => setZoom(z => Math.min(2, +(z + 0.1).toFixed(1)))} />
             <span className="text-xs font-mono w-9 text-center">{Math.round(zoom * 100)}%</span>
+          </div>
+          <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
+            <span className="text-xs font-medium text-muted-foreground">Ângulo:</span>
+            <Button size="sm" variant={viewAngle === "topo" ? "default" : "outline"}
+              onClick={() => setViewAngle("topo")} className="h-7 text-xs">Topo</Button>
+            <Button size="sm" variant={viewAngle === "frente" ? "default" : "outline"}
+              onClick={() => setViewAngle("frente")} className="h-7 text-xs">Frente</Button>
+            <Button size="sm" variant={viewAngle === "lado" ? "default" : "outline"}
+              onClick={() => setViewAngle("lado")} className="h-7 text-xs">Lado</Button>
           </div>
           <Button size="sm" variant="outline" onClick={() => setConfigDialog(true)} className="gap-1">
             <Settings className="w-4 h-4" /> Tamanho
@@ -273,12 +284,20 @@ export default function MapaBarracaoBase({ storageKey, titulo, subtitulo, tipos 
           </svg>
 
           <div className="absolute top-2 left-3 text-xs font-bold text-muted-foreground/60 pointer-events-none">
-            {titulo} — {barracaoW}×{barracaoH}
+            {titulo} — {barracaoW}×{barracaoH} · {viewAngleLabel}
           </div>
 
-          {/* Itens */}
+          {/* Itens com transformação baseada no ângulo */}
           {items.map(item => {
             const isSelected = selected === item.id;
+            
+            // Transformações CSS para simular diferentes ângulos
+            const angleTransform = {
+              topo: "perspective(800px) rotateX(0deg) rotateY(0deg)",
+              frente: "perspective(800px) rotateX(25deg) rotateY(0deg)",
+              lado: "perspective(800px) rotateX(20deg) rotateY(-25deg)",
+            };
+
             return (
               <div
                 key={item.id}
@@ -293,7 +312,9 @@ export default function MapaBarracaoBase({ storageKey, titulo, subtitulo, tipos 
                   backgroundColor: item.cor + "25",
                   boxShadow: isSelected
                     ? `0 0 0 3px ${item.cor}80, 0 4px 12px ${item.cor}40`
-                    : "0 2px 6px rgba(0,0,0,0.1)",
+                    : viewAngle === "topo"
+                      ? "0 2px 6px rgba(0,0,0,0.1)"
+                      : "8px 8px 16px rgba(0,0,0,0.2)",
                   cursor: "grab",
                   display: "flex",
                   flexDirection: "column",
@@ -301,6 +322,9 @@ export default function MapaBarracaoBase({ storageKey, titulo, subtitulo, tipos 
                   justifyContent: "center",
                   overflow: "visible",
                   zIndex: isSelected ? 10 : 1,
+                  transform: angleTransform[viewAngle],
+                  transformStyle: "preserve-3d",
+                  transition: "transform 0.4s ease, box-shadow 0.2s",
                 }}
                 onMouseDown={e => startDrag(e, item.id)}
                 onDoubleClick={e => { e.stopPropagation(); setEditItem({ ...item }); }}
