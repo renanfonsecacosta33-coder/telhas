@@ -5,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, Circle, Snowflake, Package, Menu, X, ChevronRight,
   Factory, Settings, Droplets, Wrench, Layers, Box, ShoppingCart,
-  Truck, BarChart2, FileText, Tag, Archive, Zap, Users, LogOut, Cog, FlaskConical, ArrowLeftRight
+  Truck, BarChart2, FileText, Tag, Archive, Zap, Users, LogOut, Cog, FlaskConical, ArrowLeftRight, Map
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +22,7 @@ const FIXED_NAV = [
   { path: "/isopor", label: "Isopor", icon: Snowflake },
   { path: "/cola", label: "Cola", icon: FlaskConical },
   { path: "/estoque", label: "Outros Produtos", icon: Package },
+  { path: "/mapa-barracao", label: "Mapa do Barracão", icon: Map },
 ];
 
 export default function Sidebar({ isOpen, onToggle }) {

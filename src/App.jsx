@@ -54,6 +54,7 @@ import DobraFundo6m from '@/pages/corte-dobra/maquinas/DobraFundo6m';
 import DobraInicio6m from '@/pages/corte-dobra/maquinas/DobraInicio6m';
 import Perfiladeira from '@/pages/corte-dobra/maquinas/Perfiladeira';
 import MapaBarracao from '@/pages/corte-dobra/MapaBarracao';
+import MapaBarracaoTelhas from '@/pages/MapaBarracaoTelhas';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -110,6 +111,7 @@ const AuthenticatedApp = () => {
         <Route path="/calculadora-isopor" element={<CalculadoraIsopor />} />
         <Route path="/dashboard-performance" element={<DashboardPerformance />} />
         <Route path="/cola" element={<Cola />} />
+        <Route path="/mapa-barracao" element={<MapaBarracaoTelhas />} />
       </Route>
       <Route path="/vendedor" element={<VendedorEstoque />} />
       <Route path="/setor" element={<SeletorSetor />} />
