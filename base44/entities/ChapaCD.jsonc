@@ -1,0 +1,86 @@
+{
+  "name": "ChapaCD",
+  "type": "object",
+  "properties": {
+    "origem": {
+      "type": "string",
+      "enum": [
+        "desbobinadeira"
+      ],
+      "default": "desbobinadeira",
+      "description": "M\u00e1quina de origem"
+    },
+    "ordem_id": {
+      "type": "string",
+      "description": "ID da OrdemDesbobinadeira que gerou esta chapa"
+    },
+    "bobina_id": {
+      "type": "string",
+      "description": "ID da bobina utilizada"
+    },
+    "bobina_descricao": {
+      "type": "string",
+      "description": "Snapshot: c\u00f3digo, cor, chapa da bobina"
+    },
+    "comprimento_mm": {
+      "type": "number",
+      "description": "Comprimento de corte em mm"
+    },
+    "largura_mm": {
+      "type": "number",
+      "description": "Largura em mm (herdada da bobina)"
+    },
+    "quantidade_total": {
+      "type": "number",
+      "description": "Quantidade total de pe\u00e7as cortadas"
+    },
+    "quantidade_disponivel": {
+      "type": "number",
+      "description": "Quantidade ainda dispon\u00edvel no estoque"
+    },
+    "destino": {
+      "type": "string",
+      "enum": [
+        "estoque",
+        "pedido_direto"
+      ],
+      "default": "estoque",
+      "description": "Para onde foi destinado: estoque (chaparia) ou pedido direto"
+    },
+    "numero_pedido": {
+      "type": "string",
+      "description": "N\u00famero do pedido (quando destino = pedido_direto)"
+    },
+    "cliente": {
+      "type": "string",
+      "description": "Nome do cliente (quando destino = pedido_direto)"
+    },
+    "data_corte": {
+      "type": "string",
+      "format": "date",
+      "description": "Data do corte"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "disponivel",
+        "parcial",
+        "consumido",
+        "cancelado"
+      ],
+      "default": "disponivel",
+      "description": "Status do estoque desta chapa"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es"
+    }
+  },
+  "required": [
+    "bobina_id",
+    "comprimento_mm",
+    "quantidade_total",
+    "destino",
+    "data_corte"
+  ]
+}

@@ -1,0 +1,127 @@
+{
+  "name": "OrdemMaquinaCD",
+  "type": "object",
+  "properties": {
+    "data": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de produ\u00e7\u00e3o planejada"
+    },
+    "maquina": {
+      "type": "string",
+      "enum": [
+        "CORTE 3M",
+        "DOBRA 3M",
+        "CORTE 6M",
+        "DOBRA FUNDO 6M",
+        "DOBRA INICIO 6M",
+        "PERFILADEIRA"
+      ],
+      "description": "M\u00e1quina respons\u00e1vel"
+    },
+    "chapa_cd_id": {
+      "type": "string",
+      "description": "ID da ChapaCD do estoque (se vier da chaparia)"
+    },
+    "chapa_descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o da chapa usada (snapshot)"
+    },
+    "chapa_origem": {
+      "type": "string",
+      "enum": [
+        "chaparia",
+        "direto"
+      ],
+      "default": "chaparia",
+      "description": "De onde vem a chapa: do estoque de chaparia ou diretamente"
+    },
+    "bobina_id": {
+      "type": "string",
+      "description": "ID da bobina (quando chapa_origem = direto, ex: perfiladeira com bobina slitada)"
+    },
+    "bobina_descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o da bobina (snapshot)"
+    },
+    "tipo_peca": {
+      "type": "string",
+      "description": "Tipo de pe\u00e7a do cat\u00e1logo (ex: Perfil Serralheiro n\u00ba5, Blank, Dobra simples...)"
+    },
+    "dimensoes_livres": {
+      "type": "string",
+      "description": "Dimens\u00f5es livres informadas pelo gestor (ex: 100x50x3m, A=75 B=38)"
+    },
+    "numero_pedido": {
+      "type": "string",
+      "description": "N\u00famero do pedido do cliente"
+    },
+    "cliente": {
+      "type": "string",
+      "description": "Nome do cliente"
+    },
+    "quantidade": {
+      "type": "number",
+      "description": "Quantidade de pe\u00e7as a produzir"
+    },
+    "quantidade_produzida": {
+      "type": "number",
+      "description": "Quantidade efetivamente produzida"
+    },
+    "peso_kg": {
+      "type": "number",
+      "description": "Peso estimado em kg"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pendente",
+        "em_producao",
+        "pausado",
+        "finalizado",
+        "cancelado"
+      ],
+      "default": "pendente",
+      "description": "Status da ordem"
+    },
+    "tempo_producao_seg": {
+      "type": "number",
+      "description": "Tempo acumulado em produ\u00e7\u00e3o (segundos)"
+    },
+    "tempo_pausa_seg": {
+      "type": "number",
+      "description": "Tempo acumulado em pausa (segundos)"
+    },
+    "inicio_producao_ts": {
+      "type": "string",
+      "description": "Timestamp ISO in\u00edcio da sess\u00e3o atual"
+    },
+    "inicio_pausa_ts": {
+      "type": "string",
+      "description": "Timestamp ISO in\u00edcio da pausa atual"
+    },
+    "motivo_pausa": {
+      "type": "string",
+      "description": "Motivo da pausa"
+    },
+    "foto_finalizacao_url": {
+      "type": "string",
+      "description": "URL da foto na finaliza\u00e7\u00e3o (obrigat\u00f3ria)"
+    },
+    "data_finalizacao": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de finaliza\u00e7\u00e3o"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es"
+    }
+  },
+  "required": [
+    "data",
+    "maquina",
+    "tipo_peca",
+    "quantidade"
+  ]
+}
