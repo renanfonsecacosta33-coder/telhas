@@ -91,25 +91,25 @@ export default function Sidebar({ isOpen, onToggle }) {
         isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}>
         {/* Logo */}
-        <div className="p-6 border-b border-sidebar-border">
+        <div className="p-5 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-sidebar-primary flex items-center justify-center">
-              <span className="text-sidebar-primary-foreground font-bold text-lg">A</span>
-            </div>
+            <img
+              src="https://media.base44.com/images/public/6a0467e5d5ff5dda4351d2c3/9bae84333_LOGO_AJL_.png"
+              alt="AJL Logo"
+              className="h-10 w-auto object-contain brightness-0 invert"
+            />
             <div>
-              <h1 className="font-bold text-lg tracking-tight text-sidebar-foreground">AJL</h1>
-              <p className="text-xs text-sidebar-foreground/60">ERP Estoque</p>
+              <h1 className="font-bold text-base tracking-widest text-sidebar-foreground uppercase">Ferro e Aço</h1>
+              <p className="text-xs text-sidebar-foreground/50 tracking-wider uppercase">ERP Estoque</p>
             </div>
           </div>
           {user && (
             <div className="mt-3 px-1">
               <p className="text-xs font-semibold text-sidebar-foreground/80 truncate">{user.full_name || user.email}</p>
               <div className="flex items-center gap-1 mt-0.5">
-                <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                  user.role === "admin" ? "bg-red-900/40 text-red-300" :
-                  user.role === "operador" ? "bg-blue-900/40 text-blue-300" :
-                  "bg-green-900/40 text-green-300"
-                }`}>{user.role || "user"}</span>
+                <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-white/10 text-sidebar-foreground/70 border border-white/10">
+                  {user.role || "user"}
+                </span>
                 {user.maquina && <span className="text-xs text-sidebar-foreground/50">· {user.maquina}</span>}
               </div>
             </div>
@@ -151,7 +151,7 @@ export default function Sidebar({ isOpen, onToggle }) {
           {isAmbos && (
             <button
               onClick={() => navigate("/setor")}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-orange-400 hover:bg-sidebar-accent hover:text-orange-300 transition-all"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all"
             >
               <ArrowLeftRight className="w-4 h-4" />
               <span>Trocar Setor</span>

@@ -8,15 +8,15 @@ const DENSIDADE_ACO = 7.85; // g/cm³ = kg/dm³
 function CalcRow({ label, fields, onCalc, resultado }) {
   return (
     <div className="rounded-xl overflow-hidden border border-border shadow-sm">
-      <div className="bg-gray-900 text-white text-center font-bold text-sm py-2.5 px-4">
+      <div className="bg-gray-900 text-white text-center font-bold text-sm py-2.5 px-4 tracking-wide">
         {label}
       </div>
-      <div className="bg-red-700 text-white grid text-xs font-semibold"
+      <div className="bg-gray-700 text-white grid text-xs font-semibold"
         style={{ gridTemplateColumns: `repeat(${fields.length}, 1fr) auto 120px` }}>
         {fields.map(f => (
-          <div key={f.key} className="px-3 py-2 text-center border-r border-red-600">{f.label}</div>
+          <div key={f.key} className="px-3 py-2 text-center border-r border-gray-600">{f.label}</div>
         ))}
-        <div className="px-3 py-2 text-center border-r border-red-600" />
+        <div className="px-3 py-2 text-center border-r border-gray-600" />
         <div className="px-3 py-2 text-center">Peso Total (Kg)</div>
       </div>
       <div className="bg-white grid items-center"
@@ -29,16 +29,16 @@ function CalcRow({ label, fields, onCalc, resultado }) {
             placeholder={f.placeholder}
             value={f.value}
             onChange={e => f.onChange(e.target.value)}
-            className="h-10 px-3 text-sm border-r border-gray-200 focus:outline-none focus:bg-blue-50 w-full"
+            className="h-10 px-3 text-sm border-r border-gray-200 focus:outline-none focus:bg-gray-50 w-full text-gray-800"
           />
         ))}
         <button
           onClick={onCalc}
-          className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4 py-2 h-10 whitespace-nowrap transition-colors"
+          className="bg-gray-900 hover:bg-gray-700 text-white text-xs font-bold px-4 py-2 h-10 whitespace-nowrap transition-colors"
         >
           CALCULAR
         </button>
-        <div className="h-10 flex items-center justify-center text-sm font-bold text-gray-800 bg-gray-50 border-l border-gray-200">
+        <div className="h-10 flex items-center justify-center text-sm font-bold text-gray-800 bg-gray-100 border-l border-gray-200">
           {resultado !== null ? resultado.toFixed(2) : "—"}
         </div>
       </div>
