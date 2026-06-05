@@ -1,8 +1,7 @@
 /**
  * MapaBarracaoBase — componente reutilizável para mapa 2D de barracão.
- * Recebe `storageKey` e `tiposExtras` para personalizar por setor.
  */
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Map, Trash2, Plus, Save, RotateCcw, ZoomIn, ZoomOut, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -12,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
 
-// Tipos comuns a todos os barracões
 export const TIPOS_BASE = {
   parede:   { label: "Parede / Coluna", cor: "#6b7280", icone: "▌", w: 20,  h: 100 },
   porta:    { label: "Porta / Entrada", cor: "#84cc16", icone: "🚪", w: 60,  h: 20  },
@@ -30,55 +28,127 @@ function loadLayout(key) {
 let nextId = Date.now();
 
 export default function MapaBarracaoBase({ storageKey, titulo, subtitulo, tipos }) {
-  // tipos = { ...TIPOS_BASE, ...tiposEspecificos }
   const saved = loadLayout(storageKey);
   const [items, setItems] = useState(saved?.items || []);
   const [barracaoW, setBarracaoW] = useState(saved?.barracaoW || 1200);
   const [barracaoH, setBarracaoH] = useState(saved?.barracaoH || 700);
   const [zoom, setZoom] = useState(0.9);
   const [selected, setSelected] = useState(null);
-  const [dragging, setDragging] = useState(null);
-  const [resizing, setResizing] = useState(null);
   const [addDialog, setAddDialog] = useState(false);
   const [configDialog, setConfigDialog] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [newTipo, setNewTipo] = useState(Object.keys(tipos)[0]);
   const [newLabel, setNewLabel] = useState("");
+
   const canvasRef = useRef(null);
 
-  // ── Drag ──
-  const onMouseDownItem = useCallback((e, id) => {
+  // Refs para drag/resize sem stale closures
+  const interactionRef = useRef(null); // { type: 'drag'|'resize', id, ... }
+  const itemsRef = useRef(items);
+  const zoomRef = useRef(zoom);
+  const barracaoWRef = useRef(barracaoW);
+  const barracaoHRef = useRef(barracaoH);
+
+  useEffect(() => { itemsRef.current = items; }, [items]);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+  useEffect(() => { barracaoWRef.current = barracaoW; }, [barracaoW]);
+  useEffect(() => { barracaoHRef.current = barracaoH; }, [barracaoH]);
+
+  // ── Mouse global ──
+  useEffect(() => {
+    const onMove = (e) => {
+      const ia = interactionRef.current;
+      if (!ia) return;
+      const z = zoomRef.current;
+
+      if (ia.type === "drag") {
+        const rect = canvasRef.current.getBoundingClientRect();
+        const nx = Math.max(0, Math.min(barracaoWRef.current - 20, (e.clientX - rect.left) / z - ia.offX));
+        const ny = Math.max(0, Math.min(barracaoHRef.current - 20, (e.clientY - rect.top) / z - ia.offY));
+        setItems(prev => prev.map(i => i.id === ia.id ? { ...i, x: Math.round(nx), y: Math.round(ny) } : i));
+      }
+
+      if (ia.type === "resize") {
+        const dx = (e.clientX - ia.startX) / z;
+        const dy = (e.clientY - ia.startY) / z;
+        setItems(prev => prev.map(i => {
+          if (i.id !== ia.id) return i;
+          let { x, y, w, h } = i;
+
+          if (ia.dir === "se") {
+            w = Math.max(30, Math.round(ia.startW + dx));
+            h = Math.max(20, Math.round(ia.startH + dy));
+          } else if (ia.dir === "sw") {
+            const nw = Math.max(30, Math.round(ia.startW - dx));
+            x = Math.round(ia.startItemX + ia.startW - nw);
+            w = nw;
+            h = Math.max(20, Math.round(ia.startH + dy));
+          } else if (ia.dir === "ne") {
+            w = Math.max(30, Math.round(ia.startW + dx));
+            const nh = Math.max(20, Math.round(ia.startH - dy));
+            y = Math.round(ia.startItemY + ia.startH - nh);
+            h = nh;
+          } else if (ia.dir === "nw") {
+            const nw = Math.max(30, Math.round(ia.startW - dx));
+            x = Math.round(ia.startItemX + ia.startW - nw);
+            w = nw;
+            const nh = Math.max(20, Math.round(ia.startH - dy));
+            y = Math.round(ia.startItemY + ia.startH - nh);
+            h = nh;
+          } else if (ia.dir === "e") {
+            w = Math.max(30, Math.round(ia.startW + dx));
+          } else if (ia.dir === "w") {
+            const nw = Math.max(30, Math.round(ia.startW - dx));
+            x = Math.round(ia.startItemX + ia.startW - nw);
+            w = nw;
+          } else if (ia.dir === "s") {
+            h = Math.max(20, Math.round(ia.startH + dy));
+          } else if (ia.dir === "n") {
+            const nh = Math.max(20, Math.round(ia.startH - dy));
+            y = Math.round(ia.startItemY + ia.startH - nh);
+            h = nh;
+          }
+          return { ...i, x, y, w, h };
+        }));
+      }
+    };
+
+    const onUp = () => { interactionRef.current = null; };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []);
+
+  const startDrag = (e, id) => {
     if (e.button !== 0) return;
     e.stopPropagation();
-    const item = items.find(i => i.id === id);
+    e.preventDefault();
+    const item = itemsRef.current.find(i => i.id === id);
     const rect = canvasRef.current.getBoundingClientRect();
+    const z = zoomRef.current;
     setSelected(id);
-    setDragging({ id, offX: (e.clientX - rect.left) / zoom - item.x, offY: (e.clientY - rect.top) / zoom - item.y });
-  }, [items, zoom]);
+    interactionRef.current = {
+      type: "drag", id,
+      offX: (e.clientX - rect.left) / z - item.x,
+      offY: (e.clientY - rect.top) / z - item.y,
+    };
+  };
 
-  const onMouseDownResize = useCallback((e, id) => {
-    e.stopPropagation(); e.preventDefault();
-    const item = items.find(i => i.id === id);
-    setResizing({ id, startX: e.clientX, startY: e.clientY, startW: item.w, startH: item.h });
-  }, [items]);
-
-  const onMouseMove = useCallback((e) => {
-    if (dragging) {
-      const rect = canvasRef.current.getBoundingClientRect();
-      const nx = Math.max(0, Math.min(barracaoW - 20, (e.clientX - rect.left) / zoom - dragging.offX));
-      const ny = Math.max(0, Math.min(barracaoH - 20, (e.clientY - rect.top) / zoom - dragging.offY));
-      setItems(prev => prev.map(i => i.id === dragging.id ? { ...i, x: Math.round(nx), y: Math.round(ny) } : i));
-    }
-    if (resizing) {
-      const dx = (e.clientX - resizing.startX) / zoom;
-      const dy = (e.clientY - resizing.startY) / zoom;
-      setItems(prev => prev.map(i => i.id === resizing.id
-        ? { ...i, w: Math.max(30, Math.round(resizing.startW + dx)), h: Math.max(20, Math.round(resizing.startH + dy)) }
-        : i));
-    }
-  }, [dragging, resizing, zoom, barracaoW, barracaoH]);
-
-  const onMouseUp = useCallback(() => { setDragging(null); setResizing(null); }, []);
+  const startResize = (e, id, dir) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const item = itemsRef.current.find(i => i.id === id);
+    interactionRef.current = {
+      type: "resize", id, dir,
+      startX: e.clientX, startY: e.clientY,
+      startW: item.w, startH: item.h,
+      startItemX: item.x, startItemY: item.y,
+    };
+  };
 
   // ── CRUD ──
   const handleAdd = () => {
@@ -107,9 +177,19 @@ export default function MapaBarracaoBase({ storageKey, titulo, subtitulo, tipos 
   };
 
   const selectedItem = selected ? items.find(i => i.id === selected) : null;
-
-  // Tipos visíveis na legenda (exceto utilitários)
   const tiposLegenda = Object.entries(tipos).filter(([k]) => !["parede","porta","outro"].includes(k));
+
+  // Alças de resize: 8 direções
+  const HANDLES = [
+    { dir: "nw", style: { top: -5, left: -5,   cursor: "nw-resize" } },
+    { dir: "n",  style: { top: -5, left: "50%", transform: "translateX(-50%)", cursor: "n-resize" } },
+    { dir: "ne", style: { top: -5, right: -5,   cursor: "ne-resize" } },
+    { dir: "e",  style: { top: "50%", right: -5, transform: "translateY(-50%)", cursor: "e-resize" } },
+    { dir: "se", style: { bottom: -5, right: -5, cursor: "se-resize" } },
+    { dir: "s",  style: { bottom: -5, left: "50%", transform: "translateX(-50%)", cursor: "s-resize" } },
+    { dir: "sw", style: { bottom: -5, left: -5,  cursor: "sw-resize" } },
+    { dir: "w",  style: { top: "50%", left: -5,  transform: "translateY(-50%)", cursor: "w-resize" } },
+  ];
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] select-none">
@@ -123,7 +203,6 @@ export default function MapaBarracaoBase({ storageKey, titulo, subtitulo, tipos 
           <p className="text-xs text-muted-foreground mt-0.5">{subtitulo}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Zoom slider */}
           <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
             <ZoomOut className="w-4 h-4 text-muted-foreground cursor-pointer hover:text-foreground"
               onClick={() => setZoom(z => Math.max(0.3, +(z - 0.1).toFixed(1)))} />
@@ -144,7 +223,7 @@ export default function MapaBarracaoBase({ storageKey, titulo, subtitulo, tipos 
           {selected && (
             <Button size="sm" variant="outline" onClick={() => handleDelete(selected)}
               className="gap-1 text-destructive border-destructive/40 hover:bg-destructive hover:text-white">
-              <Trash2 className="w-4 h-4" /> Apagar
+              <Trash2 className="w-4 h-4" /> Apagar selecionado
             </Button>
           )}
           <Button size="sm" variant="outline" onClick={handleReset} className="gap-1 text-muted-foreground">
@@ -168,11 +247,15 @@ export default function MapaBarracaoBase({ storageKey, titulo, subtitulo, tipos 
 
       {/* Canvas */}
       <div className="flex-1 overflow-auto border border-border rounded-xl bg-muted/30">
-        <div ref={canvasRef} className="relative"
-          style={{ width: barracaoW * zoom, height: barracaoH * zoom, minWidth: barracaoW * zoom, minHeight: barracaoH * zoom, cursor: dragging ? "grabbing" : "default" }}
-          onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
-          onClick={() => setSelected(null)}>
-
+        <div
+          ref={canvasRef}
+          className="relative"
+          style={{
+            width: barracaoW * zoom, height: barracaoH * zoom,
+            minWidth: barracaoW * zoom, minHeight: barracaoH * zoom,
+          }}
+          onClick={() => setSelected(null)}
+        >
           {/* Grade SVG */}
           <svg className="absolute inset-0 pointer-events-none" width={barracaoW * zoom} height={barracaoH * zoom}>
             <defs>
@@ -197,40 +280,72 @@ export default function MapaBarracaoBase({ storageKey, titulo, subtitulo, tipos 
           {items.map(item => {
             const isSelected = selected === item.id;
             return (
-              <div key={item.id}
+              <div
+                key={item.id}
                 style={{
-                  position: "absolute", left: item.x * zoom, top: item.y * zoom,
-                  width: item.w * zoom, height: item.h * zoom,
-                  border: `2px solid ${item.cor}`, borderRadius: 6,
+                  position: "absolute",
+                  left: item.x * zoom,
+                  top: item.y * zoom,
+                  width: item.w * zoom,
+                  height: item.h * zoom,
+                  border: `2px solid ${item.cor}`,
+                  borderRadius: 6,
                   backgroundColor: item.cor + "25",
-                  boxShadow: isSelected ? `0 0 0 3px ${item.cor}80, 0 4px 12px ${item.cor}40` : "0 2px 6px rgba(0,0,0,0.1)",
-                  cursor: dragging?.id === item.id ? "grabbing" : "grab",
-                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                  overflow: "hidden", zIndex: isSelected ? 10 : 1,
-                  transition: dragging?.id === item.id ? "none" : "box-shadow 0.15s",
+                  boxShadow: isSelected
+                    ? `0 0 0 3px ${item.cor}80, 0 4px 12px ${item.cor}40`
+                    : "0 2px 6px rgba(0,0,0,0.1)",
+                  cursor: "grab",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  overflow: "visible",
+                  zIndex: isSelected ? 10 : 1,
                 }}
-                onMouseDown={e => onMouseDownItem(e, item.id)}
+                onMouseDown={e => startDrag(e, item.id)}
                 onDoubleClick={e => { e.stopPropagation(); setEditItem({ ...item }); }}
               >
-                <span style={{ fontSize: Math.max(10, 18 * zoom), lineHeight: 1 }}>
+                <span style={{ fontSize: Math.max(10, 18 * zoom), lineHeight: 1, pointerEvents: "none" }}>
                   {tipos[item.tipo]?.icone || "⬜"}
                 </span>
-                <span style={{ fontSize: Math.max(8, 11 * zoom), fontWeight: 700, color: item.cor, textAlign: "center", padding: "0 4px", lineHeight: 1.2, wordBreak: "break-word", maxWidth: "100%" }}>
+                <span style={{ fontSize: Math.max(8, 11 * zoom), fontWeight: 700, color: item.cor, textAlign: "center", padding: "0 4px", lineHeight: 1.2, wordBreak: "break-word", maxWidth: "100%", pointerEvents: "none" }}>
                   {item.label}
                 </span>
-                <span style={{ fontSize: Math.max(6, 9 * zoom), color: "#9ca3af", marginTop: 2 }}>
+                <span style={{ fontSize: Math.max(6, 9 * zoom), color: "#9ca3af", marginTop: 2, pointerEvents: "none" }}>
                   {item.w}×{item.h}
                 </span>
 
+                {/* Botão delete no canto — sempre visível ao selecionar */}
                 {isSelected && (
                   <>
-                    {/* Resize handle */}
-                    <div style={{ position: "absolute", right: 0, bottom: 0, width: 14, height: 14, background: item.cor, cursor: "se-resize", borderRadius: "4px 0 4px 0" }}
-                      onMouseDown={e => onMouseDownResize(e, item.id)} />
-                    {/* Delete X */}
-                    <button style={{ position: "absolute", top: -10, right: -10, background: "#ef4444", color: "#fff", border: "none", borderRadius: "50%", width: 20, height: 20, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 20 }}
+                    <button
+                      style={{
+                        position: "absolute", top: -12, right: -12,
+                        background: "#ef4444", color: "#fff", border: "2px solid #fff",
+                        borderRadius: "50%", width: 22, height: 22, fontSize: 12,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        cursor: "pointer", zIndex: 30, boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
+                      }}
                       onMouseDown={e => e.stopPropagation()}
-                      onClick={e => { e.stopPropagation(); handleDelete(item.id); }}>✕</button>
+                      onClick={e => { e.stopPropagation(); handleDelete(item.id); }}
+                    >✕</button>
+
+                    {/* 8 alças de resize */}
+                    {HANDLES.map(({ dir, style }) => (
+                      <div
+                        key={dir}
+                        style={{
+                          position: "absolute",
+                          width: 12, height: 12,
+                          background: "#fff",
+                          border: `2px solid ${item.cor}`,
+                          borderRadius: 3,
+                          zIndex: 25,
+                          ...style,
+                        }}
+                        onMouseDown={e => startResize(e, item.id, dir)}
+                      />
+                    ))}
                   </>
                 )}
               </div>
@@ -245,7 +360,7 @@ export default function MapaBarracaoBase({ storageKey, titulo, subtitulo, tipos 
           <span className="font-bold" style={{ color: selectedItem.cor }}>{selectedItem.label}</span>
           <span>Pos: {selectedItem.x},{selectedItem.y}</span>
           <span>Tam: {selectedItem.w}×{selectedItem.h}</span>
-          <span className="text-[10px] opacity-60 ml-1">· Duplo clique para editar · Alça para redimensionar</span>
+          <span className="text-[10px] opacity-60 ml-1">· Clique para selecionar · Duplo clique para editar · 8 alças para redimensionar · ✕ para apagar</span>
         </div>
       )}
 
