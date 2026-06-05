@@ -10,29 +10,40 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Layers, Package } from "lucide-react";
 
+// etapa: "corte" | "dobra" | "ambas" | "perfiladeira"
 const TIPOS_PECA = [
-  "Perfil Serralheiro",
-  "Perfil Estrutural Simples",
-  "Perfil Estrutural Enrijecido",
-  "Blank (Chapa cortada)",
-  "Dobra simples",
-  "Dobra dupla",
-  "Caixa Basculante",
-  "Frizada V",
-  "Frizada U",
-  "Tira Raiada",
-  "Lambril Contínuo",
-  "Outro (ver dimensões)",
+  { label: "Blank (Chapa cortada)",         etapa: "corte" },
+  { label: "Tira Raiada",                   etapa: "corte" },
+  { label: "Perfil Serralheiro",            etapa: "perfiladeira" },
+  { label: "Perfil Estrutural Simples",     etapa: "perfiladeira" },
+  { label: "Perfil Estrutural Enrijecido",  etapa: "perfiladeira" },
+  { label: "Lambril Contínuo",              etapa: "perfiladeira" },
+  { label: "Dobra simples",                 etapa: "dobra" },
+  { label: "Dobra dupla",                   etapa: "dobra" },
+  { label: "Frizada V",                     etapa: "dobra" },
+  { label: "Frizada U",                     etapa: "dobra" },
+  { label: "Caixa Basculante",              etapa: "ambas" },
+  { label: "Outro (ver dimensões)",         etapa: "ambas" },
 ];
 
-const MAQUINAS_CD = [
-  "CORTE 3M",
-  "DOBRA 3M",
-  "CORTE 6M",
-  "DOBRA FUNDO 6M",
-  "DOBRA INICIO 6M",
-  "PERFILADEIRA",
-];
+const MAQUINAS_CORTE   = ["CORTE 3M", "CORTE 6M"];
+const MAQUINAS_DOBRA   = ["DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M"];
+const MAQUINAS_TODAS   = ["CORTE 3M", "CORTE 6M", "DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M"];
+const MAQUINAS_PERF    = ["PERFILADEIRA"];
+
+function getMaquinasPorEtapa(etapa) {
+  if (etapa === "corte") return MAQUINAS_CORTE;
+  if (etapa === "dobra") return MAQUINAS_DOBRA;
+  if (etapa === "perfiladeira") return MAQUINAS_PERF;
+  return MAQUINAS_TODAS;
+}
+
+const ETAPA_LABELS = {
+  corte: "✂️ Somente Corte",
+  dobra: "📐 Somente Dobra",
+  ambas: "✂️📐 Corte + Dobra",
+  perfiladeira: "⚙️ Perfiladeira",
+};
 
 export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem, defaultDate, maquina: maquinaProp }) {
   const [form, setForm] = useState({
@@ -102,6 +113,25 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
   const chapaObj = chapas.find(c => c.id === form.chapa_cd_id);
   const bobinaObj = bobinasSliter.find(b => b.id === form.bobina_id);
 
+  const tipoPecaObj = TIPOS_PECA.find(t => t.label === form.tipo_peca);
+  const etapa = tipoPecaObj?.etapa || "ambas";
+  const maquinasDisponiveis = getMaquinasPorEtapa(etapa);
+  const isPerfiladeira = etapa === "perfiladeira" || form.maquina === "PERFILADEIRA";
+
+  // Quando o tipo de peça muda, limpa a máquina se não for compatível
+  const handleTipoPeca = (label) => {
+    const obj = TIPOS_PECA.find(t => t.label === label);
+    const maqsOk = getMaquinasPorEtapa(obj?.etapa || "ambas");
+    set("tipo_peca", label);
+    if (obj?.etapa === "perfiladeira") {
+      set("maquina", "PERFILADEIRA");
+      set("chapa_origem", "direto");
+    } else if (!maqsOk.includes(form.maquina)) {
+      set("maquina", "");
+    }
+    if (obj?.etapa === "perfiladeira") set("chapa_origem", "direto");
+  };
+
   const handleSave = () => {
     if (!form.maquina) { alert("Selecione a máquina."); return; }
     if (!form.tipo_peca) { alert("Informe o tipo de peça."); return; }
@@ -116,8 +146,6 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
       peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
     });
   };
-
-  const isPerfiladeira = form.maquina === "PERFILADEIRA";
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -140,9 +168,15 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
               }}>
                 <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                 <SelectContent>
-                  {MAQUINAS_CD.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  {maquinasDisponiveis.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  {maquinasDisponiveis.length === 0 && (
+                    <SelectItem value={null} disabled>Selecione o tipo de peça primeiro</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
+              {form.tipo_peca && maquinasDisponiveis.length > 0 && maquinasDisponiveis.length < 6 && (
+                <p className="text-xs text-muted-foreground">Máquinas compatíveis com o tipo de peça selecionado</p>
+              )}
             </div>
           </div>
 
@@ -210,12 +244,25 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
 
           <div className="space-y-1">
             <Label>Tipo de Peça *</Label>
-            <Select value={form.tipo_peca} onValueChange={v => set("tipo_peca", v)}>
+            <Select value={form.tipo_peca} onValueChange={handleTipoPeca}>
               <SelectTrigger><SelectValue placeholder="Selecione o tipo de peça..." /></SelectTrigger>
               <SelectContent>
-                {TIPOS_PECA.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                <SelectItem value="_corte" disabled className="text-xs font-bold text-muted-foreground uppercase">✂️ Corte</SelectItem>
+                {TIPOS_PECA.filter(t => t.etapa === "corte").map(t => <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>)}
+                <SelectItem value="_dobra" disabled className="text-xs font-bold text-muted-foreground uppercase">📐 Dobra</SelectItem>
+                {TIPOS_PECA.filter(t => t.etapa === "dobra").map(t => <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>)}
+                <SelectItem value="_perf" disabled className="text-xs font-bold text-muted-foreground uppercase">⚙️ Perfiladeira</SelectItem>
+                {TIPOS_PECA.filter(t => t.etapa === "perfiladeira").map(t => <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>)}
+                <SelectItem value="_ambas" disabled className="text-xs font-bold text-muted-foreground uppercase">✂️📐 Corte + Dobra</SelectItem>
+                {TIPOS_PECA.filter(t => t.etapa === "ambas").map(t => <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>)}
               </SelectContent>
             </Select>
+            {form.tipo_peca && tipoPecaObj && (
+              <div className="bg-muted/50 rounded-lg px-3 py-1.5 text-xs flex items-center gap-2">
+                <span className="text-muted-foreground">Etapa:</span>
+                <span className="font-semibold">{ETAPA_LABELS[etapa]}</span>
+              </div>
+            )}
           </div>
 
           <div className="space-y-1">
