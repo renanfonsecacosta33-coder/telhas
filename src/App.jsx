@@ -46,6 +46,7 @@ import UsuariosCD from '@/pages/corte-dobra/Usuarios';
 import DesenvolvimentoCD from '@/pages/corte-dobra/Desenvolvimento';
 import CatalogoCD from '@/pages/corte-dobra/Catalogo';
 import RetalhosCD from '@/pages/corte-dobra/Retalhos';
+import CalculosCD from '@/pages/corte-dobra/Calculos';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -115,6 +116,7 @@ const AuthenticatedApp = () => {
         <Route path="/corte-dobra/desenvolvimento" element={<DesenvolvimentoCD />} />
         <Route path="/corte-dobra/catalogo" element={<CatalogoCD />} />
         <Route path="/corte-dobra/retalhos" element={<RetalhosCD />} />
+        <Route path="/corte-dobra/calculos" element={<CalculosCD />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

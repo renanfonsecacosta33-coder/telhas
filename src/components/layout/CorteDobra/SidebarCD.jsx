@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, Circle, Factory, Users, Menu, X, ChevronRight,
-  LogOut, Layers, ShieldCheck, ArrowLeftRight, Calculator, BookOpen, Scissors
+  LogOut, Layers, ShieldCheck, ArrowLeftRight, Calculator, BookOpen, Scissors, FlaskConical
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,7 @@ const NAV = [
   { path: "/corte-dobra/desenvolvimento", label: "Desenvolvimento", icon: Calculator },
   { path: "/corte-dobra/producao", label: "Produção", icon: Factory },
   { path: "/corte-dobra/retalhos", label: "Retalhos", icon: Scissors },
+  { path: "/corte-dobra/calculos", label: "Cálculos", icon: FlaskConical },
   { path: "/corte-dobra/bobinas", label: "Bobinas", icon: Circle },
   { path: "/corte-dobra/chaparia", label: "Chaparia", icon: Layers },
   { path: "/corte-dobra/epi", label: "EPI", icon: ShieldCheck },
