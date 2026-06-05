@@ -47,6 +47,12 @@ import DesenvolvimentoCD from '@/pages/corte-dobra/Desenvolvimento';
 import CatalogoCD from '@/pages/corte-dobra/Catalogo';
 import RetalhosCD from '@/pages/corte-dobra/Retalhos';
 import CalculosCD from '@/pages/corte-dobra/Calculos';
+import Corte3m from '@/pages/corte-dobra/maquinas/Corte3m';
+import Dobra3m from '@/pages/corte-dobra/maquinas/Dobra3m';
+import Corte6m from '@/pages/corte-dobra/maquinas/Corte6m';
+import DobraFundo6m from '@/pages/corte-dobra/maquinas/DobraFundo6m';
+import DobraInicio6m from '@/pages/corte-dobra/maquinas/DobraInicio6m';
+import Perfiladeira from '@/pages/corte-dobra/maquinas/Perfiladeira';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -117,6 +123,12 @@ const AuthenticatedApp = () => {
         <Route path="/corte-dobra/catalogo" element={<CatalogoCD />} />
         <Route path="/corte-dobra/retalhos" element={<RetalhosCD />} />
         <Route path="/corte-dobra/calculos" element={<CalculosCD />} />
+        <Route path="/corte-dobra/maquina/corte-3m" element={<Corte3m />} />
+        <Route path="/corte-dobra/maquina/dobra-3m" element={<Dobra3m />} />
+        <Route path="/corte-dobra/maquina/corte-6m" element={<Corte6m />} />
+        <Route path="/corte-dobra/maquina/dobra-fundo-6m" element={<DobraFundo6m />} />
+        <Route path="/corte-dobra/maquina/dobra-inicio-6m" element={<DobraInicio6m />} />
+        <Route path="/corte-dobra/maquina/perfiladeira" element={<Perfiladeira />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

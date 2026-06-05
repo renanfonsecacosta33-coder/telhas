@@ -2,8 +2,9 @@ import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import {
-  LayoutDashboard, Circle, Factory, Users, Menu, X, ChevronRight,
-  LogOut, Layers, ShieldCheck, ArrowLeftRight, Calculator, BookOpen, Scissors, FlaskConical
+  LayoutDashboard, Circle, Factory, Users, Menu, X, ChevronRight, ChevronDown,
+  LogOut, Layers, ShieldCheck, ArrowLeftRight, Calculator, BookOpen, Scissors,
+  FlaskConical, Wrench
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -11,12 +12,21 @@ const NAV = [
   { path: "/corte-dobra", label: "Dashboard", icon: LayoutDashboard },
   { path: "/corte-dobra/catalogo", label: "Catálogo", icon: BookOpen },
   { path: "/corte-dobra/desenvolvimento", label: "Desenvolvimento", icon: Calculator },
-  { path: "/corte-dobra/producao", label: "Produção", icon: Factory },
+  { path: "/corte-dobra/producao", label: "Produção Geral", icon: Factory },
   { path: "/corte-dobra/retalhos", label: "Retalhos", icon: Scissors },
   { path: "/corte-dobra/calculos", label: "Cálculos", icon: FlaskConical },
   { path: "/corte-dobra/bobinas", label: "Bobinas", icon: Circle },
   { path: "/corte-dobra/chaparia", label: "Chaparia", icon: Layers },
   { path: "/corte-dobra/epi", label: "EPI", icon: ShieldCheck },
+];
+
+const MAQUINAS_NAV = [
+  { path: "/corte-dobra/maquina/corte-3m", label: "Guilhotina 3m" },
+  { path: "/corte-dobra/maquina/dobra-3m", label: "Dobradeira 3m" },
+  { path: "/corte-dobra/maquina/corte-6m", label: "Guilhotina 6m" },
+  { path: "/corte-dobra/maquina/dobra-fundo-6m", label: "Dobradeira Fundo 6m" },
+  { path: "/corte-dobra/maquina/dobra-inicio-6m", label: "Dobradeira Início 6m" },
+  { path: "/corte-dobra/maquina/perfiladeira", label: "Perfiladeira" },
 ];
 
 const ADMIN_NAV = [
@@ -27,6 +37,9 @@ export default function SidebarCD({ isOpen, onToggle }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
+  const [maquinasOpen, setMaquinasOpen] = useState(
+    MAQUINAS_NAV.some(m => location.pathname === m.path)
+  );
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
@@ -105,6 +118,40 @@ export default function SidebarCD({ isOpen, onToggle }) {
             Principal
           </p>
           {NAV.map(renderLink)}
+
+          {/* Máquinas individuais */}
+          <div>
+            <button
+              onClick={() => setMaquinasOpen(o => !o)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all"
+            >
+              <Wrench className="w-4 h-4 flex-shrink-0" />
+              <span className="flex-1 text-left">Máquinas</span>
+              {maquinasOpen ? <ChevronDown className="w-4 h-4 opacity-60" /> : <ChevronRight className="w-4 h-4 opacity-60" />}
+            </button>
+            {maquinasOpen && (
+              <div className="ml-4 mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
+                {MAQUINAS_NAV.map(item => {
+                  const isActive = location.pathname === item.path;
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => window.innerWidth < 1024 && onToggle()}
+                      className={cn(
+                        "flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-medium transition-all",
+                        isActive
+                          ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                          : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      )}
+                    >
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {isAdmin && (
             <>
