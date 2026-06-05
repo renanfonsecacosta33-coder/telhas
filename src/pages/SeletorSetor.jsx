@@ -38,6 +38,19 @@ export default function SeletorSetor() {
             </div>
             <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
           </button>
+
+          <a
+            href="https://dashboard-ajl.base44.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full bg-card border border-border rounded-xl p-5 flex items-center justify-between hover:border-primary hover:bg-primary/5 transition-all group text-left"
+          >
+            <div>
+              <p className="font-bold text-base">📊 Dashboard AJL</p>
+              <p className="text-sm text-muted-foreground mt-1">Acesso ao painel de indicadores</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+          </a>
         </div>
       </div>
     </div>
