@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from "@/api/base44Client";
 import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera } from "lucide-react";
+import ReservaPanel from "@/components/bobinas/ReservaPanel";
 
 const CORES = [
   "Natural", "Amadeirada 3D", "Amadeirada Lisa", "Azul - 5010", "Bege - 1015",
@@ -64,6 +65,13 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
         anexo_cert_nome: editItem.anexo_cert_nome || "",
         estoque_minimo_kg: editItem.estoque_minimo_kg || "",
         consumo_diario_kg: editItem.consumo_diario_kg || "",
+        reservada: editItem.reservada || false,
+        reserva_tipo: editItem.reserva_tipo || "",
+        reserva_kg: editItem.reserva_kg || "",
+        reserva_numero_pedido: editItem.reserva_numero_pedido || "",
+        reserva_motivo: editItem.reserva_motivo || "",
+        reserva_autorizado_por: editItem.reserva_autorizado_por || "",
+        reserva_data: editItem.reserva_data || "",
       });
     } else {
       setForm({
@@ -72,6 +80,8 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
         data_recebimento: new Date().toISOString().slice(0, 10), observacoes: "", tipo: "Telha",
         anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
         estoque_minimo_kg: "500", consumo_diario_kg: "",
+        reservada: false, reserva_tipo: "", reserva_kg: "", reserva_numero_pedido: "",
+        reserva_motivo: "", reserva_autorizado_por: "", reserva_data: "",
       });
       setSemCertAssinatura("");
       setConfirmarSemCert(false);
@@ -149,6 +159,13 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
       estoque_minimo_kg: form.estoque_minimo_kg ? Number(form.estoque_minimo_kg) : undefined,
       consumo_diario_kg: form.consumo_diario_kg ? Number(form.consumo_diario_kg) : undefined,
       anexo_cert_ausencia: (!form.anexo_cert_url && confirmarSemCert) ? semCertAssinatura.trim() : undefined,
+      reservada: form.reservada || false,
+      reserva_tipo: form.reservada ? form.reserva_tipo : undefined,
+      reserva_kg: (form.reservada && form.reserva_tipo === "parcial" && form.reserva_kg) ? Number(form.reserva_kg) : undefined,
+      reserva_numero_pedido: form.reservada ? form.reserva_numero_pedido : undefined,
+      reserva_motivo: form.reservada ? form.reserva_motivo : undefined,
+      reserva_autorizado_por: form.reservada ? form.reserva_autorizado_por : undefined,
+      reserva_data: form.reservada ? (form.reserva_data || new Date().toISOString().split("T")[0]) : undefined,
     });
   };
 
@@ -377,6 +394,10 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
               <p className="text-xs text-destructive">⚠ Anexe o Certificado Digital ou declare seu nome para confirmar a ausência.</p>
             )}
           </div>
+
+          {/* Reserva */}
+          <ReservaPanel form={form} onChange={setForm} />
+
         </div>
 
         <DialogFooter>

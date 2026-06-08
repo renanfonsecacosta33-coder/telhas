@@ -1,126 +1,179 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Circle, Plus } from "lucide-react";
+import { Plus, Search, Archive, AlertTriangle, Package, Weight } from "lucide-react";
+import { toast } from "sonner";
 import BobinaFormDialogCD from "@/components/corte-dobra/BobinaFormDialogCD";
+import DeleteConfirmDialog from "@/components/stock/DeleteConfirmDialog";
+import EmptyState from "@/components/stock/EmptyState";
+import BobinaCard, { getAlertaNivel } from "@/components/bobinas/BobinaCardShared";
 
 export default function BobinasCD() {
-  const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
+  const [deleteItem, setDeleteItem] = useState(null);
+  const [search, setSearch] = useState("");
+  const [filterAlerta, setFilterAlerta] = useState(false);
+  const [showArquivadas, setShowArquivadas] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: bobinas = [], isLoading } = useQuery({
     queryKey: ["bobinas-cd"],
-    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false }),
+    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra" }),
   });
 
-  // Calcular próximo número sequencial para código CD
   const proximoNumero = (() => {
     let max = 0;
     bobinas.forEach(b => {
       const match = b.codigo && b.codigo.match(/^CD(\d+)$/i);
-      if (match) {
-        const n = parseInt(match[1], 10);
-        if (n > max) max = n;
-      }
+      if (match) { const n = parseInt(match[1], 10); if (n > max) max = n; }
     });
     return max + 1;
   })();
 
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.Bobina.create(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas-cd"] }); setDialogOpen(false); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas-cd"] }); setDialogOpen(false); toast.success("Bobina adicionada!"); },
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Bobina.update(id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas-cd"] }); setDialogOpen(false); setEditItem(null); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas-cd"] }); setDialogOpen(false); setEditItem(null); toast.success("Bobina atualizada!"); },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => base44.entities.Bobina.delete(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas-cd"] }); setDeleteItem(null); toast.success("Bobina excluída!"); },
+  });
+
+  const arquivarMutation = useMutation({
+    mutationFn: ({ id, arquivada }) => base44.entities.Bobina.update(id, {
+      arquivada,
+      data_encerramento: arquivada ? new Date().toISOString().split("T")[0] : null,
+    }),
+    onSuccess: (_, { arquivada }) => {
+      queryClient.invalidateQueries({ queryKey: ["bobinas-cd"] });
+      toast.success(arquivada ? "Bobina arquivada!" : "Bobina restaurada!");
+    },
   });
 
   const handleSave = (data) => {
-    if (editItem) {
-      updateMutation.mutate({ id: editItem.id, data });
-    } else {
-      createMutation.mutate(data);
-    }
+    if (editItem) updateMutation.mutate({ id: editItem.id, data });
+    else createMutation.mutate(data);
   };
 
-  const handleEdit = (b) => { setEditItem(b); setDialogOpen(true); };
-  const handleClose = () => { setDialogOpen(false); setEditItem(null); };
+  const ativas = bobinas.filter(b => !b.arquivada);
+  const arquivadas = bobinas.filter(b => b.arquivada);
+  const totalPeso = ativas.reduce((s, b) => s + (b.peso_kg || 0), 0);
+  const emAlerta = ativas.filter(b => getAlertaNivel(b) !== null);
 
-  const filtered = bobinas.filter(b => {
+  const base = showArquivadas ? arquivadas : ativas;
+  const filtered = base.filter(b => {
     const q = search.toLowerCase();
-    return b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q) ||
-      b.codigo?.toLowerCase().includes(q) || b.fornecedor?.toLowerCase().includes(q);
+    const matchSearch = !q || b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q) ||
+      b.codigo?.toLowerCase().includes(q) || b.fornecedor?.toLowerCase().includes(q) || b.qualidade?.toLowerCase().includes(q);
+    const matchAlerta = !filterAlerta || getAlertaNivel(b) !== null;
+    return matchSearch && matchAlerta;
   });
-
-  const totalPeso = bobinas.reduce((s, b) => s + (b.peso_kg || 0), 0);
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Circle className="w-5 h-5" /> Bobinas — Corte e Dobra
-          </h1>
-          <p className="text-sm text-muted-foreground">Estoque de bobinas do setor</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight">Bobinas</h1>
+            <Badge variant="outline">Corte e Dobra</Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">Estoque de bobinas do setor de Corte e Dobra</p>
         </div>
         <Button onClick={() => { setEditItem(null); setDialogOpen(true); }} className="gap-2">
           <Plus className="w-4 h-4" /> Nova Bobina
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-card border border-border rounded-xl p-4">
-          <p className="text-sm text-muted-foreground">Em Estoque</p>
-          <p className="text-2xl font-bold text-blue-600">{bobinas.length}</p>
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="bg-white border border-border rounded-xl p-4 text-center">
+          <Package className="w-5 h-5 text-blue-500 mx-auto mb-1" />
+          <p className="text-2xl font-bold">{ativas.length}</p>
+          <p className="text-xs text-muted-foreground">Em Estoque</p>
         </div>
-        <div className="bg-card border border-border rounded-xl p-4">
-          <p className="text-sm text-muted-foreground">Peso Total</p>
-          <p className="text-2xl font-bold text-green-600">{totalPeso.toLocaleString("pt-BR")} kg</p>
+        <div className="bg-white border border-border rounded-xl p-4 text-center">
+          <Weight className="w-5 h-5 text-green-500 mx-auto mb-1" />
+          <p className="text-2xl font-bold">{totalPeso.toLocaleString("pt-BR")}</p>
+          <p className="text-xs text-muted-foreground">kg em estoque</p>
+        </div>
+        <div className={`border rounded-xl p-4 text-center ${emAlerta.length > 0 ? "bg-red-50 border-red-300" : "bg-white border-border"}`}>
+          <AlertTriangle className={`w-5 h-5 mx-auto mb-1 ${emAlerta.length > 0 ? "text-red-500" : "text-gray-400"}`} />
+          <p className={`text-2xl font-bold ${emAlerta.length > 0 ? "text-red-700" : ""}`}>{emAlerta.length}</p>
+          <p className="text-xs text-muted-foreground">Em alerta</p>
+        </div>
+        <div className="bg-white border border-border rounded-xl p-4 text-center">
+          <Archive className="w-5 h-5 text-orange-400 mx-auto mb-1" />
+          <p className="text-2xl font-bold">{arquivadas.length}</p>
+          <p className="text-xs text-muted-foreground">Arquivadas</p>
         </div>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input placeholder="Buscar por cor, chapa, código..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
+      {/* Filtros */}
+      <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Buscar por cor, chapa, código..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant={showArquivadas ? "default" : "outline"} size="sm"
+            onClick={() => { setShowArquivadas(!showArquivadas); setFilterAlerta(false); }} className="gap-1">
+            <Archive className="w-3 h-3" />
+            {showArquivadas ? "Ver em estoque" : `Arquivadas (${arquivadas.length})`}
+          </Button>
+          {!showArquivadas && emAlerta.length > 0 && (
+            <Button variant={filterAlerta ? "destructive" : "outline"} size="sm"
+              onClick={() => setFilterAlerta(!filterAlerta)} className="gap-1">
+              <AlertTriangle className="w-3 h-3" />
+              Alertas ({emAlerta.length})
+            </Button>
+          )}
+        </div>
       </div>
 
+      {/* Lista */}
       {isLoading ? (
-        <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>
+        <div className="flex items-center justify-center py-16">
+          <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
+        </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground text-sm">Nenhuma bobina encontrada.</div>
+        <EmptyState title="Nenhuma bobina encontrada" description="Adicione bobinas ao estoque." onAdd={() => { setEditItem(null); setDialogOpen(true); }} />
       ) : (
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="hidden sm:grid grid-cols-[1fr_1fr_1fr_1fr_1fr] gap-3 px-4 py-3 bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
-            <span>Código</span><span>Chapa</span><span>Cor / Material</span><span>Peso (kg)</span><span>Fornecedor</span>
-          </div>
-          <div className="divide-y divide-border">
-            {filtered.map(b => (
-              <div key={b.id}
-                className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1fr_1fr_1fr] gap-3 px-4 py-3 items-center hover:bg-muted/20 cursor-pointer"
-                onClick={() => handleEdit(b)}>
-                <span className="font-mono text-sm font-semibold text-orange-600">{b.codigo || "-"}</span>
-                <span className="text-sm">{b.chapa || "-"}</span>
-                <span className="text-sm">{b.cor || "-"}</span>
-                <span className="text-sm font-semibold">{b.peso_kg ? b.peso_kg.toLocaleString("pt-BR") : "-"}</span>
-                <span className="text-xs text-muted-foreground">{b.fornecedor || "-"}</span>
-              </div>
-            ))}
-          </div>
+        <div className="space-y-3">
+          {filtered.map(bobina => (
+            <BobinaCard
+              key={bobina.id}
+              bobina={bobina}
+              onEdit={(b) => { setEditItem(b); setDialogOpen(true); }}
+              onDelete={(b) => setDeleteItem(b)}
+              onArquivar={(id, val) => arquivarMutation.mutate({ id, arquivada: val })}
+            />
+          ))}
         </div>
       )}
 
       <BobinaFormDialogCD
         open={dialogOpen}
-        onClose={handleClose}
+        onClose={() => { setDialogOpen(false); setEditItem(null); }}
         onSave={handleSave}
         editItem={editItem}
         proximoNumero={proximoNumero}
+      />
+      <DeleteConfirmDialog
+        open={!!deleteItem}
+        onClose={() => setDeleteItem(null)}
+        onConfirm={() => deleteMutation.mutate(deleteItem.id)}
+        itemName={deleteItem ? `${deleteItem.cor} - ${deleteItem.chapa}` : ""}
       />
     </div>
   );

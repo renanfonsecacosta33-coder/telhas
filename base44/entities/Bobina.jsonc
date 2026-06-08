@@ -127,6 +127,39 @@
     "anexo_cert_ausencia": {
       "type": "string",
       "description": "Nome do respons\u00e1vel que declarou aus\u00eancia do certificado digital"
+    },
+    "reservada": {
+      "type": "boolean",
+      "description": "Bobina est\u00e1 reservada",
+      "default": false
+    },
+    "reserva_tipo": {
+      "type": "string",
+      "enum": [
+        "inteira",
+        "parcial"
+      ],
+      "description": "Se a reserva \u00e9 da bobina inteira ou de uma parte em kg"
+    },
+    "reserva_kg": {
+      "type": "number",
+      "description": "Quantidade reservada em kg (quando reserva_tipo = parcial)"
+    },
+    "reserva_numero_pedido": {
+      "type": "string",
+      "description": "N\u00famero do pedido vinculado \u00e0 reserva"
+    },
+    "reserva_motivo": {
+      "type": "string",
+      "description": "Motivo da reserva"
+    },
+    "reserva_autorizado_por": {
+      "type": "string",
+      "description": "Nome de quem autorizou a reserva"
+    },
+    "reserva_data": {
+      "type": "string",
+      "description": "Data em que a reserva foi feita"
     }
   },
   "required": [
