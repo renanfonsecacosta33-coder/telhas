@@ -151,6 +151,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
     }
     onSave({
       ...form,
+      setor: "telhas",
       largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
       peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
       peso_inicial: form.peso_inicial ? Number(form.peso_inicial) : undefined,

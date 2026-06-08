@@ -36,7 +36,7 @@ export default function Bobinas() {
 
   const { data: bobinas = [], isLoading } = useQuery({
     queryKey: ["bobinas"],
-    queryFn: () => base44.entities.Bobina.list("-created_date"),
+    queryFn: () => base44.entities.Bobina.filter({ setor: "telhas" }, "-created_date"),
   });
 
   const createMutation = useMutation({
