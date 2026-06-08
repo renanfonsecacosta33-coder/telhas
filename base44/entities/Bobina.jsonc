@@ -21,7 +21,14 @@
     },
     "qualidade": {
       "type": "string",
-      "description": "Qualidade (GV, FF, PP, FQ)"
+      "enum": [
+        "GV",
+        "FF",
+        "PP",
+        "FQ",
+        "ALZ"
+      ],
+      "description": "Qualidade (GV, FF, PP, FQ, ALZ)"
     },
     "chapa": {
       "type": "string",
