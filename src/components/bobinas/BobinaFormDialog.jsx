@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from "@/api/base44Client";
-import { Paperclip, FileCheck, X, Loader2, ShieldCheck } from "lucide-react";
+import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera } from "lucide-react";
 
 const CORES = [
   "Natural", "Amadeirada 3D", "Amadeirada Lisa", "Azul - 5010", "Bege - 1015",
@@ -20,7 +20,7 @@ const STATUS_OPTIONS = [
   "Matriz AJL", "Pinhais", "Ivaiporã", "Matriz - Frisada", "RESERVADA"
 ];
 
-const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ"];
+const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "ALZ"];
 
 export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
   const [form, setForm] = useState({
@@ -35,7 +35,9 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
   const [semCertAssinatura, setSemCertAssinatura] = useState("");
   const [confirmarSemCert, setConfirmarSemCert] = useState(false);
   const nfInputRef = useRef();
+  const nfCameraRef = useRef();
   const certInputRef = useRef();
+  const certCameraRef = useRef();
 
   useEffect(() => {
     if (editItem) {
@@ -240,8 +242,10 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
             </Label>
             <div className="grid grid-cols-2 gap-3">
               {/* NF */}
-              <div>
+              <div className="space-y-1.5">
                 <input ref={nfInputRef} type="file" className="hidden" accept="image/*,.pdf"
+                  onChange={e => handleUpload(e.target.files[0], "nf")} />
+                <input ref={nfCameraRef} type="file" className="hidden" accept="image/*" capture="environment"
                   onChange={e => handleUpload(e.target.files[0], "nf")} />
                 {form.anexo_nf_url ? (
                   <div className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
@@ -256,19 +260,30 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
                     </button>
                   </div>
                 ) : (
-                  <Button type="button" variant="outline" size="sm"
-                    className="w-full border-dashed border-2 h-10 text-xs gap-2"
-                    onClick={() => nfInputRef.current.click()}
-                    disabled={uploadingNF}>
-                    {uploadingNF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                    {uploadingNF ? "Enviando..." : "Anexar NF *"}
-                  </Button>
+                  <div className="flex gap-1.5">
+                    <Button type="button" variant="outline" size="sm"
+                      className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
+                      onClick={() => nfInputRef.current.click()}
+                      disabled={uploadingNF}>
+                      {uploadingNF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+                      {uploadingNF ? "Enviando..." : "Anexar NF *"}
+                    </Button>
+                    <Button type="button" variant="outline" size="sm"
+                      className="border-dashed border-2 h-10 px-3 text-xs"
+                      onClick={() => nfCameraRef.current.click()}
+                      disabled={uploadingNF}
+                      title="Tirar foto da NF">
+                      <Camera className="w-4 h-4" />
+                    </Button>
+                  </div>
                 )}
               </div>
 
               {/* Certificado Digital */}
-              <div>
+              <div className="space-y-1.5">
                 <input ref={certInputRef} type="file" className="hidden" accept="image/*,.pdf,.p7b,.cer,.crt"
+                  onChange={e => { handleUpload(e.target.files[0], "cert"); setConfirmarSemCert(false); setSemCertAssinatura(""); }} />
+                <input ref={certCameraRef} type="file" className="hidden" accept="image/*" capture="environment"
                   onChange={e => { handleUpload(e.target.files[0], "cert"); setConfirmarSemCert(false); setSemCertAssinatura(""); }} />
                 {form.anexo_cert_url ? (
                   <div className="flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs text-blue-800">
@@ -283,13 +298,22 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
                     </button>
                   </div>
                 ) : (
-                  <Button type="button" variant="outline" size="sm"
-                    className="w-full border-dashed border-2 h-10 text-xs gap-2"
-                    onClick={() => certInputRef.current.click()}
-                    disabled={uploadingCert}>
-                    {uploadingCert ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                    {uploadingCert ? "Enviando..." : "Certificado Digital *"}
-                  </Button>
+                  <div className="flex gap-1.5">
+                    <Button type="button" variant="outline" size="sm"
+                      className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
+                      onClick={() => certInputRef.current.click()}
+                      disabled={uploadingCert}>
+                      {uploadingCert ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                      {uploadingCert ? "Enviando..." : "Certificado *"}
+                    </Button>
+                    <Button type="button" variant="outline" size="sm"
+                      className="border-dashed border-2 h-10 px-3 text-xs"
+                      onClick={() => certCameraRef.current.click()}
+                      disabled={uploadingCert}
+                      title="Tirar foto do Certificado">
+                      <Camera className="w-4 h-4" />
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>
