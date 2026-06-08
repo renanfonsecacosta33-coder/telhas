@@ -54,9 +54,18 @@
       "type": "number",
       "description": "Metragem restante em metros"
     },
+    "estoque_minimo_kg": {
+      "type": "number",
+      "description": "Estoque m\u00ednimo em kg \u2014 abaixo disso dispara alerta",
+      "default": 500
+    },
+    "consumo_diario_kg": {
+      "type": "number",
+      "description": "Consumo di\u00e1rio estimado em kg (para previs\u00e3o de acabar)"
+    },
     "codigo": {
       "type": "string",
-      "description": "C\u00f3digo da bobina (AAMMNNNN)"
+      "description": "C\u00f3digo da bobina (TE0001)"
     },
     "nf": {
       "type": "string",

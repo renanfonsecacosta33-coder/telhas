@@ -28,6 +28,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
     metragem: "", codigo: "", nf: "", custo: "", status: "", fornecedor: "",
     data_recebimento: "", observacoes: "", tipo: "Telha",
     anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
+    estoque_minimo_kg: "", consumo_diario_kg: "",
   });
 
   const [uploadingNF, setUploadingNF] = useState(false);
@@ -61,6 +62,8 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
         anexo_nf_nome: editItem.anexo_nf_nome || "",
         anexo_cert_url: editItem.anexo_cert_url || "",
         anexo_cert_nome: editItem.anexo_cert_nome || "",
+        estoque_minimo_kg: editItem.estoque_minimo_kg || "",
+        consumo_diario_kg: editItem.consumo_diario_kg || "",
       });
     } else {
       setForm({
@@ -68,6 +71,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
         metragem: "", codigo: "Gerando...", nf: "", custo: "", status: "", fornecedor: "",
         data_recebimento: new Date().toISOString().slice(0, 10), observacoes: "", tipo: "Telha",
         anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
+        estoque_minimo_kg: "500", consumo_diario_kg: "",
       });
       setSemCertAssinatura("");
       setConfirmarSemCert(false);
@@ -142,6 +146,8 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
       peso_inicial: form.peso_inicial ? Number(form.peso_inicial) : undefined,
       metragem: form.metragem ? Number(form.metragem) : undefined,
       custo: form.custo ? Number(form.custo) : undefined,
+      estoque_minimo_kg: form.estoque_minimo_kg ? Number(form.estoque_minimo_kg) : undefined,
+      consumo_diario_kg: form.consumo_diario_kg ? Number(form.consumo_diario_kg) : undefined,
       anexo_cert_ausencia: (!form.anexo_cert_url && confirmarSemCert) ? semCertAssinatura.trim() : undefined,
     });
   };
@@ -232,6 +238,20 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
           <div className="space-y-1">
             <Label>Observações</Label>
             <Textarea placeholder="Anotações..." value={form.observacoes} onChange={e => set("observacoes", e.target.value)} />
+          </div>
+
+          {/* Estoque mínimo e consumo */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Estoque Mínimo (kg)</Label>
+              <Input type="number" placeholder="500" value={form.estoque_minimo_kg} onChange={e => set("estoque_minimo_kg", e.target.value)} />
+              <p className="text-[10px] text-muted-foreground">Alerta quando abaixo deste valor</p>
+            </div>
+            <div className="space-y-1">
+              <Label>Consumo Diário Estimado (kg)</Label>
+              <Input type="number" placeholder="Ex: 120" value={form.consumo_diario_kg} onChange={e => set("consumo_diario_kg", e.target.value)} />
+              <p className="text-[10px] text-muted-foreground">Para calcular previsão de acabar</p>
+            </div>
           </div>
 
           {/* Anexos */}
