@@ -65,12 +65,13 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
     } else {
       setForm({
         cor: "", chapa: "", qualidade: "", largura_mm: "", peso_kg: "", peso_inicial: "",
-        metragem: "", codigo: "", nf: "", custo: "", status: "", fornecedor: "",
+        metragem: "", codigo: "Gerando...", nf: "", custo: "", status: "", fornecedor: "",
         data_recebimento: new Date().toISOString().slice(0, 10), observacoes: "", tipo: "Telha",
         anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
       });
       setSemCertAssinatura("");
       setConfirmarSemCert(false);
+      gerarProximoCodigo().then(codigo => set("codigo", codigo));
     }
   }, [editItem, open]);
 
@@ -99,19 +100,18 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
     setForm(f => ({ ...f, chapa: val, metragem }));
   };
 
-  const gerarCodigo = (nf) => {
-    if (!nf) return "";
-    const now = new Date();
-    const ano = String(now.getFullYear()).slice(2);
-    const mes = String(now.getMonth() + 1).padStart(2, "0");
-    const nfStr = String(nf).replace(/\D/g, "");
-    const ultimos4 = nfStr.slice(-4).padStart(4, "0");
-    return `${ano}${mes}${ultimos4}`;
+  const gerarProximoCodigo = async () => {
+    const bobinas = await base44.entities.Bobina.list("-created_date", 200);
+    const numeros = bobinas
+      .map(b => b.codigo)
+      .filter(c => c && /^TE\d{4}$/.test(c))
+      .map(c => parseInt(c.slice(2)));
+    const proximo = numeros.length > 0 ? Math.max(...numeros) + 1 : 1;
+    return `TE${String(proximo).padStart(4, "0")}`;
   };
 
   const handleNFChange = (val) => {
     set("nf", val);
-    if (val && !editItem) set("codigo", gerarCodigo(val));
   };
 
   const handleUpload = async (file, tipo) => {
