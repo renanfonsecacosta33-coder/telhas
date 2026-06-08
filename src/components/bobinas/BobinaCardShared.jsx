@@ -140,17 +140,19 @@ export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statu
         </div>
 
         {/* Métricas */}
-        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className={`mt-4 grid gap-3 ${bobina.setor === "corte_dobra" ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-4"}`}>
           <div className="bg-gray-50 rounded-lg p-3 text-center">
             <p className="text-xs text-muted-foreground mb-1 flex items-center justify-center gap-1"><Weight className="w-3 h-3" />Peso Atual</p>
             <p className="text-lg font-bold text-gray-900">{bobina.peso_kg ? bobina.peso_kg.toLocaleString("pt-BR") : "—"}</p>
             <p className="text-xs text-muted-foreground">kg</p>
           </div>
+          {bobina.setor !== "corte_dobra" && (
           <div className="bg-gray-50 rounded-lg p-3 text-center">
             <p className="text-xs text-muted-foreground mb-1 flex items-center justify-center gap-1"><Ruler className="w-3 h-3" />Metragem</p>
             <p className="text-lg font-bold text-gray-900">{bobina.metragem ? bobina.metragem.toLocaleString("pt-BR") : "—"}</p>
             <p className="text-xs text-muted-foreground">metros</p>
           </div>
+          )}
           <div className={`rounded-lg p-3 text-center ${alerta === "critico" ? "bg-red-50" : alerta === "atencao" ? "bg-amber-50" : "bg-gray-50"}`}>
             <p className="text-xs text-muted-foreground mb-1 flex items-center justify-center gap-1"><AlertTriangle className="w-3 h-3" />Estoque Mín.</p>
             <p className={`text-lg font-bold ${alerta === "critico" ? "text-red-700" : alerta === "atencao" ? "text-amber-700" : "text-gray-900"}`}>
@@ -220,7 +222,7 @@ export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statu
               {bobina.custo && <div><span className="text-muted-foreground">Custo/kg:</span> <strong>R$ {Number(bobina.custo).toFixed(2)}</strong></div>}
               {custoTotal && <div><span className="text-muted-foreground">Valor estoque:</span> <strong>R$ {custoTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</strong></div>}
               {bobina.consumo_diario_kg && <div><span className="text-muted-foreground">Consumo/dia:</span> <strong>{bobina.consumo_diario_kg} kg</strong></div>}
-              {bobina.metragem_restante && <div><span className="text-muted-foreground">Metr. restante:</span> <strong>{bobina.metragem_restante} m</strong></div>}
+              {bobina.setor !== "corte_dobra" && bobina.metragem_restante && <div><span className="text-muted-foreground">Metr. restante:</span> <strong>{bobina.metragem_restante} m</strong></div>}
               {bobina.data_encerramento && <div><span className="text-muted-foreground">Encerrada em:</span> <strong>{bobina.data_encerramento}</strong></div>}
             </div>
 
