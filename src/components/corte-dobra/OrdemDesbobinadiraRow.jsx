@@ -269,7 +269,13 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, isGestor }) 
               <Play className="w-3 h-3" /> Retomar
             </Button>
           )}
-          {o.status === "finalizado" && (
+          {o.status === "finalizado" && isGestor && (
+            <Button size="sm" variant="outline" className="gap-1 text-amber-600 border-amber-300 hover:bg-amber-50"
+              onClick={() => onUpdate(o.id, { status: "pendente", inicio_producao_ts: null, foto_finalizacao_url: null, data_finalizacao: null })}>
+              ↩ Reabrir
+            </Button>
+          )}
+          {o.status === "finalizado" && !isGestor && (
             <span className="text-xs text-muted-foreground italic">Finalizado — bloqueado</span>
           )}
         </div>

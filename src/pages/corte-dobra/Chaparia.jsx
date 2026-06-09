@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { Badge } from "@/components/ui/badge";
@@ -77,6 +77,10 @@ export default function Chaparia() {
   const [filtroDestino, setFiltroDestino] = useState("todos");
   const [editChapa, setEditChapa] = useState(null);
   const [fotoViewer, setFotoViewer] = useState(null);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => { base44.auth.me().then(setUser).catch(() => {}); }, []);
+  const isAdmin = user?.role === "admin";
 
   const { data: chapas = [], isLoading } = useQuery({
     queryKey: ["chapas-cd"],
@@ -229,14 +233,24 @@ export default function Chaparia() {
                       <Camera className="w-3 h-3" /> Foto
                     </Button>
                   )}
-                  <Button
-                    size="sm" variant="outline"
-                    className="gap-1"
-                    onClick={() => setEditChapa(c)}
-                    disabled={isConsumed}
-                  >
-                    <Edit2 className="w-3 h-3" /> Editar
-                  </Button>
+                  {(isAdmin || !isConsumed) && (
+                    <Button
+                      size="sm" variant="outline"
+                      className="gap-1"
+                      onClick={() => setEditChapa(c)}
+                    >
+                      <Edit2 className="w-3 h-3" /> Editar
+                    </Button>
+                  )}
+                  {isAdmin && (
+                    <Button
+                      size="sm" variant="ghost"
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => { if (confirm(`Excluir chapa ${c.codigo || c.id}?`)) deleteMut.mutate(c.id); }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
             );
