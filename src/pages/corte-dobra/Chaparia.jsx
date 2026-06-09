@@ -1,17 +1,254 @@
-import React from "react";
-import { Layers } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { base44 } from "@/api/base44Client";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Layers, Package, ShoppingCart, Warehouse, Search, Ruler,
+  CheckCircle2, AlertCircle, Clock, Trash2, Edit2, RefreshCw
+} from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+
+function StatusBadge({ status, destino, numeroPedido }) {
+  if (status === "consumido") return <Badge className="bg-slate-100 text-slate-600 border-slate-200 border text-xs">Consumido</Badge>;
+  if (status === "cancelado") return <Badge className="bg-red-100 text-red-600 border-red-200 border text-xs">Cancelado</Badge>;
+  if (status === "parcial") return <Badge className="bg-amber-100 text-amber-700 border-amber-200 border text-xs">Parcial</Badge>;
+  if (destino === "pedido_direto") return (
+    <Badge className="bg-blue-100 text-blue-700 border-blue-200 border text-xs">
+      <ShoppingCart className="w-3 h-3 mr-1" />
+      Pedido {numeroPedido || ""}
+    </Badge>
+  );
+  return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 border text-xs"><CheckCircle2 className="w-3 h-3 mr-1" />Disponível</Badge>;
+}
+
+function EditarQuantDialog({ chapa, open, onClose, onSave }) {
+  const [qtd, setQtd] = useState(chapa?.quantidade_disponivel || 0);
+  const [status, setStatus] = useState(chapa?.status || "disponivel");
+
+  React.useEffect(() => {
+    if (open && chapa) {
+      setQtd(chapa.quantidade_disponivel ?? 0);
+      setStatus(chapa.status || "disponivel");
+    }
+  }, [open, chapa]);
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader><DialogTitle>Atualizar Chapa</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1">
+            <Label>Quantidade Disponível</Label>
+            <Input type="number" value={qtd} onChange={e => setQtd(Number(e.target.value))} min={0} max={chapa?.quantidade_total} />
+            <p className="text-xs text-muted-foreground">Total original: {chapa?.quantidade_total} pcs</p>
+          </div>
+          <div className="space-y-1">
+            <Label>Status</Label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="disponivel">Disponível</SelectItem>
+                <SelectItem value="parcial">Parcial</SelectItem>
+                <SelectItem value="consumido">Consumido</SelectItem>
+                <SelectItem value="cancelado">Cancelado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={() => onSave({ quantidade_disponivel: qtd, status })}>Salvar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function Chaparia() {
+  const qc = useQueryClient();
+  const [busca, setBusca] = useState("");
+  const [filtroStatus, setFiltroStatus] = useState("todos");
+  const [filtroDestino, setFiltroDestino] = useState("todos");
+  const [editChapa, setEditChapa] = useState(null);
+
+  const { data: chapas = [], isLoading } = useQuery({
+    queryKey: ["chapas-cd"],
+    queryFn: () => base44.entities.ChapaCD.list("-created_date", 200),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.ChapaCD.update(id, data),
+    onSuccess: () => { qc.invalidateQueries(["chapas-cd"]); setEditChapa(null); },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id) => base44.entities.ChapaCD.delete(id),
+    onSuccess: () => qc.invalidateQueries(["chapas-cd"]),
+  });
+
+  const filtradas = chapas.filter(c => {
+    const matchBusca = !busca || [c.bobina_descricao, c.numero_pedido, c.cliente].some(v => v?.toLowerCase().includes(busca.toLowerCase()));
+    const matchStatus = filtroStatus === "todos" || c.status === filtroStatus || (filtroStatus === "disponivel" && !c.status);
+    const matchDestino = filtroDestino === "todos" || c.destino === filtroDestino;
+    return matchBusca && matchStatus && matchDestino;
+  });
+
+  const totalDisponiveis = chapas.filter(c => (c.status === "disponivel" || !c.status) && c.destino === "estoque").reduce((s, c) => s + (c.quantidade_disponivel || 0), 0);
+  const totalPedido = chapas.filter(c => (c.status === "disponivel" || !c.status) && c.destino === "pedido_direto").reduce((s, c) => s + (c.quantidade_disponivel || 0), 0);
+  const totalConsumido = chapas.filter(c => c.status === "consumido").reduce((s, c) => s + (c.quantidade_total || 0), 0);
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Chaparia</h1>
-        <p className="text-sm text-muted-foreground">Estoque e controle de chapas</p>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Chaparia</h1>
+          <p className="text-sm text-muted-foreground">Estoque de chapas cortadas pela Desbobinadeira</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries(["chapas-cd"])} className="gap-1">
+          <RefreshCw className="w-4 h-4" /> Atualizar
+        </Button>
       </div>
-      <div className="bg-card border border-border rounded-xl p-10 text-center text-muted-foreground">
-        <Layers className="w-10 h-10 mx-auto mb-3 opacity-30" />
-        <p className="text-sm">Módulo de chaparia em desenvolvimento</p>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
+          <Warehouse className="w-6 h-6 mx-auto mb-1 text-emerald-600" />
+          <p className="text-2xl font-black text-emerald-700">{totalDisponiveis}</p>
+          <p className="text-xs text-emerald-600 font-semibold">Chapas em Estoque</p>
+        </div>
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+          <ShoppingCart className="w-6 h-6 mx-auto mb-1 text-blue-600" />
+          <p className="text-2xl font-black text-blue-700">{totalPedido}</p>
+          <p className="text-xs text-blue-600 font-semibold">Reservadas para Pedido</p>
+        </div>
+        <div className="bg-slate-50 border border-border rounded-xl p-4 text-center">
+          <CheckCircle2 className="w-6 h-6 mx-auto mb-1 text-slate-500" />
+          <p className="text-2xl font-black text-slate-600">{totalConsumido}</p>
+          <p className="text-xs text-slate-500 font-semibold">Consumidas</p>
+        </div>
       </div>
+
+      {/* Filtros */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por bobina, pedido ou cliente..."
+            className="pl-9"
+            value={busca}
+            onChange={e => setBusca(e.target.value)}
+          />
+        </div>
+        <Select value={filtroDestino} onValueChange={setFiltroDestino}>
+          <SelectTrigger className="w-44"><SelectValue placeholder="Destino" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos destinos</SelectItem>
+            <SelectItem value="estoque">Estoque</SelectItem>
+            <SelectItem value="pedido_direto">Pedido Direto</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filtroStatus} onValueChange={setFiltroStatus}>
+          <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos status</SelectItem>
+            <SelectItem value="disponivel">Disponível</SelectItem>
+            <SelectItem value="parcial">Parcial</SelectItem>
+            <SelectItem value="consumido">Consumido</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Lista */}
+      {isLoading ? (
+        <div className="text-center py-16 text-muted-foreground text-sm">Carregando...</div>
+      ) : filtradas.length === 0 ? (
+        <div className="bg-card border border-border rounded-xl p-12 text-center text-muted-foreground">
+          <Layers className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="font-semibold">Nenhuma chapa encontrada</p>
+          <p className="text-xs mt-1">As chapas aparecem aqui ao finalizar ordens da Desbobinadeira</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtradas.map(c => {
+            const isConsumed = c.status === "consumido" || c.status === "cancelado";
+            return (
+              <div
+                key={c.id}
+                className={`bg-card border rounded-xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4 ${
+                  c.destino === "pedido_direto" ? "border-l-4 border-l-blue-400" : "border-l-4 border-l-emerald-400"
+                } ${isConsumed ? "opacity-60" : ""}`}
+              >
+                {/* Info principal */}
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-sm font-mono">{c.bobina_descricao || "Bobina"}</span>
+                    <StatusBadge status={c.status} destino={c.destino} numeroPedido={c.numero_pedido} />
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                    {c.comprimento_mm > 0 && (
+                      <span className="flex items-center gap-1">
+                        <Ruler className="w-3 h-3" /> {c.comprimento_mm}mm × {c.largura_mm || "?"}mm
+                      </span>
+                    )}
+                    {c.data_corte && (
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {format(new Date(c.data_corte), "dd/MM/yyyy", { locale: ptBR })}
+                      </span>
+                    )}
+                    {c.destino === "pedido_direto" && c.cliente && (
+                      <span className="font-semibold text-blue-600">{c.cliente}</span>
+                    )}
+                  </div>
+                  {c.observacoes && (
+                    <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-0.5 inline-block">📋 {c.observacoes}</p>
+                  )}
+                </div>
+
+                {/* Quantidade */}
+                <div className="text-center min-w-[80px]">
+                  <p className="text-2xl font-black text-foreground">{c.quantidade_disponivel ?? c.quantidade_total}</p>
+                  <p className="text-xs text-muted-foreground">de {c.quantidade_total} pcs</p>
+                </div>
+
+                {/* Ações */}
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm" variant="outline"
+                    className="gap-1"
+                    onClick={() => setEditChapa(c)}
+                    disabled={isConsumed}
+                  >
+                    <Edit2 className="w-3 h-3" /> Editar
+                  </Button>
+                  <Button
+                    size="sm" variant="ghost"
+                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                    onClick={() => { if (confirm("Remover esta chapa do estoque?")) deleteMut.mutate(c.id); }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Dialog editar */}
+      <EditarQuantDialog
+        chapa={editChapa}
+        open={!!editChapa}
+        onClose={() => setEditChapa(null)}
+        onSave={(data) => updateMut.mutate({ id: editChapa.id, data })}
+      />
     </div>
   );
 }

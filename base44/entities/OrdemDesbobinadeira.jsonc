@@ -27,6 +27,23 @@
       "type": "number",
       "description": "KG estimado a ser consumido da bobina"
     },
+    "destino": {
+      "type": "string",
+      "enum": [
+        "estoque",
+        "pedido_direto"
+      ],
+      "default": "estoque",
+      "description": "Destino das chapas: estoque (chaparia) ou pedido direto"
+    },
+    "numero_pedido": {
+      "type": "string",
+      "description": "N\u00famero do pedido (quando destino = pedido_direto)"
+    },
+    "cliente": {
+      "type": "string",
+      "description": "Nome do cliente (quando destino = pedido_direto)"
+    },
     "observacoes": {
       "type": "string",
       "description": "Instru\u00e7\u00f5es ou observa\u00e7\u00f5es para o operador"

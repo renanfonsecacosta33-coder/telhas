@@ -116,12 +116,32 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, isGestor }) 
     if (o.inicio_producao_ts) {
       prodSeg += Math.floor((Date.now() - new Date(o.inicio_producao_ts).getTime()) / 1000);
     }
-    // Desconta KG da bobina
-    if (o.bobina_id && o.kg_estimado > 0) {
+    // Desconta KG da bobina e cria ChapaCD no estoque
+    if (o.bobina_id) {
       const bobina = await base44.entities.Bobina.get(o.bobina_id).catch(() => null);
       if (bobina) {
-        await base44.entities.Bobina.update(o.bobina_id, {
-          peso_kg: Math.max(0, (bobina.peso_kg || 0) - o.kg_estimado),
+        // Desconta KG
+        if (o.kg_estimado > 0) {
+          await base44.entities.Bobina.update(o.bobina_id, {
+            peso_kg: Math.max(0, (bobina.peso_kg || 0) - o.kg_estimado),
+          });
+        }
+        // Cria ChapaCD no estoque da Chaparia
+        await base44.entities.ChapaCD.create({
+          origem: "desbobinadeira",
+          ordem_id: o.id,
+          bobina_id: o.bobina_id,
+          bobina_descricao: o.bobina_descricao || "",
+          comprimento_mm: o.comprimento_mm || 0,
+          largura_mm: bobina.largura_mm || 0,
+          quantidade_total: o.quantidade || 0,
+          quantidade_disponivel: o.quantidade || 0,
+          destino: o.destino === "pedido_direto" ? "pedido_direto" : "estoque",
+          numero_pedido: o.numero_pedido || null,
+          cliente: o.cliente || null,
+          data_corte: format(new Date(), "yyyy-MM-dd"),
+          status: o.destino === "pedido_direto" ? "disponivel" : "disponivel",
+          observacoes: o.observacoes || null,
         });
       }
     }
