@@ -66,7 +66,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
 
   const { data: bobinas = [] } = useQuery({
     queryKey: ["bobinas-ativas"],
-    queryFn: () => base44.entities.Bobina.filter({ arquivada: false }),
+    queryFn: () => base44.entities.Bobina.filter({ arquivada: false, reservada: false }),
     enabled: open
   });
 

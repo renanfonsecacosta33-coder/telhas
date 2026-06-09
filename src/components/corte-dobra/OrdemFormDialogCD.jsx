@@ -50,7 +50,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
 
   const { data: bobinas = [] } = useQuery({
     queryKey: ["bobinas-cd-ativas"],
-    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false }),
+    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false, reservada: false }),
     enabled: open,
   });
 
