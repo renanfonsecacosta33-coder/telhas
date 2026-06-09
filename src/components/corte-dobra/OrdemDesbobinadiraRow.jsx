@@ -116,6 +116,15 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, isGestor }) 
     if (o.inicio_producao_ts) {
       prodSeg += Math.floor((Date.now() - new Date(o.inicio_producao_ts).getTime()) / 1000);
     }
+    // Desconta KG da bobina
+    if (o.bobina_id && o.kg_estimado > 0) {
+      const bobina = await base44.entities.Bobina.get(o.bobina_id).catch(() => null);
+      if (bobina) {
+        await base44.entities.Bobina.update(o.bobina_id, {
+          peso_kg: Math.max(0, (bobina.peso_kg || 0) - o.kg_estimado),
+        });
+      }
+    }
     onUpdate(o.id, {
       status: "finalizado",
       foto_finalizacao_url: file_url,
@@ -142,6 +151,9 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, isGestor }) 
             <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm text-muted-foreground">
               {o.quantidade > 0 && <span className="font-semibold text-foreground">{o.quantidade} peças</span>}
               {o.comprimento_mm > 0 && <span>{o.comprimento_mm}mm de corte</span>}
+              {o.kg_estimado > 0 && (
+                <span className="font-semibold text-emerald-700">≈ {o.kg_estimado.toFixed(1)} kg</span>
+              )}
             </div>
           </div>
         </div>

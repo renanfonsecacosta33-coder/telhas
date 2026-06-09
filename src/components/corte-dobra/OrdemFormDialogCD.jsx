@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers } from "lucide-react";
+import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale } from "lucide-react";
 
 function labelBobina(b) {
   const parts = [];
@@ -34,6 +34,20 @@ function calcMaxChapas(bobina, comprimento_mm) {
   const metros = calcMetragem(bobina);
   if (!metros) return null;
   return Math.floor((metros * 1000) / Number(comprimento_mm));
+}
+
+// Calcula KG estimado das chapas: largura × comprimento × espessura × qtd × densidade
+// densidade aço galvanizado = 0.00000785 kg/mm³
+function calcKgEstimado(bobina, comprimento_mm, quantidade) {
+  if (!bobina || !comprimento_mm || !quantidade) return null;
+  const larg = Number(bobina.largura_mm) || 0;
+  const comp = Number(comprimento_mm) || 0;
+  const qtd = Number(quantidade) || 0;
+  // espessura pode ser "0,43" ou "0.43"
+  const espStr = String(bobina.chapa || "").replace(",", ".");
+  const esp = parseFloat(espStr) || 0;
+  if (larg <= 0 || comp <= 0 || esp <= 0 || qtd <= 0) return null;
+  return larg * comp * esp * qtd * 0.00000785;
 }
 
 export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, defaultDate }) {
@@ -85,6 +99,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   const bobinaObj = bobinas.find(b => b.id === form.bobina_id);
   const maxChapas = calcMaxChapas(bobinaObj, form.comprimento_mm);
   const metrosRestantes = calcMetragem(bobinaObj);
+  const kgEstimado = calcKgEstimado(bobinaObj, form.comprimento_mm, form.quantidade);
 
   const handleSave = () => {
     if (!form.bobina_id) { alert("Selecione a bobina."); return; }
@@ -98,6 +113,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
       bobina_descricao: bobinaSnap,
       comprimento_mm: Number(form.comprimento_mm),
       quantidade: Number(form.quantidade),
+      kg_estimado: kgEstimado ? Math.round(kgEstimado * 100) / 100 : null,
     });
   };
 
@@ -232,6 +248,18 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
               )}
             </div>
           </div>
+
+          {/* KG Estimado */}
+          {kgEstimado !== null && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex items-center gap-3">
+              <Scale className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+              <div>
+                <p className="text-xs text-emerald-600 font-semibold uppercase tracking-wide">KG Estimado das Chapas</p>
+                <p className="text-2xl font-black text-emerald-700">{kgEstimado.toFixed(1)} <span className="text-sm font-normal">kg</span></p>
+                <p className="text-xs text-emerald-500">Será descontado da bobina ao finalizar</p>
+              </div>
+            </div>
+          )}
 
           {/* Destino */}
           <div className="space-y-2">

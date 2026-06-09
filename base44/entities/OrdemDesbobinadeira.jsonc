@@ -23,6 +23,10 @@
       "type": "number",
       "description": "Quantidade de pe\u00e7as a cortar"
     },
+    "kg_estimado": {
+      "type": "number",
+      "description": "KG estimado a ser consumido da bobina"
+    },
     "observacoes": {
       "type": "string",
       "description": "Instru\u00e7\u00f5es ou observa\u00e7\u00f5es para o operador"
