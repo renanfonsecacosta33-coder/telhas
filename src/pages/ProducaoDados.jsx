@@ -5,62 +5,129 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Pencil, Check, X, ChevronDown } from "lucide-react";
+import { Plus, Trash2, Pencil, Check, X, ChevronDown, ArrowUp, ArrowDown, GripVertical } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
 const PRODUTOS = ["TELHA", "TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA", "BOBININHA", "CUMEEIRA", "PAINEL"];
 
+// Máquinas disponíveis (sem COLAGEM — ela é controlada pelo toggle separado)
 const MAQUINAS_DISPONIVEIS = [
-  "TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA",
-  "DESBOBINADOR", "CUMEEIRA", "COLAGEM"
+  "TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA"
 ];
 
-// converte string "TP - 25, TP - 40" <-> array ["TP - 25","TP - 40"]
-const maqsToArray = (str) => str ? str.split(",").map(s => s.trim()).filter(Boolean) : [];
-const maqsToString = (arr) => arr.join(", ");
+// string "TP - 40, COLAGEM" <-> { maquinas: ["TP - 40"], colagem: true }
+const parseFluxo = (str) => {
+  const arr = str ? str.split(",").map(s => s.trim()).filter(Boolean) : [];
+  const colagem = arr.includes("COLAGEM");
+  return { maquinas: arr.filter(m => m !== "COLAGEM"), colagem };
+};
+const buildFluxo = (maquinas, colagem) => {
+  const arr = [...maquinas];
+  if (colagem) arr.push("COLAGEM");
+  return arr.join(", ");
+};
 
+// Componente de seleção com ordem + toggle colagem
 function MaquinasSelect({ value, onChange }) {
-  const selected = maqsToArray(value);
+  const { maquinas: selected, colagem } = parseFluxo(value);
+
   const toggle = (m) => {
     const next = selected.includes(m) ? selected.filter(x => x !== m) : [...selected, m];
-    onChange(maqsToString(next));
+    onChange(buildFluxo(next, colagem));
   };
+  const moveUp = (i) => {
+    if (i === 0) return;
+    const next = [...selected];
+    [next[i - 1], next[i]] = [next[i], next[i - 1]];
+    onChange(buildFluxo(next, colagem));
+  };
+  const moveDown = (i) => {
+    if (i === selected.length - 1) return;
+    const next = [...selected];
+    [next[i], next[i + 1]] = [next[i + 1], next[i]];
+    onChange(buildFluxo(next, colagem));
+  };
+  const toggleColagem = () => onChange(buildFluxo(selected, !colagem));
+
+  const label = selected.length === 0 && !colagem
+    ? null
+    : [...selected, ...(colagem ? ["COLAGEM"] : [])].join(" → ");
+
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button className="flex items-center gap-1 min-w-[120px] h-8 rounded-md border border-input bg-transparent px-2 text-xs text-left hover:bg-muted/40 transition-colors">
+        <button className="flex items-center gap-1 min-w-[150px] max-w-[260px] h-8 rounded-md border border-input bg-transparent px-2 text-xs text-left hover:bg-muted/40 transition-colors">
           <span className="flex-1 truncate">
-            {selected.length === 0 ? <span className="text-muted-foreground">Selecionar...</span> : selected.join(", ")}
+            {label ? <span className="font-medium">{label}</span> : <span className="text-muted-foreground">Selecionar...</span>}
           </span>
           <ChevronDown className="w-3 h-3 text-muted-foreground flex-shrink-0" />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-52 p-2" align="start">
-        <p className="text-xs font-semibold text-muted-foreground mb-2 px-1">Máquinas (pode selecionar várias)</p>
-        <div className="space-y-1">
+      <PopoverContent className="w-64 p-3" align="start">
+        {/* Selecionar máquinas */}
+        <p className="text-xs font-semibold text-muted-foreground mb-2">1. Selecionar máquinas</p>
+        <div className="space-y-1 mb-3">
           {MAQUINAS_DISPONIVEIS.map(m => (
             <button
               key={m}
               onClick={() => toggle(m)}
-              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors ${selected.includes(m) ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors ${selected.includes(m) ? "bg-primary/10 text-primary font-semibold" : "hover:bg-muted"}`}
             >
-              <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${selected.includes(m) ? "border-primary-foreground bg-primary-foreground/20" : "border-muted-foreground"}`}>
-                {selected.includes(m) && <Check className="w-2.5 h-2.5" />}
+              <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${selected.includes(m) ? "border-primary bg-primary" : "border-muted-foreground"}`}>
+                {selected.includes(m) && <Check className="w-2 h-2 text-primary-foreground" />}
               </div>
               {m}
+              {selected.includes(m) && (
+                <span className="ml-auto text-[10px] text-muted-foreground font-normal">#{selected.indexOf(m) + 1}</span>
+              )}
             </button>
           ))}
         </div>
-        {selected.length > 0 && (
-          <button onClick={() => onChange("")} className="w-full mt-2 text-xs text-muted-foreground hover:text-destructive border-t pt-2">
-            Limpar seleção
+
+        {/* Ordenar selecionadas */}
+        {selected.length > 1 && (
+          <>
+            <p className="text-xs font-semibold text-muted-foreground mb-2">2. Ordenar (sequência de produção)</p>
+            <div className="space-y-1 mb-3 bg-muted/30 rounded-lg p-2">
+              {selected.map((m, i) => (
+                <div key={m} className="flex items-center gap-1.5 text-xs">
+                  <span className="w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold flex-shrink-0">{i + 1}</span>
+                  <span className="flex-1 font-medium">{m}</span>
+                  <button onClick={() => moveUp(i)} disabled={i === 0} className="p-0.5 rounded hover:bg-muted disabled:opacity-30">
+                    <ArrowUp className="w-3 h-3" />
+                  </button>
+                  <button onClick={() => moveDown(i)} disabled={i === selected.length - 1} className="p-0.5 rounded hover:bg-muted disabled:opacity-30">
+                    <ArrowDown className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Toggle Colagem */}
+        <div className={`flex items-center justify-between px-2 py-2 rounded-lg border-2 transition-colors ${colagem ? "border-orange-400 bg-orange-50" : "border-border bg-muted/20"}`}>
+          <div>
+            <p className="text-xs font-bold">Vai para Colagem?</p>
+            <p className="text-[10px] text-muted-foreground">Adiciona COLAGEM ao final do fluxo</p>
+          </div>
+          <Switch checked={colagem} onCheckedChange={toggleColagem} />
+        </div>
+
+        {value && (
+          <button onClick={() => onChange("")} className="w-full mt-2 text-xs text-muted-foreground hover:text-destructive pt-2 border-t">
+            Limpar tudo
           </button>
         )}
       </PopoverContent>
     </Popover>
   );
 }
+
+// helper para exibir badges na tabela
+const maqsToArray = (str) => str ? str.split(",").map(s => s.trim()).filter(Boolean) : [];
 
 // ─── Modelos de Produto ─────────────────────────────────────────
 function TabelaModelos() {
@@ -150,10 +217,18 @@ function TabelaModelos() {
                     <td className="px-4 py-2.5"><Badge variant="outline" className="text-xs">{m.produto}</Badge></td>
                     <td className="px-4 py-2.5 font-medium">{m.modelo}</td>
                     <td className="px-4 py-2.5">
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap items-center gap-1">
                         {maqsToArray(m.maquinas).length > 0
-                          ? maqsToArray(m.maquinas).map(mq => (
-                            <Badge key={mq} variant="secondary" className="text-xs font-semibold">{mq}</Badge>
+                          ? maqsToArray(m.maquinas).map((mq, idx, arr) => (
+                            <React.Fragment key={mq}>
+                              <Badge
+                                variant="secondary"
+                                className={`text-xs font-semibold ${mq === "COLAGEM" ? "bg-orange-100 text-orange-700 border-orange-300" : ""}`}
+                              >
+                                <span className="text-[10px] opacity-60 mr-1">#{idx + 1}</span>{mq}
+                              </Badge>
+                              {idx < arr.length - 1 && <span className="text-muted-foreground text-xs">→</span>}
+                            </React.Fragment>
                           ))
                           : <span className="text-muted-foreground text-xs">—</span>
                         }
