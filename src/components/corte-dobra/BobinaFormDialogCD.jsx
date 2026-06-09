@@ -12,7 +12,7 @@ import ReservaPanel from "@/components/bobinas/ReservaPanel";
 const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "ALZ"];
 
 const BLANK_FORM = (codigoCD) => ({
-  cor: "", chapa: "", qualidade: "", largura_mm: "", peso_kg: "", peso_inicial: "",
+  chapa: "", qualidade: "", largura_mm: "", peso_kg: "", peso_inicial: "",
   codigo: codigoCD, nf: "", custo: "", fornecedor: "",
   data_recebimento: new Date().toISOString().slice(0, 10),
   observacoes: "",
@@ -37,7 +37,6 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
     if (!open) return;
     if (editItem) {
       setForm({
-        cor: editItem.cor || "",
         chapa: editItem.chapa || "",
         qualidade: editItem.qualidade || "",
         largura_mm: editItem.largura_mm || "",
@@ -162,12 +161,6 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
               <Label>Chapa Real *</Label>
               <Input placeholder="Ex: 0,43" value={form.chapa} onChange={e => set("chapa", e.target.value)} />
             </div>
-          </div>
-
-          {/* Cor */}
-          <div className="space-y-1">
-            <Label>Cor / Material</Label>
-            <Input placeholder="Ex: Galvanizado, Zincado, Pintado Branco..." value={form.cor} onChange={e => set("cor", e.target.value)} />
           </div>
 
           {/* Largura + Custo */}
