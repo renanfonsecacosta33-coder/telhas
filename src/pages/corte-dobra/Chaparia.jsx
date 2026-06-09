@@ -94,7 +94,7 @@ export default function Chaparia() {
   });
 
   const filtradas = chapas.filter(c => {
-    const matchBusca = !busca || [c.bobina_descricao, c.numero_pedido, c.cliente].some(v => v?.toLowerCase().includes(busca.toLowerCase()));
+    const matchBusca = !busca || [c.codigo, c.bobina_descricao, c.numero_pedido, c.cliente].some(v => v?.toLowerCase().includes(busca.toLowerCase()));
     const matchStatus = filtroStatus === "todos" || c.status === filtroStatus || (filtroStatus === "disponivel" && !c.status);
     const matchDestino = filtroDestino === "todos" || c.destino === filtroDestino;
     return matchBusca && matchStatus && matchDestino;
