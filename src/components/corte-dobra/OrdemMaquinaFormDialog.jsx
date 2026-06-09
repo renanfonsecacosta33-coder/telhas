@@ -61,16 +61,19 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     observacoes: "",
   });
 
-  const { data: chapas = [] } = useQuery({
-    queryKey: ["chapas-cd-disponiveis"],
-    queryFn: () => base44.entities.ChapaCD.filter({ status: "disponivel" }),
-    enabled: open && form.chapa_origem === "chaparia",
-  });
+  // chapas usadas abaixo via todasChapas
 
   const { data: bobinasSliter = [] } = useQuery({
     queryKey: ["bobinas-sliter-cd"],
     queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false }),
     enabled: open && (form.chapa_origem === "direto" || form.maquina === "PERFILADEIRA"),
+  });
+
+  // chapas disponíveis = disponivel OU parcial, filtrar reservadas ao renderizar
+  const { data: todasChapas = [] } = useQuery({
+    queryKey: ["chapas-cd-todas"],
+    queryFn: () => base44.entities.ChapaCD.list("-created_date", 200),
+    enabled: open && form.chapa_origem === "chaparia",
   });
 
   useEffect(() => {
@@ -110,6 +113,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
+  const chapas = todasChapas.filter(c => c.status === "disponivel" || c.status === "parcial");
   const chapaObj = chapas.find(c => c.id === form.chapa_cd_id);
   const bobinaObj = bobinasSliter.find(b => b.id === form.bobina_id);
 
@@ -205,13 +209,24 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
                 <SelectTrigger><SelectValue placeholder="Selecione a chapa..." /></SelectTrigger>
                 <SelectContent>
                   {chapas.length === 0 && <SelectItem value="_empty" disabled>Nenhuma chapa disponível</SelectItem>}
-                  {chapas.map(c => (
-                    <SelectItem key={c.id} value={c.id}>
-                      <span className="font-mono text-sm">{c.bobina_descricao || "—"}</span>
-                      <span className="text-muted-foreground ml-2">{c.comprimento_mm}mm</span>
-                      <span className="text-green-600 ml-2">{c.quantidade_disponivel}pç</span>
-                    </SelectItem>
-                  ))}
+                  {chapas.map(c => {
+                    const reservada = c.destino === "pedido_direto";
+                    const reservadaParaOutro = reservada && c.numero_pedido && c.numero_pedido !== form.numero_pedido;
+                    return (
+                      <SelectItem key={c.id} value={c.id} disabled={reservadaParaOutro}>
+                        <span className="font-mono font-bold text-sm">{c.codigo || "—"}</span>
+                        <span className="text-muted-foreground ml-2">{c.bobina_descricao || "—"}</span>
+                        <span className="text-muted-foreground ml-2">{c.comprimento_mm}mm</span>
+                        <span className="text-green-600 ml-2">{c.quantidade_disponivel}pç</span>
+                        {reservada && !reservadaParaOutro && (
+                          <span className="text-amber-600 ml-2 text-xs font-bold">🔒 Ped. {c.numero_pedido}</span>
+                        )}
+                        {reservadaParaOutro && (
+                          <span className="text-red-500 ml-2 text-xs font-bold">🚫 Reservada — Ped. {c.numero_pedido}</span>
+                        )}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
               {chapaObj && (
@@ -230,13 +245,22 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
               <Select value={form.bobina_id} onValueChange={v => set("bobina_id", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione a bobina..." /></SelectTrigger>
                 <SelectContent>
-                  {bobinasSliter.map(b => (
-                    <SelectItem key={b.id} value={b.id}>
-                      <span className="font-mono font-bold">{b.codigo || "—"}</span>
-                      {b.chapa && <span className="text-muted-foreground ml-2">{b.chapa}</span>}
-                      {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
-                    </SelectItem>
-                  ))}
+                  {bobinasSliter.map(b => {
+                    const reservadaParaOutro = b.reservada && b.reserva_numero_pedido && b.reserva_numero_pedido !== form.numero_pedido;
+                    return (
+                      <SelectItem key={b.id} value={b.id} disabled={reservadaParaOutro}>
+                        <span className="font-mono font-bold">{b.codigo || "—"}</span>
+                        {b.chapa && <span className="text-muted-foreground ml-2">{b.chapa}</span>}
+                        {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
+                        {b.reservada && !reservadaParaOutro && (
+                          <span className="text-amber-600 ml-2 text-xs font-bold">🔒 Ped. {b.reserva_numero_pedido}</span>
+                        )}
+                        {reservadaParaOutro && (
+                          <span className="text-red-500 ml-2 text-xs font-bold">🚫 Reservada — Ped. {b.reserva_numero_pedido}</span>
+                        )}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>

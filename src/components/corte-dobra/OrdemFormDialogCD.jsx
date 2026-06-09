@@ -64,7 +64,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
 
   const { data: bobinas = [] } = useQuery({
     queryKey: ["bobinas-cd-ativas"],
-    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false, reservada: false }),
+    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false }),
     enabled: open,
   });
 
@@ -148,17 +148,26 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                 {bobinas.length === 0 && (
                   <div className="px-3 py-4 text-sm text-muted-foreground text-center">Nenhuma bobina ativa</div>
                 )}
-                {bobinas.map(b => (
-                  <SelectItem key={b.id} value={b.id}>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono font-bold text-sm">{b.codigo || "—"}</span>
-                      {b.chapa && <span className="text-muted-foreground text-xs">{b.chapa}mm</span>}
-                      {b.cor && <span className="text-blue-600 text-xs font-medium">{b.cor}</span>}
-                      {b.largura_mm && <span className="text-xs text-muted-foreground">{b.largura_mm}mm larg.</span>}
-                      {b.peso_kg && <span className="text-xs text-muted-foreground">{b.peso_kg}kg</span>}
-                    </div>
-                  </SelectItem>
-                ))}
+                {bobinas.map(b => {
+                  const isReservadaParaOutro = b.reservada && b.reserva_numero_pedido && b.reserva_numero_pedido !== form.numero_pedido;
+                  return (
+                    <SelectItem key={b.id} value={b.id} disabled={isReservadaParaOutro}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono font-bold text-sm">{b.codigo || "—"}</span>
+                        {b.chapa && <span className="text-muted-foreground text-xs">{b.chapa}mm</span>}
+                        {b.cor && <span className="text-blue-600 text-xs font-medium">{b.cor}</span>}
+                        {b.largura_mm && <span className="text-xs text-muted-foreground">{b.largura_mm}mm larg.</span>}
+                        {b.peso_kg && <span className="text-xs text-muted-foreground">{b.peso_kg}kg</span>}
+                        {b.reservada && !isReservadaParaOutro && (
+                          <span className="text-amber-600 text-xs font-bold">🔒 Reservada p/ pedido {b.reserva_numero_pedido}</span>
+                        )}
+                        {isReservadaParaOutro && (
+                          <span className="text-red-500 text-xs font-bold">🚫 Reservada — Pedido {b.reserva_numero_pedido}{b.reserva_motivo ? ` (${b.reserva_motivo})` : ""}</span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
 
