@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2 } from "lucide-react";
+import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
 
@@ -33,7 +33,7 @@ function StatusBadge({ status }) {
   );
 }
 
-export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, isGestor }) {
+export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, isGestor }) {
   const [pauseDialog, setPauseDialog] = useState(false);
   const [pauseMotivo, setPauseMotivo] = useState("");
   const [pauseTipo, setPauseTipo] = useState("setup");
@@ -277,6 +277,12 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, isGestor }) 
           )}
           {o.status === "finalizado" && !isGestor && (
             <span className="text-xs text-muted-foreground italic">Finalizado — bloqueado</span>
+          )}
+          {isGestor && (
+            <Button size="sm" variant="outline" className="gap-1 text-red-600 border-red-300 hover:bg-red-50"
+              onClick={() => { if (window.confirm("Excluir esta ordem? Esta ação não pode ser desfeita.")) onDelete(o.id); }}>
+              <Trash2 className="w-3 h-3" /> Excluir
+            </Button>
           )}
         </div>
       </div>

@@ -56,6 +56,10 @@ export default function Desbobinadeira() {
     mutationFn: ({ id, data }) => base44.entities.OrdemDesbobinadeira.update(id, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] }),
   });
+  const deleteOrdem = useMutation({
+    mutationFn: (id) => base44.entities.OrdemDesbobinadeira.delete(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] }); toast.success("Ordem excluída!"); },
+  });
   const createOrdem = useMutation({
     mutationFn: (data) => base44.entities.OrdemDesbobinadeira.create(data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] }); setDialog(false); toast.success("Ordem criada!"); },
@@ -211,7 +215,7 @@ export default function Desbobinadeira() {
                   <div className="p-4 space-y-3">
                     {ordensDoDia.map(o => (
                       <div key={o.id}>
-                        <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} isGestor={isGestor} />
+                        <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} />
                         {isGestor && o.status === "pendente" && (
                           <div className="flex justify-end mt-1">
                             <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
@@ -255,7 +259,7 @@ export default function Desbobinadeira() {
             <div className="p-4 space-y-3">
               {ordensDia.map(o => (
                 <div key={o.id}>
-                  <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} isGestor={isGestor} />
+                  <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} />
                   {isGestor && o.status === "pendente" && (
                     <div className="flex justify-end mt-1">
                       <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
