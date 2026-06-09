@@ -55,6 +55,7 @@ import Corte6m from '@/pages/corte-dobra/maquinas/Corte6m';
 import DobraFundo6m from '@/pages/corte-dobra/maquinas/DobraFundo6m';
 import DobraInicio6m from '@/pages/corte-dobra/maquinas/DobraInicio6m';
 import Perfiladeira from '@/pages/corte-dobra/maquinas/Perfiladeira';
+import Desbobinadeira from '@/pages/corte-dobra/maquinas/Desbobinadeira';
 import MapaBarracao from '@/pages/corte-dobra/MapaBarracao';
 import MapaBarracaoTelhas from '@/pages/MapaBarracaoTelhas';
 
@@ -135,6 +136,7 @@ const AuthenticatedApp = () => {
         <Route path="/corte-dobra/maquina/dobra-fundo-6m" element={<DobraFundo6m />} />
         <Route path="/corte-dobra/maquina/dobra-inicio-6m" element={<DobraInicio6m />} />
         <Route path="/corte-dobra/maquina/perfiladeira" element={<Perfiladeira />} />
+        <Route path="/corte-dobra/maquina/desbobinadeira" element={<Desbobinadeira />} />
         <Route path="/corte-dobra/mapa" element={<MapaBarracao />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />

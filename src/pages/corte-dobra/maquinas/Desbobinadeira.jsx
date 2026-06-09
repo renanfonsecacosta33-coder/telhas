@@ -1,0 +1,280 @@
+import React, { useState, useEffect, useMemo } from "react";
+import { base44 } from "@/api/base44Client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Plus, ChevronLeft, ChevronRight, Calendar, Factory } from "lucide-react";
+import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
+import OrdemFormDialogCD from "@/components/corte-dobra/OrdemFormDialogCD";
+import OrdemDesbobinadiraRow from "@/components/corte-dobra/OrdemDesbobinadiraRow";
+
+export default function Desbobinadeira() {
+  const [user, setUser] = useState(null);
+  const [currentWeek, setCurrentWeek] = useState(new Date());
+  const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [viewMode, setViewMode] = useState("dia");
+  const [dialog, setDialog] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    base44.auth.me().then(setUser).catch(() => {});
+  }, []);
+
+  const isGestor = user?.role === "admin" || user?.full_name?.toLowerCase().includes("hudson");
+  const maquinaDoUsuario = user?.maquina;
+  const isOperadorRestrito = user && !isGestor;
+
+  const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
+  const diasDaSemana = eachDayOfInterval({ start: weekStart, end: weekEnd });
+
+  const { data: ordens = [], isLoading } = useQuery({
+    queryKey: ["ordens-desbobinadeira"],
+    queryFn: () => base44.entities.OrdemDesbobinadeira.list("-data", 500),
+    refetchInterval: 10000,
+  });
+
+  const ordensSemana = useMemo(() => {
+    const s = format(weekStart, "yyyy-MM-dd");
+    const e = format(weekEnd, "yyyy-MM-dd");
+    return ordens.filter(o => o.data >= s && o.data <= e);
+  }, [ordens, weekStart, weekEnd]);
+
+  const ordensDia = useMemo(
+    () => [...ordens.filter(o => o.data === selectedDay)].sort((a, b) => {
+      const ord = { em_producao: 0, pausado: 1, pendente: 2, finalizado: 3, cancelado: 4 };
+      return (ord[a.status] ?? 2) - (ord[b.status] ?? 2);
+    }),
+    [ordens, selectedDay]
+  );
+
+  const updateOrdem = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.OrdemDesbobinadeira.update(id, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] }),
+  });
+  const createOrdem = useMutation({
+    mutationFn: (data) => base44.entities.OrdemDesbobinadeira.create(data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] }); setDialog(false); toast.success("Ordem criada!"); },
+  });
+
+  const handleSave = (data) => {
+    if (editItem && !editItem._presets && editItem.id) {
+      updateOrdem.mutate({ id: editItem.id, data });
+      setDialog(false);
+    } else {
+      createOrdem.mutate(data);
+    }
+  };
+
+  const openNew = (date = null) => {
+    setEditItem(date ? { _presets: { data: date } } : null);
+    setDialog(true);
+  };
+  const openEdit = (item) => { setEditItem(item); setDialog(true); };
+
+  const totalSemana = ordensSemana.length;
+  const finalizadasSemana = ordensSemana.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
+
+  // Operador sem máquina configurada
+  if (user && isOperadorRestrito && !maquinaDoUsuario) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+          <span className="text-3xl">🔧</span>
+        </div>
+        <h2 className="text-xl font-bold mb-2">Máquina não configurada</h2>
+        <p className="text-muted-foreground max-w-sm">Peça ao administrador para configurar a máquina associada ao seu usuário.</p>
+      </div>
+    );
+  }
+
+  // Operador de outra máquina
+  if (user && isOperadorRestrito && maquinaDoUsuario && maquinaDoUsuario !== "DESBOBINADEIRA") {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+          <span className="text-3xl">🚫</span>
+        </div>
+        <h2 className="text-xl font-bold mb-2">Acesso restrito</h2>
+        <p className="text-muted-foreground max-w-sm">Você só pode acessar as ordens da sua máquina: <strong>{maquinaDoUsuario}</strong>.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <Factory className="w-6 h-6 text-orange-500" />
+            Desbobinadeira
+          </h1>
+          <p className="text-sm text-muted-foreground">Ordens de produção — Corte e Dobra</p>
+        </div>
+        {isGestor && (
+          <Button onClick={() => openNew(selectedDay)} className="gap-2 bg-orange-500 hover:bg-orange-600">
+            <Plus className="w-4 h-4" /> Nova Ordem
+          </Button>
+        )}
+      </div>
+
+      {/* Navegação semana */}
+      <div className="bg-card border border-border rounded-xl p-4">
+        <div className="flex items-center justify-between mb-4">
+          <Button variant="outline" size="icon" onClick={() => setCurrentWeek(w => subWeeks(w, 1))}>
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <div className="text-center">
+            <p className="font-bold text-base">
+              {format(weekStart, "dd 'de' MMM", { locale: ptBR })} — {format(weekEnd, "dd 'de' MMM yyyy", { locale: ptBR })}
+            </p>
+            <Badge variant="outline" className="text-xs mt-1">
+              {totalSemana} ordens · {finalizadasSemana} peças finalizadas
+            </Badge>
+          </div>
+          <Button variant="outline" size="icon" onClick={() => setCurrentWeek(w => addWeeks(w, 1))}>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {diasDaSemana.map(dia => {
+            const diaStr = format(dia, "yyyy-MM-dd");
+            const cnt = ordensSemana.filter(o => o.data === diaStr).length;
+            const isSelected = selectedDay === diaStr;
+            const isHoje = isToday(dia);
+            return (
+              <button key={diaStr} onClick={() => { setSelectedDay(diaStr); setViewMode("dia"); }}
+                className={`rounded-lg p-2 text-center transition-all border ${isSelected ? "bg-orange-500 text-white border-orange-500" : isHoje ? "border-orange-400/50 bg-orange-50" : "border-border hover:bg-muted/50"}`}>
+                <p className="text-xs font-semibold uppercase">{format(dia, "EEE", { locale: ptBR })}</p>
+                <p className="text-lg font-bold">{format(dia, "dd")}</p>
+                {cnt > 0 && (
+                  <div className={`text-xs mt-0.5 ${isSelected ? "text-white/80" : "text-muted-foreground"}`}>
+                    {cnt}o
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Toggles */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button variant={viewMode === "semana" ? "default" : "outline"} size="sm" onClick={() => setViewMode("semana")}>Visão Semana</Button>
+        <Button variant={viewMode === "dia" ? "default" : "outline"} size="sm"
+          className={viewMode === "dia" ? "bg-orange-500 hover:bg-orange-600 border-0" : ""}
+          onClick={() => setViewMode("dia")}>
+          Dia — {format(new Date(selectedDay + "T12:00:00"), "dd/MM", { locale: ptBR })}
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => { setSelectedDay(format(new Date(), "yyyy-MM-dd")); setCurrentWeek(new Date()); setViewMode("dia"); }} className="gap-1">
+          <Calendar className="w-3 h-3" /> Hoje
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <div className="w-8 h-8 border-4 border-muted border-t-orange-500 rounded-full animate-spin" />
+        </div>
+      ) : viewMode === "semana" ? (
+        /* VISÃO SEMANA */
+        <div className="space-y-3">
+          {diasDaSemana.map(dia => {
+            const diaStr = format(dia, "yyyy-MM-dd");
+            const ordensDoDia = ordensSemana.filter(o => o.data === diaStr);
+            const finalizadas = ordensDoDia.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
+            return (
+              <div key={diaStr} className="bg-card border border-border rounded-xl overflow-hidden">
+                <div className="px-4 py-3 flex items-center justify-between border-b border-border">
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold capitalize text-sm">{format(dia, "EEEE, dd/MM", { locale: ptBR })}</span>
+                    {isToday(dia) && <Badge className="text-xs bg-orange-500 text-white">Hoje</Badge>}
+                    <span className="text-xs text-muted-foreground">{ordensDoDia.length} ordem(ns)</span>
+                    {finalizadas > 0 && <span className="text-xs font-bold text-green-600">{finalizadas} pç ✓</span>}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setSelectedDay(diaStr); setViewMode("dia"); }}>Ver dia</Button>
+                    {isGestor && (
+                      <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={() => openNew(diaStr)}>
+                        <Plus className="w-3 h-3" /> Adicionar
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {ordensDoDia.length === 0 ? (
+                  <div className="px-4 py-4 text-xs text-muted-foreground text-center">Sem ordens</div>
+                ) : (
+                  <div className="p-4 space-y-3">
+                    {ordensDoDia.map(o => (
+                      <div key={o.id}>
+                        <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} isGestor={isGestor} />
+                        {isGestor && o.status === "pendente" && (
+                          <div className="flex justify-end mt-1">
+                            <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* VISÃO DIA */
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="px-4 py-3 flex items-center justify-between border-b border-border">
+            <div className="flex items-center gap-3">
+              <span className="font-bold capitalize text-sm">
+                {format(new Date(selectedDay + "T12:00:00"), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+              </span>
+              <Badge variant="outline" className="text-xs">{ordensDia.length} ordens</Badge>
+            </div>
+            {isGestor && (
+              <Button variant="ghost" size="sm" onClick={() => openNew(selectedDay)} className="h-7 gap-1 text-xs">
+                <Plus className="w-3 h-3" /> Adicionar
+              </Button>
+            )}
+          </div>
+          {ordensDia.length === 0 ? (
+            <div className="px-4 py-12 flex flex-col items-center gap-3">
+              <Factory className="w-10 h-10 text-muted-foreground/20" />
+              <p className="text-sm text-muted-foreground">Nenhuma ordem para este dia</p>
+              {isGestor && (
+                <Button size="sm" onClick={() => openNew(selectedDay)} className="gap-1 mt-1 bg-orange-500 hover:bg-orange-600">
+                  <Plus className="w-3 h-3" /> Nova Ordem
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="p-4 space-y-3">
+              {ordensDia.map(o => (
+                <div key={o.id}>
+                  <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} isGestor={isGestor} />
+                  {isGestor && o.status === "pendente" && (
+                    <div className="flex justify-end mt-1">
+                      <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <OrdemFormDialogCD
+        open={dialog}
+        onClose={() => { setDialog(false); setEditItem(null); }}
+        onSave={handleSave}
+        editItem={editItem && !editItem._presets ? editItem : null}
+        defaultDate={editItem?._presets?.data || selectedDay}
+      />
+    </div>
+  );
+}
