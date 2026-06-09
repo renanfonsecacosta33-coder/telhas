@@ -309,12 +309,14 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   const precisaBobinaInferior = ["TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(form.produto);
   const isEditing = editItem && !editItem._presets;
 
-  // Bobinas ativas ordenadas por chapa
-  const bobinasList = [...bobinas].sort((a, b) => {
-    const ca = `${a.chapa}${a.qualidade}${a.cor}`.toLowerCase();
-    const cb = `${b.chapa}${b.qualidade}${b.cor}`.toLowerCase();
-    return ca.localeCompare(cb);
-  });
+  // Bobinas ativas NÃO reservadas, ordenadas por chapa
+  const bobinasList = [...bobinas]
+    .filter(b => !b.reservada)
+    .sort((a, b) => {
+      const ca = `${a.chapa}${a.qualidade}${a.cor}`.toLowerCase();
+      const cb = `${b.chapa}${b.qualidade}${b.cor}`.toLowerCase();
+      return ca.localeCompare(cb);
+    });
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
