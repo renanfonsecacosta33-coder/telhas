@@ -5,10 +5,62 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Pencil, Check, X } from "lucide-react";
+import { Plus, Trash2, Pencil, Check, X, ChevronDown } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 
 const PRODUTOS = ["TELHA", "TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA", "BOBININHA", "CUMEEIRA", "PAINEL"];
+
+const MAQUINAS_DISPONIVEIS = [
+  "TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA",
+  "DESBOBINADOR", "CUMEEIRA", "COLAGEM"
+];
+
+// converte string "TP - 25, TP - 40" <-> array ["TP - 25","TP - 40"]
+const maqsToArray = (str) => str ? str.split(",").map(s => s.trim()).filter(Boolean) : [];
+const maqsToString = (arr) => arr.join(", ");
+
+function MaquinasSelect({ value, onChange }) {
+  const selected = maqsToArray(value);
+  const toggle = (m) => {
+    const next = selected.includes(m) ? selected.filter(x => x !== m) : [...selected, m];
+    onChange(maqsToString(next));
+  };
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className="flex items-center gap-1 min-w-[120px] h-8 rounded-md border border-input bg-transparent px-2 text-xs text-left hover:bg-muted/40 transition-colors">
+          <span className="flex-1 truncate">
+            {selected.length === 0 ? <span className="text-muted-foreground">Selecionar...</span> : selected.join(", ")}
+          </span>
+          <ChevronDown className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-52 p-2" align="start">
+        <p className="text-xs font-semibold text-muted-foreground mb-2 px-1">Máquinas (pode selecionar várias)</p>
+        <div className="space-y-1">
+          {MAQUINAS_DISPONIVEIS.map(m => (
+            <button
+              key={m}
+              onClick={() => toggle(m)}
+              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors ${selected.includes(m) ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+            >
+              <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${selected.includes(m) ? "border-primary-foreground bg-primary-foreground/20" : "border-muted-foreground"}`}>
+                {selected.includes(m) && <Check className="w-2.5 h-2.5" />}
+              </div>
+              {m}
+            </button>
+          ))}
+        </div>
+        {selected.length > 0 && (
+          <button onClick={() => onChange("")} className="w-full mt-2 text-xs text-muted-foreground hover:text-destructive border-t pt-2">
+            Limpar seleção
+          </button>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 // ─── Modelos de Produto ─────────────────────────────────────────
 function TabelaModelos() {
@@ -67,7 +119,7 @@ function TabelaModelos() {
                   </Select>
                 </td>
                 <td className="px-3 py-2"><Input className="h-8 text-xs" placeholder="ex: TP-40 RVM" value={form.modelo} onChange={e => setForm(f => ({ ...f, modelo: e.target.value }))} /></td>
-                <td className="px-3 py-2"><Input className="h-8 text-xs" placeholder="ex: TP-25, TP-40" value={form.maquinas} onChange={e => setForm(f => ({ ...f, maquinas: e.target.value }))} /></td>
+                <td className="px-3 py-2"><MaquinasSelect value={form.maquinas} onChange={v => setForm(f => ({ ...f, maquinas: v }))} /></td>
                 <td className="px-3 py-2"><Input className="h-8 text-xs" placeholder="ex: 0,43 / 0,50 / 0,65" value={form.espessuras} onChange={e => setForm(f => ({ ...f, espessuras: e.target.value }))} /></td>
                 <td className="px-3 py-2 flex gap-1">
                   <Button size="icon" className="h-7 w-7" onClick={() => createM.mutate(form)}><Check className="w-3 h-3" /></Button>
@@ -86,7 +138,7 @@ function TabelaModelos() {
                       </Select>
                     </td>
                     <td className="px-3 py-2"><Input className="h-8 text-xs" value={editForm.modelo} onChange={e => setEditForm(f => ({ ...f, modelo: e.target.value }))} /></td>
-                    <td className="px-3 py-2"><Input className="h-8 text-xs" value={editForm.maquinas} onChange={e => setEditForm(f => ({ ...f, maquinas: e.target.value }))} /></td>
+                    <td className="px-3 py-2"><MaquinasSelect value={editForm.maquinas} onChange={v => setEditForm(f => ({ ...f, maquinas: v }))} /></td>
                     <td className="px-3 py-2"><Input className="h-8 text-xs" value={editForm.espessuras} onChange={e => setEditForm(f => ({ ...f, espessuras: e.target.value }))} /></td>
                     <td className="px-3 py-2 flex gap-1">
                       <Button size="icon" className="h-7 w-7" onClick={() => updateM.mutate({ id: m.id, d: editForm })}><Check className="w-3 h-3" /></Button>
@@ -97,7 +149,16 @@ function TabelaModelos() {
                   <>
                     <td className="px-4 py-2.5"><Badge variant="outline" className="text-xs">{m.produto}</Badge></td>
                     <td className="px-4 py-2.5 font-medium">{m.modelo}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{m.maquinas || "—"}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex flex-wrap gap-1">
+                        {maqsToArray(m.maquinas).length > 0
+                          ? maqsToArray(m.maquinas).map(mq => (
+                            <Badge key={mq} variant="secondary" className="text-xs font-semibold">{mq}</Badge>
+                          ))
+                          : <span className="text-muted-foreground text-xs">—</span>
+                        }
+                      </div>
+                    </td>
                     <td className="px-4 py-2.5 text-muted-foreground">{m.espessuras || "—"}</td>
                     <td className="px-4 py-2.5">
                       <div className="flex gap-1">
