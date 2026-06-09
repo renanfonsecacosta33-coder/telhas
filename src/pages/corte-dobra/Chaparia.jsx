@@ -8,8 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
-  Layers, Package, ShoppingCart, Warehouse, Search, Ruler,
-  CheckCircle2, AlertCircle, Clock, Trash2, Edit2, RefreshCw
+  Layers, ShoppingCart, Warehouse, Search, Ruler,
+  CheckCircle2, Clock, Trash2, Edit2, RefreshCw, Camera, X
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -76,6 +76,7 @@ export default function Chaparia() {
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [filtroDestino, setFiltroDestino] = useState("todos");
   const [editChapa, setEditChapa] = useState(null);
+  const [fotoViewer, setFotoViewer] = useState(null);
 
   const { data: chapas = [], isLoading } = useQuery({
     queryKey: ["chapas-cd"],
@@ -188,7 +189,10 @@ export default function Chaparia() {
                 {/* Info principal */}
                 <div className="flex-1 min-w-0 space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-sm font-mono">{c.bobina_descricao || "Bobina"}</span>
+                    {c.codigo && (
+                      <span className="font-black text-base font-mono text-foreground">{c.codigo}</span>
+                    )}
+                    <span className="font-semibold text-sm text-muted-foreground">{c.bobina_descricao || "Bobina"}</span>
                     <StatusBadge status={c.status} destino={c.destino} numeroPedido={c.numero_pedido} />
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
@@ -220,6 +224,11 @@ export default function Chaparia() {
 
                 {/* Ações */}
                 <div className="flex items-center gap-2">
+                  {c.foto_finalizacao_url && (
+                    <Button size="sm" variant="outline" className="gap-1" onClick={() => setFotoViewer(c.foto_finalizacao_url)}>
+                      <Camera className="w-3 h-3" /> Foto
+                    </Button>
+                  )}
                   <Button
                     size="sm" variant="outline"
                     className="gap-1"
@@ -227,13 +236,6 @@ export default function Chaparia() {
                     disabled={isConsumed}
                   >
                     <Edit2 className="w-3 h-3" /> Editar
-                  </Button>
-                  <Button
-                    size="sm" variant="ghost"
-                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                    onClick={() => { if (confirm("Remover esta chapa do estoque?")) deleteMut.mutate(c.id); }}
-                  >
-                    <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
@@ -249,6 +251,18 @@ export default function Chaparia() {
         onClose={() => setEditChapa(null)}
         onSave={(data) => updateMut.mutate({ id: editChapa.id, data })}
       />
+
+      {/* Viewer foto */}
+      {fotoViewer && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setFotoViewer(null)}>
+          <div className="relative max-w-2xl w-full">
+            <button className="absolute -top-10 right-0 text-white hover:text-slate-300" onClick={() => setFotoViewer(null)}>
+              <X className="w-7 h-7" />
+            </button>
+            <img src={fotoViewer} alt="Foto de finalização" className="w-full rounded-xl shadow-2xl object-contain max-h-[80vh]" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

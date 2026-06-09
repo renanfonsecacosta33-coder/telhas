@@ -127,8 +127,18 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, isGestor }) 
             peso_kg: Math.max(0, (bobina.peso_kg || 0) - o.kg_estimado),
           });
         }
+        // Gera código automático CH0001, CH0002 ...
+        const todasChapas = await base44.entities.ChapaCD.list("-created_date", 500).catch(() => []);
+        let maxNum = 0;
+        todasChapas.forEach(c => {
+          const m = c.codigo && c.codigo.match(/^CH(\d+)$/i);
+          if (m) { const n = parseInt(m[1], 10); if (n > maxNum) maxNum = n; }
+        });
+        const novoCodigo = `CH${String(maxNum + 1).padStart(4, "0")}`;
+
         // Cria ChapaCD no estoque da Chaparia
         await base44.entities.ChapaCD.create({
+          codigo: novoCodigo,
           origem: "desbobinadeira",
           ordem_id: o.id,
           bobina_id: o.bobina_id,
@@ -141,7 +151,8 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, isGestor }) 
           numero_pedido: o.numero_pedido || null,
           cliente: o.cliente || null,
           data_corte: format(new Date(), "yyyy-MM-dd"),
-          status: o.destino === "pedido_direto" ? "disponivel" : "disponivel",
+          status: "disponivel",
+          foto_finalizacao_url: file_url,
           observacoes: o.observacoes || null,
         });
       }
@@ -258,10 +269,8 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, isGestor }) 
               <Play className="w-3 h-3" /> Retomar
             </Button>
           )}
-          {isGestor && o.status === "finalizado" && (
-            <Button size="sm" variant="outline" className="gap-1 text-slate-500" onClick={() => onUpdate(o.id, { status: "pendente", inicio_producao_ts: null })}>
-              ↩ Reabrir
-            </Button>
+          {o.status === "finalizado" && (
+            <span className="text-xs text-muted-foreground italic">Finalizado — bloqueado</span>
           )}
         </div>
       </div>
