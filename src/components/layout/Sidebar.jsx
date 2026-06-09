@@ -25,6 +25,17 @@ const FIXED_NAV = [
   { path: "/mapa-barracao", label: "Mapa do Barracão", icon: Map },
 ];
 
+const MAQUINA_ROUTE_MAP = {
+  "TP - 40": "/maquina/tp40",
+  "TP - 25": "/maquina/tp25",
+  "ONDULADA": "/maquina/ondulada",
+  "COLONIAL": "/maquina/colonial",
+  "BANDEJA": "/maquina/bandeja",
+  "DESBOBINADOR": "/maquina/desbobinador",
+  "CUMEEIRA": "/maquina/cumeeira",
+  "COLAGEM": "/maquina/colagem",
+};
+
 export default function Sidebar({ isOpen, onToggle }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -35,6 +46,7 @@ export default function Sidebar({ isOpen, onToggle }) {
   }, []);
 
   const isAdmin = user?.role === "admin";
+  const isOperador = user?.role !== "admin" && !!user;
   const isAmbos = user?.setor === "ambos" || isAdmin;
 
   const { data: categorias = [] } = useQuery({
@@ -119,29 +131,42 @@ export default function Sidebar({ isOpen, onToggle }) {
 
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mb-3">
-            Principal
-          </p>
-          {FIXED_NAV.map(renderLink)}
-
-          {dynamicItems.length > 0 && (
+          {isOperador ? (
             <>
-              <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mt-5 mb-3">
-                Categorias
+              <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mb-3">
+                Minha Máquina
               </p>
-              {dynamicItems.map(renderLink)}
+              {user?.maquina && MAQUINA_ROUTE_MAP[user.maquina] && renderLink({
+                path: MAQUINA_ROUTE_MAP[user.maquina],
+                label: user.maquina,
+                icon: Factory,
+              })}
+              {renderLink({ path: "/calculadora-isopor", label: "Calculadora Isopor", icon: Snowflake })}
             </>
-          )}
-
-
-
-          {/* Admin only */}
-          {isAdmin && (
+          ) : (
             <>
-              <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mt-5 mb-3">
-                Administração
+              <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mb-3">
+                Principal
               </p>
-              {renderLink({ path: "/usuarios", label: "Usuários", icon: Users })}
+              {FIXED_NAV.map(renderLink)}
+
+              {dynamicItems.length > 0 && (
+                <>
+                  <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mt-5 mb-3">
+                    Categorias
+                  </p>
+                  {dynamicItems.map(renderLink)}
+                </>
+              )}
+
+              {isAdmin && (
+                <>
+                  <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mt-5 mb-3">
+                    Administração
+                  </p>
+                  {renderLink({ path: "/usuarios", label: "Usuários", icon: Users })}
+                </>
+              )}
             </>
           )}
         </nav>

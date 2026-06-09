@@ -47,7 +47,17 @@ export default function SidebarCD({ isOpen, onToggle }) {
   }, []);
 
   const isAdmin = user?.role === "admin";
+  const isOperador = user?.role !== "admin" && !!user;
   const isAmbos = user?.setor === "ambos" || isAdmin;
+
+  const MAQUINA_CD_ROUTE_MAP = {
+    "CORTE 3M": "/corte-dobra/maquina/corte-3m",
+    "DOBRA 3M": "/corte-dobra/maquina/dobra-3m",
+    "CORTE 6M": "/corte-dobra/maquina/corte-6m",
+    "DOBRA FUNDO 6M": "/corte-dobra/maquina/dobra-fundo-6m",
+    "DOBRA INICIO 6M": "/corte-dobra/maquina/dobra-inicio-6m",
+    "PERFILADEIRA": "/corte-dobra/maquina/perfiladeira",
+  };
 
   const renderLink = (item) => {
     const isActive = location.pathname === item.path;
@@ -115,51 +125,67 @@ export default function SidebarCD({ isOpen, onToggle }) {
 
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mb-3">
-            Principal
-          </p>
-          {NAV.map(renderLink)}
-
-          {/* Máquinas individuais */}
-          <div>
-            <button
-              onClick={() => setMaquinasOpen(o => !o)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all"
-            >
-              <Wrench className="w-4 h-4 flex-shrink-0" />
-              <span className="flex-1 text-left">Máquinas</span>
-              {maquinasOpen ? <ChevronDown className="w-4 h-4 opacity-60" /> : <ChevronRight className="w-4 h-4 opacity-60" />}
-            </button>
-            {maquinasOpen && (
-              <div className="ml-4 mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
-                {MAQUINAS_NAV.map(item => {
-                  const isActive = location.pathname === item.path;
-                  return (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      onClick={() => window.innerWidth < 1024 && onToggle()}
-                      className={cn(
-                        "flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-medium transition-all",
-                        isActive
-                          ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                          : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                      )}
-                    >
-                      <span>{item.label}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {isAdmin && (
+          {isOperador ? (
             <>
-              <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mt-5 mb-3">
-                Administração
+              <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mb-3">
+                Minha Máquina
               </p>
-              {ADMIN_NAV.map(renderLink)}
+              {user?.maquina && MAQUINA_CD_ROUTE_MAP[user.maquina] && renderLink({
+                path: MAQUINA_CD_ROUTE_MAP[user.maquina],
+                label: user.maquina,
+                icon: Wrench,
+              })}
+              {renderLink({ path: "/corte-dobra/calculos", label: "Cálculos", icon: FlaskConical })}
+            </>
+          ) : (
+            <>
+              <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mb-3">
+                Principal
+              </p>
+              {NAV.map(renderLink)}
+
+              {/* Máquinas individuais */}
+              <div>
+                <button
+                  onClick={() => setMaquinasOpen(o => !o)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all"
+                >
+                  <Wrench className="w-4 h-4 flex-shrink-0" />
+                  <span className="flex-1 text-left">Máquinas</span>
+                  {maquinasOpen ? <ChevronDown className="w-4 h-4 opacity-60" /> : <ChevronRight className="w-4 h-4 opacity-60" />}
+                </button>
+                {maquinasOpen && (
+                  <div className="ml-4 mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
+                    {MAQUINAS_NAV.map(item => {
+                      const isActive = location.pathname === item.path;
+                      return (
+                        <Link
+                          key={item.path}
+                          to={item.path}
+                          onClick={() => window.innerWidth < 1024 && onToggle()}
+                          className={cn(
+                            "flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-medium transition-all",
+                            isActive
+                              ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                              : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                          )}
+                        >
+                          <span>{item.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {isAdmin && (
+                <>
+                  <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mt-5 mb-3">
+                    Administração
+                  </p>
+                  {ADMIN_NAV.map(renderLink)}
+                </>
+              )}
             </>
           )}
         </nav>
