@@ -25,6 +25,8 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   }, []);
 
   const isGestor = user?.role === "admin" || user?.full_name?.toLowerCase().includes("hudson");
+  const maquinaDoUsuario = user?.maquina; // máquina configurada no perfil do usuário
+  const isOperadorRestrito = user && !isGestor; // não-admin = operador restrito
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
@@ -81,6 +83,32 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
 
   const totalSemana = ordensSemana.length;
   const finalizadasSemana = ordensSemana.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
+
+  // Operador sem máquina configurada
+  if (user && isOperadorRestrito && !maquinaDoUsuario) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+          <span className="text-3xl">🔧</span>
+        </div>
+        <h2 className="text-xl font-bold mb-2">Máquina não configurada</h2>
+        <p className="text-muted-foreground max-w-sm">Peça ao administrador para configurar a máquina associada ao seu usuário.</p>
+      </div>
+    );
+  }
+
+  // Operador tentando acessar máquina que não é a dele
+  if (user && isOperadorRestrito && maquinaDoUsuario && maquinaDoUsuario !== maquinaId) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+          <span className="text-3xl">🚫</span>
+        </div>
+        <h2 className="text-xl font-bold mb-2">Acesso restrito</h2>
+        <p className="text-muted-foreground max-w-sm">Você só pode acessar as ordens da sua máquina: <strong>{maquinaDoUsuario}</strong>.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

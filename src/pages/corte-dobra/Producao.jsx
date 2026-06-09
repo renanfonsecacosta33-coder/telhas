@@ -82,6 +82,7 @@ export default function ProducaoCD() {
   });
 
   const isGestor = user?.role === "admin" || user?.full_name?.toLowerCase().includes("hudson");
+  const maquinaDoUsuario = user?.maquina;
 
   const openNewDesb = (date = null) => {
     setEditDesb(date ? { _presets: { data: date } } : null);
@@ -141,6 +142,34 @@ export default function ProducaoCD() {
   });
 
   const totalOrdensDia = ordensDia.length + ordensMaqDia.length;
+
+  // Operador restrito: redireciona para mensagem de acesso negado se não for Desbobinadeira
+  if (user && !isGestor) {
+    if (!maquinaDoUsuario) {
+      return (
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+            <span className="text-3xl">🔧</span>
+          </div>
+          <h2 className="text-xl font-bold mb-2">Máquina não configurada</h2>
+          <p className="text-muted-foreground max-w-sm">Peça ao administrador para configurar a máquina associada ao seu usuário.</p>
+        </div>
+      );
+    }
+    // Operador de outra máquina tentando acessar esta página geral
+    const maquinasCD = ["CORTE 3M", "DOBRA 3M", "CORTE 6M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M", "PERFILADEIRA", "DESBOBINADEIRA"];
+    if (!maquinasCD.includes(maquinaDoUsuario)) {
+      return (
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+            <span className="text-3xl">🚫</span>
+          </div>
+          <h2 className="text-xl font-bold mb-2">Acesso restrito</h2>
+          <p className="text-muted-foreground max-w-sm">Você não tem acesso a esta seção. Sua máquina: <strong>{maquinaDoUsuario}</strong>.</p>
+        </div>
+      );
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -243,26 +272,28 @@ export default function ProducaoCD() {
           </div>
 
           {/* ── DESBOBINADEIRA ── */}
-          <MaquinaBloco
-            label="DESBOBINADEIRA"
-            cor="bg-orange-100 text-orange-800 border-orange-200"
-            ordens={ordensDiaOrdenadas}
-            isGestor={isGestor}
-            onAdd={() => openNewDesb(selectedDay)}
-            renderRow={(o) => (
-              <div key={o.id}>
-                <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateDesb.mutate({ id, data })} isGestor={isGestor} />
-                {isGestor && o.status === "pendente" && (
-                  <div className="flex justify-end mt-1">
-                    <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEditDesb(o)}>✏️ Editar</Button>
-                  </div>
-                )}
-              </div>
-            )}
-          />
+          {(isGestor || !maquinaDoUsuario || maquinaDoUsuario === "DESBOBINADEIRA") && (
+            <MaquinaBloco
+              label="DESBOBINADEIRA"
+              cor="bg-orange-100 text-orange-800 border-orange-200"
+              ordens={ordensDiaOrdenadas}
+              isGestor={isGestor}
+              onAdd={() => openNewDesb(selectedDay)}
+              renderRow={(o) => (
+                <div key={o.id}>
+                  <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateDesb.mutate({ id, data })} isGestor={isGestor} />
+                  {isGestor && o.status === "pendente" && (
+                    <div className="flex justify-end mt-1">
+                      <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEditDesb(o)}>✏️ Editar</Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            />
+          )}
 
           {/* ── OUTRAS MÁQUINAS ── */}
-          {MAQUINAS_OUTRAS.map(maq => {
+          {MAQUINAS_OUTRAS.filter(maq => isGestor || !maquinaDoUsuario || maquinaDoUsuario === maq.id).map(maq => {
             const ordensDaMaq = ordensMaqDia.filter(o => o.maquina === maq.id).sort((a, b) => {
               const order = { em_producao: 0, pausado: 1, pendente: 2, finalizado: 3, cancelado: 4 };
               return (order[a.status] ?? 2) - (order[b.status] ?? 2);
