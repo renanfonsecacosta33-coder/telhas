@@ -20,13 +20,79 @@ const PRODUTO_BG = {
 };
 
 const ETAPAS = {
-  "TELHA": ["Verificar bobina metálica (espessura e cor)", "Passar pela perfiladeira", "Cortar no tamanho"],
-  "TELHA + EPS": ["Verificar bobina superior (metal)", "Separar bloco de EPS", "Colar EPS na chapa (cola + fita)", "Passar pela colagem"],
-  "TELHA + EPS + TELHA": ["Verificar bobina superior", "Verificar bobina inferior", "Separar EPS do tipo correto", "Colar EPS na chapa superior", "Colar chapa inferior (cola x2 + fita)", "Passar pela colagem"],
-  "TELHA + EPS + MANTA": ["Verificar bobina superior", "Separar EPS", "Preparar manta térmica", "Colar EPS + manta na chapa (cola + fita)"],
-  "TELHA BANDEJA": ["TP-40 ou COLONIAL: Perfilar chapa superior", "BANDEJA: Perfilar chapa inferior (Bandeja)", "Separar EPS específico Bandeja", "COLAGEM: Colar com cola x2 nas duas faces"],
-  "BOBININHA": ["Preparar desbobinador", "Cortar e rebobinar"],
-  "CUMEEIRA": ["Verificar bobina e cor", "Passar pela cumeeira", "Cortar e empacotar"],
+  "TELHA": [
+    "Verificar bobina metálica (espessura e cor)",
+    "Configurar perfiladeira conforme modelo",
+    "Passar pela perfiladeira",
+    "Cortar no tamanho especificado",
+    "Conferir comprimento e quantidade",
+    "Empilhar e etiquetar",
+  ],
+  "TELHA + EPS": [
+    "Verificar bobina superior (espessura e cor)",
+    "Separar bloco de EPS do tipo correto",
+    "Passar bobina pela perfiladeira",
+    "Aplicar cola nas duas faces",
+    "Encaixar EPS na telha",
+    "Passar pela colagem (pressão + cura)",
+    "Conferir acabamento e medidas",
+  ],
+  "TELHA + EPS + TELHA": [
+    "Verificar bobina superior",
+    "Verificar bobina inferior",
+    "Separar EPS do tipo correto",
+    "Perfilar chapa superior (TP-40/Colonial)",
+    "Perfilar chapa inferior (Bandeja/TP-40)",
+    "Aplicar cola x2 na chapa superior",
+    "Aplicar cola x2 na chapa inferior",
+    "Encaixar EPS entre as chapas",
+    "Passar pela colagem (pressão + cura)",
+    "Conferir sandwich e acabamento",
+  ],
+  "TELHA + EPS + MANTA": [
+    "Verificar bobina superior",
+    "Separar EPS do tipo correto",
+    "Preparar manta térmica (cortar no comprimento)",
+    "Perfilar chapa",
+    "Colar EPS na chapa",
+    "Aplicar manta sobre o EPS",
+    "Passar pela colagem",
+    "Conferir acabamento",
+  ],
+  "TELHA BANDEJA": [
+    "Verificar bobina superior (para TP-40 ou Colonial)",
+    "Perfilar chapa superior na TP-40 ou COLONIAL",
+    "Verificar bobina para chapa inferior (Bandeja)",
+    "Perfilar chapa inferior na BANDEJA",
+    "Separar EPS específico para Bandeja",
+    "Aplicar cola x2 nas duas faces",
+    "Encaixar EPS entre as chapas",
+    "Passar pela COLAGEM (pressão + cura)",
+    "Conferir dimensões e acabamento",
+  ],
+  "BOBININHA": [
+    "Verificar bobina de origem",
+    "Configurar desbobinador",
+    "Cortar na largura especificada",
+    "Rebobinar",
+    "Pesar e etiquetar",
+  ],
+  "CUMEEIRA": [
+    "Verificar bobina e cor",
+    "Configurar máquina de cumeeira",
+    "Passar pela cumeeira",
+    "Cortar no comprimento",
+    "Empacotar e etiquetar",
+  ],
+  "PAINEL": [
+    "Verificar bobinas (superior e inferior)",
+    "Preparar núcleo do painel",
+    "Perfilar chapas",
+    "Montar conjunto",
+    "Passar pela colagem",
+    "Cortar no comprimento",
+    "Conferir acabamento",
+  ],
 };
 
 const PRODUTOS_COM_EPS = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"];
@@ -60,6 +126,8 @@ function formatTempo(segundos) {
 }
 
 export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
+  const [etapasOk, setEtapasOk] = useState({});
+  const [mostrarEtapas, setMostrarEtapas] = useState(false);
   const [pauseDialog, setPauseDialog] = useState(false);
   const [pauseMotivo, setPauseMotivo] = useState("");
   const [pauseTipo, setPauseTipo] = useState("setup"); // "setup" | "outro"
@@ -445,20 +513,53 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
 
         {/* Etapas */}
         {steps && (
-          <div className="bg-slate-50 rounded-lg p-3 mb-3">
-            <div className="flex items-center gap-1.5 mb-2">
-              <Layers className="w-3 h-3 text-slate-500" />
-              <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Etapas de Produção</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {steps.map((step, i) => (
-                <div key={i} className="flex items-center gap-1.5 text-xs text-slate-600">
-                  <span className="w-4 h-4 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs flex-shrink-0">{i + 1}</span>
-                  <span>{step}</span>
-                  {i < steps.length - 1 && <span className="text-slate-300 ml-1">›</span>}
+          <div className="bg-slate-50 rounded-lg p-3 mb-3 border border-slate-200">
+            <button
+              onClick={() => setMostrarEtapas(v => !v)}
+              className="w-full flex items-center justify-between gap-1.5 mb-0"
+            >
+              <div className="flex items-center gap-1.5">
+                <Layers className="w-3 h-3 text-slate-500" />
+                <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Etapas de Produção</span>
+                <span className="text-xs text-muted-foreground ml-1">
+                  ({Object.values(etapasOk).filter(Boolean).length}/{steps.length} ✓)
+                </span>
+              </div>
+              <span className="text-xs text-muted-foreground">{mostrarEtapas ? "▲" : "▼"}</span>
+            </button>
+            {mostrarEtapas && (
+              <div className="mt-2 space-y-1.5">
+                {steps.map((step, i) => {
+                  const ok = !!etapasOk[i];
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => setEtapasOk(prev => ({ ...prev, [i]: !ok }))}
+                      className={`w-full flex items-center gap-2.5 text-left rounded-lg px-2.5 py-1.5 transition-all border ${ok ? "bg-green-50 border-green-200" : "bg-white border-slate-200 hover:border-primary/40"}`}
+                    >
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${ok ? "border-green-500 bg-green-500" : "border-slate-300"}`}>
+                        {ok && <CheckCircle2 className="w-3 h-3 text-white" />}
+                      </div>
+                      <span className={`w-4 h-4 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0 ${ok ? "bg-green-100 text-green-700" : "bg-primary/10 text-primary"}`}>{i + 1}</span>
+                      <span className={`text-xs flex-1 ${ok ? "line-through text-muted-foreground" : "text-slate-700"}`}>{step}</span>
+                    </button>
+                  );
+                })}
+                {/* Barra de progresso */}
+                <div className="mt-2">
+                  <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                    <span>Progresso</span>
+                    <span>{Math.round((Object.values(etapasOk).filter(Boolean).length / steps.length) * 100)}%</span>
+                  </div>
+                  <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-green-500 transition-all"
+                      style={{ width: `${(Object.values(etapasOk).filter(Boolean).length / steps.length) * 100}%` }}
+                    />
+                  </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
           </div>
         )}
 

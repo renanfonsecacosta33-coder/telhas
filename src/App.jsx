@@ -8,6 +8,8 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
 import AppLayout from '@/components/layout/AppLayout';
 import Dashboard from '@/pages/Dashboard';
+import DashboardTelhas from '@/pages/DashboardTelhas';
+import DashboardCorteDobraCompleto from '@/pages/DashboardCorteDobraCompleto';
 import Bobinas from '@/pages/Bobinas';
 import Isopor from '@/pages/Isopor';
 import Estoque from '@/pages/Estoque';
@@ -112,11 +114,12 @@ const AuthenticatedApp = () => {
         <Route path="/dashboard-performance" element={<DashboardPerformance />} />
         <Route path="/cola" element={<Cola />} />
         <Route path="/mapa-barracao" element={<MapaBarracaoTelhas />} />
+        <Route path="/dashboard-telhas" element={<DashboardTelhas />} />
       </Route>
       <Route path="/vendedor" element={<VendedorEstoque />} />
       <Route path="/setor" element={<SeletorSetor />} />
       <Route element={<AppLayoutCD />}>
-        <Route path="/corte-dobra" element={<DashboardCD />} />
+        <Route path="/corte-dobra" element={<DashboardCorteDobraCompleto />} />
         <Route path="/corte-dobra/producao" element={<ProducaoCD />} />
         <Route path="/corte-dobra/bobinas" element={<BobinasCD />} />
         <Route path="/corte-dobra/chaparia" element={<Chaparia />} />

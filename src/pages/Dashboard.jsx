@@ -2,7 +2,7 @@ import React from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Circle, Snowflake, Package, ArrowRight, Ruler, Factory, Clock, CheckCircle2, TrendingUp } from "lucide-react";
+import { Circle, Snowflake, Package, ArrowRight, Ruler, Factory, Clock, CheckCircle2, TrendingUp, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import StatsCard from "@/components/stock/StatsCard";
@@ -111,12 +111,20 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground mt-1">Visão geral do estoque AJL Ferro e Aço</p>
         </div>
-        <Link to="/dashboard-producao">
-          <Button variant="outline" className="gap-2">
-            <TrendingUp className="w-4 h-4" />
-            Dashboard Produção
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link to="/dashboard-telhas">
+            <Button variant="default" className="gap-2">
+              <LayoutDashboard className="w-4 h-4" />
+              Dashboard Completo
+            </Button>
+          </Link>
+          <Link to="/dashboard-producao">
+            <Button variant="outline" className="gap-2">
+              <TrendingUp className="w-4 h-4" />
+              Dashboard Produção
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Produção hoje */}
