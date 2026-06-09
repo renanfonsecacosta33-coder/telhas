@@ -304,7 +304,8 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
 
     // Desconta bobinas proporcionalmente à metragem real
     if (p.bobina_superior_id && kgSuperiorReal > 0) {
-      const bobSup = await base44.entities.Bobina.get(p.bobina_superior_id).catch(() => null);
+      const bobSupList = await base44.entities.Bobina.filter({ id: p.bobina_superior_id }).catch(() => []);
+      const bobSup = bobSupList[0] || null;
       if (bobSup) {
         await base44.entities.Bobina.update(p.bobina_superior_id, {
           peso_kg: Math.max(0, (bobSup.peso_kg || 0) - kgSuperiorReal),
@@ -313,7 +314,8 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
       }
     }
     if (p.bobina_inferior_id && kgInferiorReal > 0) {
-      const bobInf = await base44.entities.Bobina.get(p.bobina_inferior_id).catch(() => null);
+      const bobInfList = await base44.entities.Bobina.filter({ id: p.bobina_inferior_id }).catch(() => []);
+      const bobInf = bobInfList[0] || null;
       if (bobInf) {
         await base44.entities.Bobina.update(p.bobina_inferior_id, {
           peso_kg: Math.max(0, (bobInf.peso_kg || 0) - kgInferiorReal),

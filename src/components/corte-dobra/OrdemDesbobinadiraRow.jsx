@@ -118,7 +118,8 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, isGestor }) 
     }
     // Desconta KG da bobina e cria ChapaCD no estoque
     if (o.bobina_id) {
-      const bobina = await base44.entities.Bobina.get(o.bobina_id).catch(() => null);
+      const bobinaList = await base44.entities.Bobina.filter({ id: o.bobina_id }).catch(() => []);
+      const bobina = bobinaList[0] || null;
       if (bobina) {
         // Desconta KG
         if (o.kg_estimado > 0) {
