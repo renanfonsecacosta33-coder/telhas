@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { Circle, Snowflake, Package, ArrowRight, Ruler, Factory, Clock, CheckCircle2, TrendingUp, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,9 @@ import StatsCard from "@/components/stock/StatsCard";
 import { format } from "date-fns";
 
 export default function Dashboard() {
+  const [user, setUser] = useState(null);
+  useEffect(() => { base44.auth.me().then(setUser).catch(() => {}); }, []);
+
   const { data: bobinas = [] } = useQuery({
     queryKey: ["bobinas"],
     queryFn: () => base44.entities.Bobina.list(),
@@ -28,6 +31,9 @@ export default function Dashboard() {
     queryKey: ["pedidos-dash"],
     queryFn: () => base44.entities.Pedido.list("-data", 200),
   });
+
+  // Redireciona operador CD para o dashboard do CD
+  if (user && user.setor === "corte_dobra") return <Navigate to="/corte-dobra" replace />;
 
   const hoje = format(new Date(), "yyyy-MM-dd");
   const pedidosHoje = pedidos.filter(p => p.data === hoje);
