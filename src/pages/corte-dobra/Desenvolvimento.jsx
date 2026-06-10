@@ -6,13 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Calculator, Plus, Search, CheckCircle2, Clock, AlertTriangle,
-  ChevronDown, ChevronUp, Layers, Ruler, Settings, ShoppingCart, Eye, BarChart2
+  ChevronDown, ChevronUp, Layers, Ruler, Settings, ShoppingCart, Eye, BarChart2, Scissors
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import DesenvolvimentoFormDialog from "@/components/corte-dobra/DesenvolvimentoFormDialog";
 import AproveitamentoBlank from "@/components/corte-dobra/AproveitamentoBlank";
+import OtimizadorCorte from "@/components/corte-dobra/OtimizadorCorte/OtimizadorCorte";
 
 const STATUS_CONFIG = {
   rascunho:    { label: "Rascunho",     className: "bg-slate-100 text-slate-600 border-slate-200",  icon: Clock },
@@ -27,8 +28,9 @@ export default function DesenvolvimentoCD() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
-  const [aba, setAba] = useState("lista"); // "lista" | "aproveitamento"
+  const [aba, setAba] = useState("lista"); // "lista" | "aproveitamento" | "otimizador"
   const [devAproveitamento, setDevAproveitamento] = useState(null);
+  const [devOtimizador, setDevOtimizador] = useState(null);
   const queryClient = useQueryClient();
 
   const { data: desenvolvimentos = [], isLoading } = useQuery({
@@ -103,7 +105,13 @@ export default function DesenvolvimentoCD() {
           onClick={() => { setAba("aproveitamento"); setDevAproveitamento(null); }}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${aba === "aproveitamento" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
         >
-          <BarChart2 className="w-4 h-4" /> Aproveitamento / Blank
+          <BarChart2 className="w-4 h-4" /> Aproveitamento
+        </button>
+        <button
+          onClick={() => setAba("otimizador")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${aba === "otimizador" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          <Scissors className="w-4 h-4" /> Otimizador de Corte
         </button>
       </div>
 
@@ -125,7 +133,14 @@ export default function DesenvolvimentoCD() {
         </div>
       )}
 
-      {aba !== "lista" ? null : <>
+      {/* Aba Otimizador */}
+      {aba === "otimizador" && (
+        <div className="bg-card border border-border rounded-xl overflow-hidden -mx-1">
+          <OtimizadorCorte devInicial={devOtimizador} />
+        </div>
+      )}
+
+      {aba === "lista" && <>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -258,7 +273,11 @@ export default function DesenvolvimentoCD() {
                       )}
                       <Button size="sm" variant="outline" className="gap-1 text-xs border-orange-200 text-orange-700 hover:bg-orange-50"
                         onClick={() => { setDevAproveitamento(dev); setAba("aproveitamento"); }}>
-                        <BarChart2 className="w-3 h-3" /> Calcular Aproveitamento
+                        <BarChart2 className="w-3 h-3" /> Aproveitamento
+                      </Button>
+                      <Button size="sm" variant="outline" className="gap-1 text-xs border-blue-200 text-blue-700 hover:bg-blue-50"
+                        onClick={() => { setDevOtimizador(dev); setAba("otimizador"); }}>
+                        <Scissors className="w-3 h-3" /> Otimizar Corte
                       </Button>
                     </div>
                   </div>
