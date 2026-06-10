@@ -116,13 +116,8 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
   };
 
   const handleSave = (statusOverride) => {
-    if (!form.anexo_nf_url) {
-      alert("Anexe a Nota Fiscal (NF) antes de salvar.");
-      return;
-    }
-    const certOk = form.anexo_cert_url || (confirmarSemCert && semCertAssinatura.trim().length >= 5) || !!editItem?.anexo_cert_ausencia;
-    if (!certOk) {
-      alert("Anexe o Certificado Digital ou declare ausência antes de salvar.");
+    if (!form.chapa) {
+      alert("Preencha o campo Chapa.");
       return;
     }
     onSave({
@@ -166,7 +161,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
     });
   };
 
-  const certOk = form.anexo_cert_url || (confirmarSemCert && semCertAssinatura.trim().length >= 5) || !!editItem?.anexo_cert_ausencia;
+  const certOk = true;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
