@@ -10,6 +10,7 @@ import BobinaFormDialogCD from "@/components/corte-dobra/BobinaFormDialogCD";
 import DeleteConfirmDialog from "@/components/stock/DeleteConfirmDialog";
 import EmptyState from "@/components/stock/EmptyState";
 import BobinaCard, { getAlertaNivel } from "@/components/bobinas/BobinaCardShared";
+import PainelSolicitacoesReserva from "@/components/vendedor/PainelSolicitacoesReserva";
 
 export default function BobinasCD() {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -162,6 +163,11 @@ export default function BobinasCD() {
           ))}
         </div>
       )}
+
+      {/* Painel de solicitações de reserva dos vendedores */}
+      <div className="mt-6">
+        <PainelSolicitacoesReserva setor="corte_dobra" />
+      </div>
 
       <BobinaFormDialogCD
         open={dialogOpen}

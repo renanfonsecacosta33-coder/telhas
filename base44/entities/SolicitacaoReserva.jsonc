@@ -1,0 +1,78 @@
+{
+  "name": "SolicitacaoReserva",
+  "type": "object",
+  "properties": {
+    "setor": {
+      "type": "string",
+      "enum": [
+        "telhas",
+        "corte_dobra"
+      ],
+      "description": "Setor da bobina solicitada"
+    },
+    "bobina_id": {
+      "type": "string",
+      "description": "ID da bobina solicitada"
+    },
+    "bobina_descricao": {
+      "type": "string",
+      "description": "Snapshot: cor, chapa, peso da bobina"
+    },
+    "vendedor_nome": {
+      "type": "string",
+      "description": "Nome do vendedor que fez a solicita\u00e7\u00e3o"
+    },
+    "numero_pedido": {
+      "type": "string",
+      "description": "N\u00famero do pedido do cliente"
+    },
+    "cliente": {
+      "type": "string",
+      "description": "Nome do cliente"
+    },
+    "reserva_tipo": {
+      "type": "string",
+      "enum": [
+        "inteira",
+        "parcial"
+      ],
+      "default": "inteira",
+      "description": "Tipo de reserva"
+    },
+    "reserva_kg": {
+      "type": "number",
+      "description": "Quantidade em kg solicitada (quando parcial)"
+    },
+    "motivo": {
+      "type": "string",
+      "description": "Justificativa / observa\u00e7\u00f5es do vendedor"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pendente",
+        "aprovada",
+        "recusada"
+      ],
+      "default": "pendente",
+      "description": "Status da solicita\u00e7\u00e3o"
+    },
+    "resposta_admin": {
+      "type": "string",
+      "description": "Mensagem do admin ao aprovar ou recusar"
+    },
+    "admin_nome": {
+      "type": "string",
+      "description": "Nome do admin que avaliou"
+    },
+    "data_avaliacao": {
+      "type": "string",
+      "description": "Data da avalia\u00e7\u00e3o"
+    }
+  },
+  "required": [
+    "setor",
+    "bobina_id",
+    "vendedor_nome"
+  ]
+}

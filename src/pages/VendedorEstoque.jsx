@@ -3,10 +3,13 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, LogOut, Lock, ChevronRight, ArrowLeft } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Search, LogOut, Lock, ChevronRight, ArrowLeft, BookmarkPlus } from "lucide-react";
+import SolicitarReservaDialog from "@/components/vendedor/SolicitarReservaDialog";
 
 const SENHA = "ajl1234";
 const STORAGE_KEY = "vendedor_autenticado";
+const NOME_KEY = "vendedor_nome";
 
 // Tela de seleção de setor
 function SetorSelector({ onSelect }) {
@@ -47,15 +50,21 @@ function SetorSelector({ onSelect }) {
   );
 }
 
-// Tela de login
+// Tela de login + nome do vendedor
 function LoginScreen({ onLogin }) {
   const [senhaInput, setSenhaInput] = useState("");
+  const [nomeInput, setNomeInput] = useState(() => localStorage.getItem(NOME_KEY) || "");
   const [erro, setErro] = useState("");
 
   const handleLogin = (e) => {
     e.preventDefault();
+    if (!nomeInput.trim()) {
+      setErro("Informe seu nome.");
+      return;
+    }
     if (senhaInput === SENHA) {
-      onLogin();
+      localStorage.setItem(NOME_KEY, nomeInput.trim());
+      onLogin(nomeInput.trim());
     } else {
       setErro("Senha incorreta. Tente novamente.");
     }
@@ -73,6 +82,15 @@ function LoginScreen({ onLogin }) {
         </div>
         <form onSubmit={handleLogin} className="space-y-4 bg-card border border-border rounded-xl p-6 shadow-sm">
           <div className="space-y-1">
+            <Label>Seu nome *</Label>
+            <Input
+              placeholder="Nome do vendedor"
+              value={nomeInput}
+              onChange={e => { setNomeInput(e.target.value); setErro(""); }}
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1">
             <label className="text-sm font-medium flex items-center gap-2">
               <Lock className="w-4 h-4 text-muted-foreground" />
               Senha de acesso
@@ -82,7 +100,6 @@ function LoginScreen({ onLogin }) {
               placeholder="Digite a senha"
               value={senhaInput}
               onChange={e => { setSenhaInput(e.target.value); setErro(""); }}
-              autoFocus
             />
           </div>
           {erro && <p className="text-xs text-destructive">{erro}</p>}
@@ -94,18 +111,22 @@ function LoginScreen({ onLogin }) {
 }
 
 // Tela do estoque
-function EstoqueView({ setor, onLogout, onVoltar }) {
+function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
   const [search, setSearch] = useState("");
+  const [solicitarBobina, setSolicitarBobina] = useState(null);
 
   const setorLabel = setor === "telhas" ? "Telhas" : "Corte e Dobra";
   const setorEmoji = setor === "telhas" ? "🏗️" : "✂️";
 
-  const { data: bobinas = [], isLoading } = useQuery({
+  const { data: bobinas = [], isLoading, refetch } = useQuery({
     queryKey: ["bobinas-vendedor", setor],
     queryFn: () => base44.entities.Bobina.filter({ setor, arquivada: false }),
   });
 
-  const filtered = bobinas.filter(b => {
+  // Oculta bobinas reservadas
+  const disponiveis = bobinas.filter(b => !b.reservada);
+
+  const filtered = disponiveis.filter(b => {
     const q = search.toLowerCase();
     return b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q);
   });
@@ -120,7 +141,7 @@ function EstoqueView({ setor, onLogout, onVoltar }) {
           </button>
           <div>
             <h1 className="font-bold text-base leading-tight">{setorEmoji} Bobinas — {setorLabel}</h1>
-            <p className="text-xs text-muted-foreground">Consulta para vendedores</p>
+            <p className="text-xs text-muted-foreground">Olá, <span className="font-semibold">{vendedorNome}</span></p>
           </div>
         </div>
         <Button variant="ghost" size="sm" onClick={onLogout} className="gap-2 text-muted-foreground">
@@ -132,8 +153,8 @@ function EstoqueView({ setor, onLogout, onVoltar }) {
       <div className="p-4 space-y-4 max-w-2xl mx-auto">
         {/* Resumo */}
         <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Bobinas em estoque</span>
-          <span className="text-2xl font-bold text-primary">{bobinas.length}</span>
+          <span className="text-sm text-muted-foreground">Bobinas disponíveis</span>
+          <span className="text-2xl font-bold text-primary">{disponiveis.length}</span>
         </div>
 
         {/* Busca */}
@@ -153,36 +174,63 @@ function EstoqueView({ setor, onLogout, onVoltar }) {
             <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground text-sm">Nenhuma bobina encontrada.</div>
+          <div className="text-center py-12 text-muted-foreground text-sm">Nenhuma bobina disponível encontrada.</div>
         ) : (
           <div className="bg-card border border-border rounded-xl overflow-hidden">
-            <div className="grid grid-cols-3 px-4 py-3 bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
-              <span>Cor</span>
+            <div className="grid grid-cols-4 px-4 py-3 bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
+              <span className="col-span-1">Cor</span>
               <span>Espessura</span>
               <span>Peso (kg)</span>
+              <span></span>
             </div>
             <div className="divide-y divide-border">
               {filtered.map(b => (
-                <div key={b.id} className="grid grid-cols-3 px-4 py-3 items-center hover:bg-muted/20 transition-colors">
-                  <span className="text-sm font-medium">{b.cor || "-"}</span>
+                <div key={b.id} className="grid grid-cols-4 px-4 py-3 items-center hover:bg-muted/20 transition-colors">
+                  <span className="text-sm font-medium col-span-1">{b.cor || "-"}</span>
                   <span className="text-sm">{b.chapa || "-"}</span>
                   <span className="text-sm font-semibold">{b.peso_kg ? `${b.peso_kg.toLocaleString("pt-BR")} kg` : "-"}</span>
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => setSolicitarBobina(b)}
+                      className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
+                      title="Solicitar reserva"
+                    >
+                      <BookmarkPlus className="w-4 h-4" />
+                      <span className="hidden sm:inline">Reservar</span>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         )}
+
+        {/* Aviso */}
+        <p className="text-xs text-muted-foreground text-center">
+          Bobinas já reservadas não aparecem nesta lista. Toque em "Reservar" para solicitar uma reserva ao admin.
+        </p>
       </div>
+
+      <SolicitarReservaDialog
+        open={!!solicitarBobina}
+        onClose={() => { setSolicitarBobina(null); refetch(); }}
+        bobina={solicitarBobina}
+        vendedorNome={vendedorNome}
+        setor={setor}
+      />
     </div>
   );
 }
 
 export default function VendedorEstoque() {
   const [autenticado, setAutenticado] = useState(() => localStorage.getItem(STORAGE_KEY) === "true");
-  const [setor, setSetor] = useState(null); // null = na seleção, "telhas" ou "corte_dobra"
+  const [vendedorNome, setVendedorNome] = useState(() => localStorage.getItem(NOME_KEY) || "");
+  const [setor, setSetor] = useState(null);
 
-  const handleLogin = () => {
+  const handleLogin = (nome) => {
     localStorage.setItem(STORAGE_KEY, "true");
+    localStorage.setItem(NOME_KEY, nome);
+    setVendedorNome(nome);
     setAutenticado(true);
   };
 
@@ -194,5 +242,5 @@ export default function VendedorEstoque() {
 
   if (!autenticado) return <LoginScreen onLogin={handleLogin} />;
   if (!setor) return <SetorSelector onSelect={setSetor} />;
-  return <EstoqueView setor={setor} onLogout={handleLogout} onVoltar={() => setSetor(null)} />;
+  return <EstoqueView setor={setor} vendedorNome={vendedorNome} onLogout={handleLogout} onVoltar={() => setSetor(null)} />;
 }

@@ -10,6 +10,7 @@ import BobinaFormDialog from "@/components/bobinas/BobinaFormDialog";
 import DeleteConfirmDialog from "@/components/stock/DeleteConfirmDialog";
 import EmptyState from "@/components/stock/EmptyState";
 import BobinaCard, { getAlertaNivel } from "@/components/bobinas/BobinaCardShared";
+import PainelSolicitacoesReserva from "@/components/vendedor/PainelSolicitacoesReserva";
 
 const statusColors = {
   "Aberta": "bg-green-500/10 text-green-700 border-green-300",
@@ -180,6 +181,11 @@ export default function Bobinas() {
           ))}
         </div>
       )}
+
+      {/* Painel de solicitações de reserva dos vendedores */}
+      <div className="mt-6">
+        <PainelSolicitacoesReserva setor="telhas" />
+      </div>
 
       <BobinaFormDialog open={dialogOpen} onClose={() => { setDialogOpen(false); setEditItem(null); }} onSave={handleSave} editItem={editItem} />
       <DeleteConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} onConfirm={() => deleteMutation.mutate(deleteItem.id)} itemName={deleteItem ? `${deleteItem.cor} - ${deleteItem.chapa}` : ""} />
