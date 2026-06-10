@@ -130,8 +130,10 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
     });
   };
 
-  const certOk = form.anexo_cert_url || (confirmarSemCert && semCertAssinatura.trim().length >= 5) || (!!editItem?.anexo_cert_ausencia && !confirmarSemCert && !form.anexo_cert_url);
-  const canSave = form.chapa && form.anexo_nf_url && certOk;
+  const certOk = !!form.anexo_cert_url 
+    || (confirmarSemCert && semCertAssinatura.trim().length >= 5)
+    || (!!editItem?.anexo_cert_ausencia && semCertAssinatura.trim().length >= 5);
+  const canSave = !!(form.chapa && form.anexo_nf_url && certOk);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -357,11 +359,18 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
 
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={!canSave}>
-            {editItem ? "Salvar" : "Adicionar"}
-          </Button>
+        <DialogFooter className="flex-col items-end gap-1">
+          {!canSave && (
+            <p className="text-xs text-destructive text-right">
+              {!form.chapa ? "⚠ Preencha o campo Chapa." : !form.anexo_nf_url ? "⚠ Anexe a NF." : "⚠ Anexe o certificado ou declare ausência."}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button onClick={handleSave} disabled={!canSave}>
+              {editItem ? "Salvar" : "Adicionar"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
