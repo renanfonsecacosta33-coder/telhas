@@ -68,8 +68,13 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
         foto_extra_url: editItem.foto_extra_url || "",
         foto_extra_nome: editItem.foto_extra_nome || "",
       });
-      setSemCertAssinatura("");
-      setConfirmarSemCert(false);
+      if (editItem.anexo_cert_ausencia) {
+        setSemCertAssinatura(editItem.anexo_cert_ausencia);
+        setConfirmarSemCert(true);
+      } else {
+        setSemCertAssinatura("");
+        setConfirmarSemCert(false);
+      }
     } else {
       const num = String(proximoNumero || 1).padStart(4, "0");
       setForm(BLANK_FORM(`CD${num}`));
@@ -125,7 +130,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
     });
   };
 
-  const certOk = form.anexo_cert_url || (confirmarSemCert && semCertAssinatura.trim().length >= 5);
+  const certOk = form.anexo_cert_url || (confirmarSemCert && semCertAssinatura.trim().length >= 5) || (!!editItem?.anexo_cert_ausencia && !confirmarSemCert && !form.anexo_cert_url);
   const canSave = form.chapa && form.anexo_nf_url && certOk;
 
   return (
