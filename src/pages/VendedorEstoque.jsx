@@ -177,16 +177,18 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
           <div className="text-center py-12 text-muted-foreground text-sm">Nenhuma bobina disponível encontrada.</div>
         ) : (
           <div className="bg-card border border-border rounded-xl overflow-hidden">
-            <div className="grid grid-cols-4 px-4 py-3 bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
+            <div className="grid grid-cols-5 px-4 py-3 bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
               <span className="col-span-1">Cor</span>
+              <span>Qualidade</span>
               <span>Espessura</span>
               <span>Peso (kg)</span>
               <span></span>
             </div>
             <div className="divide-y divide-border">
               {filtered.map(b => (
-                <div key={b.id} className="grid grid-cols-4 px-4 py-3 items-center hover:bg-muted/20 transition-colors">
+                <div key={b.id} className="grid grid-cols-5 px-4 py-3 items-center hover:bg-muted/20 transition-colors">
                   <span className="text-sm font-medium col-span-1">{b.cor || "-"}</span>
+                  <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded w-fit">{b.qualidade || "-"}</span>
                   <span className="text-sm">{b.chapa || "-"}</span>
                   <span className="text-sm font-semibold">{b.peso_kg ? `${b.peso_kg.toLocaleString("pt-BR")} kg` : "-"}</span>
                   <div className="flex justify-end">
