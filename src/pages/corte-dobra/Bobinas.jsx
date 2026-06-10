@@ -62,8 +62,13 @@ export default function BobinasCD() {
   });
 
   const handleSave = (data) => {
-    if (editItem) updateMutation.mutate({ id: editItem.id, data });
-    else createMutation.mutate(data);
+    return new Promise((resolve) => {
+      if (editItem) {
+        updateMutation.mutate({ id: editItem.id, data }, { onSettled: resolve });
+      } else {
+        createMutation.mutate(data, { onSettled: resolve });
+      }
+    });
   };
 
   const ativas = bobinas.filter(b => !b.arquivada && !b.rascunho);
