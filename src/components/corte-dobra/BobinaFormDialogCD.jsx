@@ -18,6 +18,7 @@ const BLANK_FORM = (codigoCD) => ({
   observacoes: "",
   estoque_minimo_kg: "", consumo_diario_kg: "",
   anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
+  foto_adicional_url: "", foto_adicional_nome: "",
   reservada: false, reserva_tipo: "", reserva_kg: "", reserva_numero_pedido: "",
   reserva_motivo: "", reserva_autorizado_por: "", reserva_data: "",
 });
@@ -26,12 +27,15 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
   const [form, setForm] = useState(BLANK_FORM("CD0001"));
   const [uploadingNF, setUploadingNF] = useState(false);
   const [uploadingCert, setUploadingCert] = useState(false);
+  const [uploadingFoto, setUploadingFoto] = useState(false);
   const [semCertAssinatura, setSemCertAssinatura] = useState("");
   const [confirmarSemCert, setConfirmarSemCert] = useState(false);
   const nfInputRef = useRef();
   const nfCameraRef = useRef();
   const certInputRef = useRef();
   const certCameraRef = useRef();
+  const fotoInputRef = useRef();
+  const fotoCameraRef = useRef();
 
   useEffect(() => {
     if (!open) return;
@@ -55,6 +59,8 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
         anexo_nf_nome: editItem.anexo_nf_nome || "",
         anexo_cert_url: editItem.anexo_cert_url || "",
         anexo_cert_nome: editItem.anexo_cert_nome || "",
+        foto_adicional_url: editItem.foto_adicional_url || "",
+        foto_adicional_nome: editItem.foto_adicional_nome || "",
         reservada: editItem.reservada || false,
         reserva_tipo: editItem.reserva_tipo || "",
         reserva_kg: editItem.reserva_kg || "",
@@ -78,14 +84,18 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
   const handleUpload = async (file, tipo) => {
     if (!file) return;
     if (tipo === "nf") setUploadingNF(true);
-    else setUploadingCert(true);
+    else if (tipo === "cert") setUploadingCert(true);
+    else setUploadingFoto(true);
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
     if (tipo === "nf") {
       setForm(f => ({ ...f, anexo_nf_url: file_url, anexo_nf_nome: file.name }));
       setUploadingNF(false);
-    } else {
+    } else if (tipo === "cert") {
       setForm(f => ({ ...f, anexo_cert_url: file_url, anexo_cert_nome: file.name }));
       setUploadingCert(false);
+    } else {
+      setForm(f => ({ ...f, foto_adicional_url: file_url, foto_adicional_nome: file.name }));
+      setUploadingFoto(false);
     }
   };
 
@@ -305,6 +315,38 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
             )}
             {!form.anexo_nf_url && <p className="text-xs text-destructive">⚠ Anexe a NF para poder salvar a bobina.</p>}
             {!form.anexo_cert_url && !certOk && <p className="text-xs text-destructive">⚠ Anexe o Certificado ou declare ausência.</p>}
+
+            {/* Foto adicional */}
+            <div className="pt-1">
+              <p className="text-xs text-muted-foreground mb-1.5">Foto adicional (opcional)</p>
+              <input ref={fotoInputRef} type="file" className="hidden" accept="image/*,.pdf"
+                onChange={e => handleUpload(e.target.files[0], "foto")} />
+              <input ref={fotoCameraRef} type="file" className="hidden" accept="image/*" capture="environment"
+                onChange={e => handleUpload(e.target.files[0], "foto")} />
+              {form.foto_adicional_url ? (
+                <div className="flex items-center gap-2 rounded-lg border border-purple-300 bg-purple-50 px-3 py-2 text-xs text-purple-800">
+                  <Camera className="w-4 h-4 shrink-0 text-purple-600" />
+                  <a href={form.foto_adicional_url} target="_blank" rel="noopener noreferrer"
+                    className="truncate flex-1 underline underline-offset-2 font-medium" title={form.foto_adicional_nome}>
+                    {form.foto_adicional_nome || "Foto adicional"}
+                  </a>
+                  <button onClick={() => setForm(f => ({ ...f, foto_adicional_url: "", foto_adicional_nome: "" }))}
+                    className="ml-auto text-purple-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
+                </div>
+              ) : (
+                <div className="flex gap-1.5">
+                  <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
+                    onClick={() => fotoInputRef.current.click()} disabled={uploadingFoto}>
+                    {uploadingFoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+                    {uploadingFoto ? "Enviando..." : "Foto adicional"}
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
+                    onClick={() => fotoCameraRef.current.click()} disabled={uploadingFoto} title="Câmera">
+                    <Camera className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Reserva */}

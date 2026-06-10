@@ -74,7 +74,8 @@ export default function BobinasCD() {
   const filtered = base.filter(b => {
     const q = search.toLowerCase();
     const matchSearch = !q || b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q) ||
-      b.codigo?.toLowerCase().includes(q) || b.fornecedor?.toLowerCase().includes(q) || b.qualidade?.toLowerCase().includes(q);
+      b.codigo?.toLowerCase().includes(q) || b.fornecedor?.toLowerCase().includes(q) || b.qualidade?.toLowerCase().includes(q) ||
+      b.nf?.toLowerCase().includes(q);
     const matchAlerta = !filterAlerta || getAlertaNivel(b) !== null;
     return matchSearch && matchAlerta;
   });
@@ -123,7 +124,7 @@ export default function BobinasCD() {
       <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Buscar por cor, chapa, código..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Buscar por cor, chapa, código, NF..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button variant={showArquivadas ? "default" : "outline"} size="sm"
