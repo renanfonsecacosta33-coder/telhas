@@ -128,6 +128,14 @@
       "type": "string",
       "description": "Nome do respons\u00e1vel que declarou aus\u00eancia do certificado digital"
     },
+    "foto_extra_url": {
+      "type": "string",
+      "description": "URL de foto adicional opcional da bobina"
+    },
+    "foto_extra_nome": {
+      "type": "string",
+      "description": "Nome do arquivo da foto adicional"
+    },
     "reservada": {
       "type": "boolean",
       "description": "Bobina est\u00e1 reservada",
