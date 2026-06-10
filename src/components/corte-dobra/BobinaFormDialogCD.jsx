@@ -120,6 +120,8 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
       reserva_motivo: form.reservada ? form.reserva_motivo : undefined,
       reserva_autorizado_por: form.reservada ? form.reserva_autorizado_por : undefined,
       reserva_data: form.reservada ? (form.reserva_data || new Date().toISOString().split("T")[0]) : undefined,
+      foto_extra_url: form.foto_extra_url || undefined,
+      foto_extra_nome: form.foto_extra_nome || undefined,
     });
   };
 
