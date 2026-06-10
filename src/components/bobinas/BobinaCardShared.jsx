@@ -18,9 +18,9 @@ export const qualidadeColors = {
 export const qualidadeNomes = {
   "GV": "Galvanizado",
   "PP": "Pré-pintado",
-  "FF": "Fundo Fosco",
-  "FQ": "Fundo Quente",
-  "ALZ": "Aluminizada (Imp.)",
+  "FF": "Fina Fria",
+  "FQ": "Fina Quente",
+  "ALZ ( IMP )": "Aluminizada (Imp.)",
 };
 
 export function getPorcentagemUso(bobina) {
