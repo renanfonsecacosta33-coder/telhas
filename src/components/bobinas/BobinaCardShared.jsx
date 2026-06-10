@@ -18,8 +18,8 @@ export const qualidadeColors = {
 export const qualidadeNomes = {
   "GV": "Galvanizado",
   "PP": "Pré-pintado",
-  "FF": "Fundo Fosco",
-  "FQ": "Fundo Quente",
+  "FF": "Fina Fria",
+  "FQ": "Fina Quente",
   "ALZ": "Aluminizada (Imp.)",
 };
 
