@@ -104,10 +104,6 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
   };
 
   const handleSave = () => {
-    if (!form.anexo_nf_url) {
-      alert("Anexe a Nota Fiscal (NF) antes de salvar a bobina.");
-      return;
-    }
     onSave({
       ...form,
       setor: "corte_dobra",
