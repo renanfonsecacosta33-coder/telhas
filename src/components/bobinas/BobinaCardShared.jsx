@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import {
   Pencil, Trash2, Archive, ArchiveRestore, AlertTriangle, Clock,
   Weight, Ruler, CalendarDays, FileCheck, ShieldCheck,
-  ChevronDown, ChevronUp, Lock, LockOpen, ImagePlus
+  ChevronDown, ChevronUp, Lock, LockOpen
 } from "lucide-react";
 
 export const qualidadeColors = {
@@ -18,8 +18,8 @@ export const qualidadeColors = {
 export const qualidadeNomes = {
   "GV": "Galvanizado",
   "PP": "Pré-pintado",
-  "FF": "Fina Fria",
-  "FQ": "Fina Quente",
+  "FF": "Fundo Fosco",
+  "FQ": "Fundo Quente",
   "ALZ": "Aluminizada (Imp.)",
 };
 
@@ -249,22 +249,7 @@ export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statu
                   ⚠ Sem cert. — {bobina.anexo_cert_ausencia}
                 </span>
               )}
-              {bobina.foto_extra_url && (
-                <a href={bobina.foto_extra_url} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors font-medium">
-                  <ImagePlus className="w-3.5 h-3.5" /> Foto Adicional
-                </a>
-              )}
             </div>
-
-            {/* Preview da foto extra */}
-            {bobina.foto_extra_url && (
-              <div className="mt-2">
-                <a href={bobina.foto_extra_url} target="_blank" rel="noopener noreferrer">
-                  <img src={bobina.foto_extra_url} alt="Foto adicional" className="rounded-lg max-h-40 object-cover border border-purple-200 hover:opacity-90 transition-opacity" />
-                </a>
-              </div>
-            )}
           </div>
         )}
       </div>

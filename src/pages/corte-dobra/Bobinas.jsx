@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Archive, AlertTriangle, Package, Weight, FileEdit } from "lucide-react";
+import { Plus, Search, Archive, AlertTriangle, Package, Weight } from "lucide-react";
 import { toast } from "sonner";
 import BobinaFormDialogCD from "@/components/corte-dobra/BobinaFormDialogCD";
 import DeleteConfirmDialog from "@/components/stock/DeleteConfirmDialog";
@@ -37,13 +37,11 @@ export default function BobinasCD() {
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.Bobina.create(data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas-cd"] }); setDialogOpen(false); toast.success("Bobina adicionada!"); },
-    onError: (err) => { toast.error("Erro ao adicionar bobina: " + (err?.message || "Tente novamente.")); },
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Bobina.update(id, data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas-cd"] }); setDialogOpen(false); setEditItem(null); toast.success("Bobina atualizada!"); },
-    onError: (err) => { toast.error("Erro ao atualizar bobina: " + (err?.message || "Tente novamente.")); },
   });
 
   const deleteMutation = useMutation({
@@ -67,8 +65,7 @@ export default function BobinasCD() {
     else createMutation.mutate(data);
   };
 
-  const rascunhos = bobinas.filter(b => b.status === "rascunho" && !b.arquivada);
-  const ativas = bobinas.filter(b => b.status !== "rascunho" && !b.arquivada);
+  const ativas = bobinas.filter(b => !b.arquivada);
   const arquivadas = bobinas.filter(b => b.arquivada);
   const totalPeso = ativas.reduce((s, b) => s + (b.peso_kg || 0), 0);
   const emAlerta = ativas.filter(b => getAlertaNivel(b) !== null);
@@ -144,30 +141,6 @@ export default function BobinasCD() {
           )}
         </div>
       </div>
-
-      {/* Rascunhos */}
-      {rascunhos.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <FileEdit className="w-4 h-4 text-amber-500" />
-            <h2 className="text-sm font-semibold text-amber-700">Rascunhos ({rascunhos.length})</h2>
-          </div>
-          <div className="space-y-2">
-            {rascunhos.map(bobina => (
-              <div key={bobina.id} className="flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
-                <div className="flex-1 min-w-0">
-                  <p className="font-mono text-sm font-semibold text-amber-900">{bobina.codigo}</p>
-                  <p className="text-xs text-amber-700">Chapa: {bobina.chapa} {bobina.largura_mm ? `• ${bobina.largura_mm}mm` : ""} {bobina.fornecedor ? `• ${bobina.fornecedor}` : ""}</p>
-                </div>
-                <Button size="sm" variant="outline" className="border-amber-400 text-amber-800 hover:bg-amber-100 gap-1.5"
-                  onClick={() => { setEditItem(bobina); setDialogOpen(true); }}>
-                  <FileEdit className="w-3.5 h-3.5" /> Continuar
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Lista */}
       {isLoading ? (

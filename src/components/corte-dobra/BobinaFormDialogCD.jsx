@@ -6,37 +6,35 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from "@/api/base44Client";
-import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera, ImagePlus, Save } from "lucide-react";
+import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera } from "lucide-react";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
 
 const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "ALZ"];
 
-export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, proximoNumero }) {
-  const [form, setForm] = useState({
-    chapa: "", qualidade: "", largura_mm: "", peso_kg: "", peso_inicial: "",
-    codigo: "", nf: "", custo: "", fornecedor: "",
-    data_recebimento: new Date().toISOString().slice(0, 10),
-    observacoes: "", estoque_minimo_kg: "", consumo_diario_kg: "",
-    anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
-    reservada: false, reserva_tipo: "", reserva_kg: "", reserva_numero_pedido: "",
-    reserva_motivo: "", reserva_autorizado_por: "", reserva_data: "",
-    foto_extra_url: "", foto_extra_nome: "", status: "ativo",
-  });
+const BLANK_FORM = (codigoCD) => ({
+  chapa: "", qualidade: "", largura_mm: "", peso_kg: "", peso_inicial: "",
+  codigo: codigoCD, nf: "", custo: "", fornecedor: "",
+  data_recebimento: new Date().toISOString().slice(0, 10),
+  observacoes: "",
+  estoque_minimo_kg: "", consumo_diario_kg: "",
+  anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
+  reservada: false, reserva_tipo: "", reserva_kg: "", reserva_numero_pedido: "",
+  reserva_motivo: "", reserva_autorizado_por: "", reserva_data: "",
+});
 
+export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, proximoNumero }) {
+  const [form, setForm] = useState(BLANK_FORM("CD0001"));
   const [uploadingNF, setUploadingNF] = useState(false);
   const [uploadingCert, setUploadingCert] = useState(false);
-  const [uploadingFoto, setUploadingFoto] = useState(false);
   const [semCertAssinatura, setSemCertAssinatura] = useState("");
   const [confirmarSemCert, setConfirmarSemCert] = useState(false);
-
   const nfInputRef = useRef();
   const nfCameraRef = useRef();
   const certInputRef = useRef();
   const certCameraRef = useRef();
-  const fotoInputRef = useRef();
-  const fotoCameraRef = useRef();
 
   useEffect(() => {
+    if (!open) return;
     if (editItem) {
       setForm({
         chapa: editItem.chapa || "",
@@ -63,67 +61,41 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
         reserva_motivo: editItem.reserva_motivo || "",
         reserva_autorizado_por: editItem.reserva_autorizado_por || "",
         reserva_data: editItem.reserva_data || "",
-        foto_extra_url: editItem.foto_extra_url || "",
-        foto_extra_nome: editItem.foto_extra_nome || "",
-        status: editItem.status || "ativo",
-      });
-      if (editItem.anexo_cert_ausencia) {
-        setSemCertAssinatura(editItem.anexo_cert_ausencia);
-        setConfirmarSemCert(true);
-      } else {
-        setSemCertAssinatura("");
-        setConfirmarSemCert(false);
-      }
-    } else {
-      const num = String(proximoNumero || 1).padStart(4, "0");
-      setForm({
-        chapa: "", qualidade: "", largura_mm: "", peso_kg: "", peso_inicial: "",
-        codigo: `CD${num}`, nf: "", custo: "", fornecedor: "",
-        data_recebimento: new Date().toISOString().slice(0, 10),
-        observacoes: "", estoque_minimo_kg: "", consumo_diario_kg: "",
-        anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
-        reservada: false, reserva_tipo: "", reserva_kg: "", reserva_numero_pedido: "",
-        reserva_motivo: "", reserva_autorizado_por: "", reserva_data: "",
-        foto_extra_url: "", foto_extra_nome: "", status: "ativo",
       });
       setSemCertAssinatura("");
       setConfirmarSemCert(false);
+    } else {
+      const num = String(proximoNumero || 1).padStart(4, "0");
+      setForm(BLANK_FORM(`CD${num}`));
+      setSemCertAssinatura("");
+      setConfirmarSemCert(false);
     }
-  }, [editItem, open]);
+  }, [editItem, open, proximoNumero]);
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
   const handleUpload = async (file, tipo) => {
     if (!file) return;
     if (tipo === "nf") setUploadingNF(true);
-    else if (tipo === "cert") setUploadingCert(true);
-    else setUploadingFoto(true);
-
+    else setUploadingCert(true);
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
-
     if (tipo === "nf") {
       setForm(f => ({ ...f, anexo_nf_url: file_url, anexo_nf_nome: file.name }));
       setUploadingNF(false);
-    } else if (tipo === "cert") {
-      setForm(f => ({ ...f, anexo_cert_url: file_url, anexo_cert_nome: file.name }));
-      setConfirmarSemCert(false);
-      setSemCertAssinatura("");
-      setUploadingCert(false);
     } else {
-      setForm(f => ({ ...f, foto_extra_url: file_url, foto_extra_nome: file.name }));
-      setUploadingFoto(false);
+      setForm(f => ({ ...f, anexo_cert_url: file_url, anexo_cert_nome: file.name }));
+      setUploadingCert(false);
     }
   };
 
-  const handleSave = (statusOverride) => {
-    if (!form.chapa) {
-      alert("Preencha o campo Chapa.");
+  const handleSave = () => {
+    if (!form.anexo_nf_url) {
+      alert("Anexe a Nota Fiscal (NF) antes de salvar a bobina.");
       return;
     }
     onSave({
       ...form,
       setor: "corte_dobra",
-      status: statusOverride || "ativo",
       largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
       peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
       peso_inicial: form.peso_inicial ? Number(form.peso_inicial) : undefined,
@@ -138,50 +110,20 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
       reserva_motivo: form.reservada ? form.reserva_motivo : undefined,
       reserva_autorizado_por: form.reservada ? form.reserva_autorizado_por : undefined,
       reserva_data: form.reservada ? (form.reserva_data || new Date().toISOString().split("T")[0]) : undefined,
-      foto_extra_url: form.foto_extra_url || undefined,
-      foto_extra_nome: form.foto_extra_nome || undefined,
     });
   };
 
-  const handleRascunho = () => {
-    if (!form.chapa) {
-      alert("Preencha pelo menos o campo Chapa antes de salvar como rascunho.");
-      return;
-    }
-    onSave({
-      ...form,
-      setor: "corte_dobra",
-      status: "rascunho",
-      largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
-      peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
-      peso_inicial: form.peso_inicial ? Number(form.peso_inicial) : undefined,
-      custo: form.custo ? Number(form.custo) : undefined,
-      estoque_minimo_kg: form.estoque_minimo_kg ? Number(form.estoque_minimo_kg) : undefined,
-      consumo_diario_kg: form.consumo_diario_kg ? Number(form.consumo_diario_kg) : undefined,
-    });
-  };
-
-  const certOk = true;
+  const certOk = form.anexo_cert_url || (confirmarSemCert && semCertAssinatura.trim().length >= 5);
+  const canSave = form.chapa && form.anexo_nf_url && certOk;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {editItem
-              ? editItem.status === "rascunho" ? "Continuar Rascunho" : "Editar Bobina"
-              : "Nova Bobina — Corte e Dobra"}
-          </DialogTitle>
+          <DialogTitle>{editItem ? "Editar Bobina" : "Nova Bobina — Corte e Dobra"}</DialogTitle>
         </DialogHeader>
-
-        {editItem?.status === "rascunho" && (
-          <div className="rounded-lg bg-amber-50 border border-amber-300 px-3 py-2 text-xs text-amber-800 flex items-center gap-2">
-            <Save className="w-4 h-4 shrink-0" />
-            Rascunho — complete os campos e clique em "Adicionar" para finalizar.
-          </div>
-        )}
-
         <div className="space-y-4 py-2">
+
           {/* Código + Data */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -285,7 +227,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
                       className="truncate flex-1 underline underline-offset-2 font-medium" title={form.anexo_nf_nome}>
                       {form.anexo_nf_nome || "NF anexada"}
                     </a>
-                    <button type="button" onClick={() => setForm(f => ({ ...f, anexo_nf_url: "", anexo_nf_nome: "" }))}
+                    <button onClick={() => setForm(f => ({ ...f, anexo_nf_url: "", anexo_nf_nome: "" }))}
                       className="ml-auto text-emerald-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 ) : (
@@ -316,7 +258,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
                       className="truncate flex-1 underline underline-offset-2 font-medium" title={form.anexo_cert_nome}>
                       {form.anexo_cert_nome || "Certificado"}
                     </a>
-                    <button type="button" onClick={() => setForm(f => ({ ...f, anexo_cert_url: "", anexo_cert_nome: "" }))}
+                    <button onClick={() => setForm(f => ({ ...f, anexo_cert_url: "", anexo_cert_nome: "" }))}
                       className="ml-auto text-blue-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 ) : (
@@ -324,7 +266,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
                     <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
                       onClick={() => certInputRef.current.click()} disabled={uploadingCert}>
                       {uploadingCert ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                      {uploadingCert ? "Enviando..." : "Certificado *"}
+                      {uploadingCert ? "Enviando..." : "Certificado"}
                     </Button>
                     <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
                       onClick={() => certCameraRef.current.click()} disabled={uploadingCert} title="Câmera">
@@ -354,67 +296,20 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
                 )}
               </div>
             )}
-
-            {!form.anexo_nf_url && (
-              <p className="text-xs text-destructive">⚠ Anexe a NF para poder salvar a bobina.</p>
-            )}
-            {!form.anexo_cert_url && !certOk && (
-              <p className="text-xs text-destructive">⚠ Anexe o Certificado ou declare ausência.</p>
-            )}
-
-            {/* Foto Extra opcional */}
-            <div className="mt-3 space-y-1.5">
-              <Label className="flex items-center gap-1.5 text-sm">
-                <ImagePlus className="w-4 h-4 text-muted-foreground" />
-                Foto Adicional <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
-              </Label>
-              <input ref={fotoInputRef} type="file" className="hidden" accept="image/*"
-                onChange={e => handleUpload(e.target.files[0], "foto")} />
-              <input ref={fotoCameraRef} type="file" className="hidden" accept="image/*" capture="environment"
-                onChange={e => handleUpload(e.target.files[0], "foto")} />
-              {form.foto_extra_url ? (
-                <div className="flex items-center gap-2 rounded-lg border border-purple-300 bg-purple-50 px-3 py-2 text-xs text-purple-800">
-                  <ImagePlus className="w-4 h-4 shrink-0 text-purple-600" />
-                  <a href={form.foto_extra_url} target="_blank" rel="noopener noreferrer"
-                    className="truncate flex-1 underline underline-offset-2 font-medium" title={form.foto_extra_nome}>
-                    {form.foto_extra_nome || "Foto adicional"}
-                  </a>
-                  <button type="button" onClick={() => setForm(f => ({ ...f, foto_extra_url: "", foto_extra_nome: "" }))}
-                    className="ml-auto text-purple-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
-                </div>
-              ) : (
-                <div className="flex gap-1.5">
-                  <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
-                    onClick={() => fotoInputRef.current.click()} disabled={uploadingFoto}>
-                    {uploadingFoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                    {uploadingFoto ? "Enviando..." : "Anexar foto"}
-                  </Button>
-                  <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
-                    onClick={() => fotoCameraRef.current.click()} disabled={uploadingFoto} title="Câmera">
-                    <Camera className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
-            </div>
+            {!form.anexo_nf_url && <p className="text-xs text-destructive">⚠ Anexe a NF para poder salvar a bobina.</p>}
+            {!form.anexo_cert_url && !certOk && <p className="text-xs text-destructive">⚠ Anexe o Certificado ou declare ausência.</p>}
           </div>
 
           {/* Reserva */}
           <ReservaPanel form={form} onChange={setForm} />
+
         </div>
 
-        <DialogFooter className="flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
-          {!editItem && (
-            <Button type="button" variant="outline" size="sm" onClick={handleRascunho} className="gap-1.5 text-muted-foreground">
-              <Save className="w-4 h-4" />
-              Salvar como rascunho
-            </Button>
-          )}
-          <div className="flex gap-2 justify-end">
-            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="button" onClick={() => handleSave()}>
-              {editItem ? (editItem.status === "rascunho" ? "Finalizar e Adicionar" : "Salvar") : "Adicionar"}
-            </Button>
-          </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSave} disabled={!canSave}>
+            {editItem ? "Salvar" : "Adicionar"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
