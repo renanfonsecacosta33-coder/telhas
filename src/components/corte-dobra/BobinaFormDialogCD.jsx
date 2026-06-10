@@ -124,8 +124,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
     onSave(buildPayload(true));
   };
 
-  const certOk = form.anexo_cert_url || (confirmarSemCert && semCertAssinatura.trim().length >= 5);
-  const canSave = form.chapa && form.anexo_nf_url && certOk;
+  const canSave = !!form.chapa && !!form.anexo_nf_url;
   const canSaveRascunho = !!form.chapa;
 
   return (
@@ -309,7 +308,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
               </div>
             )}
             {!form.anexo_nf_url && <p className="text-xs text-destructive">⚠ Anexe a NF para poder salvar a bobina.</p>}
-            {!form.anexo_cert_url && !certOk && <p className="text-xs text-destructive">⚠ Anexe o Certificado ou declare ausência.</p>}
+            {!form.anexo_cert_url && !confirmarSemCert && <p className="text-xs text-destructive">⚠ Anexe o Certificado ou declare ausência.</p>}
           </div>
 
           {/* Reserva */}

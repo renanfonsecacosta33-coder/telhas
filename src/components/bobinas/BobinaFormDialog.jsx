@@ -181,9 +181,8 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
     onSave(buildPayload(true));
   };
 
-  const certOk = form.anexo_cert_url || (confirmarSemCert && semCertAssinatura.trim().length >= 5);
-  const canSave = form.cor && form.chapa && form.anexo_nf_url && certOk;
-  const canSaveRascunho = form.cor && form.chapa;
+  const canSave = !!(form.cor && form.chapa && form.anexo_nf_url);
+  const canSaveRascunho = !!(form.cor && form.chapa);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -403,7 +402,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
             {!form.anexo_nf_url && (
               <p className="text-xs text-destructive">⚠ Anexe a NF para poder salvar a bobina.</p>
             )}
-            {!form.anexo_cert_url && !certOk && (
+            {!form.anexo_cert_url && !confirmarSemCert && (
               <p className="text-xs text-destructive">⚠ Anexe o Certificado Digital ou declare seu nome para confirmar a ausência.</p>
             )}
           </div>
