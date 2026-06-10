@@ -144,45 +144,34 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
     }
   };
 
-  const buildPayload = (isRascunho = false) => ({
-    ...form,
-    setor: "telhas",
-    rascunho: isRascunho,
-    largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
-    peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
-    peso_inicial: form.peso_inicial ? Number(form.peso_inicial) : undefined,
-    metragem: form.metragem ? Number(form.metragem) : undefined,
-    custo: form.custo ? Number(form.custo) : undefined,
-    estoque_minimo_kg: form.estoque_minimo_kg ? Number(form.estoque_minimo_kg) : undefined,
-    consumo_diario_kg: form.consumo_diario_kg ? Number(form.consumo_diario_kg) : undefined,
-    anexo_cert_ausencia: (!form.anexo_cert_url && confirmarSemCert) ? semCertAssinatura.trim() : undefined,
-    reservada: form.reservada || false,
-    reserva_tipo: form.reservada ? form.reserva_tipo : undefined,
-    reserva_kg: (form.reservada && form.reserva_tipo === "parcial" && form.reserva_kg) ? Number(form.reserva_kg) : undefined,
-    reserva_numero_pedido: form.reservada ? form.reserva_numero_pedido : undefined,
-    reserva_motivo: form.reservada ? form.reserva_motivo : undefined,
-    reserva_autorizado_por: form.reservada ? form.reserva_autorizado_por : undefined,
-    reserva_data: form.reservada ? (form.reserva_data || new Date().toISOString().split("T")[0]) : undefined,
-  });
-
   const handleSave = () => {
     if (!form.anexo_nf_url) {
       alert("Anexe a Nota Fiscal (NF) antes de salvar a bobina.");
       return;
     }
-    onSave(buildPayload(false));
+    onSave({
+      ...form,
+      setor: "telhas",
+      largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
+      peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
+      peso_inicial: form.peso_inicial ? Number(form.peso_inicial) : undefined,
+      metragem: form.metragem ? Number(form.metragem) : undefined,
+      custo: form.custo ? Number(form.custo) : undefined,
+      estoque_minimo_kg: form.estoque_minimo_kg ? Number(form.estoque_minimo_kg) : undefined,
+      consumo_diario_kg: form.consumo_diario_kg ? Number(form.consumo_diario_kg) : undefined,
+      anexo_cert_ausencia: (!form.anexo_cert_url && confirmarSemCert) ? semCertAssinatura.trim() : undefined,
+      reservada: form.reservada || false,
+      reserva_tipo: form.reservada ? form.reserva_tipo : undefined,
+      reserva_kg: (form.reservada && form.reserva_tipo === "parcial" && form.reserva_kg) ? Number(form.reserva_kg) : undefined,
+      reserva_numero_pedido: form.reservada ? form.reserva_numero_pedido : undefined,
+      reserva_motivo: form.reservada ? form.reserva_motivo : undefined,
+      reserva_autorizado_por: form.reservada ? form.reserva_autorizado_por : undefined,
+      reserva_data: form.reservada ? (form.reserva_data || new Date().toISOString().split("T")[0]) : undefined,
+    });
   };
 
-  const handleSaveRascunho = () => {
-    if (!form.cor || !form.chapa) {
-      alert("Preencha pelo menos Cor e Chapa para salvar como rascunho.");
-      return;
-    }
-    onSave(buildPayload(true));
-  };
-
-  const canSave = !!(form.cor && form.chapa && form.anexo_nf_url);
-  const canSaveRascunho = !!(form.cor && form.chapa);
+  const certOk = form.anexo_cert_url || (confirmarSemCert && semCertAssinatura.trim().length >= 5);
+  const canSave = form.cor && form.chapa && form.anexo_nf_url && certOk;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -402,7 +391,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
             {!form.anexo_nf_url && (
               <p className="text-xs text-destructive">⚠ Anexe a NF para poder salvar a bobina.</p>
             )}
-            {!form.anexo_cert_url && !confirmarSemCert && (
+            {!form.anexo_cert_url && !certOk && (
               <p className="text-xs text-destructive">⚠ Anexe o Certificado Digital ou declare seu nome para confirmar a ausência.</p>
             )}
           </div>
@@ -412,11 +401,8 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
 
         </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
+        <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button variant="secondary" onClick={handleSaveRascunho} disabled={!canSaveRascunho}>
-            Salvar Rascunho
-          </Button>
           <Button onClick={handleSave} disabled={!canSave}>
             {editItem ? "Salvar" : "Adicionar"}
           </Button>

@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Archive, AlertTriangle, Package, Weight, FileEdit } from "lucide-react";
+import { Plus, Search, Archive, AlertTriangle, Package, Weight } from "lucide-react";
 import { toast } from "sonner";
 import BobinaFormDialogCD from "@/components/corte-dobra/BobinaFormDialogCD";
 import DeleteConfirmDialog from "@/components/stock/DeleteConfirmDialog";
@@ -18,7 +18,6 @@ export default function BobinasCD() {
   const [search, setSearch] = useState("");
   const [filterAlerta, setFilterAlerta] = useState(false);
   const [showArquivadas, setShowArquivadas] = useState(false);
-  const [showRascunhos, setShowRascunhos] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: bobinas = [], isLoading } = useQuery({
@@ -62,27 +61,20 @@ export default function BobinasCD() {
   });
 
   const handleSave = (data) => {
-    return new Promise((resolve) => {
-      if (editItem) {
-        updateMutation.mutate({ id: editItem.id, data }, { onSettled: resolve });
-      } else {
-        createMutation.mutate(data, { onSettled: resolve });
-      }
-    });
+    if (editItem) updateMutation.mutate({ id: editItem.id, data });
+    else createMutation.mutate(data);
   };
 
-  const ativas = bobinas.filter(b => !b.arquivada && !b.rascunho);
-  const rascunhos = bobinas.filter(b => b.rascunho && !b.arquivada);
+  const ativas = bobinas.filter(b => !b.arquivada);
   const arquivadas = bobinas.filter(b => b.arquivada);
   const totalPeso = ativas.reduce((s, b) => s + (b.peso_kg || 0), 0);
   const emAlerta = ativas.filter(b => getAlertaNivel(b) !== null);
 
-  const base = showArquivadas ? arquivadas : showRascunhos ? rascunhos : ativas;
+  const base = showArquivadas ? arquivadas : ativas;
   const filtered = base.filter(b => {
     const q = search.toLowerCase();
     const matchSearch = !q || b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q) ||
-      b.codigo?.toLowerCase().includes(q) || b.fornecedor?.toLowerCase().includes(q) || b.qualidade?.toLowerCase().includes(q) ||
-      b.nf?.toLowerCase().includes(q);
+      b.codigo?.toLowerCase().includes(q) || b.fornecedor?.toLowerCase().includes(q) || b.qualidade?.toLowerCase().includes(q);
     const matchAlerta = !filterAlerta || getAlertaNivel(b) !== null;
     return matchSearch && matchAlerta;
   });
@@ -131,16 +123,11 @@ export default function BobinasCD() {
       <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Buscar por cor, chapa, código, NF..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Buscar por cor, chapa, código..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant={showRascunhos ? "default" : "outline"} size="sm"
-            onClick={() => { setShowRascunhos(!showRascunhos); setShowArquivadas(false); setFilterAlerta(false); }} className="gap-1">
-            <FileEdit className="w-3 h-3" />
-            {showRascunhos ? "Ver em estoque" : `Rascunhos (${rascunhos.length})`}
-          </Button>
           <Button variant={showArquivadas ? "default" : "outline"} size="sm"
-            onClick={() => { setShowArquivadas(!showArquivadas); setShowRascunhos(false); setFilterAlerta(false); }} className="gap-1">
+            onClick={() => { setShowArquivadas(!showArquivadas); setFilterAlerta(false); }} className="gap-1">
             <Archive className="w-3 h-3" />
             {showArquivadas ? "Ver em estoque" : `Arquivadas (${arquivadas.length})`}
           </Button>

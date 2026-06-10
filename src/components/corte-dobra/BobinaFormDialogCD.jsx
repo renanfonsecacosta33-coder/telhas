@@ -8,47 +8,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { base44 } from "@/api/base44Client";
 import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera } from "lucide-react";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
-import { toast } from "sonner";
 
 const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "ALZ"];
 
-function emptyForm(codigo) {
-  return {
-    codigo: codigo || "CD0001",
-    data_recebimento: new Date().toISOString().slice(0, 10),
-    nf: "",
-    fornecedor: "",
-    qualidade: "",
-    chapa: "",
-    largura_mm: "",
-    custo: "",
-    peso_kg: "",
-    peso_inicial: "",
-    estoque_minimo_kg: "",
-    consumo_diario_kg: "",
-    observacoes: "",
-    anexo_nf_url: "",
-    anexo_nf_nome: "",
-    anexo_cert_url: "",
-    anexo_cert_nome: "",
-    reservada: false,
-    reserva_tipo: "",
-    reserva_kg: "",
-    reserva_numero_pedido: "",
-    reserva_motivo: "",
-    reserva_autorizado_por: "",
-    reserva_data: "",
-  };
-}
+const BLANK_FORM = (codigoCD) => ({
+  cor: "", chapa: "", qualidade: "", largura_mm: "", peso_kg: "", peso_inicial: "",
+  codigo: codigoCD, nf: "", custo: "", fornecedor: "",
+  data_recebimento: new Date().toISOString().slice(0, 10),
+  observacoes: "",
+  estoque_minimo_kg: "", consumo_diario_kg: "",
+  anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
+  reservada: false, reserva_tipo: "", reserva_kg: "", reserva_numero_pedido: "",
+  reserva_motivo: "", reserva_autorizado_por: "", reserva_data: "",
+});
 
 export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, proximoNumero }) {
-  const [form, setForm] = useState(emptyForm("CD0001"));
+  const [form, setForm] = useState(BLANK_FORM("CD0001"));
   const [uploadingNF, setUploadingNF] = useState(false);
   const [uploadingCert, setUploadingCert] = useState(false);
-  const [semCert, setSemCert] = useState(false);
-  const [semCertNome, setSemCertNome] = useState("");
-  const [saving, setSaving] = useState(false);
-
+  const [semCertAssinatura, setSemCertAssinatura] = useState("");
+  const [confirmarSemCert, setConfirmarSemCert] = useState(false);
   const nfInputRef = useRef();
   const nfCameraRef = useRef();
   const certInputRef = useRef();
@@ -58,19 +37,20 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
     if (!open) return;
     if (editItem) {
       setForm({
-        codigo: editItem.codigo || "",
-        data_recebimento: editItem.data_recebimento || "",
-        nf: editItem.nf || "",
-        fornecedor: editItem.fornecedor || "",
-        qualidade: editItem.qualidade || "",
+        cor: editItem.cor || "",
         chapa: editItem.chapa || "",
+        qualidade: editItem.qualidade || "",
         largura_mm: editItem.largura_mm || "",
-        custo: editItem.custo || "",
         peso_kg: editItem.peso_kg || "",
         peso_inicial: editItem.peso_inicial || "",
+        codigo: editItem.codigo || "",
+        nf: editItem.nf || "",
+        custo: editItem.custo || "",
+        fornecedor: editItem.fornecedor || "",
+        data_recebimento: editItem.data_recebimento || "",
+        observacoes: editItem.observacoes || "",
         estoque_minimo_kg: editItem.estoque_minimo_kg || "",
         consumo_diario_kg: editItem.consumo_diario_kg || "",
-        observacoes: editItem.observacoes || "",
         anexo_nf_url: editItem.anexo_nf_url || "",
         anexo_nf_nome: editItem.anexo_nf_nome || "",
         anexo_cert_url: editItem.anexo_cert_url || "",
@@ -83,77 +63,59 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
         reserva_autorizado_por: editItem.reserva_autorizado_por || "",
         reserva_data: editItem.reserva_data || "",
       });
-      setSemCert(!!editItem.anexo_cert_ausencia);
-      setSemCertNome(editItem.anexo_cert_ausencia || "");
+      setSemCertAssinatura("");
+      setConfirmarSemCert(false);
     } else {
       const num = String(proximoNumero || 1).padStart(4, "0");
-      setForm(emptyForm(`CD${num}`));
-      setSemCert(false);
-      setSemCertNome("");
+      setForm(BLANK_FORM(`CD${num}`));
+      setSemCertAssinatura("");
+      setConfirmarSemCert(false);
     }
-  }, [open, editItem, proximoNumero]);
+  }, [editItem, open, proximoNumero]);
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
   const handleUpload = async (file, tipo) => {
     if (!file) return;
-    tipo === "nf" ? setUploadingNF(true) : setUploadingCert(true);
+    if (tipo === "nf") setUploadingNF(true);
+    else setUploadingCert(true);
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
     if (tipo === "nf") {
       setForm(f => ({ ...f, anexo_nf_url: file_url, anexo_nf_nome: file.name }));
       setUploadingNF(false);
     } else {
       setForm(f => ({ ...f, anexo_cert_url: file_url, anexo_cert_nome: file.name }));
-      setSemCert(false);
-      setSemCertNome("");
       setUploadingCert(false);
     }
   };
 
-  const buildPayload = (rascunho) => ({
-    setor: "corte_dobra",
-    rascunho,
-    codigo: form.codigo,
-    data_recebimento: form.data_recebimento || undefined,
-    nf: form.nf || undefined,
-    fornecedor: form.fornecedor || undefined,
-    qualidade: form.qualidade || undefined,
-    chapa: form.chapa,
-    largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
-    custo: form.custo ? Number(form.custo) : undefined,
-    peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
-    peso_inicial: form.peso_inicial ? Number(form.peso_inicial) : undefined,
-    estoque_minimo_kg: form.estoque_minimo_kg ? Number(form.estoque_minimo_kg) : undefined,
-    consumo_diario_kg: form.consumo_diario_kg ? Number(form.consumo_diario_kg) : undefined,
-    observacoes: form.observacoes || undefined,
-    anexo_nf_url: form.anexo_nf_url || undefined,
-    anexo_nf_nome: form.anexo_nf_nome || undefined,
-    anexo_cert_url: form.anexo_cert_url || undefined,
-    anexo_cert_nome: form.anexo_cert_nome || undefined,
-    anexo_cert_ausencia: (!form.anexo_cert_url && semCert && semCertNome.trim()) ? semCertNome.trim() : undefined,
-    reservada: form.reservada || false,
-    reserva_tipo: form.reservada ? form.reserva_tipo : undefined,
-    reserva_kg: (form.reservada && form.reserva_tipo === "parcial") ? Number(form.reserva_kg) : undefined,
-    reserva_numero_pedido: form.reservada ? form.reserva_numero_pedido : undefined,
-    reserva_motivo: form.reservada ? form.reserva_motivo : undefined,
-    reserva_autorizado_por: form.reservada ? form.reserva_autorizado_por : undefined,
-    reserva_data: form.reservada ? (form.reserva_data || new Date().toISOString().split("T")[0]) : undefined,
-  });
-
-  const handleSaveRascunho = async () => {
-    if (!form.chapa) { toast.error("Preencha a Chapa para salvar como rascunho."); return; }
-    setSaving(true);
-    await onSave(buildPayload(true));
-    setSaving(false);
+  const handleSave = () => {
+    if (!form.anexo_nf_url) {
+      alert("Anexe a Nota Fiscal (NF) antes de salvar a bobina.");
+      return;
+    }
+    onSave({
+      ...form,
+      setor: "corte_dobra",
+      largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
+      peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
+      peso_inicial: form.peso_inicial ? Number(form.peso_inicial) : undefined,
+      custo: form.custo ? Number(form.custo) : undefined,
+      estoque_minimo_kg: form.estoque_minimo_kg ? Number(form.estoque_minimo_kg) : undefined,
+      consumo_diario_kg: form.consumo_diario_kg ? Number(form.consumo_diario_kg) : undefined,
+      anexo_cert_ausencia: (!form.anexo_cert_url && confirmarSemCert) ? semCertAssinatura.trim() : undefined,
+      reservada: form.reservada || false,
+      reserva_tipo: form.reservada ? form.reserva_tipo : undefined,
+      reserva_kg: (form.reservada && form.reserva_tipo === "parcial" && form.reserva_kg) ? Number(form.reserva_kg) : undefined,
+      reserva_numero_pedido: form.reservada ? form.reserva_numero_pedido : undefined,
+      reserva_motivo: form.reservada ? form.reserva_motivo : undefined,
+      reserva_autorizado_por: form.reservada ? form.reserva_autorizado_por : undefined,
+      reserva_data: form.reservada ? (form.reserva_data || new Date().toISOString().split("T")[0]) : undefined,
+    });
   };
 
-  const handleAdicionar = async () => {
-    if (!form.chapa) { toast.error("Preencha a Chapa."); return; }
-    if (!form.anexo_nf_url) { toast.error("Anexe a Nota Fiscal (NF) antes de adicionar."); return; }
-    setSaving(true);
-    await onSave(buildPayload(false));
-    setSaving(false);
-  };
+  const certOk = form.anexo_cert_url || (confirmarSemCert && semCertAssinatura.trim().length >= 5);
+  const canSave = form.chapa && form.anexo_nf_url && certOk;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -161,13 +123,12 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
         <DialogHeader>
           <DialogTitle>{editItem ? "Editar Bobina" : "Nova Bobina — Corte e Dobra"}</DialogTitle>
         </DialogHeader>
-
         <div className="space-y-4 py-2">
 
           {/* Código + Data */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Código</Label>
+              <Label>Código (auto)</Label>
               <Input value={form.codigo} onChange={e => set("codigo", e.target.value)} className="font-mono bg-muted/40" />
             </div>
             <div className="space-y-1">
@@ -203,6 +164,12 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
             </div>
           </div>
 
+          {/* Cor */}
+          <div className="space-y-1">
+            <Label>Cor / Material</Label>
+            <Input placeholder="Ex: Galvanizado, Zincado, Pintado Branco..." value={form.cor} onChange={e => set("cor", e.target.value)} />
+          </div>
+
           {/* Largura + Custo */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -215,7 +182,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
             </div>
           </div>
 
-          {/* Pesos */}
+          {/* Peso atual + Peso inicial */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Peso Atual (kg)</Label>
@@ -227,7 +194,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
             </div>
           </div>
 
-          {/* Estoque mínimo + Consumo */}
+          {/* Estoque mínimo + Consumo diário */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Estoque Mínimo (kg)</Label>
@@ -249,32 +216,36 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
 
           {/* Anexos */}
           <div className="space-y-2">
-            <Label>Anexos</Label>
+            <Label className="flex items-center gap-1">
+              Anexos
+              <span className="text-xs text-destructive font-normal ml-1">— NF obrigatória</span>
+            </Label>
             <div className="grid grid-cols-2 gap-3">
-
               {/* NF */}
               <div className="space-y-1.5">
-                <input ref={nfInputRef} type="file" className="hidden" accept="image/*,.pdf" onChange={e => handleUpload(e.target.files[0], "nf")} />
-                <input ref={nfCameraRef} type="file" className="hidden" accept="image/*" capture="environment" onChange={e => handleUpload(e.target.files[0], "nf")} />
+                <input ref={nfInputRef} type="file" className="hidden" accept="image/*,.pdf"
+                  onChange={e => handleUpload(e.target.files[0], "nf")} />
+                <input ref={nfCameraRef} type="file" className="hidden" accept="image/*" capture="environment"
+                  onChange={e => handleUpload(e.target.files[0], "nf")} />
                 {form.anexo_nf_url ? (
                   <div className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
                     <FileCheck className="w-4 h-4 shrink-0 text-emerald-600" />
-                    <a href={form.anexo_nf_url} target="_blank" rel="noopener noreferrer" className="truncate flex-1 underline font-medium" title={form.anexo_nf_nome}>
+                    <a href={form.anexo_nf_url} target="_blank" rel="noopener noreferrer"
+                      className="truncate flex-1 underline underline-offset-2 font-medium" title={form.anexo_nf_nome}>
                       {form.anexo_nf_nome || "NF anexada"}
                     </a>
-                    <button onClick={() => setForm(f => ({ ...f, anexo_nf_url: "", anexo_nf_nome: "" }))} className="ml-auto text-emerald-600 hover:text-red-500">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
+                    <button onClick={() => setForm(f => ({ ...f, anexo_nf_url: "", anexo_nf_nome: "" }))}
+                      className="ml-auto text-emerald-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 ) : (
                   <div className="flex gap-1.5">
                     <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
-                      onClick={() => nfInputRef.current?.click()} disabled={uploadingNF}>
+                      onClick={() => nfInputRef.current.click()} disabled={uploadingNF}>
                       {uploadingNF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                      {uploadingNF ? "Enviando..." : "Anexar NF"}
+                      {uploadingNF ? "Enviando..." : "Anexar NF *"}
                     </Button>
                     <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
-                      onClick={() => nfCameraRef.current?.click()} disabled={uploadingNF} title="Câmera">
+                      onClick={() => nfCameraRef.current.click()} disabled={uploadingNF} title="Câmera">
                       <Camera className="w-4 h-4" />
                     </Button>
                   </div>
@@ -283,27 +254,29 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
 
               {/* Certificado */}
               <div className="space-y-1.5">
-                <input ref={certInputRef} type="file" className="hidden" accept="image/*,.pdf,.p7b,.cer,.crt" onChange={e => handleUpload(e.target.files[0], "cert")} />
-                <input ref={certCameraRef} type="file" className="hidden" accept="image/*" capture="environment" onChange={e => handleUpload(e.target.files[0], "cert")} />
+                <input ref={certInputRef} type="file" className="hidden" accept="image/*,.pdf,.p7b,.cer,.crt"
+                  onChange={e => { handleUpload(e.target.files[0], "cert"); setConfirmarSemCert(false); setSemCertAssinatura(""); }} />
+                <input ref={certCameraRef} type="file" className="hidden" accept="image/*" capture="environment"
+                  onChange={e => { handleUpload(e.target.files[0], "cert"); setConfirmarSemCert(false); setSemCertAssinatura(""); }} />
                 {form.anexo_cert_url ? (
                   <div className="flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs text-blue-800">
                     <ShieldCheck className="w-4 h-4 shrink-0 text-blue-600" />
-                    <a href={form.anexo_cert_url} target="_blank" rel="noopener noreferrer" className="truncate flex-1 underline font-medium" title={form.anexo_cert_nome}>
+                    <a href={form.anexo_cert_url} target="_blank" rel="noopener noreferrer"
+                      className="truncate flex-1 underline underline-offset-2 font-medium" title={form.anexo_cert_nome}>
                       {form.anexo_cert_nome || "Certificado"}
                     </a>
-                    <button onClick={() => setForm(f => ({ ...f, anexo_cert_url: "", anexo_cert_nome: "" }))} className="ml-auto text-blue-600 hover:text-red-500">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
+                    <button onClick={() => setForm(f => ({ ...f, anexo_cert_url: "", anexo_cert_nome: "" }))}
+                      className="ml-auto text-blue-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 ) : (
                   <div className="flex gap-1.5">
                     <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
-                      onClick={() => certInputRef.current?.click()} disabled={uploadingCert}>
+                      onClick={() => certInputRef.current.click()} disabled={uploadingCert}>
                       {uploadingCert ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
                       {uploadingCert ? "Enviando..." : "Certificado"}
                     </Button>
                     <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
-                      onClick={() => certCameraRef.current?.click()} disabled={uploadingCert} title="Câmera">
+                      onClick={() => certCameraRef.current.click()} disabled={uploadingCert} title="Câmera">
                       <Camera className="w-4 h-4" />
                     </Button>
                   </div>
@@ -313,25 +286,25 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
 
             {/* Sem certificado */}
             {!form.anexo_cert_url && (
-              <div className="mt-1">
-                {!semCert ? (
-                  <button type="button" onClick={() => setSemCert(true)}
+              <div className="mt-2">
+                {!confirmarSemCert ? (
+                  <button type="button" onClick={() => setConfirmarSemCert(true)}
                     className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
                     Não tenho o certificado digital
                   </button>
                 ) : (
                   <div className="rounded-lg border border-orange-300 bg-orange-50 p-3 space-y-2">
-                    <p className="text-xs text-orange-800 font-medium">⚠ Declare seu nome confirmando que o certificado não foi fornecido:</p>
-                    <Input placeholder="Nome completo do responsável" value={semCertNome}
-                      onChange={e => setSemCertNome(e.target.value)} className="h-8 text-xs bg-white" />
-                    <button type="button" onClick={() => { setSemCert(false); setSemCertNome(""); }}
-                      className="text-xs text-orange-600 underline underline-offset-2">
-                      Cancelar — vou anexar o certificado
-                    </button>
+                    <p className="text-xs text-orange-800 font-medium">⚠ Declare seu nome completo confirmando que o certificado não foi fornecido:</p>
+                    <Input placeholder="Nome completo do responsável" value={semCertAssinatura}
+                      onChange={e => setSemCertAssinatura(e.target.value)} className="h-8 text-xs bg-white" />
+                    <button type="button" onClick={() => { setConfirmarSemCert(false); setSemCertAssinatura(""); }}
+                      className="text-xs text-orange-600 underline underline-offset-2">Cancelar — vou anexar o certificado</button>
                   </div>
                 )}
               </div>
             )}
+            {!form.anexo_nf_url && <p className="text-xs text-destructive">⚠ Anexe a NF para poder salvar a bobina.</p>}
+            {!form.anexo_cert_url && !certOk && <p className="text-xs text-destructive">⚠ Anexe o Certificado ou declare ausência.</p>}
           </div>
 
           {/* Reserva */}
@@ -339,14 +312,9 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
 
         </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
-          <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
-          <Button variant="secondary" onClick={handleSaveRascunho} disabled={saving || !form.chapa}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-            Salvar Rascunho
-          </Button>
-          <Button onClick={handleAdicionar} disabled={saving || !form.chapa}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSave} disabled={!canSave}>
             {editItem ? "Salvar" : "Adicionar"}
           </Button>
         </DialogFooter>

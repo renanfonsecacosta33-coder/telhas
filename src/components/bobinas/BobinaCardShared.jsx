@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import {
   Pencil, Trash2, Archive, ArchiveRestore, AlertTriangle, Clock,
   Weight, Ruler, CalendarDays, FileCheck, ShieldCheck,
-  ChevronDown, ChevronUp, Lock, LockOpen, FileEdit
+  ChevronDown, ChevronUp, Lock, LockOpen
 } from "lucide-react";
 
 export const qualidadeColors = {
@@ -64,22 +64,13 @@ export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statu
 
   return (
     <div className={`bg-white rounded-xl border-2 shadow-sm hover:shadow-md transition-all ${
-      bobina.rascunho ? "border-yellow-400" :
       bobina.reservada ? "border-purple-400" :
       alerta === "critico" ? "border-red-300" :
       alerta === "atencao" ? "border-amber-300" : "border-border"
     }`}>
 
-      {/* Banner rascunho */}
-      {bobina.rascunho && (
-        <div className="px-4 py-2 rounded-t-xl flex items-center gap-2 text-xs font-semibold bg-yellow-50 text-yellow-800 border-b border-yellow-200">
-          <FileEdit className="w-3.5 h-3.5" />
-          <span>RASCUNHO — Documentação pendente. Clique em editar para completar.</span>
-        </div>
-      )}
-
       {/* Banner reserva */}
-      {!bobina.rascunho && bobina.reservada && (
+      {bobina.reservada && (
         <div className="px-4 py-2 rounded-t-xl flex items-center gap-2 text-xs font-semibold bg-purple-50 text-purple-800 border-b border-purple-200">
           <Lock className="w-3.5 h-3.5" />
           <span>RESERVADA — {bobina.reserva_tipo === "inteira" ? "Bobina Inteira" : `${bobina.reserva_kg?.toLocaleString("pt-BR")} kg (${reservaPct?.toFixed(0)}%)`}</span>
