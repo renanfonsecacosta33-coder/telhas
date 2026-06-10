@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import {
   Pencil, Trash2, Archive, ArchiveRestore, AlertTriangle, Clock,
   Weight, Ruler, CalendarDays, FileCheck, ShieldCheck,
-  ChevronDown, ChevronUp, Lock, LockOpen, Camera
+  ChevronDown, ChevronUp, Lock, LockOpen, Camera, Tag
 } from "lucide-react";
+import EtiquetaBTW from "@/components/bobinas/EtiquetaBTW";
 
 export const qualidadeColors = {
   "GV": "bg-blue-100 text-blue-800 border-blue-300",
@@ -52,6 +53,7 @@ function BarraProgresso({ pct, alerta }) {
 
 export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statusColors = {} }) {
   const [expandido, setExpandido] = useState(false);
+  const [showEtiqueta, setShowEtiqueta] = useState(false);
   const pctUso = getPorcentagemUso(bobina);
   const pctRestante = pctUso !== null ? 100 - pctUso : null;
   const diasRestantes = getPrevisaoAcabar(bobina);
@@ -194,6 +196,11 @@ export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statu
           </div>
         )}
 
+        {/* Modal Etiqueta */}
+        {showEtiqueta && (
+          <EtiquetaBTW bobina={bobina} onClose={() => setShowEtiqueta(false)} />
+        )}
+
         {/* Expandir */}
         <button
           onClick={() => setExpandido(!expandido)}
@@ -229,6 +236,18 @@ export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statu
             {bobina.observacoes && (
               <p className="text-xs text-muted-foreground bg-gray-50 rounded-lg px-3 py-2">{bobina.observacoes}</p>
             )}
+
+            {/* Etiqueta BTW */}
+            <div className="pt-1">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 text-xs border-blue-300 text-blue-700 hover:bg-blue-50"
+                onClick={() => setShowEtiqueta(true)}
+              >
+                <Tag className="w-3.5 h-3.5" /> Gerar Etiqueta BTW
+              </Button>
+            </div>
 
             {/* Anexos */}
             <div className="flex gap-2 flex-wrap">
