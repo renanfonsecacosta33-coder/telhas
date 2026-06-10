@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Archive, AlertTriangle, Package, Weight } from "lucide-react";
+import { Plus, Search, Archive, AlertTriangle, Package, Weight, FileEdit } from "lucide-react";
 import { toast } from "sonner";
 import BobinaFormDialogCD from "@/components/corte-dobra/BobinaFormDialogCD";
 import DeleteConfirmDialog from "@/components/stock/DeleteConfirmDialog";
@@ -18,6 +18,7 @@ export default function BobinasCD() {
   const [search, setSearch] = useState("");
   const [filterAlerta, setFilterAlerta] = useState(false);
   const [showArquivadas, setShowArquivadas] = useState(false);
+  const [showRascunhos, setShowRascunhos] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: bobinas = [], isLoading } = useQuery({
@@ -65,12 +66,13 @@ export default function BobinasCD() {
     else createMutation.mutate(data);
   };
 
-  const ativas = bobinas.filter(b => !b.arquivada);
+  const ativas = bobinas.filter(b => !b.arquivada && !b.rascunho);
+  const rascunhos = bobinas.filter(b => b.rascunho && !b.arquivada);
   const arquivadas = bobinas.filter(b => b.arquivada);
   const totalPeso = ativas.reduce((s, b) => s + (b.peso_kg || 0), 0);
   const emAlerta = ativas.filter(b => getAlertaNivel(b) !== null);
 
-  const base = showArquivadas ? arquivadas : ativas;
+  const base = showArquivadas ? arquivadas : showRascunhos ? rascunhos : ativas;
   const filtered = base.filter(b => {
     const q = search.toLowerCase();
     const matchSearch = !q || b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q) ||
@@ -127,8 +129,13 @@ export default function BobinasCD() {
           <Input placeholder="Buscar por cor, chapa, código, NF..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div className="flex gap-2 flex-wrap">
+          <Button variant={showRascunhos ? "default" : "outline"} size="sm"
+            onClick={() => { setShowRascunhos(!showRascunhos); setShowArquivadas(false); setFilterAlerta(false); }} className="gap-1">
+            <FileEdit className="w-3 h-3" />
+            {showRascunhos ? "Ver em estoque" : `Rascunhos (${rascunhos.length})`}
+          </Button>
           <Button variant={showArquivadas ? "default" : "outline"} size="sm"
-            onClick={() => { setShowArquivadas(!showArquivadas); setFilterAlerta(false); }} className="gap-1">
+            onClick={() => { setShowArquivadas(!showArquivadas); setShowRascunhos(false); setFilterAlerta(false); }} className="gap-1">
             <Archive className="w-3 h-3" />
             {showArquivadas ? "Ver em estoque" : `Arquivadas (${arquivadas.length})`}
           </Button>

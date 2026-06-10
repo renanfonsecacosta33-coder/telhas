@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, AlertTriangle, Package, Weight, Archive } from "lucide-react";
+import { Plus, Search, AlertTriangle, Package, Weight, Archive, FileEdit } from "lucide-react";
 import { toast } from "sonner";
 import BobinaFormDialog from "@/components/bobinas/BobinaFormDialog";
 import DeleteConfirmDialog from "@/components/stock/DeleteConfirmDialog";
@@ -71,14 +71,17 @@ export default function Bobinas() {
     else createMutation.mutate(data);
   };
 
-  const ativas = bobinas.filter(b => !b.arquivada);
+  const [showRascunhos, setShowRascunhos] = useState(false);
+
+  const ativas = bobinas.filter(b => !b.arquivada && !b.rascunho);
+  const rascunhos = bobinas.filter(b => b.rascunho && !b.arquivada);
   const arquivadas = bobinas.filter(b => b.arquivada);
   const totalPeso = ativas.reduce((s, b) => s + (b.peso_kg || 0), 0);
   const emAlerta = ativas.filter(b => getAlertaNivel(b) !== null);
   const reservadas = ativas.filter(b => b.reservada);
   const statusList = [...new Set(ativas.map(b => b.status).filter(Boolean))].sort();
 
-  const base = showArquivadas ? arquivadas : ativas;
+  const base = showArquivadas ? arquivadas : showRascunhos ? rascunhos : ativas;
   const filtered = base.filter((b) => {
     const q = search.toLowerCase();
     const matchSearch = !q || b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q) ||
@@ -136,8 +139,13 @@ export default function Bobinas() {
           <Input placeholder="Buscar por cor, chapa, código..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <div className="flex gap-2 flex-wrap">
+          <Button variant={showRascunhos ? "default" : "outline"} size="sm"
+            onClick={() => { setShowRascunhos(!showRascunhos); setShowArquivadas(false); setFilterStatus("all"); setFilterAlerta(false); }} className="gap-1">
+            <FileEdit className="w-3 h-3" />
+            {showRascunhos ? "Ver em estoque" : `Rascunhos (${rascunhos.length})`}
+          </Button>
           <Button variant={showArquivadas ? "default" : "outline"} size="sm"
-            onClick={() => { setShowArquivadas(!showArquivadas); setFilterStatus("all"); setFilterAlerta(false); }} className="gap-1">
+            onClick={() => { setShowArquivadas(!showArquivadas); setShowRascunhos(false); setFilterStatus("all"); setFilterAlerta(false); }} className="gap-1">
             <Archive className="w-3 h-3" />
             {showArquivadas ? "Ver em estoque" : `Arquivadas (${arquivadas.length})`}
           </Button>
