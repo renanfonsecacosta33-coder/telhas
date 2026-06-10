@@ -25,7 +25,7 @@ const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "ALZ"];
 
 export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
   const [form, setForm] = useState({
-    cor: "", chapa: "", qualidade: "", largura_mm: "", peso_kg: "", peso_inicial: "",
+    cor: "", chapa: "", qualidade: "", sub_cod: "", largura_mm: "", peso_kg: "", peso_inicial: "",
     metragem: "", codigo: "", nf: "", custo: "", status: "", fornecedor: "",
     data_recebimento: "", observacoes: "", tipo: "Telha",
     anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
@@ -47,6 +47,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
         cor: editItem.cor || "",
         chapa: editItem.chapa || "",
         qualidade: editItem.qualidade || "",
+        sub_cod: editItem.sub_cod || "",
         largura_mm: editItem.largura_mm || "",
         peso_kg: editItem.peso_kg || "",
         peso_inicial: editItem.peso_inicial || "",
@@ -75,7 +76,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
       });
     } else {
       setForm({
-        cor: "", chapa: "", qualidade: "", largura_mm: "", peso_kg: "", peso_inicial: "",
+        cor: "", chapa: "", qualidade: "", sub_cod: "", largura_mm: "", peso_kg: "", peso_inicial: "",
         metragem: "", codigo: "Gerando...", nf: "", custo: "", status: "", fornecedor: "",
         data_recebimento: new Date().toISOString().slice(0, 10), observacoes: "", tipo: "Telha",
         anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
@@ -208,6 +209,10 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
                 <SelectContent>{STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="space-y-1">
+            <Label>SUB. COD (Código Substituto)</Label>
+            <Input placeholder="Opcional" value={form.sub_cod} onChange={e => set("sub_cod", e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">

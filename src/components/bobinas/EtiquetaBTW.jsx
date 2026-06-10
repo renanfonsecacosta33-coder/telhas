@@ -230,19 +230,29 @@ export default function EtiquetaBTW({ bobina, onClose }) {
 
               {/* Tabela de dados */}
               <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                {/* Linha data / COD / Peso atual */}
+                {/* Linha data / COD / SUB. COD */}
                 <div style={{ display: "flex", borderBottom: "0.75px solid #ccc", alignItems: "stretch" }}>
-                  <div style={{ padding: "4px 10px", fontSize: "13px", color: "#333", borderRight: "0.75px solid #ccc", minWidth: "70px", display: "flex", alignItems: "center", fontWeight: 600 }}>
-                    {bobina.data_recebimento
-                      ? bobina.data_recebimento.slice(5).replace("-", "/")
-                      : hoje}
+                  <div style={{ padding: "3px 8px", fontSize: "10px", color: "#555", borderRight: "0.75px solid #ccc", minWidth: "55px", display: "flex", flexDirection: "column", justifyContent: "center", fontWeight: 600 }}>
+                    Data:
+                    <span style={{ fontSize: "12px", fontWeight: "900", color: "#111" }}>
+                      {bobina.data_recebimento
+                        ? bobina.data_recebimento.slice(5).replace("-", "/")
+                        : hoje}
+                    </span>
                   </div>
-                  <div style={{ padding: "4px 10px", fontSize: "12px", color: "#333", flex: 1, display: "flex", alignItems: "center", borderRight: "0.75px solid #ccc", fontWeight: 600 }}>
-                    COD {bobina.nf || bobina.codigo || "—"}
+                  <div style={{ padding: "3px 8px", fontSize: "10px", color: "#555", borderRight: "0.75px solid #ccc", flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", fontWeight: 600 }}>
+                    COD:
+                    <span style={{ fontSize: "12px", fontWeight: "900", color: "#111" }}>{bobina.nf || bobina.codigo || "—"}</span>
                   </div>
-                  <div style={{ padding: "4px 10px", fontSize: "11px", color: "#555", minWidth: "100px", display: "flex", flexDirection: "column", justifyContent: "center", fontWeight: 600 }}>
+                  {bobina.sub_cod && (
+                    <div style={{ padding: "3px 8px", fontSize: "10px", color: "#555", borderRight: "0.75px solid #ccc", minWidth: "60px", display: "flex", flexDirection: "column", justifyContent: "center", fontWeight: 600 }}>
+                      SUB. COD:
+                      <span style={{ fontSize: "12px", fontWeight: "900", color: "#111" }}>{bobina.sub_cod}</span>
+                    </div>
+                  )}
+                  <div style={{ padding: "3px 8px", fontSize: "10px", color: "#555", minWidth: "85px", display: "flex", flexDirection: "column", justifyContent: "center", fontWeight: 600 }}>
                     Peso atual:
-                    <span style={{ fontSize: "14px", fontWeight: "900", color: "#111" }}>{pesoAtual}</span>
+                    <span style={{ fontSize: "12px", fontWeight: "900", color: "#111" }}>{pesoAtual}</span>
                   </div>
                 </div>
 

@@ -12,7 +12,7 @@ import ReservaPanel from "@/components/bobinas/ReservaPanel";
 const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "ALZ"];
 
 const BLANK_FORM = (codigoCD) => ({
-  cor: "", chapa: "", qualidade: "", largura_mm: "", peso_kg: "", peso_inicial: "",
+  cor: "", chapa: "", qualidade: "", sub_cod: "", largura_mm: "", peso_kg: "", peso_inicial: "",
   codigo: codigoCD, nf: "", custo: "", fornecedor: "",
   data_recebimento: new Date().toISOString().slice(0, 10),
   observacoes: "",
@@ -44,6 +44,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
         cor: editItem.cor || "",
         chapa: editItem.chapa || "",
         qualidade: editItem.qualidade || "",
+        sub_cod: editItem.sub_cod || "",
         largura_mm: editItem.largura_mm || "",
         peso_kg: editItem.peso_kg || "",
         peso_inicial: editItem.peso_inicial || "",
@@ -172,6 +173,12 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
               <Label>Chapa Real *</Label>
               <Input placeholder="Ex: 0,43" value={form.chapa} onChange={e => set("chapa", e.target.value)} />
             </div>
+          </div>
+
+          {/* SUB. COD */}
+          <div className="space-y-1">
+            <Label>SUB. COD (Código Substituto)</Label>
+            <Input placeholder="Opcional" value={form.sub_cod} onChange={e => set("sub_cod", e.target.value)} />
           </div>
 
           {/* Cor */}

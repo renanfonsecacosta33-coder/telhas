@@ -34,6 +34,10 @@
       "type": "string",
       "description": "Espessura da chapa (ex: 0,43)"
     },
+    "sub_cod": {
+      "type": "string",
+      "description": "C\u00f3digo substituto/secund\u00e1rio (opcional)"
+    },
     "largura_mm": {
       "type": "number",
       "description": "Largura em mm"
