@@ -11,26 +11,24 @@ import ReservaPanel from "@/components/bobinas/ReservaPanel";
 
 const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "ALZ"];
 
-const BLANK_FORM = (codigoCD) => ({
-  chapa: "", qualidade: "", largura_mm: "", peso_kg: "", peso_inicial: "",
-  codigo: codigoCD, nf: "", custo: "", fornecedor: "",
-  data_recebimento: new Date().toISOString().slice(0, 10),
-  observacoes: "",
-  estoque_minimo_kg: "", consumo_diario_kg: "",
-  anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
-  reservada: false, reserva_tipo: "", reserva_kg: "", reserva_numero_pedido: "",
-  reserva_motivo: "", reserva_autorizado_por: "", reserva_data: "",
-  foto_extra_url: "", foto_extra_nome: "",
-  status: "ativo",
-});
-
 export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, proximoNumero }) {
-  const [form, setForm] = useState(BLANK_FORM("CD0001"));
+  const [form, setForm] = useState({
+    chapa: "", qualidade: "", largura_mm: "", peso_kg: "", peso_inicial: "",
+    codigo: "", nf: "", custo: "", fornecedor: "",
+    data_recebimento: new Date().toISOString().slice(0, 10),
+    observacoes: "", estoque_minimo_kg: "", consumo_diario_kg: "",
+    anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
+    reservada: false, reserva_tipo: "", reserva_kg: "", reserva_numero_pedido: "",
+    reserva_motivo: "", reserva_autorizado_por: "", reserva_data: "",
+    foto_extra_url: "", foto_extra_nome: "", status: "ativo",
+  });
+
   const [uploadingNF, setUploadingNF] = useState(false);
   const [uploadingCert, setUploadingCert] = useState(false);
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [semCertAssinatura, setSemCertAssinatura] = useState("");
   const [confirmarSemCert, setConfirmarSemCert] = useState(false);
+
   const nfInputRef = useRef();
   const nfCameraRef = useRef();
   const certInputRef = useRef();
@@ -39,7 +37,6 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
   const fotoCameraRef = useRef();
 
   useEffect(() => {
-    if (!open) return;
     if (editItem) {
       setForm({
         chapa: editItem.chapa || "",
@@ -79,11 +76,20 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
       }
     } else {
       const num = String(proximoNumero || 1).padStart(4, "0");
-      setForm(BLANK_FORM(`CD${num}`));
+      setForm({
+        chapa: "", qualidade: "", largura_mm: "", peso_kg: "", peso_inicial: "",
+        codigo: `CD${num}`, nf: "", custo: "", fornecedor: "",
+        data_recebimento: new Date().toISOString().slice(0, 10),
+        observacoes: "", estoque_minimo_kg: "", consumo_diario_kg: "",
+        anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
+        reservada: false, reserva_tipo: "", reserva_kg: "", reserva_numero_pedido: "",
+        reserva_motivo: "", reserva_autorizado_por: "", reserva_data: "",
+        foto_extra_url: "", foto_extra_nome: "", status: "ativo",
+      });
       setSemCertAssinatura("");
       setConfirmarSemCert(false);
     }
-  }, [editItem, open, proximoNumero]);
+  }, [editItem, open]);
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
@@ -92,7 +98,9 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
     if (tipo === "nf") setUploadingNF(true);
     else if (tipo === "cert") setUploadingCert(true);
     else setUploadingFoto(true);
+
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
+
     if (tipo === "nf") {
       setForm(f => ({ ...f, anexo_nf_url: file_url, anexo_nf_nome: file.name }));
       setUploadingNF(false);
@@ -107,40 +115,58 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
     }
   };
 
-  const buildPayload = (statusOverride) => ({
-    ...form,
-    setor: "corte_dobra",
-    status: statusOverride || form.status || "ativo",
-    largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
-    peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
-    peso_inicial: form.peso_inicial ? Number(form.peso_inicial) : undefined,
-    custo: form.custo ? Number(form.custo) : undefined,
-    estoque_minimo_kg: form.estoque_minimo_kg ? Number(form.estoque_minimo_kg) : undefined,
-    consumo_diario_kg: form.consumo_diario_kg ? Number(form.consumo_diario_kg) : undefined,
-    anexo_cert_ausencia: (!form.anexo_cert_url && confirmarSemCert) ? semCertAssinatura.trim() : undefined,
-    reservada: form.reservada || false,
-    reserva_tipo: form.reservada ? form.reserva_tipo : undefined,
-    reserva_kg: (form.reservada && form.reserva_tipo === "parcial" && form.reserva_kg) ? Number(form.reserva_kg) : undefined,
-    reserva_numero_pedido: form.reservada ? form.reserva_numero_pedido : undefined,
-    reserva_motivo: form.reservada ? form.reserva_motivo : undefined,
-    reserva_autorizado_por: form.reservada ? form.reserva_autorizado_por : undefined,
-    reserva_data: form.reservada ? (form.reserva_data || new Date().toISOString().split("T")[0]) : undefined,
-    foto_extra_url: form.foto_extra_url || undefined,
-    foto_extra_nome: form.foto_extra_nome || undefined,
-  });
+  const handleSave = (statusOverride) => {
+    if (!form.anexo_nf_url) {
+      alert("Anexe a Nota Fiscal (NF) antes de salvar.");
+      return;
+    }
+    const certOk = form.anexo_cert_url || (confirmarSemCert && semCertAssinatura.trim().length >= 5) || !!editItem?.anexo_cert_ausencia;
+    if (!certOk) {
+      alert("Anexe o Certificado Digital ou declare ausência antes de salvar.");
+      return;
+    }
+    onSave({
+      ...form,
+      setor: "corte_dobra",
+      status: statusOverride || "ativo",
+      largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
+      peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
+      peso_inicial: form.peso_inicial ? Number(form.peso_inicial) : undefined,
+      custo: form.custo ? Number(form.custo) : undefined,
+      estoque_minimo_kg: form.estoque_minimo_kg ? Number(form.estoque_minimo_kg) : undefined,
+      consumo_diario_kg: form.consumo_diario_kg ? Number(form.consumo_diario_kg) : undefined,
+      anexo_cert_ausencia: (!form.anexo_cert_url && confirmarSemCert) ? semCertAssinatura.trim() : undefined,
+      reservada: form.reservada || false,
+      reserva_tipo: form.reservada ? form.reserva_tipo : undefined,
+      reserva_kg: (form.reservada && form.reserva_tipo === "parcial" && form.reserva_kg) ? Number(form.reserva_kg) : undefined,
+      reserva_numero_pedido: form.reservada ? form.reserva_numero_pedido : undefined,
+      reserva_motivo: form.reservada ? form.reserva_motivo : undefined,
+      reserva_autorizado_por: form.reservada ? form.reserva_autorizado_por : undefined,
+      reserva_data: form.reservada ? (form.reserva_data || new Date().toISOString().split("T")[0]) : undefined,
+      foto_extra_url: form.foto_extra_url || undefined,
+      foto_extra_nome: form.foto_extra_nome || undefined,
+    });
+  };
 
-  const handleSave = () => onSave(buildPayload("ativo"));
-  const handleRascunho = () => onSave(buildPayload("rascunho"));
+  const handleRascunho = () => {
+    if (!form.chapa) {
+      alert("Preencha pelo menos o campo Chapa antes de salvar como rascunho.");
+      return;
+    }
+    onSave({
+      ...form,
+      setor: "corte_dobra",
+      status: "rascunho",
+      largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
+      peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
+      peso_inicial: form.peso_inicial ? Number(form.peso_inicial) : undefined,
+      custo: form.custo ? Number(form.custo) : undefined,
+      estoque_minimo_kg: form.estoque_minimo_kg ? Number(form.estoque_minimo_kg) : undefined,
+      consumo_diario_kg: form.consumo_diario_kg ? Number(form.consumo_diario_kg) : undefined,
+    });
+  };
 
-  // Certificado ok: tem arquivo, ou declarou ausência, ou editando registro com ausência já declarada
-  const certOk = !!form.anexo_cert_url
-    || (confirmarSemCert && semCertAssinatura.trim().length >= 5)
-    || (!!editItem?.anexo_cert_ausencia);
-
-  // Rascunho: só precisa de chapa preenchida
-  const canRascunho = !!form.chapa;
-  // Salvar completo: chapa + NF + certificado ok
-  const canSave = !!form.chapa && !!form.anexo_nf_url && certOk;
+  const certOk = form.anexo_cert_url || (confirmarSemCert && semCertAssinatura.trim().length >= 5) || !!editItem?.anexo_cert_ausencia;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -153,11 +179,10 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
           </DialogTitle>
         </DialogHeader>
 
-        {/* Banner rascunho */}
         {editItem?.status === "rascunho" && (
           <div className="rounded-lg bg-amber-50 border border-amber-300 px-3 py-2 text-xs text-amber-800 flex items-center gap-2">
             <Save className="w-4 h-4 shrink-0" />
-            Esta bobina é um rascunho. Complete os campos e clique em "Adicionar" para finalizar.
+            Rascunho — complete os campos e clique em "Adicionar" para finalizar.
           </div>
         )}
 
@@ -286,9 +311,9 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
               {/* Certificado */}
               <div className="space-y-1.5">
                 <input ref={certInputRef} type="file" className="hidden" accept="image/*,.pdf,.p7b,.cer,.crt"
-                  onChange={e => handleUpload(e.target.files[0], "cert")} />
+                  onChange={e => { handleUpload(e.target.files[0], "cert"); setConfirmarSemCert(false); setSemCertAssinatura(""); }} />
                 <input ref={certCameraRef} type="file" className="hidden" accept="image/*" capture="environment"
-                  onChange={e => handleUpload(e.target.files[0], "cert")} />
+                  onChange={e => { handleUpload(e.target.files[0], "cert"); setConfirmarSemCert(false); setSemCertAssinatura(""); }} />
                 {form.anexo_cert_url ? (
                   <div className="flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs text-blue-800">
                     <ShieldCheck className="w-4 h-4 shrink-0 text-blue-600" />
@@ -304,7 +329,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
                     <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
                       onClick={() => certInputRef.current.click()} disabled={uploadingCert}>
                       {uploadingCert ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                      {uploadingCert ? "Enviando..." : "Certificado"}
+                      {uploadingCert ? "Enviando..." : "Certificado *"}
                     </Button>
                     <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
                       onClick={() => certCameraRef.current.click()} disabled={uploadingCert} title="Câmera">
@@ -333,6 +358,13 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
                   </div>
                 )}
               </div>
+            )}
+
+            {!form.anexo_nf_url && (
+              <p className="text-xs text-destructive">⚠ Anexe a NF para poder salvar a bobina.</p>
+            )}
+            {!form.anexo_cert_url && !certOk && (
+              <p className="text-xs text-destructive">⚠ Anexe o Certificado ou declare ausência.</p>
             )}
 
             {/* Foto Extra opcional */}
@@ -376,27 +408,16 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
         </div>
 
         <DialogFooter className="flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
-          {/* Botão rascunho à esquerda */}
           {!editItem && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!canRascunho}
-              onClick={handleRascunho}
-              className="gap-1.5 text-muted-foreground"
-            >
+            <Button type="button" variant="outline" size="sm" onClick={handleRascunho} className="gap-1.5 text-muted-foreground">
               <Save className="w-4 h-4" />
               Salvar como rascunho
             </Button>
           )}
-
           <div className="flex gap-2 justify-end">
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="button" onClick={handleSave} disabled={!canSave}>
-              {editItem
-                ? editItem.status === "rascunho" ? "Finalizar e Adicionar" : "Salvar"
-                : "Adicionar"}
+            <Button type="button" onClick={() => handleSave()}>
+              {editItem ? (editItem.status === "rascunho" ? "Finalizar e Adicionar" : "Salvar") : "Adicionar"}
             </Button>
           </div>
         </DialogFooter>
