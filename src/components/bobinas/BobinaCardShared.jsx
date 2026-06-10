@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import {
   Pencil, Trash2, Archive, ArchiveRestore, AlertTriangle, Clock,
   Weight, Ruler, CalendarDays, FileCheck, ShieldCheck,
-  ChevronDown, ChevronUp, Lock, LockOpen
+  ChevronDown, ChevronUp, Lock, LockOpen, Camera
 } from "lucide-react";
 
 export const qualidadeColors = {
@@ -248,6 +248,12 @@ export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statu
                 <span className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-orange-300 bg-orange-50 text-orange-700 font-medium">
                   ⚠ Sem cert. — {bobina.anexo_cert_ausencia}
                 </span>
+              )}
+              {bobina.foto_adicional_url && (
+                <a href={bobina.foto_adicional_url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors font-medium">
+                  <Camera className="w-3.5 h-3.5" /> Foto adicional
+                </a>
               )}
             </div>
           </div>
