@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from "@/api/base44Client";
 import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera } from "lucide-react";
+import { toast } from "sonner";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
 
 const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "ALZ"];
@@ -109,22 +110,17 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
   });
 
   const handleSave = () => {
-    if (!form.anexo_nf_url) {
-      alert("Anexe a Nota Fiscal (NF) antes de salvar a bobina.");
-      return;
-    }
+    if (!form.chapa) { toast.error("Preencha a Chapa antes de salvar."); return; }
+    if (!form.anexo_nf_url) { toast.error("Anexe a Nota Fiscal (NF) antes de adicionar a bobina."); return; }
     onSave(buildPayload(false));
   };
 
   const handleSaveRascunho = () => {
-    if (!form.chapa) {
-      alert("Preencha pelo menos a Chapa para salvar como rascunho.");
-      return;
-    }
+    if (!form.chapa) { toast.error("Preencha pelo menos a Chapa para salvar como rascunho."); return; }
     onSave(buildPayload(true));
   };
 
-  const canSave = !!form.chapa && !!form.anexo_nf_url;
+  const canSave = !!form.chapa;
   const canSaveRascunho = !!form.chapa;
 
   return (
@@ -220,10 +216,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
 
           {/* Anexos */}
           <div className="space-y-2">
-            <Label className="flex items-center gap-1">
-              Anexos
-              <span className="text-xs text-destructive font-normal ml-1">— NF obrigatória</span>
-            </Label>
+            <Label>Anexos</Label>
             <div className="grid grid-cols-2 gap-3">
               {/* NF */}
               <div className="space-y-1.5">
@@ -307,8 +300,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
                 )}
               </div>
             )}
-            {!form.anexo_nf_url && <p className="text-xs text-destructive">⚠ Anexe a NF para poder salvar a bobina.</p>}
-            {!form.anexo_cert_url && !confirmarSemCert && <p className="text-xs text-destructive">⚠ Anexe o Certificado ou declare ausência.</p>}
+
           </div>
 
           {/* Reserva */}
