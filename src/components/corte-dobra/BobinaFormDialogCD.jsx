@@ -176,7 +176,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
 
           {/* Cor */}
           <div className="space-y-1">
-            <Label>Cor / Material</Label>
+            <Label>Cor</Label>
             <Input placeholder="Ex: Galvanizado, Zincado, Pintado Branco..." value={form.cor} onChange={e => set("cor", e.target.value)} />
           </div>
 
