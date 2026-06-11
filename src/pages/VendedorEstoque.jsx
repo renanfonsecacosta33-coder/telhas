@@ -123,6 +123,42 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
     queryFn: () => base44.entities.Bobina.filter({ setor, arquivada: false }),
   });
 
+  // Busca ordens ativas para mostrar status da bobina
+  const { data: ordensAtivas = [] } = useQuery({
+    queryKey: ["ordens-ativas-vendedor", setor],
+    queryFn: async () => {
+      if (setor === "telhas") {
+        const pedidos = await base44.entities.Pedido.list();
+        return pedidos.filter(p => !["finalizado", "cancelado"].includes(p.status));
+      } else {
+        const ordens = await base44.entities.OrdemDesbobinadeira.list();
+        return ordens.filter(o => !["finalizado", "cancelado"].includes(o.status));
+      }
+    },
+  });
+
+  // Mapa: bobina_id -> { maquina, status }
+  const statusMap = {};
+  ordensAtivas.forEach(o => {
+    if (setor === "telhas") {
+      if (o.bobina_superior_id) statusMap[o.bobina_superior_id] = { maquina: o.maquina || "Produção", status: o.status };
+      if (o.bobina_inferior_id) statusMap[o.bobina_inferior_id] = { maquina: o.maquina || "Produção", status: o.status };
+    } else {
+      if (o.bobina_id) statusMap[o.bobina_id] = { maquina: "Desbobinadeira", status: o.status };
+    }
+  });
+
+  const statusLabel = (s) => {
+    if (!s) return null;
+    const map = {
+      em_producao:    { label: "Em produção",  cls: "bg-emerald-100 text-emerald-700" },
+      pendente:       { label: "Aguardando",   cls: "bg-blue-100 text-blue-700" },
+      pausado:        { label: "Parado",       cls: "bg-amber-100 text-amber-700" },
+      aguardando_colagem: { label: "Aguardando colagem", cls: "bg-purple-100 text-purple-700" },
+    };
+    return map[s.status] || { label: s.status, cls: "bg-slate-100 text-slate-600" };
+  };
+
   // Oculta bobinas reservadas
   const disponiveis = bobinas.filter(b => !b.reservada);
 
@@ -177,20 +213,33 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
           <div className="text-center py-12 text-muted-foreground text-sm">Nenhuma bobina disponível encontrada.</div>
         ) : (
           <div className="bg-card border border-border rounded-xl overflow-hidden">
-            <div className="grid grid-cols-5 px-4 py-3 bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
+            <div className="grid grid-cols-6 px-4 py-3 bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
               <span className="col-span-1">Cor</span>
               <span>Qualidade</span>
               <span>Espessura</span>
               <span>Peso (kg)</span>
+              <span>Status</span>
               <span></span>
             </div>
             <div className="divide-y divide-border">
-              {filtered.map(b => (
-                <div key={b.id} className="grid grid-cols-5 px-4 py-3 items-center hover:bg-muted/20 transition-colors">
+              {filtered.map(b => {
+                const st = statusMap[b.id];
+                const info = statusLabel(st);
+                return (
+                <div key={b.id} className="grid grid-cols-6 px-4 py-3 items-center hover:bg-muted/20 transition-colors">
                   <span className="text-sm font-medium col-span-1">{b.cor || "-"}</span>
                   <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded w-fit">{b.qualidade || "-"}</span>
                   <span className="text-sm">{b.chapa || "-"}</span>
                   <span className="text-sm font-semibold">{b.peso_kg ? `${b.peso_kg.toLocaleString("pt-BR")} kg` : "-"}</span>
+                  <span>
+                    {info ? (
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded whitespace-nowrap ${info.cls}`} title={`Máquina: ${st.maquina}`}>
+                        {info.label}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Disponível</span>
+                    )}
+                  </span>
                   <div className="flex justify-end">
                     <button
                       onClick={() => setSolicitarBobina(b)}
@@ -202,7 +251,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                     </button>
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           </div>
         )}
