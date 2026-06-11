@@ -21,7 +21,7 @@ export const qualidadeNomes = {
   "PP": "Pré-pintado",
   "FF": "Fina Fria",
   "FQ": "Fina Quente",
-  "ALZ ( IMP )": "Aluminizada (Imp.)",
+  "ALZ": "Aluminizada Importada",
 };
 
 export function getPorcentagemUso(bobina) {
