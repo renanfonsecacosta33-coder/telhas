@@ -229,7 +229,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                 <div key={b.id} className="grid grid-cols-6 px-4 py-3 items-center hover:bg-muted/20 transition-colors">
                   <span className="text-sm font-medium col-span-1">{b.cor || "-"}</span>
                   <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded w-fit">{b.qualidade || "-"}</span>
-                  <span className="text-sm">{b.chapa || "-"}</span>
+                  <span className="text-sm">{setor === "corte_dobra" ? (b.espessura_utilizada || b.chapa || "-") : (b.chapa || "-")}</span>
                   <span className="text-sm font-semibold">{b.peso_kg ? `${b.peso_kg.toLocaleString("pt-BR")} kg` : "-"}</span>
                   <span>
                     {info ? (

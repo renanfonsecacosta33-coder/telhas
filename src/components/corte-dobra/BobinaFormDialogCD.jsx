@@ -12,7 +12,8 @@ import ReservaPanel from "@/components/bobinas/ReservaPanel";
 const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "ALZ"];
 
 const BLANK_FORM = (codigoCD) => ({
-  cor: "", chapa: "", qualidade: "", sub_cod: "", largura_mm: "", peso_kg: "", peso_inicial: "",
+  cor: "", chapa: "", qualidade: "", sub_cod: "", espessura_real: "", espessura_utilizada: "",
+  largura_mm: "", peso_kg: "", peso_inicial: "",
   codigo: codigoCD, nf: "", custo: "", fornecedor: "",
   data_recebimento: new Date().toISOString().slice(0, 10),
   observacoes: "",
@@ -44,6 +45,8 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
         cor: editItem.cor || "",
         chapa: editItem.chapa || "",
         qualidade: editItem.qualidade || "",
+        espessura_real: editItem.espessura_real || "",
+        espessura_utilizada: editItem.espessura_utilizada || "",
         sub_cod: editItem.sub_cod || "",
         largura_mm: editItem.largura_mm || "",
         peso_kg: editItem.peso_kg || "",
@@ -170,8 +173,22 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Chapa Real *</Label>
+              <Label>Chapa *</Label>
               <Input placeholder="Ex: 0,43" value={form.chapa} onChange={e => set("chapa", e.target.value)} />
+            </div>
+          </div>
+
+          {/* Espessura Real + Utilizada */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Espessura Real (NF)</Label>
+              <Input placeholder="Ex: 0,43" value={form.espessura_real} onChange={e => set("espessura_real", e.target.value)} />
+              <p className="text-[10px] text-muted-foreground">Espessura literal da nota fiscal</p>
+            </div>
+            <div className="space-y-1">
+              <Label>Espessura Utilizada</Label>
+              <Input placeholder="Ex: 0,43 / 0,50" value={form.espessura_utilizada} onChange={e => set("espessura_utilizada", e.target.value)} />
+              <p className="text-[10px] text-muted-foreground">Espessura(s) que o vendedor vê</p>
             </div>
           </div>
 

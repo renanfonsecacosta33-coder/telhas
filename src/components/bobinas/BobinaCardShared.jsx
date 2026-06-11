@@ -113,6 +113,9 @@ export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statu
             <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
               {bobina.codigo && <span className="font-mono font-semibold text-gray-700">{bobina.codigo}</span>}
               <span>Chapa: <strong className="text-gray-700">{bobina.chapa} mm</strong></span>
+              {bobina.setor === "corte_dobra" && bobina.espessura_utilizada && (
+                <span className="text-emerald-700">Utilizada: <strong>{bobina.espessura_utilizada}</strong></span>
+              )}
               {bobina.largura_mm && <span>Largura: <strong className="text-gray-700">{bobina.largura_mm} mm</strong></span>}
               {bobina.fornecedor && <span>· {bobina.fornecedor}</span>}
               {bobina.data_recebimento && (

@@ -34,6 +34,14 @@
       "type": "string",
       "description": "Espessura da chapa (ex: 0,43)"
     },
+    "espessura_real": {
+      "type": "string",
+      "description": "Espessura real da nota fiscal (ex: 0,43)"
+    },
+    "espessura_utilizada": {
+      "type": "string",
+      "description": "Espessura(s) que podem ser utilizadas (ex: 0,43 / 0,50)"
+    },
     "sub_cod": {
       "type": "string",
       "description": "C\u00f3digo substituto/secund\u00e1rio (opcional)"
