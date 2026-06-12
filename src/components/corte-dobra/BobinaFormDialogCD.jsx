@@ -174,7 +174,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
             </div>
             <div className="space-y-1">
               <Label>Chapa *</Label>
-              <Input placeholder="Ex: 0,43" value={form.chapa} onChange={e => set("chapa", e.target.value)} />
+              <Input placeholder="1200" value={form.chapa} onChange={e => set("chapa", e.target.value)} />
             </div>
           </div>
 
@@ -182,7 +182,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Qualidade da Bobina</Label>
-              <Input placeholder="Ex: 0,43" value={form.espessura_real} onChange={e => set("espessura_real", e.target.value)} />
+              <Input placeholder="1200" value={form.espessura_real} onChange={e => set("espessura_real", e.target.value)} />
               <p className="text-[10px] text-muted-foreground">Espessura literal da nota fiscal</p>
             </div>
             <div className="space-y-1">
