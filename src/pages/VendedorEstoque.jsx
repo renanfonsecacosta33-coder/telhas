@@ -164,7 +164,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
 
   const filtered = disponiveis.filter(b => {
     const q = search.toLowerCase();
-    return b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q) || b.espessura_real?.toLowerCase().includes(q) || String(b.largura_mm || "").includes(q);
+    return b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q) || b.espessura_real?.toLowerCase().includes(q) || b.espessura_utilizada?.toLowerCase().includes(q) || String(b.largura_mm || "").includes(q);
   });
 
   return (
@@ -186,7 +186,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
         </Button>
       </div>
 
-      <div className="p-4 space-y-4 max-w-2xl mx-auto">
+      <div className="p-4 space-y-4 max-w-5xl mx-auto">
         {/* Resumo */}
         <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Bobinas disponíveis</span>
@@ -212,51 +212,61 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
         ) : filtered.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground text-sm">Nenhuma bobina disponível encontrada.</div>
         ) : (
-          <div className="bg-card border border-border rounded-xl overflow-hidden">
-            <div className="grid grid-cols-8 px-4 py-3 bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
-              <span className="col-span-1">Cor</span>
-              <span>Qualidade</span>
-              <span>Espessura</span>
-              <span>Qual. Bobina</span>
-              <span>Largura</span>
-              <span>Peso (kg)</span>
-              <span>Status</span>
-              <span></span>
-            </div>
-            <div className="divide-y divide-border">
-              {filtered.map(b => {
-                const st = statusMap[b.id];
-                const info = statusLabel(st);
-                return (
-                <div key={b.id} className="grid grid-cols-8 px-4 py-3 items-center hover:bg-muted/20 transition-colors">
-                  <span className="text-sm font-medium col-span-1">{b.cor || "-"}</span>
-                  <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded w-fit">{b.qualidade || "-"}</span>
-                  <span className="text-sm">{setor === "corte_dobra" ? (b.espessura_utilizada || b.chapa || "-") : (b.chapa || "-")}</span>
-                  <span className="text-sm">{b.espessura_real || "-"}</span>
-                  <span className="text-sm">{b.largura_mm ? `${b.largura_mm} mm` : "-"}</span>
-                  <span className="text-sm font-semibold">{b.peso_kg ? `${b.peso_kg.toLocaleString("pt-BR")} kg` : "-"}</span>
-                  <span>
-                    {info ? (
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded whitespace-nowrap ${info.cls}`} title={`Máquina: ${st.maquina}`}>
-                        {info.label}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Disponível</span>
-                    )}
-                  </span>
-                  <div className="flex justify-end">
-                    <button
-                      onClick={() => setSolicitarBobina(b)}
-                      className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
-                      title="Solicitar reserva"
-                    >
-                      <BookmarkPlus className="w-4 h-4" />
-                      <span className="hidden sm:inline">Reservar</span>
-                    </button>
-                  </div>
-                </div>
-              )})}
-            </div>
+          <div className="bg-card border border-border rounded-xl overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-muted/50 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
+                  <th className="text-left px-3 py-2.5 whitespace-nowrap">Cor</th>
+                  <th className="text-left px-3 py-2.5 whitespace-nowrap">Qual.</th>
+                  <th className="text-left px-3 py-2.5 whitespace-nowrap">Espessura</th>
+                  <th className="text-left px-3 py-2.5 whitespace-nowrap">Q. Bobina</th>
+                  <th className="text-left px-3 py-2.5 whitespace-nowrap bg-amber-50/60">Esp. Util.</th>
+                  <th className="text-left px-3 py-2.5 whitespace-nowrap">Largura</th>
+                  <th className="text-right px-3 py-2.5 whitespace-nowrap">Peso (kg)</th>
+                  <th className="text-left px-3 py-2.5 whitespace-nowrap">Status</th>
+                  <th className="px-3 py-2.5"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filtered.map(b => {
+                  const st = statusMap[b.id];
+                  const info = statusLabel(st);
+                  return (
+                  <tr key={b.id} className="hover:bg-muted/20 transition-colors">
+                    <td className="px-3 py-2.5 font-medium whitespace-nowrap">{b.cor || "-"}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded">{b.qualidade || "-"}</span>
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">{setor === "corte_dobra" ? (b.espessura_utilizada || b.chapa || "-") : (b.chapa || "-")}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">{b.espessura_real || "-"}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap bg-amber-50/40 font-semibold text-amber-900">
+                      {b.espessura_utilizada || "-"}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">{b.largura_mm ? `${b.largura_mm} mm` : "-"}</td>
+                    <td className="px-3 py-2.5 text-right font-semibold whitespace-nowrap">{b.peso_kg ? `${b.peso_kg.toLocaleString("pt-BR")} kg` : "-"}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      {info ? (
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded ${info.cls}`} title={`Máquina: ${st.maquina}`}>
+                          {info.label}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Disponível</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <button
+                        onClick={() => setSolicitarBobina(b)}
+                        className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
+                        title="Solicitar reserva"
+                      >
+                        <BookmarkPlus className="w-4 h-4" />
+                        <span className="hidden sm:inline">Reservar</span>
+                      </button>
+                    </td>
+                  </tr>
+                )})}
+              </tbody>
+            </table>
           </div>
         )}
 
