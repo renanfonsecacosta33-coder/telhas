@@ -164,7 +164,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
 
   const filtered = disponiveis.filter(b => {
     const q = search.toLowerCase();
-    return b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q);
+    return b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q) || b.espessura_real?.toLowerCase().includes(q) || String(b.largura_mm || "").includes(q);
   });
 
   return (
@@ -213,10 +213,12 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
           <div className="text-center py-12 text-muted-foreground text-sm">Nenhuma bobina disponível encontrada.</div>
         ) : (
           <div className="bg-card border border-border rounded-xl overflow-hidden">
-            <div className="grid grid-cols-6 px-4 py-3 bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
+            <div className="grid grid-cols-8 px-4 py-3 bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
               <span className="col-span-1">Cor</span>
               <span>Qualidade</span>
               <span>Espessura</span>
+              <span>Qual. Bobina</span>
+              <span>Largura</span>
               <span>Peso (kg)</span>
               <span>Status</span>
               <span></span>
@@ -226,10 +228,12 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                 const st = statusMap[b.id];
                 const info = statusLabel(st);
                 return (
-                <div key={b.id} className="grid grid-cols-6 px-4 py-3 items-center hover:bg-muted/20 transition-colors">
+                <div key={b.id} className="grid grid-cols-8 px-4 py-3 items-center hover:bg-muted/20 transition-colors">
                   <span className="text-sm font-medium col-span-1">{b.cor || "-"}</span>
                   <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded w-fit">{b.qualidade || "-"}</span>
                   <span className="text-sm">{setor === "corte_dobra" ? (b.espessura_utilizada || b.chapa || "-") : (b.chapa || "-")}</span>
+                  <span className="text-sm">{b.espessura_real || "-"}</span>
+                  <span className="text-sm">{b.largura_mm ? `${b.largura_mm} mm` : "-"}</span>
                   <span className="text-sm font-semibold">{b.peso_kg ? `${b.peso_kg.toLocaleString("pt-BR")} kg` : "-"}</span>
                   <span>
                     {info ? (

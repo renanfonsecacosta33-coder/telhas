@@ -181,7 +181,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
           {/* Espessura Real + Utilizada */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Espessura Real (NF)</Label>
+              <Label>Qualidade da Bobina</Label>
               <Input placeholder="Ex: 0,43" value={form.espessura_real} onChange={e => set("espessura_real", e.target.value)} />
               <p className="text-[10px] text-muted-foreground">Espessura literal da nota fiscal</p>
             </div>
