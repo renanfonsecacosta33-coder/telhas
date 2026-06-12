@@ -237,10 +237,10 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded">{b.qualidade || "-"}</span>
                     </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">{setor === "corte_dobra" ? (b.espessura_utilizada || b.chapa || "-") : (b.chapa || "-")}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">{setor === "corte_dobra" ? (b.chapa || b.chapa || "-") : (b.chapa || "-")}</td>
                     <td className="px-3 py-2.5 whitespace-nowrap">{b.espessura_real || "-"}</td>
                     <td className="px-3 py-2.5 whitespace-nowrap bg-amber-50/40 font-semibold text-amber-900">
-                      {b.espessura_utilizada || "-"}
+                      {b.chapa || "-"}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">{b.largura_mm ? `${b.largura_mm} mm` : "-"}</td>
                     <td className="px-3 py-2.5 text-right font-semibold whitespace-nowrap">{b.peso_kg ? `${b.peso_kg.toLocaleString("pt-BR")} kg` : "-"}</td>
