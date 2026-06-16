@@ -142,7 +142,7 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
                   <SelectItem value="FF">FF</SelectItem>
                   <SelectItem value="PP">PP</SelectItem>
                   <SelectItem value="FQ">FQ</SelectItem>
-                  <SelectItem value="GV (IMP)">GV (IMP)</SelectItem>
+                  <SelectItem value="GL (IMP)">GL (IMP)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -379,7 +379,7 @@ export default function Chaparia() {
               <SelectItem value="FF">FF</SelectItem>
               <SelectItem value="PP">PP</SelectItem>
               <SelectItem value="FQ">FQ</SelectItem>
-              <SelectItem value="ALZ">ALZ</SelectItem>
+              <SelectItem value="GL (IMP)">GL (IMP)</SelectItem>
             </SelectContent>
           </Select>
           <Select value={filtroOrigem} onValueChange={setFiltroOrigem}>

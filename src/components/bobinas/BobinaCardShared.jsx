@@ -13,7 +13,7 @@ export const qualidadeColors = {
   "PP": "bg-pink-100 text-pink-800 border-pink-300",
   "FF": "bg-gray-100 text-gray-700 border-gray-300",
   "FQ": "bg-emerald-100 text-emerald-800 border-emerald-300",
-  "GV (IMP)": "bg-orange-100 text-orange-800 border-orange-300",
+  "GL (IMP)": "bg-orange-100 text-orange-800 border-orange-300",
 };
 
 export const qualidadeNomes = {
@@ -21,7 +21,7 @@ export const qualidadeNomes = {
   "PP": "Pré-pintado",
   "FF": "Fina Fria",
   "FQ": "Fina Quente",
-  "GV (IMP)": "GV - IMPORTADO",
+  "GL (IMP)": "GL - IMPORTADO",
 };
 
 export function getPorcentagemUso(bobina) {

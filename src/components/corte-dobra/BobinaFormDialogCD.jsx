@@ -9,7 +9,7 @@ import { base44 } from "@/api/base44Client";
 import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera } from "lucide-react";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
 
-const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "GV (IMP)"];
+const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "GL (IMP)"];
 
 const BLANK_FORM = (codigoCD) => ({
   cor: "", chapa: "", qualidade: "", sub_cod: "", espessura_real: "", espessura_utilizada: "",

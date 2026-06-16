@@ -26,9 +26,9 @@
         "FF",
         "PP",
         "FQ",
-        "GV (IMP)"
+        "GL (IMP)"
       ],
-      "description": "Qualidade (GV, FF, PP, FQ, GV IMP)"
+      "description": "Qualidade (GV, FF, PP, FQ, GL IMP)"
     },
     "chapa": {
       "type": "string",

@@ -21,7 +21,7 @@ const STATUS_OPTIONS = [
   "Matriz AJL", "Pinhais", "Ivaiporã", "Matriz - Frisada", "RESERVADA"
 ];
 
-const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "GV (IMP)"];
+const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "GL (IMP)"];
 
 export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
   const [form, setForm] = useState({
