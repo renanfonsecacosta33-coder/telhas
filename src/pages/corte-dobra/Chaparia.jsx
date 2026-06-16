@@ -232,6 +232,9 @@ export default function Chaparia() {
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [filtroDestino, setFiltroDestino] = useState("todos");
+  const [filtroQualidade, setFiltroQualidade] = useState("todos");
+  const [filtroOrigem, setFiltroOrigem] = useState("todos");
+  const [filtroMaterial, setFiltroMaterial] = useState("");
   const [editChapa, setEditChapa] = useState(null);
   const [fotoViewer, setFotoViewer] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -271,11 +274,24 @@ export default function Chaparia() {
   })();
 
   const filtradas = chapas.filter(c => {
-    const matchBusca = !busca || [c.codigo, c.bobina_descricao, c.numero_pedido, c.cliente].some(v => v?.toLowerCase().includes(busca.toLowerCase()));
+    const matchBusca = !busca || [c.codigo, c.bobina_descricao, c.numero_pedido, c.cliente, c.material, c.qualidade].some(v => v?.toLowerCase().includes(busca.toLowerCase()));
     const matchStatus = filtroStatus === "todos" || c.status === filtroStatus || (filtroStatus === "disponivel" && !c.status);
     const matchDestino = filtroDestino === "todos" || c.destino === filtroDestino;
-    return matchBusca && matchStatus && matchDestino;
+    const matchQualidade = filtroQualidade === "todos" || c.qualidade === filtroQualidade;
+    const matchOrigem = filtroOrigem === "todos" || c.origem === filtroOrigem;
+    const matchMaterial = !filtroMaterial || (c.material || "").toLowerCase().includes(filtroMaterial.toLowerCase());
+    return matchBusca && matchStatus && matchDestino && matchQualidade && matchOrigem && matchMaterial;
   });
+
+  const temFiltrosAtivos = filtroStatus !== "todos" || filtroDestino !== "todos" || filtroQualidade !== "todos" || filtroOrigem !== "todos" || !!filtroMaterial;
+  const limparFiltros = () => {
+    setBusca("");
+    setFiltroStatus("todos");
+    setFiltroDestino("todos");
+    setFiltroQualidade("todos");
+    setFiltroOrigem("todos");
+    setFiltroMaterial("");
+  };
 
   const totalDisponiveis = chapas.filter(c => (c.status === "disponivel" || !c.status) && c.destino === "estoque").reduce((s, c) => s + (c.quantidade_disponivel || 0), 0);
   const totalPedido = chapas.filter(c => (c.status === "disponivel" || !c.status) && c.destino === "pedido_direto").reduce((s, c) => s + (c.quantidade_disponivel || 0), 0);
@@ -319,33 +335,73 @@ export default function Chaparia() {
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por bobina, pedido ou cliente..."
-            className="pl-9"
-            value={busca}
-            onChange={e => setBusca(e.target.value)}
-          />
+      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por código, material, qualidade, cliente..."
+              className="pl-9"
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+            />
+          </div>
+          {temFiltrosAtivos && (
+            <Button variant="ghost" size="sm" onClick={limparFiltros} className="text-muted-foreground hover:text-foreground shrink-0">
+              <X className="w-3 h-3 mr-1" /> Limpar filtros
+            </Button>
+          )}
         </div>
-        <Select value={filtroDestino} onValueChange={setFiltroDestino}>
-          <SelectTrigger className="w-44"><SelectValue placeholder="Destino" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos destinos</SelectItem>
-            <SelectItem value="estoque">Estoque</SelectItem>
-            <SelectItem value="pedido_direto">Pedido Direto</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos status</SelectItem>
-            <SelectItem value="disponivel">Disponível</SelectItem>
-            <SelectItem value="parcial">Parcial</SelectItem>
-            <SelectItem value="consumido">Consumido</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-wrap gap-2">
+          <Select value={filtroStatus} onValueChange={setFiltroStatus}>
+            <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos status</SelectItem>
+              <SelectItem value="disponivel">Disponível</SelectItem>
+              <SelectItem value="parcial">Parcial</SelectItem>
+              <SelectItem value="consumido">Consumido</SelectItem>
+              <SelectItem value="cancelado">Cancelado</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filtroDestino} onValueChange={setFiltroDestino}>
+            <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Destino" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos destinos</SelectItem>
+              <SelectItem value="estoque">Estoque</SelectItem>
+              <SelectItem value="pedido_direto">Pedido Direto</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filtroQualidade} onValueChange={setFiltroQualidade}>
+            <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Qualidade" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todas</SelectItem>
+              <SelectItem value="GV">GV</SelectItem>
+              <SelectItem value="FF">FF</SelectItem>
+              <SelectItem value="PP">PP</SelectItem>
+              <SelectItem value="FQ">FQ</SelectItem>
+              <SelectItem value="ALZ">ALZ</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filtroOrigem} onValueChange={setFiltroOrigem}>
+            <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="Origem" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todas origens</SelectItem>
+              <SelectItem value="desbobinadeira">Desbobinadeira</SelectItem>
+              <SelectItem value="manual">Manual</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="relative w-40">
+            <Input
+              placeholder="Filtrar material..."
+              className="h-8 text-xs pl-2"
+              value={filtroMaterial}
+              onChange={e => setFiltroMaterial(e.target.value)}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground self-center ml-auto">
+            {filtradas.length} de {chapas.length} chapas
+          </p>
+        </div>
       </div>
 
       {/* Lista */}

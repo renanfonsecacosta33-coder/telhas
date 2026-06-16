@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Archive, AlertTriangle, Package, Weight } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Search, Archive, AlertTriangle, Package, Weight, X } from "lucide-react";
 import { toast } from "sonner";
 import BobinaFormDialogCD from "@/components/corte-dobra/BobinaFormDialogCD";
 import DeleteConfirmDialog from "@/components/stock/DeleteConfirmDialog";
@@ -19,6 +20,8 @@ export default function BobinasCD() {
   const [search, setSearch] = useState("");
   const [filterAlerta, setFilterAlerta] = useState(false);
   const [showArquivadas, setShowArquivadas] = useState(false);
+  const [filtroQualidade, setFiltroQualidade] = useState("todos");
+  const [filtroFornecedor, setFiltroFornecedor] = useState("");
   const queryClient = useQueryClient();
 
   const { data: bobinas = [], isLoading } = useQuery({
@@ -76,10 +79,20 @@ export default function BobinasCD() {
     const q = search.toLowerCase();
     const matchSearch = !q || b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q) ||
       b.codigo?.toLowerCase().includes(q) || b.fornecedor?.toLowerCase().includes(q) || b.qualidade?.toLowerCase().includes(q) ||
-      b.nf?.toLowerCase().includes(q);
+      b.nf?.toLowerCase().includes(q) || b.espessura_real?.toLowerCase().includes(q);
     const matchAlerta = !filterAlerta || getAlertaNivel(b) !== null;
-    return matchSearch && matchAlerta;
+    const matchQualidade = filtroQualidade === "todos" || b.qualidade === filtroQualidade;
+    const matchFornecedor = !filtroFornecedor || (b.fornecedor || "").toLowerCase().includes(filtroFornecedor.toLowerCase());
+    return matchSearch && matchAlerta && matchQualidade && matchFornecedor;
   });
+
+  const temFiltrosBobina = filtroQualidade !== "todos" || !!filtroFornecedor;
+  const limparFiltrosBobina = () => {
+    setSearch("");
+    setFiltroQualidade("todos");
+    setFiltroFornecedor("");
+    setFilterAlerta(false);
+  };
 
   return (
     <div className="space-y-6">
@@ -122,24 +135,53 @@ export default function BobinasCD() {
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Buscar por cor, chapa, código, NF..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input placeholder="Buscar por cor, chapa, código, fornecedor, NF..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          {(temFiltrosBobina || filterAlerta) && (
+            <Button variant="ghost" size="sm" onClick={limparFiltrosBobina} className="text-muted-foreground hover:text-foreground shrink-0">
+              <X className="w-3 h-3 mr-1" /> Limpar filtros
+            </Button>
+          )}
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex flex-wrap gap-2 items-center">
           <Button variant={showArquivadas ? "default" : "outline"} size="sm"
-            onClick={() => { setShowArquivadas(!showArquivadas); setFilterAlerta(false); }} className="gap-1">
+            onClick={() => { setShowArquivadas(!showArquivadas); setFilterAlerta(false); }} className="gap-1 h-8 text-xs">
             <Archive className="w-3 h-3" />
             {showArquivadas ? "Ver em estoque" : `Arquivadas (${arquivadas.length})`}
           </Button>
           {!showArquivadas && emAlerta.length > 0 && (
             <Button variant={filterAlerta ? "destructive" : "outline"} size="sm"
-              onClick={() => setFilterAlerta(!filterAlerta)} className="gap-1">
+              onClick={() => setFilterAlerta(!filterAlerta)} className="gap-1 h-8 text-xs">
               <AlertTriangle className="w-3 h-3" />
               Alertas ({emAlerta.length})
             </Button>
           )}
+          <Select value={filtroQualidade} onValueChange={setFiltroQualidade}>
+            <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Qualidade" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todas</SelectItem>
+              <SelectItem value="GV">GV</SelectItem>
+              <SelectItem value="FF">FF</SelectItem>
+              <SelectItem value="PP">PP</SelectItem>
+              <SelectItem value="FQ">FQ</SelectItem>
+              <SelectItem value="ALZ">ALZ</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="relative w-40">
+            <Input
+              placeholder="Filtrar fornecedor..."
+              className="h-8 text-xs pl-2"
+              value={filtroFornecedor}
+              onChange={e => setFiltroFornecedor(e.target.value)}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground ml-auto">
+            {filtered.length} de {base.length} bobinas
+          </p>
         </div>
       </div>
 
