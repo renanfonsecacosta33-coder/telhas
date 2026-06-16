@@ -16,6 +16,15 @@ import ChapaCard from "@/components/corte-dobra/ChapaCard";
 function EditarQuantDialog({ chapa, open, onClose, onSave }) {
   const [qtd, setQtd] = useState(chapa?.quantidade_disponivel || 0);
   const [status, setStatus] = useState(chapa?.status || "disponivel");
+  const [material, setMaterial] = useState(chapa?.material || "");
+  const [qualidade, setQualidade] = useState(chapa?.qualidade || "");
+  const [espessura, setEspessura] = useState(chapa?.espessura_mm || "");
+  const [comprimento, setComprimento] = useState(chapa?.comprimento_mm || "");
+  const [largura, setLargura] = useState(chapa?.largura_mm || "");
+  const [destino, setDestino] = useState(chapa?.destino || "estoque");
+  const [cliente, setCliente] = useState(chapa?.cliente || "");
+  const [numeroPedido, setNumeroPedido] = useState(chapa?.numero_pedido || "");
+  const [observacoes, setObservacoes] = useState(chapa?.observacoes || "");
   const [motivo, setMotivo] = useState("");
   const [anexoUrl, setAnexoUrl] = useState("");
   const [anexoNome, setAnexoNome] = useState("");
@@ -26,6 +35,15 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
     if (open && chapa) {
       setQtd(chapa.quantidade_disponivel ?? 0);
       setStatus(chapa.status || "disponivel");
+      setMaterial(chapa.material || "");
+      setQualidade(chapa.qualidade || "");
+      setEspessura(chapa.espessura_mm || "");
+      setComprimento(chapa.comprimento_mm || "");
+      setLargura(chapa.largura_mm || "");
+      setDestino(chapa.destino || "estoque");
+      setCliente(chapa.cliente || "");
+      setNumeroPedido(chapa.numero_pedido || "");
+      setObservacoes(chapa.observacoes || "");
       setMotivo("");
       setAnexoUrl("");
       setAnexoNome("");
@@ -42,7 +60,18 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
   };
 
   const qtdMudou = qtd !== (chapa?.quantidade_disponivel ?? 0);
-  const canSave = (motivo.trim() && qtdMudou) || (motivo.trim() && anexoUrl);
+  const algoMudou = qtdMudou
+    || status !== (chapa?.status || "disponivel")
+    || material !== (chapa?.material || "")
+    || qualidade !== (chapa?.qualidade || "")
+    || String(espessura) !== String(chapa?.espessura_mm || "")
+    || String(comprimento) !== String(chapa?.comprimento_mm || "")
+    || String(largura) !== String(chapa?.largura_mm || "")
+    || destino !== (chapa?.destino || "estoque")
+    || cliente !== (chapa?.cliente || "")
+    || numeroPedido !== (chapa?.numero_pedido || "")
+    || observacoes !== (chapa?.observacoes || "");
+  const canSave = (motivo.trim() && algoMudou) || (motivo.trim() && anexoUrl);
 
   const handleSave = () => {
     const historicoAntigo = chapa?.historico_movimentacoes;
@@ -53,42 +82,123 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
       motivo: motivo.trim(),
       qtd_antes: chapa?.quantidade_disponivel ?? 0,
       qtd_depois: qtd,
+      status_antes: chapa?.status || "disponivel",
+      status_depois: status,
       anexo_url: anexoUrl || null,
       anexo_nome: anexoNome || null,
     });
     onSave({
       quantidade_disponivel: qtd,
       status,
+      material: material || null,
+      qualidade: qualidade || null,
+      espessura_mm: espessura ? Number(espessura) : null,
+      comprimento_mm: comprimento ? Number(comprimento) : null,
+      largura_mm: largura ? Number(largura) : null,
+      destino,
+      cliente: destino === "pedido_direto" ? (cliente || null) : null,
+      numero_pedido: destino === "pedido_direto" ? (numeroPedido || null) : null,
+      observacoes: observacoes || null,
       historico_movimentacoes: JSON.stringify(historico),
     });
   };
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Atualizar Chapa</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
-          <div className="space-y-1">
-            <Label>Quantidade Disponível</Label>
-            <Input type="number" value={qtd} onChange={e => setQtd(Number(e.target.value))} min={0} max={chapa?.quantidade_total} />
-            <p className="text-xs text-muted-foreground">Total original: {chapa?.quantidade_total} pcs</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label>Quantidade Disponível</Label>
+              <Input type="number" value={qtd} onChange={e => setQtd(Number(e.target.value))} min={0} max={chapa?.quantidade_total} />
+              <p className="text-xs text-muted-foreground">Total original: {chapa?.quantidade_total} pcs</p>
+            </div>
+            <div className="space-y-1">
+              <Label>Status</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="disponivel">Disponível</SelectItem>
+                  <SelectItem value="parcial">Parcial</SelectItem>
+                  <SelectItem value="consumido">Consumido</SelectItem>
+                  <SelectItem value="cancelado">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="space-y-1">
-            <Label>Status</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="disponivel">Disponível</SelectItem>
-                <SelectItem value="parcial">Parcial</SelectItem>
-                <SelectItem value="consumido">Consumido</SelectItem>
-                <SelectItem value="cancelado">Cancelado</SelectItem>
-              </SelectContent>
-            </Select>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label>Material</Label>
+              <Input placeholder="Ex: Aço galvanizado" value={material} onChange={e => setMaterial(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Qualidade</Label>
+              <Select value={qualidade} onValueChange={setQualidade}>
+                <SelectTrigger><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="GV">GV</SelectItem>
+                  <SelectItem value="FF">FF</SelectItem>
+                  <SelectItem value="PP">PP</SelectItem>
+                  <SelectItem value="FQ">FQ</SelectItem>
+                  <SelectItem value="ALZ">ALZ</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <Label>Espessura (mm)</Label>
+              <Input type="number" step="0.01" placeholder="0.95" value={espessura} onChange={e => setEspessura(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Comprimento (mm)</Label>
+              <Input type="number" placeholder="6000" value={comprimento} onChange={e => setComprimento(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Largura (mm)</Label>
+              <Input type="number" placeholder="1200" value={largura} onChange={e => setLargura(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label>Destino</Label>
+              <Select value={destino} onValueChange={setDestino}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="estoque">Estoque</SelectItem>
+                  <SelectItem value="pedido_direto">Pedido Direto</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {destino === "pedido_direto" && (
+              <div className="space-y-1">
+                <Label>Nº Pedido</Label>
+                <Input placeholder="Ex: PED-123" value={numeroPedido} onChange={e => setNumeroPedido(e.target.value)} />
+              </div>
+            )}
+          </div>
+
+          {destino === "pedido_direto" && (
+            <div className="space-y-1">
+              <Label>Cliente</Label>
+              <Input placeholder="Nome do cliente" value={cliente} onChange={e => setCliente(e.target.value)} />
+            </div>
+          )}
+
+          <div className="space-y-1">
+            <Label>Observações</Label>
+            <Input placeholder="Observações gerais..." value={observacoes} onChange={e => setObservacoes(e.target.value)} />
+          </div>
+
           <div className="space-y-1">
             <Label>Motivo da alteração *</Label>
             <Input placeholder="Ex: consumo em produção, perda..." value={motivo} onChange={e => setMotivo(e.target.value)} />
           </div>
+
           <div className="space-y-1">
             <Label>Anexar imagem (opcional)</Label>
             <input ref={fileRef} type="file" className="hidden" accept="image/*" capture="environment"
