@@ -4,8 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Search, LogOut, Lock, ChevronRight, ArrowLeft, BookmarkPlus, ShieldCheck, Filter } from "lucide-react";
+import { Search, LogOut, Lock, ChevronRight, ArrowLeft, BookmarkPlus, ShieldCheck, Filter, Calculator } from "lucide-react";
 import SolicitarReservaDialog from "@/components/vendedor/SolicitarReservaDialog";
+import CalculadoraVendedor from "@/components/vendedor/CalculadoraVendedor";
 
 const SENHA = "ajl1234";
 const STORAGE_KEY = "vendedor_autenticado";
@@ -41,6 +42,16 @@ function SetorSelector({ onSelect }) {
             <div className="text-left">
               <p className="font-bold text-base">✂️ Corte e Dobra</p>
               <p className="text-sm text-muted-foreground mt-1">Bobinas do setor de corte e dobra</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+          </button>
+          <button
+            onClick={() => onSelect("calculos")}
+            className="w-full bg-card border border-border rounded-xl p-5 flex items-center justify-between hover:border-primary hover:bg-primary/5 transition-all group"
+          >
+            <div className="text-left">
+              <p className="font-bold text-base">🧮 Cálculos</p>
+              <p className="text-sm text-muted-foreground mt-1">Calculadora de peso teórico de chapas</p>
             </div>
             <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
           </button>
@@ -341,6 +352,32 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
   );
 }
 
+// Tela de cálculos
+function CalculosView({ vendedorNome, onLogout, onVoltar }) {
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="bg-card border-b border-border px-4 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button onClick={onVoltar} className="text-muted-foreground hover:text-foreground transition-colors">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h1 className="font-bold text-base leading-tight">🧮 Cálculos de Peso</h1>
+            <p className="text-xs text-muted-foreground">Olá, <span className="font-semibold">{vendedorNome}</span></p>
+          </div>
+        </div>
+        <Button variant="ghost" size="sm" onClick={onLogout} className="gap-2 text-muted-foreground">
+          <LogOut className="w-4 h-4" />
+          Sair
+        </Button>
+      </div>
+      <div className="p-4 max-w-6xl mx-auto">
+        <CalculadoraVendedor vendedorNome={vendedorNome} />
+      </div>
+    </div>
+  );
+}
+
 export default function VendedorEstoque() {
   const [autenticado, setAutenticado] = useState(() => localStorage.getItem(STORAGE_KEY) === "true");
   const [vendedorNome, setVendedorNome] = useState(() => localStorage.getItem(NOME_KEY) || "");
@@ -361,5 +398,6 @@ export default function VendedorEstoque() {
 
   if (!autenticado) return <LoginScreen onLogin={handleLogin} />;
   if (!setor) return <SetorSelector onSelect={setSetor} />;
+  if (setor === "calculos") return <CalculosView vendedorNome={vendedorNome} onLogout={handleLogout} onVoltar={() => setSetor(null)} />;
   return <EstoqueView setor={setor} vendedorNome={vendedorNome} onLogout={handleLogout} onVoltar={() => setSetor(null)} />;
 }
