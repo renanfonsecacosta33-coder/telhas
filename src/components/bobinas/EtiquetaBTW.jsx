@@ -5,32 +5,28 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 /**
- * Etiqueta no padrão BTW (BarTender) para bobinas.
- * Suporta setor "corte_dobra" e "telhas" com campos específicos.
+ * Etiqueta para bobinas — layout atualizado com Chapa Real / Chapa Utilizada.
  */
 export default function EtiquetaBTW({ bobina, onClose }) {
   const printRef = useRef(null);
 
   const hoje = format(new Date(), "dd/MM", { locale: ptBR });
+  const dataExib = bobina.data_recebimento
+    ? bobina.data_recebimento.slice(5).replace("-", "/")
+    : hoje;
 
-  // Campos dinâmicos por setor
-  const isCD = bobina.setor === "corte_dobra";
+  const dim = bobina.largura_mm ? String(bobina.largura_mm) : "—";
 
-  const descricao = isCD
-    ? `CH ${bobina.chapa}`
-    : `${bobina.chapa} mm`;
-
-  const dimensoes = bobina.largura_mm
-    ? `${bobina.largura_mm}`
-    : "—";
-
-  const pesoAtual = bobina.peso_kg
+  const pesoAtual = bobina.peso_kg != null
     ? bobina.peso_kg.toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })
     : "—";
 
-  const pesoBruto = bobina.peso_inicial
+  const pesoBruto = bobina.peso_inicial != null
     ? bobina.peso_inicial.toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })
     : pesoAtual;
+
+  const chapaReal = [bobina.espessura_real, bobina.qualidade].filter(Boolean).join(" ") || "—";
+  const chapaUtil = [bobina.espessura_utilizada, bobina.qualidade].filter(Boolean).join(" ") || "—";
 
   const handlePrint = () => {
     const conteudo = printRef.current.innerHTML;
@@ -42,145 +38,57 @@ export default function EtiquetaBTW({ bobina, onClose }) {
           <meta charset="utf-8" />
           <title>Etiqueta ${bobina.codigo || ""}</title>
           <style>
-            @page {
-              size: 101.6mm 76.2mm;
-              margin: 0;
-            }
+            @page { size: 101.6mm 76.2mm; margin: 0; }
             * { box-sizing: border-box; margin: 0; padding: 0; }
             body {
-              font-family: Arial, sans-serif;
-              background: white;
-              width: 101.6mm;
-              height: 76.2mm;
-              display: flex;
-              align-items: center;
-              justify-content: center;
+              font-family: Arial, sans-serif; background: white;
+              width: 101.6mm; height: 76.2mm;
+              display: flex; align-items: center; justify-content: center;
             }
-            .etiqueta {
-              width: 96mm;
-              height: 70mm;
-              border: 2.5pt solid #4a90d9;
-              border-radius: 4pt;
-              overflow: hidden;
-              display: flex;
-              flex-direction: column;
-              background: white;
+            .etq {
+              width: 96mm; height: 70mm;
+              border: 2pt solid #000;
+              display: flex; flex-direction: column;
+              background: white; overflow: hidden;
             }
-            .header {
-              display: flex;
-              align-items: center;
-              justify-content: space-between;
-              padding: 4pt 6pt 3pt 6pt;
-              border-bottom: 1.5pt solid #4a90d9;
-              gap: 4pt;
+            .hdr {
+              display: flex; align-items: center; justify-content: space-between;
+              padding: 3pt 5pt; border-bottom: 1.5pt solid #000; gap: 4pt;
             }
-            .codigo {
-              font-size: 30pt;
-              font-weight: 900;
-              letter-spacing: -1pt;
-              color: #111;
-              line-height: 1;
+            .cod { font-size: 24pt; font-weight: 900; color: #000; line-height: 1; letter-spacing: -0.5pt; }
+            .logo { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+            .logo-s { font-size: 14pt; font-weight: 900; color: #000; line-height: 1; }
+            .logo-m { font-size: 10pt; font-weight: 900; color: #000; line-height: 1; letter-spacing: 1pt; }
+            .logo-sub { font-size: 5pt; color: #000; letter-spacing: 0.3pt; text-transform: uppercase; }
+            .sub-row {
+              display: flex; align-items: center;
+              border-bottom: 0.75pt solid #000; padding: 2pt 5pt; gap: 4pt;
             }
-            .logo-area {
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              border: 1.5pt solid #4a90d9;
-              border-radius: 3pt;
-              padding: 3pt 6pt;
-              min-width: 28mm;
+            .sub-lbl { font-size: 7pt; font-weight: 600; color: #000; }
+            .sub-val { font-size: 7.5pt; font-weight: 700; color: #000; }
+            .grid { flex: 1; display: flex; flex-direction: column; }
+            .row { display: flex; border-bottom: 0.75pt solid #000; flex: 1; min-height: 0; }
+            .row:last-child { border-bottom: none; }
+            .cell {
+              display: flex; align-items: center; padding: 2pt 5pt;
+              font-size: 8pt; color: #000; white-space: nowrap;
             }
-            .logo-shield {
-              font-size: 16pt;
-              color: #4a90d9;
-              font-weight: 900;
-              line-height: 1;
+            .cell-lbl {
+              background: #f5f5f5; min-width: 22mm; font-weight: 700;
+              border-right: 0.75pt solid #000; font-size: 7.5pt;
             }
-            .logo-text-main {
-              font-size: 11pt;
-              font-weight: 900;
-              color: #111;
-              letter-spacing: 2pt;
-              line-height: 1;
+            .cell-val { flex: 1; font-weight: 700; font-size: 9.5pt; }
+            .cell-peso {
+              border-left: 0.75pt solid #000; flex-direction: column;
+              align-items: flex-start; min-width: 24mm; font-size: 6.5pt; font-weight: 600;
             }
-            .logo-text-sub {
-              font-size: 5pt;
-              color: #666;
-              letter-spacing: 0.5pt;
-              text-transform: uppercase;
+            .cell-peso span { font-size: 10pt; font-weight: 900; }
+            .ftr {
+              display: flex; border-top: 1.5pt solid #000; padding: 3pt 5pt;
+              align-items: center; justify-content: space-between; gap: 4pt;
             }
-            .tabela {
-              flex: 1;
-              display: flex;
-              flex-direction: column;
-            }
-            .linha {
-              display: flex;
-              border-bottom: 0.75pt solid #ccc;
-              flex: 1;
-              min-height: 0;
-            }
-            .linha:last-child { border-bottom: none; }
-            .celula {
-              display: flex;
-              align-items: center;
-              padding: 2pt 5pt;
-              font-size: 7.5pt;
-              color: #333;
-              white-space: nowrap;
-            }
-            .celula-label {
-              background: #f0f4fa;
-              min-width: 24mm;
-              font-weight: 600;
-              border-right: 0.75pt solid #ccc;
-              color: #444;
-            }
-            .celula-valor {
-              flex: 1;
-              font-weight: 700;
-              font-size: 9pt;
-              color: #111;
-            }
-            .celula-peso-atual {
-              border-left: 0.75pt solid #ccc;
-              flex-direction: column;
-              align-items: flex-start;
-              min-width: 25mm;
-              font-size: 6.5pt;
-              color: #555;
-              font-weight: 600;
-            }
-            .celula-peso-atual span {
-              font-size: 10pt;
-              font-weight: 900;
-              color: #111;
-            }
-            .linha-datas {
-              flex: none;
-              height: 10pt;
-              display: flex;
-              align-items: center;
-            }
-            .rodape {
-              display: flex;
-              border-top: 1.5pt solid #4a90d9;
-              padding: 3pt 5pt;
-              align-items: center;
-              justify-content: space-between;
-              gap: 4pt;
-              background: #f8faff;
-            }
-            .rodape-item {
-              font-size: 7.5pt;
-              color: #333;
-            }
-            .rodape-item strong {
-              font-size: 11pt;
-              font-weight: 900;
-              color: #111;
-            }
+            .ftr-item { font-size: 7.5pt; color: #000; }
+            .ftr-item strong { font-size: 10pt; font-weight: 900; }
           </style>
         </head>
         <body onload="window.print(); window.close();">
@@ -194,132 +102,111 @@ export default function EtiquetaBTW({ bobina, onClose }) {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-5">
-        {/* Topo modal */}
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-bold text-lg">Etiqueta BTW</h3>
+            <h3 className="font-bold text-lg">Etiqueta</h3>
             <p className="text-xs text-muted-foreground">Prévia da etiqueta para impressão</p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}><X className="w-4 h-4" /></Button>
         </div>
 
-        {/* Prévia da etiqueta */}
         <div className="flex justify-center">
           <div ref={printRef} style={{ fontFamily: "Arial, sans-serif" }}>
-            <div className="etiqueta" style={{
-              width: "384px",
-              height: "280px",
-              border: "2.5px solid #4a90d9",
-              borderRadius: "6px",
-              overflow: "hidden",
-              display: "flex",
-              flexDirection: "column",
-              background: "white",
+            <div style={{
+              width: "384px", height: "280px", border: "2px solid #000",
+              display: "flex", flexDirection: "column", background: "white", overflow: "hidden"
             }}>
-              {/* Header: Código + Logo */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px 6px 12px", borderBottom: "1.5px solid #4a90d9", gap: "8px" }}>
-                <div style={{ fontSize: "46px", fontWeight: "900", letterSpacing: "-1px", color: "#111", lineHeight: 1 }}>
+              {/* Header */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 8px", borderBottom: "1.5px solid #000" }}>
+                <div style={{ fontSize: "38px", fontWeight: 900, color: "#000", lineHeight: 1, letterSpacing: "-1px" }}>
                   {bobina.codigo || "—"}
                 </div>
-                <div style={{ border: "1.5px solid #4a90d9", borderRadius: "5px", padding: "6px 12px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minWidth: "90px" }}>
-                  <div style={{ fontSize: "22px", color: "#4a90d9", fontWeight: "900", lineHeight: 1 }}>🛡</div>
-                  <div style={{ fontSize: "16px", fontWeight: "900", color: "#111", letterSpacing: "3px", lineHeight: 1 }}>AJL</div>
-                  <div style={{ fontSize: "7px", color: "#666", letterSpacing: "0.5px", textTransform: "uppercase" }}>Ferro e Aço</div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                  <div style={{ fontSize: "22px", fontWeight: 900, color: "#000", lineHeight: 1 }}>🛡</div>
+                  <div style={{ fontSize: "14px", fontWeight: 900, color: "#000", lineHeight: 1, letterSpacing: "2px" }}>AJL</div>
+                  <div style={{ fontSize: "7px", color: "#000", letterSpacing: "0.5px", textTransform: "uppercase" }}>Ferro e Aço</div>
                 </div>
               </div>
 
-              {/* Tabela de dados */}
-              <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                {/* Linha data / COD / SUB. COD */}
-                <div style={{ display: "flex", borderBottom: "0.75px solid #ccc", alignItems: "stretch" }}>
-                  <div style={{ padding: "3px 8px", fontSize: "10px", color: "#555", borderRight: "0.75px solid #ccc", minWidth: "55px", display: "flex", flexDirection: "column", justifyContent: "center", fontWeight: 600 }}>
-                    Data:
-                    <span style={{ fontSize: "12px", fontWeight: "900", color: "#111" }}>
-                      {bobina.data_recebimento
-                        ? bobina.data_recebimento.slice(5).replace("-", "/")
-                        : hoje}
-                    </span>
-                  </div>
-                  <div style={{ padding: "3px 8px", fontSize: "10px", color: "#555", borderRight: "0.75px solid #ccc", flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", fontWeight: 600 }}>
-                    COD:
-                    <span style={{ fontSize: "12px", fontWeight: "900", color: "#111" }}>{bobina.nf || bobina.codigo || "—"}</span>
-                  </div>
-                  {bobina.sub_cod && (
-                    <div style={{ padding: "3px 8px", fontSize: "10px", color: "#555", borderRight: "0.75px solid #ccc", minWidth: "60px", display: "flex", flexDirection: "column", justifyContent: "center", fontWeight: 600 }}>
-                      SUB. COD:
-                      <span style={{ fontSize: "12px", fontWeight: "900", color: "#111" }}>{bobina.sub_cod}</span>
-                    </div>
-                  )}
-                  <div style={{ padding: "3px 8px", fontSize: "10px", color: "#555", minWidth: "85px", display: "flex", flexDirection: "column", justifyContent: "center", fontWeight: 600 }}>
-                    Peso atual:
-                    <span style={{ fontSize: "12px", fontWeight: "900", color: "#111" }}>{pesoAtual}</span>
-                  </div>
-                </div>
+              {/* Sub. Cód. row */}
+              <div style={{ display: "flex", alignItems: "center", borderBottom: "0.75px solid #000", padding: "2px 8px", gap: "6px" }}>
+                <span style={{ fontSize: "10px", fontWeight: 600 }}>Sub. Cód.:</span>
+                <span style={{ fontSize: "11px", fontWeight: 700 }}>{bobina.sub_cod || "—"}</span>
+                <span style={{ marginLeft: "auto", fontSize: "10px", fontWeight: 600 }}>
+                  Qualidade: {bobina.qualidade || "—"}
+                </span>
+                <span style={{ fontSize: "10px", fontWeight: 700, marginLeft: "8px" }}>{dataExib}</span>
+              </div>
 
-                {/* Dimensões */}
-                <div style={{ display: "flex", borderBottom: "0.75px solid #ccc", alignItems: "stretch" }}>
-                  <div style={{ padding: "3px 10px", fontSize: "12px", background: "#f0f4fa", minWidth: "100px", display: "flex", alignItems: "center", borderRight: "0.75px solid #ccc", fontWeight: 600, color: "#444" }}>
+              {/* Grid principal */}
+              <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                {/* Dimensões + Peso atual */}
+                <div style={{ display: "flex", borderBottom: "0.75px solid #000", flex: 1 }}>
+                  <div style={{ padding: "3px 8px", fontSize: "12px", background: "#f5f5f5", minWidth: "80px", display: "flex", alignItems: "center", borderRight: "0.75px solid #000", fontWeight: 700 }}>
                     Dimensões
                   </div>
-                  <div style={{ padding: "3px 10px", fontSize: "15px", fontWeight: "900", color: "#111", flex: 1, display: "flex", alignItems: "center" }}>
-                    {dimensoes}
+                  <div style={{ padding: "3px 8px", fontSize: "16px", fontWeight: 900, color: "#000", flex: 1, display: "flex", alignItems: "center" }}>
+                    {dim}
+                  </div>
+                  <div style={{ padding: "3px 8px", fontSize: "10px", borderLeft: "0.75px solid #000", minWidth: "90px", display: "flex", flexDirection: "column", justifyContent: "center", fontWeight: 600 }}>
+                    Peso atual:
+                    <span style={{ fontSize: "14px", fontWeight: 900 }}>{pesoAtual}</span>
                   </div>
                 </div>
 
-                {/* Descrição */}
-                <div style={{ display: "flex", borderBottom: "0.75px solid #ccc", alignItems: "stretch" }}>
-                  <div style={{ padding: "3px 10px", fontSize: "12px", background: "#f0f4fa", minWidth: "100px", display: "flex", alignItems: "center", borderRight: "0.75px solid #ccc", fontWeight: 600, color: "#444" }}>
-                    Descrição
+                {/* Chapa Real */}
+                <div style={{ display: "flex", borderBottom: "0.75px solid #000", flex: 1 }}>
+                  <div style={{ padding: "3px 8px", fontSize: "12px", background: "#f5f5f5", minWidth: "80px", display: "flex", alignItems: "center", borderRight: "0.75px solid #000", fontWeight: 700 }}>
+                    Chapa Real
                   </div>
-                  <div style={{ padding: "3px 10px", fontSize: "15px", fontWeight: "900", color: "#111", flex: 1, display: "flex", alignItems: "center" }}>
-                    {descricao}
+                  <div style={{ padding: "3px 8px", fontSize: "16px", fontWeight: 900, color: "#000", flex: 1, display: "flex", alignItems: "center" }}>
+                    {chapaReal}
                   </div>
                 </div>
 
-                {/* Qualidade */}
-                <div style={{ display: "flex", borderBottom: "0.75px solid #ccc", alignItems: "stretch" }}>
-                  <div style={{ padding: "3px 10px", fontSize: "12px", background: "#f0f4fa", minWidth: "100px", display: "flex", alignItems: "center", borderRight: "0.75px solid #ccc", fontWeight: 600, color: "#444" }}>
-                    Qualidade
+                {/* Chapa Utilizada */}
+                <div style={{ display: "flex", borderBottom: "0.75px solid #000", flex: 1 }}>
+                  <div style={{ padding: "3px 8px", fontSize: "12px", background: "#f5f5f5", minWidth: "80px", display: "flex", alignItems: "center", borderRight: "0.75px solid #000", fontWeight: 700 }}>
+                    Chapa Utilizada
                   </div>
-                  <div style={{ padding: "3px 10px", fontSize: "15px", fontWeight: "900", color: "#111", flex: 1, display: "flex", alignItems: "center" }}>
-                    {bobina.qualidade || "—"}
+                  <div style={{ padding: "3px 8px", fontSize: "16px", fontWeight: 900, color: "#000", flex: 1, display: "flex", alignItems: "center" }}>
+                    {chapaUtil}
                   </div>
                 </div>
 
                 {/* NF Origem */}
-                <div style={{ display: "flex", alignItems: "stretch" }}>
-                  <div style={{ padding: "3px 10px", fontSize: "12px", background: "#f0f4fa", minWidth: "100px", display: "flex", alignItems: "center", borderRight: "0.75px solid #ccc", fontWeight: 600, color: "#444" }}>
+                <div style={{ display: "flex", flex: 1 }}>
+                  <div style={{ padding: "3px 8px", fontSize: "12px", background: "#f5f5f5", minWidth: "80px", display: "flex", alignItems: "center", borderRight: "0.75px solid #000", fontWeight: 700 }}>
                     NF ORIGEM
                   </div>
-                  <div style={{ padding: "3px 10px", fontSize: "15px", fontWeight: "900", color: "#111", flex: 1, display: "flex", alignItems: "center" }}>
+                  <div style={{ padding: "3px 8px", fontSize: "16px", fontWeight: 900, color: "#000", flex: 1, display: "flex", alignItems: "center" }}>
                     {bobina.nf || "—"}
                   </div>
                 </div>
               </div>
 
-              {/* Rodapé: Peso Bruto / Peso Líquido */}
-              <div style={{ display: "flex", borderTop: "1.5px solid #4a90d9", padding: "5px 12px", alignItems: "center", justifyContent: "space-between", background: "#f8faff" }}>
-                <div style={{ fontSize: "12px", color: "#333" }}>
-                  Peso Bruto: <strong style={{ fontSize: "16px", fontWeight: "900", color: "#111" }}>{pesoBruto}</strong>
+              {/* Rodapé */}
+              <div style={{ display: "flex", borderTop: "1.5px solid #000", padding: "4px 8px", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ fontSize: "11px", color: "#000" }}>
+                  Peso Bruto: <strong style={{ fontSize: "14px", fontWeight: 900 }}>{pesoBruto}</strong>
                 </div>
-                <div style={{ fontSize: "12px", color: "#333" }}>
-                  Peso Líquido: <strong style={{ fontSize: "16px", fontWeight: "900", color: "#111" }}>{pesoAtual}</strong>
+                <div style={{ fontSize: "11px", color: "#000" }}>
+                  Peso Líquido: <strong style={{ fontSize: "14px", fontWeight: 900 }}>{pesoAtual}</strong>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Ações */}
         <div className="flex gap-3 justify-end">
           <Button variant="outline" onClick={onClose}>Fechar</Button>
-          <Button className="gap-2 bg-blue-600 hover:bg-blue-700" onClick={handlePrint}>
+          <Button className="gap-2 bg-black hover:bg-gray-800" onClick={handlePrint}>
             <Printer className="w-4 h-4" /> Imprimir / Baixar
           </Button>
         </div>
 
         <p className="text-xs text-center text-muted-foreground">
-          Tamanho de impressão: 101,6 × 76,2 mm (4" × 3") — padrão BTW
+          Tamanho de impressão: 101,6 × 76,2 mm (4" × 3")
         </p>
       </div>
     </div>

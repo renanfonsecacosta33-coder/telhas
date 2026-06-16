@@ -16,6 +16,7 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
     largura_mm: "",
     espessura_mm: "",
     material: "",
+    qualidade: "",
     quantidade_total: "",
     destino: "estoque",
     numero_pedido: "",
@@ -37,6 +38,7 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
         largura_mm: "",
         espessura_mm: "",
         material: "",
+        qualidade: "",
         quantidade_total: "",
         destino: "estoque",
         numero_pedido: "",
@@ -73,6 +75,7 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
       largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
       espessura_mm: form.espessura_mm ? Number(form.espessura_mm) : undefined,
       material: form.material || undefined,
+      qualidade: form.qualidade || undefined,
       quantidade_total: Number(form.quantidade_total),
       quantidade_disponivel: Number(form.quantidade_total),
       destino: form.destino,
@@ -106,16 +109,31 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
             </div>
           </div>
 
-          {/* Material + Espessura */}
+          {/* Material + Qualidade */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Material</Label>
               <Input placeholder="Ex: Aço galvanizado" value={form.material} onChange={e => set("material", e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Espessura (mm)</Label>
-              <Input type="number" step="0.01" placeholder="Ex: 4,75" value={form.espessura_mm} onChange={e => set("espessura_mm", e.target.value)} />
+              <Label>Qualidade</Label>
+              <Select value={form.qualidade || ""} onValueChange={v => set("qualidade", v || undefined)}>
+                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="GV">GV</SelectItem>
+                  <SelectItem value="FF">FF</SelectItem>
+                  <SelectItem value="PP">PP</SelectItem>
+                  <SelectItem value="FQ">FQ</SelectItem>
+                  <SelectItem value="ALZ">ALZ</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+          </div>
+
+          {/* Espessura */}
+          <div className="space-y-1">
+            <Label>Espessura (mm)</Label>
+            <Input type="number" step="0.01" placeholder="Ex: 4,75" value={form.espessura_mm} onChange={e => set("espessura_mm", e.target.value)} />
           </div>
 
           {/* Dimensões */}
