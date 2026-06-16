@@ -1,37 +1,17 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
-  Layers, ShoppingCart, Warehouse, Search, Ruler,
-  CheckCircle2, Clock, Trash2, Edit2, RefreshCw, Camera, X, Plus, Paperclip, Loader2
+  Layers, ShoppingCart, Warehouse, Search,
+  CheckCircle2, RefreshCw, X, Plus, Paperclip, Loader2
 } from "lucide-react";
 import ChapaFormDialog from "@/components/corte-dobra/ChapaFormDialog";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-
-function StatusBadge({ status, destino, numeroPedido, origem }) {
-  if (status === "consumido") return <Badge className="bg-slate-100 text-slate-600 border-slate-200 border text-xs">Consumido</Badge>;
-  if (status === "cancelado") return <Badge className="bg-red-100 text-red-600 border-red-200 border text-xs">Cancelado</Badge>;
-  if (status === "parcial") return <Badge className="bg-amber-100 text-amber-700 border-amber-200 border text-xs">Parcial</Badge>;
-  if (destino === "pedido_direto") return (
-    <Badge className="bg-blue-100 text-blue-700 border-blue-200 border text-xs">
-      <ShoppingCart className="w-3 h-3 mr-1" />
-      Pedido {numeroPedido || ""}
-    </Badge>
-  );
-  return (
-    <div className="flex items-center gap-1.5">
-      <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 border text-xs"><CheckCircle2 className="w-3 h-3 mr-1" />Disponível</Badge>
-      {origem === "manual" && <Badge className="bg-purple-100 text-purple-700 border-purple-200 border text-xs">Manual</Badge>}
-    </div>
-  );
-}
+import ChapaCard from "@/components/corte-dobra/ChapaCard";
 
 function EditarQuantDialog({ chapa, open, onClose, onSave }) {
   const [qtd, setQtd] = useState(chapa?.quantidade_disponivel || 0);
@@ -272,79 +252,15 @@ export default function Chaparia() {
           {filtradas.map(c => {
             const isConsumed = c.status === "consumido" || c.status === "cancelado";
             return (
-              <div
+              <ChapaCard
                 key={c.id}
-                className={`bg-card border rounded-xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4 ${
-                  c.origem === "manual"
-                    ? "border-l-4 border-l-purple-400"
-                    : c.destino === "pedido_direto"
-                      ? "border-l-4 border-l-blue-400"
-                      : "border-l-4 border-l-emerald-400"
-                } ${isConsumed ? "opacity-60" : ""}`}
-              >
-                {/* Info principal */}
-                <div className="flex-1 min-w-0 space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {c.codigo && (
-                      <span className="font-black text-base font-mono text-foreground">{c.codigo}</span>
-                    )}
-                    <span className="font-semibold text-sm text-muted-foreground">{c.bobina_descricao || "Bobina"}</span>
-                    <StatusBadge status={c.status} destino={c.destino} numeroPedido={c.numero_pedido} origem={c.origem} />
-                  </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
-                    {c.comprimento_mm > 0 && (
-                      <span className="flex items-center gap-1">
-                        <Ruler className="w-3 h-3" /> {c.comprimento_mm}mm × {c.largura_mm || "?"}mm
-                      </span>
-                    )}
-                    {c.data_corte && (
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {format(new Date(c.data_corte), "dd/MM/yyyy", { locale: ptBR })}
-                      </span>
-                    )}
-                    {c.destino === "pedido_direto" && c.cliente && (
-                      <span className="font-semibold text-blue-600">{c.cliente}</span>
-                    )}
-                  </div>
-                  {c.observacoes && (
-                    <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-0.5 inline-block">📋 {c.observacoes}</p>
-                  )}
-                </div>
-
-                {/* Quantidade */}
-                <div className="text-center min-w-[80px]">
-                  <p className="text-2xl font-black text-foreground">{c.quantidade_disponivel ?? c.quantidade_total}</p>
-                  <p className="text-xs text-muted-foreground">de {c.quantidade_total} pcs</p>
-                </div>
-
-                {/* Ações */}
-                <div className="flex items-center gap-2">
-                  {c.foto_finalizacao_url && (
-                    <Button size="sm" variant="outline" className="gap-1" onClick={() => setFotoViewer(c.foto_finalizacao_url)}>
-                      <Camera className="w-3 h-3" /> Foto
-                    </Button>
-                  )}
-                  {(isAdmin || !isConsumed) && (
-                    <Button
-                      size="sm" variant="outline"
-                      className="gap-1"
-                      onClick={() => setEditChapa(c)}
-                    >
-                      <Edit2 className="w-3 h-3" /> Editar
-                    </Button>
-                  )}
-                  {isAdmin && (
-                    <Button
-                      size="sm" variant="ghost"
-                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                      onClick={() => { if (confirm(`Excluir chapa ${c.codigo || c.id}?`)) deleteMut.mutate(c.id); }}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
+                chapa={c}
+                isAdmin={isAdmin}
+                isConsumed={isConsumed}
+                onEdit={(chapa) => setEditChapa(chapa)}
+                onDelete={(id) => deleteMut.mutate(id)}
+                onViewFoto={(url) => setFotoViewer(url)}
+              />
             );
           })}
         </div>
