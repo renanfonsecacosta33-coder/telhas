@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Search, LogOut, Lock, ChevronRight, ArrowLeft, BookmarkPlus } from "lucide-react";
+import { Search, LogOut, Lock, ChevronRight, ArrowLeft, BookmarkPlus, ShieldCheck, Filter } from "lucide-react";
 import SolicitarReservaDialog from "@/components/vendedor/SolicitarReservaDialog";
 
 const SENHA = "ajl1234";
@@ -114,6 +114,7 @@ function LoginScreen({ onLogin }) {
 function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
   const [search, setSearch] = useState("");
   const [solicitarBobina, setSolicitarBobina] = useState(null);
+  const [filtroQualidade, setFiltroQualidade] = useState(null); // null = todas
 
   const setorLabel = setor === "telhas" ? "Telhas" : "Corte e Dobra";
   const setorEmoji = setor === "telhas" ? "🏗️" : "✂️";
@@ -162,10 +163,23 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
   // Oculta bobinas reservadas
   const disponiveis = bobinas.filter(b => !b.reservada);
 
-  const filtered = disponiveis.filter(b => {
-    const q = search.toLowerCase();
-    return b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q) || b.espessura_real?.toLowerCase().includes(q) || b.espessura_utilizada?.toLowerCase().includes(q) || String(b.largura_mm || "").includes(q);
-  });
+  // Qualidades únicas para filtros
+  const qualidadesUnicas = [...new Set(disponiveis.map(b => b.qualidade).filter(Boolean))].sort();
+
+  // Filtro + ordenação
+  const filtered = disponiveis
+    .filter(b => {
+      if (filtroQualidade && b.qualidade !== filtroQualidade) return false;
+      const q = search.toLowerCase();
+      return b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q) || b.espessura_real?.toLowerCase().includes(q) || b.espessura_utilizada?.toLowerCase().includes(q) || String(b.largura_mm || "").includes(q);
+    })
+    .sort((a, b) => {
+      // Ordenar por qualidade (alfabético) depois por chapa (numérico crescente)
+      const qA = a.qualidade || "";
+      const qB = b.qualidade || "";
+      if (qA !== qB) return qA.localeCompare(qB);
+      return parseFloat(a.chapa || "0") - parseFloat(b.chapa || "0");
+    });
 
   return (
     <div className="min-h-screen bg-background">
@@ -204,6 +218,34 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
           />
         </div>
 
+        {/* Filtros por qualidade */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
+          <button
+            onClick={() => setFiltroQualidade(null)}
+            className={`text-xs font-semibold px-2.5 py-1 rounded-full transition-colors ${
+              !filtroQualidade
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-muted/70"
+            }`}
+          >
+            Todas
+          </button>
+          {qualidadesUnicas.map(q => (
+            <button
+              key={q}
+              onClick={() => setFiltroQualidade(filtroQualidade === q ? null : q)}
+              className={`text-xs font-semibold px-2.5 py-1 rounded-full transition-colors ${
+                filtroQualidade === q
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-muted/70"
+              }`}
+            >
+              {q}
+            </button>
+          ))}
+        </div>
+
         {/* Tabela */}
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
@@ -224,6 +266,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                   <th className="text-left px-3 py-2.5 whitespace-nowrap">Largura</th>
                   <th className="text-right px-3 py-2.5 whitespace-nowrap">Peso (kg)</th>
                   <th className="text-left px-3 py-2.5 whitespace-nowrap">Status</th>
+                  <th className="text-center px-3 py-2.5 whitespace-nowrap">Cert.</th>
                   <th className="px-3 py-2.5"></th>
                 </tr>
               </thead>
@@ -237,10 +280,10 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded">{b.qualidade || "-"}</span>
                     </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">{setor === "corte_dobra" ? (b.chapa || b.chapa || "-") : (b.chapa || "-")}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">{b.chapa || "-"}</td>
                     <td className="px-3 py-2.5 whitespace-nowrap">{b.espessura_real || "-"}</td>
                     <td className="px-3 py-2.5 whitespace-nowrap bg-amber-50/40 font-semibold text-amber-900">
-                      {b.chapa || "-"}
+                      {b.espessura_utilizada || "-"}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">{b.largura_mm ? `${b.largura_mm} mm` : "-"}</td>
                     <td className="px-3 py-2.5 text-right font-semibold whitespace-nowrap">{b.peso_kg ? `${b.peso_kg.toLocaleString("pt-BR")} kg` : "-"}</td>
@@ -251,6 +294,17 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                         </span>
                       ) : (
                         <span className="text-xs text-muted-foreground">Disponível</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      {b.anexo_cert_url ? (
+                        <a href={b.anexo_cert_url} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center text-blue-600 hover:text-blue-800 transition-colors"
+                          title="Ver certificado digital">
+                          <ShieldCheck className="w-4 h-4" />
+                        </a>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
                       )}
                     </td>
                     <td className="px-3 py-2.5 text-right">
