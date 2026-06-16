@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import {
   Layers, ShoppingCart, Warehouse, Search,
-  CheckCircle2, RefreshCw, X, Plus, Paperclip, Loader2
+  CheckCircle2, RefreshCw, X, Plus, Paperclip, Loader2,
+  FileCheck, ShieldCheck, Camera, Lock
 } from "lucide-react";
 import ChapaFormDialog from "@/components/corte-dobra/ChapaFormDialog";
 import ChapaCard from "@/components/corte-dobra/ChapaCard";
@@ -21,6 +22,7 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
   const [espessura, setEspessura] = useState(chapa?.espessura_mm || "");
   const [comprimento, setComprimento] = useState(chapa?.comprimento_mm || "");
   const [largura, setLargura] = useState(chapa?.largura_mm || "");
+  const [pesoKg, setPesoKg] = useState(chapa?.peso_kg || "");
   const [destino, setDestino] = useState(chapa?.destino || "estoque");
   const [cliente, setCliente] = useState(chapa?.cliente || "");
   const [numeroPedido, setNumeroPedido] = useState(chapa?.numero_pedido || "");
@@ -40,6 +42,7 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
       setEspessura(chapa.espessura_mm || "");
       setComprimento(chapa.comprimento_mm || "");
       setLargura(chapa.largura_mm || "");
+      setPesoKg(chapa.peso_kg || "");
       setDestino(chapa.destino || "estoque");
       setCliente(chapa.cliente || "");
       setNumeroPedido(chapa.numero_pedido || "");
@@ -59,14 +62,14 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
     setUploading(false);
   };
 
-  const qtdMudou = qtd !== (chapa?.quantidade_disponivel ?? 0);
-  const algoMudou = qtdMudou
+  const algoMudou = qtd !== (chapa?.quantidade_disponivel ?? 0)
     || status !== (chapa?.status || "disponivel")
     || material !== (chapa?.material || "")
     || qualidade !== (chapa?.qualidade || "")
     || String(espessura) !== String(chapa?.espessura_mm || "")
     || String(comprimento) !== String(chapa?.comprimento_mm || "")
     || String(largura) !== String(chapa?.largura_mm || "")
+    || String(pesoKg) !== String(chapa?.peso_kg || "")
     || destino !== (chapa?.destino || "estoque")
     || cliente !== (chapa?.cliente || "")
     || numeroPedido !== (chapa?.numero_pedido || "")
@@ -95,6 +98,7 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
       espessura_mm: espessura ? Number(espessura) : null,
       comprimento_mm: comprimento ? Number(comprimento) : null,
       largura_mm: largura ? Number(largura) : null,
+      peso_kg: pesoKg ? Number(pesoKg) : null,
       destino,
       cliente: destino === "pedido_direto" ? (cliente || null) : null,
       numero_pedido: destino === "pedido_direto" ? (numeroPedido || null) : null,
@@ -131,7 +135,13 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label>Material</Label>
-              <Input placeholder="Ex: Aço galvanizado" value={material} onChange={e => setMaterial(e.target.value)} />
+              <Select value={material || ""} onValueChange={v => setMaterial(v || "")}>
+                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Chapa xadrez">Chapa xadrez</SelectItem>
+                  <SelectItem value="Chapa lisa">Chapa lisa</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label>Qualidade</Label>
@@ -165,6 +175,10 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
+              <Label>Peso (kg)</Label>
+              <Input type="number" step="0.01" placeholder="Ex: 150,5" value={pesoKg} onChange={e => setPesoKg(e.target.value)} />
+            </div>
+            <div className="space-y-1">
               <Label>Destino</Label>
               <Select value={destino} onValueChange={setDestino}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -174,18 +188,18 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
                 </SelectContent>
               </Select>
             </div>
-            {destino === "pedido_direto" && (
+          </div>
+
+          {destino === "pedido_direto" && (
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <Label>Nº Pedido</Label>
                 <Input placeholder="Ex: PED-123" value={numeroPedido} onChange={e => setNumeroPedido(e.target.value)} />
               </div>
-            )}
-          </div>
-
-          {destino === "pedido_direto" && (
-            <div className="space-y-1">
-              <Label>Cliente</Label>
-              <Input placeholder="Nome do cliente" value={cliente} onChange={e => setCliente(e.target.value)} />
+              <div className="space-y-1">
+                <Label>Cliente</Label>
+                <Input placeholder="Nome do cliente" value={cliente} onChange={e => setCliente(e.target.value)} />
+              </div>
             </div>
           )}
 

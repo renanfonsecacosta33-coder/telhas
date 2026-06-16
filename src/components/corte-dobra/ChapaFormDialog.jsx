@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from "@/api/base44Client";
-import { Camera, Paperclip, X, Loader2 } from "lucide-react";
+import { Camera, Paperclip, FileCheck, ShieldCheck, X, Loader2 } from "lucide-react";
+import ReservaPanel from "@/components/bobinas/ReservaPanel";
 
 export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }) {
   const [form, setForm] = useState({
@@ -18,16 +19,29 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
     material: "",
     qualidade: "",
     quantidade_total: "",
+    peso_kg: "",
     destino: "estoque",
     numero_pedido: "",
     cliente: "",
     observacoes: "",
-    foto_url: "",
-    foto_nome: ""
+    anexo_nf_url: "",
+    anexo_nf_nome: "",
+    anexo_cf_url: "",
+    anexo_cf_nome: "",
+    reservada: false,
+    reserva_tipo: "",
+    reserva_kg: "",
+    reserva_numero_pedido: "",
+    reserva_motivo: "",
+    reserva_autorizado_por: "",
+    reserva_data: "",
   });
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef();
-  const cameraRef = useRef();
+  const [uploadingNF, setUploadingNF] = useState(false);
+  const [uploadingCF, setUploadingCF] = useState(false);
+  const nfInputRef = useRef();
+  const nfCameraRef = useRef();
+  const cfInputRef = useRef();
+  const cfCameraRef = useRef();
 
   useEffect(() => {
     if (open) {
@@ -40,24 +54,40 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
         material: "",
         qualidade: "",
         quantidade_total: "",
+        peso_kg: "",
         destino: "estoque",
         numero_pedido: "",
         cliente: "",
         observacoes: "",
-        foto_url: "",
-        foto_nome: ""
+        anexo_nf_url: "",
+        anexo_nf_nome: "",
+        anexo_cf_url: "",
+        anexo_cf_nome: "",
+        reservada: false,
+        reserva_tipo: "",
+        reserva_kg: "",
+        reserva_numero_pedido: "",
+        reserva_motivo: "",
+        reserva_autorizado_por: "",
+        reserva_data: "",
       });
     }
   }, [open, proximoCodigo]);
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
-  const handleUpload = async (file) => {
+  const handleUpload = async (file, tipo) => {
     if (!file) return;
-    setUploading(true);
+    if (tipo === "nf") setUploadingNF(true);
+    else setUploadingCF(true);
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    setForm(f => ({ ...f, foto_url: file_url, foto_nome: file.name }));
-    setUploading(false);
+    if (tipo === "nf") {
+      setForm(f => ({ ...f, anexo_nf_url: file_url, anexo_nf_nome: file.name }));
+      setUploadingNF(false);
+    } else {
+      setForm(f => ({ ...f, anexo_cf_url: file_url, anexo_cf_nome: file.name }));
+      setUploadingCF(false);
+    }
   };
 
   const canSave = form.comprimento_mm && form.quantidade_total;
@@ -78,14 +108,26 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
       qualidade: form.qualidade || undefined,
       quantidade_total: Number(form.quantidade_total),
       quantidade_disponivel: Number(form.quantidade_total),
+      peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
       destino: form.destino,
       numero_pedido: form.destino === "pedido_direto" ? form.numero_pedido : undefined,
       cliente: form.destino === "pedido_direto" ? form.cliente : undefined,
       data_corte: form.data_corte,
-      foto_finalizacao_url: form.foto_url || undefined,
+      foto_finalizacao_url: undefined,
+      anexo_nf_url: form.anexo_nf_url || undefined,
+      anexo_nf_nome: form.anexo_nf_nome || undefined,
+      anexo_cf_url: form.anexo_cf_url || undefined,
+      anexo_cf_nome: form.anexo_cf_nome || undefined,
       bobina_descricao: bobinaDescricao,
       observacoes: form.observacoes,
       status: "disponivel",
+      reservada: form.reservada || false,
+      reserva_tipo: form.reservada ? form.reserva_tipo : undefined,
+      reserva_kg: (form.reservada && form.reserva_tipo === "parcial" && form.reserva_kg) ? Number(form.reserva_kg) : undefined,
+      reserva_numero_pedido: form.reservada ? form.reserva_numero_pedido : undefined,
+      reserva_motivo: form.reservada ? form.reserva_motivo : undefined,
+      reserva_autorizado_por: form.reservada ? form.reserva_autorizado_por : undefined,
+      reserva_data: form.reservada ? (form.reserva_data || new Date().toISOString().split("T")[0]) : undefined,
     });
   };
 
@@ -113,7 +155,13 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Material</Label>
-              <Input placeholder="Ex: Aço galvanizado" value={form.material} onChange={e => set("material", e.target.value)} />
+              <Select value={form.material || ""} onValueChange={v => set("material", v || undefined)}>
+                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Chapa xadrez">Chapa xadrez</SelectItem>
+                  <SelectItem value="Chapa lisa">Chapa lisa</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label>Qualidade</Label>
@@ -148,10 +196,16 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
             </div>
           </div>
 
-          {/* Quantidade */}
-          <div className="space-y-1">
-            <Label>Quantidade *</Label>
-            <Input type="number" placeholder="Ex: 10" value={form.quantidade_total} onChange={e => set("quantidade_total", e.target.value)} />
+          {/* Peso + Quantidade */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Peso (kg)</Label>
+              <Input type="number" step="0.01" placeholder="Ex: 150,5" value={form.peso_kg} onChange={e => set("peso_kg", e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Quantidade *</Label>
+              <Input type="number" placeholder="Ex: 10" value={form.quantidade_total} onChange={e => set("quantidade_total", e.target.value)} />
+            </div>
           </div>
 
           {/* Destino */}
@@ -179,35 +233,78 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
             </div>
           )}
 
-          {/* Foto (opcional) */}
+          {/* Anexos: NF + CF */}
           <div className="space-y-2">
-            <Label>Foto da Chapa</Label>
-            <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf"
-              onChange={e => handleUpload(e.target.files[0])} />
-            <input ref={cameraRef} type="file" className="hidden" accept="image/*" capture="environment"
-              onChange={e => handleUpload(e.target.files[0])} />
-            {form.foto_url ? (
-              <div className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs">
-                <img src={form.foto_url} alt="Preview" className="w-12 h-12 object-cover rounded border" />
-                <span className="truncate flex-1 text-emerald-800 font-medium">{form.foto_nome || "Foto anexada"}</span>
-                <button onClick={() => setForm(f => ({ ...f, foto_url: "", foto_nome: "" }))}
-                  className="text-emerald-600 hover:text-red-500 shrink-0"><X className="w-4 h-4" /></button>
+            <Label className="flex items-center gap-1">
+              Anexos
+            </Label>
+            <div className="grid grid-cols-2 gap-3">
+              {/* NF */}
+              <div className="space-y-1.5">
+                <input ref={nfInputRef} type="file" className="hidden" accept="image/*,.pdf"
+                  onChange={e => handleUpload(e.target.files[0], "nf")} />
+                <input ref={nfCameraRef} type="file" className="hidden" accept="image/*" capture="environment"
+                  onChange={e => handleUpload(e.target.files[0], "nf")} />
+                {form.anexo_nf_url ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                    <FileCheck className="w-4 h-4 shrink-0 text-emerald-600" />
+                    <a href={form.anexo_nf_url} target="_blank" rel="noopener noreferrer"
+                      className="truncate flex-1 underline underline-offset-2 font-medium" title={form.anexo_nf_nome}>
+                      {form.anexo_nf_nome || "NF anexada"}
+                    </a>
+                    <button onClick={() => setForm(f => ({ ...f, anexo_nf_url: "", anexo_nf_nome: "" }))}
+                      className="ml-auto text-emerald-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                ) : (
+                  <div className="flex gap-1.5">
+                    <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
+                      onClick={() => nfInputRef.current.click()} disabled={uploadingNF}>
+                      {uploadingNF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+                      {uploadingNF ? "Enviando..." : "Anexar NF"}
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
+                      onClick={() => nfCameraRef.current.click()} disabled={uploadingNF} title="Câmera">
+                      <Camera className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" className="flex-1 border-dashed border-2 h-12 text-sm gap-2"
-                  onClick={() => fileInputRef.current.click()} disabled={uploading}>
-                  {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
-                  {uploading ? "Enviando..." : "Anexar foto"}
-                </Button>
-                <Button type="button" variant="outline" className="border-dashed border-2 h-12 px-4"
-                  onClick={() => cameraRef.current.click()} disabled={uploading} title="Câmera">
-                  <Camera className="w-5 h-5" />
-                </Button>
+
+              {/* CF (Certificado do Fornecedor) */}
+              <div className="space-y-1.5">
+                <input ref={cfInputRef} type="file" className="hidden" accept="image/*,.pdf"
+                  onChange={e => handleUpload(e.target.files[0], "cf")} />
+                <input ref={cfCameraRef} type="file" className="hidden" accept="image/*" capture="environment"
+                  onChange={e => handleUpload(e.target.files[0], "cf")} />
+                {form.anexo_cf_url ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                    <ShieldCheck className="w-4 h-4 shrink-0 text-blue-600" />
+                    <a href={form.anexo_cf_url} target="_blank" rel="noopener noreferrer"
+                      className="truncate flex-1 underline underline-offset-2 font-medium" title={form.anexo_cf_nome}>
+                      {form.anexo_cf_nome || "CF anexado"}
+                    </a>
+                    <button onClick={() => setForm(f => ({ ...f, anexo_cf_url: "", anexo_cf_nome: "" }))}
+                      className="ml-auto text-blue-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                ) : (
+                  <div className="flex gap-1.5">
+                    <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
+                      onClick={() => cfInputRef.current.click()} disabled={uploadingCF}>
+                      {uploadingCF ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                      {uploadingCF ? "Enviando..." : "Anexar CF"}
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
+                      onClick={() => cfCameraRef.current.click()} disabled={uploadingCF} title="Câmera">
+                      <Camera className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
-            )}
-            {!form.foto_url && <p className="text-xs text-muted-foreground">Foto pode ser adicionada depois.</p>}
+            </div>
           </div>
+
+          {/* Reserva */}
+          <ReservaPanel form={form} onChange={setForm} />
 
           {/* Observações */}
           <div className="space-y-1">

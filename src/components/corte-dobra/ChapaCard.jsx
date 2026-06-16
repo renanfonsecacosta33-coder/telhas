@@ -3,7 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   CheckCircle2, ShoppingCart, Ruler, Clock, Camera, Edit2, Trash2,
-  ChevronDown, ChevronUp, Image as ImageIcon, Package, Hash
+  ChevronDown, ChevronUp, Image as ImageIcon, Package, Hash,
+  Weight, FileCheck, ShieldCheck, Lock
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -38,7 +39,9 @@ export default function ChapaCard({
 
   const fotosHistorico = historico.filter(h => h.anexo_url).reverse();
 
+  const temAnexos = !!chapa.anexo_nf_url || !!chapa.anexo_cf_url;
   const temFoto = !!chapa.foto_finalizacao_url || fotosHistorico.length > 0;
+  const temExpandir = temFoto || temAnexos;
 
   return (
     <div
@@ -50,6 +53,16 @@ export default function ChapaCard({
             : "border-l-4 border-l-emerald-400"
       } ${isConsumed ? "opacity-60" : ""}`}
     >
+      {/* Banner reserva */}
+      {chapa.reservada && (
+        <div className="px-4 py-2 flex items-center gap-2 text-xs font-semibold bg-purple-50 text-purple-800 border-b border-purple-200">
+          <Lock className="w-3.5 h-3.5" />
+          <span>RESERVADA — {chapa.reserva_tipo === "inteira" ? "Chapa Inteira" : `${chapa.reserva_kg?.toLocaleString("pt-BR")} kg`}</span>
+          {chapa.reserva_numero_pedido && <span className="ml-1">· Pedido: <strong>{chapa.reserva_numero_pedido}</strong></span>}
+          {chapa.reserva_autorizado_por && <span className="ml-auto text-purple-600">Autorizado: {chapa.reserva_autorizado_por}</span>}
+        </div>
+      )}
+
       {/* Linha principal */}
       <div className="p-4 flex flex-col sm:flex-row sm:items-center gap-4">
         {/* Info principal */}
@@ -88,15 +101,23 @@ export default function ChapaCard({
           )}
         </div>
 
-        {/* Quantidade */}
-        <div className="text-center min-w-[80px]">
-          <p className="text-2xl font-black text-foreground">{chapa.quantidade_disponivel ?? chapa.quantidade_total}</p>
-          <p className="text-xs text-muted-foreground">de {chapa.quantidade_total} pcs</p>
+        {/* Quantidade + Peso */}
+        <div className="text-center min-w-[80px] space-y-1">
+          <div>
+            <p className="text-2xl font-black text-foreground">{chapa.quantidade_disponivel ?? chapa.quantidade_total}</p>
+            <p className="text-xs text-muted-foreground">de {chapa.quantidade_total} pcs</p>
+          </div>
+          {chapa.peso_kg && (
+            <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
+              <Weight className="w-3 h-3" />
+              <span className="font-semibold text-foreground">{chapa.peso_kg.toLocaleString("pt-BR")} kg</span>
+            </div>
+          )}
         </div>
 
         {/* Ações */}
         <div className="flex items-center gap-2">
-          {temFoto && (
+          {temExpandir && (
             <Button
               size="sm" variant="ghost"
               className="gap-1 text-muted-foreground hover:text-foreground"
@@ -172,6 +193,24 @@ export default function ChapaCard({
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Anexos NF / CF */}
+          {temAnexos && (
+            <div className="flex gap-2 flex-wrap">
+              {chapa.anexo_nf_url && (
+                <a href={chapa.anexo_nf_url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors font-medium">
+                  <FileCheck className="w-3.5 h-3.5" /> NF
+                </a>
+              )}
+              {chapa.anexo_cf_url && (
+                <a href={chapa.anexo_cf_url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors font-medium">
+                  <ShieldCheck className="w-3.5 h-3.5" /> CF
+                </a>
+              )}
             </div>
           )}
 
