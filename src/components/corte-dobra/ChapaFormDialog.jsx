@@ -124,7 +124,7 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
                   <SelectItem value="FF">FF</SelectItem>
                   <SelectItem value="PP">PP</SelectItem>
                   <SelectItem value="FQ">FQ</SelectItem>
-                  <SelectItem value="ALZ">ALZ</SelectItem>
+                  <SelectItem value="GV (IMP)">GV (IMP)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

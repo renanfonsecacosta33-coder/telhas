@@ -168,7 +168,7 @@ export default function BobinasCD() {
               <SelectItem value="FF">FF</SelectItem>
               <SelectItem value="PP">PP</SelectItem>
               <SelectItem value="FQ">FQ</SelectItem>
-              <SelectItem value="ALZ">ALZ</SelectItem>
+              <SelectItem value="GV (IMP)">GV (IMP)</SelectItem>
             </SelectContent>
           </Select>
           <div className="relative w-40">
