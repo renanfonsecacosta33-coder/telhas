@@ -9,7 +9,8 @@
     "origem": {
       "type": "string",
       "enum": [
-        "desbobinadeira"
+        "desbobinadeira",
+        "manual"
       ],
       "default": "desbobinadeira",
       "description": "M\u00e1quina de origem"

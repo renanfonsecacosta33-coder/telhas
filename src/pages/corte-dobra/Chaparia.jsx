@@ -9,12 +9,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import {
   Layers, ShoppingCart, Warehouse, Search, Ruler,
-  CheckCircle2, Clock, Trash2, Edit2, RefreshCw, Camera, X
+  CheckCircle2, Clock, Trash2, Edit2, RefreshCw, Camera, X, Plus
 } from "lucide-react";
+import ChapaFormDialog from "@/components/corte-dobra/ChapaFormDialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-function StatusBadge({ status, destino, numeroPedido }) {
+function StatusBadge({ status, destino, numeroPedido, origem }) {
   if (status === "consumido") return <Badge className="bg-slate-100 text-slate-600 border-slate-200 border text-xs">Consumido</Badge>;
   if (status === "cancelado") return <Badge className="bg-red-100 text-red-600 border-red-200 border text-xs">Cancelado</Badge>;
   if (status === "parcial") return <Badge className="bg-amber-100 text-amber-700 border-amber-200 border text-xs">Parcial</Badge>;
@@ -24,7 +25,12 @@ function StatusBadge({ status, destino, numeroPedido }) {
       Pedido {numeroPedido || ""}
     </Badge>
   );
-  return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 border text-xs"><CheckCircle2 className="w-3 h-3 mr-1" />Disponível</Badge>;
+  return (
+    <div className="flex items-center gap-1.5">
+      <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 border text-xs"><CheckCircle2 className="w-3 h-3 mr-1" />Disponível</Badge>
+      {origem === "manual" && <Badge className="bg-purple-100 text-purple-700 border-purple-200 border text-xs">Manual</Badge>}
+    </div>
+  );
 }
 
 function EditarQuantDialog({ chapa, open, onClose, onSave }) {
@@ -77,6 +83,7 @@ export default function Chaparia() {
   const [filtroDestino, setFiltroDestino] = useState("todos");
   const [editChapa, setEditChapa] = useState(null);
   const [fotoViewer, setFotoViewer] = useState(null);
+  const [showForm, setShowForm] = useState(false);
   const [user, setUser] = useState(null);
 
   useEffect(() => { base44.auth.me().then(setUser).catch(() => {}); }, []);
@@ -97,6 +104,21 @@ export default function Chaparia() {
     onSuccess: () => qc.invalidateQueries(["chapas-cd"]),
   });
 
+  const createMut = useMutation({
+    mutationFn: (data) => base44.entities.ChapaCD.create(data),
+    onSuccess: () => { qc.invalidateQueries(["chapas-cd"]); setShowForm(false); },
+  });
+
+  // Próximo código CHxxxx
+  const proximoCodigo = (() => {
+    let maxN = 0;
+    chapas.forEach(c => {
+      const m = c.codigo?.match(/^CH(\d+)$/);
+      if (m) { const n = parseInt(m[1], 10); if (n > maxN) maxN = n; }
+    });
+    return `CH${String(maxN + 1).padStart(4, "0")}`;
+  })();
+
   const filtradas = chapas.filter(c => {
     const matchBusca = !busca || [c.codigo, c.bobina_descricao, c.numero_pedido, c.cliente].some(v => v?.toLowerCase().includes(busca.toLowerCase()));
     const matchStatus = filtroStatus === "todos" || c.status === filtroStatus || (filtroStatus === "disponivel" && !c.status);
@@ -114,11 +136,16 @@ export default function Chaparia() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Chaparia</h1>
-          <p className="text-sm text-muted-foreground">Estoque de chapas cortadas pela Desbobinadeira</p>
+          <p className="text-sm text-muted-foreground">Estoque de chapas — Desbobinadeira e entrada manual</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries(["chapas-cd"])} className="gap-1">
-          <RefreshCw className="w-4 h-4" /> Atualizar
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries(["chapas-cd"])} className="gap-1">
+            <RefreshCw className="w-4 h-4" /> Atualizar
+          </Button>
+          <Button size="sm" onClick={() => setShowForm(true)} className="gap-1">
+            <Plus className="w-4 h-4" /> Nova Chapa
+          </Button>
+        </div>
       </div>
 
       {/* KPIs */}
@@ -187,7 +214,11 @@ export default function Chaparia() {
               <div
                 key={c.id}
                 className={`bg-card border rounded-xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4 ${
-                  c.destino === "pedido_direto" ? "border-l-4 border-l-blue-400" : "border-l-4 border-l-emerald-400"
+                  c.origem === "manual"
+                    ? "border-l-4 border-l-purple-400"
+                    : c.destino === "pedido_direto"
+                      ? "border-l-4 border-l-blue-400"
+                      : "border-l-4 border-l-emerald-400"
                 } ${isConsumed ? "opacity-60" : ""}`}
               >
                 {/* Info principal */}
@@ -197,7 +228,7 @@ export default function Chaparia() {
                       <span className="font-black text-base font-mono text-foreground">{c.codigo}</span>
                     )}
                     <span className="font-semibold text-sm text-muted-foreground">{c.bobina_descricao || "Bobina"}</span>
-                    <StatusBadge status={c.status} destino={c.destino} numeroPedido={c.numero_pedido} />
+                    <StatusBadge status={c.status} destino={c.destino} numeroPedido={c.numero_pedido} origem={c.origem} />
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
                     {c.comprimento_mm > 0 && (
@@ -264,6 +295,14 @@ export default function Chaparia() {
         open={!!editChapa}
         onClose={() => setEditChapa(null)}
         onSave={(data) => updateMut.mutate({ id: editChapa.id, data })}
+      />
+
+      {/* Form nova chapa manual */}
+      <ChapaFormDialog
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        onSave={(data) => createMut.mutate(data)}
+        proximoCodigo={proximoCodigo}
       />
 
       {/* Viewer foto */}
