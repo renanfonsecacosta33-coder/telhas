@@ -35,6 +35,14 @@
       "type": "number",
       "description": "Largura em mm (herdada da bobina)"
     },
+    "espessura_mm": {
+      "type": "number",
+      "description": "Espessura em mm (para chapas manuais)"
+    },
+    "material": {
+      "type": "string",
+      "description": "Material (para chapas manuais, ex: A\u00e7o galvanizado)"
+    },
     "quantidade_total": {
       "type": "number",
       "description": "Quantidade total de pe\u00e7as cortadas"
@@ -86,7 +94,6 @@
     }
   },
   "required": [
-    "bobina_id",
     "comprimento_mm",
     "quantidade_total",
     "destino",

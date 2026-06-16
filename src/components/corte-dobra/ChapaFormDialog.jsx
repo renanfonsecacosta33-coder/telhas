@@ -58,7 +58,7 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
     setUploading(false);
   };
 
-  const canSave = form.foto_url && form.comprimento_mm && form.quantidade_total;
+  const canSave = form.comprimento_mm && form.quantidade_total;
 
   const handleSave = () => {
     const bobinaDescricao = [
@@ -71,13 +71,15 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
       origem: "manual",
       comprimento_mm: Number(form.comprimento_mm),
       largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
+      espessura_mm: form.espessura_mm ? Number(form.espessura_mm) : undefined,
+      material: form.material || undefined,
       quantidade_total: Number(form.quantidade_total),
       quantidade_disponivel: Number(form.quantidade_total),
       destino: form.destino,
       numero_pedido: form.destino === "pedido_direto" ? form.numero_pedido : undefined,
       cliente: form.destino === "pedido_direto" ? form.cliente : undefined,
       data_corte: form.data_corte,
-      foto_finalizacao_url: form.foto_url,
+      foto_finalizacao_url: form.foto_url || undefined,
       bobina_descricao: bobinaDescricao,
       observacoes: form.observacoes,
       status: "disponivel",
@@ -159,12 +161,9 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
             </div>
           )}
 
-          {/* Foto (obrigatória) */}
+          {/* Foto (opcional) */}
           <div className="space-y-2">
-            <Label className="flex items-center gap-1">
-              Foto da Chapa *
-              <span className="text-xs text-destructive font-normal">— obrigatória</span>
-            </Label>
+            <Label>Foto da Chapa</Label>
             <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf"
               onChange={e => handleUpload(e.target.files[0])} />
             <input ref={cameraRef} type="file" className="hidden" accept="image/*" capture="environment"
@@ -189,7 +188,7 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
                 </Button>
               </div>
             )}
-            {!form.foto_url && <p className="text-xs text-destructive">⚠ Anexe uma foto para cadastrar a chapa.</p>}
+            {!form.foto_url && <p className="text-xs text-muted-foreground">Foto pode ser adicionada depois.</p>}
           </div>
 
           {/* Observações */}
