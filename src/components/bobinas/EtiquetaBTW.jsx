@@ -135,6 +135,9 @@ export default function EtiquetaBTW({ bobina, onClose }) {
                 <span style={{ marginLeft: "auto", fontSize: "10px", fontWeight: 600 }}>
                   Qualidade: {bobina.qualidade || "—"}
                 </span>
+                <span style={{ fontSize: "10px", fontWeight: 600, marginLeft: "8px" }}>
+                  Q.Bobina: {bobina.espessura_real || "—"}
+                </span>
                 <span style={{ fontSize: "10px", fontWeight: 700, marginLeft: "8px" }}>{dataExib}</span>
               </div>
 

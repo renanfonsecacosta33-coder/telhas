@@ -62,8 +62,7 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
   };
 
   const qtdMudou = qtd !== (chapa?.quantidade_disponivel ?? 0);
-  const statusMudou = status !== (chapa?.status || "disponivel");
-  const canSave = motivo.trim() && (qtdMudou || statusMudou || anexoUrl);
+  const canSave = (motivo.trim() && qtdMudou) || (motivo.trim() && anexoUrl);
 
   const handleSave = () => {
     const historicoAntigo = chapa?.historico_movimentacoes;
@@ -74,8 +73,6 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
       motivo: motivo.trim(),
       qtd_antes: chapa?.quantidade_disponivel ?? 0,
       qtd_depois: qtd,
-      status_antes: chapa?.status || "disponivel",
-      status_depois: status,
       anexo_url: anexoUrl || null,
       anexo_nome: anexoNome || null,
     });
