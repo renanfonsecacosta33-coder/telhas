@@ -132,34 +132,36 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     : getMaquinasPorEtapa(etapa);
   const isPerfiladeira = maquinaProp === "PERFILADEIRA" || etapa === "perfiladeira" || form.maquina === "PERFILADEIRA";
 
-  // Quando o tipo de peça muda, limpa a máquina se não for compatível
+  // Quando o tipo de peça muda
   const handleTipoPeca = (label) => {
+    if (isPerfiladeira) {
+      // Perfiladeira: tipo_peca é o material da slitter
+      set("tipo_peca", label);
+      set("dimensoes_livres", label);
+      set("maquina", "PERFILADEIRA");
+      set("chapa_origem", "direto");
+      return;
+    }
     const obj = TIPOS_PECA.find(t => t.label === label);
     const maqsOk = getMaquinasPorEtapa(obj?.etapa || "ambas");
     set("tipo_peca", label);
-    if (maquinaProp === "PERFILADEIRA") {
-      // Sempre mantém PERFILADEIRA, nunca limpa
-      set("maquina", "PERFILADEIRA");
-      set("chapa_origem", "direto");
-    } else if (obj?.etapa === "perfiladeira") {
+    if (obj?.etapa === "perfiladeira") {
       set("maquina", "PERFILADEIRA");
       set("chapa_origem", "direto");
     } else if (!maqsOk.includes(form.maquina)) {
       set("maquina", "");
     }
-    if (obj?.etapa === "perfiladeira" || maquinaProp === "PERFILADEIRA") set("chapa_origem", "direto");
+    if (obj?.etapa === "perfiladeira") set("chapa_origem", "direto");
   };
 
-  // Auto-preencher dimensões quando a slitter é selecionada
-  const slitterMaterial = bobinaObj?.materiais_producao;
-  useEffect(() => {
-    if (form.maquina === "PERFILADEIRA" && slitterMaterial) {
-      set("dimensoes_livres", slitterMaterial);
-    }
-  }, [slitterMaterial, form.maquina]);
+  // Materiais disponíveis na slitter selecionada (para Perfiladeira)
+  const materiaisSlitter = isPerfiladeira && bobinaObj?.materiais_producao
+    ? bobinaObj.materiais_producao.split("/").map(m => m.trim()).filter(Boolean)
+    : [];
 
   const handleSave = () => {
     if (!form.maquina) { alert("Selecione a máquina."); return; }
+    if (isPerfiladeira && !form.bobina_id) { alert("Selecione a bobina slitter."); return; }
     if (!form.tipo_peca) { alert("Informe o tipo de peça."); return; }
     if (!form.quantidade || Number(form.quantidade) <= 0) { alert("Informe a quantidade."); return; }
 
@@ -267,7 +269,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
           {isPerfiladeira && (
             <div className="space-y-1">
               <Label>Bobina Slitter *</Label>
-              <Select value={form.bobina_id} onValueChange={v => set("bobina_id", v)}>
+              <Select value={form.bobina_id} onValueChange={v => { set("bobina_id", v); set("tipo_peca", ""); set("dimensoes_livres", ""); }}>
                 <SelectTrigger><SelectValue placeholder="Selecione a slitter..." /></SelectTrigger>
                 <SelectContent>
                   {slitters.filter(s => !["consumido", "arquivado"].includes(s.status?.toLowerCase())).map(s => (
@@ -320,20 +322,33 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
 
           <div className="space-y-1">
             <Label>Tipo de Peça *</Label>
-            <Select value={form.tipo_peca} onValueChange={handleTipoPeca}>
-              <SelectTrigger><SelectValue placeholder="Selecione o tipo de peça..." /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="_corte" disabled className="text-xs font-bold text-muted-foreground uppercase">✂️ Corte</SelectItem>
-                {TIPOS_PECA.filter(t => t.etapa === "corte").map(t => <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>)}
-                <SelectItem value="_dobra" disabled className="text-xs font-bold text-muted-foreground uppercase">📐 Dobra</SelectItem>
-                {TIPOS_PECA.filter(t => t.etapa === "dobra").map(t => <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>)}
-                <SelectItem value="_perf" disabled className="text-xs font-bold text-muted-foreground uppercase">⚙️ Perfiladeira</SelectItem>
-                {TIPOS_PECA.filter(t => t.etapa === "perfiladeira").map(t => <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>)}
-                <SelectItem value="_ambas" disabled className="text-xs font-bold text-muted-foreground uppercase">✂️📐 Corte + Dobra</SelectItem>
-                {TIPOS_PECA.filter(t => t.etapa === "ambas").map(t => <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            {form.tipo_peca && tipoPecaObj && (
+            {isPerfiladeira ? (
+              materiaisSlitter.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-2">Selecione uma bobina slitter primeiro</div>
+              ) : (
+                <Select value={form.tipo_peca} onValueChange={handleTipoPeca}>
+                  <SelectTrigger><SelectValue placeholder="Escolha o material..." /></SelectTrigger>
+                  <SelectContent>
+                    {materiaisSlitter.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )
+            ) : (
+              <Select value={form.tipo_peca} onValueChange={handleTipoPeca}>
+                <SelectTrigger><SelectValue placeholder="Selecione o tipo de peça..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_corte" disabled className="text-xs font-bold text-muted-foreground uppercase">✂️ Corte</SelectItem>
+                  {TIPOS_PECA.filter(t => t.etapa === "corte").map(t => <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>)}
+                  <SelectItem value="_dobra" disabled className="text-xs font-bold text-muted-foreground uppercase">📐 Dobra</SelectItem>
+                  {TIPOS_PECA.filter(t => t.etapa === "dobra").map(t => <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>)}
+                  <SelectItem value="_perf" disabled className="text-xs font-bold text-muted-foreground uppercase">⚙️ Perfiladeira</SelectItem>
+                  {TIPOS_PECA.filter(t => t.etapa === "perfiladeira").map(t => <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>)}
+                  <SelectItem value="_ambas" disabled className="text-xs font-bold text-muted-foreground uppercase">✂️📐 Corte + Dobra</SelectItem>
+                  {TIPOS_PECA.filter(t => t.etapa === "ambas").map(t => <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+            {!isPerfiladeira && form.tipo_peca && tipoPecaObj && (
               <div className="bg-muted/50 rounded-lg px-3 py-1.5 text-xs flex items-center gap-2">
                 <span className="text-muted-foreground">Etapa:</span>
                 <span className="font-semibold">{ETAPA_LABELS[etapa]}</span>
@@ -343,7 +358,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
 
           <div className="space-y-1">
             <Label>Dimensões / Especificações</Label>
-            <Input placeholder="Ex: A=100 B=50 CH=1,25 · 6m" value={form.dimensoes_livres} onChange={e => set("dimensoes_livres", e.target.value)} />
+            <Input placeholder={isPerfiladeira ? "Preenchido automaticamente" : "Ex: A=100 B=50 CH=1,25 · 6m"} value={form.dimensoes_livres} onChange={e => set("dimensoes_livres", e.target.value)} readOnly={isPerfiladeira} className={isPerfiladeira ? "bg-muted" : ""} />
           </div>
 
           <div className="grid grid-cols-3 gap-3">
