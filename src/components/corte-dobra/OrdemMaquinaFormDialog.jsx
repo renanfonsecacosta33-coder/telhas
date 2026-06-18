@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -140,10 +140,8 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
       set("dimensoes_livres", label);
       set("maquina", "PERFILADEIRA");
       set("chapa_origem", "direto");
-      // Preencher peso automaticamente com o peso total da slitter
-      if (bobinaObj?.peso_kg) {
-        set("peso_kg", String(bobinaObj.peso_kg));
-      }
+      // Resetar flag de edição manual ao trocar de material
+      pesoEditadoManual.current = false;
       return;
     }
     const obj = TIPOS_PECA.find(t => t.label === label);
@@ -162,6 +160,26 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
   const materiaisSlitter = isPerfiladeira && bobinaObj?.materiais_producao
     ? bobinaObj.materiais_producao.split("/").map(m => m.trim()).filter(Boolean)
     : [];
+
+  // Controle de edição manual do peso (para não sobrescrever)
+  const pesoEditadoManual = useRef(false);
+
+  // Recalcular peso automaticamente conforme quantidade (Perfiladeira)
+  useEffect(() => {
+    if (!isPerfiladeira || !bobinaObj || !form.tipo_peca) return;
+    if (pesoEditadoManual.current) return;
+
+    const qtd = Number(form.quantidade);
+    if (!qtd || qtd <= 0) return;
+
+    const larguraM = (bobinaObj.largura_mm || 1200) / 1000;
+    const espessuraM = (bobinaObj.espessura_mm || 2) / 1000;
+    const pesoPorMetro = larguraM * espessuraM * 7850; // kg/m
+    const pesoPorPeca6m = pesoPorMetro * 6;
+    const pesoTotal = pesoPorPeca6m * qtd;
+
+    set("peso_kg", String(Math.round(pesoTotal * 10) / 10));
+  }, [form.quantidade, form.tipo_peca, bobinaObj?.id]);
 
   const handleSave = () => {
     if (!form.maquina) { alert("Selecione a máquina."); return; }
@@ -273,7 +291,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
           {isPerfiladeira && (
             <div className="space-y-1">
               <Label>Bobina Slitter *</Label>
-              <Select value={form.bobina_id} onValueChange={v => { set("bobina_id", v); set("tipo_peca", ""); set("dimensoes_livres", ""); }}>
+              <Select value={form.bobina_id} onValueChange={v => { set("bobina_id", v); set("tipo_peca", ""); set("dimensoes_livres", ""); set("peso_kg", ""); pesoEditadoManual.current = false; }}>
                 <SelectTrigger><SelectValue placeholder="Selecione a slitter..." /></SelectTrigger>
                 <SelectContent>
                   {slitters.filter(s => !["consumido", "arquivado"].includes(s.status?.toLowerCase())).map(s => (
@@ -371,8 +389,9 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
               <Input type="number" placeholder="0" value={form.quantidade} onChange={e => set("quantidade", e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Peso (kg)</Label>
-              <Input type="number" placeholder="0" value={form.peso_kg} onChange={e => set("peso_kg", e.target.value)} />
+              <Label>{isPerfiladeira ? "Peso (kg) — auto" : "Peso (kg)"}</Label>
+              <Input type="number" placeholder="0" value={form.peso_kg} onChange={e => { set("peso_kg", e.target.value); pesoEditadoManual.current = true; }}
+                className={isPerfiladeira && !pesoEditadoManual.current && form.peso_kg ? "bg-blue-50" : ""} />
             </div>
             <div className="space-y-1">
               <Label>Nº Pedido</Label>
