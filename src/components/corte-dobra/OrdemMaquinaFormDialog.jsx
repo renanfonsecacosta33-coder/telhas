@@ -127,22 +127,36 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
 
   const tipoPecaObj = TIPOS_PECA.find(t => t.label === form.tipo_peca);
   const etapa = tipoPecaObj?.etapa || "ambas";
-  const maquinasDisponiveis = getMaquinasPorEtapa(etapa);
-  const isPerfiladeira = etapa === "perfiladeira" || form.maquina === "PERFILADEIRA";
+  const maquinasDisponiveis = maquinaProp === "PERFILADEIRA"
+    ? MAQUINAS_PERF
+    : getMaquinasPorEtapa(etapa);
+  const isPerfiladeira = maquinaProp === "PERFILADEIRA" || etapa === "perfiladeira" || form.maquina === "PERFILADEIRA";
 
   // Quando o tipo de peça muda, limpa a máquina se não for compatível
   const handleTipoPeca = (label) => {
     const obj = TIPOS_PECA.find(t => t.label === label);
     const maqsOk = getMaquinasPorEtapa(obj?.etapa || "ambas");
     set("tipo_peca", label);
-    if (obj?.etapa === "perfiladeira") {
+    if (maquinaProp === "PERFILADEIRA") {
+      // Sempre mantém PERFILADEIRA, nunca limpa
+      set("maquina", "PERFILADEIRA");
+      set("chapa_origem", "direto");
+    } else if (obj?.etapa === "perfiladeira") {
       set("maquina", "PERFILADEIRA");
       set("chapa_origem", "direto");
     } else if (!maqsOk.includes(form.maquina)) {
       set("maquina", "");
     }
-    if (obj?.etapa === "perfiladeira") set("chapa_origem", "direto");
+    if (obj?.etapa === "perfiladeira" || maquinaProp === "PERFILADEIRA") set("chapa_origem", "direto");
   };
+
+  // Auto-preencher dimensões quando a slitter é selecionada
+  const slitterMaterial = bobinaObj?.materiais_producao;
+  useEffect(() => {
+    if (form.maquina === "PERFILADEIRA" && slitterMaterial) {
+      set("dimensoes_livres", slitterMaterial);
+    }
+  }, [slitterMaterial, form.maquina]);
 
   const handleSave = () => {
     if (!form.maquina) { alert("Selecione a máquina."); return; }
@@ -177,7 +191,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
             </div>
             <div className="space-y-1">
               <Label>Máquina *</Label>
-              <Select value={form.maquina} onValueChange={v => {
+              <Select value={form.maquina} disabled={maquinaProp === "PERFILADEIRA"} onValueChange={v => {
                 set("maquina", v);
                 if (v === "PERFILADEIRA") set("chapa_origem", "direto");
               }}>
