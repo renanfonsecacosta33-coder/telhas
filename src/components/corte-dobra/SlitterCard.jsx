@@ -57,8 +57,8 @@ export default function SlitterCard({ slitter, onEdit, onDelete }) {
             <Badge className={qualidadeColors[slitter.qualidade] || "bg-gray-100 text-gray-800"}>
               {slitter.qualidade}
             </Badge>
-            <Badge className={cn(statusConfig[slitter.status]?.color || "bg-gray-100 text-gray-800")}>
-              {statusConfig[slitter.status]?.label || slitter.status}
+            <Badge className="bg-gray-100 text-gray-700">
+              {slitter.status || "Disponível"}
             </Badge>
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">

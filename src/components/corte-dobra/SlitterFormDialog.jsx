@@ -117,15 +117,7 @@ export default function SlitterFormDialog({ open, onClose, onSave, editItem, pro
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label>Status</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="disponivel">Disponível</SelectItem>
-                  <SelectItem value="em_uso">Em Uso</SelectItem>
-                  <SelectItem value="consumido">Consumido</SelectItem>
-                  <SelectItem value="arquivado">Arquivado</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input placeholder="Ex: Disponível, Em uso..." value={status} onChange={e => setStatus(e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>Anexar NF</Label>

@@ -52,14 +52,8 @@
     },
     "status": {
       "type": "string",
-      "enum": [
-        "disponivel",
-        "em_uso",
-        "consumido",
-        "arquivado"
-      ],
-      "default": "disponivel",
-      "description": "Status da bobina slitter"
+      "default": "Dispon\u00edvel",
+      "description": "Status da bobina slitter (texto livre)"
     },
     "observacoes": {
       "type": "string",

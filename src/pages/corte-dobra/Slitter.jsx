@@ -18,7 +18,6 @@ export default function SlitterPage() {
   const [deleteItem, setDeleteItem] = useState(null);
   const [search, setSearch] = useState("");
   const [filtroQualidade, setFiltroQualidade] = useState("todas");
-  const [filtroStatus, setFiltroStatus] = useState("todos");
   const queryClient = useQueryClient();
 
   const { data: slitters = [], isLoading } = useQuery({
@@ -64,8 +63,7 @@ export default function SlitterPage() {
     const matchSearch = !q || s.codigo?.toLowerCase().includes(q) || s.nf?.toLowerCase().includes(q) ||
       s.qualidade?.toLowerCase().includes(q) || s.materiais_producao?.toLowerCase().includes(q);
     const matchQualidade = filtroQualidade === "todas" || s.qualidade === filtroQualidade;
-    const matchStatus = filtroStatus === "todos" || s.status === filtroStatus;
-    return matchSearch && matchQualidade && matchStatus;
+    return matchSearch && matchQualidade;
   });
 
   return (
@@ -110,8 +108,8 @@ export default function SlitterPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input placeholder="Buscar por código, NF, qualidade, materiais..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
           </div>
-          {(filtroQualidade !== "todas" || filtroStatus !== "todos") && (
-            <Button variant="ghost" size="sm" onClick={() => { setFiltroQualidade("todas"); setFiltroStatus("todos"); setSearch(""); }}
+          {filtroQualidade !== "todas" && (
+            <Button variant="ghost" size="sm" onClick={() => { setFiltroQualidade("todas"); setSearch(""); }}
               className="text-muted-foreground hover:text-foreground shrink-0">
               <X className="w-3 h-3 mr-1" /> Limpar filtros
             </Button>
@@ -127,16 +125,6 @@ export default function SlitterPage() {
               <SelectItem value="PP">PP</SelectItem>
               <SelectItem value="FQ">FQ</SelectItem>
               <SelectItem value="GL (IMP)">GL (IMP)</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-            <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos</SelectItem>
-              <SelectItem value="disponivel">Disponível</SelectItem>
-              <SelectItem value="em_uso">Em Uso</SelectItem>
-              <SelectItem value="consumido">Consumido</SelectItem>
-              <SelectItem value="arquivado">Arquivado</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground ml-auto">
