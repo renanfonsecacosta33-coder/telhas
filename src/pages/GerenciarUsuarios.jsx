@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Users, Plus, Mail, Settings2, Monitor } from "lucide-react";
 import { toast } from "sonner";
 
@@ -101,6 +102,7 @@ export default function GerenciarUsuarios() {
       maquina: serializeMaquinas(editUser.maquinas || []),
       unidade: editUser.unidade || "",
       setor: editUser.setor || "telhas",
+      gerencia: editUser.gerencia || false,
     }});
   };
 
@@ -163,6 +165,7 @@ export default function GerenciarUsuarios() {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap justify-end">
                   {u.role && <Badge className={`border text-xs ${ROLE_COLORS[u.role] || "bg-gray-100 text-gray-700 border-gray-200"}`}>{u.role}</Badge>}
+                  {u.gerencia && <Badge className="border text-xs bg-amber-100 text-amber-700 border-amber-200">Gerência</Badge>}
                   {u.setor && <Badge className={`border text-xs ${SETOR_COLORS[u.setor] || ""}`}>{SETORES.find(s => s.value === u.setor)?.label || u.setor}</Badge>}
                   {parseMaquinas(u.maquina).map(m => (
                     <Badge key={m} variant="outline" className="text-xs gap-1">
@@ -274,6 +277,16 @@ export default function GerenciarUsuarios() {
                   <p className="text-xs text-muted-foreground">O operador verá apenas os pedidos das máquinas selecionadas</p>
                 </div>
               )}
+              <div className="bg-muted/50 rounded-lg p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold">Gerência</p>
+                  <p className="text-xs text-muted-foreground">Acesso ao setor gerencial (link externo)</p>
+                </div>
+                <Switch
+                  checked={editUser.gerencia || false}
+                  onCheckedChange={v => setEditUser(u => ({ ...u, gerencia: v }))}
+                />
+              </div>
               <div className="space-y-1">
                 <Label>Unidade</Label>
                 <Select value={editUser.unidade || ""} onValueChange={v => setEditUser(u => ({ ...u, unidade: v }))}>

@@ -48,6 +48,7 @@ export default function Sidebar({ isOpen, onToggle }) {
   const isAdmin = user?.role === "admin";
   const isOperador = user?.role !== "admin" && !!user;
   const isAmbos = user?.setor === "ambos" || isAdmin;
+  const isGerencia = user?.gerencia === true;
 
   const { data: categorias = [] } = useQuery({
     queryKey: ["categorias"],
@@ -174,6 +175,17 @@ export default function Sidebar({ isOpen, onToggle }) {
         {/* Settings at bottom */}
         <div className="p-4 border-t border-sidebar-border space-y-1">
           {isAdmin && renderLink({ path: "/configuracoes", label: "Configurações", icon: Settings })}
+          {isGerencia && (
+            <a
+              href="https://gerencia-fabricas.base44.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-amber-400 hover:bg-sidebar-accent hover:text-amber-300 transition-all"
+            >
+              <Factory className="w-4 h-4" />
+              <span>Gerência Fábricas</span>
+            </a>
+          )}
           {isAmbos && (
             <button
               onClick={() => navigate("/setor")}

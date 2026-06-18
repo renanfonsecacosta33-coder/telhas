@@ -29,6 +29,11 @@
     "unidade": {
       "type": "string",
       "description": "Unidade produtora"
+    },
+    "gerencia": {
+      "type": "boolean",
+      "default": false,
+      "description": "Usu\u00e1rio \u00e9 da ger\u00eancia - tem acesso ao setor gerencial"
     }
   }
 }

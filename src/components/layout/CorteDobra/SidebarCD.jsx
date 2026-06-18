@@ -51,6 +51,7 @@ export default function SidebarCD({ isOpen, onToggle }) {
   const isAdmin = user?.role === "admin";
   const isOperador = user?.role !== "admin" && !!user;
   const isAmbos = user?.setor === "ambos" || isAdmin;
+  const isGerencia = user?.gerencia === true;
 
   const MAQUINA_CD_ROUTE_MAP = {
     "CORTE 3M": "/corte-dobra/maquina/corte-3m",
@@ -195,6 +196,17 @@ export default function SidebarCD({ isOpen, onToggle }) {
 
         {/* Bottom */}
         <div className="p-4 border-t border-sidebar-border space-y-1">
+          {isGerencia && (
+            <a
+              href="https://gerencia-fabricas.base44.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-amber-400 hover:bg-sidebar-accent hover:text-amber-300 transition-all"
+            >
+              <Factory className="w-4 h-4" />
+              <span>Gerência Fábricas</span>
+            </a>
+          )}
           {isAmbos && (
             <button
               onClick={() => navigate("/setor")}
