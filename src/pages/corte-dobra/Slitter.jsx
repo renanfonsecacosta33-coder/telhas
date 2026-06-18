@@ -49,9 +49,21 @@ export default function SlitterPage() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["slitters"] }); setDeleteItem(null); toast.success("Slitter excluída!"); },
   });
 
-  const handleSave = (data) => {
-    if (editItem) updateMutation.mutate({ id: editItem.id, data });
-    else createMutation.mutate(data);
+  const handleSave = async (formData) => {
+    if (editItem) {
+      updateMutation.mutate({ id: editItem.id, data: formData });
+    } else {
+      // Buscar o maior código atual direto do banco para evitar concorrência
+      const todos = await base44.entities.Slitter.list();
+      let max = 0;
+      todos.forEach(s => {
+        const match = s.codigo && s.codigo.match(/^ST(\d+)$/i);
+        if (match) { const n = parseInt(match[1], 10); if (n > max) max = n; }
+      });
+      const novoCodigo = `ST${String(max + 1).padStart(4, "0")}`;
+      const hoje = new Date().toISOString().split("T")[0];
+      createMutation.mutate({ ...formData, codigo: novoCodigo, data: hoje });
+    }
   };
 
   const ativas = slitters.filter(s => s.status !== "arquivado");

@@ -9,8 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Paperclip, X } from "lucide-react";
 
 export default function SlitterFormDialog({ open, onClose, onSave, editItem, proximoCodigo }) {
-  const codigo = editItem?.codigo || `ST${String(proximoCodigo).padStart(4, "0")}`;
-  const [data] = useState(editItem?.data || new Date().toISOString().split("T")[0]);
+  const codigoPreview = editItem?.codigo || `ST${String(proximoCodigo).padStart(4, "0")}`;
+  const dataPreview = editItem?.data || new Date().toISOString().split("T")[0];
   const [pesoKg, setPesoKg] = useState(editItem?.peso_kg || "");
   const [nf, setNf] = useState(editItem?.nf || "");
   const [larguraMm, setLarguraMm] = useState(editItem?.largura_mm || "");
@@ -34,9 +34,7 @@ export default function SlitterFormDialog({ open, onClose, onSave, editItem, pro
   };
 
   const handleSave = () => {
-    onSave({
-      codigo,
-      data,
+    const payload = {
       peso_kg: Number(pesoKg),
       nf: nf || null,
       largura_mm: Number(larguraMm),
@@ -47,7 +45,13 @@ export default function SlitterFormDialog({ open, onClose, onSave, editItem, pro
       observacoes: observacoes || null,
       anexo_nf_url: anexoUrl || null,
       anexo_nf_nome: anexoNome || null,
-    });
+    };
+    // Código e data só são enviados na edição (na criação, a página gera automaticamente)
+    if (editItem) {
+      payload.codigo = editItem.codigo;
+      payload.data = editItem.data;
+    }
+    onSave(payload);
   };
 
   const canSave = pesoKg && larguraMm && espessuraMm;
@@ -60,11 +64,11 @@ export default function SlitterFormDialog({ open, onClose, onSave, editItem, pro
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label>Código</Label>
-              <Input value={codigo} disabled className="bg-muted font-mono" />
+              <Input value={codigoPreview} disabled className="bg-muted font-mono text-muted-foreground" readOnly />
             </div>
             <div className="space-y-1">
               <Label>Data</Label>
-              <Input value={data} disabled className="bg-muted" />
+              <Input value={dataPreview} disabled className="bg-muted text-muted-foreground" readOnly />
             </div>
           </div>
 
