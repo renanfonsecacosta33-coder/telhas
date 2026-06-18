@@ -18,11 +18,11 @@ export default function EtiquetaBTW({ bobina, onClose }) {
   const dim = bobina.largura_mm ? String(bobina.largura_mm) : "—";
 
   const pesoAtual = bobina.peso_kg != null
-    ? bobina.peso_kg.toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+    ? bobina.peso_kg.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })
     : "—";
 
   const pesoBruto = bobina.peso_inicial != null
-    ? bobina.peso_inicial.toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+    ? bobina.peso_inicial.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })
     : pesoAtual;
 
   const chapaReal = [bobina.espessura_real, bobina.qualidade].filter(Boolean).join(" ") || "—";
