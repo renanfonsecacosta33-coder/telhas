@@ -1,0 +1,75 @@
+{
+  "name": "Slitter",
+  "type": "object",
+  "properties": {
+    "codigo": {
+      "type": "string",
+      "description": "C\u00f3digo autom\u00e1tico (ST0001, ST0002...)"
+    },
+    "data": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de registro"
+    },
+    "peso_kg": {
+      "type": "number",
+      "description": "Peso em kg"
+    },
+    "nf": {
+      "type": "string",
+      "description": "N\u00famero da NF"
+    },
+    "largura_mm": {
+      "type": "number",
+      "description": "Largura em mm"
+    },
+    "qualidade": {
+      "type": "string",
+      "enum": [
+        "GV",
+        "FF",
+        "PP",
+        "FQ",
+        "GL (IMP)"
+      ],
+      "description": "Qualidade da bobina"
+    },
+    "espessura_mm": {
+      "type": "number",
+      "description": "Espessura em mm"
+    },
+    "anexo_nf_url": {
+      "type": "string",
+      "description": "URL do anexo NF"
+    },
+    "anexo_nf_nome": {
+      "type": "string",
+      "description": "Nome do arquivo NF"
+    },
+    "materiais_producao": {
+      "type": "string",
+      "description": "Materiais de produ\u00e7\u00e3o (ex: 75x40 / 68x30 / 100x40)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "disponivel",
+        "em_uso",
+        "consumido",
+        "arquivado"
+      ],
+      "default": "disponivel",
+      "description": "Status da bobina slitter"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es"
+    }
+  },
+  "required": [
+    "peso_kg",
+    "largura_mm",
+    "qualidade",
+    "espessura_mm"
+  ]
+}

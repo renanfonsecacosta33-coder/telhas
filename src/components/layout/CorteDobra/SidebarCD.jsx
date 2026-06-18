@@ -17,6 +17,7 @@ const NAV = [
   { path: "/corte-dobra/calculos", label: "Cálculos", icon: FlaskConical },
   { path: "/corte-dobra/bobinas", label: "Bobinas", icon: Circle },
   { path: "/corte-dobra/chaparia", label: "Chaparia", icon: Layers },
+  { path: "/corte-dobra/slitter", label: "Slitter", icon: ArrowLeftRight },
   { path: "/corte-dobra/epi", label: "EPI", icon: ShieldCheck },
   { path: "/corte-dobra/mapa", label: "Mapa do Barracão", icon: Map },
 ];
