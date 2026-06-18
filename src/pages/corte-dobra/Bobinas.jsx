@@ -22,6 +22,7 @@ export default function BobinasCD() {
   const [showArquivadas, setShowArquivadas] = useState(false);
   const [filtroQualidade, setFiltroQualidade] = useState("todos");
   const [filtroFornecedor, setFiltroFornecedor] = useState("");
+  const [ordenacao, setOrdenacao] = useState("none");
   const queryClient = useQueryClient();
 
   const { data: bobinas = [], isLoading } = useQuery({
@@ -84,6 +85,23 @@ export default function BobinasCD() {
     const matchQualidade = filtroQualidade === "todos" || b.qualidade === filtroQualidade;
     const matchFornecedor = !filtroFornecedor || (b.fornecedor || "").toLowerCase().includes(filtroFornecedor.toLowerCase());
     return matchSearch && matchAlerta && matchQualidade && matchFornecedor;
+  });
+
+  // Ordenação
+  const sorted = [...filtered].sort((a, b) => {
+    if (ordenacao === "codigo_asc")  return (a.codigo || "").localeCompare(b.codigo || "", undefined, { numeric: true });
+    if (ordenacao === "codigo_desc") return (b.codigo || "").localeCompare(a.codigo || "", undefined, { numeric: true });
+    if (ordenacao === "espessura_asc") {
+      const ea = parseFloat((a.chapa || "0").replace(",", "."));
+      const eb = parseFloat((b.chapa || "0").replace(",", "."));
+      return ea - eb;
+    }
+    if (ordenacao === "espessura_desc") {
+      const ea = parseFloat((a.chapa || "0").replace(",", "."));
+      const eb = parseFloat((b.chapa || "0").replace(",", "."));
+      return eb - ea;
+    }
+    return 0;
   });
 
   const temFiltrosBobina = filtroQualidade !== "todos" || !!filtroFornecedor;
@@ -179,8 +197,18 @@ export default function BobinasCD() {
               onChange={e => setFiltroFornecedor(e.target.value)}
             />
           </div>
+          <Select value={ordenacao} onValueChange={setOrdenacao}>
+            <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Ordenar por..." /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Padrão</SelectItem>
+              <SelectItem value="codigo_asc">Código ↑</SelectItem>
+              <SelectItem value="codigo_desc">Código ↓</SelectItem>
+              <SelectItem value="espessura_asc">Espessura ↑</SelectItem>
+              <SelectItem value="espessura_desc">Espessura ↓</SelectItem>
+            </SelectContent>
+          </Select>
           <p className="text-xs text-muted-foreground ml-auto">
-            {filtered.length} de {base.length} bobinas
+            {sorted.length} de {base.length} bobinas
           </p>
         </div>
       </div>
@@ -190,11 +218,11 @@ export default function BobinasCD() {
         <div className="flex items-center justify-center py-16">
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
         </div>
-      ) : filtered.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <EmptyState title="Nenhuma bobina encontrada" description="Adicione bobinas ao estoque." onAdd={() => { setEditItem(null); setDialogOpen(true); }} />
       ) : (
         <div className="space-y-3">
-          {filtered.map(bobina => (
+          {sorted.map(bobina => (
             <BobinaCard
               key={bobina.id}
               bobina={bobina}
