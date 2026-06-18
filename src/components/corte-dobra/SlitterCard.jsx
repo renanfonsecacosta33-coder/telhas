@@ -31,21 +31,22 @@ function parseMateriais(raw) {
 const COMPRIMENTO_BARRA_MM = 6000; // barra de 6m
 
 function calcularBarras(pesoKg, larguraMm, espessuraMm, materialStr) {
-  const match = materialStr.match(/^(\d+)\s*[xX]\s*(\d+)/);
-  if (!match) return { tiras: 0, barras: 0, kgPorBarra: 0 };
-  const stripWidth = Number(match[1]); // largura da tira (mm)
+  // Peso por metro linear da fita slitter:
+  // largura(m) x espessura(m) x densidade(7850 kg/m³)
+  const kgPorMetro = (larguraMm / 1000) * (espessuraMm / 1000) * 7850;
 
-  // Peso de cada peça (barra de 6m):
-  // largura(mm) x comprimento(mm) x espessura(mm) x 7.85 / 1.000.000 = kg
-  const kgPorBarra = (stripWidth * COMPRIMENTO_BARRA_MM * espessuraMm * 7.85) / 1000000;
+  // Peso de cada peça (barra de 6m)
+  const kgPorBarra = kgPorMetro * (COMPRIMENTO_BARRA_MM / 1000);
 
   // Quantidade de peças: peso total da bobina / peso de cada barra
   const barras = kgPorBarra > 0 ? Math.floor(pesoKg / kgPorBarra) : 0;
 
-  // Quantas tiras saem da largura da bobina
+  // Largura da tira do perfil (para referência)
+  const match = materialStr.match(/^(\d+)\s*[xX]\s*(\d+)/);
+  const stripWidth = match ? Number(match[1]) : 0;
   const tiras = stripWidth > 0 ? Math.floor(larguraMm / stripWidth) : 0;
 
-  return { tiras, barras, kgPorBarra };
+  return { tiras, barras, kgPorBarra, kgPorMetro };
 }
 
 export default function SlitterCard({ slitter, onEdit, onDelete }) {
@@ -120,7 +121,7 @@ export default function SlitterCard({ slitter, onEdit, onDelete }) {
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                 {materiais.map((mat, i) => {
-                  const { tiras, barras, kgPorBarra } = calcularBarras(
+                  const { tiras, barras, kgPorBarra, kgPorMetro } = calcularBarras(
                     slitter.peso_kg, slitter.largura_mm, slitter.espessura_mm, mat
                   );
                   return (
@@ -128,6 +129,7 @@ export default function SlitterCard({ slitter, onEdit, onDelete }) {
                       <p className="font-bold text-sm">{mat}</p>
                       <div className="text-xs text-muted-foreground space-y-0.5">
                         <div className="flex justify-between"><span>Tiras na largura:</span> <strong>{tiras}</strong></div>
+                        <div className="flex justify-between"><span>Peso por metro:</span> <strong>{kgPorMetro.toFixed(2)} kg/m</strong></div>
                         <div className="flex justify-between text-emerald-700"><span>Peso por barra (6m):</span> <strong>{kgPorBarra.toFixed(2)} kg</strong></div>
                       </div>
                       <div className="pt-1 border-t">
