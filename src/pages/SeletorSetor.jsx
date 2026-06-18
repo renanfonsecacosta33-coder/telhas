@@ -1,9 +1,17 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { base44 } from "@/api/base44Client";
 import { ChevronRight } from "lucide-react";
 
 export default function SeletorSetor() {
   const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    base44.auth.me().then(setUser).catch(() => {});
+  }, []);
+
+  const isGerencia = user?.gerencia === true;
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -38,6 +46,21 @@ export default function SeletorSetor() {
             </div>
             <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
           </button>
+
+          {isGerencia && (
+            <a
+              href="https://gerencia-fabricas.base44.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full bg-card border border-amber-300 rounded-xl p-5 flex items-center justify-between hover:border-amber-500 hover:bg-amber-50 transition-all group text-left"
+            >
+              <div>
+                <p className="font-bold text-base">🏭 Gerência Fábricas</p>
+                <p className="text-sm text-muted-foreground mt-1">Painel gerencial das fábricas</p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-amber-600 transition-colors" />
+            </a>
+          )}
 
           <a
             href="https://dashboard-ajl.base44.app"
