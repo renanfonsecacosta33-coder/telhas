@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
-  ChevronDown, FileText, Pencil, Trash2, Weight, Ruler, ScrollText
+  BarChart3, ChevronDown, FileText, Pencil, Trash2, Weight, Ruler, ScrollText
 } from "lucide-react";
 
 const DENSIDADE_ACO = 7850; // kg/m³
@@ -52,7 +52,14 @@ function calcularBarras(pesoKg, larguraMm, espessuraMm, materialStr) {
 export default function SlitterCard({ slitter, onEdit, onDelete }) {
   const [expanded, setExpanded] = useState(false);
   const materiais = parseMateriais(slitter.materiais_producao);
-  const temExpandir = (slitter.materiais_producao || slitter.anexo_nf_url || slitter.observacoes);
+  const temExpandir = true;
+
+  // Cálculo básico (sempre visível no expandir)
+  const largM = (slitter.largura_mm || 0) / 1000;
+  const espM = (slitter.espessura_mm || 0) / 1000;
+  const kgPorMetro = largM * espM * 7850;
+  const kgPorBarraBase = kgPorMetro * 6;
+  const totalBarras = kgPorBarraBase > 0 ? Math.floor((slitter.peso_kg || 0) / kgPorBarraBase) : 0;
 
   return (
     <div className="bg-white border border-border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
@@ -113,6 +120,24 @@ export default function SlitterCard({ slitter, onEdit, onDelete }) {
       {/* Expandido */}
       {expanded && (
         <div className="border-t border-border px-4 py-4 space-y-4 bg-slate-50/50">
+          {/* Cálculo básico da bobina */}
+          <div>
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
+              <BarChart3 className="w-3 h-3" /> Cálculo da Bobina
+            </h4>
+            <div className="bg-white border rounded-lg p-3 space-y-1.5">
+              <div className="text-xs text-muted-foreground space-y-0.5">
+                <div className="flex justify-between"><span>Peso por metro:</span> <strong>{kgPorMetro.toFixed(2)} kg/m</strong></div>
+                <div className="flex justify-between text-emerald-700"><span>Peso por barra (6m):</span> <strong>{kgPorBarraBase.toFixed(2)} kg</strong></div>
+              </div>
+              <div className="pt-1 border-t">
+                <p className="text-lg font-black text-emerald-600">
+                  {totalBarras} barras <span className="text-xs font-normal text-muted-foreground">de 6m</span>
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Materiais de produção */}
           {materiais.length > 0 && (
             <div>

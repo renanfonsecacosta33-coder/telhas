@@ -58,25 +58,15 @@ export default function SlitterPage() {
   const arquivadas = slitters.filter(s => s.status === "arquivado");
   const totalPeso = ativas.reduce((s, b) => s + (b.peso_kg || 0), 0);
 
-  // Cálculo agregado de barras
-  const DENSIDADE_ACO = 7850;
+  // Cálculo agregado de barras (fórmula: peso total / peso por barra de 6m)
   const totalBarrasPotencial = ativas.reduce((total, s) => {
-    if (!s.materiais_producao || !s.peso_kg || !s.largura_mm || !s.espessura_mm) return total;
-    const materiais = s.materiais_producao.split("/").map(m => m.trim()).filter(Boolean);
-    let maxBarras = 0;
-    materiais.forEach(mat => {
-      const match = mat.match(/^(\d+)\s*[xX]\s*(\d+)/);
-      if (!match) return;
-      const stripW = Number(match[1]);
-      const largM = s.largura_mm / 1000;
-      const espM = s.espessura_mm / 1000;
-      const compBobina = s.peso_kg / (largM * espM * DENSIDADE_ACO);
-      const tiras = Math.floor(s.largura_mm / stripW);
-      const totalLinha = compBobina * tiras;
-      const barras = Math.floor(totalLinha / 6);
-      if (barras > maxBarras) maxBarras = barras;
-    });
-    return total + maxBarras;
+    if (!s.peso_kg || !s.largura_mm || !s.espessura_mm) return total;
+    const largM = s.largura_mm / 1000;
+    const espM = s.espessura_mm / 1000;
+    const kgPorMetro = largM * espM * 7850;
+    const kgPorBarra = kgPorMetro * 6;
+    const barras = kgPorBarra > 0 ? Math.floor(s.peso_kg / kgPorBarra) : 0;
+    return total + barras;
   }, 0);
 
   const filtered = slitters.filter(s => {

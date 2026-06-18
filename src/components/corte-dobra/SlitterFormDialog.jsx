@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Paperclip, X } from "lucide-react";
 
 export default function SlitterFormDialog({ open, onClose, onSave, editItem, proximoCodigo }) {
-  const [codigo] = useState(editItem?.codigo || `ST${String(proximoCodigo).padStart(4, "0")}`);
+  const codigo = editItem?.codigo || `ST${String(proximoCodigo).padStart(4, "0")}`;
   const [data] = useState(editItem?.data || new Date().toISOString().split("T")[0]);
   const [pesoKg, setPesoKg] = useState(editItem?.peso_kg || "");
   const [nf, setNf] = useState(editItem?.nf || "");
