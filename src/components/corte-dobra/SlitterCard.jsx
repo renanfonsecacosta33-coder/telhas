@@ -28,22 +28,24 @@ function parseMateriais(raw) {
   return raw.split("/").map(m => m.trim()).filter(Boolean);
 }
 
+const COMPRIMENTO_BARRA_MM = 6000; // barra de 6m
+
 function calcularBarras(pesoKg, larguraMm, espessuraMm, materialStr) {
   const match = materialStr.match(/^(\d+)\s*[xX]\s*(\d+)/);
-  if (!match) return { tiras: 0, barras: 0, totalLinha: 0, kgPorBarra: 0, sobraM: 0 };
-  const stripWidth = Number(match[1]);
-  const perfilAltura = Number(match[2]);
-  const larguraM = larguraMm / 1000;
-  const espessuraM = espessuraMm / 1000;
-  const comprimentoBobina = pesoKg / (larguraM * espessuraM * DENSIDADE_ACO);
-  const tiras = Math.floor(larguraMm / stripWidth);
-  const totalLinha = comprimentoBobina * tiras;
-  const barras = Math.floor(totalLinha / 6);
-  const metrosUsados = barras * 6;
-  const sobraM = totalLinha - metrosUsados;
-  const kgPorMetro = pesoKg / comprimentoBobina;
-  const kgPorBarra = kgPorMetro * 6 / tiras;
-  return { tiras, barras, totalLinha, kgPorBarra, sobraM, comprimentoBobina };
+  if (!match) return { tiras: 0, barras: 0, kgPorBarra: 0 };
+  const stripWidth = Number(match[1]); // largura da tira (mm)
+
+  // Peso de cada peça (barra de 6m):
+  // largura(mm) x comprimento(mm) x espessura(mm) x 7.85 / 1.000.000 = kg
+  const kgPorBarra = (stripWidth * COMPRIMENTO_BARRA_MM * espessuraMm * 7.85) / 1000000;
+
+  // Quantidade de peças: peso total da bobina / peso de cada barra
+  const barras = kgPorBarra > 0 ? Math.floor(pesoKg / kgPorBarra) : 0;
+
+  // Quantas tiras saem da largura da bobina
+  const tiras = stripWidth > 0 ? Math.floor(larguraMm / stripWidth) : 0;
+
+  return { tiras, barras, kgPorBarra };
 }
 
 export default function SlitterCard({ slitter, onEdit, onDelete }) {
@@ -118,7 +120,7 @@ export default function SlitterCard({ slitter, onEdit, onDelete }) {
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                 {materiais.map((mat, i) => {
-                  const { tiras, barras, totalLinha, kgPorBarra, sobraM, comprimentoBobina } = calcularBarras(
+                  const { tiras, barras, kgPorBarra } = calcularBarras(
                     slitter.peso_kg, slitter.largura_mm, slitter.espessura_mm, mat
                   );
                   return (
@@ -126,10 +128,7 @@ export default function SlitterCard({ slitter, onEdit, onDelete }) {
                       <p className="font-bold text-sm">{mat}</p>
                       <div className="text-xs text-muted-foreground space-y-0.5">
                         <div className="flex justify-between"><span>Tiras na largura:</span> <strong>{tiras}</strong></div>
-                        <div className="flex justify-between"><span>Compr. bobina:</span> <strong>{comprimentoBobina.toFixed(1)} m</strong></div>
-                        <div className="flex justify-between"><span>Total linear:</span> <strong>{totalLinha.toFixed(1)} m</strong></div>
-                        <div className="flex justify-between text-emerald-700"><span>Kg por barra:</span> <strong>{kgPorBarra.toFixed(2)} kg</strong></div>
-                        <div className="flex justify-between text-amber-600"><span>Sobra:</span> <strong>{sobraM.toFixed(1)} m</strong></div>
+                        <div className="flex justify-between text-emerald-700"><span>Peso por barra (6m):</span> <strong>{kgPorBarra.toFixed(2)} kg</strong></div>
                       </div>
                       <div className="pt-1 border-t">
                         <p className="text-lg font-black text-emerald-600">
