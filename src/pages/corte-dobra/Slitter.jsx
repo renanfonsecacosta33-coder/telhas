@@ -58,9 +58,9 @@ export default function SlitterPage() {
   const arquivadas = slitters.filter(s => s.status === "arquivado");
   const totalPeso = ativas.reduce((s, b) => s + (b.peso_kg || 0), 0);
 
-  // Cálculo agregado de barras (fórmula: peso total / peso por barra de 6m)
+  // Cálculo agregado de barras (fórmula: peso total / peso por barra de 6m) — só slitters com materiais
   const totalBarrasPotencial = ativas.reduce((total, s) => {
-    if (!s.peso_kg || !s.largura_mm || !s.espessura_mm) return total;
+    if (!s.peso_kg || !s.largura_mm || !s.espessura_mm || !s.materiais_producao) return total;
     const largM = s.largura_mm / 1000;
     const espM = s.espessura_mm / 1000;
     const kgPorMetro = largM * espM * 7850;

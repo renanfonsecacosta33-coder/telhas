@@ -52,7 +52,7 @@ function calcularBarras(pesoKg, larguraMm, espessuraMm, materialStr) {
 export default function SlitterCard({ slitter, onEdit, onDelete }) {
   const [expanded, setExpanded] = useState(false);
   const materiais = parseMateriais(slitter.materiais_producao);
-  const temExpandir = true;
+  const temExpandir = materiais.length > 0 || !!(slitter.anexo_nf_url || slitter.observacoes);
 
   // Cálculo básico (sempre visível no expandir)
   const largM = (slitter.largura_mm || 0) / 1000;
@@ -120,30 +120,30 @@ export default function SlitterCard({ slitter, onEdit, onDelete }) {
       {/* Expandido */}
       {expanded && (
         <div className="border-t border-border px-4 py-4 space-y-4 bg-slate-50/50">
-          {/* Cálculo básico da bobina */}
-          <div>
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
-              <BarChart3 className="w-3 h-3" /> Cálculo da Bobina
-            </h4>
-            <div className="bg-white border rounded-lg p-3 space-y-1.5">
-              <div className="text-xs text-muted-foreground space-y-0.5">
-                <div className="flex justify-between"><span>Peso por metro:</span> <strong>{kgPorMetro.toFixed(2)} kg/m</strong></div>
-                <div className="flex justify-between text-emerald-700"><span>Peso por barra (6m):</span> <strong>{kgPorBarraBase.toFixed(2)} kg</strong></div>
-              </div>
-              <div className="pt-1 border-t">
-                <p className="text-lg font-black text-emerald-600">
-                  {totalBarras} barras <span className="text-xs font-normal text-muted-foreground">de 6m</span>
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Materiais de produção */}
+          {/* Cálculo + Materiais de produção */}
           {materiais.length > 0 && (
-            <div>
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
-                <ScrollText className="w-3 h-3" /> Materiais de Produção
-              </h4>
+            <>
+              <div>
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
+                  <BarChart3 className="w-3 h-3" /> Cálculo da Bobina
+                </h4>
+                <div className="bg-white border rounded-lg p-3 space-y-1.5">
+                  <div className="text-xs text-muted-foreground space-y-0.5">
+                    <div className="flex justify-between"><span>Peso por metro:</span> <strong>{kgPorMetro.toFixed(2)} kg/m</strong></div>
+                    <div className="flex justify-between text-emerald-700"><span>Peso por barra (6m):</span> <strong>{kgPorBarraBase.toFixed(2)} kg</strong></div>
+                  </div>
+                  <div className="pt-1 border-t">
+                    <p className="text-lg font-black text-emerald-600">
+                      {totalBarras} barras <span className="text-xs font-normal text-muted-foreground">de 6m</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
+                  <ScrollText className="w-3 h-3" /> Materiais de Produção
+                </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                 {materiais.map((mat, i) => {
                   const { tiras, barras, kgPorBarra, kgPorMetro } = calcularBarras(
@@ -167,6 +167,7 @@ export default function SlitterCard({ slitter, onEdit, onDelete }) {
                 })}
               </div>
             </div>
+            </>
           )}
 
           {/* NF anexada */}
