@@ -140,6 +140,10 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
       set("dimensoes_livres", label);
       set("maquina", "PERFILADEIRA");
       set("chapa_origem", "direto");
+      // Preencher peso automaticamente com o peso total da slitter
+      if (bobinaObj?.peso_kg) {
+        set("peso_kg", String(bobinaObj.peso_kg));
+      }
       return;
     }
     const obj = TIPOS_PECA.find(t => t.label === label);
