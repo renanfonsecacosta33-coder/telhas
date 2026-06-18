@@ -30,15 +30,20 @@ function parseMateriais(raw) {
 
 function calcularBarras(pesoKg, larguraMm, espessuraMm, materialStr) {
   const match = materialStr.match(/^(\d+)\s*[xX]\s*(\d+)/);
-  if (!match) return { tiras: 0, barras: 0, totalLinha: 0 };
+  if (!match) return { tiras: 0, barras: 0, totalLinha: 0, kgPorBarra: 0, sobraM: 0 };
   const stripWidth = Number(match[1]);
+  const perfilAltura = Number(match[2]);
   const larguraM = larguraMm / 1000;
   const espessuraM = espessuraMm / 1000;
   const comprimentoBobina = pesoKg / (larguraM * espessuraM * DENSIDADE_ACO);
   const tiras = Math.floor(larguraMm / stripWidth);
   const totalLinha = comprimentoBobina * tiras;
   const barras = Math.floor(totalLinha / 6);
-  return { tiras, barras, totalLinha };
+  const metrosUsados = barras * 6;
+  const sobraM = totalLinha - metrosUsados;
+  const kgPorMetro = pesoKg / comprimentoBobina;
+  const kgPorBarra = kgPorMetro * 6 / tiras;
+  return { tiras, barras, totalLinha, kgPorBarra, sobraM, comprimentoBobina };
 }
 
 export default function SlitterCard({ slitter, onEdit, onDelete }) {
@@ -113,15 +118,20 @@ export default function SlitterCard({ slitter, onEdit, onDelete }) {
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                 {materiais.map((mat, i) => {
-                  const { tiras, barras, totalLinha } = calcularBarras(
+                  const { tiras, barras, totalLinha, kgPorBarra, sobraM, comprimentoBobina } = calcularBarras(
                     slitter.peso_kg, slitter.largura_mm, slitter.espessura_mm, mat
                   );
                   return (
-                    <div key={i} className="bg-white border rounded-lg p-3 space-y-1">
+                    <div key={i} className="bg-white border rounded-lg p-3 space-y-1.5">
                       <p className="font-bold text-sm">{mat}</p>
                       <div className="text-xs text-muted-foreground space-y-0.5">
-                        <p><strong>{tiras}</strong> tiras de {slitter.largura_mm}mm</p>
-                        <p><strong>{totalLinha.toFixed(1)}</strong> metros lineares total</p>
+                        <div className="flex justify-between"><span>Tiras na largura:</span> <strong>{tiras}</strong></div>
+                        <div className="flex justify-between"><span>Compr. bobina:</span> <strong>{comprimentoBobina.toFixed(1)} m</strong></div>
+                        <div className="flex justify-between"><span>Total linear:</span> <strong>{totalLinha.toFixed(1)} m</strong></div>
+                        <div className="flex justify-between text-emerald-700"><span>Kg por barra:</span> <strong>{kgPorBarra.toFixed(2)} kg</strong></div>
+                        <div className="flex justify-between text-amber-600"><span>Sobra:</span> <strong>{sobraM.toFixed(1)} m</strong></div>
+                      </div>
+                      <div className="pt-1 border-t">
                         <p className="text-lg font-black text-emerald-600">
                           {barras} barras <span className="text-xs font-normal text-muted-foreground">de 6m</span>
                         </p>

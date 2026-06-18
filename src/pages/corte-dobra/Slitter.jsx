@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Weight, X, Archive, Package } from "lucide-react";
+import { Plus, Search, Weight, X, Archive, Package, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import SlitterFormDialog from "@/components/corte-dobra/SlitterFormDialog";
 import SlitterCard from "@/components/corte-dobra/SlitterCard";
@@ -58,6 +58,27 @@ export default function SlitterPage() {
   const arquivadas = slitters.filter(s => s.status === "arquivado");
   const totalPeso = ativas.reduce((s, b) => s + (b.peso_kg || 0), 0);
 
+  // Cálculo agregado de barras
+  const DENSIDADE_ACO = 7850;
+  const totalBarrasPotencial = ativas.reduce((total, s) => {
+    if (!s.materiais_producao || !s.peso_kg || !s.largura_mm || !s.espessura_mm) return total;
+    const materiais = s.materiais_producao.split("/").map(m => m.trim()).filter(Boolean);
+    let maxBarras = 0;
+    materiais.forEach(mat => {
+      const match = mat.match(/^(\d+)\s*[xX]\s*(\d+)/);
+      if (!match) return;
+      const stripW = Number(match[1]);
+      const largM = s.largura_mm / 1000;
+      const espM = s.espessura_mm / 1000;
+      const compBobina = s.peso_kg / (largM * espM * DENSIDADE_ACO);
+      const tiras = Math.floor(s.largura_mm / stripW);
+      const totalLinha = compBobina * tiras;
+      const barras = Math.floor(totalLinha / 6);
+      if (barras > maxBarras) maxBarras = barras;
+    });
+    return total + maxBarras;
+  }, 0);
+
   const filtered = slitters.filter(s => {
     const q = search.toLowerCase();
     const matchSearch = !q || s.codigo?.toLowerCase().includes(q) || s.nf?.toLowerCase().includes(q) ||
@@ -83,7 +104,7 @@ export default function SlitterPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-white border border-border rounded-xl p-4 text-center">
           <Package className="w-5 h-5 text-blue-500 mx-auto mb-1" />
           <p className="text-2xl font-bold">{ativas.length}</p>
@@ -93,6 +114,11 @@ export default function SlitterPage() {
           <Weight className="w-5 h-5 text-green-500 mx-auto mb-1" />
           <p className="text-2xl font-bold">{totalPeso.toLocaleString("pt-BR")}</p>
           <p className="text-xs text-muted-foreground">kg em estoque</p>
+        </div>
+        <div className="bg-white border border-border rounded-xl p-4 text-center">
+          <BarChart3 className="w-5 h-5 text-emerald-500 mx-auto mb-1" />
+          <p className="text-2xl font-bold">{totalBarrasPotencial.toLocaleString("pt-BR")}</p>
+          <p className="text-xs text-muted-foreground">Barras Potencial (6m)</p>
         </div>
         <div className="bg-white border border-border rounded-xl p-4 text-center">
           <Archive className="w-5 h-5 text-orange-400 mx-auto mb-1" />

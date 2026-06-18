@@ -66,7 +66,13 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
   const { data: bobinasSliter = [] } = useQuery({
     queryKey: ["bobinas-sliter-cd"],
     queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false }),
-    enabled: open && (form.chapa_origem === "direto" || form.maquina === "PERFILADEIRA"),
+    enabled: open && form.chapa_origem === "direto" && !(form.maquina === "PERFILADEIRA"),
+  });
+
+  const { data: slitters = [] } = useQuery({
+    queryKey: ["slitters-perfiladeira"],
+    queryFn: () => base44.entities.Slitter.list("-created_date", 100),
+    enabled: open && form.maquina === "PERFILADEIRA",
   });
 
   // chapas disponíveis = disponivel OU parcial, filtrar reservadas ao renderizar
@@ -115,7 +121,9 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
 
   const chapas = todasChapas.filter(c => c.status === "disponivel" || c.status === "parcial");
   const chapaObj = chapas.find(c => c.id === form.chapa_cd_id);
-  const bobinaObj = bobinasSliter.find(b => b.id === form.bobina_id);
+  const bobinaObj = form.maquina === "PERFILADEIRA"
+    ? slitters.find(s => s.id === form.bobina_id)
+    : bobinasSliter.find(b => b.id === form.bobina_id);
 
   const tipoPecaObj = TIPOS_PECA.find(t => t.label === form.tipo_peca);
   const etapa = tipoPecaObj?.etapa || "ambas";
@@ -142,10 +150,13 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     if (!form.quantidade || Number(form.quantidade) <= 0) { alert("Informe a quantidade."); return; }
 
     const chapaSnap = chapaObj ? `${chapaObj.bobina_descricao || ""} · ${chapaObj.comprimento_mm}mm` : "";
+    const slitterSnap = bobinaObj ? `[${bobinaObj.codigo || "—"}] ${bobinaObj.qualidade || ""} ${bobinaObj.espessura_mm || ""}mm — ${bobinaObj.materiais_producao || ""}` : "";
     onSave({
       ...form,
-      chapa_descricao: chapaSnap || bobinaObj?.codigo || "",
-      bobina_descricao: bobinaObj ? `[${bobinaObj.codigo || "—"}] ${bobinaObj.chapa || ""} — ${bobinaObj.cor || ""}` : "",
+      chapa_descricao: chapaSnap || slitterSnap || "",
+      bobina_descricao: form.maquina !== "PERFILADEIRA"
+        ? (bobinaObj ? `[${bobinaObj.codigo || "—"}] ${bobinaObj.chapa || ""} — ${bobinaObj.cor || ""}` : "")
+        : slitterSnap,
       quantidade: Number(form.quantidade),
       peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
     });
@@ -239,9 +250,36 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
             </div>
           )}
 
-          {(form.chapa_origem === "direto" || isPerfiladeira) && (
+          {isPerfiladeira && (
             <div className="space-y-1">
-              <Label>{isPerfiladeira ? "Bobina Slitada *" : "Bobina (entrada direta)"}</Label>
+              <Label>Bobina Slitter *</Label>
+              <Select value={form.bobina_id} onValueChange={v => set("bobina_id", v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione a slitter..." /></SelectTrigger>
+                <SelectContent>
+                  {slitters.filter(s => !["consumido", "arquivado"].includes(s.status?.toLowerCase())).map(s => (
+                    <SelectItem key={s.id} value={s.id}>
+                      <span className="font-mono font-bold">{s.codigo || "—"}</span>
+                      {s.qualidade && <span className="text-muted-foreground ml-2">{s.qualidade}</span>}
+                      <span className="text-muted-foreground ml-2">{s.espessura_mm}mm</span>
+                      {s.materiais_producao && <span className="text-blue-600 ml-2">{s.materiais_producao}</span>}
+                      <span className="text-green-600 ml-2 font-bold">{s.peso_kg?.toLocaleString("pt-BR")}kg</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {bobinaObj && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs flex flex-wrap gap-3 text-blue-800">
+                  <span>Qualidade: <strong>{bobinaObj.qualidade}</strong></span>
+                  <span>Espessura: <strong>{bobinaObj.espessura_mm}mm</strong></span>
+                  <span>Largura: <strong>{bobinaObj.largura_mm}mm</strong></span>
+                  <span>Peso: <strong>{bobinaObj.peso_kg?.toLocaleString("pt-BR")}kg</strong></span>
+                </div>
+              )}
+            </div>
+          )}
+          {(form.chapa_origem === "direto" && !isPerfiladeira) && (
+            <div className="space-y-1">
+              <Label>Bobina (entrada direta)</Label>
               <Select value={form.bobina_id} onValueChange={v => set("bobina_id", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione a bobina..." /></SelectTrigger>
                 <SelectContent>

@@ -17,7 +17,7 @@ export default function SlitterFormDialog({ open, onClose, onSave, editItem, pro
   const [qualidade, setQualidade] = useState(editItem?.qualidade || "GV");
   const [espessuraMm, setEspessuraMm] = useState(editItem?.espessura_mm || "");
   const [materiais, setMateriais] = useState(editItem?.materiais_producao || "");
-  const [status, setStatus] = useState(editItem?.status || "disponivel");
+  const [status, setStatus] = useState(editItem?.status || "Disponível");
   const [observacoes, setObservacoes] = useState(editItem?.observacoes || "");
   const [anexoUrl, setAnexoUrl] = useState(editItem?.anexo_nf_url || "");
   const [anexoNome, setAnexoNome] = useState(editItem?.anexo_nf_nome || "");
