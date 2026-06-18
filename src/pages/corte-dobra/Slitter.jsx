@@ -182,6 +182,7 @@ export default function SlitterPage() {
       )}
 
       <SlitterFormDialog
+        key={editItem?.id || "new"}
         open={dialogOpen}
         onClose={() => { setDialogOpen(false); setEditItem(null); }}
         onSave={handleSave}
