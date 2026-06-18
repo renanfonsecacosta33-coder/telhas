@@ -51,8 +51,8 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
 
   const ordensDia = useMemo(
     () => ordensDaMaquina.filter(o => o.data === selectedDay).sort((a, b) => {
-      const ord = { em_producao: 0, pausado: 1, pendente: 2, finalizado: 3, cancelado: 4 };
-      return (ord[a.status] ?? 2) - (ord[b.status] ?? 2);
+      const ord = { em_producao: 0, pausado: 1, aguardando_corte: 2, pendente: 3, finalizado: 4, cancelado: 5 };
+      return (ord[a.status] ?? 3) - (ord[b.status] ?? 3);
     }),
     [ordensDaMaquina, selectedDay]
   );
@@ -63,15 +63,40 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   });
   const createMaq = useMutation({
     mutationFn: (data) => base44.entities.OrdemMaquinaCD.create(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] }); setDialog(false); toast.success("Ordem criada!"); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] }); },
   });
 
-  const handleSave = (data) => {
+  const handleSave = async (data) => {
     if (editItem && !editItem._presets && editItem.id) {
       updateMaq.mutate({ id: editItem.id, data });
       setDialog(false);
     } else {
-      createMaq.mutate(data);
+      const saved = await createMaq.mutateAsync(data);
+      toast.success("Ordem criada!");
+      // Se for CORTE 3M ou CORTE 6M e gerou dobra, criar ordem de dobra vinculada
+      if (data.ordem_dobra_maquina && data.chapa_cd_id) {
+        await base44.entities.OrdemMaquinaCD.create({
+          data: data.data,
+          maquina: data.ordem_dobra_maquina,
+          tipo_peca: data.tipo_peca,
+          dimensoes_livres: data.dimensoes_livres,
+          quantidade: data.quantidade,
+          peso_kg: data.peso_kg,
+          numero_pedido: data.numero_pedido,
+          cliente: data.cliente,
+          chapa_cd_id: data.chapa_cd_id,
+          chapa_descricao: data.chapa_descricao,
+          chapa_origem: "chaparia",
+          desenvolvimento_id: data.desenvolvimento_id,
+          desenvolvimento_descricao: data.desenvolvimento_descricao,
+          ordem_corte_id: saved.id,
+          status: "aguardando_corte",
+          observacoes: `Gerado automaticamente do ${data.maquina}`,
+        });
+        queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
+        toast.success("Ordem de dobra vinculada criada!");
+      }
+      setDialog(false);
     }
   };
 
@@ -216,8 +241,8 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
                 ) : (
                   <div className="p-4 space-y-3">
                     {ordensDoDia.sort((a, b) => {
-                      const ord = { em_producao: 0, pausado: 1, pendente: 2, finalizado: 3, cancelado: 4 };
-                      return (ord[a.status] ?? 2) - (ord[b.status] ?? 2);
+                      const ord = { em_producao: 0, pausado: 1, aguardando_corte: 2, pendente: 3, finalizado: 4, cancelado: 5 };
+                      return (ord[a.status] ?? 3) - (ord[b.status] ?? 3);
                     }).map(o => (
                       <div key={o.id}>
                         <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} />

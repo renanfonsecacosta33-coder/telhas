@@ -22,11 +22,12 @@ function formatTempo(segundos) {
 
 function StatusBadge({ status }) {
   const cfg = {
-    pendente:    { label: "Pendente",   Icon: Circle,       color: "bg-slate-100 text-slate-600 border-slate-200" },
-    em_producao: { label: "Produzindo", Icon: Clock,        color: "bg-amber-100 text-amber-700 border-amber-200" },
-    pausado:     { label: "Pausado",    Icon: Pause,        color: "bg-purple-100 text-purple-700 border-purple-200" },
-    finalizado:  { label: "Finalizado", Icon: CheckCircle2, color: "bg-green-100 text-green-700 border-green-200" },
-    cancelado:   { label: "Cancelado",  Icon: AlertCircle,  color: "bg-red-100 text-red-700 border-red-200" },
+    pendente:          { label: "Pendente",          Icon: Circle,       color: "bg-slate-100 text-slate-600 border-slate-200" },
+    aguardando_corte:  { label: "Aguard. Corte",     Icon: Clock,        color: "bg-orange-100 text-orange-700 border-orange-200" },
+    em_producao:       { label: "Produzindo",        Icon: Clock,        color: "bg-amber-100 text-amber-700 border-amber-200" },
+    pausado:           { label: "Pausado",           Icon: Pause,        color: "bg-purple-100 text-purple-700 border-purple-200" },
+    finalizado:        { label: "Finalizado",        Icon: CheckCircle2, color: "bg-green-100 text-green-700 border-green-200" },
+    cancelado:         { label: "Cancelado",         Icon: AlertCircle,  color: "bg-red-100 text-red-700 border-red-200" },
   }[status] || { label: status, Icon: Circle, color: "bg-slate-100 text-slate-600" };
   return (
     <Badge className={`border text-xs ${cfg.color}`}>
@@ -133,6 +134,15 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, isGestor }) {
       inicio_producao_ts: null,
       data_finalizacao: format(new Date(), "yyyy-MM-dd"),
     });
+    // Se for uma ordem de corte, desbloquear a dobra vinculada
+    if (o.ordem_dobra_maquina) {
+      try {
+        const ordensDobra = await base44.entities.OrdemMaquinaCD.filter({ ordem_corte_id: o.id, status: "aguardando_corte" });
+        for (const od of ordensDobra) {
+          await base44.entities.OrdemMaquinaCD.update(od.id, { status: "pendente" });
+        }
+      } catch (e) { /* silencioso */ }
+    }
     setUploadingFoto(false);
     setFotoDialog(false);
   };
@@ -162,6 +172,14 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, isGestor }) {
                 <><Package className="w-3 h-3 text-blue-500" /><span className="font-mono">{o.bobina_descricao || o.chapa_descricao || "Bobina direta"}</span></>
               )}
             </div>
+
+            {/* Desenvolvimento */}
+            {o.desenvolvimento_descricao && (
+              <div className="flex items-center gap-1 text-xs text-emerald-700 mb-1">
+                <span className="text-emerald-500">📐</span>
+                <span className="font-medium">{o.desenvolvimento_descricao}</span>
+              </div>
+            )}
 
             {/* Pedido */}
             {o.numero_pedido && (
@@ -241,11 +259,24 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, isGestor }) {
           <div className="text-xs text-green-700 font-semibold mb-2">✓ {o.quantidade_produzida} peças produzidas</div>
         )}
 
+        {/* Bloqueio por corte pendente */}
+        {o.status === "aguardando_corte" && (
+          <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-1.5 text-xs text-orange-700 mb-2 flex items-center gap-2">
+            <Clock className="w-3 h-3" />
+            Aguardando finalização do corte para liberar
+          </div>
+        )}
+
         {/* Ações */}
         <div className="flex items-center justify-end gap-2 mt-3">
           {o.status === "pendente" && (
             <Button size="sm" className="gap-1 bg-amber-500 hover:bg-amber-600 text-white border-0" onClick={handleIniciar}>
               <Play className="w-3 h-3" /> Iniciar
+            </Button>
+          )}
+          {o.status === "aguardando_corte" && (
+            <Button size="sm" variant="outline" className="gap-1 border-orange-300 text-orange-600" disabled>
+              <Clock className="w-3 h-3" /> Aguardando Corte
             </Button>
           )}
           {o.status === "em_producao" && (

@@ -44,6 +44,14 @@
       "type": "string",
       "description": "Descri\u00e7\u00e3o da bobina (snapshot)"
     },
+    "desenvolvimento_id": {
+      "type": "string",
+      "description": "ID do DesenvolvimentoCD vinculado (obrigat\u00f3rio para corte/dobra)"
+    },
+    "desenvolvimento_descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o do desenvolvimento (snapshot: nome, material, dimens\u00f5es)"
+    },
     "tipo_peca": {
       "type": "string",
       "description": "Tipo de pe\u00e7a do cat\u00e1logo (ex: Perfil Serralheiro n\u00ba5, Blank, Dobra simples...)"
@@ -51,6 +59,19 @@
     "dimensoes_livres": {
       "type": "string",
       "description": "Dimens\u00f5es livres informadas pelo gestor (ex: 100x50x3m, A=75 B=38)"
+    },
+    "ordem_corte_id": {
+      "type": "string",
+      "description": "ID da ordem de corte vinculada (para ordens de dobra que dependem de corte)"
+    },
+    "ordem_dobra_maquina": {
+      "type": "string",
+      "enum": [
+        "DOBRA 3M",
+        "DOBRA FUNDO 6M",
+        "DOBRA INICIO 6M"
+      ],
+      "description": "M\u00e1quina de dobra escolhida (para ordens de corte que geram dobra)"
     },
     "numero_pedido": {
       "type": "string",
@@ -76,6 +97,7 @@
       "type": "string",
       "enum": [
         "pendente",
+        "aguardando_corte",
         "em_producao",
         "pausado",
         "finalizado",

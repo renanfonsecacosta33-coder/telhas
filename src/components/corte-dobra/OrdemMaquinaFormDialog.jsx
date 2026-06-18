@@ -75,11 +75,17 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     enabled: open && form.maquina === "PERFILADEIRA",
   });
 
+  // flags de máquina
+  const isCorte = ["CORTE 3M", "CORTE 6M"].includes(form.maquina);
+  const isDobra = ["DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M"].includes(form.maquina);
+  const isMaquinaPadrao = isCorte || isDobra;
+  const maxComprimento = form.maquina?.includes("3M") ? 3000 : form.maquina?.includes("6M") ? 6000 : 99999;
+
   // chapas disponíveis = disponivel OU parcial, filtrar reservadas ao renderizar
   const { data: todasChapas = [] } = useQuery({
     queryKey: ["chapas-cd-todas"],
     queryFn: () => base44.entities.ChapaCD.list("-created_date", 200),
-    enabled: open && form.chapa_origem === "chaparia",
+    enabled: open && (form.chapa_origem === "chaparia" || isDobra),
   });
 
   useEffect(() => {
@@ -98,6 +104,10 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         quantidade: editItem.quantidade || "",
         peso_kg: editItem.peso_kg || "",
         observacoes: editItem.observacoes || "",
+        desenvolvimento_id: editItem.desenvolvimento_id || "",
+        desenvolvimento_descricao: editItem.desenvolvimento_descricao || "",
+        ordem_dobra_maquina: editItem.ordem_dobra_maquina || "",
+        ordem_corte_id: editItem.ordem_corte_id || "",
       });
     } else {
       setForm({
@@ -113,6 +123,10 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         quantidade: "",
         peso_kg: "",
         observacoes: "",
+        desenvolvimento_id: "",
+        desenvolvimento_descricao: "",
+        ordem_dobra_maquina: "",
+        ordem_corte_id: "",
       });
     }
   }, [open, editItem, defaultDate, maquinaProp]);
@@ -131,6 +145,15 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     ? MAQUINAS_PERF
     : getMaquinasPorEtapa(etapa);
   const isPerfiladeira = maquinaProp === "PERFILADEIRA" || etapa === "perfiladeira" || form.maquina === "PERFILADEIRA";
+
+  // Desenvolvimentos disponíveis
+  const { data: desenvolvimentos = [] } = useQuery({
+    queryKey: ["desenvolvimentos-cd-ativos"],
+    queryFn: () => base44.entities.DesenvolvimentoCD.filter({ status: "aprovado" }, "-created_date", 200),
+    enabled: open && isMaquinaPadrao,
+  });
+
+  const devObj = desenvolvimentos.find(d => d.id === form.desenvolvimento_id);
 
   // Quando o tipo de peça muda
   const handleTipoPeca = (label) => {
@@ -164,6 +187,19 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
   // Controle de edição manual do peso (para não sobrescrever)
   const pesoEditadoManual = useRef(false);
 
+  // Preencher dados do desenvolvimento selecionado
+  useEffect(() => {
+    if (!devObj || !isMaquinaPadrao) return;
+    set("tipo_peca", devObj.nome_peca || "");
+    set("dimensoes_livres", devObj.comprimento_desenvolvido_mm
+      ? `${devObj.comprimento_desenvolvido_mm}×${devObj.largura_final_mm || devObj.largura_mm || "—"}mm`
+      : (devObj.comprimento_final_mm ? `${devObj.comprimento_final_mm}×${devObj.largura_final_mm || "—"}mm` : ""));
+    // Se for corte 3M e precisa de dobra, já define máquina de dobra automaticamente
+    if (form.maquina === "CORTE 3M" && devObj.maquina_dobra && devObj.maquina_dobra !== "PERFILADEIRA") {
+      set("ordem_dobra_maquina", "DOBRA 3M");
+    }
+  }, [devObj?.id]);
+
   // Recalcular peso automaticamente conforme quantidade (Perfiladeira)
   useEffect(() => {
     if (!isPerfiladeira || !bobinaObj || !form.tipo_peca) return;
@@ -181,23 +217,38 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     set("peso_kg", String(Math.round(pesoTotal * 10) / 10));
   }, [form.quantidade, form.tipo_peca, bobinaObj?.id]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.maquina) { alert("Selecione a máquina."); return; }
+    if (isMaquinaPadrao && !form.desenvolvimento_id) { alert("Selecione o desenvolvimento."); return; }
     if (isPerfiladeira && !form.bobina_id) { alert("Selecione a bobina slitter."); return; }
+    if (isDobra && !form.chapa_cd_id) { alert("Selecione a chapa do estoque."); return; }
     if (!form.tipo_peca) { alert("Informe o tipo de peça."); return; }
     if (!form.quantidade || Number(form.quantidade) <= 0) { alert("Informe a quantidade."); return; }
+    if (form.maquina === "CORTE 6M" && devObj?.maquina_dobra && devObj.maquina_dobra !== "PERFILADEIRA" && !form.ordem_dobra_maquina) {
+      alert("Selecione a máquina de dobra."); return;
+    }
 
     const chapaSnap = chapaObj ? `${chapaObj.bobina_descricao || ""} · ${chapaObj.comprimento_mm}mm` : "";
     const slitterSnap = bobinaObj ? `[${bobinaObj.codigo || "—"}] ${bobinaObj.qualidade || ""} ${bobinaObj.espessura_mm || ""}mm — ${bobinaObj.materiais_producao || ""}` : "";
-    onSave({
+
+    const ordemData = {
       ...form,
+      chapa_origem: isDobra ? "chaparia" : form.chapa_origem,
       chapa_descricao: chapaSnap || slitterSnap || "",
       bobina_descricao: form.maquina !== "PERFILADEIRA"
         ? (bobinaObj ? `[${bobinaObj.codigo || "—"}] ${bobinaObj.chapa || ""} — ${bobinaObj.cor || ""}` : "")
         : slitterSnap,
       quantidade: Number(form.quantidade),
       peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
-    });
+      desenvolvimento_descricao: devObj ? `${devObj.nome_peca} — ${devObj.material || ""} ${devObj.espessura_mm || ""}mm` : form.desenvolvimento_descricao || "",
+    };
+
+    // CORTE 3M: se precisa de dobra, vai criar ordem de dobra vinculada
+    if (form.maquina === "CORTE 3M" && devObj?.maquina_dobra && devObj.maquina_dobra !== "PERFILADEIRA") {
+      ordemData.ordem_dobra_maquina = "DOBRA 3M";
+    }
+
+    onSave(ordemData);
   };
 
   return (
@@ -233,7 +284,58 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
             </div>
           </div>
 
-          {!isPerfiladeira && (
+          {/* Desenvolvimento (obrigatório para corte/dobra) */}
+          {isMaquinaPadrao && (
+            <div className="space-y-1">
+              <Label>Desenvolvimento *</Label>
+              <Select value={form.desenvolvimento_id} onValueChange={v => {
+                set("desenvolvimento_id", v);
+                if (!v) { set("tipo_peca", ""); set("dimensoes_livres", ""); set("ordem_dobra_maquina", ""); return; }
+                const d = desenvolvimentos.find(x => x.id === v);
+                set("desenvolvimento_descricao", d ? `${d.nome_peca} — ${d.material || ""} ${d.espessura_mm || ""}mm` : "");
+              }}>
+                <SelectTrigger><SelectValue placeholder="Selecione o desenvolvimento..." /></SelectTrigger>
+                <SelectContent>
+                  {desenvolvimentos.length === 0 && <SelectItem value="_empty" disabled>Nenhum desenvolvimento aprovado</SelectItem>}
+                  {desenvolvimentos.map(d => (
+                    <SelectItem key={d.id} value={d.id}>
+                      <span className="font-semibold">{d.nome_peca}</span>
+                      <span className="text-muted-foreground ml-2 text-xs">{d.material} {d.espessura_mm}mm</span>
+                      {d.maquina_dobra && d.maquina_dobra !== "PERFILADEIRA" && (
+                        <span className="text-amber-600 ml-2 text-xs">📐 +{d.maquina_dobra}</span>
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {devObj && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-xs flex flex-wrap gap-3 text-emerald-800">
+                  <span>Material: <strong>{devObj.material}</strong></span>
+                  <span>Espessura: <strong>{devObj.espessura_mm}mm</strong></span>
+                  {devObj.largura_mm && <span>Largura: <strong>{devObj.largura_mm}mm</strong></span>}
+                  {devObj.maquina_dobra && devObj.maquina_dobra !== "PERFILADEIRA" && (
+                    <span className="text-amber-700">📐 Precisa de dobra</span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Seletor de máquina de dobra (CORTE 6M quando precisa de dobra) */}
+          {form.maquina === "CORTE 6M" && devObj?.maquina_dobra && devObj.maquina_dobra !== "PERFILADEIRA" && (
+            <div className="space-y-1">
+              <Label>Máquina de Dobra *</Label>
+              <Select value={form.ordem_dobra_maquina} onValueChange={v => set("ordem_dobra_maquina", v)}>
+                <SelectTrigger><SelectValue placeholder="Escolha a dobradeira..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DOBRA FUNDO 6M">01 Dobradeira 6m (Fundo)</SelectItem>
+                  <SelectItem value="DOBRA INICIO 6M">02 Dobradeira 6m (Início)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {!isPerfiladeira && !isDobra && (
             <div className="space-y-2">
               <Label>Origem da Chapa</Label>
               <div className="grid grid-cols-2 gap-2">
@@ -251,14 +353,14 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
             </div>
           )}
 
-          {form.chapa_origem === "chaparia" && !isPerfiladeira && (
+          {(form.chapa_origem === "chaparia" || isDobra) && !isPerfiladeira && (
             <div className="space-y-1">
-              <Label>Chapa do Estoque (Chaparia)</Label>
+              <Label>{isDobra ? "Chapa do Estoque *" : "Chapa do Estoque (Chaparia)"}</Label>
               <Select value={form.chapa_cd_id} onValueChange={v => set("chapa_cd_id", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione a chapa..." /></SelectTrigger>
                 <SelectContent>
-                  {chapas.length === 0 && <SelectItem value="_empty" disabled>Nenhuma chapa disponível</SelectItem>}
-                  {chapas.map(c => {
+                  {chapas.filter(c => c.comprimento_mm <= maxComprimento).length === 0 && <SelectItem value="_empty" disabled>Nenhuma chapa disponível (max {maxComprimento}mm)</SelectItem>}
+                  {chapas.filter(c => c.comprimento_mm <= maxComprimento).map(c => {
                     const reservada = c.destino === "pedido_direto";
                     const reservadaParaOutro = reservada && c.numero_pedido && c.numero_pedido !== form.numero_pedido;
                     return (
@@ -315,7 +417,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
               )}
             </div>
           )}
-          {(form.chapa_origem === "direto" && !isPerfiladeira) && (
+          {(form.chapa_origem === "direto" && !isPerfiladeira && !isDobra) && (
             <div className="space-y-1">
               <Label>Bobina (entrada direta)</Label>
               <Select value={form.bobina_id} onValueChange={v => set("bobina_id", v)}>
@@ -380,7 +482,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
 
           <div className="space-y-1">
             <Label>Dimensões / Especificações</Label>
-            <Input placeholder={isPerfiladeira ? "Preenchido automaticamente" : "Ex: A=100 B=50 CH=1,25 · 6m"} value={form.dimensoes_livres} onChange={e => set("dimensoes_livres", e.target.value)} readOnly={isPerfiladeira} className={isPerfiladeira ? "bg-muted" : ""} />
+            <Input placeholder={isPerfiladeira || isMaquinaPadrao ? "Preenchido automaticamente" : "Ex: A=100 B=50 CH=1,25 · 6m"} value={form.dimensoes_livres} onChange={e => set("dimensoes_livres", e.target.value)} readOnly={isPerfiladeira || isMaquinaPadrao} className={isPerfiladeira || isMaquinaPadrao ? "bg-muted" : ""} />
           </div>
 
           <div className="grid grid-cols-3 gap-3">
