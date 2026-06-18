@@ -49,7 +49,7 @@ export default function SeletorSetor() {
 
           {isGerencia && (
             <a
-              href="https://gerencia-fabricas.base44.app"
+              href="https://gerencial-fabricas.base44.app"
               target="_blank"
               rel="noopener noreferrer"
               className="w-full bg-card border border-amber-300 rounded-xl p-5 flex items-center justify-between hover:border-amber-500 hover:bg-amber-50 transition-all group text-left"

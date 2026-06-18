@@ -198,7 +198,7 @@ export default function SidebarCD({ isOpen, onToggle }) {
         <div className="p-4 border-t border-sidebar-border space-y-1">
           {isGerencia && (
             <a
-              href="https://gerencia-fabricas.base44.app"
+              href="https://gerencial-fabricas.base44.app"
               target="_blank"
               rel="noopener noreferrer"
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-amber-400 hover:bg-sidebar-accent hover:text-amber-300 transition-all"
