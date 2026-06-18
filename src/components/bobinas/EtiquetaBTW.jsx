@@ -25,7 +25,7 @@ export default function EtiquetaBTW({ bobina, onClose }) {
     ? bobina.peso_inicial.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })
     : pesoAtual;
 
-  const chapaReal = [bobina.espessura_real, bobina.qualidade].filter(Boolean).join(" ") || "—";
+  const chapaReal = bobina.espessura_real || "—";
   const chapaUtil = [bobina.espessura_utilizada, bobina.qualidade].filter(Boolean).join(" ") || "—";
 
   const handlePrint = () => {
