@@ -80,7 +80,8 @@ export default function BobinasCD() {
     const q = search.toLowerCase();
     const matchSearch = !q || b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q) ||
       b.codigo?.toLowerCase().includes(q) || b.fornecedor?.toLowerCase().includes(q) || b.qualidade?.toLowerCase().includes(q) ||
-      b.nf?.toLowerCase().includes(q) || b.espessura_real?.toLowerCase().includes(q);
+      b.nf?.toLowerCase().includes(q) || b.espessura_real?.toLowerCase().includes(q) || b.espessura_utilizada?.toLowerCase().includes(q) ||
+      b.sub_cod?.toLowerCase().includes(q) || String(b.largura_mm || "").includes(q) || String(b.peso_kg || "").includes(q);
     const matchAlerta = !filterAlerta || getAlertaNivel(b) !== null;
     const matchQualidade = filtroQualidade === "todos" || b.qualidade === filtroQualidade;
     const matchFornecedor = !filtroFornecedor || (b.fornecedor || "").toLowerCase().includes(filtroFornecedor.toLowerCase());
@@ -157,7 +158,7 @@ export default function BobinasCD() {
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input placeholder="Buscar por cor, chapa, código, fornecedor, NF..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
+            <Input placeholder="Buscar por cor, chapa, esp. utilizada, código, fornecedor, NF, largura, peso..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           {(temFiltrosBobina || filterAlerta) && (
             <Button variant="ghost" size="sm" onClick={limparFiltrosBobina} className="text-muted-foreground hover:text-foreground shrink-0">
