@@ -25,8 +25,8 @@ export default function EtiquetaBTW({ bobina, onClose }) {
     ? bobina.peso_inicial.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })
     : pesoAtual;
 
-  const chapaReal = bobina.espessura_real || "—";
-  const chapaUtil = [bobina.espessura_utilizada, bobina.qualidade].filter(Boolean).join(" ") || "—";
+  const chapaReal = bobina.chapa || "—";
+  const chapaUtil = bobina.espessura_utilizada || "—";
 
   const handlePrint = () => {
     const conteudo = printRef.current.innerHTML;
@@ -133,10 +133,7 @@ export default function EtiquetaBTW({ bobina, onClose }) {
                 <span style={{ fontSize: "10px", fontWeight: 600 }}>Sub. Cód.:</span>
                 <span style={{ fontSize: "11px", fontWeight: 700 }}>{bobina.sub_cod || "—"}</span>
                 <span style={{ marginLeft: "auto", fontSize: "10px", fontWeight: 600 }}>
-                  Qualidade: {bobina.qualidade || "—"}
-                </span>
-                <span style={{ fontSize: "10px", fontWeight: 600, marginLeft: "8px" }}>
-                  Q.Bobina: {bobina.espessura_real || "—"}
+                  Qualidade: {bobina.espessura_real || bobina.qualidade || "—"}
                 </span>
                 <span style={{ fontSize: "10px", fontWeight: 700, marginLeft: "8px" }}>{dataExib}</span>
               </div>
