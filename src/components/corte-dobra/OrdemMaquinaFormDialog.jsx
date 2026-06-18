@@ -143,7 +143,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
   const etapa = tipoPecaObj?.etapa || "ambas";
   const maquinasDisponiveis = maquinaProp === "PERFILADEIRA"
     ? MAQUINAS_PERF
-    : getMaquinasPorEtapa(etapa);
+    : MAQUINAS_TODAS;
   const isPerfiladeira = maquinaProp === "PERFILADEIRA" || etapa === "perfiladeira" || form.maquina === "PERFILADEIRA";
 
   // Desenvolvimentos disponíveis
@@ -278,9 +278,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
                   )}
                 </SelectContent>
               </Select>
-              {form.tipo_peca && maquinasDisponiveis.length > 0 && maquinasDisponiveis.length < 6 && (
-                <p className="text-xs text-muted-foreground">Máquinas compatíveis com o tipo de peça selecionado</p>
-              )}
+
             </div>
           </div>
 
