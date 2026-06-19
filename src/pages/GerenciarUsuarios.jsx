@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Users, Plus, Mail, Settings2, Monitor } from "lucide-react";
+import { Users, Plus, Mail, Settings2, Monitor, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
 const MAQUINAS_TELHAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
@@ -40,6 +40,7 @@ function serializeMaquinas(arr) {
   return JSON.stringify(arr);
 }
 const ROLES = [
+  { value: "super_admin", label: "Super Administrador", desc: "Controle total — gerencia usuários e permissões" },
   { value: "admin", label: "Administrador", desc: "Acesso total ao sistema" },
   { value: "operador", label: "Operador", desc: "Vê pedidos da sua máquina" },
   { value: "vendedor", label: "Vendedor", desc: "Cadastra e acompanha pedidos" },
@@ -56,6 +57,7 @@ const SETOR_COLORS = {
 };
 
 const ROLE_COLORS = {
+  super_admin: "bg-purple-100 text-purple-700 border-purple-200",
   admin: "bg-red-100 text-red-700 border-red-200",
   operador: "bg-blue-100 text-blue-700 border-blue-200",
   vendedor: "bg-green-100 text-green-700 border-green-200",
@@ -68,6 +70,7 @@ export default function GerenciarUsuarios() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("operador");
   const [inviting, setInviting] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
   const queryClient = useQueryClient();
 
   const { data: users = [], isLoading } = useQuery({
@@ -75,16 +78,23 @@ export default function GerenciarUsuarios() {
     queryFn: () => base44.entities.User.list(),
   });
 
+  useEffect(() => {
+    base44.auth.me().then(setCurrentUser).catch(() => {});
+  }, []);
+
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.User.update(id, data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["users"] }); setEditOpen(false); setEditUser(null); toast.success("Usuário atualizado!"); },
   });
 
+  const isSuperAdmin = currentUser?.role === "super_admin";
+
   const handleInvite = async () => {
     if (!inviteEmail) return;
     setInviting(true);
     try {
-      await base44.users.inviteUser(inviteEmail, inviteRole === "admin" ? "admin" : "user");
+      const platformRole = (inviteRole === "admin" || inviteRole === "super_admin") ? "admin" : "user";
+      await base44.users.inviteUser(inviteEmail, platformRole);
       toast.success(`Convite enviado para ${inviteEmail}!`);
       setInviteOpen(false);
       setInviteEmail("");
@@ -113,6 +123,19 @@ export default function GerenciarUsuarios() {
       return { ...u, maquinas: exists ? maquinas.filter(x => x !== m) : [...maquinas, m] };
     });
   };
+
+  // Bloqueia acesso se não for super_admin (após todos os hooks)
+  if (currentUser && !isSuperAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <ShieldAlert className="w-16 h-16 text-muted-foreground mb-4" />
+        <h1 className="text-xl font-bold">Acesso Restrito</h1>
+        <p className="text-sm text-muted-foreground mt-2 max-w-md">
+          Apenas o Super Administrador pode acessar o gerenciamento de usuários.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

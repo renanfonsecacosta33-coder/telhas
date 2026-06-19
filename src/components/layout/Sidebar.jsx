@@ -45,8 +45,9 @@ export default function Sidebar({ isOpen, onToggle }) {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
-  const isAdmin = user?.role === "admin";
-  const isOperador = user?.role !== "admin" && !!user;
+  const isSuperAdmin = user?.role === "super_admin";
+  const isAdmin = user?.role === "admin" || isSuperAdmin;
+  const isOperador = user?.role !== "admin" && user?.role !== "super_admin" && !!user;
   const isAmbos = user?.setor === "ambos" || isAdmin;
   const isGerencia = user?.gerencia === true;
 
@@ -160,7 +161,7 @@ export default function Sidebar({ isOpen, onToggle }) {
                 </>
               )}
 
-              {isAdmin && (
+              {isSuperAdmin && (
                 <>
                   <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mt-5 mb-3">
                     Administração
