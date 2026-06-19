@@ -124,14 +124,14 @@ export default function GerenciarUsuarios() {
     });
   };
 
-  // Bloqueia acesso se não for super_admin (após todos os hooks)
-  if (currentUser && !isSuperAdmin) {
+  // Bloqueia acesso se não for admin/super_admin
+  if (currentUser && currentUser.role !== "admin" && currentUser.role !== "super_admin") {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <ShieldAlert className="w-16 h-16 text-muted-foreground mb-4" />
         <h1 className="text-xl font-bold">Acesso Restrito</h1>
         <p className="text-sm text-muted-foreground mt-2 max-w-md">
-          Apenas o Super Administrador pode acessar o gerenciamento de usuários.
+          Apenas administradores podem acessar o gerenciamento de usuários.
         </p>
       </div>
     );
