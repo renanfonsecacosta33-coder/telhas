@@ -91,7 +91,14 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
     timerRef.current = setTimeout(() => {
       jaSalvouRef.current = true;
       setSalvandoAuto(true);
-      setTimeout(() => handleSave(), 600);
+      setTimeout(() => {
+        handleSave();
+        setForm(VAZIO(`CD${num}`));
+        setSemCertAssinatura("");
+        setConfirmarSemCert(false);
+        jaSalvouRef.current = false;
+        setSalvandoAuto(false);
+      }, 600);
     }, 1500);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [form.nf, form.peso_kg, form.largura_mm, editItem, camposPreenchidos]);

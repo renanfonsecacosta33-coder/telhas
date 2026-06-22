@@ -90,7 +90,15 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
     timerRef.current = setTimeout(() => {
       jaSalvouRef.current = true;
       setSalvandoAuto(true);
-      setTimeout(() => handleSave(), 600);
+      setTimeout(async () => {
+        handleSave();
+        const codigo = await gerarProximoCodigo();
+        setForm({ ...VAZIO, data_recebimento: new Date().toISOString().slice(0, 10), codigo });
+        setSemCertAssinatura("");
+        setConfirmarSemCert(false);
+        jaSalvouRef.current = false;
+        setSalvandoAuto(false);
+      }, 600);
     }, 1500);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [form.nf, form.peso_kg, form.largura_mm, editItem, camposPreenchidos]);
