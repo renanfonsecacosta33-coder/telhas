@@ -183,9 +183,8 @@
     }
   },
   "required": [
-    "nf",
-    "peso_kg",
-    "largura_mm"
+    "cor",
+    "chapa"
   ],
   "rls": {
     "create": {

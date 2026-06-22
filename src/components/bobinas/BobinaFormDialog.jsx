@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from "@/api/base44Client";
-import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera, CheckCircle2 } from "lucide-react";
+import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera } from "lucide-react";
 import { toast } from "sonner";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
 
@@ -17,85 +17,104 @@ const CORES = [
   "Preta - 9005", "Verde - 6002", "Verde - 6005", "Vermelho - 3000"
 ];
 
+const STATUS_OPTIONS = [
+  "Aberta", "Fechada", "Finalizada", "Na TP40", "Na BOBININHA",
+  "Matriz AJL", "Pinhais", "Ivaiporã", "Matriz - Frisada", "RESERVADA"
+];
+
 const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "GL (IMP)"];
 
-const VAZIO = {
-  nf: "", peso_kg: "", largura_mm: "",
-  cor: "", chapa: "", qualidade: "", sub_cod: "",
-  peso_inicial: "", metragem: "", codigo: "", custo: "",
-  status: "", fornecedor: "", data_recebimento: new Date().toISOString().slice(0, 10),
-  observacoes: "",
-  estoque_minimo_kg: "500", consumo_diario_kg: "",
-  anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
-  reservada: false, reserva_tipo: "", reserva_kg: "", reserva_numero_pedido: "",
-  reserva_motivo: "", reserva_autorizado_por: "", reserva_data: "",
-};
-
-const labelObrigatorio = (texto) => (
-  <span>{texto} <span className="text-red-500">*</span></span>
-);
-
 export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
-  const [form, setForm] = useState(VAZIO);
+  const [form, setForm] = useState({
+    cor: "", chapa: "", qualidade: "", sub_cod: "", largura_mm: "", peso_kg: "", peso_inicial: "",
+    metragem: "", codigo: "", nf: "", custo: "", status: "", fornecedor: "",
+    data_recebimento: "", observacoes: "", tipo: "Telha",
+    anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
+    estoque_minimo_kg: "", consumo_diario_kg: "",
+  });
+
   const [uploadingNF, setUploadingNF] = useState(false);
   const [uploadingCert, setUploadingCert] = useState(false);
   const [semCertAssinatura, setSemCertAssinatura] = useState("");
   const [confirmarSemCert, setConfirmarSemCert] = useState(false);
-  const [salvandoAuto, setSalvandoAuto] = useState(false);
-  const jaSalvouRef = useRef(false);
-  const timerRef = useRef(null);
   const nfInputRef = useRef();
   const nfCameraRef = useRef();
   const certInputRef = useRef();
   const certCameraRef = useRef();
 
   useEffect(() => {
-    if (!open) return;
-    jaSalvouRef.current = false;
-    setSalvandoAuto(false);
-    if (timerRef.current) clearTimeout(timerRef.current);
     if (editItem) {
       setForm({
-        nf: editItem.nf || "", peso_kg: editItem.peso_kg || "", largura_mm: editItem.largura_mm || "",
-        cor: editItem.cor || "", chapa: editItem.chapa || "", qualidade: editItem.qualidade || "",
-        sub_cod: editItem.sub_cod || "", peso_inicial: editItem.peso_inicial || "",
-        metragem: editItem.metragem || "", codigo: editItem.codigo || "",
-        custo: editItem.custo || "", status: editItem.status || "",
+        cor: editItem.cor || "",
+        chapa: editItem.chapa || "",
+        qualidade: editItem.qualidade || "",
+        sub_cod: editItem.sub_cod || "",
+        largura_mm: editItem.largura_mm || "",
+        peso_kg: editItem.peso_kg || "",
+        peso_inicial: editItem.peso_inicial || "",
+        metragem: editItem.metragem || "",
+        codigo: editItem.codigo || "",
+        nf: editItem.nf || "",
+        custo: editItem.custo || "",
+        status: editItem.status || "",
         fornecedor: editItem.fornecedor || "",
         data_recebimento: editItem.data_recebimento || "",
         observacoes: editItem.observacoes || "",
+        tipo: "Telha",
+        anexo_nf_url: editItem.anexo_nf_url || "",
+        anexo_nf_nome: editItem.anexo_nf_nome || "",
+        anexo_cert_url: editItem.anexo_cert_url || "",
+        anexo_cert_nome: editItem.anexo_cert_nome || "",
         estoque_minimo_kg: editItem.estoque_minimo_kg || "",
         consumo_diario_kg: editItem.consumo_diario_kg || "",
-        anexo_nf_url: editItem.anexo_nf_url || "", anexo_nf_nome: editItem.anexo_nf_nome || "",
-        anexo_cert_url: editItem.anexo_cert_url || "", anexo_cert_nome: editItem.anexo_cert_nome || "",
-        reservada: editItem.reservada || false, reserva_tipo: editItem.reserva_tipo || "",
-        reserva_kg: editItem.reserva_kg || "", reserva_numero_pedido: editItem.reserva_numero_pedido || "",
-        reserva_motivo: editItem.reserva_motivo || "", reserva_autorizado_por: editItem.reserva_autorizado_por || "",
+        reservada: editItem.reservada || false,
+        reserva_tipo: editItem.reserva_tipo || "",
+        reserva_kg: editItem.reserva_kg || "",
+        reserva_numero_pedido: editItem.reserva_numero_pedido || "",
+        reserva_motivo: editItem.reserva_motivo || "",
+        reserva_autorizado_por: editItem.reserva_autorizado_por || "",
         reserva_data: editItem.reserva_data || "",
       });
     } else {
-      setForm({ ...VAZIO, data_recebimento: new Date().toISOString().slice(0, 10) });
+      setForm({
+        cor: "", chapa: "", qualidade: "", sub_cod: "", largura_mm: "", peso_kg: "", peso_inicial: "",
+        metragem: "", codigo: "Gerando...", nf: "", custo: "", status: "", fornecedor: "",
+        data_recebimento: new Date().toISOString().slice(0, 10), observacoes: "", tipo: "Telha",
+        anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
+        estoque_minimo_kg: "500", consumo_diario_kg: "",
+        reservada: false, reserva_tipo: "", reserva_kg: "", reserva_numero_pedido: "",
+        reserva_motivo: "", reserva_autorizado_por: "", reserva_data: "",
+      });
       setSemCertAssinatura("");
       setConfirmarSemCert(false);
-      gerarProximoCodigo().then(codigo => setForm(f => ({ ...f, codigo })));
+      gerarProximoCodigo().then(codigo => set("codigo", codigo));
     }
   }, [editItem, open]);
 
-  const camposPreenchidos = String(form.nf || "").trim() && Number(form.peso_kg) > 0 && Number(form.largura_mm) > 0;
-
-  useEffect(() => {
-    if (editItem || jaSalvouRef.current || !camposPreenchidos) return;
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setSalvandoAuto(false);
-    timerRef.current = setTimeout(() => {
-      jaSalvouRef.current = true;
-      setSalvandoAuto(true);
-      setTimeout(() => { handleSave(); }, 600);
-    }, 1500);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [form.nf, form.peso_kg, form.largura_mm, editItem, camposPreenchidos]);
-
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
+
+  const calcMetragem = (peso, largura, chapa) => {
+    const p = Number(peso);
+    const l = Number(largura) / 1000;
+    const esp = parseFloat(String(chapa).replace(",", ".")) / 1000;
+    if (p > 0 && l > 0 && esp > 0) return Math.round(p / (l * esp * 7850));
+    return "";
+  };
+
+  const handlePesoChange = (val) => {
+    const metragem = calcMetragem(val, form.largura_mm, form.chapa);
+    setForm(f => ({ ...f, peso_kg: val, metragem }));
+  };
+
+  const handleLarguraChange = (val) => {
+    const metragem = calcMetragem(form.peso_kg, val, form.chapa);
+    setForm(f => ({ ...f, largura_mm: val, metragem }));
+  };
+
+  const handleChapaChange = (val) => {
+    const metragem = calcMetragem(form.peso_kg, form.largura_mm, val);
+    setForm(f => ({ ...f, chapa: val, metragem }));
+  };
 
   const gerarProximoCodigo = async () => {
     const bobinas = await base44.entities.Bobina.list("-created_date", 200);
@@ -107,11 +126,17 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
     return `TE${String(proximo).padStart(4, "0")}`;
   };
 
+  const handleNFChange = (val) => {
+    set("nf", val);
+  };
+
   const handleUpload = async (file, tipo) => {
     if (!file) return;
     if (tipo === "nf") setUploadingNF(true);
     else setUploadingCert(true);
+
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
+
     if (tipo === "nf") {
       setForm(f => ({ ...f, anexo_nf_url: file_url, anexo_nf_nome: file.name }));
       setUploadingNF(false);
@@ -121,22 +146,17 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
     }
   };
 
-  const handleSave = useCallback(() => {
-    const nf = String(form.nf || "").trim();
-    const peso = Number(form.peso_kg);
-    const largura = Number(form.largura_mm);
-
-    if (!nf) { toast.error("Número da NF é obrigatório"); return; }
-    if (!peso || peso <= 0) { toast.error("Peso (kg) é obrigatório"); return; }
-    if (!largura || largura <= 0) { toast.error("Largura (mm) é obrigatória"); return; }
-
+  const handleSave = () => {
+    if (!form.cor || !form.chapa) {
+      toast.error("Preencha Cor/RVM e Chapa (campos obrigatórios no topo do formulário)");
+      return;
+    }
     onSave({
       ...form,
-      nf,
-      peso_kg: peso,
-      largura_mm: largura,
-      peso_inicial: form.peso_inicial ? Number(form.peso_inicial) : peso,
       setor: "telhas",
+      largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
+      peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
+      peso_inicial: form.peso_inicial ? Number(form.peso_inicial) : undefined,
       metragem: form.metragem ? Number(form.metragem) : undefined,
       custo: form.custo ? Number(form.custo) : undefined,
       estoque_minimo_kg: form.estoque_minimo_kg ? Number(form.estoque_minimo_kg) : undefined,
@@ -150,128 +170,116 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
       reserva_autorizado_por: form.reservada ? form.reserva_autorizado_por : undefined,
       reserva_data: form.reservada ? (form.reserva_data || new Date().toISOString().split("T")[0]) : undefined,
     });
-  }, [form, confirmarSemCert, semCertAssinatura, onSave, editItem]);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{editItem ? "Editar Bobina" : "Nova Bobina — Telhas"}</DialogTitle>
+          <DialogTitle>{editItem ? "Editar Bobina" : "Nova Bobina"}</DialogTitle>
         </DialogHeader>
-
-        <div className="space-y-5 py-2">
-
-          {/* ═══════ CAMPOS OBRIGATÓRIOS ═══════ */}
-          <div className="rounded-xl border-2 border-red-200 bg-red-50/30 p-4 space-y-3">
-            <p className="text-xs font-semibold text-red-700 uppercase tracking-wide">Campos Obrigatórios</p>
+        <div className="space-y-4 py-2">
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>{labelObrigatorio("Número da NF")}</Label>
-              <Input placeholder="Ex: 123456" value={form.nf} onChange={e => set("nf", e.target.value)} />
+              <Label>Cor / RVM *</Label>
+              <Select value={form.cor} onValueChange={(v) => set("cor", v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>{CORES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>{labelObrigatorio("Peso (kg)")}</Label>
-                <Input type="number" placeholder="Ex: 2500" value={form.peso_kg} onChange={e => set("peso_kg", e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>{labelObrigatorio("Largura (mm)")}</Label>
-                <Input type="number" placeholder="Ex: 1200" value={form.largura_mm} onChange={e => set("largura_mm", e.target.value)} />
-              </div>
+            <div className="space-y-1">
+              <Label>Chapa *</Label>
+              <Input placeholder="Ex: 0,43" value={form.chapa} onChange={e => handleChapaChange(e.target.value)} />
             </div>
           </div>
-
-          {/* ═══════ INFORMAÇÕES BÁSICAS (opcionais) ═══════ */}
-          <div className="space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Informações Básicas</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Cor / RVM</Label>
-                <Select value={form.cor} onValueChange={v => set("cor", v)}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>{CORES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>Chapa</Label>
-                <Input placeholder="Ex: 0,43" value={form.chapa} onChange={e => set("chapa", e.target.value)} />
-              </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Qualidade</Label>
+              <Select value={form.qualidade} onValueChange={(v) => set("qualidade", v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>{QUALIDADE_OPTIONS.map(q => <SelectItem key={q} value={q}>{q}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Qualidade</Label>
-                <Select value={form.qualidade} onValueChange={v => set("qualidade", v)}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>{QUALIDADE_OPTIONS.map(q => <SelectItem key={q} value={q}>{q}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>Fornecedor</Label>
-                <Input placeholder="Ex: ArcelorMittal" value={form.fornecedor} onChange={e => set("fornecedor", e.target.value)} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Código (auto)</Label>
-                <Input value={form.codigo} onChange={e => set("codigo", e.target.value)} className="font-mono bg-muted/40" />
-              </div>
-              <div className="space-y-1">
-                <Label>SUB. COD</Label>
-                <Input placeholder="Código substituto" value={form.sub_cod} onChange={e => set("sub_cod", e.target.value)} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Status</Label>
-                <Input placeholder="Ex: Aberta" value={form.status} onChange={e => set("status", e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Data de Recebimento</Label>
-                <Input type="date" value={form.data_recebimento} onChange={e => set("data_recebimento", e.target.value)} />
-              </div>
+            <div className="space-y-1">
+              <Label>Status</Label>
+              <Select value={form.status} onValueChange={(v) => set("status", v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>{STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
           </div>
-
-          {/* ═══════ DADOS TÉCNICOS (opcionais) ═══════ */}
-          <div className="space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Dados Técnicos</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Peso Inicial (kg)</Label>
-                <Input type="number" placeholder="0" value={form.peso_inicial} onChange={e => set("peso_inicial", e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Metragem (m)</Label>
-                <Input type="number" placeholder="Auto" value={form.metragem} onChange={e => set("metragem", e.target.value)} className="bg-muted/40" />
-              </div>
+          <div className="space-y-1">
+            <Label>SUB. COD (Código Substituto)</Label>
+            <Input placeholder="Opcional" value={form.sub_cod} onChange={e => set("sub_cod", e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Peso Líquido (kg)</Label>
+              <Input type="number" placeholder="0" value={form.peso_kg} onChange={e => handlePesoChange(e.target.value)} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Custo (R$/kg)</Label>
-                <Input type="number" placeholder="0.00" value={form.custo} onChange={e => set("custo", e.target.value)} />
-              </div>
-              <div className="space-y-1" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Estoque Mínimo (kg)</Label>
-                <Input type="number" placeholder="500" value={form.estoque_minimo_kg} onChange={e => set("estoque_minimo_kg", e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Consumo Diário Est. (kg)</Label>
-                <Input type="number" placeholder="Ex: 120" value={form.consumo_diario_kg} onChange={e => set("consumo_diario_kg", e.target.value)} />
-              </div>
+            <div className="space-y-1">
+              <Label>Peso Inicial (kg)</Label>
+              <Input type="number" placeholder="0" value={form.peso_inicial} onChange={e => set("peso_inicial", e.target.value)} />
             </div>
           </div>
-
-          {/* ═══════ OBSERVAÇÕES ═══════ */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Largura (mm)</Label>
+              <Input type="number" placeholder="1200" value={form.largura_mm} onChange={e => handleLarguraChange(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Metragem (m) <span className="text-xs text-muted-foreground font-normal">— calculada automaticamente</span></Label>
+              <Input type="number" placeholder="Auto" value={form.metragem} onChange={e => set("metragem", e.target.value)} className="bg-muted/40" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Código (auto)</Label>
+              <Input placeholder="Preenchido automático pela NF" value={form.codigo} onChange={e => set("codigo", e.target.value)} className="font-mono" />
+            </div>
+            <div className="space-y-1">
+              <Label>NF</Label>
+              <Input placeholder="Número da NF" value={form.nf} onChange={e => handleNFChange(e.target.value)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Fornecedor</Label>
+              <Input placeholder="Ex: Arcelormittal" value={form.fornecedor} onChange={e => set("fornecedor", e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Custo (R$/kg)</Label>
+              <Input type="number" placeholder="0.00" value={form.custo} onChange={e => set("custo", e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label>Data de Recebimento</Label>
+            <Input type="date" value={form.data_recebimento} onChange={e => set("data_recebimento", e.target.value)} />
+          </div>
           <div className="space-y-1">
             <Label>Observações</Label>
-            <Textarea placeholder="Anotações..." value={form.observacoes} onChange={e => set("observacoes", e.target.value)} rows={2} />
+            <Textarea placeholder="Anotações..." value={form.observacoes} onChange={e => set("observacoes", e.target.value)} />
           </div>
 
-          {/* ═══════ ANEXOS ═══════ */}
+          {/* Estoque mínimo e consumo */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Estoque Mínimo (kg)</Label>
+              <Input type="number" placeholder="500" value={form.estoque_minimo_kg} onChange={e => set("estoque_minimo_kg", e.target.value)} />
+              <p className="text-[10px] text-muted-foreground">Alerta quando abaixo deste valor</p>
+            </div>
+            <div className="space-y-1">
+              <Label>Consumo Diário Estimado (kg)</Label>
+              <Input type="number" placeholder="Ex: 120" value={form.consumo_diario_kg} onChange={e => set("consumo_diario_kg", e.target.value)} />
+              <p className="text-[10px] text-muted-foreground">Para calcular previsão de acabar</p>
+            </div>
+          </div>
+
+          {/* Anexos */}
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Anexos</p>
+            <Label className="flex items-center gap-1">
+              Anexos
+            </Label>
             <div className="grid grid-cols-2 gap-3">
               {/* NF */}
               <div className="space-y-1.5">
@@ -295,20 +303,23 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
                   <div className="flex gap-1.5">
                     <Button type="button" variant="outline" size="sm"
                       className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
-                      onClick={() => nfInputRef.current.click()} disabled={uploadingNF}>
+                      onClick={() => nfInputRef.current.click()}
+                      disabled={uploadingNF}>
                       {uploadingNF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                      Anexar NF
+                      {uploadingNF ? "Enviando..." : "Anexar NF"}
                     </Button>
                     <Button type="button" variant="outline" size="sm"
-                      className="border-dashed border-2 h-10 px-3" onClick={() => nfCameraRef.current.click()}
-                      disabled={uploadingNF} title="Tirar foto da NF">
+                      className="border-dashed border-2 h-10 px-3 text-xs"
+                      onClick={() => nfCameraRef.current.click()}
+                      disabled={uploadingNF}
+                      title="Tirar foto da NF">
                       <Camera className="w-4 h-4" />
                     </Button>
                   </div>
                 )}
               </div>
 
-              {/* Certificado */}
+              {/* Certificado Digital */}
               <div className="space-y-1.5">
                 <input ref={certInputRef} type="file" className="hidden" accept="image/*,.pdf,.p7b,.cer,.crt"
                   onChange={e => { handleUpload(e.target.files[0], "cert"); setConfirmarSemCert(false); setSemCertAssinatura(""); }} />
@@ -322,19 +333,24 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
                       {form.anexo_cert_nome || "Certificado"}
                     </a>
                     <button onClick={() => setForm(f => ({ ...f, anexo_cert_url: "", anexo_cert_nome: "" }))}
-                      className="ml-auto text-blue-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
+                      className="ml-auto text-blue-600 hover:text-red-500 shrink-0">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 ) : (
                   <div className="flex gap-1.5">
                     <Button type="button" variant="outline" size="sm"
                       className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
-                      onClick={() => certInputRef.current.click()} disabled={uploadingCert}>
+                      onClick={() => certInputRef.current.click()}
+                      disabled={uploadingCert}>
                       {uploadingCert ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                      Certificado
+                      {uploadingCert ? "Enviando..." : "Certificado"}
                     </Button>
                     <Button type="button" variant="outline" size="sm"
-                      className="border-dashed border-2 h-10 px-3" onClick={() => certCameraRef.current.click()}
-                      disabled={uploadingCert} title="Tirar foto do Certificado">
+                      className="border-dashed border-2 h-10 px-3 text-xs"
+                      onClick={() => certCameraRef.current.click()}
+                      disabled={uploadingCert}
+                      title="Tirar foto do Certificado">
                       <Camera className="w-4 h-4" />
                     </Button>
                   </div>
@@ -342,46 +358,51 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
               </div>
             </div>
 
+            {/* Opção: declarar ausência de certificado */}
             {!form.anexo_cert_url && (
               <div className="mt-2">
                 {!confirmarSemCert ? (
-                  <button type="button" onClick={() => setConfirmarSemCert(true)}
+                  <button
+                    type="button"
+                    onClick={() => setConfirmarSemCert(true)}
                     className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
                     Não tenho o certificado digital
                   </button>
                 ) : (
                   <div className="rounded-lg border border-orange-300 bg-orange-50 p-3 space-y-2">
-                    <p className="text-xs text-orange-800 font-medium">⚠ Declare seu nome confirmando ausência do certificado:</p>
-                    <Input placeholder="Nome completo do responsável" value={semCertAssinatura}
-                      onChange={e => setSemCertAssinatura(e.target.value)} className="h-8 text-xs bg-white" />
-                    <button type="button" onClick={() => { setConfirmarSemCert(false); setSemCertAssinatura(""); }}
-                      className="text-xs text-orange-600 underline underline-offset-2">Cancelar — vou anexar o certificado</button>
+                    <p className="text-xs text-orange-800 font-medium">
+                      ⚠ Declare seu nome completo confirmando que o certificado não foi fornecido:
+                    </p>
+                    <Input
+                      placeholder="Nome completo do responsável"
+                      value={semCertAssinatura}
+                      onChange={e => setSemCertAssinatura(e.target.value)}
+                      className="h-8 text-xs bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => { setConfirmarSemCert(false); setSemCertAssinatura(""); }}
+                      className="text-xs text-orange-600 underline underline-offset-2">
+                      Cancelar — vou anexar o certificado
+                    </button>
                   </div>
                 )}
               </div>
             )}
+
+
           </div>
 
-          {/* ═══════ RESERVA ═══════ */}
+          {/* Reserva */}
           <ReservaPanel form={form} onChange={setForm} />
 
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          {editItem ? (
-            <Button onClick={handleSave}>Salvar</Button>
-          ) : salvandoAuto ? (
-            <Button disabled className="gap-2 bg-emerald-600 text-white">
-              <CheckCircle2 className="w-4 h-4" /> Salvando...
-            </Button>
-          ) : camposPreenchidos ? (
-            <Button disabled className="gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" /> Aguardando...
-            </Button>
-          ) : (
-            <Button disabled variant="secondary">Preencha os 3 campos obrigatórios</Button>
-          )}
+          <Button onClick={handleSave}>
+            {editItem ? "Salvar" : "Adicionar"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
