@@ -44,11 +44,19 @@ export default function Bobinas() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data) => base44.entities.Bobina.create(data),
+    mutationFn: async (data) => {
+      const result = await base44.entities.Bobina.create(data);
+      if (!result || !result.id) throw new Error("Resposta inesperada do servidor");
+      return result;
+    },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); toast.success("Bobina adicionada!"); },
     onError: (err) => {
-      const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.detail || err?.message || "Erro ao adicionar bobina";
-      toast.error(msg);
+      console.error("Erro ao adicionar bobina:", err);
+      let msg = "Erro ao adicionar bobina";
+      try {
+        msg = err?.response?.data?.detail || err?.response?.data?.message || err?.response?.data?.error || err?.detail || err?.message || JSON.stringify(err?.response?.data || err);
+      } catch (e) {}
+      toast.error(String(msg).substring(0, 200));
     },
   });
 
@@ -56,8 +64,12 @@ export default function Bobinas() {
     mutationFn: ({ id, data }) => base44.entities.Bobina.update(id, data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); setEditItem(null); toast.success("Bobina atualizada!"); },
     onError: (err) => {
-      const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.detail || err?.message || "Erro ao atualizar bobina";
-      toast.error(msg);
+      console.error("Erro ao atualizar bobina:", err);
+      let msg = "Erro ao atualizar bobina";
+      try {
+        msg = err?.response?.data?.detail || err?.response?.data?.message || err?.response?.data?.error || err?.detail || err?.message || JSON.stringify(err?.response?.data || err);
+      } catch (e) {}
+      toast.error(String(msg).substring(0, 200));
     },
   });
 
@@ -79,8 +91,13 @@ export default function Bobinas() {
   });
 
   const handleSave = (data) => {
-    if (editItem) updateMutation.mutate({ id: editItem.id, data });
-    else createMutation.mutate(data);
+    try {
+      if (editItem) updateMutation.mutate({ id: editItem.id, data });
+      else createMutation.mutate(data);
+    } catch (e) {
+      console.error("Erro síncrono ao salvar:", e);
+      toast.error("Erro ao salvar: " + (e?.message || String(e)));
+    }
   };
 
   const ativas = bobinas.filter(b => !b.arquivada);

@@ -159,6 +159,11 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
       return;
     }
 
+    if (typeof onSave !== "function") {
+      toast.error("Erro interno: função de salvamento não disponível");
+      return;
+    }
+
     onSave({
       ...form,
       setor: "telhas",
