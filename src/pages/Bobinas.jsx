@@ -46,11 +46,13 @@ export default function Bobinas() {
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.Bobina.create(data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); toast.success("Bobina adicionada!"); },
+    onError: (err) => { toast.error(err?.message || "Erro ao adicionar bobina"); },
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Bobina.update(id, data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); setEditItem(null); toast.success("Bobina atualizada!"); },
+    onError: (err) => { toast.error(err?.message || "Erro ao atualizar bobina"); },
   });
 
   const deleteMutation = useMutation({

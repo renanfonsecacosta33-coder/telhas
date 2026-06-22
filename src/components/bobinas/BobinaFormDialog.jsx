@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from "@/api/base44Client";
 import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera } from "lucide-react";
+import { toast } from "sonner";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
 
 const CORES = [
@@ -146,6 +147,10 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
   };
 
   const handleSave = () => {
+    if (!form.cor || !form.chapa) {
+      toast.error("Preencha Cor/RVM e Chapa (campos obrigatórios no topo do formulário)");
+      return;
+    }
     onSave({
       ...form,
       setor: "telhas",
@@ -166,8 +171,6 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
       reserva_data: form.reservada ? (form.reserva_data || new Date().toISOString().split("T")[0]) : undefined,
     });
   };
-
-  const canSave = form.cor && form.chapa;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -397,7 +400,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={!canSave}>
+          <Button onClick={handleSave}>
             {editItem ? "Salvar" : "Adicionar"}
           </Button>
         </DialogFooter>
