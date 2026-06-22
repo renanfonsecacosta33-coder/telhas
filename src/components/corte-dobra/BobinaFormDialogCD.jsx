@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from "@/api/base44Client";
-import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera } from "lucide-react";
+import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
 
@@ -26,6 +26,10 @@ const VAZIO = (codigo) => ({
   reserva_motivo: "", reserva_autorizado_por: "", reserva_data: "",
 });
 
+const labelObrigatorio = (texto) => (
+  <span>{texto} <span className="text-red-500">*</span></span>
+);
+
 export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, proximoNumero }) {
   const num = String(proximoNumero || 1).padStart(4, "0");
   const [form, setForm] = useState(VAZIO(`CD${num}`));
@@ -34,6 +38,9 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [semCertAssinatura, setSemCertAssinatura] = useState("");
   const [confirmarSemCert, setConfirmarSemCert] = useState(false);
+  const [salvandoAuto, setSalvandoAuto] = useState(false);
+  const jaSalvouRef = useRef(false);
+  const timerRef = useRef(null);
   const nfInputRef = useRef();
   const nfCameraRef = useRef();
   const certInputRef = useRef();
@@ -43,6 +50,9 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
 
   useEffect(() => {
     if (!open) return;
+    jaSalvouRef.current = false;
+    setSalvandoAuto(false);
+    if (timerRef.current) clearTimeout(timerRef.current);
     if (editItem) {
       setForm({
         nf: editItem.nf || "", peso_kg: editItem.peso_kg || "", largura_mm: editItem.largura_mm || "",
@@ -72,6 +82,20 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
     }
   }, [editItem, open, proximoNumero]);
 
+  const camposPreenchidos = String(form.nf || "").trim() && Number(form.peso_kg) > 0 && Number(form.largura_mm) > 0;
+
+  useEffect(() => {
+    if (editItem || jaSalvouRef.current || !camposPreenchidos) return;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setSalvandoAuto(false);
+    timerRef.current = setTimeout(() => {
+      jaSalvouRef.current = true;
+      setSalvandoAuto(true);
+      setTimeout(() => handleSave(), 600);
+    }, 1500);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [form.nf, form.peso_kg, form.largura_mm, editItem, camposPreenchidos]);
+
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
   const handleUpload = async (file, tipo) => {
@@ -92,7 +116,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
     }
   };
 
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     const nf = String(form.nf || "").trim();
     const peso = Number(form.peso_kg);
     const largura = Number(form.largura_mm);
@@ -120,11 +144,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
       reserva_autorizado_por: form.reservada ? form.reserva_autorizado_por : undefined,
       reserva_data: form.reservada ? (form.reserva_data || new Date().toISOString().split("T")[0]) : undefined,
     });
-  };
-
-  const labelObrigatorio = (texto) => (
-    <span>{texto} <span className="text-red-500">*</span></span>
-  );
+  }, [form, confirmarSemCert, semCertAssinatura, onSave, editItem]);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -370,7 +390,19 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave}>{editItem ? "Salvar" : "Adicionar Bobina"}</Button>
+          {editItem ? (
+            <Button onClick={handleSave}>Salvar</Button>
+          ) : salvandoAuto ? (
+            <Button disabled className="gap-2 bg-emerald-600 text-white">
+              <CheckCircle2 className="w-4 h-4" /> Salvando...
+            </Button>
+          ) : camposPreenchidos ? (
+            <Button disabled className="gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" /> Aguardando...
+            </Button>
+          ) : (
+            <Button disabled variant="secondary">Preencha os 3 campos obrigatórios</Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
