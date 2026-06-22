@@ -51,15 +51,10 @@ export default function Bobinas() {
       if (!result || !result.id) throw new Error("Resposta inesperada do servidor");
       return result;
     },
-    onMutate: (variables) => { console.log("[Bobinas] createMutation.onMutate, variáveis:", variables); },
-    onSuccess: (data) => { console.log("[Bobinas] createMutation onSuccess, id:", data.id); queryClient.invalidateQueries({ queryKey: ["bobinas"] }); queryClient.refetchQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); setEditItem(null); toast.success("Bobina adicionada!"); },
+    onMutate: (variables) => { alert("6-onMutate disparado"); },
+    onSuccess: (data) => { alert("7-SUCESSO! id=" + data.id); queryClient.invalidateQueries({ queryKey: ["bobinas"] }); queryClient.refetchQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); setEditItem(null); },
     onError: (err) => {
-      console.error("[Bobinas] createMutation onError:", err);
-      let msg = "Erro ao adicionar bobina";
-      try {
-        msg = err?.response?.data?.detail || err?.response?.data?.message || err?.response?.data?.error || err?.detail || err?.message || JSON.stringify(err?.response?.data || err);
-      } catch (e) {}
-      toast.error(String(msg).substring(0, 200));
+      alert("7-ERRO na mutation: " + (err?.message || err?.detail || JSON.stringify(err).substring(0, 200)));
     },
   });
 
@@ -95,18 +90,17 @@ export default function Bobinas() {
   });
 
   const handleSave = (data) => {
-    console.log("[Bobinas] handleSave recebido, editItem:", editItem, "dados:", data);
+    alert("4-PAI recebeu dados, editItem=" + (editItem ? editItem.id : "null"));
     try {
       if (editItem) {
-        console.log("[Bobinas] Chamando updateMutation.mutate");
+        alert("5-chamando updateMutation");
         updateMutation.mutate({ id: editItem.id, data });
       } else {
-        console.log("[Bobinas] Chamando createMutation.mutate");
+        alert("5-chamando createMutation com: " + JSON.stringify(data).substring(0, 100));
         createMutation.mutate(data);
       }
     } catch (e) {
-      console.error("Erro síncrono ao salvar:", e);
-      toast.error("Erro ao salvar: " + (e?.message || String(e)));
+      alert("5-ERRO síncrono: " + (e?.message || String(e)));
     }
   };
 

@@ -143,24 +143,22 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
   };
 
   const handleSave = () => {
-    console.log("[BobinaFormDialog] handleSave chamado, form.chapa:", form.chapa);
+    alert("1-handleSave iniciou, chapa=" + form.chapa);
     const novosErros = {};
     if (!form.chapa) novosErros.chapa = "Informe a chapa (ex: 0,43)";
     setErros(novosErros);
 
     if (Object.keys(novosErros).length > 0) {
-      toast.error("Preencha o campo obrigatório destacado em vermelho");
-      formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      alert("2-ERRO: chapa vazia");
       return;
     }
 
     if (typeof onSave !== "function") {
-      toast.error("Erro interno: função de salvamento não disponível");
-      console.error("[BobinaFormDialog] onSave não é função:", onSave);
+      alert("2-ERRO: onSave não é função, é " + typeof onSave);
       return;
     }
 
-    console.log("[BobinaFormDialog] Chamando onSave com dados...");
+    alert("3-chamando onSave");
     onSave({
       ...form,
       setor: "telhas",
