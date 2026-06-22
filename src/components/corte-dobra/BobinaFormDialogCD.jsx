@@ -12,11 +12,12 @@ import ReservaPanel from "@/components/bobinas/ReservaPanel";
 
 const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "GL (IMP)"];
 
-const BLANK_FORM = (codigoCD) => ({
-  cor: "", chapa: "", qualidade: "", sub_cod: "", espessura_real: "", espessura_utilizada: "",
-  largura_mm: "", peso_kg: "", peso_inicial: "",
-  codigo: codigoCD, nf: "", custo: "", fornecedor: "",
-  data_recebimento: new Date().toISOString().slice(0, 10),
+const VAZIO = (codigo) => ({
+  nf: "", peso_kg: "", largura_mm: "",
+  cor: "", chapa: "", qualidade: "", sub_cod: "",
+  espessura_real: "", espessura_utilizada: "",
+  peso_inicial: "", codigo: codigo || "CD0001", custo: "",
+  fornecedor: "", data_recebimento: new Date().toISOString().slice(0, 10),
   observacoes: "",
   estoque_minimo_kg: "", consumo_diario_kg: "",
   anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
@@ -26,7 +27,8 @@ const BLANK_FORM = (codigoCD) => ({
 });
 
 export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, proximoNumero }) {
-  const [form, setForm] = useState(BLANK_FORM("CD0001"));
+  const num = String(proximoNumero || 1).padStart(4, "0");
+  const [form, setForm] = useState(VAZIO(`CD${num}`));
   const [uploadingNF, setUploadingNF] = useState(false);
   const [uploadingCert, setUploadingCert] = useState(false);
   const [uploadingFoto, setUploadingFoto] = useState(false);
@@ -43,42 +45,28 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
     if (!open) return;
     if (editItem) {
       setForm({
-        cor: editItem.cor || "",
-        chapa: editItem.chapa || "",
-        qualidade: editItem.qualidade || "",
-        espessura_real: editItem.espessura_real || "",
+        nf: editItem.nf || "", peso_kg: editItem.peso_kg || "", largura_mm: editItem.largura_mm || "",
+        cor: editItem.cor || "", chapa: editItem.chapa || "", qualidade: editItem.qualidade || "",
+        sub_cod: editItem.sub_cod || "", espessura_real: editItem.espessura_real || "",
         espessura_utilizada: editItem.espessura_utilizada || "",
-        sub_cod: editItem.sub_cod || "",
-        largura_mm: editItem.largura_mm || "",
-        peso_kg: editItem.peso_kg || "",
-        peso_inicial: editItem.peso_inicial || "",
-        codigo: editItem.codigo || "",
-        nf: editItem.nf || "",
-        custo: editItem.custo || "",
-        fornecedor: editItem.fornecedor || "",
+        peso_inicial: editItem.peso_inicial || "", codigo: editItem.codigo || "",
+        custo: editItem.custo || "", fornecedor: editItem.fornecedor || "",
         data_recebimento: editItem.data_recebimento || "",
         observacoes: editItem.observacoes || "",
         estoque_minimo_kg: editItem.estoque_minimo_kg || "",
         consumo_diario_kg: editItem.consumo_diario_kg || "",
-        anexo_nf_url: editItem.anexo_nf_url || "",
-        anexo_nf_nome: editItem.anexo_nf_nome || "",
-        anexo_cert_url: editItem.anexo_cert_url || "",
-        anexo_cert_nome: editItem.anexo_cert_nome || "",
-        foto_adicional_url: editItem.foto_adicional_url || "",
-        foto_adicional_nome: editItem.foto_adicional_nome || "",
-        reservada: editItem.reservada || false,
-        reserva_tipo: editItem.reserva_tipo || "",
-        reserva_kg: editItem.reserva_kg || "",
-        reserva_numero_pedido: editItem.reserva_numero_pedido || "",
-        reserva_motivo: editItem.reserva_motivo || "",
-        reserva_autorizado_por: editItem.reserva_autorizado_por || "",
+        anexo_nf_url: editItem.anexo_nf_url || "", anexo_nf_nome: editItem.anexo_nf_nome || "",
+        anexo_cert_url: editItem.anexo_cert_url || "", anexo_cert_nome: editItem.anexo_cert_nome || "",
+        foto_adicional_url: editItem.foto_adicional_url || "", foto_adicional_nome: editItem.foto_adicional_nome || "",
+        reservada: editItem.reservada || false, reserva_tipo: editItem.reserva_tipo || "",
+        reserva_kg: editItem.reserva_kg || "", reserva_numero_pedido: editItem.reserva_numero_pedido || "",
+        reserva_motivo: editItem.reserva_motivo || "", reserva_autorizado_por: editItem.reserva_autorizado_por || "",
         reserva_data: editItem.reserva_data || "",
       });
       setSemCertAssinatura("");
       setConfirmarSemCert(false);
     } else {
-      const num = String(proximoNumero || 1).padStart(4, "0");
-      setForm(BLANK_FORM(`CD${num}`));
+      setForm(VAZIO(`CD${num}`));
       setSemCertAssinatura("");
       setConfirmarSemCert(false);
     }
@@ -105,16 +93,21 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
   };
 
   const handleSave = () => {
-    if (!form.cor || !form.chapa) {
-      toast.error("Preencha Cor e Chapa (campos obrigatórios)");
-      return;
-    }
+    const nf = String(form.nf || "").trim();
+    const peso = Number(form.peso_kg);
+    const largura = Number(form.largura_mm);
+
+    if (!nf) { toast.error("Número da NF é obrigatório"); return; }
+    if (!peso || peso <= 0) { toast.error("Peso (kg) é obrigatório"); return; }
+    if (!largura || largura <= 0) { toast.error("Largura (mm) é obrigatória"); return; }
+
     onSave({
       ...form,
+      nf,
+      peso_kg: peso,
+      largura_mm: largura,
+      peso_inicial: form.peso_inicial ? Number(form.peso_inicial) : peso,
       setor: "corte_dobra",
-      largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
-      peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
-      peso_inicial: form.peso_inicial ? Number(form.peso_inicial) : undefined,
       custo: form.custo ? Number(form.custo) : undefined,
       estoque_minimo_kg: form.estoque_minimo_kg ? Number(form.estoque_minimo_kg) : undefined,
       consumo_diario_kg: form.consumo_diario_kg ? Number(form.consumo_diario_kg) : undefined,
@@ -129,128 +122,124 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
     });
   };
 
+  const labelObrigatorio = (texto) => (
+    <span>{texto} <span className="text-red-500">*</span></span>
+  );
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editItem ? "Editar Bobina" : "Nova Bobina — Corte e Dobra"}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-2">
 
-          {/* Código + Data */}
-          <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-5 py-2">
+
+          {/* ═══════ CAMPOS OBRIGATÓRIOS ═══════ */}
+          <div className="rounded-xl border-2 border-red-200 bg-red-50/30 p-4 space-y-3">
+            <p className="text-xs font-semibold text-red-700 uppercase tracking-wide">Campos Obrigatórios</p>
             <div className="space-y-1">
-              <Label>Código (auto)</Label>
-              <Input value={form.codigo} onChange={e => set("codigo", e.target.value)} className="font-mono bg-muted/40" />
+              <Label>{labelObrigatorio("Número da NF")}</Label>
+              <Input placeholder="Ex: 123456" value={form.nf} onChange={e => set("nf", e.target.value)} />
             </div>
-            <div className="space-y-1">
-              <Label>Data de Recebimento</Label>
-              <Input type="date" value={form.data_recebimento} onChange={e => set("data_recebimento", e.target.value)} />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>{labelObrigatorio("Peso (kg)")}</Label>
+                <Input type="number" placeholder="Ex: 2500" value={form.peso_kg} onChange={e => set("peso_kg", e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>{labelObrigatorio("Largura (mm)")}</Label>
+                <Input type="number" placeholder="Ex: 1200" value={form.largura_mm} onChange={e => set("largura_mm", e.target.value)} />
+              </div>
             </div>
           </div>
 
-          {/* NF + Fornecedor */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>NF</Label>
-              <Input placeholder="Número da NF" value={form.nf} onChange={e => set("nf", e.target.value)} />
+          {/* ═══════ INFORMAÇÕES BÁSICAS ═══════ */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Informações Básicas</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Código (auto)</Label>
+                <Input value={form.codigo} onChange={e => set("codigo", e.target.value)} className="font-mono bg-muted/40" />
+              </div>
+              <div className="space-y-1">
+                <Label>Data de Recebimento</Label>
+                <Input type="date" value={form.data_recebimento} onChange={e => set("data_recebimento", e.target.value)} />
+              </div>
             </div>
             <div className="space-y-1">
-              <Label>Fornecedor</Label>
-              <Input placeholder="Ex: Arcelormittal" value={form.fornecedor} onChange={e => set("fornecedor", e.target.value)} />
+              <Label>Cor</Label>
+              <Input placeholder="Ex: Galvanizado, Zincado, Pintado Branco..." value={form.cor} onChange={e => set("cor", e.target.value)} />
             </div>
-          </div>
-
-          {/* Qualidade + Chapa */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Qualidade</Label>
-              <Select value={form.qualidade} onValueChange={v => set("qualidade", v)}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>{QUALIDADE_OPTIONS.map(q => <SelectItem key={q} value={q}>{q}</SelectItem>)}</SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Qualidade</Label>
+                <Select value={form.qualidade} onValueChange={v => set("qualidade", v)}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>{QUALIDADE_OPTIONS.map(q => <SelectItem key={q} value={q}>{q}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Chapa</Label>
+                <Input placeholder="Ex: 0,43" value={form.chapa} onChange={e => set("chapa", e.target.value)} />
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label>Chapa *</Label>
-              <Input placeholder="1200" value={form.chapa} onChange={e => set("chapa", e.target.value)} />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Espessura Real (NF)</Label>
+                <Input placeholder="Ex: 0,43" value={form.espessura_real} onChange={e => set("espessura_real", e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Espessura Utilizada</Label>
+                <Input placeholder="Ex: 0,43 / 0,50" value={form.espessura_utilizada} onChange={e => set("espessura_utilizada", e.target.value)} />
+              </div>
             </div>
-          </div>
-
-          {/* Espessura Real + Utilizada */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Qualidade da Bobina</Label>
-              <Input placeholder="1200" value={form.espessura_real} onChange={e => set("espessura_real", e.target.value)} />
-              <p className="text-[10px] text-muted-foreground">Espessura literal da nota fiscal</p>
-            </div>
-            <div className="space-y-1">
-              <Label>Espessura Utilizada</Label>
-              <Input placeholder="Ex: 0,43 / 0,50" value={form.espessura_utilizada} onChange={e => set("espessura_utilizada", e.target.value)} />
-              <p className="text-[10px] text-muted-foreground">Espessura(s) que o vendedor vê</p>
-            </div>
-          </div>
-
-          {/* SUB. COD */}
-          <div className="space-y-1">
-            <Label>SUB. COD (Código Substituto)</Label>
-            <Input placeholder="Opcional" value={form.sub_cod} onChange={e => set("sub_cod", e.target.value)} />
-          </div>
-
-          {/* Cor */}
-          <div className="space-y-1">
-            <Label>Cor</Label>
-            <Input placeholder="Ex: Galvanizado, Zincado, Pintado Branco..." value={form.cor} onChange={e => set("cor", e.target.value)} />
-          </div>
-
-          {/* Largura + Custo */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Largura (mm)</Label>
-              <Input type="number" placeholder="Ex: 1200" value={form.largura_mm} onChange={e => set("largura_mm", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Custo (R$/kg)</Label>
-              <Input type="number" placeholder="0.00" value={form.custo} onChange={e => set("custo", e.target.value)} />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Fornecedor</Label>
+                <Input placeholder="Ex: ArcelorMittal" value={form.fornecedor} onChange={e => set("fornecedor", e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>SUB. COD</Label>
+                <Input placeholder="Código substituto" value={form.sub_cod} onChange={e => set("sub_cod", e.target.value)} />
+              </div>
             </div>
           </div>
 
-          {/* Peso atual + Peso inicial */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Peso Atual (kg)</Label>
-              <Input type="number" placeholder="0" value={form.peso_kg} onChange={e => set("peso_kg", e.target.value)} />
+          {/* ═══════ DADOS TÉCNICOS ═══════ */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Dados Técnicos</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Peso Inicial (kg)</Label>
+                <Input type="number" placeholder="0" value={form.peso_inicial} onChange={e => set("peso_inicial", e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Custo (R$/kg)</Label>
+                <Input type="number" placeholder="0.00" value={form.custo} onChange={e => set("custo", e.target.value)} />
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label>Peso Inicial (kg)</Label>
-              <Input type="number" placeholder="0" value={form.peso_inicial} onChange={e => set("peso_inicial", e.target.value)} />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Estoque Mínimo (kg)</Label>
+                <Input type="number" placeholder="500" value={form.estoque_minimo_kg} onChange={e => set("estoque_minimo_kg", e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Consumo Diário Est. (kg)</Label>
+                <Input type="number" placeholder="Ex: 80" value={form.consumo_diario_kg} onChange={e => set("consumo_diario_kg", e.target.value)} />
+              </div>
             </div>
           </div>
 
-          {/* Estoque mínimo + Consumo diário */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Estoque Mínimo (kg)</Label>
-              <Input type="number" placeholder="Ex: 500" value={form.estoque_minimo_kg} onChange={e => set("estoque_minimo_kg", e.target.value)} />
-              <p className="text-[10px] text-muted-foreground">Alerta quando abaixo deste valor</p>
-            </div>
-            <div className="space-y-1">
-              <Label>Consumo Diário Estimado (kg)</Label>
-              <Input type="number" placeholder="Ex: 80" value={form.consumo_diario_kg} onChange={e => set("consumo_diario_kg", e.target.value)} />
-              <p className="text-[10px] text-muted-foreground">Para calcular previsão de acabar</p>
-            </div>
-          </div>
-
-          {/* Observações */}
+          {/* ═══════ OBSERVAÇÕES ═══════ */}
           <div className="space-y-1">
             <Label>Observações</Label>
-            <Textarea placeholder="Anotações adicionais..." value={form.observacoes} onChange={e => set("observacoes", e.target.value)} rows={2} />
+            <Textarea placeholder="Anotações..." value={form.observacoes} onChange={e => set("observacoes", e.target.value)} rows={2} />
           </div>
 
-          {/* Anexos */}
+          {/* ═══════ ANEXOS ═══════ */}
           <div className="space-y-2">
-            <Label className="flex items-center gap-1">
-              Anexos
-            </Label>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Anexos</p>
             <div className="grid grid-cols-2 gap-3">
               {/* NF */}
               <div className="space-y-1.5">
@@ -270,13 +259,15 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
                   </div>
                 ) : (
                   <div className="flex gap-1.5">
-                    <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
+                    <Button type="button" variant="outline" size="sm"
+                      className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
                       onClick={() => nfInputRef.current.click()} disabled={uploadingNF}>
                       {uploadingNF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                      {uploadingNF ? "Enviando..." : "Anexar NF"}
+                      Anexar NF
                     </Button>
-                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
-                      onClick={() => nfCameraRef.current.click()} disabled={uploadingNF} title="Câmera">
+                    <Button type="button" variant="outline" size="sm"
+                      className="border-dashed border-2 h-10 px-3" onClick={() => nfCameraRef.current.click()}
+                      disabled={uploadingNF} title="Tirar foto da NF">
                       <Camera className="w-4 h-4" />
                     </Button>
                   </div>
@@ -301,13 +292,15 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
                   </div>
                 ) : (
                   <div className="flex gap-1.5">
-                    <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
+                    <Button type="button" variant="outline" size="sm"
+                      className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
                       onClick={() => certInputRef.current.click()} disabled={uploadingCert}>
                       {uploadingCert ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                      {uploadingCert ? "Enviando..." : "Certificado"}
+                      Certificado
                     </Button>
-                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
-                      onClick={() => certCameraRef.current.click()} disabled={uploadingCert} title="Câmera">
+                    <Button type="button" variant="outline" size="sm"
+                      className="border-dashed border-2 h-10 px-3" onClick={() => certCameraRef.current.click()}
+                      disabled={uploadingCert} title="Tirar foto do Certificado">
                       <Camera className="w-4 h-4" />
                     </Button>
                   </div>
@@ -325,7 +318,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
                   </button>
                 ) : (
                   <div className="rounded-lg border border-orange-300 bg-orange-50 p-3 space-y-2">
-                    <p className="text-xs text-orange-800 font-medium">⚠ Declare seu nome completo confirmando que o certificado não foi fornecido:</p>
+                    <p className="text-xs text-orange-800 font-medium">⚠ Declare seu nome confirmando ausência do certificado:</p>
                     <Input placeholder="Nome completo do responsável" value={semCertAssinatura}
                       onChange={e => setSemCertAssinatura(e.target.value)} className="h-8 text-xs bg-white" />
                     <button type="button" onClick={() => { setConfirmarSemCert(false); setSemCertAssinatura(""); }}
@@ -335,8 +328,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
               </div>
             )}
 
-
-            {/* Foto adicional */}
+            {/* Foto adicional (CD) */}
             <div className="pt-1">
               <p className="text-xs text-muted-foreground mb-1.5">Foto adicional (opcional)</p>
               <input ref={fotoInputRef} type="file" className="hidden" accept="image/*,.pdf"
@@ -355,13 +347,15 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
                 </div>
               ) : (
                 <div className="flex gap-1.5">
-                  <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
+                  <Button type="button" variant="outline" size="sm"
+                    className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
                     onClick={() => fotoInputRef.current.click()} disabled={uploadingFoto}>
                     {uploadingFoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                    {uploadingFoto ? "Enviando..." : "Foto adicional"}
+                    Foto adicional
                   </Button>
-                  <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
-                    onClick={() => fotoCameraRef.current.click()} disabled={uploadingFoto} title="Câmera">
+                  <Button type="button" variant="outline" size="sm"
+                    className="border-dashed border-2 h-10 px-3" onClick={() => fotoCameraRef.current.click()}
+                    disabled={uploadingFoto} title="Câmera">
                     <Camera className="w-4 h-4" />
                   </Button>
                 </div>
@@ -369,16 +363,14 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
             </div>
           </div>
 
-          {/* Reserva */}
+          {/* ═══════ RESERVA ═══════ */}
           <ReservaPanel form={form} onChange={setForm} />
 
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave}>
-            {editItem ? "Salvar" : "Adicionar"}
-          </Button>
+          <Button onClick={handleSave}>{editItem ? "Salvar" : "Adicionar Bobina"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
