@@ -10,13 +10,6 @@ import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera } from "lucide-re
 import { toast } from "sonner";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
 
-const CORES = [
-  "Natural", "Amadeirada 3D", "Amadeirada Lisa", "Azul - 5010", "Bege - 1015",
-  "Branca - 9003", "Ceramica - 8023", "Chocolate - 8024", "Cinza - 7035",
-  "Cinza - 7040", "Grafite - 7024", "Marrom - 8024", "Pinhão 8012",
-  "Preta - 9005", "Verde - 6002", "Verde - 6005", "Vermelho - 3000"
-];
-
 const STATUS_OPTIONS = [
   "Aberta", "Fechada", "Finalizada", "Na TP40", "Na BOBININHA",
   "Matriz AJL", "Pinhais", "Ivaiporã", "Matriz - Frisada", "RESERVADA"
@@ -38,6 +31,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
   const [semCertAssinatura, setSemCertAssinatura] = useState("");
   const [confirmarSemCert, setConfirmarSemCert] = useState(false);
   const [erros, setErros] = useState({});
+  const contentRef = useRef();
   const nfInputRef = useRef();
   const nfCameraRef = useRef();
   const certInputRef = useRef();
@@ -150,12 +144,12 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
 
   const handleSave = () => {
     const novosErros = {};
-    if (!form.cor) novosErros.cor = "Selecione a cor";
     if (!form.chapa) novosErros.chapa = "Informe a chapa (ex: 0,43)";
     setErros(novosErros);
 
     if (Object.keys(novosErros).length > 0) {
-      toast.error("Preencha os campos obrigatórios destacados em vermelho");
+      toast.error("Preencha o campo obrigatório destacado em vermelho");
+      contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
 
@@ -187,19 +181,15 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent ref={contentRef} className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editItem ? "Editar Bobina" : "Nova Bobina"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className={erros.cor ? "text-destructive" : ""}>Cor / RVM *</Label>
-              <Select value={form.cor} onValueChange={(v) => { set("cor", v); setErros(e => ({...e, cor: undefined})); }}>
-                <SelectTrigger className={erros.cor ? "border-destructive ring-destructive" : ""}><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>{CORES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-              </Select>
-              {erros.cor && <p className="text-xs text-destructive">{erros.cor}</p>}
+              <Label>Cor / RVM</Label>
+              <Input placeholder="Ex: Galvanizado, Branco, Natural..." value={form.cor} onChange={e => set("cor", e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label className={erros.chapa ? "text-destructive" : ""}>Chapa *</Label>

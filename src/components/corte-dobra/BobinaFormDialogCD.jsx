@@ -33,6 +33,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
   const [semCertAssinatura, setSemCertAssinatura] = useState("");
   const [confirmarSemCert, setConfirmarSemCert] = useState(false);
   const [erros, setErros] = useState({});
+  const contentRef = useRef();
   const nfInputRef = useRef();
   const nfCameraRef = useRef();
   const certInputRef = useRef();
@@ -108,12 +109,12 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
 
   const handleSave = () => {
     const novosErros = {};
-    if (!form.cor) novosErros.cor = "Informe a cor";
     if (!form.chapa) novosErros.chapa = "Informe a chapa";
     setErros(novosErros);
 
     if (Object.keys(novosErros).length > 0) {
-      toast.error("Preencha os campos obrigatórios destacados em vermelho");
+      toast.error("Preencha o campo obrigatório destacado em vermelho");
+      contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
 
@@ -144,7 +145,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent ref={contentRef} className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editItem ? "Editar Bobina" : "Nova Bobina — Corte e Dobra"}</DialogTitle>
         </DialogHeader>
@@ -212,9 +213,8 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
 
           {/* Cor */}
           <div className="space-y-1">
-            <Label className={erros.cor ? "text-destructive" : ""}>Cor *</Label>
-            <Input placeholder="Ex: Galvanizado, Zincado, Pintado Branco..." value={form.cor} onChange={e => { set("cor", e.target.value); setErros(e2 => ({...e2, cor: undefined})); }} className={erros.cor ? "border-destructive ring-destructive" : ""} />
-            {erros.cor && <p className="text-xs text-destructive">{erros.cor}</p>}
+            <Label>Cor</Label>
+            <Input placeholder="Ex: Galvanizado, Zincado, Pintado Branco..." value={form.cor} onChange={e => set("cor", e.target.value)} />
           </div>
 
           {/* Largura + Custo */}
