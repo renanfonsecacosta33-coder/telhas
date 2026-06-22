@@ -128,8 +128,8 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
     });
   };
 
-  const certOk = form.anexo_cert_url || (confirmarSemCert && semCertAssinatura.trim().length >= 5);
-  const canSave = form.chapa && form.anexo_nf_url && certOk;
+  const certOk = form.anexo_cert_url || (confirmarSemCert && semCertAssinatura.trim().length >= 3);
+  const canSave = form.cor && form.chapa && form.anexo_nf_url && certOk;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>

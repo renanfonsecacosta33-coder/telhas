@@ -171,7 +171,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
     });
   };
 
-  const certOk = form.anexo_cert_url || (confirmarSemCert && semCertAssinatura.trim().length >= 5);
+  const certOk = form.anexo_cert_url || (confirmarSemCert && semCertAssinatura.trim().length >= 3);
   const canSave = form.cor && form.chapa && form.anexo_nf_url && certOk;
 
   return (
