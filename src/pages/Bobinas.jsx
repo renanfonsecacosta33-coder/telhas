@@ -40,7 +40,7 @@ export default function Bobinas() {
 
   const { data: bobinas = [], isLoading } = useQuery({
     queryKey: ["bobinas"],
-    queryFn: () => base44.entities.Bobina.filter({ setor: "telhas" }, "-created_date"),
+    queryFn: () => base44.entities.Bobina.filter({ setor: "telhas" }, "-created_date", 500),
   });
 
   const createMutation = useMutation({
@@ -49,7 +49,7 @@ export default function Bobinas() {
       if (!result || !result.id) throw new Error("Resposta inesperada do servidor");
       return result;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); toast.success("Bobina adicionada!"); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); queryClient.refetchQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); toast.success("Bobina adicionada!"); },
     onError: (err) => {
       console.error("Erro ao adicionar bobina:", err);
       let msg = "Erro ao adicionar bobina";
@@ -62,7 +62,7 @@ export default function Bobinas() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Bobina.update(id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); setEditItem(null); toast.success("Bobina atualizada!"); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); queryClient.refetchQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); setEditItem(null); toast.success("Bobina atualizada!"); },
     onError: (err) => {
       console.error("Erro ao atualizar bobina:", err);
       let msg = "Erro ao atualizar bobina";
@@ -75,7 +75,7 @@ export default function Bobinas() {
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Bobina.delete(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); setDeleteItem(null); toast.success("Bobina excluída!"); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); queryClient.refetchQueries({ queryKey: ["bobinas"] }); setDeleteItem(null); toast.success("Bobina excluída!"); },
   });
 
   const arquivarMutation = useMutation({
@@ -86,6 +86,7 @@ export default function Bobinas() {
     }),
     onSuccess: (_, { arquivada }) => {
       queryClient.invalidateQueries({ queryKey: ["bobinas"] });
+      queryClient.refetchQueries({ queryKey: ["bobinas"] });
       toast.success(arquivada ? "Bobina arquivada!" : "Bobina restaurada!");
     },
   });
