@@ -32,6 +32,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [semCertAssinatura, setSemCertAssinatura] = useState("");
   const [confirmarSemCert, setConfirmarSemCert] = useState(false);
+  const [erros, setErros] = useState({});
   const nfInputRef = useRef();
   const nfCameraRef = useRef();
   const certInputRef = useRef();
@@ -41,6 +42,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
 
   useEffect(() => {
     if (!open) return;
+    setErros({});
     if (editItem) {
       setForm({
         cor: editItem.cor || "",
@@ -105,10 +107,16 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
   };
 
   const handleSave = () => {
-    if (!form.cor || !form.chapa) {
-      toast.error("Preencha Cor e Chapa (campos obrigatórios)");
+    const novosErros = {};
+    if (!form.cor) novosErros.cor = "Informe a cor";
+    if (!form.chapa) novosErros.chapa = "Informe a chapa";
+    setErros(novosErros);
+
+    if (Object.keys(novosErros).length > 0) {
+      toast.error("Preencha os campos obrigatórios destacados em vermelho");
       return;
     }
+
     onSave({
       ...form,
       setor: "corte_dobra",
@@ -171,8 +179,9 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Chapa *</Label>
-              <Input placeholder="1200" value={form.chapa} onChange={e => set("chapa", e.target.value)} />
+              <Label className={erros.chapa ? "text-destructive" : ""}>Chapa *</Label>
+              <Input placeholder="1200" value={form.chapa} onChange={e => { set("chapa", e.target.value); setErros(e2 => ({...e2, chapa: undefined})); }} className={erros.chapa ? "border-destructive ring-destructive" : ""} />
+              {erros.chapa && <p className="text-xs text-destructive">{erros.chapa}</p>}
             </div>
           </div>
 
@@ -198,8 +207,9 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
 
           {/* Cor */}
           <div className="space-y-1">
-            <Label>Cor</Label>
-            <Input placeholder="Ex: Galvanizado, Zincado, Pintado Branco..." value={form.cor} onChange={e => set("cor", e.target.value)} />
+            <Label className={erros.cor ? "text-destructive" : ""}>Cor *</Label>
+            <Input placeholder="Ex: Galvanizado, Zincado, Pintado Branco..." value={form.cor} onChange={e => { set("cor", e.target.value); setErros(e2 => ({...e2, cor: undefined})); }} className={erros.cor ? "border-destructive ring-destructive" : ""} />
+            {erros.cor && <p className="text-xs text-destructive">{erros.cor}</p>}
           </div>
 
           {/* Largura + Custo */}

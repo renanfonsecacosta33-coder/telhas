@@ -37,12 +37,14 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
   const [uploadingCert, setUploadingCert] = useState(false);
   const [semCertAssinatura, setSemCertAssinatura] = useState("");
   const [confirmarSemCert, setConfirmarSemCert] = useState(false);
+  const [erros, setErros] = useState({});
   const nfInputRef = useRef();
   const nfCameraRef = useRef();
   const certInputRef = useRef();
   const certCameraRef = useRef();
 
   useEffect(() => {
+    setErros({});
     if (editItem) {
       setForm({
         cor: editItem.cor || "",
@@ -147,10 +149,16 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
   };
 
   const handleSave = () => {
-    if (!form.cor || !form.chapa) {
-      toast.error("Preencha Cor/RVM e Chapa (campos obrigatórios no topo do formulário)");
+    const novosErros = {};
+    if (!form.cor) novosErros.cor = "Selecione a cor";
+    if (!form.chapa) novosErros.chapa = "Informe a chapa (ex: 0,43)";
+    setErros(novosErros);
+
+    if (Object.keys(novosErros).length > 0) {
+      toast.error("Preencha os campos obrigatórios destacados em vermelho");
       return;
     }
+
     onSave({
       ...form,
       setor: "telhas",
@@ -181,15 +189,17 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
         <div className="space-y-4 py-2">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Cor / RVM *</Label>
-              <Select value={form.cor} onValueChange={(v) => set("cor", v)}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <Label className={erros.cor ? "text-destructive" : ""}>Cor / RVM *</Label>
+              <Select value={form.cor} onValueChange={(v) => { set("cor", v); setErros(e => ({...e, cor: undefined})); }}>
+                <SelectTrigger className={erros.cor ? "border-destructive ring-destructive" : ""}><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>{CORES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
               </Select>
+              {erros.cor && <p className="text-xs text-destructive">{erros.cor}</p>}
             </div>
             <div className="space-y-1">
-              <Label>Chapa *</Label>
-              <Input placeholder="Ex: 0,43" value={form.chapa} onChange={e => handleChapaChange(e.target.value)} />
+              <Label className={erros.chapa ? "text-destructive" : ""}>Chapa *</Label>
+              <Input placeholder="Ex: 0,43" value={form.chapa} onChange={e => { handleChapaChange(e.target.value); setErros(e => ({...e, chapa: undefined})); }} className={erros.chapa ? "border-destructive ring-destructive" : ""} />
+              {erros.chapa && <p className="text-xs text-destructive">{erros.chapa}</p>}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
