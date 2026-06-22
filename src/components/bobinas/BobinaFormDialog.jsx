@@ -408,20 +408,14 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button 
+          <button
             type="button"
-            onClick={(e) => { 
-              e.preventDefault(); 
-              e.stopPropagation();
-              toast.success("Clique capturado!", { duration: 2000 }); 
-              console.log("[Botão] onClick disparado"); 
-              handleSave(); 
-            }} 
+            onClick={() => { alert("CLICOU!"); handleSave(); }}
             disabled={saving}
-            className={saving ? "" : "ring-2 ring-red-500 ring-offset-2"}
+            className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-9 px-4 py-2 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
           >
-            {saving ? <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Salvando...</> : (editItem ? "💾 Salvar (debug)" : "➕ Adicionar (debug)")}
-          </Button>
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Salvando...</> : (editItem ? "💾 Salvar" : "➕ Adicionar (teste)")}
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
