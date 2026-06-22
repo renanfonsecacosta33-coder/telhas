@@ -171,14 +171,14 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
     return map[s.status] || { label: s.status, cls: "bg-slate-100 text-slate-600" };
   };
 
-  // Oculta bobinas reservadas
+  // Contagem apenas das disponíveis
   const disponiveis = bobinas.filter(b => !b.reservada);
 
-  // Qualidades únicas para filtros
-  const qualidadesUnicas = [...new Set(disponiveis.map(b => b.qualidade).filter(Boolean))].sort();
+  // Qualidades únicas para filtros (de todas as bobinas)
+  const qualidadesUnicas = [...new Set(bobinas.map(b => b.qualidade).filter(Boolean))].sort();
 
-  // Filtro + ordenação
-  const filtered = disponiveis
+  // Filtro + ordenação (inclui reservadas)
+  const filtered = bobinas
     .filter(b => {
       if (filtroQualidade && b.qualidade !== filtroQualidade) return false;
       const q = search.toLowerCase();
@@ -286,20 +286,33 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                   const st = statusMap[b.id];
                   const info = statusLabel(st);
                   return (
-                  <tr key={b.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-3 py-2.5 font-medium whitespace-nowrap">{b.cor || "-"}</td>
+                  <tr key={b.id} className={`transition-colors ${
+                    b.reservada
+                      ? "bg-amber-50/60 hover:bg-amber-100/70"
+                      : "hover:bg-muted/20"
+                  }`}>
+                    <td className="px-3 py-2.5 font-medium whitespace-nowrap">
+                      {b.cor || "-"}
+                      {b.reservada && (
+                        <span className="ml-1.5 text-[10px] font-semibold bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded">Reservada</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded">{b.qualidade || "-"}</span>
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">{b.chapa || "-"}</td>
                     <td className="px-3 py-2.5 whitespace-nowrap">{b.espessura_real || "-"}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap bg-amber-50/40 font-semibold text-amber-900">
+                    <td className={`px-3 py-2.5 whitespace-nowrap font-semibold ${b.reservada ? "bg-amber-100/50 text-amber-900" : "bg-amber-50/40 text-amber-900"}`}>
                       {b.espessura_utilizada || "-"}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">{b.largura_mm ? `${b.largura_mm} mm` : "-"}</td>
                     <td className="px-3 py-2.5 text-right font-semibold whitespace-nowrap">{b.peso_kg ? `${b.peso_kg.toLocaleString("pt-BR")} kg` : "-"}</td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
-                      {info ? (
+                      {b.reservada ? (
+                        <span className="text-xs font-semibold bg-amber-200 text-amber-800 px-2 py-0.5 rounded" title={`Reservada por: ${b.reserva_autorizado_por || "Admin"} — Pedido: ${b.reserva_numero_pedido || "-"}`}>
+                          Reservada
+                        </span>
+                      ) : info ? (
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded ${info.cls}`} title={`Máquina: ${st.maquina}`}>
                           {info.label}
                         </span>
@@ -319,14 +332,18 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                       )}
                     </td>
                     <td className="px-3 py-2.5 text-right">
-                      <button
-                        onClick={() => setSolicitarBobina(b)}
-                        className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
-                        title="Solicitar reserva"
-                      >
-                        <BookmarkPlus className="w-4 h-4" />
-                        <span className="hidden sm:inline">Reservar</span>
-                      </button>
+                      {b.reservada ? (
+                        <span className="text-[10px] text-muted-foreground italic">Já reservada</span>
+                      ) : (
+                        <button
+                          onClick={() => setSolicitarBobina(b)}
+                          className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
+                          title="Solicitar reserva"
+                        >
+                          <BookmarkPlus className="w-4 h-4" />
+                          <span className="hidden sm:inline">Reservar</span>
+                        </button>
+                      )}
                     </td>
                   </tr>
                 )})}
@@ -337,7 +354,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
 
         {/* Aviso */}
         <p className="text-xs text-muted-foreground text-center">
-          Bobinas já reservadas não aparecem nesta lista. Toque em "Reservar" para solicitar uma reserva ao admin.
+          Bobinas reservadas aparecem em destaque (fundo amarelo). Toque em "Reservar" para solicitar uma reserva ao admin.
         </p>
       </div>
 
