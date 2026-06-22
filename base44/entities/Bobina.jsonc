@@ -189,7 +189,12 @@
   "rls": {
     "create": {
       "user_condition": {
-        "role": "admin"
+        "role": {
+          "$in": [
+            "admin",
+            "super_admin"
+          ]
+        }
       }
     },
     "read": {},
@@ -197,7 +202,12 @@
       "$or": [
         {
           "user_condition": {
-            "role": "admin"
+            "role": {
+              "$in": [
+                "admin",
+                "super_admin"
+              ]
+            }
           }
         },
         {
@@ -209,7 +219,12 @@
     },
     "delete": {
       "user_condition": {
-        "role": "admin"
+        "role": {
+          "$in": [
+            "admin",
+            "super_admin"
+          ]
+        }
       }
     }
   }
