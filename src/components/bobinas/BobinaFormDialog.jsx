@@ -146,10 +146,6 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
   };
 
   const handleSave = () => {
-    if (!form.anexo_nf_url) {
-      alert("Anexe a Nota Fiscal (NF) antes de salvar a bobina.");
-      return;
-    }
     onSave({
       ...form,
       setor: "telhas",
@@ -171,8 +167,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
     });
   };
 
-  const certOk = form.anexo_cert_url || (confirmarSemCert && semCertAssinatura.trim().length >= 3);
-  const canSave = form.cor && form.chapa && form.anexo_nf_url && certOk;
+  const canSave = form.cor && form.chapa;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -281,7 +276,6 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
           <div className="space-y-2">
             <Label className="flex items-center gap-1">
               Anexos
-              <span className="text-xs text-destructive font-normal ml-1">— NF obrigatória</span>
             </Label>
             <div className="grid grid-cols-2 gap-3">
               {/* NF */}
@@ -309,7 +303,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
                       onClick={() => nfInputRef.current.click()}
                       disabled={uploadingNF}>
                       {uploadingNF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                      {uploadingNF ? "Enviando..." : "Anexar NF *"}
+                      {uploadingNF ? "Enviando..." : "Anexar NF"}
                     </Button>
                     <Button type="button" variant="outline" size="sm"
                       className="border-dashed border-2 h-10 px-3 text-xs"
@@ -347,7 +341,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
                       onClick={() => certInputRef.current.click()}
                       disabled={uploadingCert}>
                       {uploadingCert ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                      {uploadingCert ? "Enviando..." : "Certificado *"}
+                      {uploadingCert ? "Enviando..." : "Certificado"}
                     </Button>
                     <Button type="button" variant="outline" size="sm"
                       className="border-dashed border-2 h-10 px-3 text-xs"
@@ -393,12 +387,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
               </div>
             )}
 
-            {!form.anexo_nf_url && (
-              <p className="text-xs text-destructive">⚠ Anexe a NF para poder salvar a bobina.</p>
-            )}
-            {!form.anexo_cert_url && !certOk && (
-              <p className="text-xs text-destructive">⚠ Anexe o Certificado Digital ou declare seu nome para confirmar a ausência.</p>
-            )}
+
           </div>
 
           {/* Reserva */}
