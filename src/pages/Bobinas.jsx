@@ -51,6 +51,7 @@ export default function Bobinas() {
       if (!result || !result.id) throw new Error("Resposta inesperada do servidor");
       return result;
     },
+    onMutate: (variables) => { console.log("[Bobinas] createMutation.onMutate, variáveis:", variables); },
     onSuccess: (data) => { console.log("[Bobinas] createMutation onSuccess, id:", data.id); queryClient.invalidateQueries({ queryKey: ["bobinas"] }); queryClient.refetchQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); setEditItem(null); toast.success("Bobina adicionada!"); },
     onError: (err) => {
       console.error("[Bobinas] createMutation onError:", err);
