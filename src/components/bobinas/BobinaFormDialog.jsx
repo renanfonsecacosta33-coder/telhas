@@ -24,7 +24,7 @@ const STATUS_OPTIONS = [
 
 const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "GL (IMP)"];
 
-export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
+export default function BobinaFormDialog({ open, onClose, onSave, editItem, saving }) {
   const [form, setForm] = useState({
     cor: "", chapa: "", qualidade: "", sub_cod: "", largura_mm: "", peso_kg: "", peso_inicial: "",
     metragem: "", codigo: "", nf: "", custo: "", status: "", fornecedor: "",
@@ -400,8 +400,8 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem }) {
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave}>
-            {editItem ? "Salvar" : "Adicionar"}
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Salvando...</> : (editItem ? "Salvar" : "Adicionar")}
           </Button>
         </DialogFooter>
       </DialogContent>

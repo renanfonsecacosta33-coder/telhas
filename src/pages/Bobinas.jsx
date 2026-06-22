@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, AlertTriangle, Package, Weight, Archive, X } from "lucide-react";
+import { Plus, Search, AlertTriangle, Package, Weight, Archive, X, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import BobinaFormDialog from "@/components/bobinas/BobinaFormDialog";
@@ -46,13 +46,19 @@ export default function Bobinas() {
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.Bobina.create(data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); toast.success("Bobina adicionada!"); },
-    onError: (err) => { toast.error(err?.message || "Erro ao adicionar bobina"); },
+    onError: (err) => {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.detail || err?.message || "Erro ao adicionar bobina";
+      toast.error(msg);
+    },
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Bobina.update(id, data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); setEditItem(null); toast.success("Bobina atualizada!"); },
-    onError: (err) => { toast.error(err?.message || "Erro ao atualizar bobina"); },
+    onError: (err) => {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.detail || err?.message || "Erro ao atualizar bobina";
+      toast.error(msg);
+    },
   });
 
   const deleteMutation = useMutation({
@@ -235,7 +241,7 @@ export default function Bobinas() {
         <PainelSolicitacoesReserva setor="telhas" />
       </div>
 
-      <BobinaFormDialog open={dialogOpen} onClose={() => { setDialogOpen(false); setEditItem(null); }} onSave={handleSave} editItem={editItem} />
+      <BobinaFormDialog open={dialogOpen} onClose={() => { setDialogOpen(false); setEditItem(null); }} onSave={handleSave} editItem={editItem} saving={createMutation.isPending || updateMutation.isPending} />
       <DeleteConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} onConfirm={() => deleteMutation.mutate(deleteItem.id)} itemName={deleteItem ? `${deleteItem.cor} - ${deleteItem.chapa}` : ""} />
     </div>
   );

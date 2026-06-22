@@ -25,7 +25,7 @@ const BLANK_FORM = (codigoCD) => ({
   reserva_motivo: "", reserva_autorizado_por: "", reserva_data: "",
 });
 
-export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, proximoNumero }) {
+export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, proximoNumero, saving }) {
   const [form, setForm] = useState(BLANK_FORM("CD0001"));
   const [uploadingNF, setUploadingNF] = useState(false);
   const [uploadingCert, setUploadingCert] = useState(false);
@@ -376,8 +376,8 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave}>
-            {editItem ? "Salvar" : "Adicionar"}
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Salvando...</> : (editItem ? "Salvar" : "Adicionar")}
           </Button>
         </DialogFooter>
       </DialogContent>

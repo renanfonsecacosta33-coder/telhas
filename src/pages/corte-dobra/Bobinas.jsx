@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Archive, AlertTriangle, Package, Weight, X } from "lucide-react";
+import { Plus, Search, Archive, AlertTriangle, Package, Weight, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import BobinaFormDialogCD from "@/components/corte-dobra/BobinaFormDialogCD";
 import DeleteConfirmDialog from "@/components/stock/DeleteConfirmDialog";
@@ -42,13 +42,19 @@ export default function BobinasCD() {
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.Bobina.create(data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas-cd"] }); setDialogOpen(false); toast.success("Bobina adicionada!"); },
-    onError: (err) => { toast.error(err?.message || "Erro ao adicionar bobina"); },
+    onError: (err) => {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.detail || err?.message || "Erro ao adicionar bobina";
+      toast.error(msg);
+    },
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Bobina.update(id, data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas-cd"] }); setDialogOpen(false); setEditItem(null); toast.success("Bobina atualizada!"); },
-    onError: (err) => { toast.error(err?.message || "Erro ao atualizar bobina"); },
+    onError: (err) => {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.detail || err?.message || "Erro ao atualizar bobina";
+      toast.error(msg);
+    },
   });
 
   const deleteMutation = useMutation({
@@ -248,6 +254,7 @@ export default function BobinasCD() {
         onSave={handleSave}
         editItem={editItem}
         proximoNumero={proximoNumero}
+        saving={createMutation.isPending || updateMutation.isPending}
       />
       <DeleteConfirmDialog
         open={!!deleteItem}
