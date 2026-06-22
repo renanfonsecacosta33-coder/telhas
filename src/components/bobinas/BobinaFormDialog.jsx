@@ -31,7 +31,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
   const [semCertAssinatura, setSemCertAssinatura] = useState("");
   const [confirmarSemCert, setConfirmarSemCert] = useState(false);
   const [erros, setErros] = useState({});
-  const contentRef = useRef();
+  const formTopRef = useRef();
   const nfInputRef = useRef();
   const nfCameraRef = useRef();
   const certInputRef = useRef();
@@ -149,7 +149,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
 
     if (Object.keys(novosErros).length > 0) {
       toast.error("Preencha o campo obrigatório destacado em vermelho");
-      contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
 
@@ -181,11 +181,11 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent ref={contentRef} className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editItem ? "Editar Bobina" : "Nova Bobina"}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 py-2" ref={formTopRef}>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Cor / RVM</Label>

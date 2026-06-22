@@ -49,7 +49,7 @@ export default function Bobinas() {
       if (!result || !result.id) throw new Error("Resposta inesperada do servidor");
       return result;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); queryClient.refetchQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); toast.success("Bobina adicionada!"); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); queryClient.refetchQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); setEditItem(null); toast.success("Bobina adicionada!"); },
     onError: (err) => {
       console.error("Erro ao adicionar bobina:", err);
       let msg = "Erro ao adicionar bobina";
