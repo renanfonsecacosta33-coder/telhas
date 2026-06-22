@@ -45,13 +45,15 @@ export default function Bobinas() {
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
+      console.log("[Bobinas] createMutation.mutationFn iniciando, dados:", data);
       const result = await base44.entities.Bobina.create(data);
+      console.log("[Bobinas] createMutation resultado:", result);
       if (!result || !result.id) throw new Error("Resposta inesperada do servidor");
       return result;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); queryClient.refetchQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); setEditItem(null); toast.success("Bobina adicionada!"); },
+    onSuccess: (data) => { console.log("[Bobinas] createMutation onSuccess, id:", data.id); queryClient.invalidateQueries({ queryKey: ["bobinas"] }); queryClient.refetchQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); setEditItem(null); toast.success("Bobina adicionada!"); },
     onError: (err) => {
-      console.error("Erro ao adicionar bobina:", err);
+      console.error("[Bobinas] createMutation onError:", err);
       let msg = "Erro ao adicionar bobina";
       try {
         msg = err?.response?.data?.detail || err?.response?.data?.message || err?.response?.data?.error || err?.detail || err?.message || JSON.stringify(err?.response?.data || err);
@@ -92,9 +94,15 @@ export default function Bobinas() {
   });
 
   const handleSave = (data) => {
+    console.log("[Bobinas] handleSave recebido, editItem:", editItem, "dados:", data);
     try {
-      if (editItem) updateMutation.mutate({ id: editItem.id, data });
-      else createMutation.mutate(data);
+      if (editItem) {
+        console.log("[Bobinas] Chamando updateMutation.mutate");
+        updateMutation.mutate({ id: editItem.id, data });
+      } else {
+        console.log("[Bobinas] Chamando createMutation.mutate");
+        createMutation.mutate(data);
+      }
     } catch (e) {
       console.error("Erro síncrono ao salvar:", e);
       toast.error("Erro ao salvar: " + (e?.message || String(e)));

@@ -83,7 +83,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
       });
       setSemCertAssinatura("");
       setConfirmarSemCert(false);
-      gerarProximoCodigo().then(codigo => set("codigo", codigo));
+      gerarProximoCodigo().then(codigo => set("codigo", codigo)).catch(err => console.warn("[BobinaFormDialog] Erro ao gerar código:", err));
     }
   }, [editItem, open]);
 
@@ -143,6 +143,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
   };
 
   const handleSave = () => {
+    console.log("[BobinaFormDialog] handleSave chamado, form.chapa:", form.chapa);
     const novosErros = {};
     if (!form.chapa) novosErros.chapa = "Informe a chapa (ex: 0,43)";
     setErros(novosErros);
@@ -155,9 +156,11 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
 
     if (typeof onSave !== "function") {
       toast.error("Erro interno: função de salvamento não disponível");
+      console.error("[BobinaFormDialog] onSave não é função:", onSave);
       return;
     }
 
+    console.log("[BobinaFormDialog] Chamando onSave com dados...");
     onSave({
       ...form,
       setor: "telhas",
