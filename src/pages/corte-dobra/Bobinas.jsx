@@ -161,6 +161,7 @@ export default function BobinasCD() {
           <Package className="w-5 h-5 text-blue-500 mx-auto mb-1" />
           <p className="text-2xl font-bold">{ativas.length}</p>
           <p className="text-xs text-muted-foreground">Em Estoque</p>
+          <p className="text-sm font-semibold text-muted-foreground mt-1">{totalPeso.toLocaleString("pt-BR")} kg</p>
         </div>
         <div className="bg-white border border-border rounded-xl p-4 text-center">
           <Weight className="w-5 h-5 text-green-500 mx-auto mb-1" />
