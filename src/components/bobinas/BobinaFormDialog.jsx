@@ -144,25 +144,55 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
     }
   };
 
-  const buildPayload = () => ({
-    ...form,
-    setor: "telhas",
-    largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
-    peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
-    peso_inicial: form.peso_inicial ? Number(form.peso_inicial) : undefined,
-    metragem: form.metragem ? Number(form.metragem) : undefined,
-    custo: form.custo ? Number(form.custo) : undefined,
-    estoque_minimo_kg: form.estoque_minimo_kg ? Number(form.estoque_minimo_kg) : undefined,
-    consumo_diario_kg: form.consumo_diario_kg ? Number(form.consumo_diario_kg) : undefined,
-    anexo_cert_ausencia: (!form.anexo_cert_url && confirmarSemCert) ? semCertAssinatura.trim() : undefined,
-    reservada: form.reservada || false,
-    reserva_tipo: form.reservada ? form.reserva_tipo : undefined,
-    reserva_kg: (form.reservada && form.reserva_tipo === "parcial" && form.reserva_kg) ? Number(form.reserva_kg) : undefined,
-    reserva_numero_pedido: form.reservada ? form.reserva_numero_pedido : undefined,
-    reserva_motivo: form.reservada ? form.reserva_motivo : undefined,
-    reserva_autorizado_por: form.reservada ? form.reserva_autorizado_por : undefined,
-    reserva_data: form.reservada ? (form.reserva_data || new Date().toISOString().split("T")[0]) : undefined,
-  });
+  const buildPayload = () => {
+    const p = {
+      ...form,
+      setor: "telhas",
+      reservada: form.reservada || false,
+    };
+
+    // Números — só inclui se preenchido
+    if (form.largura_mm) p.largura_mm = Number(form.largura_mm);
+    if (form.peso_kg) p.peso_kg = Number(form.peso_kg);
+    if (form.peso_inicial) p.peso_inicial = Number(form.peso_inicial);
+    if (form.metragem) p.metragem = Number(form.metragem);
+    if (form.custo) p.custo = Number(form.custo);
+    if (form.estoque_minimo_kg) p.estoque_minimo_kg = Number(form.estoque_minimo_kg);
+    if (form.consumo_diario_kg) p.consumo_diario_kg = Number(form.consumo_diario_kg);
+
+    // Anexos e certificado
+    if (!form.anexo_cert_url && confirmarSemCert && semCertAssinatura.trim()) {
+      p.anexo_cert_ausencia = semCertAssinatura.trim();
+    }
+    // Reservas — só inclui se reservada=true
+    if (form.reservada) {
+      p.reserva_tipo = form.reserva_tipo || undefined;
+      p.reserva_numero_pedido = form.reserva_numero_pedido || undefined;
+      p.reserva_motivo = form.reserva_motivo || undefined;
+      p.reserva_autorizado_por = form.reserva_autorizado_por || undefined;
+      p.reserva_data = form.reserva_data || new Date().toISOString().split("T")[0];
+      if (form.reserva_tipo === "parcial" && form.reserva_kg) {
+        p.reserva_kg = Number(form.reserva_kg);
+      }
+    }
+
+    // Remove campos undefined/null/vazios que não deveriam ir
+    Object.keys(p).forEach(k => {
+      if (p[k] === undefined || p[k] === null) delete p[k];
+    });
+
+    // Remove campos de reserva se não está reservada
+    if (!p.reservada) {
+      delete p.reserva_tipo;
+      delete p.reserva_kg;
+      delete p.reserva_numero_pedido;
+      delete p.reserva_motivo;
+      delete p.reserva_autorizado_por;
+      delete p.reserva_data;
+    }
+
+    return p;
+  };
 
   const handleSave = async () => {
     const novosErros = {};
@@ -178,22 +208,34 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
     setSaving(true);
     try {
       const payload = buildPayload();
+
+      // Timeout de 20 segundos para evitar travamento infinito
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Tempo limite excedido ao salvar. Verifique sua conexão.")), 20000)
+      );
+
       if (editItem) {
-        await base44.entities.Bobina.update(editItem.id, payload);
+        await Promise.race([base44.entities.Bobina.update(editItem.id, payload), timeoutPromise]);
         toast.success("Bobina atualizada!");
       } else {
-        await base44.entities.Bobina.create(payload);
+        const result = await Promise.race([base44.entities.Bobina.create(payload), timeoutPromise]);
+        if (!result || !result.id) {
+          throw new Error("Resposta inválida do servidor — a bobina pode não ter sido criada.");
+        }
         toast.success("Bobina adicionada!");
       }
       queryClient.invalidateQueries({ queryKey: ["bobinas"] });
-      queryClient.refetchQueries({ queryKey: ["bobinas"] });
       onClose();
     } catch (err) {
+      console.error("BobinaFormDialog save error:", err);
       let msg = "Erro ao salvar bobina";
-      try {
-        msg = err?.response?.data?.detail || err?.response?.data?.message || err?.detail || err?.message || String(err);
-      } catch (e) {}
-      toast.error(String(msg).substring(0, 200));
+      if (err && typeof err === "object") {
+        msg = err.response?.data?.detail || err.response?.data?.message
+          || err.detail || err.message || String(err);
+      } else {
+        msg = String(err || "Erro desconhecido");
+      }
+      toast.error(String(msg).substring(0, 300));
     } finally {
       setSaving(false);
     }
