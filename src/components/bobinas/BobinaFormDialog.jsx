@@ -143,22 +143,18 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
   };
 
   const handleSave = () => {
-    alert("1-handleSave iniciou, chapa=" + form.chapa);
     const novosErros = {};
     if (!form.chapa) novosErros.chapa = "Informe a chapa (ex: 0,43)";
     setErros(novosErros);
 
     if (Object.keys(novosErros).length > 0) {
-      alert("2-ERRO: chapa vazia");
+      toast.error("Preencha os campos obrigatórios.");
+      formTopRef.current?.scrollIntoView({ behavior: "smooth" });
       return;
     }
 
-    if (typeof onSave !== "function") {
-      alert("2-ERRO: onSave não é função, é " + typeof onSave);
-      return;
-    }
+    if (typeof onSave !== "function") return;
 
-    alert("3-chamando onSave");
     onSave({
       ...form,
       setor: "telhas",
@@ -406,14 +402,9 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <button
-            type="button"
-            onClick={() => { alert("CLICOU!"); handleSave(); }}
-            disabled={saving}
-            className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-9 px-4 py-2 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-          >
-            {saving ? <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Salvando...</> : (editItem ? "💾 Salvar" : "➕ Adicionar (teste)")}
-          </button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Salvando...</> : (editItem ? "Salvar" : "Adicionar")}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
