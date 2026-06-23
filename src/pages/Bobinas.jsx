@@ -43,36 +43,7 @@ export default function Bobinas() {
     queryFn: () => base44.entities.Bobina.filter({ setor: "telhas" }, "-created_date", 500),
   });
 
-  const createMutation = useMutation({
-    mutationFn: async (data) => {
-      console.log("[Bobinas] createMutation.mutationFn iniciando, dados:", data);
-      const result = await base44.entities.Bobina.create(data);
-      console.log("[Bobinas] createMutation resultado:", result);
-      if (!result || !result.id) throw new Error("Resposta inesperada do servidor");
-      return result;
-    },
-    onSuccess: (data) => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); queryClient.refetchQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); setEditItem(null); toast.success("Bobina adicionada!"); },
-    onError: (err) => {
-      let msg = "Erro ao adicionar bobina";
-      try {
-        msg = err?.response?.data?.detail || err?.response?.data?.message || err?.detail || err?.message || String(err);
-      } catch (e) {}
-      toast.error(String(msg).substring(0, 200));
-    },
-  });
 
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.Bobina.update(id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas"] }); queryClient.refetchQueries({ queryKey: ["bobinas"] }); setDialogOpen(false); setEditItem(null); toast.success("Bobina atualizada!"); },
-    onError: (err) => {
-      console.error("Erro ao atualizar bobina:", err);
-      let msg = "Erro ao atualizar bobina";
-      try {
-        msg = err?.response?.data?.detail || err?.response?.data?.message || err?.response?.data?.error || err?.detail || err?.message || JSON.stringify(err?.response?.data || err);
-      } catch (e) {}
-      toast.error(String(msg).substring(0, 200));
-    },
-  });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Bobina.delete(id),
@@ -91,14 +62,6 @@ export default function Bobinas() {
       toast.success(arquivada ? "Bobina arquivada!" : "Bobina restaurada!");
     },
   });
-
-  const handleSave = (data) => {
-    if (editItem) {
-      updateMutation.mutate({ id: editItem.id, data });
-    } else {
-      createMutation.mutate(data);
-    }
-  };
 
   const ativas = bobinas.filter(b => !b.arquivada);
   const arquivadas = bobinas.filter(b => b.arquivada);
@@ -258,7 +221,7 @@ export default function Bobinas() {
         <PainelSolicitacoesReserva setor="telhas" />
       </div>
 
-      <BobinaFormDialog open={dialogOpen} onClose={() => { setDialogOpen(false); setEditItem(null); }} onSave={handleSave} editItem={editItem} saving={createMutation.isPending || updateMutation.isPending} />
+      <BobinaFormDialog open={dialogOpen} onClose={() => { setDialogOpen(false); setEditItem(null); }} editItem={editItem} />
       <DeleteConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} onConfirm={() => deleteMutation.mutate(deleteItem.id)} itemName={deleteItem ? `${deleteItem.cor} - ${deleteItem.chapa}` : ""} />
     </div>
   );

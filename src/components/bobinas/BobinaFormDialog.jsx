@@ -9,6 +9,7 @@ import { base44 } from "@/api/base44Client";
 import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera } from "lucide-react";
 import { toast } from "sonner";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
+import { useQueryClient } from "@tanstack/react-query";
 
 const STATUS_OPTIONS = [
   "Aberta", "Fechada", "Finalizada", "Na TP40", "Na BOBININHA",
@@ -17,7 +18,8 @@ const STATUS_OPTIONS = [
 
 const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "GL (IMP)"];
 
-export default function BobinaFormDialog({ open, onClose, onSave, editItem, saving }) {
+export default function BobinaFormDialog({ open, onClose, editItem }) {
+  const queryClient = useQueryClient();
   const [form, setForm] = useState({
     cor: "", chapa: "", qualidade: "", sub_cod: "", largura_mm: "", peso_kg: "", peso_inicial: "",
     metragem: "", codigo: "", nf: "", custo: "", status: "", fornecedor: "",
@@ -26,6 +28,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
     estoque_minimo_kg: "", consumo_diario_kg: "",
   });
 
+  const [saving, setSaving] = useState(false);
   const [uploadingNF, setUploadingNF] = useState(false);
   const [uploadingCert, setUploadingCert] = useState(false);
   const [semCertAssinatura, setSemCertAssinatura] = useState("");
@@ -83,7 +86,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
       });
       setSemCertAssinatura("");
       setConfirmarSemCert(false);
-      gerarProximoCodigo().then(codigo => set("codigo", codigo)).catch(err => console.warn("[BobinaFormDialog] Erro ao gerar código:", err));
+      gerarProximoCodigo().then(codigo => set("codigo", codigo)).catch(() => {});
     }
   }, [editItem, open]);
 
@@ -122,27 +125,46 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
     return `TE${String(proximo).padStart(4, "0")}`;
   };
 
-  const handleNFChange = (val) => {
-    set("nf", val);
-  };
-
   const handleUpload = async (file, tipo) => {
     if (!file) return;
     if (tipo === "nf") setUploadingNF(true);
     else setUploadingCert(true);
-
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-
-    if (tipo === "nf") {
-      setForm(f => ({ ...f, anexo_nf_url: file_url, anexo_nf_nome: file.name }));
-      setUploadingNF(false);
-    } else {
-      setForm(f => ({ ...f, anexo_cert_url: file_url, anexo_cert_nome: file.name }));
-      setUploadingCert(false);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      if (tipo === "nf") {
+        setForm(f => ({ ...f, anexo_nf_url: file_url, anexo_nf_nome: file.name }));
+      } else {
+        setForm(f => ({ ...f, anexo_cert_url: file_url, anexo_cert_nome: file.name }));
+      }
+    } catch (e) {
+      toast.error("Erro ao enviar arquivo");
+    } finally {
+      if (tipo === "nf") setUploadingNF(false);
+      else setUploadingCert(false);
     }
   };
 
-  const handleSave = () => {
+  const buildPayload = () => ({
+    ...form,
+    setor: "telhas",
+    largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
+    peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
+    peso_inicial: form.peso_inicial ? Number(form.peso_inicial) : undefined,
+    metragem: form.metragem ? Number(form.metragem) : undefined,
+    custo: form.custo ? Number(form.custo) : undefined,
+    estoque_minimo_kg: form.estoque_minimo_kg ? Number(form.estoque_minimo_kg) : undefined,
+    consumo_diario_kg: form.consumo_diario_kg ? Number(form.consumo_diario_kg) : undefined,
+    anexo_cert_ausencia: (!form.anexo_cert_url && confirmarSemCert) ? semCertAssinatura.trim() : undefined,
+    reservada: form.reservada || false,
+    reserva_tipo: form.reservada ? form.reserva_tipo : undefined,
+    reserva_kg: (form.reservada && form.reserva_tipo === "parcial" && form.reserva_kg) ? Number(form.reserva_kg) : undefined,
+    reserva_numero_pedido: form.reservada ? form.reserva_numero_pedido : undefined,
+    reserva_motivo: form.reservada ? form.reserva_motivo : undefined,
+    reserva_autorizado_por: form.reservada ? form.reserva_autorizado_por : undefined,
+    reserva_data: form.reservada ? (form.reserva_data || new Date().toISOString().split("T")[0]) : undefined,
+  });
+
+  const handleSave = async () => {
     const novosErros = {};
     if (!form.chapa) novosErros.chapa = "Informe a chapa (ex: 0,43)";
     setErros(novosErros);
@@ -153,27 +175,28 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
       return;
     }
 
-    if (typeof onSave !== "function") return;
-
-    onSave({
-      ...form,
-      setor: "telhas",
-      largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
-      peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
-      peso_inicial: form.peso_inicial ? Number(form.peso_inicial) : undefined,
-      metragem: form.metragem ? Number(form.metragem) : undefined,
-      custo: form.custo ? Number(form.custo) : undefined,
-      estoque_minimo_kg: form.estoque_minimo_kg ? Number(form.estoque_minimo_kg) : undefined,
-      consumo_diario_kg: form.consumo_diario_kg ? Number(form.consumo_diario_kg) : undefined,
-      anexo_cert_ausencia: (!form.anexo_cert_url && confirmarSemCert) ? semCertAssinatura.trim() : undefined,
-      reservada: form.reservada || false,
-      reserva_tipo: form.reservada ? form.reserva_tipo : undefined,
-      reserva_kg: (form.reservada && form.reserva_tipo === "parcial" && form.reserva_kg) ? Number(form.reserva_kg) : undefined,
-      reserva_numero_pedido: form.reservada ? form.reserva_numero_pedido : undefined,
-      reserva_motivo: form.reservada ? form.reserva_motivo : undefined,
-      reserva_autorizado_por: form.reservada ? form.reserva_autorizado_por : undefined,
-      reserva_data: form.reservada ? (form.reserva_data || new Date().toISOString().split("T")[0]) : undefined,
-    });
+    setSaving(true);
+    try {
+      const payload = buildPayload();
+      if (editItem) {
+        await base44.entities.Bobina.update(editItem.id, payload);
+        toast.success("Bobina atualizada!");
+      } else {
+        await base44.entities.Bobina.create(payload);
+        toast.success("Bobina adicionada!");
+      }
+      queryClient.invalidateQueries({ queryKey: ["bobinas"] });
+      queryClient.refetchQueries({ queryKey: ["bobinas"] });
+      onClose();
+    } catch (err) {
+      let msg = "Erro ao salvar bobina";
+      try {
+        msg = err?.response?.data?.detail || err?.response?.data?.message || err?.detail || err?.message || String(err);
+      } catch (e) {}
+      toast.error(String(msg).substring(0, 200));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -241,7 +264,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
             </div>
             <div className="space-y-1">
               <Label>NF</Label>
-              <Input placeholder="Número da NF" value={form.nf} onChange={e => handleNFChange(e.target.value)} />
+              <Input placeholder="Número da NF" value={form.nf} onChange={e => set("nf", e.target.value)} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -279,9 +302,7 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
 
           {/* Anexos */}
           <div className="space-y-2">
-            <Label className="flex items-center gap-1">
-              Anexos
-            </Label>
+            <Label className="flex items-center gap-1">Anexos</Label>
             <div className="grid grid-cols-2 gap-3">
               {/* NF */}
               <div className="space-y-1.5">
@@ -360,7 +381,6 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
               </div>
             </div>
 
-            {/* Opção: declarar ausência de certificado */}
             {!form.anexo_cert_url && (
               <div className="mt-2">
                 {!confirmarSemCert ? (
@@ -391,8 +411,6 @@ export default function BobinaFormDialog({ open, onClose, onSave, editItem, savi
                 )}
               </div>
             )}
-
-
           </div>
 
           {/* Reserva */}
