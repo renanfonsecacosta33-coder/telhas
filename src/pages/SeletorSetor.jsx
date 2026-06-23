@@ -6,12 +6,24 @@ import { ChevronRight } from "lucide-react";
 export default function SeletorSetor() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
+  const [navegando, setNavegando] = useState(false);
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
   const isGerencia = user?.gerencia === true;
+
+  const selecionarSetor = async (setor) => {
+    if (navegando) return;
+    setNavegando(true);
+    try {
+      await base44.auth.updateMe({ setor });
+    } catch (e) {
+      // Segue mesmo se falhar — o importante é permitir o acesso
+    }
+    navigate(setor === "telhas" ? "/" : "/corte-dobra");
+  };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -26,8 +38,9 @@ export default function SeletorSetor() {
 
         <div className="space-y-3">
           <button
-            onClick={() => navigate("/")}
-            className="w-full bg-card border border-border rounded-xl p-5 flex items-center justify-between hover:border-primary hover:bg-primary/5 transition-all group text-left"
+            onClick={() => selecionarSetor("telhas")}
+            disabled={navegando}
+            className="w-full bg-card border border-border rounded-xl p-5 flex items-center justify-between hover:border-primary hover:bg-primary/5 transition-all group text-left disabled:opacity-60"
           >
             <div>
               <p className="font-bold text-base">🏗️ Telhas</p>
@@ -37,8 +50,9 @@ export default function SeletorSetor() {
           </button>
 
           <button
-            onClick={() => navigate("/corte-dobra")}
-            className="w-full bg-card border border-border rounded-xl p-5 flex items-center justify-between hover:border-primary hover:bg-primary/5 transition-all group text-left"
+            onClick={() => selecionarSetor("corte_dobra")}
+            disabled={navegando}
+            className="w-full bg-card border border-border rounded-xl p-5 flex items-center justify-between hover:border-primary hover:bg-primary/5 transition-all group text-left disabled:opacity-60"
           >
             <div>
               <p className="font-bold text-base">✂️ Corte e Dobra</p>
