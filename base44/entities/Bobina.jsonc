@@ -186,46 +186,9 @@
     "chapa"
   ],
   "rls": {
-    "create": {
-      "user_condition": {
-        "role": {
-          "$in": [
-            "admin",
-            "super_admin",
-            "operador"
-          ]
-        }
-      }
-    },
+    "create": {},
     "read": {},
-    "update": {
-      "$or": [
-        {
-          "user_condition": {
-            "role": {
-              "$in": [
-                "admin",
-                "super_admin"
-              ]
-            }
-          }
-        },
-        {
-          "user_condition": {
-            "role": "operador"
-          }
-        }
-      ]
-    },
-    "delete": {
-      "user_condition": {
-        "role": {
-          "$in": [
-            "admin",
-            "super_admin"
-          ]
-        }
-      }
-    }
+    "update": {},
+    "delete": {}
   }
 }
