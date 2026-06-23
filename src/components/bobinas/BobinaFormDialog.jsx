@@ -178,7 +178,7 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
 
     // Remove campos undefined/null/vazios que não deveriam ir
     Object.keys(p).forEach(k => {
-      if (p[k] === undefined || p[k] === null) delete p[k];
+      if (p[k] === "" || p[k] === undefined || p[k] === null) delete p[k];
     });
 
     // Remove campos de reserva se não está reservada

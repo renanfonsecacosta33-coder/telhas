@@ -123,7 +123,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
       return;
     }
 
-    onSave({
+    const payload = {
       ...form,
       setor: "corte_dobra",
       largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
@@ -140,7 +140,16 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
       reserva_motivo: form.reservada ? form.reserva_motivo : undefined,
       reserva_autorizado_por: form.reservada ? form.reserva_autorizado_por : undefined,
       reserva_data: form.reservada ? (form.reserva_data || new Date().toISOString().split("T")[0]) : undefined,
+    };
+
+    // Remove campos vazios, undefined e null para evitar erro de validação no banco
+    Object.keys(payload).forEach(k => {
+      if (payload[k] === "" || payload[k] === undefined || payload[k] === null) {
+        delete payload[k];
+      }
     });
+
+    onSave(payload);
   };
 
   return (
