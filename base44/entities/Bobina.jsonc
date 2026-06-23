@@ -191,7 +191,8 @@
         "role": {
           "$in": [
             "admin",
-            "super_admin"
+            "super_admin",
+            "operador"
           ]
         }
       }
