@@ -221,7 +221,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
         </Button>
       </div>
 
-      <div className="p-4 space-y-4 max-w-5xl mx-auto">
+      <div className="p-4 space-y-4 max-w-7xl mx-auto">
         {/* Resumo */}
         <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Bobinas disponíveis</span>
@@ -276,22 +276,22 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
           <div className="text-center py-12 text-muted-foreground text-sm">Nenhuma bobina disponível encontrada.</div>
         ) : (
           <div className="bg-card border border-border rounded-xl overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead>
-                <tr className="bg-muted/50 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
-                  <th className="text-left px-3 py-2.5 whitespace-nowrap">Cor</th>
-                  <th className="text-left px-3 py-2.5 whitespace-nowrap">Qual.</th>
-                  <th className="text-left px-3 py-2.5 whitespace-nowrap">Espessura</th>
-                  <th className="text-left px-3 py-2.5 whitespace-nowrap">Q. Bobina</th>
-                  <th className="text-left px-3 py-2.5 whitespace-nowrap bg-amber-50/60">Esp. Util.</th>
-                  <th className="text-left px-3 py-2.5 whitespace-nowrap">Largura</th>
-                  <th className="text-right px-3 py-2.5 whitespace-nowrap">Peso (kg)</th>
-                  <th className="text-right px-3 py-2.5 whitespace-nowrap">Peso Inicial</th>
-                  <th className="text-right px-3 py-2.5 whitespace-nowrap bg-amber-50/60">Reservado</th>
-                  <th className="text-right px-3 py-2.5 whitespace-nowrap bg-emerald-50/60">Disponível</th>
-                  <th className="text-left px-3 py-2.5 whitespace-nowrap">Status</th>
-                  <th className="text-center px-3 py-2.5 whitespace-nowrap">Cert.</th>
-                  <th className="px-3 py-2.5"></th>
+                <tr className="bg-muted/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
+                  <th className="text-left px-2 py-2 whitespace-nowrap">Cor</th>
+                  <th className="text-left px-2 py-2 whitespace-nowrap">Qual.</th>
+                  <th className="text-left px-2 py-2 whitespace-nowrap">Espessura</th>
+                  <th className="text-left px-2 py-2 whitespace-nowrap">Q. Bobina</th>
+                  <th className="text-left px-2 py-2 whitespace-nowrap bg-amber-50/60">Esp. Util.</th>
+                  <th className="text-left px-2 py-2 whitespace-nowrap">Largura</th>
+                  <th className="text-right px-2 py-2 whitespace-nowrap">Peso (kg)</th>
+                  <th className="text-right px-2 py-2 whitespace-nowrap">Peso Inicial</th>
+                  <th className="text-right px-2 py-2 whitespace-nowrap bg-amber-50/60">Reservado</th>
+                  <th className="text-right px-2 py-2 whitespace-nowrap bg-emerald-50/60">Disponível</th>
+                  <th className="text-left px-2 py-2 whitespace-nowrap">Status</th>
+                  <th className="text-center px-2 py-2 whitespace-nowrap">Cert.</th>
+                  <th className="px-2 py-2"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -304,26 +304,26 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                       ? "bg-amber-50/60 hover:bg-amber-100/70"
                       : "hover:bg-muted/20"
                   }`}>
-                    <td className="px-3 py-2.5 font-medium whitespace-nowrap">
+                    <td className="px-2 py-2 font-medium whitespace-nowrap">
                       {b.cor || "-"}
                       {b.reservada && (
                         <span className="ml-1.5 text-[10px] font-semibold bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded">Reservada</span>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
+                    <td className="px-2 py-2 whitespace-nowrap">
                       <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded">{b.qualidade || "-"}</span>
                     </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">{b.chapa || "-"}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">{b.espessura_real || "-"}</td>
-                    <td className={`px-3 py-2.5 whitespace-nowrap font-semibold ${b.reservada ? "bg-amber-100/50 text-amber-900" : "bg-amber-50/40 text-amber-900"}`}>
+                    <td className="px-2 py-2 whitespace-nowrap">{b.chapa || "-"}</td>
+                    <td className="px-2 py-2 whitespace-nowrap">{b.espessura_real || "-"}</td>
+                    <td className={`px-2 py-2 whitespace-nowrap font-semibold ${b.reservada ? "bg-amber-100/50 text-amber-900" : "bg-amber-50/40 text-amber-900"}`}>
                       {b.espessura_utilizada || "-"}
                     </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">{b.largura_mm ? `${b.largura_mm} mm` : "-"}</td>
-                    <td className="px-3 py-2.5 text-right font-semibold whitespace-nowrap">{b.peso_kg ? `${b.peso_kg.toLocaleString("pt-BR")} kg` : "-"}</td>
-                    <td className="px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground">{b.peso_inicial ? `${b.peso_inicial.toLocaleString("pt-BR")} kg` : "-"}</td>
-                    <td className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50/40 font-semibold text-amber-800">{reservadoKgMap[b.id] ? `${reservadoKgMap[b.id].toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : "-"}</td>
-                    <td className="px-3 py-2.5 text-right whitespace-nowrap bg-emerald-50/40 font-bold text-emerald-700">{(b.peso_kg || 0) - (reservadoKgMap[b.id] || 0) > 0 ? `${((b.peso_kg || 0) - (reservadoKgMap[b.id] || 0)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : "-"}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
+                    <td className="px-2 py-2 whitespace-nowrap">{b.largura_mm ? `${b.largura_mm} mm` : "-"}</td>
+                    <td className="px-2 py-2 text-right font-semibold whitespace-nowrap">{b.peso_kg ? `${b.peso_kg.toLocaleString("pt-BR")} kg` : "-"}</td>
+                    <td className="px-2 py-2 text-right whitespace-nowrap text-muted-foreground">{b.peso_inicial ? `${b.peso_inicial.toLocaleString("pt-BR")} kg` : "-"}</td>
+                    <td className="px-2 py-2 text-right whitespace-nowrap bg-amber-50/40 font-semibold text-amber-800">{reservadoKgMap[b.id] ? `${reservadoKgMap[b.id].toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : "-"}</td>
+                    <td className="px-2 py-2 text-right whitespace-nowrap bg-emerald-50/40 font-bold text-emerald-700">{(b.peso_kg || 0) - (reservadoKgMap[b.id] || 0) > 0 ? `${((b.peso_kg || 0) - (reservadoKgMap[b.id] || 0)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : "-"}</td>
+                    <td className="px-2 py-2 whitespace-nowrap">
                       {b.reservada ? (
                         <span className="text-xs font-semibold bg-amber-200 text-amber-800 px-2 py-0.5 rounded" title={`Reservada por: ${b.reserva_autorizado_por || "Admin"} — Pedido: ${b.reserva_numero_pedido || "-"}`}>
                           Reservada
@@ -336,7 +336,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                         <span className="text-xs text-muted-foreground">Disponível</span>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 text-center">
+                    <td className="px-2 py-2 text-center">
                       {b.anexo_cert_url ? (
                         <a href={b.anexo_cert_url} target="_blank" rel="noopener noreferrer"
                           className="inline-flex items-center justify-center text-blue-600 hover:text-blue-800 transition-colors"
@@ -347,7 +347,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                         <span className="text-xs text-muted-foreground">-</span>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 text-right">
+                    <td className="px-2 py-2 text-right">
                       {b.reservada ? (
                         <span className="text-[10px] text-muted-foreground italic">Já reservada</span>
                       ) : (
