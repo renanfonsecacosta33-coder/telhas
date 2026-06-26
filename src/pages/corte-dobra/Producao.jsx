@@ -184,11 +184,11 @@ export default function ProducaoCD() {
           <p className="text-sm text-muted-foreground">Ordens de produção do setor</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={exportarSemana} className="gap-1">
+          <Button variant="outline" size="sm" onClick={exportarSemana} className="gap-1 cursor-pointer transition-all duration-200">
             <Download className="w-4 h-4" /> Exportar
           </Button>
           {isGestor && (
-            <Button onClick={() => openNewDesb(selectedDay)} className="gap-2 bg-orange-500 hover:bg-orange-600">
+            <Button onClick={() => openNewDesb(selectedDay)} className="gap-2 bg-orange-500 hover:bg-orange-600 cursor-pointer transition-all duration-200 hover:scale-105">
               <Plus className="w-4 h-4" /> Nova Ordem
             </Button>
           )}
@@ -198,7 +198,7 @@ export default function ProducaoCD() {
       {/* Navegação de semana */}
       <div className="bg-card border border-border rounded-xl p-4">
         <div className="flex items-center justify-between mb-4">
-          <Button variant="outline" size="icon" onClick={() => setCurrentWeek(w => subWeeks(w, 1))}>
+          <Button variant="outline" size="icon" onClick={() => setCurrentWeek(w => subWeeks(w, 1))} className="cursor-pointer transition-all duration-200">
             <ChevronLeft className="w-4 h-4" />
           </Button>
           <div className="text-center">
@@ -209,7 +209,7 @@ export default function ProducaoCD() {
               {totalSemanaOrdens} ordens · {totalSemanaPecas} peças finalizadas
             </Badge>
           </div>
-          <Button variant="outline" size="icon" onClick={() => setCurrentWeek(w => addWeeks(w, 1))}>
+          <Button variant="outline" size="icon" onClick={() => setCurrentWeek(w => addWeeks(w, 1))} className="cursor-pointer transition-all duration-200">
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
@@ -222,7 +222,7 @@ export default function ProducaoCD() {
             const isHoje = isToday(dia);
             return (
               <button key={diaStr} onClick={() => { setSelectedDay(diaStr); setViewMode("dia"); }}
-                className={`rounded-lg p-2 text-center transition-all border ${isSelected ? "bg-orange-500 text-white border-orange-500" : isHoje ? "border-orange-400/50 bg-orange-50" : "border-border hover:bg-muted/50"}`}>
+                className={`rounded-lg p-2 text-center transition-all duration-200 border cursor-pointer hover:scale-105 ${isSelected ? "bg-orange-500 text-white border-orange-500 shadow-md" : isHoje ? "border-orange-400/50 bg-orange-50" : "border-border hover:bg-muted/50"}`}>
                 <p className="text-xs font-semibold uppercase">{format(dia, "EEE", { locale: ptBR })}</p>
                 <p className={`text-lg font-bold ${isSelected ? "" : isHoje ? "text-orange-500" : ""}`}>{format(dia, "dd")}</p>
                 {ordensDoDia.length > 0 && (
@@ -239,27 +239,27 @@ export default function ProducaoCD() {
       {/* Toggle */}
       <div className="flex items-center gap-2 flex-wrap justify-between">
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant={viewMode === "semana" ? "default" : "outline"} size="sm" onClick={() => setViewMode("semana")}>Visão Semana</Button>
+          <Button variant={viewMode === "semana" ? "default" : "outline"} size="sm" onClick={() => setViewMode("semana")} className="cursor-pointer transition-all duration-200">Visão Semana</Button>
           <Button variant={viewMode === "dia" ? "default" : "outline"} size="sm" onClick={() => setViewMode("dia")}
-            className={viewMode === "dia" ? "bg-orange-500 hover:bg-orange-600 border-0" : ""}>
+            className={`cursor-pointer transition-all duration-200 ${viewMode === "dia" ? "bg-orange-500 hover:bg-orange-600 border-0" : ""}`}>
             Visão Dia — {format(new Date(selectedDay + "T12:00:00"), "dd/MM", { locale: ptBR })}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => { setSelectedDay(format(new Date(), "yyyy-MM-dd")); setCurrentWeek(new Date()); setViewMode("dia"); }} className="gap-1">
+          <Button variant="outline" size="sm" onClick={() => { setSelectedDay(format(new Date(), "yyyy-MM-dd")); setCurrentWeek(new Date()); setViewMode("dia"); }} className="gap-1 cursor-pointer transition-all duration-200">
             <Calendar className="w-3 h-3" /> Hoje
           </Button>
         </div>
         {/* Zoom */}
         <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-0.5">
           <Button variant={zoom === "compacto" ? "default" : "ghost"} size="sm" onClick={() => setZoom("compacto")}
-            className="h-7 px-2 gap-1 text-xs" title="Visualização compacta">
+            className="h-7 px-2 gap-1 text-xs cursor-pointer transition-all duration-200" title="Visualização compacta">
             <ZoomOut className="w-3.5 h-3.5" /> Compacto
           </Button>
           <Button variant={zoom === "normal" ? "default" : "ghost"} size="sm" onClick={() => setZoom("normal")}
-            className="h-7 px-2 gap-1 text-xs" title="Visualização normal">
+            className="h-7 px-2 gap-1 text-xs cursor-pointer transition-all duration-200" title="Visualização normal">
             <Maximize2 className="w-3.5 h-3.5" /> Normal
           </Button>
           <Button variant={zoom === "grande" ? "default" : "ghost"} size="sm" onClick={() => setZoom("grande")}
-            className="h-7 px-2 gap-1 text-xs" title="Visualização grande">
+            className="h-7 px-2 gap-1 text-xs cursor-pointer transition-all duration-200" title="Visualização grande">
             <ZoomIn className="w-3.5 h-3.5" /> Grande
           </Button>
         </div>

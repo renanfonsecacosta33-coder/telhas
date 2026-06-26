@@ -1,18 +1,28 @@
 import React, { useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   TrendingUp, CheckCircle2, Clock, AlertTriangle, Package, Factory,
   BarChart2, Weight, Zap, Pause, Circle, ArrowRight, ChevronRight,
-  Calendar, Target, Activity, Scissors, Layers, Timer, Coffee, Square
+  Calendar, Target, Activity, Scissors, Layers, Timer, Coffee, Square,
+  ExternalLink
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend
+  BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, Cell, Legend
 } from "recharts";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription
+} from "@/components/ui/dialog";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription
+} from "@/components/ui/sheet";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger
+} from "@/components/ui/tooltip";
 
 const MAQUINAS_CD = [
   { id: "CORTE 3M",       label: "Corte 3m",       color: "bg-blue-500",   hex: "#3b82f6", path: "/corte-dobra/maquina/corte-3m" },
@@ -34,12 +44,16 @@ function formatTempo(seg) {
 
 const MAQUINAS_COMPLETO = [
   ...MAQUINAS_CD,
-  { id: "DESBOBINADEIRA", label: "Desbobinadeira", color: "bg-orange-600", hex: "#ea580c", path: "/corte-dobra/producao" },
+  { id: "DESBOBINADEIRA", label: "Desbobinadeira", color: "bg-orange-600", hex: "#ea580c", path: "/corte-dobra/maquina/desbobinadeira" },
 ];
 
 export default function DashboardCorteDobraCompleto() {
   const [aba, setAba] = useState("producao");
   const [maquinaSel, setMaquinaSel] = useState(null); // null = Geral
+  const [pausedDialogOpen, setPausedDialogOpen] = useState(false);
+  const [emProdSheetOpen, setEmProdSheetOpen] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
   const hoje = format(new Date(), "yyyy-MM-dd");
   const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
   const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -159,28 +173,33 @@ export default function DashboardCorteDobraCompleto() {
         </div>
       </div>
 
-      {/* Seletor de Máquina */}
+      {/* Seletor de Máquina — navegação por pílulas */}
+      <TooltipProvider>
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        <button onClick={() => setMaquinaSel(null)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all border ${maquinaSel === null ? "bg-orange-500 text-white border-orange-500 shadow" : "bg-card text-muted-foreground border-border hover:bg-muted"}`}>
+        <Link to="/corte-dobra"
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all duration-200 border cursor-pointer ${location.pathname === "/corte-dobra" ? "bg-orange-500 text-white border-orange-500 shadow-md scale-105" : "bg-card text-muted-foreground border-border hover:bg-orange-50 hover:border-orange-300 hover:text-orange-600"}`}>
           <Factory className="w-3.5 h-3.5 inline mr-1" />Geral
-        </button>
-        {MAQUINAS_COMPLETO.map(m => (
-          <button key={m.id} onClick={() => setMaquinaSel(m.id)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all border flex items-center gap-1.5 ${maquinaSel === m.id ? "text-white border-transparent shadow" : "bg-card text-muted-foreground border-border hover:bg-muted"}`}
-            style={maquinaSel === m.id ? { backgroundColor: m.hex } : {}}>
-            <span className={`w-2 h-2 rounded-full ${m.color}`} />
-            {m.label}
-          </button>
-        ))}
+        </Link>
+        {MAQUINAS_COMPLETO.map(m => {
+          const isActive = location.pathname === m.path;
+          return (
+            <Link key={m.id} to={m.path}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all duration-200 border flex items-center gap-1.5 cursor-pointer ${isActive ? "text-white border-transparent shadow-md scale-105" : "bg-card text-muted-foreground border-border hover:bg-muted hover:scale-105"}`}
+              style={isActive ? { backgroundColor: m.hex } : {}}>
+              <span className={`w-2 h-2 rounded-full ${m.color}`} />
+              {m.label}
+            </Link>
+          );
+        })}
       </div>
+      </TooltipProvider>
 
       {/* Alertas */}
       {(bobinasCriticas.length > 0 || pausadosAgora > 0) && (
         <div className="flex flex-wrap gap-2">
           {bobinasCriticas.length > 0 && (
-            <Link to="/corte-dobra/bobinas">
-              <div className="flex items-center gap-2 bg-red-50 border border-red-300 rounded-xl px-4 py-2.5 cursor-pointer hover:bg-red-100 transition-colors">
+            <Link to="/corte-dobra/bobinas" className="no-underline">
+              <div className="flex items-center gap-2 bg-red-50 border border-red-300 rounded-xl px-4 py-2.5 cursor-pointer hover:bg-red-100 hover:shadow-md hover:scale-[1.02] transition-all duration-200">
                 <AlertTriangle className="w-4 h-4 text-red-600" />
                 <span className="text-sm font-semibold text-red-700">{bobinasCriticas.length} bobina(s) &lt;100kg</span>
                 <ChevronRight className="w-3.5 h-3.5 text-red-500" />
@@ -188,10 +207,14 @@ export default function DashboardCorteDobraCompleto() {
             </Link>
           )}
           {pausadosAgora > 0 && (
-            <div className="flex items-center gap-2 bg-purple-50 border border-purple-300 rounded-xl px-4 py-2.5">
+            <button
+              onClick={() => setPausedDialogOpen(true)}
+              className="flex items-center gap-2 bg-purple-50 border border-purple-300 rounded-xl px-4 py-2.5 cursor-pointer hover:bg-purple-100 hover:shadow-md hover:scale-[1.02] transition-all duration-200"
+            >
               <Pause className="w-4 h-4 text-purple-600" />
               <span className="text-sm font-semibold text-purple-700">{pausadosAgora} ordem(ns) pausada(s)</span>
-            </div>
+              <ChevronRight className="w-3.5 h-3.5 text-purple-500" />
+            </button>
           )}
         </div>
       )}
@@ -202,22 +225,42 @@ export default function DashboardCorteDobraCompleto() {
           {/* KPIs principais */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: "Peças Hoje", value: pecasHoje > 0 ? pecasHoje : "—", sub: "finalizadas", icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50" },
-              { label: "Em Produção", value: emProducaoAgora || "—", sub: "ordens ativas", icon: Zap, color: "text-amber-600", bg: "bg-amber-50" },
-              { label: "Finalizados Hoje", value: finalizadosHoje || "—", sub: "ordens", icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50" },
-              { label: "Eficiência", value: tempoTotal > 0 ? `${eficiencia}%` : "—", sub: "tempo produtivo/total", icon: Activity, color: eficiencia >= 70 ? "text-green-600" : eficiencia >= 50 ? "text-amber-600" : "text-red-600", bg: eficiencia >= 70 ? "bg-green-50" : eficiencia >= 50 ? "bg-amber-50" : "bg-red-50" },
-            ].map(k => (
-              <div key={k.label} className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${k.bg}`}>
-                  <k.icon className={`w-5 h-5 ${k.color}`} />
+              { label: "Peças Hoje", value: pecasHoje > 0 ? pecasHoje : "—", sub: "finalizadas", icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50", to: "/corte-dobra/producao" },
+              { label: "Em Produção", value: emProducaoAgora || "—", sub: "ordens ativas", icon: Zap, color: "text-amber-600", bg: "bg-amber-50", onClick: () => setEmProdSheetOpen(true) },
+              { label: "Finalizados Hoje", value: finalizadosHoje || "—", sub: "ordens", icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50", to: "/corte-dobra/producao" },
+              { label: "Eficiência", value: tempoTotal > 0 ? `${eficiencia}%` : "—", sub: "tempo produtivo/total", icon: Activity, color: eficiencia >= 70 ? "text-green-600" : eficiencia >= 50 ? "text-amber-600" : "text-red-600", bg: eficiencia >= 70 ? "bg-green-50" : eficiencia >= 50 ? "bg-amber-50" : "bg-red-50", tooltip: "Proporção do tempo gasto em produção vs. pausas e setup" },
+            ].map(k => {
+              const inner = (
+                <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3 hover:scale-[1.01] hover:shadow-md transition-all duration-200 cursor-pointer h-full">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${k.bg}`}>
+                    <k.icon className={`w-5 h-5 ${k.color}`} />
+                  </div>
+                  <div>
+                    <p className={`text-2xl font-black ${k.color}`}>{k.value}</p>
+                    <p className="text-xs text-muted-foreground leading-tight">{k.label}</p>
+                    <p className="text-xs text-muted-foreground/60">{k.sub}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className={`text-2xl font-black ${k.color}`}>{k.value}</p>
-                  <p className="text-xs text-muted-foreground leading-tight">{k.label}</p>
-                  <p className="text-xs text-muted-foreground/60">{k.sub}</p>
-                </div>
-              </div>
-            ))}
+              );
+              if (k.tooltip) {
+                return (
+                  <TooltipProvider key={k.label}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>{inner}</div>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p>{k.tooltip}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                );
+              }
+              if (k.to) {
+                return <Link key={k.label} to={k.to} className="no-underline">{inner}</Link>;
+              }
+              return <div key={k.label} onClick={k.onClick}>{inner}</div>;
+            })}
           </div>
 
           {/* KPIs secundários */}
@@ -279,16 +322,25 @@ export default function DashboardCorteDobraCompleto() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2 bg-card border border-border rounded-xl p-4">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="font-bold text-sm flex items-center gap-2">
-                  <BarChart2 className="w-4 h-4 text-orange-500" /> Peças Cortadas — Últimos 7 Dias
-                </h2>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <h2 className="font-bold text-sm flex items-center gap-2 cursor-help">
+                        <BarChart2 className="w-4 h-4 text-orange-500" /> Peças Cortadas — Últimos 7 Dias
+                      </h2>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Peças finalizadas por dia. Passe o mouse nas barras para detalhes.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <Badge className="bg-orange-100 text-orange-700 border-orange-200 text-xs">Semana: {pecasSemana} peças</Badge>
               </div>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={ultimos7} barCategoryGap="30%">
                   <XAxis dataKey="dia" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={35} />
-                  <Tooltip formatter={(v) => [`${v}`, "Peças"]} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
+                  <RTooltip formatter={(v) => [`${v} peças`, "Finalizadas"]} contentStyle={{ borderRadius: 8, fontSize: 12, border: "1px solid #f97316" }} />
                   <Bar dataKey="pecas" name="Peças" radius={[6, 6, 0, 0]}>
                     {ultimos7.map((_, i) => <Cell key={i} fill={i === 6 ? "#f97316" : "#fed7aa"} />)}
                   </Bar>
@@ -308,22 +360,33 @@ export default function DashboardCorteDobraCompleto() {
                 </div>
               ) : (
                 <div className="space-y-2 max-h-52 overflow-y-auto">
-                  {ordensAtivas.map(o => (
-                    <div key={o.id} className={`rounded-lg px-3 py-2 border text-xs ${o.status === "pausado" ? "bg-amber-50 border-amber-200" : "bg-orange-50 border-orange-200"}`}>
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="font-bold truncate">{o.maquina}</span>
-                        <Badge className={`text-xs ${o.status === "pausado" ? "bg-amber-100 text-amber-700 border-amber-300" : "bg-orange-100 text-orange-700 border-orange-300"}`}>
-                          {o.status === "pausado" ? "Pausado" : "Produzindo"}
-                        </Badge>
-                      </div>
-                      <div className="text-muted-foreground">{o.tipo_peca || o.bobina_descricao || "—"} · {o.quantidade} pç</div>
-                      {(o.tempo_producao_seg > 0) && (
-                        <div className="flex items-center gap-1 mt-0.5 text-slate-500">
-                          <Timer className="w-2.5 h-2.5" />{formatTempo(o.tempo_producao_seg)}
+                  {ordensAtivas.map(o => {
+                    const maqInfo = MAQUINAS_COMPLETO.find(m => m.id === o.maquina);
+                    const destPath = maqInfo?.path || "/corte-dobra/producao";
+                    return (
+                      <Link key={o.id} to={destPath} className="no-underline block">
+                        <div className={`rounded-lg px-3 py-2 border text-xs cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all duration-200 ${o.status === "pausado" ? "bg-amber-50 border-amber-200 hover:border-amber-400" : "bg-orange-50 border-orange-200 hover:border-orange-400"}`}>
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="font-bold truncate">{o.maquina}</span>
+                            <Badge className={`text-xs ${o.status === "pausado" ? "bg-amber-100 text-amber-700 border-amber-300" : "bg-orange-100 text-orange-700 border-orange-300"}`}>
+                              {o.status === "pausado" ? "Pausado" : "Produzindo"}
+                            </Badge>
+                          </div>
+                          <div className="text-muted-foreground">{o.tipo_peca || o.bobina_descricao || "—"} · {o.quantidade} pç</div>
+                          <div className="flex items-center justify-between mt-0.5">
+                            {(o.tempo_producao_seg > 0) && (
+                              <div className="flex items-center gap-1 text-slate-500">
+                                <Timer className="w-2.5 h-2.5" />{formatTempo(o.tempo_producao_seg)}
+                              </div>
+                            )}
+                            <span className="text-orange-500 font-semibold flex items-center gap-0.5 ml-auto">
+                              Gerenciar <ExternalLink className="w-2.5 h-2.5" />
+                            </span>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -474,6 +537,87 @@ export default function DashboardCorteDobraCompleto() {
           </div>
         </>
       )}
+
+      {/* Modal — Ordens Pausadas */}
+      <Dialog open={pausedDialogOpen} onOpenChange={setPausedDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pause className="w-5 h-5 text-purple-600" />
+              Ordens Pausadas ({pausadosAgora})
+            </DialogTitle>
+            <DialogDescription>
+              Ordens atualmente em pausa. Clique para ir à tela de controle.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {ordensBase.filter(o => o.status === "pausado").map(o => {
+              const maqInfo = MAQUINAS_COMPLETO.find(m => m.id === o.maquina);
+              const destPath = maqInfo?.path || "/corte-dobra/producao";
+              return (
+                <Link key={o.id} to={destPath} onClick={() => setPausedDialogOpen(false)} className="no-underline block">
+                  <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 cursor-pointer hover:shadow-md hover:border-amber-400 transition-all duration-200">
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm truncate">{o.maquina}</p>
+                      <p className="text-xs text-muted-foreground truncate">{o.tipo_peca || o.bobina_descricao || "—"} · {o.quantidade} pç</p>
+                      {o.motivo_pausa && <p className="text-xs text-amber-700 mt-0.5">⏸ {o.motivo_pausa}</p>}
+                    </div>
+                    <div className="flex items-center gap-1 text-purple-600 text-xs font-semibold flex-shrink-0 ml-2">
+                      Ir <ExternalLink className="w-3 h-3" />
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Gaveta — Em Produção Agora */}
+      <Sheet open={emProdSheetOpen} onOpenChange={setEmProdSheetOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+              Ordens em Produção ({emProducaoAgora})
+            </SheetTitle>
+            <SheetDescription>Detalhes das ordens ativas neste momento</SheetDescription>
+          </SheetHeader>
+          <div className="mt-4 space-y-3">
+            {ordensBase.filter(o => o.status === "em_producao").length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+                <Circle className="w-10 h-10 mb-3 opacity-30" />
+                <p className="text-sm">Nenhuma ordem em produção</p>
+              </div>
+            ) : (
+              ordensBase.filter(o => o.status === "em_producao").map(o => {
+                const maqInfo = MAQUINAS_COMPLETO.find(m => m.id === o.maquina);
+                const destPath = maqInfo?.path || "/corte-dobra/producao";
+                return (
+                  <Link key={o.id} to={destPath} onClick={() => setEmProdSheetOpen(false)} className="no-underline block">
+                    <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 cursor-pointer hover:shadow-md hover:border-orange-400 transition-all duration-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-sm">{o.maquina}</span>
+                        <Badge className="bg-orange-100 text-orange-700 border-orange-300 text-xs">Produzindo</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{o.tipo_peca || o.bobina_descricao || "—"} · {o.quantidade} pç</p>
+                      {o.cliente && <p className="text-xs text-muted-foreground mt-0.5">Cliente: {o.cliente}</p>}
+                      {o.tempo_producao_seg > 0 && (
+                        <div className="flex items-center gap-1 mt-1 text-xs text-slate-500">
+                          <Timer className="w-3 h-3" />{formatTempo(o.tempo_producao_seg)}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1 text-orange-600 text-xs font-semibold mt-2">
+                        Gerenciar <ExternalLink className="w-3 h-3" />
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

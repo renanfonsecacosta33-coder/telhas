@@ -73,7 +73,7 @@ export default function SidebarCD({ isOpen, onToggle }) {
         to={item.path}
         onClick={() => window.innerWidth < 1024 && onToggle()}
         className={cn(
-          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer",
           isActive
             ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-sidebar-primary/25"
             : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -93,7 +93,7 @@ export default function SidebarCD({ isOpen, onToggle }) {
       )}
       <button
         onClick={onToggle}
-        className="fixed top-4 left-4 z-50 lg:hidden bg-card border border-border rounded-lg p-2 shadow-lg"
+        className="fixed top-4 left-4 z-50 lg:hidden bg-card border border-border rounded-lg p-2 shadow-lg cursor-pointer transition-all duration-200 hover:shadow-xl"
       >
         {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
       </button>
@@ -157,7 +157,7 @@ export default function SidebarCD({ isOpen, onToggle }) {
               <div>
                 <button
                   onClick={() => setMaquinasOpen(o => !o)}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-200 cursor-pointer"
                 >
                   <Wrench className="w-4 h-4 flex-shrink-0" />
                   <span className="flex-1 text-left">Máquinas</span>
@@ -173,7 +173,7 @@ export default function SidebarCD({ isOpen, onToggle }) {
                           to={item.path}
                           onClick={() => window.innerWidth < 1024 && onToggle()}
                           className={cn(
-                            "flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-medium transition-all",
+                            "flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-medium transition-all duration-200 cursor-pointer",
                             isActive
                               ? "bg-sidebar-primary text-sidebar-primary-foreground"
                               : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -206,7 +206,7 @@ export default function SidebarCD({ isOpen, onToggle }) {
               href="https://gerencial-fabricas.base44.app"
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-amber-400 hover:bg-sidebar-accent hover:text-amber-300 transition-all"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-amber-400 hover:bg-sidebar-accent hover:text-amber-300 transition-all duration-200 cursor-pointer"
             >
               <Factory className="w-4 h-4" />
               <span>Gerência Fábricas</span>
@@ -215,7 +215,7 @@ export default function SidebarCD({ isOpen, onToggle }) {
           {isAmbos && (
             <button
               onClick={() => navigate("/setor")}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-200 cursor-pointer"
             >
               <ArrowLeftRight className="w-4 h-4" />
               <span>Trocar Setor</span>
@@ -223,7 +223,7 @@ export default function SidebarCD({ isOpen, onToggle }) {
           )}
           <button
             onClick={() => base44.auth.logout()}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-200 cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
             <span>Sair</span>
