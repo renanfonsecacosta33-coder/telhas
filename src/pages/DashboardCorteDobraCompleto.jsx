@@ -32,8 +32,14 @@ function formatTempo(seg) {
   return `${m}m`;
 }
 
+const MAQUINAS_COMPLETO = [
+  ...MAQUINAS_CD,
+  { id: "DESBOBINADEIRA", label: "Desbobinadeira", color: "bg-orange-600", hex: "#ea580c", path: "/corte-dobra/producao" },
+];
+
 export default function DashboardCorteDobraCompleto() {
   const [aba, setAba] = useState("producao");
+  const [maquinaSel, setMaquinaSel] = useState(null); // null = Geral
   const hoje = format(new Date(), "yyyy-MM-dd");
   const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
   const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -59,12 +65,15 @@ export default function DashboardCorteDobraCompleto() {
 
   const todasOrdens = useMemo(() => [...ordens, ...ordensDesb.map(o => ({ ...o, maquina: "DESBOBINADEIRA", tipo_peca: o.bobina_descricao || "Corte", _desb: true }))], [ordens, ordensDesb]);
 
-  const ordensHoje = useMemo(() => todasOrdens.filter(o => o.data === hoje), [todasOrdens, hoje]);
-  const ordensSemana = useMemo(() => todasOrdens.filter(o => o.data >= weekStart && o.data <= weekEnd), [todasOrdens, weekStart, weekEnd]);
-  const ordensMes = useMemo(() => todasOrdens.filter(o => o.data >= mesStart && o.data <= hoje), [todasOrdens, mesStart, hoje]);
+  // Filtra por máquina selecionada (null = todas)
+  const ordensBase = useMemo(() => maquinaSel ? todasOrdens.filter(o => o.maquina === maquinaSel) : todasOrdens, [todasOrdens, maquinaSel]);
 
-  const emProducaoAgora = todasOrdens.filter(o => o.status === "em_producao").length;
-  const pausadosAgora = todasOrdens.filter(o => o.status === "pausado").length;
+  const ordensHoje = useMemo(() => ordensBase.filter(o => o.data === hoje), [ordensBase, hoje]);
+  const ordensSemana = useMemo(() => ordensBase.filter(o => o.data >= weekStart && o.data <= weekEnd), [ordensBase, weekStart, weekEnd]);
+  const ordensMes = useMemo(() => ordensBase.filter(o => o.data >= mesStart && o.data <= hoje), [ordensBase, mesStart, hoje]);
+
+  const emProducaoAgora = ordensBase.filter(o => o.status === "em_producao").length;
+  const pausadosAgora = ordensBase.filter(o => o.status === "pausado").length;
   const finalizadosHoje = ordensHoje.filter(o => o.status === "finalizado").length;
   const pecasHoje = ordensHoje.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
   const pecasSemana = ordensSemana.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
@@ -79,13 +88,13 @@ export default function DashboardCorteDobraCompleto() {
   // Gráfico 7 dias
   const ultimos7 = useMemo(() => Array.from({ length: 7 }, (_, i) => {
     const dia = format(subDays(new Date(), 6 - i), "yyyy-MM-dd");
-    const fin = todasOrdens.filter(o => o.data === dia && o.status === "finalizado");
+    const fin = ordensBase.filter(o => o.data === dia && o.status === "finalizado");
     return {
       dia: format(new Date(dia + "T12:00:00"), "EEE dd", { locale: ptBR }),
       pecas: fin.reduce((s, o) => s + (o.quantidade || 0), 0),
-      ordens: todasOrdens.filter(o => o.data === dia).length,
+      ordens: ordensBase.filter(o => o.data === dia).length,
     };
-  }), [todasOrdens]);
+  }), [ordensBase]);
 
   // Por máquina hoje
   const porMaquinaHoje = useMemo(() => {
@@ -118,7 +127,7 @@ export default function DashboardCorteDobraCompleto() {
   const bobinasCriticas = bobinas.filter(b => (b.peso_kg || 0) < 100);
   const bobinasAlerta = bobinas.filter(b => b.estoque_minimo_kg && (b.peso_kg || 0) <= b.estoque_minimo_kg * 1.2 && (b.peso_kg || 0) > (b.peso_kg < 100 ? -1 : b.estoque_minimo_kg));
 
-  const ordensAtivas = useMemo(() => todasOrdens.filter(o => o.status === "em_producao" || o.status === "pausado"), [todasOrdens]);
+  const ordensAtivas = useMemo(() => ordensBase.filter(o => o.status === "em_producao" || o.status === "pausado"), [ordensBase]);
 
   return (
     <div className="space-y-6">
@@ -128,6 +137,11 @@ export default function DashboardCorteDobraCompleto() {
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Scissors className="w-6 h-6 text-orange-500" />
             Dashboard — Corte e Dobra
+            {maquinaSel && (
+              <Badge className="bg-orange-100 text-orange-700 border-orange-200 text-sm">
+                {MAQUINAS_COMPLETO.find(m => m.id === maquinaSel)?.label || maquinaSel}
+              </Badge>
+            )}
           </h1>
           <p className="text-sm text-muted-foreground">
             {format(new Date(), "EEEE, dd 'de' MMMM yyyy", { locale: ptBR })} · Atualiza a cada 15s
@@ -143,6 +157,22 @@ export default function DashboardCorteDobraCompleto() {
             <Package className="w-3.5 h-3.5 inline mr-1.5" />Estoque
           </button>
         </div>
+      </div>
+
+      {/* Seletor de Máquina */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        <button onClick={() => setMaquinaSel(null)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all border ${maquinaSel === null ? "bg-orange-500 text-white border-orange-500 shadow" : "bg-card text-muted-foreground border-border hover:bg-muted"}`}>
+          <Factory className="w-3.5 h-3.5 inline mr-1" />Geral
+        </button>
+        {MAQUINAS_COMPLETO.map(m => (
+          <button key={m.id} onClick={() => setMaquinaSel(m.id)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all border flex items-center gap-1.5 ${maquinaSel === m.id ? "text-white border-transparent shadow" : "bg-card text-muted-foreground border-border hover:bg-muted"}`}
+            style={maquinaSel === m.id ? { backgroundColor: m.hex } : {}}>
+            <span className={`w-2 h-2 rounded-full ${m.color}`} />
+            {m.label}
+          </button>
+        ))}
       </div>
 
       {/* Alertas */}
@@ -208,7 +238,8 @@ export default function DashboardCorteDobraCompleto() {
             ))}
           </div>
 
-          {/* Status das Máquinas */}
+          {/* Status das Máquinas — apenas na visão Geral */}
+          {!maquinaSel && (
           <div>
             <h2 className="font-bold text-sm mb-3 flex items-center gap-2">
               <Scissors className="w-4 h-4 text-orange-500" /> Status das Máquinas — Hoje
@@ -242,6 +273,7 @@ export default function DashboardCorteDobraCompleto() {
               ))}
             </div>
           </div>
+          )}
 
           {/* Grid: Gráfico 7 dias + Ordens ativas */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
