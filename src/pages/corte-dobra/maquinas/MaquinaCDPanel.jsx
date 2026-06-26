@@ -147,7 +147,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
           <p className="text-sm text-muted-foreground">Ordens de produção — Corte e Dobra</p>
         </div>
         {isGestor && (
-          <Button onClick={() => openNew(selectedDay)} className="gap-2 cursor-pointer transition-all duration-200 hover:scale-105">
+          <Button onClick={() => openNew(selectedDay)} className="gap-2">
             <Plus className="w-4 h-4" /> Nova Ordem
           </Button>
         )}
@@ -156,7 +156,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
       {/* Navegação semana */}
       <div className="bg-card border border-border rounded-xl p-4">
         <div className="flex items-center justify-between mb-4">
-          <Button variant="outline" size="icon" onClick={() => setCurrentWeek(w => subWeeks(w, 1))} className="cursor-pointer transition-all duration-200">
+          <Button variant="outline" size="icon" onClick={() => setCurrentWeek(w => subWeeks(w, 1))}>
             <ChevronLeft className="w-4 h-4" />
           </Button>
           <div className="text-center">
@@ -167,7 +167,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
               {totalSemana} ordens · {finalizadasSemana} peças finalizadas
             </Badge>
           </div>
-          <Button variant="outline" size="icon" onClick={() => setCurrentWeek(w => addWeeks(w, 1))} className="cursor-pointer transition-all duration-200">
+          <Button variant="outline" size="icon" onClick={() => setCurrentWeek(w => addWeeks(w, 1))}>
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
@@ -179,7 +179,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
             const isHoje = isToday(dia);
             return (
               <button key={diaStr} onClick={() => { setSelectedDay(diaStr); setViewMode("dia"); }}
-                className={`rounded-lg p-2 text-center transition-all duration-200 border cursor-pointer hover:scale-105 ${isSelected ? "bg-primary text-primary-foreground border-primary shadow-md" : isHoje ? "border-primary/40 bg-primary/5" : "border-border hover:bg-muted/50"}`}>
+                className={`rounded-lg p-2 text-center transition-all border ${isSelected ? "bg-primary text-primary-foreground border-primary" : isHoje ? "border-primary/40 bg-primary/5" : "border-border hover:bg-muted/50"}`}>
                 <p className="text-xs font-semibold uppercase">{format(dia, "EEE", { locale: ptBR })}</p>
                 <p className="text-lg font-bold">{format(dia, "dd")}</p>
                 {cnt > 0 && (
@@ -195,11 +195,11 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
 
       {/* Toggles */}
       <div className="flex items-center gap-2 flex-wrap">
-        <Button variant={viewMode === "semana" ? "default" : "outline"} size="sm" onClick={() => setViewMode("semana")} className="cursor-pointer transition-all duration-200">Visão Semana</Button>
-        <Button variant={viewMode === "dia" ? "default" : "outline"} size="sm" onClick={() => setViewMode("dia")} className="cursor-pointer transition-all duration-200">
+        <Button variant={viewMode === "semana" ? "default" : "outline"} size="sm" onClick={() => setViewMode("semana")}>Visão Semana</Button>
+        <Button variant={viewMode === "dia" ? "default" : "outline"} size="sm" onClick={() => setViewMode("dia")}>
           Dia — {format(new Date(selectedDay + "T12:00:00"), "dd/MM", { locale: ptBR })}
         </Button>
-        <Button variant="outline" size="sm" onClick={() => { setSelectedDay(format(new Date(), "yyyy-MM-dd")); setCurrentWeek(new Date()); setViewMode("dia"); }} className="gap-1 cursor-pointer transition-all duration-200">
+        <Button variant="outline" size="sm" onClick={() => { setSelectedDay(format(new Date(), "yyyy-MM-dd")); setCurrentWeek(new Date()); setViewMode("dia"); }} className="gap-1">
           <Calendar className="w-3 h-3" /> Hoje
         </Button>
       </div>
@@ -227,10 +227,10 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
                     {finalizadas > 0 && <span className="text-xs font-bold text-green-600">{finalizadas} pç ✓</span>}
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="ghost" size="sm" className="h-7 text-xs cursor-pointer transition-all duration-200"
+                    <Button variant="ghost" size="sm" className="h-7 text-xs"
                       onClick={() => { setSelectedDay(diaStr); setViewMode("dia"); }}>Ver dia</Button>
                     {isGestor && (
-                      <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs cursor-pointer transition-all duration-200" onClick={() => openNew(diaStr)}>
+                      <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={() => openNew(diaStr)}>
                         <Plus className="w-3 h-3" /> Adicionar
                       </Button>
                     )}
