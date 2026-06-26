@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, Circle, Factory, Users, Menu, X, ChevronRight, ChevronDown,
   LogOut, Layers, ShieldCheck, ArrowLeftRight, Calculator, BookOpen, Scissors,
-  FlaskConical, Wrench, Map
+  FlaskConical, Wrench, Map, BookmarkPlus
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -141,6 +141,10 @@ export default function SidebarCD({ isOpen, onToggle }) {
                 icon: Wrench,
               })}
               {renderLink({ path: "/corte-dobra/calculos", label: "Cálculos", icon: FlaskConical })}
+              <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mt-5 mb-3">
+                Reservas
+              </p>
+              {renderLink({ path: "/vendedor", label: "Reservar Bobinas", icon: BookmarkPlus })}
             </>
           ) : (
             <>

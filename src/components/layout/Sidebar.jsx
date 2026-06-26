@@ -5,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, Circle, Snowflake, Package, Menu, X, ChevronRight,
   Factory, Settings, Droplets, Wrench, Layers, Box, ShoppingCart,
-  Truck, BarChart2, FileText, Tag, Archive, Zap, Users, LogOut, Cog, FlaskConical, ArrowLeftRight, Map
+  Truck, BarChart2, FileText, Tag, Archive, Zap, Users, LogOut, Cog, FlaskConical, ArrowLeftRight, Map, BookmarkPlus
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -144,6 +144,10 @@ export default function Sidebar({ isOpen, onToggle }) {
                 icon: Factory,
               })}
               {renderLink({ path: "/calculadora-isopor", label: "Calculadora Isopor", icon: Snowflake })}
+              <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mt-5 mb-3">
+                Reservas
+              </p>
+              {renderLink({ path: "/vendedor", label: "Reservar Bobinas", icon: BookmarkPlus })}
             </>
           ) : (
             <>
