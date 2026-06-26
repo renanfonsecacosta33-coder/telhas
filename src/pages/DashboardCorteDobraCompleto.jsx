@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tooltip as UITooltip, TooltipTrigger as UITooltipTrigger, TooltipContent as UITooltipContent, TooltipProvider as UITooltipProvider } from "@/components/ui/tooltip";
 import QuickActionDialog from "@/components/corte-dobra/QuickActionDialog";
+import HistoricoBobinas from "@/components/corte-dobra/HistoricoBobinas";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -102,6 +103,10 @@ export default function DashboardCorteDobraCompleto() {
   const pecasSemana = ordensSemana.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
   const pecasMes = ordensMes.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
 
+  const kgHoje = ordensHoje.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.peso_kg || o.kg_estimado || 0), 0);
+  const kgSemana = ordensSemana.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.peso_kg || o.kg_estimado || 0), 0);
+  const kgMes = ordensMes.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.peso_kg || o.kg_estimado || 0), 0);
+
   const tempoProdTotal = ordensHoje.reduce((s, o) => s + (o.tempo_producao_seg || 0), 0);
   const tempoPausaTotal = ordensHoje.reduce((s, o) => s + (o.tempo_pausa_seg || 0), 0);
   const tempoSetupTotal = ordensHoje.reduce((s, o) => s + (o.tempo_setup_seg || 0), 0);
@@ -115,6 +120,7 @@ export default function DashboardCorteDobraCompleto() {
     return {
       dia: format(new Date(dia + "T12:00:00"), "EEE dd", { locale: ptBR }),
       pecas: fin.reduce((s, o) => s + (o.quantidade || 0), 0),
+      kg: fin.reduce((s, o) => s + (o.peso_kg || o.kg_estimado || 0), 0),
       ordens: ordensBase.filter(o => o.data === dia).length,
     };
   }), [ordensBase]);
@@ -143,6 +149,22 @@ export default function DashboardCorteDobraCompleto() {
       map[o.tipo_peca] = (map[o.tipo_peca] || 0) + (o.quantidade || 0);
     });
     return Object.entries(map).map(([nome, qtd]) => ({ nome, qtd })).sort((a, b) => b.qtd - a.qtd).slice(0, 6);
+  }, [ordensSemana]);
+
+  // Histórico de bobinas utilizadas (semana)
+  const historicoBobinas = useMemo(() => {
+    const finOrdens = ordensSemana.filter(o => o.status === "finalizado" && (o.bobina_id || o.bobina_descricao));
+    const map = {};
+    finOrdens.forEach(o => {
+      const key = o.bobina_id || o.bobina_descricao;
+      if (!map[key]) {
+        map[key] = { bobina_descricao: o.bobina_descricao || "—", kg_total: 0, pecas_total: 0, ordens: [] };
+      }
+      map[key].kg_total += (o.peso_kg || o.kg_estimado || 0);
+      map[key].pecas_total += (o.quantidade || 0);
+      map[key].ordens.push({ maquina: o.maquina, tipo_peca: o.tipo_peca || o.bobina_descricao, quantidade: o.quantidade, data: o.data, kg: o.peso_kg || o.kg_estimado || 0 });
+    });
+    return Object.values(map).sort((a, b) => b.kg_total - a.kg_total).slice(0, 8);
   }, [ordensSemana]);
 
   // Estoque bobinas
@@ -248,13 +270,14 @@ export default function DashboardCorteDobraCompleto() {
           </div>
 
           {/* KPIs secundários */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             {[
-              { label: "Peças Esta Semana", value: pecasSemana || "—", icon: Calendar, color: "text-indigo-600" },
-              { label: "Peças Este Mês", value: pecasMes || "—", icon: Target, color: "text-purple-600" },
-              { label: "Ordens Semana", value: ordensSemana.length || "—", icon: Layers, color: "text-slate-600" },
-              { label: "Pausadas Agora", value: pausadosAgora || "✓", icon: Pause, color: pausadosAgora > 0 ? "text-purple-600" : "text-green-600" },
-            ].map(k => (
+               { label: "KG Hoje", value: kgHoje > 0 ? `${kgHoje.toFixed(0)}kg` : "—", icon: Weight, color: "text-orange-600" },
+               { label: "KG Esta Semana", value: kgSemana > 0 ? `${kgSemana.toFixed(0)}kg` : "—", icon: Weight, color: "text-amber-600" },
+               { label: "Peças Esta Semana", value: pecasSemana || "—", icon: Calendar, color: "text-indigo-600" },
+               { label: "Peças Este Mês", value: pecasMes || "—", icon: Target, color: "text-purple-600" },
+               { label: "Ordens Semana", value: ordensSemana.length || "—", icon: Layers, color: "text-slate-600" },
+             ].map(k => (
               <div key={k.label} className="bg-card border border-border rounded-xl p-3 flex items-center gap-3">
                 <k.icon className={`w-4 h-4 ${k.color} flex-shrink-0`} />
                 <div>
@@ -315,16 +338,20 @@ export default function DashboardCorteDobraCompleto() {
                   </UITooltipTrigger>
                   <UITooltipContent>Mostra a quantidade de peças finalizadas por dia nos últimos 7 dias. A barra laranja destaca o dia de hoje.</UITooltipContent>
                 </UITooltip>
-                <Badge className="bg-orange-100 text-orange-700 border-orange-200 text-xs">Semana: {pecasSemana} peças</Badge>
+                <Badge className="bg-orange-100 text-orange-700 border-orange-200 text-xs">Semana: {pecasSemana} pç · {kgSemana.toFixed(0)}kg</Badge>
               </div>
               </UITooltipProvider>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={ultimos7} barCategoryGap="30%">
                   <XAxis dataKey="dia" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={35} />
-                  <Tooltip formatter={(v) => [`${v}`, "Peças"]} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
+                  <Tooltip formatter={(v, name) => [name === "kg" ? `${v}kg` : `${v} pç`, name === "kg" ? "KG Produzidos" : "Peças"]} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Bar dataKey="pecas" name="Peças" radius={[6, 6, 0, 0]}>
                     {ultimos7.map((_, i) => <Cell key={i} fill={i === 6 ? "#f97316" : "#fed7aa"} />)}
+                  </Bar>
+                  <Bar dataKey="kg" name="KG" radius={[6, 6, 0, 0]}>
+                    {ultimos7.map((_, i) => <Cell key={i} fill={i === 6 ? "#f59e0b" : "#fde68a"} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -421,6 +448,9 @@ export default function DashboardCorteDobraCompleto() {
               )}
             </div>
           </div>
+
+          {/* Histórico de Bobinas Utilizadas */}
+          <HistoricoBobinas historico={historicoBobinas} />
         </>
       )}
 
