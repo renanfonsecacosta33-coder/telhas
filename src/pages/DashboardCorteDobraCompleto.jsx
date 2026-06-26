@@ -1,7 +1,11 @@
 import React, { useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate } from "react-router-dom";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Tooltip as UITooltip, TooltipTrigger as UITooltipTrigger, TooltipContent as UITooltipContent, TooltipProvider as UITooltipProvider } from "@/components/ui/tooltip";
+import QuickActionDialog from "@/components/corte-dobra/QuickActionDialog";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -40,6 +44,11 @@ const MAQUINAS_COMPLETO = [
 export default function DashboardCorteDobraCompleto() {
   const [aba, setAba] = useState("producao");
   const [maquinaSel, setMaquinaSel] = useState(null); // null = Geral
+  const [pausedDialogOpen, setPausedDialogOpen] = useState(false);
+  const [activeSheetOpen, setActiveSheetOpen] = useState(false);
+  const [quickActionOrder, setQuickActionOrder] = useState(null);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const hoje = format(new Date(), "yyyy-MM-dd");
   const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
   const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -62,6 +71,20 @@ export default function DashboardCorteDobraCompleto() {
     queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false }),
     refetchInterval: 30000,
   });
+
+  const updateMaq = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.OrdemMaquinaCD.update(id, data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd-dash"] }); queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] }); },
+  });
+  const updateDesb = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.OrdemDesbobinadeira.update(id, data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-desb-dash"] }); queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] }); },
+  });
+
+  const handleQuickUpdate = (order, data) => {
+    if (order._desb) updateDesb.mutate({ id: order.id, data });
+    else updateMaq.mutate({ id: order.id, data });
+  };
 
   const todasOrdens = useMemo(() => [...ordens, ...ordensDesb.map(o => ({ ...o, maquina: "DESBOBINADEIRA", tipo_peca: o.bobina_descricao || "Corte", _desb: true }))], [ordens, ordensDesb]);
 
@@ -128,6 +151,7 @@ export default function DashboardCorteDobraCompleto() {
   const bobinasAlerta = bobinas.filter(b => b.estoque_minimo_kg && (b.peso_kg || 0) <= b.estoque_minimo_kg * 1.2 && (b.peso_kg || 0) > (b.peso_kg < 100 ? -1 : b.estoque_minimo_kg));
 
   const ordensAtivas = useMemo(() => ordensBase.filter(o => o.status === "em_producao" || o.status === "pausado"), [ordensBase]);
+  const ordensPausadas = useMemo(() => ordensBase.filter(o => o.status === "pausado"), [ordensBase]);
 
   return (
     <div className="space-y-6">
@@ -149,11 +173,11 @@ export default function DashboardCorteDobraCompleto() {
         </div>
         <div className="flex items-center gap-1 bg-muted rounded-xl p-1">
           <button onClick={() => setAba("producao")}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${aba === "producao" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer ${aba === "producao" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
             <Factory className="w-3.5 h-3.5 inline mr-1.5" />Produção
           </button>
           <button onClick={() => setAba("estoque")}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${aba === "estoque" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer ${aba === "estoque" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
             <Package className="w-3.5 h-3.5 inline mr-1.5" />Estoque
           </button>
         </div>
@@ -162,12 +186,12 @@ export default function DashboardCorteDobraCompleto() {
       {/* Seletor de Máquina */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
         <button onClick={() => setMaquinaSel(null)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all border ${maquinaSel === null ? "bg-orange-500 text-white border-orange-500 shadow" : "bg-card text-muted-foreground border-border hover:bg-muted"}`}>
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all duration-200 cursor-pointer border ${maquinaSel === null ? "bg-orange-500 text-white border-orange-500 shadow" : "bg-card text-muted-foreground border-border hover:bg-muted"}`}>
           <Factory className="w-3.5 h-3.5 inline mr-1" />Geral
         </button>
         {MAQUINAS_COMPLETO.map(m => (
           <button key={m.id} onClick={() => setMaquinaSel(m.id)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all border flex items-center gap-1.5 ${maquinaSel === m.id ? "text-white border-transparent shadow" : "bg-card text-muted-foreground border-border hover:bg-muted"}`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all duration-200 cursor-pointer border flex items-center gap-1.5 ${maquinaSel === m.id ? "text-white border-transparent shadow" : "bg-card text-muted-foreground border-border hover:bg-muted"}`}
             style={maquinaSel === m.id ? { backgroundColor: m.hex } : {}}>
             <span className={`w-2 h-2 rounded-full ${m.color}`} />
             {m.label}
@@ -188,10 +212,12 @@ export default function DashboardCorteDobraCompleto() {
             </Link>
           )}
           {pausadosAgora > 0 && (
-            <div className="flex items-center gap-2 bg-purple-50 border border-purple-300 rounded-xl px-4 py-2.5">
+            <button onClick={() => setPausedDialogOpen(true)}
+              className="flex items-center gap-2 bg-purple-50 border border-purple-300 rounded-xl px-4 py-2.5 cursor-pointer hover:bg-purple-100 hover:shadow-md transition-all duration-200">
               <Pause className="w-4 h-4 text-purple-600" />
               <span className="text-sm font-semibold text-purple-700">{pausadosAgora} ordem(ns) pausada(s)</span>
-            </div>
+              <ChevronRight className="w-3.5 h-3.5 text-purple-500" />
+            </button>
           )}
         </div>
       )}
@@ -202,12 +228,13 @@ export default function DashboardCorteDobraCompleto() {
           {/* KPIs principais */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: "Peças Hoje", value: pecasHoje > 0 ? pecasHoje : "—", sub: "finalizadas", icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50" },
-              { label: "Em Produção", value: emProducaoAgora || "—", sub: "ordens ativas", icon: Zap, color: "text-amber-600", bg: "bg-amber-50" },
-              { label: "Finalizados Hoje", value: finalizadosHoje || "—", sub: "ordens", icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50" },
-              { label: "Eficiência", value: tempoTotal > 0 ? `${eficiencia}%` : "—", sub: "tempo produtivo/total", icon: Activity, color: eficiencia >= 70 ? "text-green-600" : eficiencia >= 50 ? "text-amber-600" : "text-red-600", bg: eficiencia >= 70 ? "bg-green-50" : eficiencia >= 50 ? "bg-amber-50" : "bg-red-50" },
-            ].map(k => (
-              <div key={k.label} className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
+              { label: "Peças Hoje", value: pecasHoje > 0 ? pecasHoje : "—", sub: "finalizadas", icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50", onClick: () => navigate("/corte-dobra/producao") },
+              { label: "Em Produção", value: emProducaoAgora || "—", sub: "ordens ativas", icon: Zap, color: "text-amber-600", bg: "bg-amber-50", onClick: () => setActiveSheetOpen(true) },
+              { label: "Finalizados Hoje", value: finalizadosHoje || "—", sub: "ordens", icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50", onClick: () => navigate("/corte-dobra/producao") },
+              { label: "Eficiência", value: tempoTotal > 0 ? `${eficiencia}%` : "—", sub: "tempo produtivo/total", icon: Activity, color: eficiencia >= 70 ? "text-green-600" : eficiencia >= 50 ? "text-amber-600" : "text-red-600", bg: eficiencia >= 70 ? "bg-green-50" : eficiencia >= 50 ? "bg-amber-50" : "bg-red-50", tooltip: `Proporção entre tempo produtivo e tempo total (incluindo pausas e setup). Atual: ${eficiencia}% do tempo foi gasto produzindo.` },
+              ].map(k => (
+              <div key={k.label} onClick={k.onClick} title={k.tooltip}
+                className={`bg-card border border-border rounded-xl p-4 flex items-center gap-3 transition-all duration-200 ${k.onClick ? "hover:scale-[1.01] hover:shadow-md cursor-pointer" : ""}`}>
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${k.bg}`}>
                   <k.icon className={`w-5 h-5 ${k.color}`} />
                 </div>
@@ -217,7 +244,7 @@ export default function DashboardCorteDobraCompleto() {
                   <p className="text-xs text-muted-foreground/60">{k.sub}</p>
                 </div>
               </div>
-            ))}
+              ))}
           </div>
 
           {/* KPIs secundários */}
@@ -278,12 +305,19 @@ export default function DashboardCorteDobraCompleto() {
           {/* Grid: Gráfico 7 dias + Ordens ativas */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2 bg-card border border-border rounded-xl p-4">
+              <UITooltipProvider>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="font-bold text-sm flex items-center gap-2">
-                  <BarChart2 className="w-4 h-4 text-orange-500" /> Peças Cortadas — Últimos 7 Dias
-                </h2>
+                <UITooltip>
+                  <UITooltipTrigger asChild>
+                    <h2 className="font-bold text-sm flex items-center gap-2 cursor-help">
+                      <BarChart2 className="w-4 h-4 text-orange-500" /> Peças Cortadas — Últimos 7 Dias
+                    </h2>
+                  </UITooltipTrigger>
+                  <UITooltipContent>Mostra a quantidade de peças finalizadas por dia nos últimos 7 dias. A barra laranja destaca o dia de hoje.</UITooltipContent>
+                </UITooltip>
                 <Badge className="bg-orange-100 text-orange-700 border-orange-200 text-xs">Semana: {pecasSemana} peças</Badge>
               </div>
+              </UITooltipProvider>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={ultimos7} barCategoryGap="30%">
                   <XAxis dataKey="dia" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -309,7 +343,8 @@ export default function DashboardCorteDobraCompleto() {
               ) : (
                 <div className="space-y-2 max-h-52 overflow-y-auto">
                   {ordensAtivas.map(o => (
-                    <div key={o.id} className={`rounded-lg px-3 py-2 border text-xs ${o.status === "pausado" ? "bg-amber-50 border-amber-200" : "bg-orange-50 border-orange-200"}`}>
+                    <div key={o.id} onClick={() => setQuickActionOrder(o)}
+                      className={`rounded-lg px-3 py-2 border text-xs cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all duration-200 ${o.status === "pausado" ? "bg-amber-50 border-amber-200" : "bg-orange-50 border-orange-200"}`}>
                       <div className="flex items-center justify-between mb-0.5">
                         <span className="font-bold truncate">{o.maquina}</span>
                         <Badge className={`text-xs ${o.status === "pausado" ? "bg-amber-100 text-amber-700 border-amber-300" : "bg-orange-100 text-orange-700 border-orange-300"}`}>
@@ -474,6 +509,85 @@ export default function DashboardCorteDobraCompleto() {
           </div>
         </>
       )}
+
+      {/* Sheet - Ordens Ativas */}
+      <Sheet open={activeSheetOpen} onOpenChange={setActiveSheetOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Zap className="w-5 h-5 text-amber-500" />
+              Ordens Ativas ({ordensAtivas.length})
+            </SheetTitle>
+            <SheetDescription>Ordens em produção ou pausadas no momento. Clique para gerenciar.</SheetDescription>
+          </SheetHeader>
+          <div className="mt-4 space-y-2">
+            {ordensAtivas.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">Nenhuma ordem ativa</p>
+            ) : (
+              ordensAtivas.map(o => (
+                <div key={o.id} onClick={() => { setActiveSheetOpen(false); setQuickActionOrder(o); }}
+                  className={`rounded-lg px-3 py-2.5 border text-sm cursor-pointer hover:shadow-md transition-all duration-200 ${o.status === "pausado" ? "bg-amber-50 border-amber-200" : "bg-orange-50 border-orange-200"}`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold">{o.maquina}</span>
+                    <Badge className={`text-xs ${o.status === "pausado" ? "bg-amber-100 text-amber-700 border-amber-300" : "bg-orange-100 text-orange-700 border-orange-300"}`}>
+                      {o.status === "pausado" ? "Pausado" : "Produzindo"}
+                    </Badge>
+                  </div>
+                  <p className="text-muted-foreground text-xs">{o.tipo_peca || o.bobina_descricao || "—"} · {o.quantidade} pç</p>
+                  {o.cliente && <p className="text-muted-foreground text-xs">Cliente: {o.cliente}</p>}
+                </div>
+              ))
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Dialog - Ordens Pausadas */}
+      <Dialog open={pausedDialogOpen} onOpenChange={setPausedDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pause className="w-5 h-5 text-purple-600" />
+              Ordens Pausadas ({ordensPausadas.length})
+            </DialogTitle>
+            <DialogDescription>Ordens pausadas no momento. Clique para gerenciar.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {ordensPausadas.map(o => {
+              const maqInfo = MAQUINAS_COMPLETO.find(m => m.id === o.maquina);
+              return (
+                <div key={o.id} className="flex items-center justify-between gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="font-bold text-sm truncate">{o.maquina}</p>
+                    <p className="text-xs text-muted-foreground truncate">{o.tipo_peca || o.bobina_descricao || "—"} · {o.quantidade} pç</p>
+                    {o.motivo_pausa && <p className="text-xs text-purple-600 mt-0.5">⏸ {o.motivo_pausa === "setup" ? "Setup" : o.motivo_pausa}</p>}
+                  </div>
+                  <div className="flex gap-1.5 flex-shrink-0">
+                    <button onClick={() => { setPausedDialogOpen(false); setQuickActionOrder(o); }}
+                      className="text-xs px-2.5 py-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 cursor-pointer transition-all duration-200">
+                      Gerenciar
+                    </button>
+                    {maqInfo && (
+                      <button onClick={() => navigate(maqInfo.path)}
+                        className="text-xs px-2.5 py-1.5 rounded-lg border border-border hover:bg-muted cursor-pointer transition-all duration-200">
+                        Ir →
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Action Dialog */}
+      <QuickActionDialog
+        order={quickActionOrder}
+        open={!!quickActionOrder}
+        onClose={() => setQuickActionOrder(null)}
+        onUpdate={handleQuickUpdate}
+      />
     </div>
   );
 }

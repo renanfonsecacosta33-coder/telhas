@@ -179,7 +179,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
             const isHoje = isToday(dia);
             return (
               <button key={diaStr} onClick={() => { setSelectedDay(diaStr); setViewMode("dia"); }}
-                className={`rounded-lg p-2 text-center transition-all border ${isSelected ? "bg-primary text-primary-foreground border-primary" : isHoje ? "border-primary/40 bg-primary/5" : "border-border hover:bg-muted/50"}`}>
+                className={`rounded-lg p-2 text-center transition-all duration-200 cursor-pointer border ${isSelected ? "bg-primary text-primary-foreground border-primary" : isHoje ? "border-primary/40 bg-primary/5" : "border-border hover:bg-muted/50"}`}>
                 <p className="text-xs font-semibold uppercase">{format(dia, "EEE", { locale: ptBR })}</p>
                 <p className="text-lg font-bold">{format(dia, "dd")}</p>
                 {cnt > 0 && (

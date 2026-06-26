@@ -157,7 +157,7 @@ export default function SidebarCD({ isOpen, onToggle }) {
               <div>
                 <button
                   onClick={() => setMaquinasOpen(o => !o)}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all cursor-pointer"
                 >
                   <Wrench className="w-4 h-4 flex-shrink-0" />
                   <span className="flex-1 text-left">Máquinas</span>
@@ -215,7 +215,7 @@ export default function SidebarCD({ isOpen, onToggle }) {
           {isAmbos && (
             <button
               onClick={() => navigate("/setor")}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all cursor-pointer"
             >
               <ArrowLeftRight className="w-4 h-4" />
               <span>Trocar Setor</span>
@@ -223,7 +223,7 @@ export default function SidebarCD({ isOpen, onToggle }) {
           )}
           <button
             onClick={() => base44.auth.logout()}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
             <span>Sair</span>
