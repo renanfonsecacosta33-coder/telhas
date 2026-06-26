@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Factory, Calendar, Wrench, Download } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Factory, Calendar, Wrench, Download, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -27,6 +27,7 @@ export default function ProducaoCD() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
   const [viewMode, setViewMode] = useState("semana");
+  const [zoom, setZoom] = useState("normal"); // compacto | normal | grande
 
   // Dialog Desbobinadeira
   const [dialogDesb, setDialogDesb] = useState(false);
@@ -236,15 +237,32 @@ export default function ProducaoCD() {
       </div>
 
       {/* Toggle */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <Button variant={viewMode === "semana" ? "default" : "outline"} size="sm" onClick={() => setViewMode("semana")}>Visão Semana</Button>
-        <Button variant={viewMode === "dia" ? "default" : "outline"} size="sm" onClick={() => setViewMode("dia")}
-          className={viewMode === "dia" ? "bg-orange-500 hover:bg-orange-600 border-0" : ""}>
-          Visão Dia — {format(new Date(selectedDay + "T12:00:00"), "dd/MM", { locale: ptBR })}
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => { setSelectedDay(format(new Date(), "yyyy-MM-dd")); setCurrentWeek(new Date()); setViewMode("dia"); }} className="gap-1">
-          <Calendar className="w-3 h-3" /> Hoje
-        </Button>
+      <div className="flex items-center gap-2 flex-wrap justify-between">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant={viewMode === "semana" ? "default" : "outline"} size="sm" onClick={() => setViewMode("semana")}>Visão Semana</Button>
+          <Button variant={viewMode === "dia" ? "default" : "outline"} size="sm" onClick={() => setViewMode("dia")}
+            className={viewMode === "dia" ? "bg-orange-500 hover:bg-orange-600 border-0" : ""}>
+            Visão Dia — {format(new Date(selectedDay + "T12:00:00"), "dd/MM", { locale: ptBR })}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => { setSelectedDay(format(new Date(), "yyyy-MM-dd")); setCurrentWeek(new Date()); setViewMode("dia"); }} className="gap-1">
+            <Calendar className="w-3 h-3" /> Hoje
+          </Button>
+        </div>
+        {/* Zoom */}
+        <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-0.5">
+          <Button variant={zoom === "compacto" ? "default" : "ghost"} size="sm" onClick={() => setZoom("compacto")}
+            className="h-7 px-2 gap-1 text-xs" title="Visualização compacta">
+            <ZoomOut className="w-3.5 h-3.5" /> Compacto
+          </Button>
+          <Button variant={zoom === "normal" ? "default" : "ghost"} size="sm" onClick={() => setZoom("normal")}
+            className="h-7 px-2 gap-1 text-xs" title="Visualização normal">
+            <Maximize2 className="w-3.5 h-3.5" /> Normal
+          </Button>
+          <Button variant={zoom === "grande" ? "default" : "ghost"} size="sm" onClick={() => setZoom("grande")}
+            className="h-7 px-2 gap-1 text-xs" title="Visualização grande">
+            <ZoomIn className="w-3.5 h-3.5" /> Grande
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -281,7 +299,7 @@ export default function ProducaoCD() {
               onAdd={() => openNewDesb(selectedDay)}
               renderRow={(o) => (
                 <div key={o.id}>
-                  <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateDesb.mutate({ id, data })} isGestor={isGestor} />
+                  <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateDesb.mutate({ id, data })} isGestor={isGestor} zoom={zoom} />
                   {isGestor && o.status === "pendente" && (
                     <div className="flex justify-end mt-1">
                       <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEditDesb(o)}>✏️ Editar</Button>
@@ -307,7 +325,7 @@ export default function ProducaoCD() {
                 onAdd={() => openNewMaq(maq.id, selectedDay)}
                 renderRow={(o) => (
                   <div key={o.id}>
-                    <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} />
+                    <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} zoom={zoom} />
                     {isGestor && o.status === "pendente" && (
                       <div className="flex justify-end mt-1">
                         <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEditMaq(o)}>✏️ Editar</Button>

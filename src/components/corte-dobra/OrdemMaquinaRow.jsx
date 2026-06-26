@@ -47,7 +47,14 @@ const MAQUINA_BORDER = {
   "PERFILADEIRA":    "border-l-green-400",
 };
 
-export default function OrdemMaquinaRow({ ordem: o, onUpdate, isGestor }) {
+const ZOOM_CFG = {
+  compacto: { card: "p-2.5", title: "text-sm", info: "text-xs", badge: "text-[10px]", cronText: "text-xs", cronLabel: "text-[10px]", cronPad: "px-2 py-1", btn: "h-7 text-xs", obs: "text-[11px] py-1", gap: "gap-1.5", mb: "mb-2" },
+  normal:   { card: "p-4",   title: "text-base", info: "text-xs", badge: "text-xs", cronText: "text-sm", cronLabel: "text-xs", cronPad: "px-3 py-2", btn: "h-8 text-xs", obs: "text-xs py-1.5", gap: "gap-2", mb: "mb-3" },
+  grande:   { card: "p-5",   title: "text-lg", info: "text-sm", badge: "text-sm", cronText: "text-base", cronLabel: "text-sm", cronPad: "px-4 py-2.5", btn: "h-10 text-sm", obs: "text-sm py-2", gap: "gap-2.5", mb: "mb-3" },
+};
+
+export default function OrdemMaquinaRow({ ordem: o, onUpdate, isGestor, zoom = "normal" }) {
+  const z = ZOOM_CFG[zoom] || ZOOM_CFG.normal;
   const [pauseDialog, setPauseDialog] = useState(false);
   const [pauseMotivo, setPauseMotivo] = useState("");
   const [pauseTipo, setPauseTipo] = useState("setup");
@@ -152,20 +159,20 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, isGestor }) {
 
   return (
     <>
-      <div className={`border-l-4 ${borderColor} bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow`}>
+      <div className={`border-l-4 ${borderColor} bg-white rounded-xl ${z.card} shadow-sm hover:shadow-md transition-shadow`}>
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 mb-3">
+        <div className={`flex items-start justify-between ${z.gap} ${z.mb}`}>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className="font-bold text-base">{o.tipo_peca || "—"}</span>
+            <div className={`flex items-center ${z.gap} flex-wrap mb-1`}>
+              <span className={`font-bold ${z.title}`}>{o.tipo_peca || "—"}</span>
               {o.dimensoes_livres && (
-                <span className="text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded">{o.dimensoes_livres}</span>
+                <span className={`${z.info} text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded`}>{o.dimensoes_livres}</span>
               )}
               <StatusBadge status={o.status} />
             </div>
 
             {/* Material */}
-            <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap mb-1">
+            <div className={`flex items-center ${z.gap} ${z.info} text-muted-foreground flex-wrap mb-1`}>
               {o.chapa_origem === "chaparia" ? (
                 <><Layers className="w-3 h-3 text-orange-500" /><span className="font-mono">{o.chapa_descricao || "Chapa do estoque"}</span></>
               ) : (
@@ -175,7 +182,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, isGestor }) {
 
             {/* Desenvolvimento */}
             {o.desenvolvimento_descricao && (
-              <div className="flex items-center gap-1 text-xs text-emerald-700 mb-1">
+              <div className={`flex items-center gap-1 ${z.info} text-emerald-700 mb-1`}>
                 <span className="text-emerald-500">📐</span>
                 <span className="font-medium">{o.desenvolvimento_descricao}</span>
               </div>
@@ -183,7 +190,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, isGestor }) {
 
             {/* Pedido */}
             {o.numero_pedido && (
-              <div className="flex items-center gap-1 text-xs">
+              <div className={`flex items-center gap-1 ${z.info}`}>
                 <ShoppingCart className="w-3 h-3 text-blue-500" />
                 <span className="font-bold text-blue-700">#{o.numero_pedido}</span>
                 {o.cliente && <span className="text-muted-foreground">— {o.cliente}</span>}
@@ -192,21 +199,21 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, isGestor }) {
           </div>
 
           <div className="flex flex-col items-end gap-1 shrink-0">
-            <span className="text-xs font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">{o.quantidade || 0} pç</span>
-            {o.peso_kg > 0 && <span className="text-xs text-muted-foreground">{o.peso_kg}kg</span>}
+            <span className={`${z.info} font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded`}>{o.quantidade || 0} pç</span>
+            {o.peso_kg > 0 && <span className={`${z.info} text-muted-foreground`}>{o.peso_kg}kg</span>}
           </div>
         </div>
 
         {/* Observações */}
         {o.observacoes && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-1.5 text-xs text-yellow-800 mb-3">
+          <div className={`bg-yellow-50 border border-yellow-200 rounded-lg px-3 ${z.obs} text-yellow-800 ${z.mb}`}>
             📋 {o.observacoes}
           </div>
         )}
 
         {/* Pausa ativa */}
         {o.status === "pausado" && o.motivo_pausa && (
-          <div className="bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 text-xs text-amber-800 mb-3 flex items-center gap-2">
+          <div className={`bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 ${z.obs} text-amber-800 ${z.mb} flex items-center gap-2`}>
             <Pause className="w-3 h-3 flex-shrink-0" />
             <span>{o.motivo_pausa === "setup" ? "⚙️ Pausa para Setup de Máquina" : `⏸ Pausa: ${o.motivo_pausa}`}</span>
           </div>
@@ -214,31 +221,31 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, isGestor }) {
 
         {/* Cronômetros */}
         {showCronometro && (
-          <div className="grid grid-cols-3 gap-2 mb-3">
-            <div className={`rounded-lg px-3 py-2 text-center ${o.status === "em_producao" ? "bg-green-50 border border-green-200" : "bg-slate-50 border border-border"}`}>
+          <div className={`grid grid-cols-3 ${z.gap} ${z.mb}`}>
+            <div className={`rounded-lg ${z.cronPad} text-center ${o.status === "em_producao" ? "bg-green-50 border border-green-200" : "bg-slate-50 border border-border"}`}>
               <div className="flex items-center justify-center gap-1 mb-0.5">
                 <Timer className="w-3 h-3 text-green-600" />
-                <span className="text-xs text-muted-foreground">Produção</span>
+                <span className={`${z.cronLabel} text-muted-foreground`}>Produção</span>
               </div>
-              <p className={`text-sm font-bold tabular-nums ${o.status === "em_producao" ? "text-green-700" : "text-slate-600"}`}>
+              <p className={`${z.cronText} font-bold tabular-nums ${o.status === "em_producao" ? "text-green-700" : "text-slate-600"}`}>
                 {formatTempo(tempoProd)}
               </p>
             </div>
-            <div className={`rounded-lg px-3 py-2 text-center ${o.status === "pausado" && o.motivo_pausa !== "setup" ? "bg-amber-50 border border-amber-200" : "bg-slate-50 border border-border"}`}>
+            <div className={`rounded-lg ${z.cronPad} text-center ${o.status === "pausado" && o.motivo_pausa !== "setup" ? "bg-amber-50 border border-amber-200" : "bg-slate-50 border border-border"}`}>
               <div className="flex items-center justify-center gap-1 mb-0.5">
                 <Coffee className="w-3 h-3 text-amber-600" />
-                <span className="text-xs text-muted-foreground">Pausa</span>
+                <span className={`${z.cronLabel} text-muted-foreground`}>Pausa</span>
               </div>
-              <p className={`text-sm font-bold tabular-nums ${o.status === "pausado" && o.motivo_pausa !== "setup" ? "text-amber-700" : "text-slate-600"}`}>
+              <p className={`${z.cronText} font-bold tabular-nums ${o.status === "pausado" && o.motivo_pausa !== "setup" ? "text-amber-700" : "text-slate-600"}`}>
                 {formatTempo(tempoPausa)}
               </p>
             </div>
-            <div className={`rounded-lg px-3 py-2 text-center ${o.status === "pausado" && o.motivo_pausa === "setup" ? "bg-purple-50 border border-purple-200" : "bg-slate-50 border border-border"}`}>
+            <div className={`rounded-lg ${z.cronPad} text-center ${o.status === "pausado" && o.motivo_pausa === "setup" ? "bg-purple-50 border border-purple-200" : "bg-slate-50 border border-border"}`}>
               <div className="flex items-center justify-center gap-1 mb-0.5">
                 <Square className="w-3 h-3 text-purple-600" />
-                <span className="text-xs text-muted-foreground">Setup</span>
+                <span className={`${z.cronLabel} text-muted-foreground`}>Setup</span>
               </div>
-              <p className={`text-sm font-bold tabular-nums ${o.status === "pausado" && o.motivo_pausa === "setup" ? "text-purple-700" : "text-slate-600"}`}>
+              <p className={`${z.cronText} font-bold tabular-nums ${o.status === "pausado" && o.motivo_pausa === "setup" ? "text-purple-700" : "text-slate-600"}`}>
                 {formatTempo(tempoSetup)}
               </p>
             </div>
@@ -268,41 +275,41 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, isGestor }) {
         )}
 
         {/* Ações */}
-        <div className="flex items-center justify-end gap-2 mt-3">
+        <div className={`flex items-center justify-end ${z.gap} mt-3`}>
           {o.status === "pendente" && (
-            <Button size="sm" className="gap-1 bg-amber-500 hover:bg-amber-600 text-white border-0" onClick={handleIniciar}>
+            <Button size="sm" className={`gap-1 ${z.btn} bg-amber-500 hover:bg-amber-600 text-white border-0`} onClick={handleIniciar}>
               <Play className="w-3 h-3" /> Iniciar
             </Button>
           )}
           {o.status === "aguardando_corte" && (
-            <Button size="sm" variant="outline" className="gap-1 border-orange-300 text-orange-600" disabled>
+            <Button size="sm" variant="outline" className={`gap-1 ${z.btn} border-orange-300 text-orange-600`} disabled>
               <Clock className="w-3 h-3" /> Aguardando Corte
             </Button>
           )}
           {o.status === "em_producao" && (
             <>
-              <Button size="sm" variant="outline" className="gap-1 border-amber-300 text-amber-700 hover:bg-amber-50"
+              <Button size="sm" variant="outline" className={`gap-1 ${z.btn} border-amber-300 text-amber-700 hover:bg-amber-50`}
                 onClick={() => { setPauseTipo("setup"); setPauseMotivo(""); setPauseDialog(true); }}>
                 <Pause className="w-3 h-3" /> Pausar
               </Button>
-              <Button size="sm" className="gap-1 bg-green-600 hover:bg-green-700 text-white border-0" onClick={handleFinalizar}>
+              <Button size="sm" className={`gap-1 ${z.btn} bg-green-600 hover:bg-green-700 text-white border-0`} onClick={handleFinalizar}>
                 <CheckCircle2 className="w-3 h-3" /> Finalizar
               </Button>
             </>
           )}
           {o.status === "pausado" && (
-            <Button size="sm" className="gap-1 bg-primary hover:bg-primary/90 text-white border-0" onClick={handleRetomar}>
+            <Button size="sm" className={`gap-1 ${z.btn} bg-primary hover:bg-primary/90 text-white border-0`} onClick={handleRetomar}>
               <Play className="w-3 h-3" /> Retomar
             </Button>
           )}
           {isGestor && o.status === "finalizado" && (
-            <Button size="sm" variant="outline" className="gap-1 text-slate-500"
+            <Button size="sm" variant="outline" className={`gap-1 ${z.btn} text-slate-500`}
               onClick={() => onUpdate(o.id, { status: "pendente", inicio_producao_ts: null })}>
               ↩ Reabrir
             </Button>
           )}
           {isGestor && o.status === "pendente" && (
-            <Button size="sm" variant="outline" className="h-8 text-xs text-red-500 border-red-200"
+            <Button size="sm" variant="outline" className={`${z.btn} text-red-500 border-red-200`}
               onClick={() => onUpdate(o.id, { status: "cancelado" })}>Cancelar</Button>
           )}
         </div>
