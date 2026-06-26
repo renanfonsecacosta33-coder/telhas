@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Tooltip as UITooltip, TooltipTrigger as UITooltipTrigger, TooltipContent as UITooltipContent, TooltipProvider as UITooltipProvider } from "@/components/ui/tooltip";
 import QuickActionDialog from "@/components/corte-dobra/QuickActionDialog";
 import HistoricoBobinas from "@/components/corte-dobra/HistoricoBobinas";
-import { format, subDays, startOfWeek, endOfWeek, startOfMonth } from "date-fns";
+import { format, subDays, addDays, startOfWeek, endOfWeek, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   TrendingUp, CheckCircle2, Clock, AlertTriangle, Package, Factory,
@@ -48,6 +48,9 @@ export default function DashboardCorteDobraCompleto() {
   const [pausedDialogOpen, setPausedDialogOpen] = useState(false);
   const [activeSheetOpen, setActiveSheetOpen] = useState(false);
   const [quickActionOrder, setQuickActionOrder] = useState(null);
+  const [filtroPreset, setFiltroPreset] = useState("semana");
+  const [filtroInicio, setFiltroInicio] = useState(weekStart);
+  const [filtroFim, setFiltroFim] = useState(weekEnd);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const hoje = format(new Date(), "yyyy-MM-dd");
@@ -87,49 +90,51 @@ export default function DashboardCorteDobraCompleto() {
     else updateMaq.mutate({ id: order.id, data });
   };
 
+  const aplicarPreset = (preset) => {
+    setFiltroPreset(preset);
+    if (preset === "hoje") { setFiltroInicio(hoje); setFiltroFim(hoje); }
+    else if (preset === "semana") { setFiltroInicio(weekStart); setFiltroFim(weekEnd); }
+    else if (preset === "mes") { setFiltroInicio(mesStart); setFiltroFim(hoje); }
+  };
+
   const todasOrdens = useMemo(() => [...ordens, ...ordensDesb.map(o => ({ ...o, maquina: "DESBOBINADEIRA", tipo_peca: o.bobina_descricao || "Corte", _desb: true }))], [ordens, ordensDesb]);
 
   // Filtra por máquina selecionada (null = todas)
   const ordensBase = useMemo(() => maquinaSel ? todasOrdens.filter(o => o.maquina === maquinaSel) : todasOrdens, [todasOrdens, maquinaSel]);
 
-  const ordensHoje = useMemo(() => ordensBase.filter(o => o.data === hoje), [ordensBase, hoje]);
-  const ordensSemana = useMemo(() => ordensBase.filter(o => o.data >= weekStart && o.data <= weekEnd), [ordensBase, weekStart, weekEnd]);
-  const ordensMes = useMemo(() => ordensBase.filter(o => o.data >= mesStart && o.data <= hoje), [ordensBase, mesStart, hoje]);
+  const ordensPeriodo = useMemo(() => ordensBase.filter(o => o.data >= filtroInicio && o.data <= filtroFim), [ordensBase, filtroInicio, filtroFim]);
 
   const emProducaoAgora = ordensBase.filter(o => o.status === "em_producao").length;
   const pausadosAgora = ordensBase.filter(o => o.status === "pausado").length;
-  const finalizadosHoje = ordensHoje.filter(o => o.status === "finalizado").length;
-  const pecasHoje = ordensHoje.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
-  const pecasSemana = ordensSemana.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
-  const pecasMes = ordensMes.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
+  const finalizadosPeriodo = ordensPeriodo.filter(o => o.status === "finalizado").length;
+  const pecasPeriodo = ordensPeriodo.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
+  const kgPeriodo = ordensPeriodo.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.peso_kg || o.kg_estimado || 0), 0);
 
-  const kgHoje = ordensHoje.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.peso_kg || o.kg_estimado || 0), 0);
-  const kgSemana = ordensSemana.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.peso_kg || o.kg_estimado || 0), 0);
-  const kgMes = ordensMes.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.peso_kg || o.kg_estimado || 0), 0);
-
-  const tempoProdTotal = ordensHoje.reduce((s, o) => s + (o.tempo_producao_seg || 0), 0);
-  const tempoPausaTotal = ordensHoje.reduce((s, o) => s + (o.tempo_pausa_seg || 0), 0);
-  const tempoSetupTotal = ordensHoje.reduce((s, o) => s + (o.tempo_setup_seg || 0), 0);
+  const tempoProdTotal = ordensPeriodo.reduce((s, o) => s + (o.tempo_producao_seg || 0), 0);
+  const tempoPausaTotal = ordensPeriodo.reduce((s, o) => s + (o.tempo_pausa_seg || 0), 0);
+  const tempoSetupTotal = ordensPeriodo.reduce((s, o) => s + (o.tempo_setup_seg || 0), 0);
   const tempoTotal = tempoProdTotal + tempoPausaTotal + tempoSetupTotal;
   const eficiencia = tempoTotal > 0 ? Math.round((tempoProdTotal / tempoTotal) * 100) : 0;
 
   // Gráfico 7 dias
-  const ultimos7 = useMemo(() => Array.from({ length: 7 }, (_, i) => {
-    const dia = format(subDays(new Date(), 6 - i), "yyyy-MM-dd");
-    const fin = ordensBase.filter(o => o.data === dia && o.status === "finalizado");
-    return {
-      dia: format(new Date(dia + "T12:00:00"), "EEE dd", { locale: ptBR }),
-      pecas: fin.reduce((s, o) => s + (o.quantidade || 0), 0),
-      kg: fin.reduce((s, o) => s + (o.peso_kg || o.kg_estimado || 0), 0),
-      ordens: ordensBase.filter(o => o.data === dia).length,
-    };
-  }), [ordensBase]);
+  const chartData = useMemo(() => {
+    const numDias = Math.min(Math.ceil((new Date(filtroFim + "T12:00:00") - new Date(filtroInicio + "T12:00:00")) / 86400000) + 1, 31);
+    return Array.from({ length: numDias > 0 ? numDias : 0 }, (_, i) => {
+      const dia = format(addDays(new Date(filtroInicio + "T12:00:00"), i), "yyyy-MM-dd");
+      const fin = ordensPeriodo.filter(o => o.data === dia && o.status === "finalizado");
+      return {
+        dia: format(new Date(dia + "T12:00:00"), "EEE dd", { locale: ptBR }),
+        pecas: fin.reduce((s, o) => s + (o.quantidade || 0), 0),
+        kg: fin.reduce((s, o) => s + (o.peso_kg || o.kg_estimado || 0), 0),
+      };
+    });
+  }, [ordensPeriodo, filtroInicio, filtroFim]);
 
   // Por máquina hoje
-  const porMaquinaHoje = useMemo(() => {
+  const porMaquinaPeriodo = useMemo(() => {
     const maqList = [...MAQUINAS_CD, { id: "DESBOBINADEIRA", label: "Desbobinadeira", color: "bg-orange-600", hex: "#ea580c", path: "/corte-dobra/producao" }];
     return maqList.map(m => {
-      const os = ordensHoje.filter(o => o.maquina === m.id);
+      const os = ordensPeriodo.filter(o => o.maquina === m.id);
       return {
         ...m,
         total: os.length,
@@ -140,20 +145,20 @@ export default function DashboardCorteDobraCompleto() {
         pecas: os.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0),
       };
     });
-  }, [ordensHoje]);
+  }, [ordensPeriodo]);
 
   // Mix de peças semana
   const mixPecas = useMemo(() => {
     const map = {};
-    ordensSemana.filter(o => o.status === "finalizado" && o.tipo_peca).forEach(o => {
+    ordensPeriodo.filter(o => o.status === "finalizado" && o.tipo_peca).forEach(o => {
       map[o.tipo_peca] = (map[o.tipo_peca] || 0) + (o.quantidade || 0);
     });
     return Object.entries(map).map(([nome, qtd]) => ({ nome, qtd })).sort((a, b) => b.qtd - a.qtd).slice(0, 6);
-  }, [ordensSemana]);
+  }, [ordensPeriodo]);
 
   // Histórico de bobinas utilizadas (semana)
   const historicoBobinas = useMemo(() => {
-    const finOrdens = ordensSemana.filter(o => o.status === "finalizado" && (o.bobina_id || o.bobina_descricao));
+    const finOrdens = ordensPeriodo.filter(o => o.status === "finalizado" && (o.bobina_id || o.bobina_descricao));
     const map = {};
     finOrdens.forEach(o => {
       const key = o.bobina_id || o.bobina_descricao;
@@ -165,7 +170,7 @@ export default function DashboardCorteDobraCompleto() {
       map[key].ordens.push({ maquina: o.maquina, tipo_peca: o.tipo_peca || o.bobina_descricao, quantidade: o.quantidade, data: o.data, kg: o.peso_kg || o.kg_estimado || 0 });
     });
     return Object.values(map).sort((a, b) => b.kg_total - a.kg_total).slice(0, 8);
-  }, [ordensSemana]);
+  }, [ordensPeriodo]);
 
   // Estoque bobinas
   const totalPeso = bobinas.reduce((s, b) => s + (b.peso_kg || 0), 0);
@@ -221,6 +226,21 @@ export default function DashboardCorteDobraCompleto() {
         ))}
       </div>
 
+      {/* Filtro de Período */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1 bg-muted rounded-xl p-1">
+          <button onClick={() => aplicarPreset("hoje")} className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all duration-200 ${filtroPreset === "hoje" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>Hoje</button>
+          <button onClick={() => aplicarPreset("semana")} className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all duration-200 ${filtroPreset === "semana" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>Esta Semana</button>
+          <button onClick={() => aplicarPreset("mes")} className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all duration-200 ${filtroPreset === "mes" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>Este Mês</button>
+          <button onClick={() => setFiltroPreset("custom")} className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all duration-200 ${filtroPreset === "custom" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>Personalizado</button>
+        </div>
+        <div className="flex items-center gap-2">
+          <input type="date" value={filtroInicio} onChange={(e) => { setFiltroInicio(e.target.value); setFiltroPreset("custom"); }} className="text-xs border border-border rounded-lg px-2 py-1.5 bg-card cursor-pointer" />
+          <span className="text-xs text-muted-foreground font-medium">até</span>
+          <input type="date" value={filtroFim} onChange={(e) => { setFiltroFim(e.target.value); setFiltroPreset("custom"); }} className="text-xs border border-border rounded-lg px-2 py-1.5 bg-card cursor-pointer" />
+        </div>
+      </div>
+
       {/* Alertas */}
       {(bobinasCriticas.length > 0 || pausadosAgora > 0) && (
         <div className="flex flex-wrap gap-2">
@@ -250,9 +270,9 @@ export default function DashboardCorteDobraCompleto() {
           {/* KPIs principais */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: "Peças Hoje", value: pecasHoje > 0 ? pecasHoje : "—", sub: "finalizadas", icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50", onClick: () => navigate("/corte-dobra/producao") },
+              { label: "Peças no Período", value: pecasPeriodo > 0 ? pecasPeriodo : "—", sub: "finalizadas", icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50", onClick: () => navigate("/corte-dobra/producao") },
               { label: "Em Produção", value: emProducaoAgora || "—", sub: "ordens ativas", icon: Zap, color: "text-amber-600", bg: "bg-amber-50", onClick: () => setActiveSheetOpen(true) },
-              { label: "Finalizados Hoje", value: finalizadosHoje || "—", sub: "ordens", icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50", onClick: () => navigate("/corte-dobra/producao") },
+              { label: "Finalizados no Período", value: finalizadosPeriodo || "—", sub: "ordens", icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50", onClick: () => navigate("/corte-dobra/producao") },
               { label: "Eficiência", value: tempoTotal > 0 ? `${eficiencia}%` : "—", sub: "tempo produtivo/total", icon: Activity, color: eficiencia >= 70 ? "text-green-600" : eficiencia >= 50 ? "text-amber-600" : "text-red-600", bg: eficiencia >= 70 ? "bg-green-50" : eficiencia >= 50 ? "bg-amber-50" : "bg-red-50", tooltip: `Proporção entre tempo produtivo e tempo total (incluindo pausas e setup). Atual: ${eficiencia}% do tempo foi gasto produzindo.` },
               ].map(k => (
               <div key={k.label} onClick={k.onClick} title={k.tooltip}
@@ -270,13 +290,11 @@ export default function DashboardCorteDobraCompleto() {
           </div>
 
           {/* KPIs secundários */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             {[
-               { label: "KG Hoje", value: kgHoje > 0 ? `${kgHoje.toFixed(0)}kg` : "—", icon: Weight, color: "text-orange-600" },
-               { label: "KG Esta Semana", value: kgSemana > 0 ? `${kgSemana.toFixed(0)}kg` : "—", icon: Weight, color: "text-amber-600" },
-               { label: "Peças Esta Semana", value: pecasSemana || "—", icon: Calendar, color: "text-indigo-600" },
-               { label: "Peças Este Mês", value: pecasMes || "—", icon: Target, color: "text-purple-600" },
-               { label: "Ordens Semana", value: ordensSemana.length || "—", icon: Layers, color: "text-slate-600" },
+               { label: "KG no Período", value: kgPeriodo > 0 ? `${kgPeriodo.toFixed(0)}kg` : "—", icon: Weight, color: "text-orange-600" },
+               { label: "Ordens no Período", value: ordensPeriodo.length || "—", icon: Layers, color: "text-slate-600" },
+               { label: "Pausadas Agora", value: pausadosAgora || "✓", icon: Pause, color: pausadosAgora > 0 ? "text-purple-600" : "text-green-600" },
              ].map(k => (
               <div key={k.label} className="bg-card border border-border rounded-xl p-3 flex items-center gap-3">
                 <k.icon className={`w-4 h-4 ${k.color} flex-shrink-0`} />
@@ -292,10 +310,10 @@ export default function DashboardCorteDobraCompleto() {
           {!maquinaSel && (
           <div>
             <h2 className="font-bold text-sm mb-3 flex items-center gap-2">
-              <Scissors className="w-4 h-4 text-orange-500" /> Status das Máquinas — Hoje
+              <Scissors className="w-4 h-4 text-orange-500" /> Status das Máquinas — Período
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-              {porMaquinaHoje.map(m => (
+              {porMaquinaPeriodo.map(m => (
                 <Link key={m.id} to={m.path}>
                   <div className="bg-card border border-border rounded-xl p-3 hover:shadow-md transition-all group cursor-pointer h-full">
                     <div className="flex items-center gap-1.5 mb-2">
@@ -333,25 +351,25 @@ export default function DashboardCorteDobraCompleto() {
                 <UITooltip>
                   <UITooltipTrigger asChild>
                     <h2 className="font-bold text-sm flex items-center gap-2 cursor-help">
-                      <BarChart2 className="w-4 h-4 text-orange-500" /> Peças Cortadas — Últimos 7 Dias
+                      <BarChart2 className="w-4 h-4 text-orange-500" /> Peças e KG — Período
                     </h2>
                   </UITooltipTrigger>
                   <UITooltipContent>Mostra a quantidade de peças finalizadas por dia nos últimos 7 dias. A barra laranja destaca o dia de hoje.</UITooltipContent>
                 </UITooltip>
-                <Badge className="bg-orange-100 text-orange-700 border-orange-200 text-xs">Semana: {pecasSemana} pç · {kgSemana.toFixed(0)}kg</Badge>
+                <Badge className="bg-orange-100 text-orange-700 border-orange-200 text-xs">{pecasPeriodo} pç · {kgPeriodo.toFixed(0)}kg</Badge>
               </div>
               </UITooltipProvider>
               <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={ultimos7} barCategoryGap="30%">
+                <BarChart data={chartData} barCategoryGap="30%">
                   <XAxis dataKey="dia" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={35} />
-                  <Tooltip formatter={(v, name) => [name === "kg" ? `${v}kg` : `${v} pç`, name === "kg" ? "KG Produzidos" : "Peças"]} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
+                  <Tooltip formatter={(v, name) => [name === "KG" ? `${v}kg` : `${v} pç`, name === "KG" ? "KG Produzidos" : "Peças"]} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Bar dataKey="pecas" name="Peças" radius={[6, 6, 0, 0]}>
-                    {ultimos7.map((_, i) => <Cell key={i} fill={i === 6 ? "#f97316" : "#fed7aa"} />)}
+                    {chartData.map((_, i) => <Cell key={i} fill={i === chartData.length - 1 ? "#f97316" : "#fed7aa"} />)}
                   </Bar>
                   <Bar dataKey="kg" name="KG" radius={[6, 6, 0, 0]}>
-                    {ultimos7.map((_, i) => <Cell key={i} fill={i === 6 ? "#f59e0b" : "#fde68a"} />)}
+                    {chartData.map((_, i) => <Cell key={i} fill={i === chartData.length - 1 ? "#f59e0b" : "#fde68a"} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -396,7 +414,7 @@ export default function DashboardCorteDobraCompleto() {
             {tempoTotal > 0 && (
               <div className="bg-card border border-border rounded-xl p-4">
                 <h2 className="font-bold text-sm mb-3 flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-primary" /> Distribuição de Tempo Hoje ({formatTempo(tempoTotal)})
+                  <Clock className="w-4 h-4 text-primary" /> Distribuição de Tempo — Período ({formatTempo(tempoTotal)})
                 </h2>
                 <div className="grid grid-cols-3 gap-3">
                   {[
@@ -422,7 +440,7 @@ export default function DashboardCorteDobraCompleto() {
 
             <div className="bg-card border border-border rounded-xl p-4">
               <h2 className="font-bold text-sm mb-3 flex items-center gap-2">
-                <Layers className="w-4 h-4 text-purple-500" /> Mix de Peças — Esta Semana
+                <Layers className="w-4 h-4 text-purple-500" /> Mix de Peças — Período
               </h2>
               {mixPecas.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-8">Sem dados esta semana</p>

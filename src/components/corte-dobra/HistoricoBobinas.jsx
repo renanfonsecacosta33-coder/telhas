@@ -11,7 +11,7 @@ export default function HistoricoBobinas({ historico }) {
     return (
       <div className="bg-card border border-border rounded-xl p-4">
         <h2 className="font-bold text-sm mb-3 flex items-center gap-2">
-          <Weight className="w-4 h-4 text-orange-500" /> Histórico de Bobinas Utilizadas — Esta Semana
+          <Weight className="w-4 h-4 text-orange-500" /> Histórico de Bobinas — Período
         </h2>
         <p className="text-xs text-muted-foreground text-center py-8">Sem dados esta semana</p>
       </div>
@@ -21,7 +21,7 @@ export default function HistoricoBobinas({ historico }) {
   return (
     <div className="bg-card border border-border rounded-xl p-4">
       <h2 className="font-bold text-sm mb-3 flex items-center gap-2">
-        <Weight className="w-4 h-4 text-orange-500" /> Histórico de Bobinas Utilizadas — Esta Semana
+        <Weight className="w-4 h-4 text-orange-500" /> Histórico de Bobinas — Período
       </h2>
       <div className="space-y-2">
         {historico.map((b, idx) => (
