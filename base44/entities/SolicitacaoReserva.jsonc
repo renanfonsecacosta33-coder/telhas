@@ -74,5 +74,11 @@
     "setor",
     "bobina_id",
     "vendedor_nome"
-  ]
+  ],
+  "rls": {
+    "create": {},
+    "read": {},
+    "update": {},
+    "delete": {}
+  }
 }

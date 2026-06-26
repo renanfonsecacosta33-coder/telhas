@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { CheckCircle2, XCircle, Clock, BookmarkPlus } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
 
 const STATUS_CONFIG = {
   pendente:  { label: "Pendente",  color: "bg-yellow-100 text-yellow-800 border-yellow-200",  icon: Clock },
@@ -25,29 +26,37 @@ function AvaliarDialog({ solicitacao, onClose }) {
 
   const avaliar = async (decisao) => {
     setSaving(true);
-    await base44.entities.SolicitacaoReserva.update(solicitacao.id, {
-      status: decisao,
-      resposta_admin: resposta,
-      admin_nome: adminNome,
-      data_avaliacao: new Date().toISOString().split("T")[0],
-    });
-
-    // Se aprovada, efetiva a reserva na bobina
-    if (decisao === "aprovada") {
-      await base44.entities.Bobina.update(solicitacao.bobina_id, {
-        reservada: true,
-        reserva_tipo: solicitacao.reserva_tipo,
-        reserva_kg: solicitacao.reserva_kg || undefined,
-        reserva_numero_pedido: solicitacao.numero_pedido,
-        reserva_motivo: solicitacao.motivo,
-        reserva_autorizado_por: adminNome,
-        reserva_data: new Date().toISOString().split("T")[0],
+    try {
+      await base44.entities.SolicitacaoReserva.update(solicitacao.id, {
+        status: decisao,
+        resposta_admin: resposta,
+        admin_nome: adminNome,
+        data_avaliacao: new Date().toISOString().split("T")[0],
       });
-    }
 
-    qc.invalidateQueries({ queryKey: ["solicitacoes-reserva"] });
-    setSaving(false);
-    onClose();
+      // Se aprovada, efetiva a reserva na bobina
+      if (decisao === "aprovada") {
+        await base44.entities.Bobina.update(solicitacao.bobina_id, {
+          reservada: true,
+          reserva_tipo: solicitacao.reserva_tipo,
+          reserva_kg: solicitacao.reserva_kg || undefined,
+          reserva_numero_pedido: solicitacao.numero_pedido,
+          reserva_motivo: solicitacao.motivo,
+          reserva_autorizado_por: adminNome,
+          reserva_data: new Date().toISOString().split("T")[0],
+        });
+      }
+
+      qc.invalidateQueries({ queryKey: ["solicitacoes-reserva"] });
+      qc.invalidateQueries({ queryKey: ["bobinas"] });
+      toast.success(decisao === "aprovada" ? "Solicitação aprovada e reserva efetivada!" : "Solicitação recusada.");
+      onClose();
+    } catch (error) {
+      const detail = error?.response?.data?.detail || error?.response?.data?.message || error?.message || "Erro ao avaliar solicitação";
+      toast.error(detail);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
