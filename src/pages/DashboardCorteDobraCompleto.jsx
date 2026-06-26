@@ -43,6 +43,11 @@ const MAQUINAS_COMPLETO = [
 ];
 
 export default function DashboardCorteDobraCompleto() {
+  const hoje = format(new Date(), "yyyy-MM-dd");
+  const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
+  const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
+  const mesStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
+
   const [aba, setAba] = useState("producao");
   const [maquinaSel, setMaquinaSel] = useState(null); // null = Geral
   const [pausedDialogOpen, setPausedDialogOpen] = useState(false);
@@ -53,10 +58,6 @@ export default function DashboardCorteDobraCompleto() {
   const [filtroFim, setFiltroFim] = useState(weekEnd);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const hoje = format(new Date(), "yyyy-MM-dd");
-  const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
-  const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
-  const mesStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
 
   const { data: ordens = [] } = useQuery({
     queryKey: ["ordens-maquina-cd-dash"],
