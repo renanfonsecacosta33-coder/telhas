@@ -194,6 +194,27 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                 <span className="font-semibold text-emerald-700">≈ {o.kg_estimado.toFixed(1)} kg</span>
               )}
             </div>
+            <div className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 ${z.info} text-muted-foreground mt-1`}>
+              {o.numero_pedido && (
+                <span className="inline-flex items-center gap-1">
+                  <span className="text-muted-foreground/70">Pedido:</span>
+                  <span className="font-semibold text-foreground font-mono">{o.numero_pedido}</span>
+                </span>
+              )}
+              {o.cliente && (
+                <span className="inline-flex items-center gap-1">
+                  <span className="text-muted-foreground/70">Cliente:</span>
+                  <span className="font-semibold text-foreground">{o.cliente}</span>
+                </span>
+              )}
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                o.destino === "pedido_direto"
+                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                  : "bg-green-50 text-green-700 border-green-200"
+              }`}>
+                {o.destino === "pedido_direto" ? "📦 Pedido direto" : "🏭 Estoque"}
+              </span>
+            </div>
           </div>
         </div>
 
