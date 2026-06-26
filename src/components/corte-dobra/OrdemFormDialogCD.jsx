@@ -9,12 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale } from "lucide-react";
+import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle } from "lucide-react";
 
 function labelBobina(b) {
   const parts = [];
   if (b.codigo) parts.push(`[${b.codigo}]`);
-  if (b.chapa) parts.push(b.chapa);
+  if (b.espessura_utilizada) parts.push(b.espessura_utilizada);
+  else if (b.chapa) parts.push(b.chapa);
   if (b.cor) parts.push(b.cor);
   if (b.largura_mm) parts.push(`${b.largura_mm}mm`);
   return parts.join(" · ");
@@ -68,6 +69,12 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     enabled: open,
   });
 
+  const { data: todasOrdens = [] } = useQuery({
+    queryKey: ["ordens-desbobinadeira"],
+    queryFn: () => base44.entities.OrdemDesbobinadeira.list("-data", 500),
+    enabled: open,
+  });
+
   useEffect(() => {
     if (!open) return;
     if (editItem) {
@@ -101,16 +108,29 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   const metrosRestantes = calcMetragem(bobinaObj);
   const kgEstimado = calcKgEstimado(bobinaObj, form.comprimento_mm, form.quantidade);
 
+  // Pré-baixa: soma KG das ordens ativas (pendente/em_producao/pausado) da mesma bobina
+  const ordensDaBobina = todasOrdens.filter(o =>
+    o.bobina_id === form.bobina_id &&
+    o.id !== editItem?.id &&
+    ["pendente", "em_producao", "pausado"].includes(o.status)
+  );
+  const preReservadoKg = ordensDaBobina.reduce((s, o) => s + (o.kg_estimado || 0), 0);
+  const pesoBobina = bobinaObj?.peso_kg || 0;
+  const pesoDisponivel = Math.max(0, pesoBobina - preReservadoKg);
+  const excedePeso = kgEstimado !== null && kgEstimado > pesoDisponivel;
+
   const handleSave = () => {
     if (!form.bobina_id) { alert("Selecione a bobina."); return; }
     if (!form.comprimento_mm || Number(form.comprimento_mm) <= 0) { alert("Informe o comprimento de corte em mm."); return; }
     if (!form.quantidade || Number(form.quantidade) <= 0) { alert("Informe a quantidade de chapas."); return; }
     if (form.destino === "pedido_direto" && !form.numero_pedido) { alert("Informe o número do pedido."); return; }
+    if (excedePeso) { alert(`KG estimado (${kgEstimado.toFixed(1)} kg) excede o peso disponível na bobina (${pesoDisponivel.toFixed(1)} kg).\n\nPeso da bobina: ${pesoBobina.toFixed(1)} kg\nPré-reservado por outras ordens: ${preReservadoKg.toFixed(1)} kg\n\nReduza a quantidade ou escolha outra bobina.`); return; }
 
     const bobinaSnap = bobinaObj ? labelBobina(bobinaObj) : "";
     onSave({
       ...form,
       bobina_descricao: bobinaSnap,
+      espessura_utilizada: bobinaObj?.espessura_utilizada || bobinaObj?.chapa || "",
       comprimento_mm: Number(form.comprimento_mm),
       quantidade: Number(form.quantidade),
       kg_estimado: kgEstimado ? Math.round(kgEstimado * 100) / 100 : null,
@@ -154,7 +174,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                     <SelectItem key={b.id} value={b.id} disabled={isReservadaParaOutro}>
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono font-bold text-sm">{b.codigo || "—"}</span>
-                        {b.chapa && <span className="text-muted-foreground text-xs">{b.chapa}mm</span>}
+                        {(b.espessura_utilizada || b.chapa) && <span className="text-muted-foreground text-xs">{b.espessura_utilizada || b.chapa}mm</span>}
                         {b.cor && <span className="text-blue-600 text-xs font-medium">{b.cor}</span>}
                         {b.largura_mm && <span className="text-xs text-muted-foreground">{b.largura_mm}mm larg.</span>}
                         {b.peso_kg && <span className="text-xs text-muted-foreground">{b.peso_kg}kg</span>}
@@ -180,8 +200,8 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
                   <div>
-                    <p className="text-muted-foreground uppercase tracking-wide text-[10px] mb-0.5">Espessura</p>
-                    <p className="font-bold text-foreground">{bobinaObj.chapa ? `${bobinaObj.chapa}mm` : "—"}</p>
+                    <p className="text-muted-foreground uppercase tracking-wide text-[10px] mb-0.5">Espessura Utilizada</p>
+                    <p className="font-bold text-foreground">{bobinaObj.espessura_utilizada ? `${bobinaObj.espessura_utilizada}mm` : bobinaObj.chapa ? `${bobinaObj.chapa}mm` : "—"}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground uppercase tracking-wide text-[10px] mb-0.5">Largura</p>
@@ -258,14 +278,29 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
             </div>
           </div>
 
-          {/* KG Estimado */}
+          {/* KG Estimado + Pré-baixa */}
           {kgEstimado !== null && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex items-center gap-3">
-              <Scale className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-              <div>
-                <p className="text-xs text-emerald-600 font-semibold uppercase tracking-wide">KG Estimado das Chapas</p>
-                <p className="text-2xl font-black text-emerald-700">{kgEstimado.toFixed(1)} <span className="text-sm font-normal">kg</span></p>
-                <p className="text-xs text-emerald-500">Será descontado da bobina ao finalizar</p>
+            <div className={`rounded-xl px-4 py-3 space-y-2 ${excedePeso ? "bg-red-50 border border-red-200" : "bg-emerald-50 border border-emerald-200"}`}>
+              <div className="flex items-center gap-3">
+                <Scale className={`w-5 h-5 flex-shrink-0 ${excedePeso ? "text-red-600" : "text-emerald-600"}`} />
+                <div>
+                  <p className={`text-xs font-semibold uppercase tracking-wide ${excedePeso ? "text-red-600" : "text-emerald-600"}`}>KG Estimado das Chapas</p>
+                  <p className={`text-2xl font-black ${excedePeso ? "text-red-700" : "text-emerald-700"}`}>{kgEstimado.toFixed(1)} <span className="text-sm font-normal">kg</span></p>
+                </div>
+              </div>
+              <div className="text-xs space-y-0.5 pl-8">
+                <p className="text-muted-foreground">Peso atual da bobina: <strong>{pesoBobina.toFixed(1)} kg</strong></p>
+                {preReservadoKg > 0 && (
+                  <p className="text-amber-600">Pré-reservado por outras ordens: <strong>{preReservadoKg.toFixed(1)} kg</strong></p>
+                )}
+                <p className={excedePeso ? "text-red-600 font-bold" : "text-emerald-600 font-semibold"}>
+                  Disponível para esta ordem: <strong>{pesoDisponivel.toFixed(1)} kg</strong>
+                </p>
+                {excedePeso && (
+                  <p className="text-red-600 font-bold flex items-center gap-1 mt-1">
+                    <AlertCircle className="w-3.5 h-3.5" /> KG estimado excede o peso disponível!
+                  </p>
+                )}
               </div>
             </div>
           )}

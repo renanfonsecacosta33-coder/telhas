@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2 } from "lucide-react";
+import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers } from "lucide-react";
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
 
@@ -185,6 +185,11 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
           <div className="flex-1 min-w-0">
             <div className={`flex items-center ${z.gap} flex-wrap mb-1`}>
               <span className={`font-bold ${z.title} font-mono text-orange-600`}>{o.bobina_descricao || "Bobina"}</span>
+              {o.espessura_utilizada && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                  <Layers className="w-3 h-3" /> {o.espessura_utilizada}mm
+                </span>
+              )}
               <StatusBadge status={o.status} />
             </div>
             <div className={`flex flex-wrap gap-x-4 gap-y-0.5 ${z.info} text-muted-foreground`}>
