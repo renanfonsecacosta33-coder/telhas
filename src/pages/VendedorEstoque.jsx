@@ -151,12 +151,22 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
 
   // Mapa: bobina_id -> { maquina, status }
   const statusMap = {};
+  const reservadoKgMap = {};
   ordensAtivas.forEach(o => {
     if (setor === "telhas") {
-      if (o.bobina_superior_id) statusMap[o.bobina_superior_id] = { maquina: o.maquina || "Produção", status: o.status };
-      if (o.bobina_inferior_id) statusMap[o.bobina_inferior_id] = { maquina: o.maquina || "Produção", status: o.status };
+      if (o.bobina_superior_id) {
+        statusMap[o.bobina_superior_id] = { maquina: o.maquina || "Produção", status: o.status };
+        reservadoKgMap[o.bobina_superior_id] = (reservadoKgMap[o.bobina_superior_id] || 0) + (o.kg_superior || 0);
+      }
+      if (o.bobina_inferior_id) {
+        statusMap[o.bobina_inferior_id] = { maquina: o.maquina || "Produção", status: o.status };
+        reservadoKgMap[o.bobina_inferior_id] = (reservadoKgMap[o.bobina_inferior_id] || 0) + (o.kg_inferior || 0);
+      }
     } else {
-      if (o.bobina_id) statusMap[o.bobina_id] = { maquina: "Desbobinadeira", status: o.status };
+      if (o.bobina_id) {
+        statusMap[o.bobina_id] = { maquina: "Desbobinadeira", status: o.status };
+        reservadoKgMap[o.bobina_id] = (reservadoKgMap[o.bobina_id] || 0) + (o.kg_estimado || 0);
+      }
     }
   });
 
@@ -276,6 +286,9 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                   <th className="text-left px-3 py-2.5 whitespace-nowrap bg-amber-50/60">Esp. Util.</th>
                   <th className="text-left px-3 py-2.5 whitespace-nowrap">Largura</th>
                   <th className="text-right px-3 py-2.5 whitespace-nowrap">Peso (kg)</th>
+                  <th className="text-right px-3 py-2.5 whitespace-nowrap">Peso Inicial</th>
+                  <th className="text-right px-3 py-2.5 whitespace-nowrap bg-amber-50/60">Reservado</th>
+                  <th className="text-right px-3 py-2.5 whitespace-nowrap bg-emerald-50/60">Disponível</th>
                   <th className="text-left px-3 py-2.5 whitespace-nowrap">Status</th>
                   <th className="text-center px-3 py-2.5 whitespace-nowrap">Cert.</th>
                   <th className="px-3 py-2.5"></th>
@@ -307,6 +320,9 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">{b.largura_mm ? `${b.largura_mm} mm` : "-"}</td>
                     <td className="px-3 py-2.5 text-right font-semibold whitespace-nowrap">{b.peso_kg ? `${b.peso_kg.toLocaleString("pt-BR")} kg` : "-"}</td>
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground">{b.peso_inicial ? `${b.peso_inicial.toLocaleString("pt-BR")} kg` : "-"}</td>
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50/40 font-semibold text-amber-800">{reservadoKgMap[b.id] ? `${reservadoKgMap[b.id].toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : "-"}</td>
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap bg-emerald-50/40 font-bold text-emerald-700">{(b.peso_kg || 0) - (reservadoKgMap[b.id] || 0) > 0 ? `${((b.peso_kg || 0) - (reservadoKgMap[b.id] || 0)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : "-"}</td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       {b.reservada ? (
                         <span className="text-xs font-semibold bg-amber-200 text-amber-800 px-2 py-0.5 rounded" title={`Reservada por: ${b.reserva_autorizado_por || "Admin"} — Pedido: ${b.reserva_numero_pedido || "-"}`}>
