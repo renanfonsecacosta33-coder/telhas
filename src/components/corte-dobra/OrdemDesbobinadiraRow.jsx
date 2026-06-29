@@ -191,6 +191,9 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                 </span>
               )}
               <StatusBadge status={o.status} />
+              {o.data < format(new Date(), "yyyy-MM-dd") && o.status !== "finalizado" && o.status !== "cancelado" && (
+                <Badge className="bg-red-500 text-white border-red-600 animate-pulse text-xs">⚠️ Prioridade (Dia Anterior)</Badge>
+              )}
             </div>
             <div className={`flex flex-wrap gap-x-4 gap-y-0.5 ${z.info} text-muted-foreground`}>
               {o.quantidade > 0 && <span className="font-semibold text-foreground">{o.quantidade} peças</span>}

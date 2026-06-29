@@ -44,13 +44,25 @@ export default function Desbobinadeira() {
     return ordens.filter(o => o.data >= s && o.data <= e);
   }, [ordens, weekStart, weekEnd]);
 
-  const ordensDia = useMemo(
-    () => [...ordens.filter(o => o.data === selectedDay)].sort((a, b) => {
+  const ordensDia = useMemo(() => {
+    const hoje = format(new Date(), "yyyy-MM-dd");
+    const isHoje = selectedDay === hoje;
+    const doDia = ordens.filter(o => o.data === selectedDay);
+    if (!isHoje) {
+      return doDia.sort((a, b) => {
+        const ord = { em_producao: 0, pausado: 1, pendente: 2, finalizado: 3, cancelado: 4 };
+        return (ord[a.status] ?? 2) - (ord[b.status] ?? 2);
+      });
+    }
+    const atrasadas = ordens.filter(o => o.data < hoje && o.status !== "finalizado" && o.status !== "cancelado");
+    return [...atrasadas, ...doDia].sort((a, b) => {
+      const aAtrasada = a.data < hoje ? 0 : 1;
+      const bAtrasada = b.data < hoje ? 0 : 1;
+      if (aAtrasada !== bAtrasada) return aAtrasada - bAtrasada;
       const ord = { em_producao: 0, pausado: 1, pendente: 2, finalizado: 3, cancelado: 4 };
       return (ord[a.status] ?? 2) - (ord[b.status] ?? 2);
-    }),
-    [ordens, selectedDay]
-  );
+    });
+  }, [ordens, selectedDay]);
 
   const updateOrdem = useMutation({
     mutationFn: ({ id, data }) => base44.entities.OrdemDesbobinadeira.update(id, data),

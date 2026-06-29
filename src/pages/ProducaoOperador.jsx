@@ -40,7 +40,10 @@ export default function ProducaoOperador({ maquina, userName }) {
   });
 
   const pedidosDia = useMemo(() => {
-    return pedidos.filter(p => p.data === selectedDay);
+    const hoje = format(new Date(), "yyyy-MM-dd");
+    if (selectedDay !== hoje) return pedidos.filter(p => p.data === selectedDay);
+    const atrasados = pedidos.filter(p => p.data < hoje && p.status !== "finalizado" && p.status !== "cancelado");
+    return [...atrasados, ...pedidos.filter(p => p.data === selectedDay)];
   }, [pedidos, selectedDay]);
 
   const totalDia = pedidosDia.reduce((s, p) => s + (p.metros || 0), 0);
@@ -116,6 +119,10 @@ export default function ProducaoOperador({ maquina, userName }) {
         <div className="space-y-3">
           {pedidosDia
             .sort((a, b) => {
+              const hoje = format(new Date(), "yyyy-MM-dd");
+              const aAtrasado = a.data < hoje ? 0 : 1;
+              const bAtrasado = b.data < hoje ? 0 : 1;
+              if (aAtrasado !== bAtrasado) return aAtrasado - bAtrasado;
               const order = { em_producao: 0, pendente: 1, finalizado: 2, cancelado: 3 };
               return (order[a.status] || 1) - (order[b.status] || 1);
             })
@@ -132,6 +139,9 @@ export default function ProducaoOperador({ maquina, userName }) {
                           <Icon className="w-3 h-3 mr-1" />
                           {st.label}
                         </Badge>
+                        {p.data < format(new Date(), "yyyy-MM-dd") && p.status !== "finalizado" && p.status !== "cancelado" && (
+                          <Badge className="bg-red-500 text-white border-red-600 animate-pulse text-xs">⚠️ Prioridade (Dia Anterior)</Badge>
+                        )}
                       </div>
                       {p.cliente && <p className="text-sm text-muted-foreground mt-0.5">Cliente: <span className="font-medium text-foreground">{p.cliente}</span></p>}
                       {p.numero_pedido && <p className="text-xs text-muted-foreground">Pedido: #{p.numero_pedido}</p>}

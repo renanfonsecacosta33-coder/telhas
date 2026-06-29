@@ -49,13 +49,25 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     return ordensDaMaquina.filter(o => o.data >= s && o.data <= e);
   }, [ordensDaMaquina, weekStart, weekEnd]);
 
-  const ordensDia = useMemo(
-    () => ordensDaMaquina.filter(o => o.data === selectedDay).sort((a, b) => {
+  const ordensDia = useMemo(() => {
+    const hoje = format(new Date(), "yyyy-MM-dd");
+    const isHoje = selectedDay === hoje;
+    const doDia = ordensDaMaquina.filter(o => o.data === selectedDay);
+    if (!isHoje) {
+      return doDia.sort((a, b) => {
+        const ord = { em_producao: 0, pausado: 1, aguardando_corte: 2, pendente: 3, finalizado: 4, cancelado: 5 };
+        return (ord[a.status] ?? 3) - (ord[b.status] ?? 3);
+      });
+    }
+    const atrasadas = ordensDaMaquina.filter(o => o.data < hoje && o.status !== "finalizado" && o.status !== "cancelado");
+    return [...atrasadas, ...doDia].sort((a, b) => {
+      const aAtrasada = a.data < hoje ? 0 : 1;
+      const bAtrasada = b.data < hoje ? 0 : 1;
+      if (aAtrasada !== bAtrasada) return aAtrasada - bAtrasada;
       const ord = { em_producao: 0, pausado: 1, aguardando_corte: 2, pendente: 3, finalizado: 4, cancelado: 5 };
       return (ord[a.status] ?? 3) - (ord[b.status] ?? 3);
-    }),
-    [ordensDaMaquina, selectedDay]
-  );
+    });
+  }, [ordensDaMaquina, selectedDay]);
 
   const updateMaq = useMutation({
     mutationFn: ({ id, data }) => base44.entities.OrdemMaquinaCD.update(id, data),

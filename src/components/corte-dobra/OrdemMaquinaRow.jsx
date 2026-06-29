@@ -199,6 +199,9 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, isGestor, zoom = "
                 <span className={`${z.info} text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded`}>{o.dimensoes_livres}</span>
               )}
               <StatusBadge status={o.status} />
+              {o.data < format(new Date(), "yyyy-MM-dd") && o.status !== "finalizado" && o.status !== "cancelado" && (
+                <Badge className="bg-red-500 text-white border-red-600 animate-pulse text-xs">⚠️ Prioridade (Dia Anterior)</Badge>
+              )}
             </div>
 
             {/* Material */}

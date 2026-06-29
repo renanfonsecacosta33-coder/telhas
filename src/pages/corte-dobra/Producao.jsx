@@ -113,8 +113,19 @@ export default function ProducaoCD() {
     return ordens.filter(o => o.data >= s && o.data <= e);
   }, [ordens, weekStart, weekEnd]);
 
-  const ordensDia = useMemo(() => ordens.filter(o => o.data === selectedDay), [ordens, selectedDay]);
-  const ordensMaqDia = useMemo(() => ordensMaq.filter(o => o.data === selectedDay), [ordensMaq, selectedDay]);
+  const ordensDia = useMemo(() => {
+    const hoje = format(new Date(), "yyyy-MM-dd");
+    if (selectedDay !== hoje) return ordens.filter(o => o.data === selectedDay);
+    const atrasadas = ordens.filter(o => o.data < hoje && o.status !== "finalizado" && o.status !== "cancelado");
+    return [...atrasadas, ...ordens.filter(o => o.data === selectedDay)];
+  }, [ordens, selectedDay]);
+
+  const ordensMaqDia = useMemo(() => {
+    const hoje = format(new Date(), "yyyy-MM-dd");
+    if (selectedDay !== hoje) return ordensMaq.filter(o => o.data === selectedDay);
+    const atrasadas = ordensMaq.filter(o => o.data < hoje && o.status !== "finalizado" && o.status !== "cancelado");
+    return [...atrasadas, ...ordensMaq.filter(o => o.data === selectedDay)];
+  }, [ordensMaq, selectedDay]);
 
   const totalSemanaOrdens = ordensSemana.length;
   const totalSemanaPecas = ordensSemana.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
@@ -138,6 +149,10 @@ export default function ProducaoCD() {
   };
 
   const ordensDiaOrdenadas = [...ordensDia].sort((a, b) => {
+    const hoje = format(new Date(), "yyyy-MM-dd");
+    const aAtrasada = a.data < hoje ? 0 : 1;
+    const bAtrasada = b.data < hoje ? 0 : 1;
+    if (aAtrasada !== bAtrasada) return aAtrasada - bAtrasada;
     const order = { em_producao: 0, pausado: 1, pendente: 2, finalizado: 3, cancelado: 4 };
     return (order[a.status] ?? 2) - (order[b.status] ?? 2);
   });
@@ -313,6 +328,10 @@ export default function ProducaoCD() {
           {/* ── OUTRAS MÁQUINAS ── */}
           {MAQUINAS_OUTRAS.filter(maq => isGestor || !maquinaDoUsuario || maquinaDoUsuario === maq.id).map(maq => {
             const ordensDaMaq = ordensMaqDia.filter(o => o.maquina === maq.id).sort((a, b) => {
+              const hoje = format(new Date(), "yyyy-MM-dd");
+              const aAtrasada = a.data < hoje ? 0 : 1;
+              const bAtrasada = b.data < hoje ? 0 : 1;
+              if (aAtrasada !== bAtrasada) return aAtrasada - bAtrasada;
               const order = { em_producao: 0, pausado: 1, pendente: 2, finalizado: 3, cancelado: 4 };
               return (order[a.status] ?? 2) - (order[b.status] ?? 2);
             });
