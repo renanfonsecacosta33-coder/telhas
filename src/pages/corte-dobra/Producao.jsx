@@ -314,7 +314,7 @@ export default function ProducaoCD() {
               onAdd={() => openNewDesb(selectedDay)}
               renderRow={(o) => (
                 <div key={o.id}>
-                  <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateDesb.mutate({ id, data })} isGestor={isGestor} zoom={zoom} />
+                  <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateDesb.mutate({ id, data })} isGestor={isGestor} zoom={zoom} ordens={ordens} />
                   {isGestor && o.status === "pendente" && (
                     <div className="flex justify-end mt-1">
                       <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEditDesb(o)}>✏️ Editar</Button>
@@ -344,7 +344,7 @@ export default function ProducaoCD() {
                 onAdd={() => openNewMaq(maq.id, selectedDay)}
                 renderRow={(o) => (
                   <div key={o.id}>
-                    <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} zoom={zoom} />
+                    <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} zoom={zoom} ordens={ordensDaMaq} />
                     {isGestor && o.status === "pendente" && (
                       <div className="flex justify-end mt-1">
                         <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEditMaq(o)}>✏️ Editar</Button>

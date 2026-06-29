@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers } from "lucide-react";
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
+import { toast } from "sonner";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -39,7 +40,7 @@ const ZOOM_CFG = {
   grande:   { card: "p-5",   title: "text-lg", info: "text-base", badge: "text-sm", cronText: "text-base", cronLabel: "text-sm", cronPad: "px-4 py-2.5", btn: "h-10 text-sm", obs: "text-sm py-2", gap: "gap-2.5", mb: "mb-3" },
 };
 
-export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "normal" }) {
+export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "normal", ordens = [] }) {
   const z = ZOOM_CFG[zoom] || ZOOM_CFG.normal;
   const [pauseDialog, setPauseDialog] = useState(false);
   const [pauseMotivo, setPauseMotivo] = useState("");
@@ -47,6 +48,9 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
   const [fotoDialog, setFotoDialog] = useState(false);
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [tick, setTick] = useState(0);
+  const [bloqueioDialog, setBloqueioDialog] = useState(false);
+  const [ordemBloqueante, setOrdemBloqueante] = useState(null);
+  const [acaoPendente, setAcaoPendente] = useState(null);
   const fotoInputRef = useRef();
 
   useEffect(() => {
@@ -68,8 +72,30 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
     else tempoPausa += delta;
   }
 
-  const handleIniciar = () => {
+  const verificarBloqueio = (acao) => {
+    const ativa = (ordens || []).find(other =>
+      other.id !== o.id && (other.status === "em_producao" || other.status === "pausado")
+    );
+    if (ativa) {
+      if (isGestor) {
+        setOrdemBloqueante(ativa);
+        setAcaoPendente(acao);
+        setBloqueioDialog(true);
+      } else {
+        toast.error("Já existe uma OP em andamento nesta máquina. Finalize ou pause a OP atual antes de iniciar outra.");
+      }
+      return true;
+    }
+    return false;
+  };
+
+  const doIniciar = () => {
     onUpdate(o.id, { status: "em_producao", inicio_producao_ts: new Date().toISOString() });
+  };
+
+  const handleIniciar = () => {
+    if (verificarBloqueio("iniciar")) return;
+    doIniciar();
   };
 
   const confirmarPausa = () => {
@@ -88,7 +114,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
     setPauseDialog(false);
   };
 
-  const handleRetomar = () => {
+  const doRetomar = () => {
     let pausaSeg = o.tempo_pausa_seg || 0;
     let setupSeg = o.tempo_setup_seg || 0;
     if (o.inicio_pausa_ts) {
@@ -107,6 +133,19 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
       historico_pausas: JSON.stringify(historico),
       inicio_producao_ts: new Date().toISOString(),
     });
+  };
+
+  const handleRetomar = () => {
+    if (verificarBloqueio("retomar")) return;
+    doRetomar();
+  };
+
+  const confirmarBloqueio = () => {
+    setBloqueioDialog(false);
+    if (acaoPendente === "iniciar") doIniciar();
+    else if (acaoPendente === "retomar") doRetomar();
+    setAcaoPendente(null);
+    setOrdemBloqueante(null);
   };
 
   const handleFinalizar = () => {
@@ -375,6 +414,27 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setFotoDialog(false)}>Cancelar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Bloqueio — OP em andamento */}
+      <Dialog open={bloqueioDialog} onOpenChange={setBloqueioDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>⚠️ OP em Andamento</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">Já existe uma OP em andamento nesta máquina:</p>
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
+              <p className="font-semibold text-amber-900">{ordemBloqueante?.bobina_descricao || "OP"}</p>
+              {ordemBloqueante?.numero_pedido && <p className="text-xs text-amber-700">Pedido: {ordemBloqueante.numero_pedido}</p>}
+              {ordemBloqueante?.cliente && <p className="text-xs text-amber-700">Cliente: {ordemBloqueante.cliente}</p>}
+              <p className="text-xs text-amber-700 mt-1">Status: {ordemBloqueante?.status === "em_producao" ? "Em produção" : "Pausado"}</p>
+            </div>
+            <p className="text-xs text-muted-foreground">Iniciar outra OP simultaneamente pode causar problemas de controle. Deseja continuar mesmo assim?</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setBloqueioDialog(false); setAcaoPendente(null); setOrdemBloqueante(null); }}>Cancelar</Button>
+            <Button className="bg-amber-500 hover:bg-amber-600" onClick={confirmarBloqueio}>Iniciar mesmo assim</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

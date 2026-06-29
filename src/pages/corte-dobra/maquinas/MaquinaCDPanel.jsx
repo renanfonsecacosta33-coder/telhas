@@ -257,7 +257,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
                       return (ord[a.status] ?? 3) - (ord[b.status] ?? 3);
                     }).map(o => (
                       <div key={o.id}>
-                        <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} />
+                        <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} ordens={ordensDaMaquina} />
                         {isGestor && o.status === "pendente" && (
                           <div className="flex justify-end mt-1">
                             <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
@@ -301,7 +301,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
             <div className="p-4 space-y-3">
               {ordensDia.map(o => (
                 <div key={o.id}>
-                  <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} />
+                  <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} ordens={ordensDaMaquina} />
                   {isGestor && o.status === "pendente" && (
                     <div className="flex justify-end mt-1">
                       <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>

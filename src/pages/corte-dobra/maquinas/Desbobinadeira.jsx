@@ -227,7 +227,7 @@ export default function Desbobinadeira() {
                   <div className="p-4 space-y-3">
                     {ordensDoDia.map(o => (
                       <div key={o.id}>
-                        <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} />
+                        <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} />
                         {isGestor && o.status === "pendente" && (
                           <div className="flex justify-end mt-1">
                             <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
@@ -271,7 +271,7 @@ export default function Desbobinadeira() {
             <div className="p-4 space-y-3">
               {ordensDia.map(o => (
                 <div key={o.id}>
-                  <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} />
+                  <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} />
                   {isGestor && o.status === "pendente" && (
                     <div className="flex justify-end mt-1">
                       <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
