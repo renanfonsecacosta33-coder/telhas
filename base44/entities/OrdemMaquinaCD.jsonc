@@ -114,6 +114,10 @@
       "type": "number",
       "description": "Tempo acumulado em pausa (segundos)"
     },
+    "tempo_setup_seg": {
+      "type": "number",
+      "description": "Tempo acumulado em setup (segundos)"
+    },
     "inicio_producao_ts": {
       "type": "string",
       "description": "Timestamp ISO in\u00edcio da sess\u00e3o atual"
@@ -125,6 +129,10 @@
     "motivo_pausa": {
       "type": "string",
       "description": "Motivo da pausa"
+    },
+    "historico_pausas": {
+      "type": "string",
+      "description": "JSON string com hist\u00f3rico de pausas [{motivo, inicio, fim, segundos}]"
     },
     "foto_finalizacao_url": {
       "type": "string",

@@ -106,17 +106,21 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, isGestor, zoom = "
   const handleRetomar = () => {
     let pausaSeg = o.tempo_pausa_seg || 0;
     let setupSeg = o.tempo_setup_seg || 0;
+    let deltaSeg = 0;
     if (o.inicio_pausa_ts) {
-      const delta = Math.floor((Date.now() - new Date(o.inicio_pausa_ts).getTime()) / 1000);
-      if (o.motivo_pausa === "setup") setupSeg += delta;
-      else pausaSeg += delta;
+      deltaSeg = Math.floor((Date.now() - new Date(o.inicio_pausa_ts).getTime()) / 1000);
+      if (o.motivo_pausa === "setup") setupSeg += deltaSeg;
+      else pausaSeg += deltaSeg;
     }
+    const historico = JSON.parse(o.historico_pausas || "[]");
+    historico.push({ motivo: o.motivo_pausa, inicio: o.inicio_pausa_ts, fim: new Date().toISOString(), segundos: deltaSeg });
     onUpdate(o.id, {
       status: "em_producao",
       tempo_pausa_seg: pausaSeg,
       tempo_setup_seg: setupSeg,
       inicio_pausa_ts: null,
       motivo_pausa: null,
+      historico_pausas: JSON.stringify(historico),
       inicio_producao_ts: new Date().toISOString(),
     });
   };
@@ -134,6 +138,32 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, isGestor, zoom = "
     if (o.inicio_producao_ts) {
       prodSeg += Math.floor((Date.now() - new Date(o.inicio_producao_ts).getTime()) / 1000);
     }
+    // Baixa automática de chapa da chaparia
+    if (o.chapa_cd_id && (o.quantidade || 0) > 0) {
+      try {
+        const chapa = await base44.entities.ChapaCD.get(o.chapa_cd_id);
+        if (chapa) {
+          const novaQtd = Math.max(0, (chapa.quantidade_disponivel || 0) - o.quantidade);
+          await base44.entities.ChapaCD.update(o.chapa_cd_id, {
+            quantidade_disponivel: novaQtd,
+            status: novaQtd === 0 ? "consumido" : chapa.status,
+          });
+        }
+      } catch (e) { /* silencioso */ }
+    }
+
+    // Desconto de bobina direta
+    if (o.chapa_origem === "direto" && o.bobina_id && (o.peso_kg || 0) > 0) {
+      try {
+        const bobina = await base44.entities.Bobina.get(o.bobina_id);
+        if (bobina) {
+          await base44.entities.Bobina.update(o.bobina_id, {
+            peso_kg: Math.max(0, (bobina.peso_kg || 0) - o.peso_kg),
+          });
+        }
+      } catch (e) { /* silencioso */ }
+    }
+
     onUpdate(o.id, {
       status: "finalizado",
       foto_finalizacao_url: file_url,
