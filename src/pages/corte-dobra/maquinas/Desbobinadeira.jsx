@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Calendar, Factory } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Layers } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ export default function Desbobinadeira() {
   const [viewMode, setViewMode] = useState("dia");
   const [dialog, setDialog] = useState(false);
   const [editItem, setEditItem] = useState(null);
+  const [filtroEspessura, setFiltroEspessura] = useState("todas");
 
   const queryClient = useQueryClient();
 
@@ -94,6 +95,23 @@ export default function Desbobinadeira() {
 
   const totalSemana = ordensSemana.length;
   const finalizadasSemana = ordensSemana.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
+
+  // Espessuras disponíveis (extraídas das ordens da semana)
+  const espessurasDisponiveis = useMemo(() => {
+    const set = new Set();
+    ordensSemana.forEach(o => { if (o.espessura_utilizada) set.add(o.espessura_utilizada); });
+    return Array.from(set).sort((a, b) => parseFloat(a.replace(",", ".")) - parseFloat(b.replace(",", ".")));
+  }, [ordensSemana]);
+
+  const ordensDiaFiltradas = useMemo(() => {
+    if (filtroEspessura === "todas") return ordensDia;
+    return ordensDia.filter(o => o.espessura_utilizada === filtroEspessura);
+  }, [ordensDia, filtroEspessura]);
+
+  const ordensSemanaFiltradas = useMemo(() => {
+    if (filtroEspessura === "todas") return ordensSemana;
+    return ordensSemana.filter(o => o.espessura_utilizada === filtroEspessura);
+  }, [ordensSemana, filtroEspessura]);
 
   // Operador sem máquina configurada
   if (user && isOperadorRestrito && !maquinaDoUsuario) {
@@ -192,6 +210,28 @@ export default function Desbobinadeira() {
         </Button>
       </div>
 
+      {/* Filtro por espessura */}
+      {espessurasDisponiveis.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Espessura:</span>
+          <button
+            onClick={() => setFiltroEspessura("todas")}
+            className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${filtroEspessura === "todas" ? "bg-orange-500 text-white border-orange-500" : "bg-card text-muted-foreground border-border hover:bg-muted/50"}`}
+          >
+            Todas
+          </button>
+          {espessurasDisponiveis.map(esp => (
+            <button
+              key={esp}
+              onClick={() => setFiltroEspessura(filtroEspessura === esp ? "todas" : esp)}
+              className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all flex items-center gap-1 ${filtroEspessura === esp ? "bg-blue-500 text-white border-blue-500" : "bg-card text-muted-foreground border-border hover:bg-muted/50"}`}
+            >
+              <Layers className="w-3 h-3" /> {esp}mm
+            </button>
+          ))}
+        </div>
+      )}
+
       {isLoading ? (
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 border-4 border-muted border-t-orange-500 rounded-full animate-spin" />
@@ -201,7 +241,7 @@ export default function Desbobinadeira() {
         <div className="space-y-3">
           {diasDaSemana.map(dia => {
             const diaStr = format(dia, "yyyy-MM-dd");
-            const ordensDoDia = ordensSemana.filter(o => o.data === diaStr);
+            const ordensDoDia = ordensSemanaFiltradas.filter(o => o.data === diaStr);
             const finalizadas = ordensDoDia.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
             return (
               <div key={diaStr} className="bg-card border border-border rounded-xl overflow-hidden">
@@ -249,7 +289,7 @@ export default function Desbobinadeira() {
               <span className="font-bold capitalize text-sm">
                 {format(new Date(selectedDay + "T12:00:00"), "EEEE, dd 'de' MMMM", { locale: ptBR })}
               </span>
-              <Badge variant="outline" className="text-xs">{ordensDia.length} ordens</Badge>
+              <Badge variant="outline" className="text-xs">{ordensDiaFiltradas.length} ordens</Badge>
             </div>
             {isGestor && (
               <Button variant="ghost" size="sm" onClick={() => openNew(selectedDay)} className="h-7 gap-1 text-xs">
@@ -257,7 +297,7 @@ export default function Desbobinadeira() {
               </Button>
             )}
           </div>
-          {ordensDia.length === 0 ? (
+          {ordensDiaFiltradas.length === 0 ? (
             <div className="px-4 py-12 flex flex-col items-center gap-3">
               <Factory className="w-10 h-10 text-muted-foreground/20" />
               <p className="text-sm text-muted-foreground">Nenhuma ordem para este dia</p>
@@ -269,7 +309,7 @@ export default function Desbobinadeira() {
             </div>
           ) : (
             <div className="p-4 space-y-3">
-              {ordensDia.map(o => (
+              {ordensDiaFiltradas.map(o => (
                 <div key={o.id}>
                   <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} />
                   {isGestor && o.status === "pendente" && (
