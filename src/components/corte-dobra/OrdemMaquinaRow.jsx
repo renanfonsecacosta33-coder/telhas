@@ -6,9 +6,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Play, Pause, CheckCircle2, Timer, Coffee, Square, Circle,
-  AlertCircle, Clock, Camera, Loader2, Layers, Package, ShoppingCart
+  AlertCircle, Clock, Camera, Loader2, Layers, Package, ShoppingCart, Trash2
 } from "lucide-react";
 import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 
@@ -54,7 +55,7 @@ const ZOOM_CFG = {
   grande:   { card: "p-5",   title: "text-lg", info: "text-sm", badge: "text-sm", cronText: "text-base", cronLabel: "text-sm", cronPad: "px-4 py-2.5", btn: "h-10 text-sm", obs: "text-sm py-2", gap: "gap-2.5", mb: "mb-3" },
 };
 
-export default function OrdemMaquinaRow({ ordem: o, onUpdate, isGestor, zoom = "normal", ordens = [] }) {
+export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "normal", ordens = [] }) {
   const z = ZOOM_CFG[zoom] || ZOOM_CFG.normal;
   const [pauseDialog, setPauseDialog] = useState(false);
   const [pauseMotivo, setPauseMotivo] = useState("");
@@ -227,6 +228,90 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, isGestor, zoom = "
 
   const showCronometro = o.status === "em_producao" || o.status === "pausado" || tempoProd > 0;
   const borderColor = MAQUINA_BORDER[o.maquina] || "border-l-gray-400";
+  const isFinalizado = o.status === "finalizado";
+
+  if (isFinalizado) {
+    return (
+      <>
+        <div className="border-l-4 border-l-green-400 bg-green-50/60 rounded-lg p-2.5 shadow-sm hover:shadow-md transition-all">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
+              <span className="font-bold text-sm">{o.tipo_peca || "—"}</span>
+              {o.dimensoes_livres && (
+                <span className="text-[11px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">{o.dimensoes_livres}</span>
+              )}
+              <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px]">
+                <CheckCircle2 className="w-3 h-3 mr-0.5" /> Finalizado
+              </Badge>
+              {o.quantidade > 0 && <span className="text-xs font-semibold text-foreground">{o.quantidade} pç</span>}
+              {o.peso_kg > 0 && <span className="text-xs font-semibold text-emerald-700">≈ {o.peso_kg.toFixed(1)} kg</span>}
+            </div>
+            <div className="flex items-center gap-2">
+              {o.foto_finalizacao_url && (
+                <a href={o.foto_finalizacao_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+                  <img src={o.foto_finalizacao_url} alt="Finalização" className="w-10 h-10 object-cover rounded border border-green-200" />
+                </a>
+              )}
+              {isGestor && (
+                <div className="flex gap-1">
+                  <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] gap-1 text-amber-600 border-amber-300 hover:bg-amber-50"
+                    onClick={() => onUpdate(o.id, { status: "pendente", inicio_producao_ts: null, foto_finalizacao_url: null, data_finalizacao: null })}>
+                    ↩ Reabrir
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] gap-1 text-red-600 border-red-300 hover:bg-red-50"
+                    onClick={() => { if (window.confirm("Excluir esta ordem? Esta ação não pode ser desfeita.")) onDelete(o.id); }}>
+                    <Trash2 className="w-2.5 h-2.5" /> Excluir
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground mt-1">
+            <span className="inline-flex items-center gap-0.5">
+              {o.chapa_origem === "chaparia" ? <Layers className="w-2.5 h-2.5 text-orange-500" /> : <Package className="w-2.5 h-2.5 text-blue-500" />}
+              <span className="font-mono">{o.chapa_origem === "chaparia" ? (o.chapa_descricao || "Chapa") : (o.bobina_descricao || o.chapa_descricao || "Bobina")}</span>
+            </span>
+            {o.numero_pedido && (
+              <span className="inline-flex items-center gap-1">
+                <span className="text-muted-foreground/70">Pedido:</span>
+                <span className="font-semibold text-foreground font-mono">{o.numero_pedido}</span>
+              </span>
+            )}
+            {o.cliente && (
+              <span className="inline-flex items-center gap-1">
+                <span className="text-muted-foreground/70">Cliente:</span>
+                <span className="font-semibold text-foreground">{o.cliente}</span>
+              </span>
+            )}
+            {o.data_finalizacao && (
+              <span className="text-green-600 font-semibold">✓ {format(new Date(o.data_finalizacao + "T12:00:00"), "dd/MM")}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Dialog Bloqueio — OP em andamento (mantém para consistência) */}
+        <Dialog open={bloqueioDialog} onOpenChange={setBloqueioDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader><DialogTitle>⚠️ OP em Andamento</DialogTitle></DialogHeader>
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-muted-foreground">Já existe uma OP em andamento nesta máquina:</p>
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
+                <p className="font-semibold text-amber-900">{ordemBloqueante?.tipo_peca || ordemBloqueante?.chapa_descricao || "OP"}</p>
+                {ordemBloqueante?.numero_pedido && <p className="text-xs text-amber-700">Pedido: {ordemBloqueante.numero_pedido}</p>}
+                {ordemBloqueante?.cliente && <p className="text-xs text-amber-700">Cliente: {ordemBloqueante.cliente}</p>}
+                <p className="text-xs text-amber-700 mt-1">Status: {ordemBloqueante?.status === "em_producao" ? "Em produção" : "Pausado"}</p>
+              </div>
+              <p className="text-xs text-muted-foreground">Iniciar outra OP simultaneamente pode causar problemas de controle. Deseja continuar mesmo assim?</p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setBloqueioDialog(false); setAcaoPendente(null); setOrdemBloqueante(null); }}>Cancelar</Button>
+              <Button className="bg-amber-500 hover:bg-amber-600" onClick={confirmarBloqueio}>Iniciar mesmo assim</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
 
   return (
     <>
