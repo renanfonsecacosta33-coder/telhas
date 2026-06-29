@@ -25,12 +25,14 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
     metragem: "", codigo: "", nf: "", custo: "", status: "", fornecedor: "",
     data_recebimento: "", observacoes: "", tipo: "Telha",
     anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
+    foto_cor_url: "", foto_cor_nome: "",
     estoque_minimo_kg: "", consumo_diario_kg: "",
   });
 
   const [saving, setSaving] = useState(false);
   const [uploadingNF, setUploadingNF] = useState(false);
   const [uploadingCert, setUploadingCert] = useState(false);
+  const [uploadingFotoCor, setUploadingFotoCor] = useState(false);
   const [semCertAssinatura, setSemCertAssinatura] = useState("");
   const [confirmarSemCert, setConfirmarSemCert] = useState(false);
   const [erros, setErros] = useState({});
@@ -39,6 +41,8 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
   const nfCameraRef = useRef();
   const certInputRef = useRef();
   const certCameraRef = useRef();
+  const fotoCorInputRef = useRef();
+  const fotoCorCameraRef = useRef();
 
   useEffect(() => {
     setErros({});
@@ -64,6 +68,8 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
         anexo_nf_nome: editItem.anexo_nf_nome || "",
         anexo_cert_url: editItem.anexo_cert_url || "",
         anexo_cert_nome: editItem.anexo_cert_nome || "",
+        foto_cor_url: editItem.foto_cor_url || "",
+        foto_cor_nome: editItem.foto_cor_nome || "",
         estoque_minimo_kg: editItem.estoque_minimo_kg || "",
         consumo_diario_kg: editItem.consumo_diario_kg || "",
         reservada: editItem.reservada || false,
@@ -80,6 +86,7 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
         metragem: "", codigo: "Gerando...", nf: "", custo: "", status: "", fornecedor: "",
         data_recebimento: new Date().toISOString().slice(0, 10), observacoes: "", tipo: "Telha",
         anexo_nf_url: "", anexo_nf_nome: "", anexo_cert_url: "", anexo_cert_nome: "",
+        foto_cor_url: "", foto_cor_nome: "",
         estoque_minimo_kg: "500", consumo_diario_kg: "",
         reservada: false, reserva_tipo: "", reserva_kg: "", reserva_numero_pedido: "",
         reserva_motivo: "", reserva_autorizado_por: "", reserva_data: "",
@@ -128,19 +135,23 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
   const handleUpload = async (file, tipo) => {
     if (!file) return;
     if (tipo === "nf") setUploadingNF(true);
-    else setUploadingCert(true);
+    else if (tipo === "cert") setUploadingCert(true);
+    else if (tipo === "foto_cor") setUploadingFotoCor(true);
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       if (tipo === "nf") {
         setForm(f => ({ ...f, anexo_nf_url: file_url, anexo_nf_nome: file.name }));
-      } else {
+      } else if (tipo === "cert") {
         setForm(f => ({ ...f, anexo_cert_url: file_url, anexo_cert_nome: file.name }));
+      } else if (tipo === "foto_cor") {
+        setForm(f => ({ ...f, foto_cor_url: file_url, foto_cor_nome: file.name }));
       }
     } catch (e) {
       toast.error("Erro ao enviar arquivo");
     } finally {
       if (tipo === "nf") setUploadingNF(false);
-      else setUploadingCert(false);
+      else if (tipo === "cert") setUploadingCert(false);
+      else if (tipo === "foto_cor") setUploadingFotoCor(false);
     }
   };
 
@@ -341,6 +352,50 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
               <p className="text-[10px] text-muted-foreground">Para calcular previsão de acabar</p>
             </div>
           </div>
+
+          {/* Foto da cor — apenas quando qualidade = PP */}
+          {form.qualidade === "PP" && (
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1">Foto da Cor da Bobina <span className="text-xs text-muted-foreground font-normal">(PP)</span></Label>
+              <input ref={fotoCorInputRef} type="file" className="hidden" accept="image/*"
+                onChange={e => handleUpload(e.target.files[0], "foto_cor")} />
+              <input ref={fotoCorCameraRef} type="file" className="hidden" accept="image/*" capture="environment"
+                onChange={e => handleUpload(e.target.files[0], "foto_cor")} />
+              {form.foto_cor_url ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                    <FileCheck className="w-4 h-4 shrink-0 text-emerald-600" />
+                    <a href={form.foto_cor_url} target="_blank" rel="noopener noreferrer"
+                      className="truncate flex-1 underline underline-offset-2 font-medium" title={form.foto_cor_nome}>
+                      {form.foto_cor_nome || "Foto da cor"}
+                    </a>
+                    <button onClick={() => setForm(f => ({ ...f, foto_cor_url: "", foto_cor_nome: "" }))}
+                      className="ml-auto text-emerald-600 hover:text-red-500 shrink-0">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <img src={form.foto_cor_url} alt="Foto da cor" className="w-full max-h-32 object-cover rounded-lg border border-border" />
+                </div>
+              ) : (
+                <div className="flex gap-1.5">
+                  <Button type="button" variant="outline" size="sm"
+                    className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
+                    onClick={() => fotoCorInputRef.current.click()}
+                    disabled={uploadingFotoCor}>
+                    {uploadingFotoCor ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+                    {uploadingFotoCor ? "Enviando..." : "Anexar Foto"}
+                  </Button>
+                  <Button type="button" variant="outline" size="sm"
+                    className="border-dashed border-2 h-10 px-3 text-xs"
+                    onClick={() => fotoCorCameraRef.current.click()}
+                    disabled={uploadingFotoCor}
+                    title="Tirar foto da cor">
+                    <Camera className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Anexos */}
           <div className="space-y-2">

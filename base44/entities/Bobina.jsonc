@@ -140,6 +140,14 @@
       "type": "string",
       "description": "Nome do respons\u00e1vel que declarou aus\u00eancia do certificado digital"
     },
+    "foto_cor_url": {
+      "type": "string",
+      "description": "URL da foto da cor da bobina (quando qualidade = PP)"
+    },
+    "foto_cor_nome": {
+      "type": "string",
+      "description": "Nome do arquivo da foto da cor"
+    },
     "foto_adicional_url": {
       "type": "string",
       "description": "URL de foto adicional da bobina (opcional)"
