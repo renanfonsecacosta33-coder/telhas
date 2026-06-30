@@ -230,8 +230,11 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
       <div className="p-4 space-y-4 max-w-7xl mx-auto">
         {/* Resumo */}
         <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Bobinas disponíveis</span>
-          <span className="text-2xl font-bold text-primary">{disponiveis.length}</span>
+          <span className="text-sm text-muted-foreground">Bobinas em estoque</span>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-primary">{bobinas.length}</span>
+            <span className="text-xs text-muted-foreground">({disponiveis.length} disponíveis)</span>
+          </div>
         </div>
 
         {/* Busca */}
