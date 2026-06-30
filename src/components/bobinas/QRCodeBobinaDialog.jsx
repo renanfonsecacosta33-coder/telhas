@@ -2,36 +2,21 @@ import React, { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Download } from "lucide-react";
+import { Loader2, Download, ExternalLink } from "lucide-react";
 
 export default function QRCodeBobinaDialog({ bobina, ordens = [], onClose }) {
   const [qrUrl, setQrUrl] = useState("");
+  const [paginaUrl, setPaginaUrl] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const gerarQR = async () => {
-      const linhas = [
-        `BOBINA: ${bobina.codigo || "—"}`,
-        `COR: ${bobina.cor || "—"}`,
-        `QUALIDADE: ${bobina.qualidade || "—"}`,
-        `CHAPA: ${bobina.chapa || "—"}`,
-        `ESP. UTILIZADA: ${bobina.espessura_utilizada || "—"}`,
-        `LARGURA: ${bobina.largura_mm || "—"} mm`,
-        `PESO ATUAL: ${bobina.peso_kg?.toLocaleString("pt-BR") || "—"} kg`,
-        `PESO INICIAL: ${bobina.peso_inicial?.toLocaleString("pt-BR") || "—"} kg`,
-        `FORNECEDOR: ${bobina.fornecedor || "—"}`,
-        `NF: ${bobina.nf || "—"}`,
-        `DATA RECEBIMENTO: ${bobina.data_recebimento || "—"}`,
-        ``,
-        `=== PEDIDOS (${ordens.length}) ===`,
-        ...ordens.map((o, i) =>
-          `${i + 1}. [${o.data || "—"}] ${o._tipo || "—"} | ${o._label || "—"} | ${o._qtd || 0} pçs | ${o._kg || 0} kg | ${o.status} | ${o.cliente || ""} ${o.numero_pedido ? "Ped:" + o.numero_pedido : ""}`
-        ),
-      ];
-      const conteudo = linhas.join("\n");
+      const baseUrl = window.location.origin;
+      const paginaUrl = `${baseUrl}/bobina-qr/${bobina.id}`;
       try {
-        const url = await QRCode.toDataURL(conteudo, { width: 400, margin: 2, errorCorrectionLevel: "M" });
+        const url = await QRCode.toDataURL(paginaUrl, { width: 400, margin: 2, errorCorrectionLevel: "M" });
         setQrUrl(url);
+        setPaginaUrl(paginaUrl);
       } catch (e) {
         console.error("Erro ao gerar QR:", e);
       } finally {
@@ -59,7 +44,7 @@ export default function QRCodeBobinaDialog({ bobina, ordens = [], onClose }) {
             <>
               <img src={qrUrl} alt="QR Code" className="w-56 h-56 border border-border rounded-lg" />
               <p className="text-xs text-muted-foreground text-center">
-                Escaneie para ver todas as informações da bobina e seus {ordens.length} pedido(s).
+                Escaneie com a câmera do celular para abrir a página completa da bobina e seus {ordens.length} pedido(s).
               </p>
             </>
           ) : (
@@ -68,6 +53,13 @@ export default function QRCodeBobinaDialog({ bobina, ordens = [], onClose }) {
         </div>
 
         <DialogFooter>
+          {paginaUrl && (
+            <a href={paginaUrl} target="_blank" rel="noopener noreferrer">
+              <Button variant="outline" className="gap-1.5">
+                <ExternalLink className="w-4 h-4" /> Abrir página
+              </Button>
+            </a>
+          )}
           {qrUrl && (
             <a href={qrUrl} download={`QR_${bobina.codigo || "bobina"}.png`}>
               <Button variant="outline" className="gap-1.5">
