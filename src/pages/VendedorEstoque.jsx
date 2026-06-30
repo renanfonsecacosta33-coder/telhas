@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Search, LogOut, Lock, ChevronRight, ArrowLeft, BookmarkPlus, ShieldCheck, Filter, Calculator } from "lucide-react";
 import SolicitarReservaDialog from "@/components/vendedor/SolicitarReservaDialog";
 import CalculadoraVendedor from "@/components/vendedor/CalculadoraVendedor";
+import VendedorChapas from "@/components/vendedor/VendedorChapas";
+import VendedorSlitter from "@/components/vendedor/VendedorSlitter";
 
 const SENHA = "ajl1234";
 const STORAGE_KEY = "vendedor_autenticado";
@@ -126,9 +128,11 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
   const [search, setSearch] = useState("");
   const [solicitarBobina, setSolicitarBobina] = useState(null);
   const [filtroQualidade, setFiltroQualidade] = useState(null); // null = todas
+  const [abaCD, setAbaCD] = useState("bobinas"); // bobinas | chapas | slitter
 
   const setorLabel = setor === "telhas" ? "Telhas" : "Corte e Dobra";
   const setorEmoji = setor === "telhas" ? "🏗️" : "✂️";
+  const isCorteDobra = setor === "corte_dobra";
 
   const { data: bobinas = [], isLoading, refetch } = useQuery({
     queryKey: ["bobinas-vendedor", setor],
@@ -228,6 +232,36 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
       </div>
 
       <div className="p-4 space-y-4 max-w-7xl mx-auto">
+        {/* Abas Corte e Dobra: Bobinas / Chapas / Slitter */}
+        {isCorteDobra && (
+          <div className="flex items-center gap-1 bg-card border border-border rounded-xl p-1">
+            <button
+              onClick={() => setAbaCD("bobinas")}
+              className={`flex-1 text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
+                abaCD === "bobinas" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/50"
+              }`}
+            >
+              🌀 Bobinas
+            </button>
+            <button
+              onClick={() => setAbaCD("chapas")}
+              className={`flex-1 text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
+                abaCD === "chapas" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/50"
+              }`}
+            >
+              📋 Chapas
+            </button>
+            <button
+              onClick={() => setAbaCD("slitter")}
+              className={`flex-1 text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
+                abaCD === "slitter" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/50"
+              }`}
+            >
+              ✂️ Slitter
+            </button>
+          </div>
+        )}
+
         {/* Resumo */}
         <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Bobinas em estoque</span>
@@ -238,6 +272,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
         </div>
 
         {/* Busca */}
+        {!isCorteDobra || abaCD === "bobinas" ? (
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
@@ -247,8 +282,10 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
+        ) : null}
 
         {/* Filtros por qualidade */}
+        {!isCorteDobra || abaCD === "bobinas" ? (
         <div className="flex flex-wrap items-center gap-2">
           <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
           <button
@@ -275,8 +312,11 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
             </button>
           ))}
         </div>
+        ) : null}
 
-        {/* Tabela */}
+        {/* Tabela de Bobinas */}
+        {(!isCorteDobra || abaCD === "bobinas") && (
+        <>
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
@@ -381,6 +421,14 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
         <p className="text-xs text-muted-foreground text-center">
           Bobinas reservadas aparecem em destaque (fundo amarelo). Toque em "Reservar" para solicitar uma reserva ao admin.
         </p>
+        </>
+        )}
+
+        {/* Aba Chapas */}
+        {isCorteDobra && abaCD === "chapas" && <VendedorChapas vendedorNome={vendedorNome} />}
+
+        {/* Aba Slitter */}
+        {isCorteDobra && abaCD === "slitter" && <VendedorSlitter vendedorNome={vendedorNome} />}
       </div>
 
       <SolicitarReservaDialog
