@@ -7,6 +7,7 @@ import {
   ChevronDown, ChevronUp, Lock, LockOpen, Camera, Tag
 } from "lucide-react";
 import EtiquetaBTW from "@/components/bobinas/EtiquetaBTW";
+import HistoricoPedidosBobina from "@/components/bobinas/HistoricoPedidosBobina";
 
 export const qualidadeColors = {
   "GV": "bg-blue-100 text-blue-800 border-blue-300",
@@ -239,6 +240,9 @@ export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statu
             {bobina.observacoes && (
               <p className="text-xs text-muted-foreground bg-gray-50 rounded-lg px-3 py-2">{bobina.observacoes}</p>
             )}
+
+            {/* Histórico de pedidos */}
+            <HistoricoPedidosBobina bobina={bobina} />
 
             {/* Etiqueta BTW */}
             <div className="pt-1">
