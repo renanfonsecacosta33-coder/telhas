@@ -150,7 +150,21 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg max-h-[92vh] overflow-y-auto">
+      <DialogContent
+        className="sm:max-w-lg max-h-[92vh] overflow-y-auto"
+        onInteractOutside={(e) => {
+          const t = e.target;
+          if (t?.closest?.('[data-radix-select-content]') || t?.closest?.('[role="listbox"]') || t?.closest?.('[data-radix-popper-content-wrapper]')) {
+            e.preventDefault();
+          }
+        }}
+        onPointerDownOutside={(e) => {
+          const t = e.target;
+          if (t?.closest?.('[data-radix-select-content]') || t?.closest?.('[role="listbox"]') || t?.closest?.('[data-radix-popper-content-wrapper]')) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Layers className="w-5 h-5 text-orange-500" />
