@@ -181,8 +181,13 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
     return map[s.status] || { label: s.status, cls: "bg-slate-100 text-slate-600" };
   };
 
-  // Contagem apenas das disponíveis
-  const disponiveis = bobinas.filter(b => !b.reservada);
+  // Contagem apenas das disponíveis (tem peso disponível para reserva)
+  const getPesoDisponivel = (b) => {
+    const peso = b.peso_kg || 0;
+    const reservado = b.reserva_tipo === "parcial" ? (b.reserva_kg || 0) : (b.reservada ? peso : 0);
+    return peso - reservado;
+  };
+  const disponiveis = bobinas.filter(b => getPesoDisponivel(b) > 0);
 
   // Qualidades únicas para filtros (de todas as bobinas)
   const qualidadesUnicas = [...new Set(bobinas.map(b => b.qualidade).filter(Boolean))].sort();
@@ -348,9 +353,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                       )}
                     </td>
                     <td className="px-2 py-2 text-right">
-                      {b.reservada ? (
-                        <span className="text-[10px] text-muted-foreground italic">Já reservada</span>
-                      ) : (
+                      {getPesoDisponivel(b) > 0 ? (
                         <button
                           onClick={() => setSolicitarBobina(b)}
                           className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
@@ -359,6 +362,8 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                           <BookmarkPlus className="w-4 h-4" />
                           <span className="hidden sm:inline">Reservar</span>
                         </button>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground italic">Já reservada</span>
                       )}
                     </td>
                   </tr>
