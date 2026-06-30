@@ -181,12 +181,13 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
     return map[s.status] || { label: s.status, cls: "bg-slate-100 text-slate-600" };
   };
 
-  // Contagem apenas das disponíveis (tem peso disponível para reserva)
-  const getPesoDisponivel = (b) => {
+  // Peso reservado da própria bobina (reserva parcial ou inteira)
+  const getPesoReservadoBobina = (b) => {
     const peso = b.peso_kg || 0;
-    const reservado = b.reserva_tipo === "parcial" ? (b.reserva_kg || 0) : (b.reservada ? peso : 0);
-    return peso - reservado;
+    if (!b.reservada) return 0;
+    return b.reserva_tipo === "parcial" ? (b.reserva_kg || 0) : peso;
   };
+  const getPesoDisponivel = (b) => (b.peso_kg || 0) - getPesoReservadoBobina(b);
   const disponiveis = bobinas.filter(b => getPesoDisponivel(b) > 0);
 
   // Qualidades únicas para filtros (de todas as bobinas)
@@ -326,8 +327,8 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                     <td className="px-2 py-2 whitespace-nowrap">{b.largura_mm ? `${b.largura_mm} mm` : "-"}</td>
                     <td className="px-2 py-2 text-right font-semibold whitespace-nowrap">{b.peso_kg ? `${b.peso_kg.toLocaleString("pt-BR")} kg` : "-"}</td>
                     <td className="px-2 py-2 text-right whitespace-nowrap text-muted-foreground">{b.peso_inicial ? `${b.peso_inicial.toLocaleString("pt-BR")} kg` : "-"}</td>
-                    <td className="px-2 py-2 text-right whitespace-nowrap bg-amber-50/40 font-semibold text-amber-800">{reservadoKgMap[b.id] ? `${reservadoKgMap[b.id].toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : "-"}</td>
-                    <td className="px-2 py-2 text-right whitespace-nowrap bg-emerald-50/40 font-bold text-emerald-700">{(b.peso_kg || 0) - (reservadoKgMap[b.id] || 0) > 0 ? `${((b.peso_kg || 0) - (reservadoKgMap[b.id] || 0)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : "-"}</td>
+                    <td className="px-2 py-2 text-right whitespace-nowrap bg-amber-50/40 font-semibold text-amber-800">{getPesoReservadoBobina(b) > 0 ? `${getPesoReservadoBobina(b).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : "-"}</td>
+                    <td className="px-2 py-2 text-right whitespace-nowrap bg-emerald-50/40 font-bold text-emerald-700">{getPesoDisponivel(b) > 0 ? `${getPesoDisponivel(b).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : "-"}</td>
                     <td className="px-2 py-2 whitespace-nowrap">
                       {b.reservada ? (
                         <span className="text-xs font-semibold bg-amber-200 text-amber-800 px-2 py-0.5 rounded" title={`Reservada por: ${b.reserva_autorizado_por || "Admin"} — Pedido: ${b.reserva_numero_pedido || "-"}`}>
