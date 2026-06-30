@@ -13,7 +13,7 @@ export default function VendedorChapas({ vendedorNome }) {
     queryFn: () => base44.entities.ChapaCD.filter({ status: { $ne: "cancelado" } }),
   });
 
-  const ativas = chapas.filter(c => c.status !== "consumido" && (c.quantidade_disponivel ?? 0) > 0);
+  const ativas = chapas.filter(c => c.status !== "consumido" && (c.quantidade_disponivel ?? 0) > 0 && (c.destino === "estoque" || c.origem === "manual"));
 
   const qualidadesUnicas = [...new Set(chapas.map(c => c.qualidade).filter(Boolean))].sort();
 
