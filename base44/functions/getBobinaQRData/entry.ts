@@ -24,14 +24,18 @@ Deno.serve(async (req) => {
 
     let ordensDesbob = [];
     let ordensMaquina = [];
+    let solicitacoesReserva = [];
     try {
       ordensDesbob = await base44.asServiceRole.entities.OrdemDesbobinadeira.filter({ bobina_id: bobinaId }, "-data", 200);
     } catch (e) {}
     try {
       ordensMaquina = await base44.asServiceRole.entities.OrdemMaquinaCD.filter({ bobina_id: bobinaId }, "-data", 200);
     } catch (e) {}
+    try {
+      solicitacoesReserva = await base44.asServiceRole.entities.SolicitacaoReserva.filter({ bobina_id: bobinaId }, "-created_date", 50);
+    } catch (e) {}
 
-    return Response.json({ bobina, ordensDesbob, ordensMaquina });
+    return Response.json({ bobina, ordensDesbob, ordensMaquina, solicitacoesReserva });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

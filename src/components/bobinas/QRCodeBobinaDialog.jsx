@@ -44,7 +44,7 @@ export default function QRCodeBobinaDialog({ bobina, ordens = [], onClose }) {
             <>
               <img src={qrUrl} alt="QR Code" className="w-56 h-56 border border-border rounded-lg" />
               <p className="text-xs text-muted-foreground text-center">
-                Escaneie com a câmera do celular para abrir a página completa da bobina e seus {ordens.length} pedido(s).
+                Escaneie com a câmera do celular para ver todas as informações da bobina, reservas, pedidos a fazer e pedidos feitos.
               </p>
             </>
           ) : (
