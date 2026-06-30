@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle } from "lucide-react";
+import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck } from "lucide-react";
 
 function labelBobina(b) {
   const parts = [];
@@ -62,6 +63,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     cliente: "",
     observacoes: "",
   });
+  const [confirmReserva, setConfirmReserva] = useState(false);
 
   const { data: bobinas = [] } = useQuery({
     queryKey: ["bobinas-cd-ativas"],
@@ -108,6 +110,10 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   const metrosRestantes = calcMetragem(bobinaObj);
   const kgEstimado = calcKgEstimado(bobinaObj, form.comprimento_mm, form.quantidade);
 
+  // Lógica de reserva da bobina selecionada
+  const reservadaParaEste = bobinaObj?.reservada && form.destino === "pedido_direto" && form.numero_pedido && bobinaObj?.reserva_numero_pedido === form.numero_pedido;
+  const reservadaParaOutro = bobinaObj?.reservada && !reservadaParaEste;
+
   // Pré-baixa: soma KG das ordens ativas (pendente/em_producao/pausado) da mesma bobina
   const ordensDaBobina = todasOrdens.filter(o =>
     o.bobina_id === form.bobina_id &&
@@ -119,13 +125,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   const pesoDisponivel = Math.max(0, pesoBobina - preReservadoKg);
   const excedePeso = kgEstimado !== null && kgEstimado > pesoDisponivel;
 
-  const handleSave = () => {
-    if (!form.bobina_id) { alert("Selecione a bobina."); return; }
-    if (!form.comprimento_mm || Number(form.comprimento_mm) <= 0) { alert("Informe o comprimento de corte em mm."); return; }
-    if (!form.quantidade || Number(form.quantidade) <= 0) { alert("Informe a quantidade de chapas."); return; }
-    if (form.destino === "pedido_direto" && !form.numero_pedido) { alert("Informe o número do pedido."); return; }
-    if (excedePeso) { alert(`KG estimado (${kgEstimado.toFixed(1)} kg) excede o peso disponível na bobina (${pesoDisponivel.toFixed(1)} kg).\n\nPeso da bobina: ${pesoBobina.toFixed(1)} kg\nPré-reservado por outras ordens: ${preReservadoKg.toFixed(1)} kg\n\nReduza a quantidade ou escolha outra bobina.`); return; }
-
+  const doSave = () => {
     const bobinaSnap = bobinaObj ? labelBobina(bobinaObj) : "";
     onSave({
       ...form,
@@ -135,6 +135,17 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
       quantidade: Number(form.quantidade),
       kg_estimado: kgEstimado ? Math.round(kgEstimado * 100) / 100 : null,
     });
+  };
+
+  const handleSave = () => {
+    if (!form.bobina_id) { alert("Selecione a bobina."); return; }
+    if (!form.comprimento_mm || Number(form.comprimento_mm) <= 0) { alert("Informe o comprimento de corte em mm."); return; }
+    if (!form.quantidade || Number(form.quantidade) <= 0) { alert("Informe a quantidade de chapas."); return; }
+    if (form.destino === "pedido_direto" && !form.numero_pedido) { alert("Informe o número do pedido."); return; }
+    if (excedePeso) { alert(`KG estimado (${kgEstimado.toFixed(1)} kg) excede o peso disponível na bobina (${pesoDisponivel.toFixed(1)} kg).\n\nPeso da bobina: ${pesoBobina.toFixed(1)} kg\nPré-reservado por outras ordens: ${preReservadoKg.toFixed(1)} kg\n\nReduza a quantidade ou escolha outra bobina.`); return; }
+    // Se a bobina está reservada para outro pedido, exigir confirmação explícita
+    if (reservadaParaOutro) { setConfirmReserva(true); return; }
+    doSave();
   };
 
   return (
@@ -169,20 +180,21 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                   <div className="px-3 py-4 text-sm text-muted-foreground text-center">Nenhuma bobina ativa</div>
                 )}
                 {bobinas.map(b => {
-                  const isReservadaParaOutro = b.reservada && b.reserva_numero_pedido && b.reserva_numero_pedido !== form.numero_pedido;
+                  const reservadaParaEste = b.reservada && form.destino === "pedido_direto" && form.numero_pedido && b.reserva_numero_pedido === form.numero_pedido;
+                  const reservadaParaOutro = b.reservada && !reservadaParaEste;
                   return (
-                    <SelectItem key={b.id} value={b.id} disabled={isReservadaParaOutro}>
+                    <SelectItem key={b.id} value={b.id}>
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono font-bold text-sm">{b.codigo || "—"}</span>
                         {(b.espessura_utilizada || b.chapa) && <span className="text-muted-foreground text-xs">{b.espessura_utilizada || b.chapa}mm</span>}
                         {b.cor && <span className="text-blue-600 text-xs font-medium">{b.cor}</span>}
                         {b.largura_mm && <span className="text-xs text-muted-foreground">{b.largura_mm}mm larg.</span>}
                         {b.peso_kg && <span className="text-xs text-muted-foreground">{b.peso_kg}kg</span>}
-                        {b.reservada && !isReservadaParaOutro && (
-                          <span className="text-amber-600 text-xs font-bold">🔒 Reservada p/ pedido {b.reserva_numero_pedido}</span>
+                        {reservadaParaEste && (
+                          <span className="text-emerald-600 text-xs font-bold">✅ Reservada para este pedido</span>
                         )}
-                        {isReservadaParaOutro && (
-                          <span className="text-red-500 text-xs font-bold">🚫 Reservada — Pedido {b.reserva_numero_pedido}{b.reserva_motivo ? ` (${b.reserva_motivo})` : ""}</span>
+                        {reservadaParaOutro && (
+                          <span className="text-red-500 text-xs font-bold">🔒 Reservada — Pedido {b.reserva_numero_pedido || "?"}{b.reserva_motivo ? ` (${b.reserva_motivo})` : ""}</span>
                         )}
                       </div>
                     </SelectItem>
@@ -196,7 +208,11 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
               <div className="bg-gradient-to-br from-blue-50 to-slate-50 border border-blue-200 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-bold text-blue-800">{bobinaObj.codigo || "—"}</span>
-                  <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs">Setor CD</Badge>
+                  <div className="flex items-center gap-1">
+                    {reservadaParaEste && <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs"><ShieldCheck className="w-3 h-3 mr-1" />Reservada p/ este pedido</Badge>}
+                    {reservadaParaOutro && <Badge className="bg-red-100 text-red-700 border-red-200 text-xs"><ShieldAlert className="w-3 h-3 mr-1" />Reservada p/ outro</Badge>}
+                    <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs">Setor CD</Badge>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
                   <div>
@@ -242,6 +258,31 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                     </div>
                   )}
                 </div>
+
+                {/* Banner de reserva */}
+                {reservadaParaEste && (
+                  <div className="bg-emerald-50 border border-emerald-300 rounded-lg p-3 flex items-start gap-2">
+                    <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-xs">
+                      <p className="font-bold text-emerald-800">Bobina reservada para este pedido</p>
+                      <p className="text-emerald-700">Esta bobina foi reservada especificamente para o pedido <strong>{bobinaObj.reserva_numero_pedido}</strong>. Pode prosseguir com tranquilidade.</p>
+                      {bobinaObj.reserva_motivo && <p className="text-emerald-600 mt-1">Motivo: {bobinaObj.reserva_motivo}</p>}
+                      {bobinaObj.reserva_autorizado_por && <p className="text-emerald-600">Autorizado por: {bobinaObj.reserva_autorizado_por}</p>}
+                    </div>
+                  </div>
+                )}
+                {reservadaParaOutro && (
+                  <div className="bg-red-50 border-2 border-red-400 rounded-lg p-3 flex items-start gap-2">
+                    <ShieldAlert className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-xs">
+                      <p className="font-bold text-red-800">⚠️ ATENÇÃO: Bobina reservada para outro pedido!</p>
+                      <p className="text-red-700">Esta bobina está reservada para o pedido <strong>{bobinaObj.reserva_numero_pedido || "?"}</strong>. Ao continuar, você precisará confirmar que deseja utilizá-la mesmo assim.</p>
+                      {bobinaObj.reserva_motivo && <p className="text-red-600 mt-1">Motivo da reserva: {bobinaObj.reserva_motivo}</p>}
+                      {bobinaObj.reserva_autorizado_por && <p className="text-red-600">Reservado por: {bobinaObj.reserva_autorizado_por}</p>}
+                      {bobinaObj.reserva_tipo === "parcial" && <p className="text-red-600">Reserva parcial: {bobinaObj.reserva_kg} kg reservados</p>}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -367,6 +408,38 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Confirmação para bobina reservada para outro pedido */}
+      <AlertDialog open={confirmReserva} onOpenChange={setConfirmReserva}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-700">
+              <ShieldAlert className="w-5 h-5" /> Confirmar uso de bobina reservada
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p className="text-red-600 font-semibold">
+                  A bobina <strong>{bobinaObj?.codigo}</strong> está reservada para o pedido <strong>{bobinaObj?.reserva_numero_pedido || "?"}</strong>.
+                </p>
+                {bobinaObj?.reserva_motivo && <p>Motivo da reserva: {bobinaObj.reserva_motivo}</p>}
+                {bobinaObj?.reserva_autorizado_por && <p>Reservado por: {bobinaObj.reserva_autorizado_por}</p>}
+                <p className="text-foreground">
+                  Tem certeza que deseja utilizar esta bobina mesmo assim? Esta ação pode comprometer o pedido para o qual ela foi reservada.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => { setConfirmReserva(false); doSave(); }}
+            >
+              Sim, usar esta bobina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
