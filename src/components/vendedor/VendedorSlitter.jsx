@@ -32,17 +32,29 @@ export default function VendedorSlitter({ vendedorNome }) {
     .sort((a, b) => (a.codigo || "").localeCompare(b.codigo || "", undefined, { numeric: true }));
 
   const fmtKg = (v) => v ? `${Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : "-";
+  const fmtNum = (v) => Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+  const totalKg = ativas.reduce((s, sl) => s + (sl.peso_kg || 0), 0);
+  const totalReservadoKg = ativas.reduce((s, sl) => s + (sl.reservada ? (sl.reserva_tipo === "parcial" ? (sl.reserva_kg || 0) : (sl.peso_kg || 0)) : 0), 0);
+  const totalDisponivelKg = totalKg - totalReservadoKg;
 
   return (
     <div className="space-y-4">
       {/* Resumo */}
-      <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
-        <span className="text-sm text-muted-foreground">Slitters em estoque</span>
+      <div className="bg-card border border-border rounded-xl p-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-baseline gap-2">
+          <span className="text-sm text-muted-foreground">Slitters em estoque</span>
           <span className="text-2xl font-bold text-primary">{ativas.length}</span>
-          <span className="text-xs text-muted-foreground">
-            ({ativas.reduce((s, sl) => s + (sl.peso_kg || 0), 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg)
-          </span>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">KG Disponível</span>
+            <span className="text-sm font-bold text-emerald-700">{fmtNum(totalDisponivelKg)} kg</span>
+          </div>
+          <div className="w-px h-6 bg-border" />
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-600">KG Reservado</span>
+            <span className="text-sm font-bold text-amber-700">{fmtNum(totalReservadoKg)} kg</span>
+          </div>
         </div>
       </div>
 

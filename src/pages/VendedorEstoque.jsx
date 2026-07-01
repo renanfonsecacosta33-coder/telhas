@@ -194,6 +194,12 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
   const getPesoDisponivel = (b) => (b.peso_kg || 0) - getPesoReservadoBobina(b);
   const disponiveis = bobinas.filter(b => getPesoDisponivel(b) > 0);
 
+  // Totais de KG
+  const totalKg = bobinas.reduce((s, b) => s + (b.peso_kg || 0), 0);
+  const totalReservadoKg = bobinas.reduce((s, b) => s + getPesoReservadoBobina(b), 0);
+  const totalDisponivelKg = totalKg - totalReservadoKg;
+  const fmtKg = (v) => Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+
   // Qualidades únicas para filtros (de todas as bobinas)
   const qualidadesUnicas = [...new Set(bobinas.map(b => b.qualidade).filter(Boolean))].sort();
 
@@ -263,11 +269,22 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
         )}
 
         {/* Resumo */}
-        <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Bobinas em estoque</span>
+        <div className="bg-card border border-border rounded-xl p-4 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-baseline gap-2">
+            <span className="text-sm text-muted-foreground">Bobinas em estoque</span>
             <span className="text-2xl font-bold text-primary">{bobinas.length}</span>
             <span className="text-xs text-muted-foreground">({disponiveis.length} disponíveis)</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">KG Disponível</span>
+              <span className="text-sm font-bold text-emerald-700">{fmtKg(totalDisponivelKg)} kg</span>
+            </div>
+            <div className="w-px h-6 bg-border" />
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-600">KG Reservado</span>
+              <span className="text-sm font-bold text-amber-700">{fmtKg(totalReservadoKg)} kg</span>
+            </div>
           </div>
         </div>
 
