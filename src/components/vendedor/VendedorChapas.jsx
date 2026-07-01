@@ -2,11 +2,15 @@ import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
-import { Search, Filter, ShieldCheck } from "lucide-react";
+import { Search, Filter, ShieldCheck, BookmarkPlus } from "lucide-react";
+import SolicitarReservaDialog from "@/components/vendedor/SolicitarReservaDialog";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function VendedorChapas({ vendedorNome }) {
+  const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [filtroQualidade, setFiltroQualidade] = useState(null);
+  const [solicitarItem, setSolicitarItem] = useState(null);
 
   const { data: chapas = [], isLoading } = useQuery({
     queryKey: ["chapas-vendedor"],
@@ -126,6 +130,7 @@ export default function VendedorChapas({ vendedorNome }) {
                 <th className="text-right px-2 py-2 whitespace-nowrap">Peso</th>
                 <th className="text-left px-2 py-2 whitespace-nowrap">Status</th>
                 <th className="text-center px-2 py-2 whitespace-nowrap">Cert.</th>
+                  <th className="px-2 py-2"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -166,6 +171,16 @@ export default function VendedorChapas({ vendedorNome }) {
                       <span className="text-xs text-muted-foreground">-</span>
                     )}
                   </td>
+                  <td className="px-2 py-2 text-right whitespace-nowrap">
+                    {(c.peso_kg || 0) - getPesoReservadoChapa(c) > 0 ? (
+                      <button onClick={() => setSolicitarItem(c)} className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors" title="Solicitar reserva">
+                        <BookmarkPlus className="w-4 h-4" />
+                        <span className="hidden sm:inline">Reservar</span>
+                      </button>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground italic">Já reservado</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -176,6 +191,16 @@ export default function VendedorChapas({ vendedorNome }) {
       <p className="text-xs text-muted-foreground text-center">
         Chapas são geradas pela desbobinadeira. Chapas reservadas aparecem em destaque (fundo amarelo).
       </p>
+
+      <SolicitarReservaDialog
+        open={!!solicitarItem}
+        onClose={() => { setSolicitarItem(null); qc.invalidateQueries({ queryKey: ["chapas-vendedor"] }); }}
+        item={solicitarItem}
+        itemTipo="chapa"
+        itemLabel={solicitarItem ? `${solicitarItem.codigo || "-"} — ${solicitarItem.material || "-"} — ${solicitarItem.espessura_mm || "?"}mm` : ""}
+        vendedorNome={vendedorNome}
+        setor="corte_dobra"
+      />
     </div>
   );
 }

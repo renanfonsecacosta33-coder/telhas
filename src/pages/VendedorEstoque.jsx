@@ -451,7 +451,9 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
       <SolicitarReservaDialog
         open={!!solicitarBobina}
         onClose={() => { setSolicitarBobina(null); refetch(); }}
-        bobina={solicitarBobina}
+        item={solicitarBobina}
+        itemTipo="bobina"
+        itemLabel={solicitarBobina ? `${solicitarBobina.codigo || "-"} — ${solicitarBobina.cor || "-"} — ${solicitarBobina.chapa || "-"}mm` : ""}
         vendedorNome={vendedorNome}
         setor={setor}
       />

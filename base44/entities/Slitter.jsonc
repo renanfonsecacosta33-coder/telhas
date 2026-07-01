@@ -58,6 +58,39 @@
     "observacoes": {
       "type": "string",
       "description": "Observa\u00e7\u00f5es"
+    },
+    "reservada": {
+      "type": "boolean",
+      "description": "Slitter est\u00e1 reservado",
+      "default": false
+    },
+    "reserva_tipo": {
+      "type": "string",
+      "enum": [
+        "inteira",
+        "parcial"
+      ],
+      "description": "Se a reserva \u00e9 inteira ou parcial"
+    },
+    "reserva_kg": {
+      "type": "number",
+      "description": "Quantidade reservada em kg (parcial)"
+    },
+    "reserva_numero_pedido": {
+      "type": "string",
+      "description": "N\u00famero do pedido vinculado \u00e0 reserva"
+    },
+    "reserva_motivo": {
+      "type": "string",
+      "description": "Motivo da reserva"
+    },
+    "reserva_autorizado_por": {
+      "type": "string",
+      "description": "Nome de quem autorizou a reserva"
+    },
+    "reserva_data": {
+      "type": "string",
+      "description": "Data em que a reserva foi feita"
     }
   },
   "required": [

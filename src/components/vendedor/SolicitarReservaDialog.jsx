@@ -9,7 +9,7 @@ import { base44 } from "@/api/base44Client";
 import { Loader2, BookmarkPlus } from "lucide-react";
 import { toast } from "sonner";
 
-export default function SolicitarReservaDialog({ open, onClose, bobina, vendedorNome, setor }) {
+export default function SolicitarReservaDialog({ open, onClose, item, itemTipo = "bobina", itemLabel, vendedorNome, setor }) {
   const [form, setForm] = useState({
     reserva_tipo: "parcial",
     reserva_kg: "",
@@ -22,16 +22,15 @@ export default function SolicitarReservaDialog({ open, onClose, bobina, vendedor
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  if (!bobina) return null;
+  if (!item) return null;
 
-  // Calcula peso disponível considerando reserva parcial já existente
-  const pesoTotal = bobina.peso_kg || 0;
-  const pesoReservado = bobina.reserva_tipo === "parcial" ? (bobina.reserva_kg || 0) : (bobina.reservada ? pesoTotal : 0);
+  const pesoTotal = item.peso_kg || 0;
+  const pesoReservado = item.reserva_tipo === "parcial" ? (item.reserva_kg || 0) : (item.reservada ? pesoTotal : 0);
   const pesoDisponivel = pesoTotal - pesoReservado;
-  const jaParcial = bobina.reservada && bobina.reserva_tipo === "parcial" && pesoReservado > 0;
-
-  // Se a bobina já tem reserva parcial, força o tipo "parcial"
+  const jaParcial = item.reservada && item.reserva_tipo === "parcial" && pesoReservado > 0;
   const tipoEfetivo = jaParcial ? "parcial" : form.reserva_tipo;
+  const itemDesc = itemLabel || "Item";
+  const tipoLabel = itemTipo === "chapa" ? "Chapa" : itemTipo === "slitter" ? "Slitter" : "Bobina";
 
   const handleSubmit = async () => {
     if (tipoEfetivo === "parcial") {
@@ -40,20 +39,27 @@ export default function SolicitarReservaDialog({ open, onClose, bobina, vendedor
       if (kg > pesoDisponivel) { toast.error(`Quantidade excede o peso disponível (${pesoDisponivel.toLocaleString("pt-BR")} kg).`); return; }
     }
     setSaving(true);
-    await base44.entities.SolicitacaoReserva.create({
-      setor,
-      bobina_id: bobina.id,
-      bobina_descricao: `${bobina.cor} — ${bobina.chapa}mm — ${pesoTotal.toLocaleString("pt-BR")} kg${jaParcial ? ` (já reservado: ${pesoReservado.toLocaleString("pt-BR")} kg)` : ""}`,
-      vendedor_nome: vendedorNome,
-      numero_pedido: form.numero_pedido,
-      cliente: form.cliente,
-      reserva_tipo: tipoEfetivo,
-      reserva_kg: tipoEfetivo === "parcial" && form.reserva_kg ? Number(form.reserva_kg) : undefined,
-      motivo: form.motivo,
-      status: "pendente",
-    });
-    setSaving(false);
-    setDone(true);
+    try {
+      await base44.entities.SolicitacaoReserva.create({
+        setor,
+        item_tipo: itemTipo,
+        bobina_id: item.id,
+        bobina_descricao: `${itemDesc} — ${pesoTotal.toLocaleString("pt-BR")} kg${jaParcial ? ` (já reservado: ${pesoReservado.toLocaleString("pt-BR")} kg)` : ""}`,
+        vendedor_nome: vendedorNome,
+        numero_pedido: form.numero_pedido,
+        cliente: form.cliente,
+        reserva_tipo: tipoEfetivo,
+        reserva_kg: tipoEfetivo === "parcial" && form.reserva_kg ? Number(form.reserva_kg) : undefined,
+        motivo: form.motivo,
+        status: "pendente",
+      });
+      setDone(true);
+    } catch (error) {
+      const detail = error?.response?.data?.detail || error?.response?.data?.message || error?.message || "Erro ao enviar solicitação";
+      toast.error(detail);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleClose = () => {
@@ -81,9 +87,8 @@ export default function SolicitarReservaDialog({ open, onClose, bobina, vendedor
           </div>
         ) : (
           <>
-            {/* Info da bobina */}
             <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
-              <p className="font-semibold">{bobina.cor} — {bobina.chapa}mm</p>
+              <p className="font-semibold">{itemDesc}</p>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Peso total:</span>
                 <span className="font-semibold">{pesoTotal.toLocaleString("pt-BR")} kg</span>
@@ -102,7 +107,7 @@ export default function SolicitarReservaDialog({ open, onClose, bobina, vendedor
 
             {jaParcial && (
               <div className="bg-amber-50 border border-amber-300 rounded-lg p-2.5 text-xs text-amber-800">
-                Esta bobina já possui uma reserva parcial. Você pode reservar mais <strong>{pesoDisponivel.toLocaleString("pt-BR")} kg</strong>.
+                Este item já possui uma reserva parcial. Você pode reservar mais <strong>{pesoDisponivel.toLocaleString("pt-BR")} kg</strong>.
               </div>
             )}
 
@@ -128,7 +133,7 @@ export default function SolicitarReservaDialog({ open, onClose, bobina, vendedor
                 <Select value={tipoEfetivo} onValueChange={v => set("reserva_tipo", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="inteira" disabled={jaParcial}>Bobina inteira{jaParcial ? " (indisponível)" : ""}</SelectItem>
+                    <SelectItem value="inteira" disabled={jaParcial}>{tipoLabel} inteira{jaParcial ? " (indisponível)" : ""}</SelectItem>
                     <SelectItem value="parcial">Parcial (kg)</SelectItem>
                   </SelectContent>
                 </Select>

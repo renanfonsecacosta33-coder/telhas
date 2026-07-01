@@ -10,13 +10,23 @@
       ],
       "description": "Setor da bobina solicitada"
     },
+    "item_tipo": {
+      "type": "string",
+      "enum": [
+        "bobina",
+        "chapa",
+        "slitter"
+      ],
+      "default": "bobina",
+      "description": "Tipo do item reservado (bobina, chapa ou slitter)"
+    },
     "bobina_id": {
       "type": "string",
-      "description": "ID da bobina solicitada"
+      "description": "ID do item solicitado (bobina, chapa ou slitter)"
     },
     "bobina_descricao": {
       "type": "string",
-      "description": "Snapshot: cor, chapa, peso da bobina"
+      "description": "Snapshot: descri\u00e7\u00e3o do item (c\u00f3digo, espessura, peso)"
     },
     "vendedor_nome": {
       "type": "string",

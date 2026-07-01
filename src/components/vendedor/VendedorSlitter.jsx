@@ -2,11 +2,15 @@ import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
-import { Search, Filter } from "lucide-react";
+import { Search, Filter, BookmarkPlus } from "lucide-react";
+import SolicitarReservaDialog from "@/components/vendedor/SolicitarReservaDialog";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function VendedorSlitter({ vendedorNome }) {
+  const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [filtroQualidade, setFiltroQualidade] = useState(null);
+  const [solicitarItem, setSolicitarItem] = useState(null);
 
   const { data: slitters = [], isLoading } = useQuery({
     queryKey: ["slitters-vendedor"],
@@ -31,10 +35,16 @@ export default function VendedorSlitter({ vendedorNome }) {
     })
     .sort((a, b) => (a.codigo || "").localeCompare(b.codigo || "", undefined, { numeric: true }));
 
+  const getPesoReservadoSlitter = (s) => {
+    const peso = s.peso_kg || 0;
+    if (!s.reservada) return 0;
+    return s.reserva_tipo === "parcial" ? (s.reserva_kg || 0) : peso;
+  };
+  const getPesoDisponivelSlitter = (s) => (s.peso_kg || 0) - getPesoReservadoSlitter(s);
   const fmtKg = (v) => v ? `${Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : "-";
   const fmtNum = (v) => Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
   const totalKg = ativas.reduce((s, sl) => s + (sl.peso_kg || 0), 0);
-  const totalReservadoKg = ativas.reduce((s, sl) => s + (sl.reservada ? (sl.reserva_tipo === "parcial" ? (sl.reserva_kg || 0) : (sl.peso_kg || 0)) : 0), 0);
+  const totalReservadoKg = ativas.reduce((s, sl) => s + getPesoReservadoSlitter(sl), 0);
   const totalDisponivelKg = totalKg - totalReservadoKg;
 
   return (
@@ -117,6 +127,7 @@ export default function VendedorSlitter({ vendedorNome }) {
                 <th className="text-left px-2 py-2 whitespace-nowrap">Mat. Produção</th>
                 <th className="text-left px-2 py-2 whitespace-nowrap">NF</th>
                 <th className="text-left px-2 py-2 whitespace-nowrap">Status</th>
+                <th className="px-2 py-2"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -132,9 +143,21 @@ export default function VendedorSlitter({ vendedorNome }) {
                   <td className="px-2 py-2 whitespace-nowrap">{s.materiais_producao || "-"}</td>
                   <td className="px-2 py-2 whitespace-nowrap text-muted-foreground">{s.nf || "-"}</td>
                   <td className="px-2 py-2 whitespace-nowrap">
-                    <span className="text-xs font-semibold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded">
-                      {s.status || "Disponível"}
-                    </span>
+                    {s.reservada ? (
+                      <span className="text-xs font-semibold bg-amber-200 text-amber-800 px-2 py-0.5 rounded">Reservada</span>
+                    ) : (
+                      <span className="text-xs font-semibold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded">{s.status || "Disponível"}</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2 text-right whitespace-nowrap">
+                    {getPesoDisponivelSlitter(s) > 0 ? (
+                      <button onClick={() => setSolicitarItem(s)} className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors" title="Solicitar reserva">
+                        <BookmarkPlus className="w-4 h-4" />
+                        <span className="hidden sm:inline">Reservar</span>
+                      </button>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground italic">Já reservado</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -146,6 +169,16 @@ export default function VendedorSlitter({ vendedorNome }) {
       <p className="text-xs text-muted-foreground text-center">
         Slitters são bobinas slitadas (menor largura) usadas na perfiladeira e outros equipamentos.
       </p>
+
+      <SolicitarReservaDialog
+        open={!!solicitarItem}
+        onClose={() => { setSolicitarItem(null); qc.invalidateQueries({ queryKey: ["slitters-vendedor"] }); }}
+        item={solicitarItem}
+        itemTipo="slitter"
+        itemLabel={solicitarItem ? `${solicitarItem.codigo || "-"} — ${solicitarItem.qualidade || "?"} — ${solicitarItem.espessura_mm || "?"}mm — ${solicitarItem.largura_mm || "?"}mm` : ""}
+        vendedorNome={vendedorNome}
+        setor="corte_dobra"
+      />
     </div>
   );
 }

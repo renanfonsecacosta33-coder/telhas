@@ -34,9 +34,10 @@ function AvaliarDialog({ solicitacao, onClose }) {
         data_avaliacao: new Date().toISOString().split("T")[0],
       });
 
-      // Se aprovada, efetiva a reserva na bobina
+      // Se aprovada, efetiva a reserva no item correspondente
       if (decisao === "aprovada") {
-        await base44.entities.Bobina.update(solicitacao.bobina_id, {
+        const entityName = solicitacao.item_tipo === "chapa" ? "ChapaCD" : solicitacao.item_tipo === "slitter" ? "Slitter" : "Bobina";
+        await base44.entities[entityName].update(solicitacao.bobina_id, {
           reservada: true,
           reserva_tipo: solicitacao.reserva_tipo,
           reserva_kg: solicitacao.reserva_kg || undefined,
@@ -49,6 +50,8 @@ function AvaliarDialog({ solicitacao, onClose }) {
 
       qc.invalidateQueries({ queryKey: ["solicitacoes-reserva"] });
       qc.invalidateQueries({ queryKey: ["bobinas"] });
+      qc.invalidateQueries({ queryKey: ["chapas-vendedor"] });
+      qc.invalidateQueries({ queryKey: ["slitters-vendedor"] });
       toast.success(decisao === "aprovada" ? "Solicitação aprovada e reserva efetivada!" : "Solicitação recusada.");
       onClose();
     } catch (error) {
