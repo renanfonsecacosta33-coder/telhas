@@ -172,13 +172,13 @@ export default function VendedorChapas({ vendedorNome }) {
                     )}
                   </td>
                   <td className="px-2 py-2 text-right whitespace-nowrap">
-                    {(c.peso_kg || 0) - getPesoReservadoChapa(c) > 0 ? (
+                    {c.reservada && c.reserva_tipo !== "parcial" ? (
+                      <span className="text-[10px] text-muted-foreground italic">Já reservado</span>
+                    ) : (
                       <button onClick={() => setSolicitarItem(c)} className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors" title="Solicitar reserva">
                         <BookmarkPlus className="w-4 h-4" />
                         <span className="hidden sm:inline">Reservar</span>
                       </button>
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground italic">Já reservado</span>
                     )}
                   </td>
                 </tr>
