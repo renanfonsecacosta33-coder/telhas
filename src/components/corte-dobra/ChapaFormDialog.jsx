@@ -23,6 +23,7 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
     destino: "estoque",
     numero_pedido: "",
     cliente: "",
+    nf: "",
     observacoes: "",
     anexo_nf_url: "",
     anexo_nf_nome: "",
@@ -58,6 +59,7 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
         destino: "estoque",
         numero_pedido: "",
         cliente: "",
+        nf: "",
         observacoes: "",
         anexo_nf_url: "",
         anexo_nf_nome: "",
@@ -113,6 +115,7 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
       numero_pedido: form.destino === "pedido_direto" ? form.numero_pedido : undefined,
       cliente: form.destino === "pedido_direto" ? form.cliente : undefined,
       data_corte: form.data_corte,
+      nf: form.nf || undefined,
       foto_finalizacao_url: undefined,
       anexo_nf_url: form.anexo_nf_url || undefined,
       anexo_nf_nome: form.anexo_nf_nome || undefined,
@@ -206,6 +209,12 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
               <Label>Quantidade *</Label>
               <Input type="number" placeholder="Ex: 10" value={form.quantidade_total} onChange={e => set("quantidade_total", e.target.value)} />
             </div>
+          </div>
+
+          {/* NF */}
+          <div className="space-y-1">
+            <Label>NF (Nota Fiscal)</Label>
+            <Input placeholder="Ex: 123456" value={form.nf} onChange={e => set("nf", e.target.value)} />
           </div>
 
           {/* Destino */}

@@ -83,6 +83,10 @@
       "type": "string",
       "description": "Nome do cliente (quando destino = pedido_direto)"
     },
+    "nf": {
+      "type": "string",
+      "description": "N\u00famero da Nota Fiscal"
+    },
     "data_corte": {
       "type": "string",
       "format": "date",
