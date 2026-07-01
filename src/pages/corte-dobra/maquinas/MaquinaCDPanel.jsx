@@ -57,7 +57,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
       items.sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
       const total = items.length;
       items.forEach((item, idx) => {
-        map[item.id] = total > 1 ? `${idx + 1}/${total}` : null;
+        map[item.id] = `${idx + 1}/${total}`;
       });
     }
     return map;

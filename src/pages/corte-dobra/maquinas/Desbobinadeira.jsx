@@ -39,6 +39,26 @@ export default function Desbobinadeira() {
     refetchInterval: 10000,
   });
 
+  // Mapa de sequência de pedidos: para cada ordem com numero_pedido,
+  // calcula "1/3", "2/3", etc. com base na ordem de criação
+  const pedidoSeqMap = useMemo(() => {
+    const map = {};
+    const groups = {};
+    for (const o of ordens) {
+      if (!o.numero_pedido) continue;
+      if (!groups[o.numero_pedido]) groups[o.numero_pedido] = [];
+      groups[o.numero_pedido].push(o);
+    }
+    for (const items of Object.values(groups)) {
+      items.sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
+      const total = items.length;
+      items.forEach((item, idx) => {
+        map[item.id] = `${idx + 1}/${total}`;
+      });
+    }
+    return map;
+  }, [ordens]);
+
   const ordensSemana = useMemo(() => {
     const s = format(weekStart, "yyyy-MM-dd");
     const e = format(weekEnd, "yyyy-MM-dd");
@@ -267,7 +287,7 @@ export default function Desbobinadeira() {
                   <div className="p-4 space-y-3">
                     {ordensDoDia.map(o => (
                       <div key={o.id}>
-                        <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} />
+                        <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} pedidoSeq={pedidoSeqMap[o.id]} />
                         {isGestor && o.status === "pendente" && (
                           <div className="flex justify-end mt-1">
                             <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
@@ -311,7 +331,7 @@ export default function Desbobinadeira() {
             <div className="p-4 space-y-3">
               {ordensDiaFiltradas.map(o => (
                 <div key={o.id}>
-                  <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} />
+                  <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} pedidoSeq={pedidoSeqMap[o.id]} />
                   {isGestor && o.status === "pendente" && (
                     <div className="flex justify-end mt-1">
                       <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
