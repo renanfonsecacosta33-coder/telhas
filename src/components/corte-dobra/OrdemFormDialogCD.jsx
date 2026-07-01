@@ -61,6 +61,8 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     destino: "estoque",
     numero_pedido: "",
     cliente: "",
+    guilhotina: "",
+    tamanho_corte_guilhotina: "",
     observacoes: "",
   });
   const [confirmReserva, setConfirmReserva] = useState(false);
@@ -88,6 +90,8 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         destino: editItem.destino || "estoque",
         numero_pedido: editItem.numero_pedido || "",
         cliente: editItem.cliente || "",
+        guilhotina: editItem.guilhotina || "",
+        tamanho_corte_guilhotina: editItem.tamanho_corte_guilhotina || "",
         observacoes: editItem.observacoes || "",
       });
     } else {
@@ -99,6 +103,8 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         destino: "estoque",
         numero_pedido: "",
         cliente: "",
+        guilhotina: "",
+        tamanho_corte_guilhotina: "",
         observacoes: "",
       });
     }
@@ -134,6 +140,8 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
       comprimento_mm: Number(form.comprimento_mm),
       quantidade: Number(form.quantidade),
       kg_estimado: kgEstimado ? Math.round(kgEstimado * 100) / 100 : null,
+      guilhotina: form.destino === "pedido_direto" ? (form.guilhotina || null) : null,
+      tamanho_corte_guilhotina: form.destino === "pedido_direto" && form.tamanho_corte_guilhotina ? Number(form.tamanho_corte_guilhotina) : null,
     });
   };
 
@@ -366,7 +374,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => { set("destino", "estoque"); set("numero_pedido", ""); set("cliente", ""); }}
+                onClick={() => { set("destino", "estoque"); set("numero_pedido", ""); set("cliente", ""); set("guilhotina", ""); set("tamanho_corte_guilhotina", ""); }}
                 className={`flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all ${form.destino === "estoque" ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300 bg-card"}`}
               >
                 <Warehouse className={`w-6 h-6 ${form.destino === "estoque" ? "text-orange-600" : "text-muted-foreground"}`} />
@@ -391,14 +399,39 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
 
           {/* Campos de pedido direto */}
           {form.destino === "pedido_direto" && (
-            <div className="grid grid-cols-2 gap-3 bg-blue-50 border border-blue-200 rounded-xl p-3">
-              <div className="space-y-1">
-                <Label>Nº do Pedido *</Label>
-                <Input placeholder="Ex: 12345" value={form.numero_pedido} onChange={e => set("numero_pedido", e.target.value)} />
+            <div className="space-y-3 bg-blue-50 border border-blue-200 rounded-xl p-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Nº do Pedido *</Label>
+                  <Input placeholder="Ex: 12345" value={form.numero_pedido} onChange={e => set("numero_pedido", e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Cliente</Label>
+                  <Input placeholder="Nome do cliente" value={form.cliente} onChange={e => set("cliente", e.target.value)} />
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label>Cliente</Label>
-                <Input placeholder="Nome do cliente" value={form.cliente} onChange={e => set("cliente", e.target.value)} />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Guilhotina</Label>
+                  <Select value={form.guilhotina} onValueChange={v => set("guilhotina", v)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione a guilhotina..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CORTE 3M">CORTE 3M</SelectItem>
+                      <SelectItem value="CORTE 6M">CORTE 6M</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Tamanho de Corte na Guilhotina (mm)</Label>
+                  <Input
+                    type="number"
+                    placeholder="Ex: 1000"
+                    value={form.tamanho_corte_guilhotina}
+                    onChange={e => set("tamanho_corte_guilhotina", e.target.value)}
+                  />
+                </div>
               </div>
             </div>
           )}

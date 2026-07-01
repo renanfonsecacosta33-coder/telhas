@@ -48,6 +48,18 @@
       "type": "string",
       "description": "Nome do cliente (quando destino = pedido_direto)"
     },
+    "guilhotina": {
+      "type": "string",
+      "enum": [
+        "CORTE 3M",
+        "CORTE 6M"
+      ],
+      "description": "Guilhotina para onde a chapa ser\u00e1 enviada (quando destino = pedido_direto)"
+    },
+    "tamanho_corte_guilhotina": {
+      "type": "number",
+      "description": "Tamanho de corte na guilhotina em mm (quando destino = pedido_direto)"
+    },
     "observacoes": {
       "type": "string",
       "description": "Instru\u00e7\u00f5es ou observa\u00e7\u00f5es para o operador"
