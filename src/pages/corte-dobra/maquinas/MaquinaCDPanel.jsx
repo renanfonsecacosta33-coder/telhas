@@ -43,6 +43,26 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     [ordens, maquinaId]
   );
 
+  // Mapa de sequência de pedidos: para cada ordem com numero_pedido repetido,
+  // calcula "1/4", "2/4", etc. com base na ordem de criação
+  const pedidoSeqMap = useMemo(() => {
+    const map = {};
+    const groups = {};
+    for (const o of ordens) {
+      if (!o.numero_pedido) continue;
+      if (!groups[o.numero_pedido]) groups[o.numero_pedido] = [];
+      groups[o.numero_pedido].push(o);
+    }
+    for (const items of Object.values(groups)) {
+      items.sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
+      const total = items.length;
+      items.forEach((item, idx) => {
+        map[item.id] = total > 1 ? `${idx + 1}/${total}` : null;
+      });
+    }
+    return map;
+  }, [ordens]);
+
   const ordensSemana = useMemo(() => {
     const s = format(weekStart, "yyyy-MM-dd");
     const e = format(weekEnd, "yyyy-MM-dd");
@@ -257,7 +277,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
                       return (ord[a.status] ?? 3) - (ord[b.status] ?? 3);
                     }).map(o => (
                       <div key={o.id}>
-                        <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} ordens={ordensDaMaquina} />
+                        <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} ordens={ordensDaMaquina} pedidoSeq={pedidoSeqMap[o.id]} />
                         {isGestor && o.status === "pendente" && (
                           <div className="flex justify-end mt-1">
                             <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
@@ -301,7 +321,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
             <div className="p-4 space-y-3">
               {ordensDia.map(o => (
                 <div key={o.id}>
-                  <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} ordens={ordensDaMaquina} />
+                  <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} ordens={ordensDaMaquina} pedidoSeq={pedidoSeqMap[o.id]} />
                   {isGestor && o.status === "pendente" && (
                     <div className="flex justify-end mt-1">
                       <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>

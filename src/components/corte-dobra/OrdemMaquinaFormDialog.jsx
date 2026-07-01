@@ -219,7 +219,6 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
 
   const handleSave = async () => {
     if (!form.maquina) { alert("Selecione a máquina."); return; }
-    if (isMaquinaPadrao && !form.desenvolvimento_id) { alert("Selecione o desenvolvimento."); return; }
     if (isPerfiladeira && !form.bobina_id) { alert("Selecione a bobina slitter."); return; }
     if (isDobra && !form.chapa_cd_id) { alert("Selecione a chapa do estoque."); return; }
     if (!form.tipo_peca) { alert("Informe o tipo de peça."); return; }
@@ -282,10 +281,10 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
             </div>
           </div>
 
-          {/* Desenvolvimento (obrigatório para corte/dobra) */}
+          {/* Desenvolvimento (opcional para corte/dobra) */}
           {isMaquinaPadrao && (
             <div className="space-y-1">
-              <Label>Desenvolvimento *</Label>
+              <Label>Desenvolvimento (opcional)</Label>
               <Select value={form.desenvolvimento_id} onValueChange={v => {
                 set("desenvolvimento_id", v);
                 if (!v) { set("tipo_peca", ""); set("dimensoes_livres", ""); set("ordem_dobra_maquina", ""); return; }

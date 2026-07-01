@@ -55,7 +55,7 @@ const ZOOM_CFG = {
   grande:   { card: "p-5",   title: "text-lg", info: "text-sm", badge: "text-sm", cronText: "text-base", cronLabel: "text-sm", cronPad: "px-4 py-2.5", btn: "h-10 text-sm", obs: "text-sm py-2", gap: "gap-2.5", mb: "mb-3" },
 };
 
-export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "normal", ordens = [] }) {
+export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "normal", ordens = [], pedidoSeq }) {
   const z = ZOOM_CFG[zoom] || ZOOM_CFG.normal;
   const [pauseDialog, setPauseDialog] = useState(false);
   const [pauseMotivo, setPauseMotivo] = useState("");
@@ -275,6 +275,9 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               <span className="inline-flex items-center gap-1">
                 <span className="text-muted-foreground/70">Pedido:</span>
                 <span className="font-semibold text-foreground font-mono">{o.numero_pedido}</span>
+                {pedidoSeq && (
+                  <span className="ml-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500 text-white">{pedidoSeq}</span>
+                )}
               </span>
             )}
             {o.cliente && (
@@ -352,6 +355,9 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               <div className={`flex items-center gap-1 ${z.info}`}>
                 <ShoppingCart className="w-3 h-3 text-blue-500" />
                 <span className="font-bold text-blue-700">#{o.numero_pedido}</span>
+                {pedidoSeq && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500 text-white">{pedidoSeq}</span>
+                )}
                 {o.cliente && <span className="text-muted-foreground">— {o.cliente}</span>}
               </div>
             )}
