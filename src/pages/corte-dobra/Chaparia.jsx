@@ -26,12 +26,23 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
   const [destino, setDestino] = useState(chapa?.destino || "estoque");
   const [cliente, setCliente] = useState(chapa?.cliente || "");
   const [numeroPedido, setNumeroPedido] = useState(chapa?.numero_pedido || "");
+  const [nf, setNf] = useState(chapa?.nf || "");
   const [observacoes, setObservacoes] = useState(chapa?.observacoes || "");
   const [motivo, setMotivo] = useState("");
   const [anexoUrl, setAnexoUrl] = useState("");
   const [anexoNome, setAnexoNome] = useState("");
+  const [anexoNfUrl, setAnexoNfUrl] = useState(chapa?.anexo_nf_url || "");
+  const [anexoNfNome, setAnexoNfNome] = useState(chapa?.anexo_nf_nome || "");
+  const [anexoCfUrl, setAnexoCfUrl] = useState(chapa?.anexo_cf_url || "");
+  const [anexoCfNome, setAnexoCfNome] = useState(chapa?.anexo_cf_nome || "");
   const [uploading, setUploading] = useState(false);
+  const [uploadingNF, setUploadingNF] = useState(false);
+  const [uploadingCF, setUploadingCF] = useState(false);
   const fileRef = useRef();
+  const nfFileRef = useRef();
+  const nfCameraRef = useRef();
+  const cfFileRef = useRef();
+  const cfCameraRef = useRef();
 
   React.useEffect(() => {
     if (open && chapa) {
@@ -46,10 +57,15 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
       setDestino(chapa.destino || "estoque");
       setCliente(chapa.cliente || "");
       setNumeroPedido(chapa.numero_pedido || "");
+      setNf(chapa.nf || "");
       setObservacoes(chapa.observacoes || "");
       setMotivo("");
       setAnexoUrl("");
       setAnexoNome("");
+      setAnexoNfUrl(chapa.anexo_nf_url || "");
+      setAnexoNfNome(chapa.anexo_nf_nome || "");
+      setAnexoCfUrl(chapa.anexo_cf_url || "");
+      setAnexoCfNome(chapa.anexo_cf_nome || "");
     }
   }, [open, chapa]);
 
@@ -60,6 +76,24 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
     setAnexoUrl(file_url);
     setAnexoNome(file.name);
     setUploading(false);
+  };
+
+  const handleUploadNF = async (file) => {
+    if (!file) return;
+    setUploadingNF(true);
+    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    setAnexoNfUrl(file_url);
+    setAnexoNfNome(file.name);
+    setUploadingNF(false);
+  };
+
+  const handleUploadCF = async (file) => {
+    if (!file) return;
+    setUploadingCF(true);
+    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    setAnexoCfUrl(file_url);
+    setAnexoCfNome(file.name);
+    setUploadingCF(false);
   };
 
   const algoMudou = qtd !== (chapa?.quantidade_disponivel ?? 0)
@@ -73,7 +107,10 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
     || destino !== (chapa?.destino || "estoque")
     || cliente !== (chapa?.cliente || "")
     || numeroPedido !== (chapa?.numero_pedido || "")
-    || observacoes !== (chapa?.observacoes || "");
+    || nf !== (chapa?.nf || "")
+    || observacoes !== (chapa?.observacoes || "")
+    || anexoNfUrl !== (chapa?.anexo_nf_url || "")
+    || anexoCfUrl !== (chapa?.anexo_cf_url || "");
   const canSave = (motivo.trim() && algoMudou) || (motivo.trim() && anexoUrl);
 
   const handleSave = () => {
@@ -102,6 +139,11 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
       destino,
       cliente: destino === "pedido_direto" ? (cliente || null) : null,
       numero_pedido: destino === "pedido_direto" ? (numeroPedido || null) : null,
+      nf: nf || null,
+      anexo_nf_url: anexoNfUrl || null,
+      anexo_nf_nome: anexoNfNome || null,
+      anexo_cf_url: anexoCfUrl || null,
+      anexo_cf_nome: anexoCfNome || null,
       observacoes: observacoes || null,
       historico_movimentacoes: JSON.stringify(historico),
     });
@@ -202,6 +244,79 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
               </div>
             </div>
           )}
+
+          <div className="space-y-1">
+            <Label>NF (Nota Fiscal)</Label>
+            <Input placeholder="Ex: 123456" value={nf} onChange={e => setNf(e.target.value)} />
+          </div>
+
+          {/* Anexos NF + CF */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1">Anexos</Label>
+            <div className="grid grid-cols-2 gap-3">
+              {/* NF */}
+              <div className="space-y-1.5">
+                <input ref={nfFileRef} type="file" className="hidden" accept="image/*,.pdf"
+                  onChange={e => handleUploadNF(e.target.files[0])} />
+                <input ref={nfCameraRef} type="file" className="hidden" accept="image/*" capture="environment"
+                  onChange={e => handleUploadNF(e.target.files[0])} />
+                {anexoNfUrl ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                    <FileCheck className="w-4 h-4 shrink-0 text-emerald-600" />
+                    <a href={anexoNfUrl} target="_blank" rel="noopener noreferrer"
+                      className="truncate flex-1 underline underline-offset-2 font-medium" title={anexoNfNome}>
+                      {anexoNfNome || "NF anexada"}
+                    </a>
+                    <button onClick={() => { setAnexoNfUrl(""); setAnexoNfNome(""); }}
+                      className="text-emerald-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                ) : (
+                  <div className="flex gap-1.5">
+                    <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
+                      onClick={() => nfFileRef.current.click()} disabled={uploadingNF}>
+                      {uploadingNF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+                      {uploadingNF ? "Enviando..." : "Anexar NF"}
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
+                      onClick={() => nfCameraRef.current.click()} disabled={uploadingNF} title="Câmera">
+                      <Camera className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* CF */}
+              <div className="space-y-1.5">
+                <input ref={cfFileRef} type="file" className="hidden" accept="image/*,.pdf"
+                  onChange={e => handleUploadCF(e.target.files[0])} />
+                <input ref={cfCameraRef} type="file" className="hidden" accept="image/*" capture="environment"
+                  onChange={e => handleUploadCF(e.target.files[0])} />
+                {anexoCfUrl ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                    <ShieldCheck className="w-4 h-4 shrink-0 text-blue-600" />
+                    <a href={anexoCfUrl} target="_blank" rel="noopener noreferrer"
+                      className="truncate flex-1 underline underline-offset-2 font-medium" title={anexoCfNome}>
+                      {anexoCfNome || "CF anexado"}
+                    </a>
+                    <button onClick={() => { setAnexoCfUrl(""); setAnexoCfNome(""); }}
+                      className="text-blue-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                ) : (
+                  <div className="flex gap-1.5">
+                    <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
+                      onClick={() => cfFileRef.current.click()} disabled={uploadingCF}>
+                      {uploadingCF ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                      {uploadingCF ? "Enviando..." : "Anexar CF"}
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
+                      onClick={() => cfCameraRef.current.click()} disabled={uploadingCF} title="Câmera">
+                      <Camera className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
 
           <div className="space-y-1">
             <Label>Observações</Label>
