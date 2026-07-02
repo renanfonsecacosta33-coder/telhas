@@ -312,10 +312,10 @@ export default function GerenciarUsuarios() {
               </div>
               <div className="space-y-1">
                 <Label>Unidade</Label>
-                <Select value={editUser.unidade || ""} onValueChange={v => setEditUser(u => ({ ...u, unidade: v }))}>
+                <Select value={editUser.unidade || "todas"} onValueChange={v => setEditUser(u => ({ ...u, unidade: v === "todas" ? "" : v }))}>
                   <SelectTrigger><SelectValue placeholder="Selecione a unidade" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={null}>Todas</SelectItem>
+                    <SelectItem value="todas">Todas</SelectItem>
                     {UNIDADES.filter(u => u).map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
                   </SelectContent>
                 </Select>
