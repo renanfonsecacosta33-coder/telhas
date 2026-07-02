@@ -184,7 +184,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
         const novoCodigo = `CH${String(maxNum + 1).padStart(4, "0")}`;
 
         // Cria ChapaCD no estoque da Chaparia
-        await base44.entities.ChapaCD.create({
+        const chapaCriada = await base44.entities.ChapaCD.create({
           codigo: novoCodigo,
           origem: "desbobinadeira",
           ordem_id: o.id,
@@ -202,6 +202,26 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
           foto_finalizacao_url: file_url,
           observacoes: o.observacoes || null,
         });
+
+        // Se for pedido direto com guilhotina definida, cria OP automática na guilhotina
+        if (o.destino === "pedido_direto" && o.guilhotina && chapaCriada?.id) {
+          const chapaDesc = `${novoCodigo} — ${o.bobina_descricao || ""} ${o.comprimento_mm || 0}mm`.trim();
+          await base44.entities.OrdemMaquinaCD.create({
+            data: format(new Date(), "yyyy-MM-dd"),
+            maquina: o.guilhotina,
+            chapa_cd_id: chapaCriada.id,
+            chapa_descricao: chapaDesc,
+            chapa_origem: "chaparia",
+            tipo_peca: "Corte Guilhotina",
+            dimensoes_livres: o.tamanho_corte_guilhotina ? `${o.tamanho_corte_guilhotina}mm` : null,
+            numero_pedido: o.numero_pedido || null,
+            cliente: o.cliente || null,
+            quantidade: o.quantidade || 0,
+            status: "pendente",
+            observacoes: `OP gerada automaticamente pela Desbobinadeira (OP ${o.id.slice(-6).toUpperCase()})`,
+          });
+          toast.success(`OP automática criada na ${o.guilhotina}`);
+        }
       }
     }
     onUpdate(o.id, {
