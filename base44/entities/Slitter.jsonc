@@ -2,6 +2,17 @@
   "name": "Slitter",
   "type": "object",
   "properties": {
+    "unidade": {
+      "type": "string",
+      "enum": [
+        "Matriz AJL",
+        "Pinhais",
+        "Ivaipor\u00e3",
+        "Ponta Grossa"
+      ],
+      "default": "Matriz AJL",
+      "description": "Unidade produtora"
+    },
     "codigo": {
       "type": "string",
       "description": "C\u00f3digo autom\u00e1tico (ST0001, ST0002...)"

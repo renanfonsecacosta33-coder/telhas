@@ -152,7 +152,8 @@
       "enum": [
         "Matriz AJL",
         "Pinhais",
-        "Ivaipor\u00e3"
+        "Ivaipor\u00e3",
+        "Ponta Grossa"
       ],
       "default": "Matriz AJL",
       "description": "Unidade produtora"

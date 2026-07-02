@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { Outlet, Navigate } from "react-router-dom";
+import { Outlet, Navigate, useNavigate } from "react-router-dom";
 import SidebarCD from "./SidebarCD";
+import FilialSwitcher from "@/components/FilialSwitcher";
+import { Button } from "@/components/ui/button";
+import { ArrowLeftRight } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 
 export default function AppLayoutCD() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     base44.auth.me().then(u => { setUser(u); setLoading(false); }).catch(() => setLoading(false));
@@ -32,7 +36,17 @@ export default function AppLayoutCD() {
     <div className="min-h-screen bg-background">
       <SidebarCD isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
       <main className="lg:ml-64 min-h-screen">
-        <div className="p-4 sm:p-6 lg:p-8 pt-16 lg:pt-8">
+        <div className="sticky top-0 z-30 bg-background/80 backdrop-blur border-b border-border px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-end gap-2 lg:hidden">
+          <FilialSwitcher />
+        </div>
+        <div className="hidden lg:flex sticky top-0 z-30 bg-background/80 backdrop-blur border-b border-border px-8 py-2 items-center justify-end gap-2">
+          <FilialSwitcher />
+          <Button variant="ghost" size="sm" className="gap-2 h-8" onClick={() => navigate("/setor")}>
+            <ArrowLeftRight className="w-4 h-4" />
+            Trocar Setor
+          </Button>
+        </div>
+        <div className="p-4 sm:p-6 lg:p-8">
           <Outlet />
         </div>
       </main>

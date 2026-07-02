@@ -6,6 +6,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
+import { FilialProvider } from '@/contexts/FilialContext';
 import AppLayout from '@/components/layout/AppLayout';
 import Dashboard from '@/pages/Dashboard';
 import DashboardTelhas from '@/pages/DashboardTelhas';
@@ -87,6 +88,7 @@ const AuthenticatedApp = () => {
   }
 
   return (
+    <FilialProvider>
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
@@ -145,6 +147,7 @@ const AuthenticatedApp = () => {
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
+    </FilialProvider>
   );
 };
 
