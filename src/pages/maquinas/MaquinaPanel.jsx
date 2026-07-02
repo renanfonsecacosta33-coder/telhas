@@ -10,6 +10,7 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import PedidoRow from "@/components/producao/PedidoRow";
 import PedidoFormDialog from "@/components/producao/PedidoFormDialog";
+import { useFilial } from "@/contexts/FilialContext";
 
 
 
@@ -33,10 +34,11 @@ export default function MaquinaPanel({ maquina }) {
   const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
   const [novoPedidoOpen, setNovoPedidoOpen] = useState(false);
   const queryClient = useQueryClient();
+  const { filialAtiva } = useFilial();
 
   const { data: pedidos = [], isLoading } = useQuery({
-    queryKey: ["pedidos-maquina", maquina],
-    queryFn: () => base44.entities.Pedido.filter({ maquina }, "-data", 300),
+    queryKey: ["pedidos-maquina", maquina, filialAtiva],
+    queryFn: () => base44.entities.Pedido.filter({ maquina, unidade: filialAtiva }, "-data", 300),
     refetchInterval: 10000,
   });
 

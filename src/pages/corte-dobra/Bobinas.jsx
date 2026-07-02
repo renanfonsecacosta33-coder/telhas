@@ -12,8 +12,10 @@ import DeleteConfirmDialog from "@/components/stock/DeleteConfirmDialog";
 import EmptyState from "@/components/stock/EmptyState";
 import BobinaCard, { getAlertaNivel } from "@/components/bobinas/BobinaCardShared";
 import PainelSolicitacoesReserva from "@/components/vendedor/PainelSolicitacoesReserva";
+import { useFilial } from "@/contexts/FilialContext";
 
 export default function BobinasCD() {
+  const { filialAtiva } = useFilial();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [deleteItem, setDeleteItem] = useState(null);
@@ -26,8 +28,8 @@ export default function BobinasCD() {
   const queryClient = useQueryClient();
 
   const { data: bobinas = [], isLoading } = useQuery({
-    queryKey: ["bobinas-cd"],
-    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra" }, "-created_date", 500),
+    queryKey: ["bobinas-cd", filialAtiva],
+    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", unidade: filialAtiva }, "-created_date", 500),
   });
 
   const proximoNumero = (() => {

@@ -9,6 +9,7 @@ import SolicitarReservaDialog from "@/components/vendedor/SolicitarReservaDialog
 import CalculadoraVendedor from "@/components/vendedor/CalculadoraVendedor";
 import VendedorChapas from "@/components/vendedor/VendedorChapas";
 import VendedorSlitter from "@/components/vendedor/VendedorSlitter";
+import { useFilial } from "@/contexts/FilialContext";
 
 const SENHA = "ajl1234";
 const STORAGE_KEY = "vendedor_autenticado";
@@ -125,6 +126,7 @@ function LoginScreen({ onLogin }) {
 
 // Tela do estoque
 function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
+  const { filialAtiva } = useFilial();
   const [search, setSearch] = useState("");
   const [solicitarBobina, setSolicitarBobina] = useState(null);
   const [filtroQualidade, setFiltroQualidade] = useState(null); // null = todas
@@ -135,19 +137,19 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
   const isCorteDobra = setor === "corte_dobra";
 
   const { data: bobinas = [], isLoading, refetch } = useQuery({
-    queryKey: ["bobinas-vendedor", setor],
-    queryFn: () => base44.entities.Bobina.filter({ setor, arquivada: false }),
+    queryKey: ["bobinas-vendedor", setor, filialAtiva],
+    queryFn: () => base44.entities.Bobina.filter({ setor, arquivada: false, unidade: filialAtiva }),
   });
 
   // Busca ordens ativas para mostrar status da bobina
   const { data: ordensAtivas = [] } = useQuery({
-    queryKey: ["ordens-ativas-vendedor", setor],
+    queryKey: ["ordens-ativas-vendedor", setor, filialAtiva],
     queryFn: async () => {
       if (setor === "telhas") {
-        const pedidos = await base44.entities.Pedido.list();
+        const pedidos = await base44.entities.Pedido.filter({ unidade: filialAtiva });
         return pedidos.filter(p => !["finalizado", "cancelado"].includes(p.status));
       } else {
-        const ordens = await base44.entities.OrdemDesbobinadeira.list();
+        const ordens = await base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva });
         return ordens.filter(o => !["finalizado", "cancelado"].includes(o.status));
       }
     },

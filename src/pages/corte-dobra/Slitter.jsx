@@ -11,8 +11,10 @@ import SlitterFormDialog from "@/components/corte-dobra/SlitterFormDialog";
 import SlitterCard from "@/components/corte-dobra/SlitterCard";
 import DeleteConfirmDialog from "@/components/stock/DeleteConfirmDialog";
 import EmptyState from "@/components/stock/EmptyState";
+import { useFilial } from "@/contexts/FilialContext";
 
 export default function SlitterPage() {
+  const { filialAtiva } = useFilial();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [deleteItem, setDeleteItem] = useState(null);
@@ -21,8 +23,8 @@ export default function SlitterPage() {
   const queryClient = useQueryClient();
 
   const { data: slitters = [], isLoading } = useQuery({
-    queryKey: ["slitters"],
-    queryFn: () => base44.entities.Slitter.list(),
+    queryKey: ["slitters", filialAtiva],
+    queryFn: () => base44.entities.Slitter.filter({ unidade: filialAtiva }),
   });
 
   const proximoCodigo = (() => {

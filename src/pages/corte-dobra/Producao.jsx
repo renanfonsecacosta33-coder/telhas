@@ -12,6 +12,7 @@ import OrdemDesbobinadiraRow from "@/components/corte-dobra/OrdemDesbobinadiraRo
 import DiaResumoCardCD from "@/components/corte-dobra/DiaResumoCardCD";
 import OrdemMaquinaFormDialog from "@/components/corte-dobra/OrdemMaquinaFormDialog.jsx";
 import OrdemMaquinaRow from "@/components/corte-dobra/OrdemMaquinaRow.jsx";
+import { useFilial } from "@/contexts/FilialContext";
 
 const MAQUINAS_OUTRAS = [
   { id: "CORTE 3M",       label: "Guilhotina 3m",       cor: "bg-purple-100 text-purple-800 border-purple-200" },
@@ -39,6 +40,7 @@ export default function ProducaoCD() {
   const [maquinaAtiva, setMaquinaAtiva] = useState(null);
 
   const queryClient = useQueryClient();
+  const { filialAtiva } = useFilial();
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
@@ -50,15 +52,15 @@ export default function ProducaoCD() {
 
   // Ordens Desbobinadeira
   const { data: ordens = [], isLoading } = useQuery({
-    queryKey: ["ordens-desbobinadeira"],
-    queryFn: () => base44.entities.OrdemDesbobinadeira.list("-data", 500),
+    queryKey: ["ordens-desbobinadeira", filialAtiva],
+    queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva }, "-data", 500),
     refetchInterval: 10000,
   });
 
   // Ordens outras máquinas
   const { data: ordensMaq = [] } = useQuery({
-    queryKey: ["ordens-maquina-cd"],
-    queryFn: () => base44.entities.OrdemMaquinaCD.list("-data", 500),
+    queryKey: ["ordens-maquina-cd", filialAtiva],
+    queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva }, "-data", 500),
     refetchInterval: 10000,
   });
 

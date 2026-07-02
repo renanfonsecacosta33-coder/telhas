@@ -5,6 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { TrendingUp, Clock, CheckCircle2, AlertTriangle, Factory, Zap } from "lucide-react";
 import { format, subDays, eachDayOfInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useFilial } from "@/contexts/FilialContext";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 const CORES_MAQUINAS = ["#3b82f6","#22c55e","#a855f7","#f97316","#ec4899","#eab308","#14b8a6","#ef4444"];
@@ -18,9 +19,10 @@ function formatTempo(seg) {
 }
 
 export default function DashboardPerformance() {
+  const { filialAtiva } = useFilial();
   const { data: pedidos = [], isLoading } = useQuery({
-    queryKey: ["pedidos-dashboard"],
-    queryFn: () => base44.entities.Pedido.list("-data", 500),
+    queryKey: ["pedidos-dashboard", filialAtiva],
+    queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva }, "-data", 500),
   });
 
   const hoje = format(new Date(), "yyyy-MM-dd");

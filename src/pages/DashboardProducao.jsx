@@ -15,6 +15,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   Cell, LineChart, Line, Legend, PieChart, Pie
 } from "recharts";
+import { useFilial } from "@/contexts/FilialContext";
 
 const MAQUINAS = [
   { nome: "TP - 40",      path: "/maquina/tp40",         dashPath: "/dashboard/tp40",         color: "bg-green-500",  colorHex: "#22c55e" },
@@ -37,19 +38,20 @@ function formatTempo(seg) {
 }
 
 export default function DashboardProducao() {
+  const { filialAtiva } = useFilial();
   const hoje = format(new Date(), "yyyy-MM-dd");
   const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
   const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
 
   const { data: pedidos = [], isLoading } = useQuery({
-    queryKey: ["pedidos-dashboard"],
-    queryFn: () => base44.entities.Pedido.list("-data", 1000),
+    queryKey: ["pedidos-dashboard", filialAtiva],
+    queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva }, "-data", 1000),
     refetchInterval: 15000,
   });
 
   const { data: bobinas = [] } = useQuery({
-    queryKey: ["bobinas-dashboard"],
-    queryFn: () => base44.entities.Bobina.filter({ arquivada: false }),
+    queryKey: ["bobinas-dashboard", filialAtiva],
+    queryFn: () => base44.entities.Bobina.filter({ arquivada: false, unidade: filialAtiva }),
   });
 
   const { data: isopores = [] } = useQuery({

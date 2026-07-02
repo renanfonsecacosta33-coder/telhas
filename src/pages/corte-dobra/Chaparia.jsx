@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import ChapaFormDialog from "@/components/corte-dobra/ChapaFormDialog";
 import ChapaCard from "@/components/corte-dobra/ChapaCard";
+import { useFilial } from "@/contexts/FilialContext";
 
 function EditarQuantDialog({ chapa, open, onClose, onSave }) {
   const [qtd, setQtd] = useState(chapa?.quantidade_disponivel || 0);
@@ -358,6 +359,7 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
 
 export default function Chaparia() {
   const qc = useQueryClient();
+  const { filialAtiva } = useFilial();
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [filtroDestino, setFiltroDestino] = useState("todos");
@@ -373,8 +375,8 @@ export default function Chaparia() {
   const isAdmin = user?.role === "admin";
 
   const { data: chapas = [], isLoading } = useQuery({
-    queryKey: ["chapas-cd"],
-    queryFn: () => base44.entities.ChapaCD.list("-created_date", 200),
+    queryKey: ["chapas-cd", filialAtiva],
+    queryFn: () => base44.entities.ChapaCD.filter({ unidade: filialAtiva }, "-created_date", 200),
   });
 
   const updateMut = useMutation({

@@ -11,6 +11,7 @@ import {
   Coffee, Square, TrendingUp, AlertCircle, BarChart2, Activity
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { useFilial } from "@/contexts/FilialContext";
 
 function formatTempo(seg) {
   const s = Math.floor(seg || 0);
@@ -87,12 +88,13 @@ const MAQUINAS_CONFIG = {
 
 export default function DashboardMaquina({ maquina }) {
   const navigate = useNavigate();
+  const { filialAtiva } = useFilial();
   const cfg = MAQUINAS_CONFIG[maquina] || { colorHex: "#3b82f6", gradient: "from-primary to-primary/80", path: "/" };
   const hoje = format(new Date(), "yyyy-MM-dd");
 
   const { data: pedidos = [], isLoading } = useQuery({
-    queryKey: ["pedidos-dash-maquina", maquina],
-    queryFn: () => base44.entities.Pedido.filter({ maquina }, "-data", 500),
+    queryKey: ["pedidos-dash-maquina", maquina, filialAtiva],
+    queryFn: () => base44.entities.Pedido.filter({ maquina, unidade: filialAtiva }, "-data", 500),
     refetchInterval: 10000,
   });
 

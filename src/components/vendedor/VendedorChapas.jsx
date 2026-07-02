@@ -5,16 +5,18 @@ import { Input } from "@/components/ui/input";
 import { Search, Filter, ShieldCheck, BookmarkPlus } from "lucide-react";
 import SolicitarReservaDialog from "@/components/vendedor/SolicitarReservaDialog";
 import { useQueryClient } from "@tanstack/react-query";
+import { useFilial } from "@/contexts/FilialContext";
 
 export default function VendedorChapas({ vendedorNome }) {
   const qc = useQueryClient();
+  const { filialAtiva } = useFilial();
   const [search, setSearch] = useState("");
   const [filtroQualidade, setFiltroQualidade] = useState(null);
   const [solicitarItem, setSolicitarItem] = useState(null);
 
   const { data: chapas = [], isLoading } = useQuery({
-    queryKey: ["chapas-vendedor"],
-    queryFn: () => base44.entities.ChapaCD.filter({ status: { $ne: "cancelado" } }),
+    queryKey: ["chapas-vendedor", filialAtiva],
+    queryFn: () => base44.entities.ChapaCD.filter({ status: { $ne: "cancelado" }, unidade: filialAtiva }),
   });
 
   const ativas = chapas.filter(c => c.status !== "consumido" && (c.quantidade_disponivel ?? 0) > 0 && (c.destino === "estoque" || c.origem === "manual"));

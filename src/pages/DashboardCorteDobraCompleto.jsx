@@ -15,6 +15,7 @@ import {
   Calendar, Target, Activity, Scissors, Layers, Timer, Coffee, Square
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useFilial } from "@/contexts/FilialContext";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend
 } from "recharts";
@@ -58,22 +59,23 @@ export default function DashboardCorteDobraCompleto() {
   const [filtroFim, setFiltroFim] = useState(weekEnd);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { filialAtiva } = useFilial();
 
   const { data: ordens = [] } = useQuery({
-    queryKey: ["ordens-maquina-cd-dash"],
-    queryFn: () => base44.entities.OrdemMaquinaCD.list("-data", 500),
+    queryKey: ["ordens-maquina-cd-dash", filialAtiva],
+    queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva }, "-data", 500),
     refetchInterval: 15000,
   });
 
   const { data: ordensDesb = [] } = useQuery({
-    queryKey: ["ordens-desb-dash"],
-    queryFn: () => base44.entities.OrdemDesbobinadeira.list("-data", 300),
+    queryKey: ["ordens-desb-dash", filialAtiva],
+    queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva }, "-data", 300),
     refetchInterval: 15000,
   });
 
   const { data: bobinas = [] } = useQuery({
-    queryKey: ["bobinas-cd-dash-novo"],
-    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false }),
+    queryKey: ["bobinas-cd-dash-novo", filialAtiva],
+    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false, unidade: filialAtiva }),
     refetchInterval: 30000,
   });
 

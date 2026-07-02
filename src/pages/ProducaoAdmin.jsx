@@ -15,6 +15,7 @@ import DiaResumoCard from "@/components/producao/DiaResumoCard";
 import ProducaoDados from "@/pages/ProducaoDados";
 import AlertasEstoque from "@/components/producao/AlertasEstoque";
 import OPImpressao from "@/components/producao/OPImpressao";
+import { useFilial } from "@/contexts/FilialContext";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 
@@ -41,14 +42,15 @@ export default function ProducaoAdmin() {
   const [alertasVisivel, setAlertasVisivel] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // pedido a excluir
   const queryClient = useQueryClient();
+  const { filialAtiva } = useFilial();
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
   const diasDaSemana = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
   const { data: pedidos = [], isLoading } = useQuery({
-    queryKey: ["pedidos"],
-    queryFn: () => base44.entities.Pedido.list("-data", 500),
+    queryKey: ["pedidos", filialAtiva],
+    queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva }, "-data", 500),
   });
 
   const createMutation = useMutation({

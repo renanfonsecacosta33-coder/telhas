@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
 } from "recharts";
+import { useFilial } from "@/contexts/FilialContext";
 
 const MAQUINAS_TELHAS = [
   { id: "TP - 40",      label: "TP-40",        color: "bg-blue-500",   hex: "#3b82f6", path: "/maquina/tp40" },
@@ -47,6 +48,7 @@ function formatTempo(seg) {
 }
 
 export default function DashboardTelhas() {
+  const { filialAtiva } = useFilial();
   const [aba, setAba] = useState("producao");
   const hoje = format(new Date(), "yyyy-MM-dd");
   const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -54,14 +56,14 @@ export default function DashboardTelhas() {
   const mesStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
 
   const { data: pedidos = [] } = useQuery({
-    queryKey: ["pedidos-dash-telhas"],
-    queryFn: () => base44.entities.Pedido.list("-data", 500),
+    queryKey: ["pedidos-dash-telhas", filialAtiva],
+    queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva }, "-data", 500),
     refetchInterval: 15000,
   });
 
   const { data: bobinas = [] } = useQuery({
-    queryKey: ["bobinas-telhas-dash"],
-    queryFn: () => base44.entities.Bobina.filter({ setor: "telhas", arquivada: false }),
+    queryKey: ["bobinas-telhas-dash", filialAtiva],
+    queryFn: () => base44.entities.Bobina.filter({ setor: "telhas", arquivada: false, unidade: filialAtiva }),
     refetchInterval: 30000,
   });
 

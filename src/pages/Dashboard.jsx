@@ -7,14 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import StatsCard from "@/components/stock/StatsCard";
 import { format } from "date-fns";
+import { useFilial } from "@/contexts/FilialContext";
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
+  const { filialAtiva } = useFilial();
   useEffect(() => { base44.auth.me().then(setUser).catch(() => {}); }, []);
 
   const { data: bobinas = [] } = useQuery({
-    queryKey: ["bobinas"],
-    queryFn: () => base44.entities.Bobina.list(),
+    queryKey: ["bobinas", filialAtiva],
+    queryFn: () => base44.entities.Bobina.filter({ setor: "telhas", unidade: filialAtiva }),
   });
 
   const { data: isopores = [] } = useQuery({
@@ -28,8 +30,8 @@ export default function Dashboard() {
   });
 
   const { data: pedidos = [] } = useQuery({
-    queryKey: ["pedidos-dash"],
-    queryFn: () => base44.entities.Pedido.list("-data", 200),
+    queryKey: ["pedidos-dash", filialAtiva],
+    queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva }, "-data", 200),
   });
 
   // Redireciona operador CD para o dashboard do CD

@@ -9,8 +9,10 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import OrdemFormDialogCD from "@/components/corte-dobra/OrdemFormDialogCD";
 import OrdemDesbobinadiraRow from "@/components/corte-dobra/OrdemDesbobinadiraRow";
+import { useFilial } from "@/contexts/FilialContext";
 
 export default function Desbobinadeira() {
+  const { filialAtiva } = useFilial();
   const [user, setUser] = useState(null);
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -34,8 +36,8 @@ export default function Desbobinadeira() {
   const diasDaSemana = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
   const { data: ordens = [], isLoading } = useQuery({
-    queryKey: ["ordens-desbobinadeira"],
-    queryFn: () => base44.entities.OrdemDesbobinadeira.list("-data", 500),
+    queryKey: ["ordens-desbobinadeira", filialAtiva],
+    queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva }, "-data", 500),
     refetchInterval: 10000,
   });
 

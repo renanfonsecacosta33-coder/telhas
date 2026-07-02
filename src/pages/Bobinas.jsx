@@ -12,6 +12,7 @@ import DeleteConfirmDialog from "@/components/stock/DeleteConfirmDialog";
 import EmptyState from "@/components/stock/EmptyState";
 import BobinaCard, { getAlertaNivel } from "@/components/bobinas/BobinaCardShared";
 import PainelSolicitacoesReserva from "@/components/vendedor/PainelSolicitacoesReserva";
+import { useFilial } from "@/contexts/FilialContext";
 
 const statusColors = {
   "Aberta": "bg-green-500/10 text-green-700 border-green-300",
@@ -37,10 +38,11 @@ export default function Bobinas() {
   const [filtroQualidade, setFiltroQualidade] = useState("todos");
   const [filtroFornecedor, setFiltroFornecedor] = useState("");
   const queryClient = useQueryClient();
+  const { filialAtiva } = useFilial();
 
   const { data: bobinas = [], isLoading } = useQuery({
-    queryKey: ["bobinas"],
-    queryFn: () => base44.entities.Bobina.filter({ setor: "telhas" }, "-created_date", 500),
+    queryKey: ["bobinas", filialAtiva],
+    queryFn: () => base44.entities.Bobina.filter({ setor: "telhas", unidade: filialAtiva }, "-created_date", 500),
   });
 
 

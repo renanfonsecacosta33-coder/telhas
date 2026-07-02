@@ -5,16 +5,18 @@ import { Input } from "@/components/ui/input";
 import { Search, Filter, BookmarkPlus } from "lucide-react";
 import SolicitarReservaDialog from "@/components/vendedor/SolicitarReservaDialog";
 import { useQueryClient } from "@tanstack/react-query";
+import { useFilial } from "@/contexts/FilialContext";
 
 export default function VendedorSlitter({ vendedorNome }) {
   const qc = useQueryClient();
+  const { filialAtiva } = useFilial();
   const [search, setSearch] = useState("");
   const [filtroQualidade, setFiltroQualidade] = useState(null);
   const [solicitarItem, setSolicitarItem] = useState(null);
 
   const { data: slitters = [], isLoading } = useQuery({
-    queryKey: ["slitters-vendedor"],
-    queryFn: () => base44.entities.Slitter.list(),
+    queryKey: ["slitters-vendedor", filialAtiva],
+    queryFn: () => base44.entities.Slitter.filter({ unidade: filialAtiva }),
   });
 
   const ativas = slitters.filter(s => s.status !== "arquivado");

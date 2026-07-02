@@ -9,8 +9,10 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import OrdemMaquinaFormDialog from "@/components/corte-dobra/OrdemMaquinaFormDialog.jsx";
 import OrdemMaquinaRow from "@/components/corte-dobra/OrdemMaquinaRow.jsx";
+import { useFilial } from "@/contexts/FilialContext";
 
 export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
+  const { filialAtiva } = useFilial();
   const [user, setUser] = useState(null);
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -33,8 +35,8 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const diasDaSemana = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
   const { data: ordens = [], isLoading } = useQuery({
-    queryKey: ["ordens-maquina-cd"],
-    queryFn: () => base44.entities.OrdemMaquinaCD.list("-data", 500),
+    queryKey: ["ordens-maquina-cd", filialAtiva],
+    queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva }, "-data", 500),
     refetchInterval: 10000,
   });
 
