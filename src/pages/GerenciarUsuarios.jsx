@@ -14,7 +14,7 @@ import { toast } from "sonner";
 
 const MAQUINAS_TELHAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 const MAQUINAS_CD = ["CORTE 3M", "CORTE 6M", "DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M", "PERFILADEIRA", "DESBOBINADEIRA"];
-const UNIDADES = ["Matriz AJL", "Pinhais", "Ivaiporã", ""];
+const UNIDADES = ["Matriz AJL", "Pinhais", "Ivaiporã", "Ponta Grossa", ""];
 
 function getMaquinasPorSetor(setor) {
   if (setor === "telhas") return MAQUINAS_TELHAS;
