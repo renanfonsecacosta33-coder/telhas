@@ -4,24 +4,27 @@ import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Search, Filter, ShieldCheck, BookmarkPlus } from "lucide-react";
 import SolicitarReservaDialog from "@/components/vendedor/SolicitarReservaDialog";
+import FiliaisMultiSelect, { getFilialColor } from "@/components/vendedor/FiliaisMultiSelect";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFilial } from "@/contexts/FilialContext";
 
-export default function VendedorChapas({ vendedorNome }) {
+export default function VendedorChapas({ vendedorNome, selectedFiliais }) {
   const qc = useQueryClient();
   const { filialAtiva } = useFilial();
+  const filiais = selectedFiliais || [filialAtiva];
   const [search, setSearch] = useState("");
   const [filtroQualidade, setFiltroQualidade] = useState(null);
   const [solicitarItem, setSolicitarItem] = useState(null);
 
   const { data: chapas = [], isLoading } = useQuery({
-    queryKey: ["chapas-vendedor", filialAtiva],
-    queryFn: () => base44.entities.ChapaCD.filter({ status: { $ne: "cancelado" }, unidade: filialAtiva }),
+    queryKey: ["chapas-vendedor", "todas"],
+    queryFn: () => base44.entities.ChapaCD.filter({ status: { $ne: "cancelado" } }),
   });
 
-  const ativas = chapas.filter(c => c.status !== "consumido" && (c.quantidade_disponivel ?? 0) > 0 && (c.destino === "estoque" || c.origem === "manual"));
+  const chapasFiltradas = chapas.filter(c => filiais.includes(c.unidade || "Matriz AJL"));
+  const ativas = chapasFiltradas.filter(c => c.status !== "consumido" && (c.quantidade_disponivel ?? 0) > 0 && (c.destino === "estoque" || c.origem === "manual"));
 
-  const qualidadesUnicas = [...new Set(chapas.map(c => c.qualidade).filter(Boolean))].sort();
+  const qualidadesUnicas = [...new Set(chapasFiltradas.map(c => c.qualidade).filter(Boolean))].sort();
 
   const filtered = ativas
     .filter(c => {
@@ -136,10 +139,18 @@ export default function VendedorChapas({ vendedorNome }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filtered.map(c => (
-                <tr key={c.id} className={`transition-colors ${c.reservada ? "bg-amber-50/60 hover:bg-amber-100/70" : "hover:bg-muted/20"}`}>
+              {filtered.map(c => {
+                const filialColor = getFilialColor(c.unidade || "Matriz AJL");
+                const showFilialBadge = filiais.length > 1;
+                return (
+                <tr key={c.id} className={`transition-colors ${filialColor.rowBorder} ${c.reservada ? "bg-amber-50/60 hover:bg-amber-100/70" : `${filialColor.rowBg} ${filialColor.rowHover}`}`}>
                   <td className="px-2 py-2 font-medium whitespace-nowrap">
                     {c.codigo || "-"}
+                    {showFilialBadge && (
+                      <span className={`ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded ${filialColor.badge}`}>
+                        {filialColor.short}
+                      </span>
+                    )}
                     {c.reservada && (
                       <span className="ml-1.5 text-[10px] font-semibold bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded">Reservada</span>
                     )}
@@ -184,7 +195,7 @@ export default function VendedorChapas({ vendedorNome }) {
                     )}
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>
@@ -202,7 +213,7 @@ export default function VendedorChapas({ vendedorNome }) {
         itemLabel={solicitarItem ? `${solicitarItem.codigo || "-"} — ${solicitarItem.material || "-"} — ${solicitarItem.espessura_mm || "?"}mm` : ""}
         vendedorNome={vendedorNome}
         setor="corte_dobra"
-        unidade={filialAtiva}
+        unidade={solicitarItem?.unidade || filialAtiva}
       />
     </div>
   );

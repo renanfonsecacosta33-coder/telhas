@@ -4,24 +4,27 @@ import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Search, Filter, BookmarkPlus } from "lucide-react";
 import SolicitarReservaDialog from "@/components/vendedor/SolicitarReservaDialog";
+import { getFilialColor } from "@/components/vendedor/FiliaisMultiSelect";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFilial } from "@/contexts/FilialContext";
 
-export default function VendedorSlitter({ vendedorNome }) {
+export default function VendedorSlitter({ vendedorNome, selectedFiliais }) {
   const qc = useQueryClient();
   const { filialAtiva } = useFilial();
+  const filiais = selectedFiliais || [filialAtiva];
   const [search, setSearch] = useState("");
   const [filtroQualidade, setFiltroQualidade] = useState(null);
   const [solicitarItem, setSolicitarItem] = useState(null);
 
   const { data: slitters = [], isLoading } = useQuery({
-    queryKey: ["slitters-vendedor", filialAtiva],
-    queryFn: () => base44.entities.Slitter.filter({ unidade: filialAtiva }),
+    queryKey: ["slitters-vendedor", "todas"],
+    queryFn: () => base44.entities.Slitter.filter({}),
   });
 
-  const ativas = slitters.filter(s => s.status !== "arquivado");
+  const slittersFiltrados = slitters.filter(s => filiais.includes(s.unidade || "Matriz AJL"));
+  const ativas = slittersFiltrados.filter(s => s.status !== "arquivado");
 
-  const qualidadesUnicas = [...new Set(ativas.map(s => s.qualidade).filter(Boolean))].sort();
+  const qualidadesUnicas = [...new Set(slittersFiltrados.map(s => s.qualidade).filter(Boolean))].sort();
 
   const filtered = ativas
     .filter(s => {
@@ -133,9 +136,19 @@ export default function VendedorSlitter({ vendedorNome }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filtered.map(s => (
-                <tr key={s.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="px-2 py-2 font-medium whitespace-nowrap">{s.codigo || "-"}</td>
+              {filtered.map(s => {
+                const filialColor = getFilialColor(s.unidade || "Matriz AJL");
+                const showFilialBadge = filiais.length > 1;
+                return (
+                <tr key={s.id} className={`transition-colors ${filialColor.rowBorder} ${filialColor.rowBg} ${filialColor.rowHover}`}>
+                  <td className="px-2 py-2 font-medium whitespace-nowrap">
+                    {s.codigo || "-"}
+                    {showFilialBadge && (
+                      <span className={`ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded ${filialColor.badge}`}>
+                        {filialColor.short}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-2 py-2 whitespace-nowrap">
                     <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded">{s.qualidade || "-"}</span>
                   </td>
@@ -162,7 +175,7 @@ export default function VendedorSlitter({ vendedorNome }) {
                     )}
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>
@@ -180,7 +193,7 @@ export default function VendedorSlitter({ vendedorNome }) {
         itemLabel={solicitarItem ? `${solicitarItem.codigo || "-"} — ${solicitarItem.qualidade || "?"} — ${solicitarItem.espessura_mm || "?"}mm — ${solicitarItem.largura_mm || "?"}mm` : ""}
         vendedorNome={vendedorNome}
         setor="corte_dobra"
-        unidade={filialAtiva}
+        unidade={solicitarItem?.unidade || filialAtiva}
       />
     </div>
   );

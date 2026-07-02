@@ -9,6 +9,7 @@ import SolicitarReservaDialog from "@/components/vendedor/SolicitarReservaDialog
 import CalculadoraVendedor from "@/components/vendedor/CalculadoraVendedor";
 import VendedorChapas from "@/components/vendedor/VendedorChapas";
 import VendedorSlitter from "@/components/vendedor/VendedorSlitter";
+import FiliaisMultiSelect, { getFilialColor } from "@/components/vendedor/FiliaisMultiSelect";
 import { useFilial } from "@/contexts/FilialContext";
 
 const SENHA = "ajl1234";
@@ -127,6 +128,7 @@ function LoginScreen({ onLogin }) {
 // Tela do estoque
 function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
   const { filialAtiva } = useFilial();
+  const [selectedFiliais, setSelectedFiliais] = useState([filialAtiva]);
   const [search, setSearch] = useState("");
   const [solicitarBobina, setSolicitarBobina] = useState(null);
   const [filtroQualidade, setFiltroQualidade] = useState(null); // null = todas
@@ -137,19 +139,22 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
   const isCorteDobra = setor === "corte_dobra";
 
   const { data: bobinas = [], isLoading, refetch } = useQuery({
-    queryKey: ["bobinas-vendedor", setor, filialAtiva],
-    queryFn: () => base44.entities.Bobina.filter({ setor, arquivada: false, unidade: filialAtiva }),
+    queryKey: ["bobinas-vendedor", setor, "todas"],
+    queryFn: () => base44.entities.Bobina.filter({ setor, arquivada: false }),
   });
 
-  // Busca ordens ativas para mostrar status da bobina
+  // Filtra bobinas pelas filiais selecionadas
+  const bobinasFiltradas = bobinas.filter(b => selectedFiliais.includes(b.unidade || "Matriz AJL"));
+
+  // Busca ordens ativas para mostrar status da bobina (de todas as filiais selecionadas)
   const { data: ordensAtivas = [] } = useQuery({
-    queryKey: ["ordens-ativas-vendedor", setor, filialAtiva],
+    queryKey: ["ordens-ativas-vendedor", setor, "todas"],
     queryFn: async () => {
       if (setor === "telhas") {
-        const pedidos = await base44.entities.Pedido.filter({ unidade: filialAtiva });
+        const pedidos = await base44.entities.Pedido.filter({});
         return pedidos.filter(p => !["finalizado", "cancelado"].includes(p.status));
       } else {
-        const ordens = await base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva });
+        const ordens = await base44.entities.OrdemDesbobinadeira.filter({});
         return ordens.filter(o => !["finalizado", "cancelado"].includes(o.status));
       }
     },
@@ -194,19 +199,19 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
     return b.reserva_tipo === "parcial" ? (b.reserva_kg || 0) : peso;
   };
   const getPesoDisponivel = (b) => (b.peso_kg || 0) - getPesoReservadoBobina(b);
-  const disponiveis = bobinas.filter(b => getPesoDisponivel(b) > 0);
+  const disponiveis = bobinasFiltradas.filter(b => getPesoDisponivel(b) > 0);
 
   // Totais de KG
-  const totalKg = bobinas.reduce((s, b) => s + (b.peso_kg || 0), 0);
-  const totalReservadoKg = bobinas.reduce((s, b) => s + getPesoReservadoBobina(b), 0);
+  const totalKg = bobinasFiltradas.reduce((s, b) => s + (b.peso_kg || 0), 0);
+  const totalReservadoKg = bobinasFiltradas.reduce((s, b) => s + getPesoReservadoBobina(b), 0);
   const totalDisponivelKg = totalKg - totalReservadoKg;
   const fmtKg = (v) => Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
 
-  // Qualidades únicas para filtros (de todas as bobinas)
-  const qualidadesUnicas = [...new Set(bobinas.map(b => b.qualidade).filter(Boolean))].sort();
+  // Qualidades únicas para filtros (das bobinas filtradas)
+  const qualidadesUnicas = [...new Set(bobinasFiltradas.map(b => b.qualidade).filter(Boolean))].sort();
 
   // Filtro + ordenação (inclui reservadas)
-  const filtered = bobinas
+  const filtered = bobinasFiltradas
     .filter(b => {
       if (filtroQualidade && b.qualidade !== filtroQualidade) return false;
       const q = search.toLowerCase();
@@ -240,6 +245,9 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
       </div>
 
       <div className="p-4 space-y-4 max-w-7xl mx-auto">
+        {/* Seletor de filiais (multi-seleção) */}
+        <FiliaisMultiSelect selected={selectedFiliais} onChange={setSelectedFiliais} />
+
         {/* Abas Corte e Dobra: Bobinas / Chapas / Slitter */}
         {isCorteDobra && (
           <div className="flex items-center gap-1 bg-card border border-border rounded-xl p-1">
@@ -366,14 +374,21 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                 {filtered.map(b => {
                   const st = statusMap[b.id];
                   const info = statusLabel(st);
+                  const filialColor = getFilialColor(b.unidade || "Matriz AJL");
+                  const showFilialBadge = selectedFiliais.length > 1;
                   return (
-                  <tr key={b.id} className={`transition-colors ${
+                  <tr key={b.id} className={`transition-colors ${filialColor.rowBorder} ${
                     b.reservada
                       ? "bg-amber-50/60 hover:bg-amber-100/70"
-                      : "hover:bg-muted/20"
+                      : `${filialColor.rowBg} ${filialColor.rowHover}`
                   }`}>
                     <td className="px-2 py-2 font-medium whitespace-nowrap">
                       {b.cor || "-"}
+                      {showFilialBadge && (
+                        <span className={`ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded ${filialColor.badge}`}>
+                          {filialColor.short}
+                        </span>
+                      )}
                       {b.reservada && (
                         <span className="ml-1.5 text-[10px] font-semibold bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded">Reservada</span>
                       )}
@@ -444,10 +459,10 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
         )}
 
         {/* Aba Chapas */}
-        {isCorteDobra && abaCD === "chapas" && <VendedorChapas vendedorNome={vendedorNome} />}
+        {isCorteDobra && abaCD === "chapas" && <VendedorChapas vendedorNome={vendedorNome} selectedFiliais={selectedFiliais} />}
 
         {/* Aba Slitter */}
-        {isCorteDobra && abaCD === "slitter" && <VendedorSlitter vendedorNome={vendedorNome} />}
+        {isCorteDobra && abaCD === "slitter" && <VendedorSlitter vendedorNome={vendedorNome} selectedFiliais={selectedFiliais} />}
       </div>
 
       <SolicitarReservaDialog
@@ -458,7 +473,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
         itemLabel={solicitarBobina ? `${solicitarBobina.codigo || "-"} — ${solicitarBobina.cor || "-"} — ${solicitarBobina.chapa || "-"}mm` : ""}
         vendedorNome={vendedorNome}
         setor={setor}
-        unidade={filialAtiva}
+        unidade={solicitarBobina?.unidade || filialAtiva}
       />
     </div>
   );
