@@ -9,7 +9,7 @@ import { base44 } from "@/api/base44Client";
 import { Loader2, BookmarkPlus } from "lucide-react";
 import { toast } from "sonner";
 
-export default function SolicitarReservaDialog({ open, onClose, item, itemTipo = "bobina", itemLabel, vendedorNome, setor }) {
+export default function SolicitarReservaDialog({ open, onClose, item, itemTipo = "bobina", itemLabel, vendedorNome, setor, unidade }) {
   const [form, setForm] = useState({
     reserva_tipo: "parcial",
     reserva_kg: "",
@@ -42,6 +42,7 @@ export default function SolicitarReservaDialog({ open, onClose, item, itemTipo =
     try {
       await base44.entities.SolicitacaoReserva.create({
         setor,
+        unidade: unidade || "Matriz AJL",
         item_tipo: itemTipo,
         bobina_id: item.id,
         bobina_descricao: `${itemDesc} — ${pesoTotal.toLocaleString("pt-BR")} kg${jaParcial ? ` (já reservado: ${pesoReservado.toLocaleString("pt-BR")} kg)` : ""}`,

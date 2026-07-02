@@ -11,6 +11,7 @@ import { CheckCircle2, XCircle, Clock, BookmarkPlus } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { useFilial } from "@/contexts/FilialContext";
 
 const STATUS_CONFIG = {
   pendente:  { label: "Pendente",  color: "bg-yellow-100 text-yellow-800 border-yellow-200",  icon: Clock },
@@ -114,10 +115,11 @@ function AvaliarDialog({ solicitacao, onClose }) {
 
 export default function PainelSolicitacoesReserva({ setor }) {
   const [avaliar, setAvaliar] = useState(null);
+  const { filialAtiva } = useFilial();
 
   const { data: solicitacoes = [], isLoading } = useQuery({
-    queryKey: ["solicitacoes-reserva", setor],
-    queryFn: () => base44.entities.SolicitacaoReserva.filter({ setor }),
+    queryKey: ["solicitacoes-reserva", setor, filialAtiva],
+    queryFn: () => base44.entities.SolicitacaoReserva.filter({ setor, unidade: filialAtiva }),
     refetchInterval: 30000,
   });
 

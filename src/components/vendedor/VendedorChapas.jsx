@@ -202,6 +202,7 @@ export default function VendedorChapas({ vendedorNome }) {
         itemLabel={solicitarItem ? `${solicitarItem.codigo || "-"} — ${solicitarItem.material || "-"} — ${solicitarItem.espessura_mm || "?"}mm` : ""}
         vendedorNome={vendedorNome}
         setor="corte_dobra"
+        unidade={filialAtiva}
       />
     </div>
   );

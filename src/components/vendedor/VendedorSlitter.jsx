@@ -180,6 +180,7 @@ export default function VendedorSlitter({ vendedorNome }) {
         itemLabel={solicitarItem ? `${solicitarItem.codigo || "-"} — ${solicitarItem.qualidade || "?"} — ${solicitarItem.espessura_mm || "?"}mm — ${solicitarItem.largura_mm || "?"}mm` : ""}
         vendedorNome={vendedorNome}
         setor="corte_dobra"
+        unidade={filialAtiva}
       />
     </div>
   );

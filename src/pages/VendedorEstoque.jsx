@@ -458,6 +458,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
         itemLabel={solicitarBobina ? `${solicitarBobina.codigo || "-"} — ${solicitarBobina.cor || "-"} — ${solicitarBobina.chapa || "-"}mm` : ""}
         vendedorNome={vendedorNome}
         setor={setor}
+        unidade={filialAtiva}
       />
     </div>
   );
