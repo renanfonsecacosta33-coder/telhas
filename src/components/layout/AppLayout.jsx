@@ -41,10 +41,6 @@ export default function AppLayout() {
         </div>
         <div className="hidden lg:flex sticky top-0 z-30 bg-background/80 backdrop-blur border-b border-border px-8 py-2 items-center justify-end gap-2">
           <FilialSwitcher />
-          <Button variant="ghost" size="sm" className="gap-2 h-8" onClick={() => navigate("/setor")}>
-            <ArrowLeftRight className="w-4 h-4" />
-            Trocar Setor
-          </Button>
         </div>
         <div className="p-4 sm:p-6 lg:p-8">
           <Outlet />
