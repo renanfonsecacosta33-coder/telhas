@@ -300,6 +300,11 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
             }`}>
               {o.destino === "pedido_direto" ? "📦 Pedido direto" : "🏭 Estoque"}
             </span>
+            {o.guilhotina && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border bg-orange-50 text-orange-700 border-orange-200">
+                🔪 {o.guilhotina}{o.tamanho_corte_guilhotina ? ` — ${o.tamanho_corte_guilhotina}mm` : ""}
+              </span>
+            )}
             {o.data_finalizacao && (
               <span className="text-green-600 font-semibold">✓ {format(new Date(o.data_finalizacao + "T12:00:00"), "dd/MM", { locale: ptBR })}</span>
             )}
@@ -383,6 +388,11 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               }`}>
                 {o.destino === "pedido_direto" ? "📦 Pedido direto" : "🏭 Estoque"}
               </span>
+              {o.guilhotina && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-semibold border bg-orange-50 text-orange-700 border-orange-200">
+                  🔪 {o.guilhotina}{o.tamanho_corte_guilhotina ? ` — ${o.tamanho_corte_guilhotina}mm` : ""}
+                </span>
+              )}
             </div>
           </div>
         </div>
