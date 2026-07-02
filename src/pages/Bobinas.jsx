@@ -12,6 +12,7 @@ import DeleteConfirmDialog from "@/components/stock/DeleteConfirmDialog";
 import EmptyState from "@/components/stock/EmptyState";
 import BobinaCard, { getAlertaNivel } from "@/components/bobinas/BobinaCardShared";
 import PainelSolicitacoesReserva from "@/components/vendedor/PainelSolicitacoesReserva";
+import PainelTransferencias from "@/components/bobinas/PainelTransferencias";
 import { useFilial } from "@/contexts/FilialContext";
 
 const statusColors = {
@@ -222,6 +223,11 @@ export default function Bobinas() {
       {/* Painel de solicitações de reserva dos vendedores */}
       <div className="mt-6">
         <PainelSolicitacoesReserva setor="telhas" />
+      </div>
+
+      {/* Painel de transferências entre filiais */}
+      <div className="mt-6">
+        <PainelTransferencias setor="telhas" />
       </div>
 
       <BobinaFormDialog open={dialogOpen} onClose={() => { setDialogOpen(false); setEditItem(null); }} editItem={editItem} />

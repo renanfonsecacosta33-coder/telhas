@@ -1,0 +1,118 @@
+{
+  "name": "Transferencia",
+  "type": "object",
+  "properties": {
+    "unidade_origem": {
+      "type": "string",
+      "enum": [
+        "Matriz AJL",
+        "Pinhais",
+        "Ivaipor\u00e3",
+        "Ponta Grossa"
+      ],
+      "description": "Filial de origem (quem envia)"
+    },
+    "unidade_destino": {
+      "type": "string",
+      "enum": [
+        "Matriz AJL",
+        "Pinhais",
+        "Ivaipor\u00e3",
+        "Ponta Grossa"
+      ],
+      "description": "Filial de destino (quem recebe)"
+    },
+    "setor": {
+      "type": "string",
+      "enum": [
+        "telhas",
+        "corte_dobra"
+      ],
+      "description": "Setor do item"
+    },
+    "item_tipo": {
+      "type": "string",
+      "enum": [
+        "bobina",
+        "chapa",
+        "slitter"
+      ],
+      "default": "bobina",
+      "description": "Tipo do item transferido"
+    },
+    "item_id": {
+      "type": "string",
+      "description": "ID do item transferido"
+    },
+    "item_descricao": {
+      "type": "string",
+      "description": "Snapshot: descri\u00e7\u00e3o do item (c\u00f3digo, cor, espessura, peso)"
+    },
+    "solicitante_nome": {
+      "type": "string",
+      "description": "Nome de quem solicitou a transfer\u00eancia"
+    },
+    "transferencia_tipo": {
+      "type": "string",
+      "enum": [
+        "inteira",
+        "parcial"
+      ],
+      "default": "inteira",
+      "description": "Transfer\u00eancia inteira ou parcial (kg)"
+    },
+    "peso_kg": {
+      "type": "number",
+      "description": "Quantidade em kg a transferir (quando parcial)"
+    },
+    "numero_pedido": {
+      "type": "string",
+      "description": "N\u00famero do pedido (opcional)"
+    },
+    "cliente": {
+      "type": "string",
+      "description": "Nome do cliente (opcional)"
+    },
+    "motivo": {
+      "type": "string",
+      "description": "Justificativa / observa\u00e7\u00f5es da transfer\u00eancia"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pendente",
+        "aprovada",
+        "recusada",
+        "em_transito",
+        "concluida"
+      ],
+      "default": "pendente",
+      "description": "Status da transfer\u00eancia"
+    },
+    "resposta_admin": {
+      "type": "string",
+      "description": "Mensagem do admin do destino ao avaliar"
+    },
+    "admin_nome": {
+      "type": "string",
+      "description": "Nome do admin que avaliou"
+    },
+    "data_avaliacao": {
+      "type": "string",
+      "description": "Data da avalia\u00e7\u00e3o"
+    }
+  },
+  "required": [
+    "unidade_origem",
+    "unidade_destino",
+    "setor",
+    "item_id",
+    "solicitante_nome"
+  ],
+  "rls": {
+    "create": {},
+    "read": {},
+    "update": {},
+    "delete": {}
+  }
+}

@@ -8,6 +8,9 @@ import {
 } from "lucide-react";
 import EtiquetaBTW from "@/components/bobinas/EtiquetaBTW";
 import HistoricoPedidosBobina from "@/components/bobinas/HistoricoPedidosBobina";
+import TransferenciaDialog from "@/components/bobinas/TransferenciaDialog";
+import { useFilial } from "@/contexts/FilialContext";
+import { ArrowLeftRight } from "lucide-react";
 
 export const qualidadeColors = {
   "GV": "bg-blue-100 text-blue-800 border-blue-300",
@@ -55,6 +58,8 @@ function BarraProgresso({ pct, alerta }) {
 export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statusColors = {} }) {
   const [expandido, setExpandido] = useState(false);
   const [showEtiqueta, setShowEtiqueta] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
+  const { filialAtiva } = useFilial();
   const pctUso = getPorcentagemUso(bobina);
   const pctRestante = pctUso !== null ? 100 - pctUso : null;
   const diasRestantes = getPrevisaoAcabar(bobina);
@@ -205,6 +210,19 @@ export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statu
           <EtiquetaBTW bobina={bobina} onClose={() => setShowEtiqueta(false)} />
         )}
 
+        {/* Modal Transferência */}
+        {showTransfer && (
+          <TransferenciaDialog
+            open={showTransfer}
+            onClose={() => setShowTransfer(false)}
+            item={bobina}
+            itemTipo="bobina"
+            itemLabel={`${bobina.codigo || "—"} · ${bobina.cor || "—"} · ${bobina.chapa || "—"}mm`}
+            setor={bobina.setor || "corte_dobra"}
+            unidadeOrigem={filialAtiva}
+          />
+        )}
+
         {/* Expandir */}
         <button
           onClick={() => setExpandido(!expandido)}
@@ -244,8 +262,8 @@ export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statu
             {/* Histórico de pedidos */}
             <HistoricoPedidosBobina bobina={bobina} />
 
-            {/* Etiqueta BTW */}
-            <div className="pt-1">
+            {/* Etiqueta BTW + Transferência */}
+            <div className="pt-1 flex gap-2 flex-wrap">
               <Button
                 size="sm"
                 variant="outline"
@@ -253,6 +271,14 @@ export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statu
                 onClick={() => setShowEtiqueta(true)}
               >
                 <Tag className="w-3.5 h-3.5" /> Gerar Etiqueta BTW
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 text-xs border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                onClick={() => setShowTransfer(true)}
+              >
+                <ArrowLeftRight className="w-3.5 h-3.5" /> Transferência
               </Button>
             </div>
 

@@ -12,6 +12,7 @@ import DeleteConfirmDialog from "@/components/stock/DeleteConfirmDialog";
 import EmptyState from "@/components/stock/EmptyState";
 import BobinaCard, { getAlertaNivel } from "@/components/bobinas/BobinaCardShared";
 import PainelSolicitacoesReserva from "@/components/vendedor/PainelSolicitacoesReserva";
+import PainelTransferencias from "@/components/bobinas/PainelTransferencias";
 import { useFilial } from "@/contexts/FilialContext";
 
 export default function BobinasCD() {
@@ -267,6 +268,11 @@ export default function BobinasCD() {
       {/* Painel de solicitações de reserva dos vendedores */}
       <div className="mt-6">
         <PainelSolicitacoesReserva setor="corte_dobra" />
+      </div>
+
+      {/* Painel de transferências entre filiais */}
+      <div className="mt-6">
+        <PainelTransferencias setor="corte_dobra" />
       </div>
 
       <BobinaFormDialogCD
