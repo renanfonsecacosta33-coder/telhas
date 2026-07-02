@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers, Scissors } from "lucide-react";
+import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { base44 } from "@/api/base44Client";
@@ -52,8 +52,6 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
   const [bloqueioDialog, setBloqueioDialog] = useState(false);
   const [ordemBloqueante, setOrdemBloqueante] = useState(null);
   const [acaoPendente, setAcaoPendente] = useState(null);
-  const [gerandoOP, setGerandoOP] = useState(false);
-  const [opGerada, setOpGerada] = useState(false);
   const fotoInputRef = useRef();
 
   useEffect(() => {
@@ -154,48 +152,6 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
   const handleFinalizar = () => {
     setPauseMotivo("");
     setFotoDialog(true);
-  };
-
-  const handleGerarOPGuilhotina = async () => {
-    setGerandoOP(true);
-    try {
-      // Busca a chapa gerada por esta ordem
-      const chapas = await base44.entities.ChapaCD.filter({ ordem_id: o.id });
-      const chapa = chapas[0];
-      if (!chapa) {
-        toast.error("Chapa não encontrada para gerar a OP na guilhotina.");
-        setGerandoOP(false);
-        return;
-      }
-      // Verifica se já existe OP na guilhotina para esta chapa
-      const ordensExist = await base44.entities.OrdemMaquinaCD.filter({ chapa_cd_id: chapa.id });
-      if (ordensExist.length > 0) {
-        toast.info("Já existe uma OP na guilhotina para esta chapa.");
-        setOpGerada(true);
-        setGerandoOP(false);
-        return;
-      }
-      const chapaDesc = `${chapa.codigo || ""} — ${o.bobina_descricao || ""} ${o.comprimento_mm || 0}mm`.trim();
-      await base44.entities.OrdemMaquinaCD.create({
-        data: format(new Date(), "yyyy-MM-dd"),
-        maquina: o.guilhotina,
-        chapa_cd_id: chapa.id,
-        chapa_descricao: chapaDesc,
-        chapa_origem: "chaparia",
-        tipo_peca: "Corte Guilhotina",
-        dimensoes_livres: o.tamanho_corte_guilhotina ? `${o.tamanho_corte_guilhotina}mm` : null,
-        numero_pedido: o.numero_pedido || null,
-        cliente: o.cliente || null,
-        quantidade: o.quantidade || 0,
-        status: "pendente",
-        observacoes: `OP gerada automaticamente pela Desbobinadeira (OP ${o.id.slice(-6).toUpperCase()})`,
-      });
-      toast.success(`OP criada na ${o.guilhotina}!`);
-      setOpGerada(true);
-    } catch (err) {
-      toast.error("Erro ao gerar OP: " + (err.message || err));
-    }
-    setGerandoOP(false);
   };
 
   const handleUploadFoto = async (file) => {
@@ -309,18 +265,6 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               )}
               {isGestor && (
                 <div className="flex gap-1">
-                  {o.guilhotina && !opGerada && (
-                    <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] gap-1 text-orange-600 border-orange-300 hover:bg-orange-50"
-                      onClick={handleGerarOPGuilhotina} disabled={gerandoOP}>
-                      {gerandoOP ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Scissors className="w-2.5 h-2.5" />}
-                      {gerandoOP ? "Gerando..." : "Gerar OP Guilhotina"}
-                    </Button>
-                  )}
-                  {o.guilhotina && opGerada && (
-                    <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px]">
-                      <CheckCircle2 className="w-2.5 h-2.5 mr-0.5" /> OP na guilhotina
-                    </Badge>
-                  )}
                   <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] gap-1 text-amber-600 border-amber-300 hover:bg-amber-50"
                     onClick={() => onUpdate(o.id, { status: "pendente", inicio_producao_ts: null, foto_finalizacao_url: null, data_finalizacao: null })}>
                     ↩ Reabrir
