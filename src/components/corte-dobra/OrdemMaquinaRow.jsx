@@ -292,6 +292,29 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
           </div>
         </div>
 
+        {/* Foto do pedido (finalizado) */}
+        {o.foto_pedido_url && (
+          <div className="mb-2 relative rounded-lg overflow-hidden border-2 border-blue-300 group">
+            <a href={o.foto_pedido_url} target="_blank" rel="noopener noreferrer">
+              <img src={o.foto_pedido_url} alt="Foto do pedido" className="w-full max-h-44 object-cover" />
+            </a>
+            <div className="absolute top-2 left-2 bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
+              <ImageIcon className="w-3 h-3" /> Foto do Pedido
+            </div>
+            <a href={o.foto_pedido_url} target="_blank" rel="noopener noreferrer"
+              className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-black/80 transition-colors flex items-center gap-1">
+              <ImageIcon className="w-3.5 h-3.5" /> Ampliar
+            </a>
+          </div>
+        )}
+
+        {/* Observações (finalizado) */}
+        {o.observacoes && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-1.5 text-yellow-800 text-xs whitespace-pre-line mb-2">
+            📋 {o.observacoes}
+          </div>
+        )}
+
         {/* Dialog Bloqueio — OP em andamento (mantém para consistência) */}
         <Dialog open={bloqueioDialog} onOpenChange={setBloqueioDialog}>
           <DialogContent className="sm:max-w-md">
