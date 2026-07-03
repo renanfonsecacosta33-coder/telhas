@@ -12,7 +12,7 @@ import {
   FileCheck, ShieldCheck, Camera, Lock
 } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
-import ReservaPanel from "@/components/bobinas/ReservaPanel";
+import ReservaPanelChapa from "@/components/corte-dobra/ReservaPanelChapa";
 import ChapaFormDialog from "@/components/corte-dobra/ChapaFormDialog";
 import ChapaCard from "@/components/corte-dobra/ChapaCard";
 import { useFilial } from "@/contexts/FilialContext";
@@ -42,6 +42,7 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
     reservada: chapa?.reservada || false,
     reserva_tipo: chapa?.reserva_tipo || "inteira",
     reserva_kg: chapa?.reserva_kg || "",
+    reserva_qtd_chapas: chapa?.reserva_qtd_chapas || "",
     reserva_numero_pedido: chapa?.reserva_numero_pedido || "",
     reserva_motivo: chapa?.reserva_motivo || "",
     reserva_autorizado_por: chapa?.reserva_autorizado_por || "",
@@ -84,6 +85,7 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
         reservada: chapa.reservada || false,
         reserva_tipo: chapa.reserva_tipo || "inteira",
         reserva_kg: chapa.reserva_kg || "",
+        reserva_qtd_chapas: chapa.reserva_qtd_chapas || "",
         reserva_numero_pedido: chapa.reserva_numero_pedido || "",
         reserva_motivo: chapa.reserva_motivo || "",
         reserva_autorizado_por: chapa.reserva_autorizado_por || "",
@@ -173,6 +175,7 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
       reservada: reservaForm.reservada || false,
       reserva_tipo: reservaForm.reservada ? (reservaForm.reserva_tipo || "inteira") : null,
       reserva_kg: reservaForm.reservada && reservaForm.reserva_tipo === "parcial" ? Number(reservaForm.reserva_kg) || null : null,
+      reserva_qtd_chapas: reservaForm.reservada && reservaForm.reserva_tipo === "parcial" ? Number(reservaForm.reserva_qtd_chapas) || null : null,
       reserva_numero_pedido: reservaForm.reservada ? (reservaForm.reserva_numero_pedido || null) : null,
       reserva_motivo: reservaForm.reservada ? (reservaForm.reserva_motivo || null) : null,
       reserva_autorizado_por: reservaForm.reservada ? (reservaForm.reserva_autorizado_por || null) : null,
@@ -340,7 +343,7 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
           </div>
 
           {/* Reserva */}
-          <ReservaPanel form={{ ...reservaForm, peso_kg: pesoKg }} onChange={(novoForm) => {
+          <ReservaPanelChapa form={{ ...reservaForm, peso_kg: pesoKg }} chapa={chapa} onChange={(novoForm) => {
             setReservaForm(novoForm);
             if (novoForm.peso_kg !== pesoKg) setPesoKg(novoForm.peso_kg);
           }} />

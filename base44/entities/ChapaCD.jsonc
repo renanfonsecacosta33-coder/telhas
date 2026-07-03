@@ -159,6 +159,10 @@
       "type": "number",
       "description": "Quantidade reservada em kg (parcial)"
     },
+    "reserva_qtd_chapas": {
+      "type": "number",
+      "description": "Quantidade de chapas reservadas (parcial)"
+    },
     "reserva_numero_pedido": {
       "type": "string",
       "description": "N\u00famero do pedido vinculado \u00e0 reserva"
@@ -181,5 +185,11 @@
     "quantidade_total",
     "destino",
     "data_corte"
-  ]
+  ],
+  "rls": {
+    "create": {},
+    "read": {},
+    "update": {},
+    "delete": {}
+  }
 }
