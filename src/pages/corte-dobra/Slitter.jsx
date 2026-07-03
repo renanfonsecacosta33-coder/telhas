@@ -27,9 +27,14 @@ export default function SlitterPage() {
     queryFn: () => base44.entities.Slitter.filter({ unidade: filialAtiva }),
   });
 
+  const { data: slittersGlobais = [] } = useQuery({
+    queryKey: ["slitters-global-codigos"],
+    queryFn: () => base44.entities.Slitter.list("-created_date", 1000),
+  });
+
   const proximoCodigo = (() => {
     let max = 0;
-    slitters.forEach(s => {
+    slittersGlobais.forEach(s => {
       const match = s.codigo && s.codigo.match(/^ST(\d+)$/i);
       if (match) { const n = parseInt(match[1], 10); if (n > max) max = n; }
     });

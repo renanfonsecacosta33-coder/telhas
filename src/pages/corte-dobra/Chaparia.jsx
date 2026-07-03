@@ -379,6 +379,11 @@ export default function Chaparia() {
     queryFn: () => base44.entities.ChapaCD.filter({ unidade: filialAtiva }, "-created_date", 200),
   });
 
+  const { data: chapasGlobais = [] } = useQuery({
+    queryKey: ["chapas-cd-global-codigos"],
+    queryFn: () => base44.entities.ChapaCD.list("-created_date", 1000),
+  });
+
   const updateMut = useMutation({
     mutationFn: ({ id, data }) => base44.entities.ChapaCD.update(id, data),
     onSuccess: () => { qc.invalidateQueries(["chapas-cd"]); setEditChapa(null); },
@@ -397,7 +402,7 @@ export default function Chaparia() {
   // Próximo código CHxxxx
   const proximoCodigo = (() => {
     let maxN = 0;
-    chapas.forEach(c => {
+    chapasGlobais.forEach(c => {
       const m = c.codigo?.match(/^CH(\d+)$/);
       if (m) { const n = parseInt(m[1], 10); if (n > maxN) maxN = n; }
     });

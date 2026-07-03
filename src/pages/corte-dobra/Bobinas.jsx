@@ -33,9 +33,14 @@ export default function BobinasCD() {
     queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", unidade: filialAtiva }, "-created_date", 500),
   });
 
+  const { data: bobinasGlobais = [] } = useQuery({
+    queryKey: ["bobinas-cd-global-codigos"],
+    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra" }, "-created_date", 1000),
+  });
+
   const proximoNumero = (() => {
     let max = 0;
-    bobinas.forEach(b => {
+    bobinasGlobais.forEach(b => {
       const match = b.codigo && b.codigo.match(/^CD(\d+)$/i);
       if (match) { const n = parseInt(match[1], 10); if (n > max) max = n; }
     });
