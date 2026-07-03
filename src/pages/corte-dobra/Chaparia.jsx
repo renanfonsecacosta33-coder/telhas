@@ -136,8 +136,15 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
     || nf !== (chapa?.nf || "")
     || observacoes !== (chapa?.observacoes || "")
     || anexoNfUrl !== (chapa?.anexo_nf_url || "")
-    || anexoCfUrl !== (chapa?.anexo_cf_url || "");
-  const canSave = (motivo.trim() && algoMudou) || (motivo.trim() && anexoUrl);
+    || anexoCfUrl !== (chapa?.anexo_cf_url || "")
+    || (reservaForm.reservada !== (chapa?.reservada || false))
+    || (reservaForm.reserva_tipo !== (chapa?.reserva_tipo || "inteira"))
+    || (Number(reservaForm.reserva_kg) || 0) !== (chapa?.reserva_kg || 0)
+    || (Number(reservaForm.reserva_qtd_chapas) || 0) !== (chapa?.reserva_qtd_chapas || 0)
+    || (reservaForm.reserva_numero_pedido || "") !== (chapa?.reserva_numero_pedido || "")
+    || (reservaForm.reserva_motivo || "") !== (chapa?.reserva_motivo || "")
+    || (reservaForm.reserva_autorizado_por || "") !== (chapa?.reserva_autorizado_por || "");
+  const canSave = motivo.trim() && algoMudou;
 
   const handleSave = () => {
     const historicoAntigo = chapa?.historico_movimentacoes;
