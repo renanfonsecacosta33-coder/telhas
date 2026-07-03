@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent } from "@/components/ui/drawer";
-import { Camera, Image as ImageIcon, ScanLine, Loader2 } from "lucide-react";
+import { Camera, Image as ImageIcon, Loader2 } from "lucide-react";
 import { abrirAdobeScan } from "@/lib/adobeScan";
 
 /**
@@ -95,8 +95,12 @@ export default function UploadButton({
                 onClick={() => handleSelect("scan")}
                 className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card p-4 transition-all hover:bg-accent hover:shadow-md active:scale-95"
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-orange-50 text-orange-600">
-                  <ScanLine className="w-6 h-6" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl overflow-hidden bg-[#007D8C]">
+                  <img
+                    src="https://media.base44.com/images/public/6a0467e5d5ff5dda4351d2c3/5638ab0f5_image.png"
+                    alt="Adobe Scan"
+                    className="h-10 w-10 object-contain"
+                  />
                 </div>
                 <span className="text-xs font-medium">Adobe Scan</span>
               </button>
