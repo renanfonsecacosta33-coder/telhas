@@ -6,8 +6,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Play, Pause, CheckCircle2, Timer, Coffee, Square, Circle,
-  AlertCircle, Clock, Camera, Loader2, Layers, Package, ShoppingCart, Trash2, Image as ImageIcon
+  AlertCircle, Clock, Camera, Loader2, Layers, Package, ShoppingCart, Trash2, Image as ImageIcon, ScanLine
 } from "lucide-react";
+import { abrirAdobeScan } from "@/lib/adobeScan";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { base44 } from "@/api/base44Client";
@@ -67,6 +68,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
   const [ordemBloqueante, setOrdemBloqueante] = useState(null);
   const [acaoPendente, setAcaoPendente] = useState(null);
   const fotoInputRef = useRef();
+  const fotoScanRef = useRef();
 
   useEffect(() => {
     const iv = setInterval(() => setTick(t => t + 1), 1000);
@@ -564,9 +566,15 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               <p className="text-xs text-muted-foreground">Obrigatória para registrar a conclusão da ordem</p>
               <input ref={fotoInputRef} type="file" accept="image/*" capture="environment" className="hidden"
                 onChange={e => handleUploadFoto(e.target.files[0])} />
+              <input ref={fotoScanRef} type="file" accept="image/*" className="hidden"
+                onChange={e => handleUploadFoto(e.target.files[0])} />
               <Button type="button" className="w-full gap-2" onClick={() => fotoInputRef.current.click()} disabled={uploadingFoto}>
                 {uploadingFoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
                 {uploadingFoto ? "Enviando foto..." : "📷 Tirar / Selecionar Foto"}
+              </Button>
+              <Button type="button" variant="outline" className="w-full gap-2" onClick={() => abrirAdobeScan(fotoScanRef)} disabled={uploadingFoto}>
+                <ScanLine className="w-4 h-4" />
+                {uploadingFoto ? "Enviando..." : "📄 Usar Adobe Scan"}
               </Button>
             </div>
           </div>

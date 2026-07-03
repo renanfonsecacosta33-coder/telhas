@@ -6,9 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from "@/api/base44Client";
-import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera } from "lucide-react";
+import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera, ScanLine } from "lucide-react";
 import { toast } from "sonner";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
+import { abrirAdobeScan } from "@/lib/adobeScan";
 import { useQueryClient } from "@tanstack/react-query";
 
 const STATUS_OPTIONS = [

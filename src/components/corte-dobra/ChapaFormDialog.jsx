@@ -6,8 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from "@/api/base44Client";
-import { Camera, Paperclip, FileCheck, ShieldCheck, X, Loader2 } from "lucide-react";
+import { Camera, Paperclip, FileCheck, ShieldCheck, X, Loader2, ScanLine } from "lucide-react";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
+import { abrirAdobeScan } from "@/lib/adobeScan";
 
 export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }) {
   const [form, setForm] = useState({
@@ -275,6 +276,10 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
                       onClick={() => nfCameraRef.current.click()} disabled={uploadingNF} title="Câmera">
                       <Camera className="w-4 h-4" />
                     </Button>
+                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
+                      onClick={() => abrirAdobeScan(nfInputRef)} disabled={uploadingNF} title="Adobe Scan">
+                      <ScanLine className="w-4 h-4" />
+                    </Button>
                   </div>
                 )}
               </div>
@@ -305,6 +310,10 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
                     <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
                       onClick={() => cfCameraRef.current.click()} disabled={uploadingCF} title="Câmera">
                       <Camera className="w-4 h-4" />
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
+                      onClick={() => abrirAdobeScan(cfInputRef)} disabled={uploadingCF} title="Adobe Scan">
+                      <ScanLine className="w-4 h-4" />
                     </Button>
                   </div>
                 )}

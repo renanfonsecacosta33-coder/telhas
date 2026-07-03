@@ -6,8 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from "@/api/base44Client";
-import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera } from "lucide-react";
+import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera, ScanLine } from "lucide-react";
 import { toast } from "sonner";
+import { abrirAdobeScan } from "@/lib/adobeScan";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
 
 const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "GL (IMP)"];
@@ -303,6 +304,10 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
                       onClick={() => nfCameraRef.current.click()} disabled={uploadingNF} title="Câmera">
                       <Camera className="w-4 h-4" />
                     </Button>
+                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
+                      onClick={() => abrirAdobeScan(nfInputRef)} disabled={uploadingNF} title="Adobe Scan">
+                      <ScanLine className="w-4 h-4" />
+                    </Button>
                   </div>
                 )}
               </div>
@@ -333,6 +338,10 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
                     <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
                       onClick={() => certCameraRef.current.click()} disabled={uploadingCert} title="Câmera">
                       <Camera className="w-4 h-4" />
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
+                      onClick={() => abrirAdobeScan(certInputRef)} disabled={uploadingCert} title="Adobe Scan">
+                      <ScanLine className="w-4 h-4" />
                     </Button>
                   </div>
                 )}
@@ -387,6 +396,10 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
                   <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
                     onClick={() => fotoCameraRef.current.click()} disabled={uploadingFoto} title="Câmera">
                     <Camera className="w-4 h-4" />
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
+                    onClick={() => abrirAdobeScan(fotoInputRef)} disabled={uploadingFoto} title="Adobe Scan">
+                    <ScanLine className="w-4 h-4" />
                   </Button>
                 </div>
               )}

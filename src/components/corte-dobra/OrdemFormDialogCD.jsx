@@ -11,7 +11,8 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
-import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X } from "lucide-react";
+import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X, ScanLine } from "lucide-react";
+import { abrirAdobeScan } from "@/lib/adobeScan";
 
 function labelBobina(b) {
   const parts = [];
@@ -70,6 +71,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   const [confirmReserva, setConfirmReserva] = useState(false);
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const fotoInputRef = useRef();
+  const fotoScanRef = useRef();
 
   const { filialAtiva } = useFilial();
 
@@ -462,6 +464,8 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                 </Label>
                 <input ref={fotoInputRef} type="file" accept="image/*" capture="environment" className="hidden"
                   onChange={e => handleUploadFoto(e.target.files[0])} />
+                <input ref={fotoScanRef} type="file" accept="image/*" className="hidden"
+                  onChange={e => handleUploadFoto(e.target.files[0])} />
                 {form.foto_pedido_url ? (
                   <div className="relative rounded-lg overflow-hidden border-2 border-blue-300">
                     <img src={form.foto_pedido_url} alt="Foto do pedido" className="w-full max-h-48 object-cover" />
@@ -475,12 +479,19 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                     </a>
                   </div>
                 ) : (
-                  <button type="button" onClick={() => fotoInputRef.current.click()} disabled={uploadingFoto}
-                    className="w-full border-2 border-dashed border-blue-300 rounded-lg p-4 flex flex-col items-center gap-2 text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50">
-                    {uploadingFoto ? <Loader2 className="w-6 h-6 animate-spin" /> : <Camera className="w-6 h-6" />}
-                    <span className="text-sm font-medium">{uploadingFoto ? "Enviando..." : "Anexar foto do pedido"}</span>
-                    <span className="text-xs text-muted-foreground">A foto acompanha a OP até a guilhotina</span>
-                  </button>
+                  <div className="space-y-2">
+                    <button type="button" onClick={() => fotoInputRef.current.click()} disabled={uploadingFoto}
+                      className="w-full border-2 border-dashed border-blue-300 rounded-lg p-4 flex flex-col items-center gap-2 text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50">
+                      {uploadingFoto ? <Loader2 className="w-6 h-6 animate-spin" /> : <Camera className="w-6 h-6" />}
+                      <span className="text-sm font-medium">{uploadingFoto ? "Enviando..." : "Anexar foto do pedido"}</span>
+                      <span className="text-xs text-muted-foreground">A foto acompanha a OP até a guilhotina</span>
+                    </button>
+                    <Button type="button" variant="outline" size="sm" className="w-full gap-2 border-dashed border-2"
+                      onClick={() => abrirAdobeScan(fotoScanRef)} disabled={uploadingFoto}>
+                      <ScanLine className="w-4 h-4" />
+                      {uploadingFoto ? "Enviando..." : "Usar Adobe Scan"}
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>

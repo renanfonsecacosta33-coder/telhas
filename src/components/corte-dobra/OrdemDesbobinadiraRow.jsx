@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers, Image as ImageIcon } from "lucide-react";
+import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers, Image as ImageIcon, ScanLine } from "lucide-react";
+import { abrirAdobeScan } from "@/lib/adobeScan";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { base44 } from "@/api/base44Client";
@@ -53,6 +54,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
   const [ordemBloqueante, setOrdemBloqueante] = useState(null);
   const [acaoPendente, setAcaoPendente] = useState(null);
   const fotoInputRef = useRef();
+  const fotoScanRef = useRef();
 
   useEffect(() => {
     const iv = setInterval(() => setTick(t => t + 1), 1000);
@@ -557,9 +559,15 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               <p className="text-xs text-muted-foreground">A foto é obrigatória para registrar a conclusão da ordem</p>
               <input ref={fotoInputRef} type="file" accept="image/*" capture="environment" className="hidden"
                 onChange={e => handleUploadFoto(e.target.files[0])} />
+              <input ref={fotoScanRef} type="file" accept="image/*" className="hidden"
+                onChange={e => handleUploadFoto(e.target.files[0])} />
               <Button type="button" className="w-full gap-2" onClick={() => fotoInputRef.current.click()} disabled={uploadingFoto}>
                 {uploadingFoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
                 {uploadingFoto ? "Enviando foto..." : "📷 Tirar / Selecionar Foto"}
+              </Button>
+              <Button type="button" variant="outline" className="w-full gap-2" onClick={() => abrirAdobeScan(fotoScanRef)} disabled={uploadingFoto}>
+                <ScanLine className="w-4 h-4" />
+                {uploadingFoto ? "Enviando..." : "📄 Usar Adobe Scan"}
               </Button>
             </div>
           </div>
