@@ -71,6 +71,10 @@
       "type": "number",
       "description": "Tamanho de corte na guilhotina em mm (quando destino = pedido_direto)"
     },
+    "foto_pedido_url": {
+      "type": "string",
+      "description": "URL da foto do pedido anexada (quando destino = pedido_direto)"
+    },
     "observacoes": {
       "type": "string",
       "description": "Instru\u00e7\u00f5es ou observa\u00e7\u00f5es para o operador"

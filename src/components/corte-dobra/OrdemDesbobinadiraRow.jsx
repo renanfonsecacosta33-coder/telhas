@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers } from "lucide-react";
+import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers, Image as ImageIcon } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { base44 } from "@/api/base44Client";
@@ -218,6 +218,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
             cliente: o.cliente || null,
             quantidade: o.quantidade || 0,
             status: "pendente",
+            foto_pedido_url: o.foto_pedido_url || null,
             observacoes: `OP gerada automaticamente pela Desbobinadeira (OP ${o.id.slice(-6).toUpperCase()})`,
           });
           toast.success(`OP automática criada na ${o.guilhotina}`);
@@ -396,6 +397,22 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
             </div>
           </div>
         </div>
+
+        {/* Foto do pedido */}
+        {o.foto_pedido_url && (
+          <div className={`${z.mb} relative rounded-lg overflow-hidden border-2 border-blue-300 group`}>
+            <a href={o.foto_pedido_url} target="_blank" rel="noopener noreferrer">
+              <img src={o.foto_pedido_url} alt="Foto do pedido" className="w-full max-h-44 object-cover" />
+            </a>
+            <div className="absolute top-2 left-2 bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
+              <ImageIcon className="w-3 h-3" /> Foto do Pedido
+            </div>
+            <a href={o.foto_pedido_url} target="_blank" rel="noopener noreferrer"
+              className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-black/80 transition-colors flex items-center gap-1">
+              <ImageIcon className="w-3.5 h-3.5" /> Ampliar
+            </a>
+          </div>
+        )}
 
         {/* Observações */}
         {o.observacoes && (

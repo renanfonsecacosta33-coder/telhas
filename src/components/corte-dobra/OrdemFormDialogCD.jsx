@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X } from "lucide-react";
 
 function labelBobina(b) {
   const parts = [];
@@ -63,9 +63,12 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     cliente: "",
     guilhotina: "",
     tamanho_corte_guilhotina: "",
+    foto_pedido_url: "",
     observacoes: "",
   });
   const [confirmReserva, setConfirmReserva] = useState(false);
+  const [uploadingFoto, setUploadingFoto] = useState(false);
+  const fotoInputRef = useRef();
 
   const { data: bobinas = [] } = useQuery({
     queryKey: ["bobinas-cd-ativas"],
@@ -92,6 +95,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         cliente: editItem.cliente || "",
         guilhotina: editItem.guilhotina || "",
         tamanho_corte_guilhotina: editItem.tamanho_corte_guilhotina || "",
+        foto_pedido_url: editItem.foto_pedido_url || "",
         observacoes: editItem.observacoes || "",
       });
     } else {
@@ -105,6 +109,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         cliente: "",
         guilhotina: "",
         tamanho_corte_guilhotina: "",
+        foto_pedido_url: "",
         observacoes: "",
       });
     }
@@ -131,6 +136,18 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   const pesoDisponivel = Math.max(0, pesoBobina - preReservadoKg);
   const excedePeso = kgEstimado !== null && kgEstimado > pesoDisponivel;
 
+  const handleUploadFoto = async (file) => {
+    if (!file) return;
+    setUploadingFoto(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      set("foto_pedido_url", file_url);
+    } catch (e) {
+      alert("Erro ao enviar foto: " + (e.message || e));
+    }
+    setUploadingFoto(false);
+  };
+
   const doSave = () => {
     const bobinaSnap = bobinaObj ? labelBobina(bobinaObj) : "";
     onSave({
@@ -142,6 +159,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
       kg_estimado: kgEstimado ? Math.round(kgEstimado * 100) / 100 : null,
       guilhotina: form.destino === "pedido_direto" ? (form.guilhotina || null) : null,
       tamanho_corte_guilhotina: form.destino === "pedido_direto" && form.tamanho_corte_guilhotina ? Number(form.tamanho_corte_guilhotina) : null,
+      foto_pedido_url: form.destino === "pedido_direto" ? (form.foto_pedido_url || null) : null,
     });
   };
 
@@ -432,6 +450,35 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                     onChange={e => set("tamanho_corte_guilhotina", e.target.value)}
                   />
                 </div>
+              </div>
+
+              {/* Foto do pedido */}
+              <div className="space-y-1">
+                <Label className="flex items-center gap-1">
+                  <Camera className="w-4 h-4 text-blue-500" /> Foto do Pedido
+                </Label>
+                <input ref={fotoInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+                  onChange={e => handleUploadFoto(e.target.files[0])} />
+                {form.foto_pedido_url ? (
+                  <div className="relative rounded-lg overflow-hidden border-2 border-blue-300">
+                    <img src={form.foto_pedido_url} alt="Foto do pedido" className="w-full max-h-48 object-cover" />
+                    <button type="button" onClick={() => set("foto_pedido_url", "")}
+                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors">
+                      <X className="w-4 h-4" />
+                    </button>
+                    <a href={form.foto_pedido_url} target="_blank" rel="noopener noreferrer"
+                      className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded hover:bg-black/80 transition-colors">
+                      Abrir
+                    </a>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => fotoInputRef.current.click()} disabled={uploadingFoto}
+                    className="w-full border-2 border-dashed border-blue-300 rounded-lg p-4 flex flex-col items-center gap-2 text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50">
+                    {uploadingFoto ? <Loader2 className="w-6 h-6 animate-spin" /> : <Camera className="w-6 h-6" />}
+                    <span className="text-sm font-medium">{uploadingFoto ? "Enviando..." : "Anexar foto do pedido"}</span>
+                    <span className="text-xs text-muted-foreground">A foto acompanha a OP até a guilhotina</span>
+                  </button>
+                )}
               </div>
             </div>
           )}
