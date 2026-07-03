@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers, Image as ImageIcon, ScanLine } from "lucide-react";
-import { abrirAdobeScan } from "@/lib/adobeScan";
+import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers, Image as ImageIcon } from "lucide-react";
+import UploadButton from "@/components/ui/UploadButton";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { base44 } from "@/api/base44Client";
@@ -561,14 +561,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                 onChange={e => handleUploadFoto(e.target.files[0])} />
               <input ref={fotoScanRef} type="file" accept="image/*" className="hidden"
                 onChange={e => handleUploadFoto(e.target.files[0])} />
-              <Button type="button" className="w-full gap-2" onClick={() => fotoInputRef.current.click()} disabled={uploadingFoto}>
-                {uploadingFoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-                {uploadingFoto ? "Enviando foto..." : "📷 Tirar / Selecionar Foto"}
-              </Button>
-              <Button type="button" variant="outline" className="w-full gap-2" onClick={() => abrirAdobeScan(fotoScanRef)} disabled={uploadingFoto}>
-                <ScanLine className="w-4 h-4" />
-                {uploadingFoto ? "Enviando..." : "📄 Usar Adobe Scan"}
-              </Button>
+              <UploadButton label="Tirar / Selecionar Foto" icon={Camera} cameraRef={fotoInputRef} fileRef={fotoScanRef} uploading={uploadingFoto} size="default" variant="default" />
             </div>
           </div>
           <DialogFooter>

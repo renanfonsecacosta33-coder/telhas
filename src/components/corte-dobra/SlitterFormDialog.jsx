@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Paperclip, X, Camera, ScanLine } from "lucide-react";
-import { abrirAdobeScan } from "@/lib/adobeScan";
+import { Loader2, Paperclip, X } from "lucide-react";
+import UploadButton from "@/components/ui/UploadButton";
 
 export default function SlitterFormDialog({ open, onClose, onSave, editItem, proximoCodigo }) {
   const codigoPreview = editItem?.codigo || `ST${String(proximoCodigo).padStart(4, "0")}`;
@@ -137,21 +137,7 @@ export default function SlitterFormDialog({ open, onClose, onSave, editItem, pro
                   <button onClick={() => { setAnexoUrl(""); setAnexoNome(""); }} className="text-emerald-600 hover:text-red-500"><X className="w-3 h-3" /></button>
                 </div>
               ) : (
-                <div className="flex gap-1.5">
-                  <Button type="button" variant="outline" className="flex-1 border-dashed border-2 h-10 text-sm gap-2"
-                    onClick={() => fileRef.current.click()} disabled={uploading}>
-                    {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                    {uploading ? "Enviando..." : "Anexar NF"}
-                  </Button>
-                  <Button type="button" variant="outline" className="border-dashed border-2 h-10 px-3" title="Câmera"
-                    onClick={() => cameraRef.current.click()} disabled={uploading}>
-                    <Camera className="w-4 h-4" />
-                  </Button>
-                  <Button type="button" variant="outline" className="border-dashed border-2 h-10 px-3" title="Adobe Scan"
-                    onClick={() => abrirAdobeScan(fileRef)} disabled={uploading}>
-                    <ScanLine className="w-4 h-4" />
-                  </Button>
-                </div>
+                <UploadButton label="Anexar NF" icon={Paperclip} cameraRef={cameraRef} fileRef={fileRef} uploading={uploading} size="default" />
               )}
             </div>
           </div>

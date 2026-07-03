@@ -6,10 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from "@/api/base44Client";
-import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera, ScanLine } from "lucide-react";
+import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera } from "lucide-react";
 import { toast } from "sonner";
-import { abrirAdobeScan } from "@/lib/adobeScan";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
+import UploadButton from "@/components/ui/UploadButton";
 
 const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "GL (IMP)"];
 
@@ -294,21 +294,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
                       className="ml-auto text-emerald-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 ) : (
-                  <div className="flex gap-1.5">
-                    <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
-                      onClick={() => nfInputRef.current.click()} disabled={uploadingNF}>
-                      {uploadingNF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                      {uploadingNF ? "Enviando..." : "Anexar NF"}
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
-                      onClick={() => nfCameraRef.current.click()} disabled={uploadingNF} title="Câmera">
-                      <Camera className="w-4 h-4" />
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
-                      onClick={() => abrirAdobeScan(nfInputRef)} disabled={uploadingNF} title="Adobe Scan">
-                      <ScanLine className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  <UploadButton label="Anexar NF" icon={Paperclip} cameraRef={nfCameraRef} fileRef={nfInputRef} uploading={uploadingNF} />
                 )}
               </div>
 
@@ -329,21 +315,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
                       className="ml-auto text-blue-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 ) : (
-                  <div className="flex gap-1.5">
-                    <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
-                      onClick={() => certInputRef.current.click()} disabled={uploadingCert}>
-                      {uploadingCert ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                      {uploadingCert ? "Enviando..." : "Certificado"}
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
-                      onClick={() => certCameraRef.current.click()} disabled={uploadingCert} title="Câmera">
-                      <Camera className="w-4 h-4" />
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
-                      onClick={() => abrirAdobeScan(certInputRef)} disabled={uploadingCert} title="Adobe Scan">
-                      <ScanLine className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  <UploadButton label="Certificado" icon={ShieldCheck} cameraRef={certCameraRef} fileRef={certInputRef} uploading={uploadingCert} />
                 )}
               </div>
             </div>
@@ -387,21 +359,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
                     className="ml-auto text-purple-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                 </div>
               ) : (
-                <div className="flex gap-1.5">
-                  <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
-                    onClick={() => fotoInputRef.current.click()} disabled={uploadingFoto}>
-                    {uploadingFoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                    {uploadingFoto ? "Enviando..." : "Foto adicional"}
-                  </Button>
-                  <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
-                    onClick={() => fotoCameraRef.current.click()} disabled={uploadingFoto} title="Câmera">
-                    <Camera className="w-4 h-4" />
-                  </Button>
-                  <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
-                    onClick={() => abrirAdobeScan(fotoInputRef)} disabled={uploadingFoto} title="Adobe Scan">
-                    <ScanLine className="w-4 h-4" />
-                  </Button>
-                </div>
+                <UploadButton label="Foto adicional" icon={Paperclip} cameraRef={fotoCameraRef} fileRef={fotoInputRef} uploading={uploadingFoto} />
               )}
             </div>
           </div>

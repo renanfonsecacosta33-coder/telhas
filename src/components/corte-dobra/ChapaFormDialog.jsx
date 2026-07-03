@@ -6,9 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from "@/api/base44Client";
-import { Camera, Paperclip, FileCheck, ShieldCheck, X, Loader2, ScanLine } from "lucide-react";
+import { Paperclip, FileCheck, ShieldCheck, X, Loader2 } from "lucide-react";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
-import { abrirAdobeScan } from "@/lib/adobeScan";
+import UploadButton from "@/components/ui/UploadButton";
 
 export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }) {
   const [form, setForm] = useState({
@@ -266,21 +266,7 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
                       className="ml-auto text-emerald-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 ) : (
-                  <div className="flex gap-1.5">
-                    <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
-                      onClick={() => nfInputRef.current.click()} disabled={uploadingNF}>
-                      {uploadingNF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                      {uploadingNF ? "Enviando..." : "Anexar NF"}
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
-                      onClick={() => nfCameraRef.current.click()} disabled={uploadingNF} title="Câmera">
-                      <Camera className="w-4 h-4" />
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
-                      onClick={() => abrirAdobeScan(nfInputRef)} disabled={uploadingNF} title="Adobe Scan">
-                      <ScanLine className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  <UploadButton label="Anexar NF" icon={Paperclip} cameraRef={nfCameraRef} fileRef={nfInputRef} uploading={uploadingNF} />
                 )}
               </div>
 
@@ -301,21 +287,7 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
                       className="ml-auto text-blue-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 ) : (
-                  <div className="flex gap-1.5">
-                    <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
-                      onClick={() => cfInputRef.current.click()} disabled={uploadingCF}>
-                      {uploadingCF ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                      {uploadingCF ? "Enviando..." : "Anexar CF"}
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
-                      onClick={() => cfCameraRef.current.click()} disabled={uploadingCF} title="Câmera">
-                      <Camera className="w-4 h-4" />
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
-                      onClick={() => abrirAdobeScan(cfInputRef)} disabled={uploadingCF} title="Adobe Scan">
-                      <ScanLine className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  <UploadButton label="Anexar CF" icon={ShieldCheck} cameraRef={cfCameraRef} fileRef={cfInputRef} uploading={uploadingCF} />
                 )}
               </div>
             </div>

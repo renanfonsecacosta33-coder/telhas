@@ -6,10 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from "@/api/base44Client";
-import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera, ScanLine } from "lucide-react";
+import { Paperclip, FileCheck, X, Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
-import { abrirAdobeScan } from "@/lib/adobeScan";
+import UploadButton from "@/components/ui/UploadButton";
 import { useQueryClient } from "@tanstack/react-query";
 
 const STATUS_OPTIONS = [
@@ -378,22 +378,7 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
                   <img src={form.foto_cor_url} alt="Foto da cor" className="w-full max-h-32 object-cover rounded-lg border border-border" />
                 </div>
               ) : (
-                <div className="flex gap-1.5">
-                  <Button type="button" variant="outline" size="sm"
-                    className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
-                    onClick={() => fotoCorInputRef.current.click()}
-                    disabled={uploadingFotoCor}>
-                    {uploadingFotoCor ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                    {uploadingFotoCor ? "Enviando..." : "Anexar Foto"}
-                  </Button>
-                  <Button type="button" variant="outline" size="sm"
-                    className="border-dashed border-2 h-10 px-3 text-xs"
-                    onClick={() => fotoCorCameraRef.current.click()}
-                    disabled={uploadingFotoCor}
-                    title="Tirar foto da cor">
-                    <Camera className="w-4 h-4" />
-                  </Button>
-                </div>
+                <UploadButton label="Anexar Foto" icon={Paperclip} cameraRef={fotoCorCameraRef} fileRef={fotoCorInputRef} uploading={uploadingFotoCor} />
               )}
             </div>
           )}
@@ -421,22 +406,7 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
                     </button>
                   </div>
                 ) : (
-                  <div className="flex gap-1.5">
-                    <Button type="button" variant="outline" size="sm"
-                      className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
-                      onClick={() => nfInputRef.current.click()}
-                      disabled={uploadingNF}>
-                      {uploadingNF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                      {uploadingNF ? "Enviando..." : "Anexar NF"}
-                    </Button>
-                    <Button type="button" variant="outline" size="sm"
-                      className="border-dashed border-2 h-10 px-3 text-xs"
-                      onClick={() => nfCameraRef.current.click()}
-                      disabled={uploadingNF}
-                      title="Tirar foto da NF">
-                      <Camera className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  <UploadButton label="Anexar NF" icon={Paperclip} cameraRef={nfCameraRef} fileRef={nfInputRef} uploading={uploadingNF} />
                 )}
               </div>
 
@@ -459,22 +429,7 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
                     </button>
                   </div>
                 ) : (
-                  <div className="flex gap-1.5">
-                    <Button type="button" variant="outline" size="sm"
-                      className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
-                      onClick={() => certInputRef.current.click()}
-                      disabled={uploadingCert}>
-                      {uploadingCert ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                      {uploadingCert ? "Enviando..." : "Certificado"}
-                    </Button>
-                    <Button type="button" variant="outline" size="sm"
-                      className="border-dashed border-2 h-10 px-3 text-xs"
-                      onClick={() => certCameraRef.current.click()}
-                      disabled={uploadingCert}
-                      title="Tirar foto do Certificado">
-                      <Camera className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  <UploadButton label="Certificado" icon={ShieldCheck} cameraRef={certCameraRef} fileRef={certInputRef} uploading={uploadingCert} />
                 )}
               </div>
             </div>

@@ -9,9 +9,9 @@ import { Label } from "@/components/ui/label";
 import {
   Layers, ShoppingCart, Warehouse, Search,
   CheckCircle2, RefreshCw, X, Plus, Paperclip, Loader2,
-  FileCheck, ShieldCheck, Camera, Lock, ScanLine
+  FileCheck, ShieldCheck, Camera, Lock
 } from "lucide-react";
-import { abrirAdobeScan } from "@/lib/adobeScan";
+import UploadButton from "@/components/ui/UploadButton";
 import ChapaFormDialog from "@/components/corte-dobra/ChapaFormDialog";
 import ChapaCard from "@/components/corte-dobra/ChapaCard";
 import { useFilial } from "@/contexts/FilialContext";
@@ -274,21 +274,7 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
                       className="text-emerald-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 ) : (
-                  <div className="flex gap-1.5">
-                    <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
-                      onClick={() => nfFileRef.current.click()} disabled={uploadingNF}>
-                      {uploadingNF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                      {uploadingNF ? "Enviando..." : "Anexar NF"}
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
-                      onClick={() => nfCameraRef.current.click()} disabled={uploadingNF} title="Câmera">
-                      <Camera className="w-4 h-4" />
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
-                      onClick={() => abrirAdobeScan(nfFileRef)} disabled={uploadingNF} title="Adobe Scan">
-                      <ScanLine className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  <UploadButton label="Anexar NF" icon={Paperclip} cameraRef={nfCameraRef} fileRef={nfFileRef} uploading={uploadingNF} />
                 )}
               </div>
 
@@ -309,21 +295,7 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
                       className="text-blue-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 ) : (
-                  <div className="flex gap-1.5">
-                    <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed border-2 h-10 text-xs gap-1.5"
-                      onClick={() => cfFileRef.current.click()} disabled={uploadingCF}>
-                      {uploadingCF ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                      {uploadingCF ? "Enviando..." : "Anexar CF"}
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
-                      onClick={() => cfCameraRef.current.click()} disabled={uploadingCF} title="Câmera">
-                      <Camera className="w-4 h-4" />
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" className="border-dashed border-2 h-10 px-3"
-                      onClick={() => abrirAdobeScan(cfFileRef)} disabled={uploadingCF} title="Adobe Scan">
-                      <ScanLine className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  <UploadButton label="Anexar CF" icon={ShieldCheck} cameraRef={cfCameraRef} fileRef={cfFileRef} uploading={uploadingCF} />
                 )}
               </div>
             </div>
@@ -345,6 +317,7 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
               onChange={e => handleUpload(e.target.files[0])} />
             <input ref={fileScanRef} type="file" className="hidden" accept="image/*"
               onChange={e => handleUpload(e.target.files[0])} />
+            {/* fileScanRef serve como galleryRef para o UploadButton */}
             {anexoUrl ? (
               <div className="flex items-center gap-2 rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs">
                 <img src={anexoUrl} alt="Anexo" className="w-10 h-10 object-cover rounded" />
@@ -352,17 +325,7 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
                 <button onClick={() => { setAnexoUrl(""); setAnexoNome(""); }} className="text-emerald-600 hover:text-red-500"><X className="w-3 h-3" /></button>
               </div>
             ) : (
-              <div className="flex gap-1.5">
-                <Button type="button" variant="outline" className="flex-1 border-dashed border-2 h-10 text-sm gap-2"
-                  onClick={() => fileRef.current.click()} disabled={uploading}>
-                  {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                  {uploading ? "Enviando..." : "Anexar imagem"}
-                </Button>
-                <Button type="button" variant="outline" className="border-dashed border-2 h-10 px-3" title="Adobe Scan"
-                  onClick={() => abrirAdobeScan(fileScanRef)} disabled={uploading}>
-                  <ScanLine className="w-4 h-4" />
-                </Button>
-              </div>
+              <UploadButton label="Anexar imagem" icon={Paperclip} cameraRef={fileRef} fileRef={fileScanRef} uploading={uploading} size="default" />
             )}
           </div>
         </div>
