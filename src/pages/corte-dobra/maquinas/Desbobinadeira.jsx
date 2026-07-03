@@ -41,25 +41,37 @@ export default function Desbobinadeira() {
     refetchInterval: 10000,
   });
 
+  // Busca também as OPs das máquinas CD (guilhotina, dobra, etc.) para
+  // calcular a sequência do pedido cruzando todos os setores
+  const { data: ordensMaquina = [] } = useQuery({
+    queryKey: ["ordens-maquina-cd", filialAtiva],
+    queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva }, "-data", 500),
+    refetchInterval: 10000,
+  });
+
   // Mapa de sequência de pedidos: para cada ordem com numero_pedido,
-  // calcula "1/3", "2/3", etc. com base na ordem de criação
+  // calcula "1/3", "2/3", etc. com base na ordem de criação — cruzando
+  // Desbobinadeira + todas as máquinas CD (guilhotina, dobra, etc.)
   const pedidoSeqMap = useMemo(() => {
     const map = {};
     const groups = {};
-    for (const o of ordens) {
+    const todas = [...ordens, ...ordensMaquina];
+    for (const o of todas) {
       if (!o.numero_pedido) continue;
       if (!groups[o.numero_pedido]) groups[o.numero_pedido] = [];
       groups[o.numero_pedido].push(o);
     }
     for (const items of Object.values(groups)) {
-      items.sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
-      const total = items.length;
-      items.forEach((item, idx) => {
+      // Dedup por id (caso a mesma OP apareça nas duas listas)
+      const unique = Array.from(new Map(items.map(i => [i.id, i])).values());
+      unique.sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
+      const total = unique.length;
+      unique.forEach((item, idx) => {
         map[item.id] = `${idx + 1}/${total}`;
       });
     }
     return map;
-  }, [ordens]);
+  }, [ordens, ordensMaquina]);
 
   const ordensSemana = useMemo(() => {
     const s = format(weekStart, "yyyy-MM-dd");

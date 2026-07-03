@@ -40,30 +40,42 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     refetchInterval: 10000,
   });
 
+  // Busca também as OPs da Desbobinadeira para calcular a sequência do
+  // pedido cruzando todos os setores (Desbobinadeira → Guilhotina → Dobra...)
+  const { data: ordensDesbob = [] } = useQuery({
+    queryKey: ["ordens-desbobinadeira", filialAtiva],
+    queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva }, "-data", 500),
+    refetchInterval: 10000,
+  });
+
   const ordensDaMaquina = useMemo(
     () => ordens.filter(o => o.maquina === maquinaId),
     [ordens, maquinaId]
   );
 
   // Mapa de sequência de pedidos: para cada ordem com numero_pedido repetido,
-  // calcula "1/4", "2/4", etc. com base na ordem de criação
+  // calcula "1/4", "2/4", etc. com base na ordem de criação — cruzando
+  // Desbobinadeira + todas as máquinas CD
   const pedidoSeqMap = useMemo(() => {
     const map = {};
     const groups = {};
-    for (const o of ordens) {
+    const todas = [...ordens, ...ordensDesbob];
+    for (const o of todas) {
       if (!o.numero_pedido) continue;
       if (!groups[o.numero_pedido]) groups[o.numero_pedido] = [];
       groups[o.numero_pedido].push(o);
     }
     for (const items of Object.values(groups)) {
-      items.sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
-      const total = items.length;
-      items.forEach((item, idx) => {
+      // Dedup por id (caso a mesma OP apareça nas duas listas)
+      const unique = Array.from(new Map(items.map(i => [i.id, i])).values());
+      unique.sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
+      const total = unique.length;
+      unique.forEach((item, idx) => {
         map[item.id] = `${idx + 1}/${total}`;
       });
     }
     return map;
-  }, [ordens]);
+  }, [ordens, ordensDesbob]);
 
   const ordensSemana = useMemo(() => {
     const s = format(weekStart, "yyyy-MM-dd");

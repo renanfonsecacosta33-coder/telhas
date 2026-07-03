@@ -219,7 +219,9 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
             quantidade: o.quantidade || 0,
             status: "pendente",
             foto_pedido_url: o.foto_pedido_url || null,
-            observacoes: `OP gerada automaticamente pela Desbobinadeira (OP ${o.id.slice(-6).toUpperCase()})`,
+            observacoes: o.observacoes
+              ? `${o.observacoes}\n— OP gerada automaticamente pela Desbobinadeira (OP ${o.id.slice(-6).toUpperCase()})`
+              : `OP gerada automaticamente pela Desbobinadeira (OP ${o.id.slice(-6).toUpperCase()})`,
           });
           toast.success(`OP automática criada na ${o.guilhotina}`);
         }
