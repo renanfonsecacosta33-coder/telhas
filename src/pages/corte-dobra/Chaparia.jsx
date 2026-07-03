@@ -12,6 +12,7 @@ import {
   FileCheck, ShieldCheck, Camera, Lock
 } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
+import ReservaPanel from "@/components/bobinas/ReservaPanel";
 import ChapaFormDialog from "@/components/corte-dobra/ChapaFormDialog";
 import ChapaCard from "@/components/corte-dobra/ChapaCard";
 import { useFilial } from "@/contexts/FilialContext";
@@ -37,6 +38,16 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
   const [anexoNfNome, setAnexoNfNome] = useState(chapa?.anexo_nf_nome || "");
   const [anexoCfUrl, setAnexoCfUrl] = useState(chapa?.anexo_cf_url || "");
   const [anexoCfNome, setAnexoCfNome] = useState(chapa?.anexo_cf_nome || "");
+  const [reservaForm, setReservaForm] = useState({
+    reservada: chapa?.reservada || false,
+    reserva_tipo: chapa?.reserva_tipo || "inteira",
+    reserva_kg: chapa?.reserva_kg || "",
+    reserva_numero_pedido: chapa?.reserva_numero_pedido || "",
+    reserva_motivo: chapa?.reserva_motivo || "",
+    reserva_autorizado_por: chapa?.reserva_autorizado_por || "",
+    reserva_data: chapa?.reserva_data || "",
+    peso_kg: chapa?.peso_kg || "",
+  });
   const [uploading, setUploading] = useState(false);
   const [uploadingNF, setUploadingNF] = useState(false);
   const [uploadingCF, setUploadingCF] = useState(false);
@@ -69,6 +80,16 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
       setAnexoNfNome(chapa.anexo_nf_nome || "");
       setAnexoCfUrl(chapa.anexo_cf_url || "");
       setAnexoCfNome(chapa.anexo_cf_nome || "");
+      setReservaForm({
+        reservada: chapa.reservada || false,
+        reserva_tipo: chapa.reserva_tipo || "inteira",
+        reserva_kg: chapa.reserva_kg || "",
+        reserva_numero_pedido: chapa.reserva_numero_pedido || "",
+        reserva_motivo: chapa.reserva_motivo || "",
+        reserva_autorizado_por: chapa.reserva_autorizado_por || "",
+        reserva_data: chapa.reserva_data || "",
+        peso_kg: chapa.peso_kg || "",
+      });
     }
   }, [open, chapa]);
 
@@ -149,6 +170,13 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
       anexo_cf_nome: anexoCfNome || null,
       observacoes: observacoes || null,
       historico_movimentacoes: JSON.stringify(historico),
+      reservada: reservaForm.reservada || false,
+      reserva_tipo: reservaForm.reservada ? (reservaForm.reserva_tipo || "inteira") : null,
+      reserva_kg: reservaForm.reservada && reservaForm.reserva_tipo === "parcial" ? Number(reservaForm.reserva_kg) || null : null,
+      reserva_numero_pedido: reservaForm.reservada ? (reservaForm.reserva_numero_pedido || null) : null,
+      reserva_motivo: reservaForm.reservada ? (reservaForm.reserva_motivo || null) : null,
+      reserva_autorizado_por: reservaForm.reservada ? (reservaForm.reserva_autorizado_por || null) : null,
+      reserva_data: reservaForm.reservada ? (reservaForm.reserva_data || new Date().toISOString().split("T")[0]) : null,
     });
   };
 
@@ -310,6 +338,12 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
             <Label>Motivo da alteração *</Label>
             <Input placeholder="Ex: consumo em produção, perda..." value={motivo} onChange={e => setMotivo(e.target.value)} />
           </div>
+
+          {/* Reserva */}
+          <ReservaPanel form={{ ...reservaForm, peso_kg: pesoKg }} onChange={(novoForm) => {
+            setReservaForm(novoForm);
+            if (novoForm.peso_kg !== pesoKg) setPesoKg(novoForm.peso_kg);
+          }} />
 
           <div className="space-y-1">
             <Label>Anexar imagem (opcional)</Label>
