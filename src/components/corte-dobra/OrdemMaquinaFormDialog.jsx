@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { useFilial } from "@/contexts/FilialContext";
 import { Layers, Package } from "lucide-react";
 
 // etapa: "corte" | "dobra" | "ambas" | "perfiladeira"
@@ -61,17 +62,17 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     observacoes: "",
   });
 
-  // chapas usadas abaixo via todasChapas
+  const { filialAtiva } = useFilial();
 
   const { data: bobinasSliter = [] } = useQuery({
-    queryKey: ["bobinas-sliter-cd"],
-    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false }),
+    queryKey: ["bobinas-sliter-cd", filialAtiva],
+    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false, unidade: filialAtiva }),
     enabled: open && form.chapa_origem === "direto" && !(form.maquina === "PERFILADEIRA"),
   });
 
   const { data: slitters = [] } = useQuery({
-    queryKey: ["slitters-perfiladeira"],
-    queryFn: () => base44.entities.Slitter.list("-created_date", 100),
+    queryKey: ["slitters-perfiladeira", filialAtiva],
+    queryFn: () => base44.entities.Slitter.filter({ unidade: filialAtiva }),
     enabled: open && form.maquina === "PERFILADEIRA",
   });
 
@@ -83,8 +84,8 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
 
   // chapas disponíveis = disponivel OU parcial, filtrar reservadas ao renderizar
   const { data: todasChapas = [] } = useQuery({
-    queryKey: ["chapas-cd-todas"],
-    queryFn: () => base44.entities.ChapaCD.list("-created_date", 200),
+    queryKey: ["chapas-cd-todas", filialAtiva],
+    queryFn: () => base44.entities.ChapaCD.filter({ unidade: filialAtiva }),
     enabled: open && (form.chapa_origem === "chaparia" || isDobra),
   });
 
