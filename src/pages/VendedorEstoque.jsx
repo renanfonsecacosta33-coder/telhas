@@ -215,7 +215,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
     .filter(b => {
       if (filtroQualidade && b.qualidade !== filtroQualidade) return false;
       const q = search.toLowerCase();
-      return b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q) || b.espessura_real?.toLowerCase().includes(q) || b.espessura_utilizada?.toLowerCase().includes(q) || String(b.largura_mm || "").includes(q);
+      return b.codigo?.toLowerCase().includes(q) || b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q) || b.espessura_real?.toLowerCase().includes(q) || b.espessura_utilizada?.toLowerCase().includes(q) || String(b.largura_mm || "").includes(q);
     })
     .sort((a, b) => {
       // Ordenar por qualidade (alfabético) depois por chapa (numérico crescente)
@@ -355,6 +355,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-muted/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
+                  <th className="text-left px-2 py-2 whitespace-nowrap">Cód.</th>
                   <th className="text-left px-2 py-2 whitespace-nowrap">Cor</th>
                   <th className="text-left px-2 py-2 whitespace-nowrap">Qual.</th>
                   <th className="text-left px-2 py-2 whitespace-nowrap">Espessura</th>
@@ -382,6 +383,9 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                       ? "bg-amber-50/60 hover:bg-amber-100/70"
                       : `${filialColor.rowBg} ${filialColor.rowHover}`
                   }`}>
+                    <td className="px-2 py-2 font-medium whitespace-nowrap text-primary">
+                      {b.codigo || "-"}
+                    </td>
                     <td className="px-2 py-2 font-medium whitespace-nowrap">
                       {b.cor || "-"}
                       {showFilialBadge && (

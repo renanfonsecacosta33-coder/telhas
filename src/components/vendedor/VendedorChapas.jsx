@@ -125,7 +125,7 @@ export default function VendedorChapas({ vendedorNome, selectedFiliais }) {
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-muted/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
-                <th className="text-left px-2 py-2 whitespace-nowrap">Código</th>
+                <th className="text-left px-2 py-2 whitespace-nowrap">Cód.</th>
                 <th className="text-left px-2 py-2 whitespace-nowrap">Qual.</th>
                 <th className="text-left px-2 py-2 whitespace-nowrap">Material</th>
                 <th className="text-right px-2 py-2 whitespace-nowrap">Espessura</th>
