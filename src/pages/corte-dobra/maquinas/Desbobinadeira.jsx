@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import OrdemFormDialogCD from "@/components/corte-dobra/OrdemFormDialogCD";
 import OrdemDesbobinadiraRow from "@/components/corte-dobra/OrdemDesbobinadiraRow";
 import { useFilial } from "@/contexts/FilialContext";
+import { playAlertSound } from "@/lib/sounds";
 
 export default function Desbobinadeira() {
   const { filialAtiva } = useFilial();
@@ -40,6 +41,18 @@ export default function Desbobinadeira() {
     queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva }, "-data", 500),
     refetchInterval: 10000,
   });
+
+  // Som de alerta quando nova OP é criada
+  const prevIdsRef = useRef(null);
+  useEffect(() => {
+    if (!ordens.length) return;
+    const currentIds = new Set(ordens.map(o => o.id));
+    if (prevIdsRef.current !== null) {
+      const hasNew = [...currentIds].some(id => !prevIdsRef.current.has(id));
+      if (hasNew) playAlertSound();
+    }
+    prevIdsRef.current = currentIds;
+  }, [ordens]);
 
   // Busca também as OPs das máquinas CD (guilhotina, dobra, etc.) para
   // calcular a sequência do pedido cruzando todos os setores

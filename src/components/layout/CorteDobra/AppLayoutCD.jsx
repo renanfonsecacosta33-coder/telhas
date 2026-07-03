@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Outlet, Navigate, useNavigate } from "react-router-dom";
 import SidebarCD from "./SidebarCD";
 import FilialSwitcher from "@/components/FilialSwitcher";
+import AlertBellCD from "@/components/corte-dobra/AlertBellCD";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftRight } from "lucide-react";
 import { base44 } from "@/api/base44Client";
@@ -37,9 +38,11 @@ export default function AppLayoutCD() {
       <SidebarCD isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
       <main className="lg:ml-64 min-h-screen">
         <div className="sticky top-0 z-30 bg-background/80 backdrop-blur border-b border-border px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-end gap-2 lg:hidden">
+          <AlertBellCD user={user} />
           <FilialSwitcher />
         </div>
         <div className="hidden lg:flex sticky top-0 z-30 bg-background/80 backdrop-blur border-b border-border px-8 py-2 items-center justify-end gap-2">
+          <AlertBellCD user={user} />
           <FilialSwitcher />
         </div>
         <div className="p-4 sm:p-6 lg:p-8">
