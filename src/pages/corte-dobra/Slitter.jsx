@@ -69,7 +69,7 @@ export default function SlitterPage() {
       });
       const novoCodigo = `ST${String(max + 1).padStart(4, "0")}`;
       const hoje = new Date().toISOString().split("T")[0];
-      createMutation.mutate({ ...formData, codigo: novoCodigo, data: hoje });
+      createMutation.mutate({ ...formData, codigo: novoCodigo, data: hoje, unidade: filialAtiva });
     }
   };
 

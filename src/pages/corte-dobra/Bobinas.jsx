@@ -97,7 +97,7 @@ export default function BobinasCD() {
   const handleSave = (data) => {
     try {
       if (editItem) updateMutation.mutate({ id: editItem.id, data });
-      else createMutation.mutate(data);
+      else createMutation.mutate({ ...data, unidade: filialAtiva });
     } catch (e) {
       console.error("Erro síncrono ao salvar CD:", e);
       toast.error("Erro ao salvar: " + (e?.message || String(e)));

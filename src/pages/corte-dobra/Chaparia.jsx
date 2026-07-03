@@ -580,7 +580,7 @@ export default function Chaparia() {
       <ChapaFormDialog
         open={showForm}
         onClose={() => setShowForm(false)}
-        onSave={(data) => createMut.mutate(data)}
+        onSave={(data) => createMut.mutate({ ...data, unidade: filialAtiva })}
         proximoCodigo={proximoCodigo}
       />
 
