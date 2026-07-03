@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { useFilial } from "@/contexts/FilialContext";
 import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X } from "lucide-react";
 
 function labelBobina(b) {
@@ -70,9 +71,11 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const fotoInputRef = useRef();
 
+  const { filialAtiva } = useFilial();
+
   const { data: bobinas = [] } = useQuery({
-    queryKey: ["bobinas-cd-ativas"],
-    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false }),
+    queryKey: ["bobinas-cd-ativas", filialAtiva],
+    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false, unidade: filialAtiva }),
     enabled: open,
   });
 
