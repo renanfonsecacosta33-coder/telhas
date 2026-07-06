@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
+import { getEtapaColor } from "@/components/corte-dobra/RetrabalhoDialog";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -244,17 +245,18 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
   const isFinalizado = o.status === "finalizado";
 
   if (isFinalizado) {
+    const etpCorFin = o.is_retrabalho ? getEtapaColor(o.retrabalho_etapa) : null;
     return (
       <>
-        <div className={`border-l-4 ${o.is_retrabalho ? "border-l-red-500" : "border-l-green-400"} ${o.is_retrabalho ? "bg-red-50/60" : "bg-green-50/60"} rounded-lg p-2.5 shadow-sm hover:shadow-md transition-all`}>
+        <div className={`border-l-4 ${etpCorFin ? etpCorFin.border : "border-l-green-400"} ${etpCorFin ? etpCorFin.bg : "bg-green-50/60"} rounded-lg p-2.5 shadow-sm hover:shadow-md transition-all`}>
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               {o.is_retrabalho && (
-                <Badge className="bg-red-500 text-white border-red-600 text-[10px]">
-                  <AlertCircle className="w-3 h-3 mr-0.5" /> RETRABALHO
+                <Badge className={`${etpCorFin?.badge} text-white border-red-600 text-[10px]`}>
+                  <AlertCircle className="w-3 h-3 mr-0.5" /> RETRABALHO{o.retrabalho_etapa > 1 ? ` E${o.retrabalho_etapa}` : ""}
                 </Badge>
               )}
-              <span className={`font-bold text-sm font-mono ${o.is_retrabalho ? "text-red-700" : "text-green-700"}`}>{o.bobina_descricao || "Bobina"}</span>
+              <span className={`font-bold text-sm font-mono ${etpCorFin ? etpCorFin.text : "text-green-700"}`}>{o.bobina_descricao || "Bobina"}</span>
               {o.espessura_utilizada && (
                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
                   <Layers className="w-2.5 h-2.5" /> {o.espessura_utilizada}mm
@@ -351,20 +353,21 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
   }
 
   const retrabalho = o.is_retrabalho;
+  const etpCor = retrabalho ? getEtapaColor(o.retrabalho_etapa) : null;
 
   return (
     <>
-      <div className={`border-l-4 ${retrabalho ? "border-l-red-500" : "border-l-orange-400"} ${retrabalho ? "bg-red-50/40" : "bg-white"} rounded-xl ${z.card} shadow-sm hover:shadow-md transition-shadow`}>
+      <div className={`border-l-4 ${etpCor ? etpCor.border : "border-l-orange-400"} ${etpCor ? etpCor.bg : "bg-white"} rounded-xl ${z.card} shadow-sm hover:shadow-md transition-shadow`}>
         {/* Header */}
         <div className={`flex items-start justify-between ${z.gap} ${z.mb}`}>
           <div className="flex-1 min-w-0">
             <div className={`flex items-center ${z.gap} flex-wrap mb-1`}>
               {retrabalho && (
-                <Badge className="bg-red-500 text-white border-red-600 animate-pulse text-xs">
-                  <AlertCircle className="w-3 h-3 mr-0.5" /> RETRABALHO
+                <Badge className={`${etpCor?.badge} text-white border-red-600 animate-pulse text-xs`}>
+                  <AlertCircle className="w-3 h-3 mr-0.5" /> RETRABALHO{o.retrabalho_etapa > 1 ? ` E${o.retrabalho_etapa}` : ""}
                 </Badge>
               )}
-              <span className={`font-bold ${z.title} font-mono ${retrabalho ? "text-red-700" : "text-orange-600"}`}>{o.bobina_descricao || "Bobina"}</span>
+              <span className={`font-bold ${z.title} font-mono ${etpCor ? etpCor.text : "text-orange-600"}`}>{o.bobina_descricao || "Bobina"}</span>
               {o.espessura_utilizada && (
                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
                   <Layers className="w-3 h-3" /> {o.espessura_utilizada}mm

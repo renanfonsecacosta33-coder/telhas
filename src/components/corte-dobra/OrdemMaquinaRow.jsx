@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
+import { getEtapaColor } from "@/components/corte-dobra/RetrabalhoDialog";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -233,14 +234,15 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
   const isFinalizado = o.status === "finalizado";
 
   if (isFinalizado) {
+    const etpCorFin = o.is_retrabalho ? getEtapaColor(o.retrabalho_etapa) : null;
     return (
       <>
-        <div className={`border-l-4 ${o.is_retrabalho ? "border-l-red-500" : "border-l-green-400"} ${o.is_retrabalho ? "bg-red-50/60" : "bg-green-50/60"} rounded-lg p-2.5 shadow-sm hover:shadow-md transition-all`}>
+        <div className={`border-l-4 ${etpCorFin ? etpCorFin.border : "border-l-green-400"} ${etpCorFin ? etpCorFin.bg : "bg-green-50/60"} rounded-lg p-2.5 shadow-sm hover:shadow-md transition-all`}>
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               {o.is_retrabalho && (
-                <Badge className="bg-red-500 text-white border-red-600 text-[10px]">
-                  <AlertCircle className="w-3 h-3 mr-0.5" /> RETRABALHO
+                <Badge className={`${etpCorFin?.badge} text-white border-red-600 text-[10px]`}>
+                  <AlertCircle className="w-3 h-3 mr-0.5" /> RETRABALHO{o.retrabalho_etapa > 1 ? ` E${o.retrabalho_etapa}` : ""}
                 </Badge>
               )}
               <span className="font-bold text-sm">{o.tipo_peca || "—"}</span>
@@ -347,8 +349,9 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
   }
 
   const retrabalho = o.is_retrabalho;
-  const borderColorRet = retrabalho ? "border-l-red-500" : borderColor;
-  const bgRet = retrabalho ? "bg-red-50/40" : "bg-white";
+  const etpCor = retrabalho ? getEtapaColor(o.retrabalho_etapa) : null;
+  const borderColorRet = etpCor ? etpCor.border : borderColor;
+  const bgRet = etpCor ? etpCor.bg : "bg-white";
 
   return (
     <>
@@ -358,8 +361,8 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
           <div className="flex-1 min-w-0">
             <div className={`flex items-center ${z.gap} flex-wrap mb-1`}>
               {retrabalho && (
-                <Badge className="bg-red-500 text-white border-red-600 animate-pulse text-xs">
-                  <AlertCircle className="w-3 h-3 mr-0.5" /> RETRABALHO
+                <Badge className={`${etpCor?.badge} text-white border-red-600 animate-pulse text-xs`}>
+                  <AlertCircle className="w-3 h-3 mr-0.5" /> RETRABALHO{o.retrabalho_etapa > 1 ? ` E${o.retrabalho_etapa}` : ""}
                 </Badge>
               )}
               <span className={`font-bold ${z.title}`}>{o.tipo_peca || "—"}</span>

@@ -481,6 +481,68 @@ export default function DashboardCorteDobraCompleto() {
             </div>
           </div>
 
+          {/* Histórico de Retrabalhos */}
+          {retrabalhosPeriodo.length > 0 && (
+            <div className="bg-card border border-border rounded-xl p-4">
+              <h2 className="font-bold text-sm mb-3 flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 text-red-500" /> Histórico de Retrabalhos — Período
+                <Badge className="bg-red-100 text-red-700 border-red-200 text-xs">{retrabalhosPeriodo.length} retrabalho(s)</Badge>
+              </h2>
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {retrabalhosPeriodo.map(rt => {
+                  const etapaCor = ["bg-red-500", "bg-orange-500", "bg-amber-500", "bg-yellow-500", "bg-pink-500"][Math.min((rt.retrabalho_etapa || 1) - 1, 4)];
+                  const kg = rt.peso_kg || rt.kg_estimado || 0;
+                  return (
+                    <div key={rt.id} className="flex items-center gap-3 rounded-lg px-3 py-2 border border-red-200 bg-red-50/30 text-xs">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold text-white ${etapaCor} flex-shrink-0`}>
+                        E{rt.retrabalho_etapa || 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {rt.numero_pedido && (
+                            <span className="font-bold text-blue-700 font-mono">#{rt.numero_pedido}</span>
+                          )}
+                          <span className="font-semibold text-foreground truncate">{rt.tipo_peca || rt.bobina_descricao || "—"}</span>
+                          {rt.maquina && (
+                            <Badge className="bg-slate-100 text-slate-600 border-slate-200 text-[10px]">{rt.maquina}</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5 text-muted-foreground">
+                          {rt.cliente && <span>{rt.cliente}</span>}
+                          {rt.retrabalho_bobina_sub_descricao && (
+                            <span className="text-amber-600 font-medium">🔄 Bobina subs: {rt.retrabalho_bobina_sub_descricao}</span>
+                          )}
+                          {rt.retrabalho_motivo && (
+                            <span className="truncate text-red-600/70">— {rt.retrabalho_motivo}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="font-bold text-foreground">{rt.retrabalho_quantidade || rt.quantidade || 0} pç</p>
+                        {kg > 0 && <p className="text-emerald-600 font-semibold">{kg.toFixed(1)}kg</p>}
+                        <p className="text-muted-foreground text-[10px]">{format(new Date(rt.data + "T12:00:00"), "dd/MM")}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="grid grid-cols-3 gap-3 mt-3 pt-3 border-t border-border">
+                <div className="text-center">
+                  <p className="text-xl font-black text-red-600">{retrabalhosPeriodo.length}</p>
+                  <p className="text-xs text-muted-foreground">Total retrabalhos</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xl font-black text-red-600">{retrabalhosPeriodo.reduce((s, r) => s + (r.retrabalho_quantidade || r.quantidade || 0), 0)}</p>
+                  <p className="text-xs text-muted-foreground">Peças reproduzidas</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xl font-black text-emerald-600">{retrabalhosPeriodo.reduce((s, r) => s + (r.peso_kg || r.kg_estimado || 0), 0).toFixed(1)}kg</p>
+                  <p className="text-xs text-muted-foreground">KG em retrabalho</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Histórico de Bobinas Utilizadas */}
           <HistoricoBobinas historico={historicoBobinas} />
         </>
