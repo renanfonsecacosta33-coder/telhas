@@ -26,7 +26,7 @@ export default function EtiquetaBTW({ bobina, onClose }) {
     : pesoAtual;
 
   const chapaReal = bobina.chapa || "—";
-  const chapaUtil = bobina.espessura_utilizada || "—";
+  const corBobina = bobina.cor || "—";
 
   const handlePrint = () => {
     const conteudo = printRef.current.innerHTML;
@@ -164,13 +164,13 @@ export default function EtiquetaBTW({ bobina, onClose }) {
                   </div>
                 </div>
 
-                {/* Chapa Utilizada */}
+                {/* COR */}
                 <div style={{ display: "flex", borderBottom: "0.75px solid #000", flex: 1 }}>
                   <div style={{ padding: "3px 8px", fontSize: "12px", background: "#f5f5f5", minWidth: "80px", display: "flex", alignItems: "center", borderRight: "0.75px solid #000", fontWeight: 700 }}>
-                    Chapa Utilizada
+                    COR
                   </div>
                   <div style={{ padding: "3px 8px", fontSize: "16px", fontWeight: 900, color: "#000", flex: 1, display: "flex", alignItems: "center" }}>
-                    {chapaUtil}
+                    {corBobina}
                   </div>
                 </div>
 
