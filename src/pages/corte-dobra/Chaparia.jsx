@@ -419,7 +419,7 @@ export default function Chaparia() {
   const { data: bobinasMap = {} } = useQuery({
     queryKey: ["bobinas-cd-chaparia", filialAtiva],
     queryFn: async () => {
-      const bobs = await base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false, unidade: filialAtiva });
+      const bobs = await base44.entities.Bobina.filter({ setor: "corte_dobra", unidade: filialAtiva });
       const map = {};
       bobs.forEach(b => { map[b.id] = b; });
       return map;
