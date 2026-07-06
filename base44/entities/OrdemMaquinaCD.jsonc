@@ -161,6 +161,27 @@
     "observacoes": {
       "type": "string",
       "description": "Observa\u00e7\u00f5es"
+    },
+    "is_retrabalho": {
+      "type": "boolean",
+      "default": false,
+      "description": "Indica se esta ordem \u00e9 um retrabalho gerado a partir de outra"
+    },
+    "retrabalho_motivo": {
+      "type": "string",
+      "description": "Motivo do retrabalho (por que precisa ser refeito)"
+    },
+    "retrabalho_foto_1_url": {
+      "type": "string",
+      "description": "URL da primeira foto do retrabalho"
+    },
+    "retrabalho_foto_2_url": {
+      "type": "string",
+      "description": "URL da segunda foto do retrabalho"
+    },
+    "retrabalho_origem_id": {
+      "type": "string",
+      "description": "ID da ordem original que gerou este retrabalho"
     }
   },
   "required": [

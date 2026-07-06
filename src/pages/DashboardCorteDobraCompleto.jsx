@@ -12,7 +12,7 @@ import { ptBR } from "date-fns/locale";
 import {
   TrendingUp, CheckCircle2, Clock, AlertTriangle, Package, Factory,
   BarChart2, Weight, Zap, Pause, Circle, ArrowRight, ChevronRight,
-  Calendar, Target, Activity, Scissors, Layers, Timer, Coffee, Square
+  Calendar, Target, Activity, Scissors, Layers, Timer, Coffee, Square, RefreshCw
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useFilial } from "@/contexts/FilialContext";
@@ -182,6 +182,7 @@ export default function DashboardCorteDobraCompleto() {
 
   const ordensAtivas = useMemo(() => ordensPeriodo.filter(o => o.status === "em_producao" || o.status === "pausado"), [ordensPeriodo]);
   const ordensPausadas = useMemo(() => ordensPeriodo.filter(o => o.status === "pausado"), [ordensPeriodo]);
+  const retrabalhosPeriodo = useMemo(() => ordensPeriodo.filter(o => o.is_retrabalho), [ordensPeriodo]);
 
   return (
     <div className="space-y-6">
@@ -245,7 +246,7 @@ export default function DashboardCorteDobraCompleto() {
       </div>
 
       {/* Alertas */}
-      {(bobinasCriticas.length > 0 || pausadosAgora > 0) && (
+      {(bobinasCriticas.length > 0 || pausadosAgora > 0 || retrabalhosPeriodo.length > 0) && (
         <div className="flex flex-wrap gap-2">
           {bobinasCriticas.length > 0 && (
             <Link to="/corte-dobra/bobinas">
@@ -263,6 +264,15 @@ export default function DashboardCorteDobraCompleto() {
               <span className="text-sm font-semibold text-purple-700">{pausadosAgora} ordem(ns) pausada(s)</span>
               <ChevronRight className="w-3.5 h-3.5 text-purple-500" />
             </button>
+          )}
+          {retrabalhosPeriodo.length > 0 && (
+            <Link to="/corte-dobra/producao">
+              <div className="flex items-center gap-2 bg-red-100 border border-red-400 rounded-xl px-4 py-2.5 cursor-pointer hover:bg-red-200 transition-colors">
+                <RefreshCw className="w-4 h-4 text-red-700" />
+                <span className="text-sm font-semibold text-red-800">{retrabalhosPeriodo.length} retrabalho(s) no período</span>
+                <ChevronRight className="w-3.5 h-3.5 text-red-600" />
+              </div>
+            </Link>
           )}
         </div>
       )}
@@ -293,20 +303,21 @@ export default function DashboardCorteDobraCompleto() {
           </div>
 
           {/* KPIs secundários */}
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[
                { label: "KG no Período", value: kgPeriodo > 0 ? `${kgPeriodo.toFixed(0)}kg` : "—", icon: Weight, color: "text-orange-600" },
                { label: "Ordens no Período", value: ordensPeriodo.length || "—", icon: Layers, color: "text-slate-600" },
+               { label: "Retrabalhos", value: retrabalhosPeriodo.length || "✓", icon: RefreshCw, color: retrabalhosPeriodo.length > 0 ? "text-red-600" : "text-green-600" },
                { label: "Pausadas Agora", value: pausadosAgora || "✓", icon: Pause, color: pausadosAgora > 0 ? "text-purple-600" : "text-green-600" },
              ].map(k => (
-              <div key={k.label} className="bg-card border border-border rounded-xl p-3 flex items-center gap-3">
-                <k.icon className={`w-4 h-4 ${k.color} flex-shrink-0`} />
-                <div>
-                  <p className={`text-lg font-black ${k.color}`}>{k.value}</p>
-                  <p className="text-xs text-muted-foreground leading-tight">{k.label}</p>
-                </div>
-              </div>
-            ))}
+               <div key={k.label} className="bg-card border border-border rounded-xl p-3 flex items-center gap-3">
+                 <k.icon className={`w-4 h-4 ${k.color} flex-shrink-0`} />
+                 <div>
+                   <p className={`text-lg font-black ${k.color}`}>{k.value}</p>
+                   <p className="text-xs text-muted-foreground leading-tight">{k.label}</p>
+                 </div>
+               </div>
+             ))}
           </div>
 
           {/* Status das Máquinas — apenas na visão Geral */}

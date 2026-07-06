@@ -235,9 +235,14 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
   if (isFinalizado) {
     return (
       <>
-        <div className="border-l-4 border-l-green-400 bg-green-50/60 rounded-lg p-2.5 shadow-sm hover:shadow-md transition-all">
+        <div className={`border-l-4 ${o.is_retrabalho ? "border-l-red-500" : "border-l-green-400"} ${o.is_retrabalho ? "bg-red-50/60" : "bg-green-50/60"} rounded-lg p-2.5 shadow-sm hover:shadow-md transition-all`}>
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
+              {o.is_retrabalho && (
+                <Badge className="bg-red-500 text-white border-red-600 text-[10px]">
+                  <AlertCircle className="w-3 h-3 mr-0.5" /> RETRABALHO
+                </Badge>
+              )}
               <span className="font-bold text-sm">{o.tipo_peca || "—"}</span>
               {o.dimensoes_livres && (
                 <span className="text-[11px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">{o.dimensoes_livres}</span>
@@ -341,13 +346,22 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
     );
   }
 
+  const retrabalho = o.is_retrabalho;
+  const borderColorRet = retrabalho ? "border-l-red-500" : borderColor;
+  const bgRet = retrabalho ? "bg-red-50/40" : "bg-white";
+
   return (
     <>
-      <div className={`border-l-4 ${borderColor} bg-white rounded-xl ${z.card} shadow-sm hover:shadow-md transition-shadow`}>
+      <div className={`border-l-4 ${borderColorRet} ${bgRet} rounded-xl ${z.card} shadow-sm hover:shadow-md transition-shadow`}>
         {/* Header */}
         <div className={`flex items-start justify-between ${z.gap} ${z.mb}`}>
           <div className="flex-1 min-w-0">
             <div className={`flex items-center ${z.gap} flex-wrap mb-1`}>
+              {retrabalho && (
+                <Badge className="bg-red-500 text-white border-red-600 animate-pulse text-xs">
+                  <AlertCircle className="w-3 h-3 mr-0.5" /> RETRABALHO
+                </Badge>
+              )}
               <span className={`font-bold ${z.title}`}>{o.tipo_peca || "—"}</span>
               {o.dimensoes_livres && (
                 <span className={`${z.info} text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded`}>{o.dimensoes_livres}</span>

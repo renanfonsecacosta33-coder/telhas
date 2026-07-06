@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Factory, Calendar, Wrench, Download, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Factory, Calendar, Wrench, Download, ZoomIn, ZoomOut, Maximize2, Search, AlertTriangle, X } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import OrdemDesbobinadiraRow from "@/components/corte-dobra/OrdemDesbobinadiraRo
 import DiaResumoCardCD from "@/components/corte-dobra/DiaResumoCardCD";
 import OrdemMaquinaFormDialog from "@/components/corte-dobra/OrdemMaquinaFormDialog.jsx";
 import OrdemMaquinaRow from "@/components/corte-dobra/OrdemMaquinaRow.jsx";
+import RetrabalhoDialog from "@/components/corte-dobra/RetrabalhoDialog";
 import { useFilial } from "@/contexts/FilialContext";
 
 const MAQUINAS_OUTRAS = [
@@ -29,6 +30,9 @@ export default function ProducaoCD() {
   const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
   const [viewMode, setViewMode] = useState("semana");
   const [zoom, setZoom] = useState("normal"); // compacto | normal | grande
+  const [buscaPedido, setBuscaPedido] = useState("");
+  const [dialogRetrabalho, setDialogRetrabalho] = useState(false);
+  const [ordemRetrabalho, setOrdemRetrabalho] = useState(null);
 
   // Dialog Desbobinadeira
   const [dialogDesb, setDialogDesb] = useState(false);
@@ -116,18 +120,26 @@ export default function ProducaoCD() {
   }, [ordens, weekStart, weekEnd]);
 
   const ordensDia = useMemo(() => {
+    if (buscaPedido.trim()) {
+      const q = buscaPedido.toLowerCase().trim();
+      return ordens.filter(o => (o.numero_pedido || "").toLowerCase().includes(q) || (o.bobina_descricao || "").toLowerCase().includes(q));
+    }
     const hoje = format(new Date(), "yyyy-MM-dd");
     if (selectedDay !== hoje) return ordens.filter(o => o.data === selectedDay);
     const atrasadas = ordens.filter(o => o.data < hoje && o.status !== "finalizado" && o.status !== "cancelado");
     return [...atrasadas, ...ordens.filter(o => o.data === selectedDay)];
-  }, [ordens, selectedDay]);
+  }, [ordens, selectedDay, buscaPedido]);
 
   const ordensMaqDia = useMemo(() => {
+    if (buscaPedido.trim()) {
+      const q = buscaPedido.toLowerCase().trim();
+      return ordensMaq.filter(o => (o.numero_pedido || "").toLowerCase().includes(q) || (o.tipo_peca || "").toLowerCase().includes(q) || (o.chapa_descricao || "").toLowerCase().includes(q));
+    }
     const hoje = format(new Date(), "yyyy-MM-dd");
     if (selectedDay !== hoje) return ordensMaq.filter(o => o.data === selectedDay);
     const atrasadas = ordensMaq.filter(o => o.data < hoje && o.status !== "finalizado" && o.status !== "cancelado");
     return [...atrasadas, ...ordensMaq.filter(o => o.data === selectedDay)];
-  }, [ordensMaq, selectedDay]);
+  }, [ordensMaq, selectedDay, buscaPedido]);
 
   const totalSemanaOrdens = ordensSemana.length;
   const totalSemanaPecas = ordensSemana.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
@@ -253,9 +265,26 @@ export default function ProducaoCD() {
         </div>
       </div>
 
-      {/* Toggle */}
+      {/* Toggle + Busca */}
       <div className="flex items-center gap-2 flex-wrap justify-between">
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Busca por pedido */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <input
+              type="text"
+              value={buscaPedido}
+              onChange={(e) => { setBuscaPedido(e.target.value); if (e.target.value.trim()) setViewMode("dia"); }}
+              placeholder="Buscar por nº pedido..."
+              className="h-9 pl-8 pr-3 rounded-md border border-input bg-transparent text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring w-52"
+            />
+            {buscaPedido && (
+              <button onClick={() => setBuscaPedido("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
           <Button variant={viewMode === "semana" ? "default" : "outline"} size="sm" onClick={() => setViewMode("semana")}>Visão Semana</Button>
           <Button variant={viewMode === "dia" ? "default" : "outline"} size="sm" onClick={() => setViewMode("dia")}
             className={viewMode === "dia" ? "bg-orange-500 hover:bg-orange-600 border-0" : ""}>
@@ -317,9 +346,14 @@ export default function ProducaoCD() {
               renderRow={(o) => (
                 <div key={o.id}>
                   <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateDesb.mutate({ id, data })} isGestor={isGestor} zoom={zoom} ordens={ordens} />
-                  {isGestor && o.status === "pendente" && (
-                    <div className="flex justify-end mt-1">
-                      <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEditDesb(o)}>✏️ Editar</Button>
+                  {isGestor && (
+                    <div className="flex justify-end mt-1 gap-1">
+                      {o.status === "pendente" && (
+                        <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEditDesb(o)}>✏️ Editar</Button>
+                      )}
+                      <Button size="sm" variant="ghost" className="text-xs text-red-600 h-6 px-2 hover:bg-red-50" onClick={() => { setOrdemRetrabalho({ ...o, _desb: true }); setDialogRetrabalho(true); }}>
+                        <AlertTriangle className="w-3 h-3 mr-1" /> Retrabalho
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -347,9 +381,14 @@ export default function ProducaoCD() {
                 renderRow={(o) => (
                   <div key={o.id}>
                     <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} zoom={zoom} ordens={ordensDaMaq} />
-                    {isGestor && o.status === "pendente" && (
-                      <div className="flex justify-end mt-1">
-                        <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEditMaq(o)}>✏️ Editar</Button>
+                    {isGestor && (
+                      <div className="flex justify-end mt-1 gap-1">
+                        {o.status === "pendente" && (
+                          <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEditMaq(o)}>✏️ Editar</Button>
+                        )}
+                        <Button size="sm" variant="ghost" className="text-xs text-red-600 h-6 px-2 hover:bg-red-50" onClick={() => { setOrdemRetrabalho(o); setDialogRetrabalho(true); }}>
+                          <AlertTriangle className="w-3 h-3 mr-1" /> Retrabalho
+                        </Button>
                       </div>
                     )}
                   </div>
@@ -375,6 +414,16 @@ export default function ProducaoCD() {
         editItem={editMaq && !editMaq._presets ? editMaq : null}
         defaultDate={editMaq?._presets?.data || selectedDay}
         maquina={maquinaAtiva}
+      />
+
+      <RetrabalhoDialog
+        open={dialogRetrabalho}
+        onClose={() => { setDialogRetrabalho(false); setOrdemRetrabalho(null); }}
+        ordemOrigem={ordemRetrabalho}
+        onCreate={() => {
+          queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
+          queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
+        }}
       />
     </div>
   );
