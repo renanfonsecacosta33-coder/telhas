@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Play, Pause, CheckCircle2, Timer, Coffee, Square, Circle,
-  AlertCircle, Clock, Camera, Loader2, Layers, Package, ShoppingCart, Trash2, Image as ImageIcon
+  AlertCircle, Clock, Camera, Loader2, Layers, Package, ShoppingCart, Trash2, Image as ImageIcon,
+  Edit3, History
 } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import { format } from "date-fns";
@@ -14,6 +15,7 @@ import { ptBR } from "date-fns/locale";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { getEtapaColor } from "@/components/corte-dobra/RetrabalhoDialog";
+import { HistoricoPedidoButton } from "@/components/corte-dobra/HistoricoPedidoSidebar";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -68,8 +70,15 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
   const [bloqueioDialog, setBloqueioDialog] = useState(false);
   const [ordemBloqueante, setOrdemBloqueante] = useState(null);
   const [acaoPendente, setAcaoPendente] = useState(null);
+  const [modificacaoDialog, setModificacaoDialog] = useState(false);
+  const [modBlank, setModBlank] = useState(false);
+  const [modDescricao, setModDescricao] = useState("");
+  const [pendingFotoUrl, setPendingFotoUrl] = useState(null);
+  const [pendingProdSeg, setPendingProdSeg] = useState(0);
   const fotoInputRef = useRef();
   const fotoScanRef = useRef();
+
+  const isGuilhotina = o.maquina === "CORTE 3M" || o.maquina === "CORTE 6M";
 
   useEffect(() => {
     const iv = setInterval(() => setTick(t => t + 1), 1000);
@@ -209,24 +218,63 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
       } catch (e) { /* silencioso */ }
     }
 
+    // Se for guilhotina, pedir info de modificação de blank antes de finalizar
+    if (isGuilhotina) {
+      setPendingFotoUrl(file_url);
+      setPendingProdSeg(prodSeg);
+      setModBlank(false);
+      setModDescricao("");
+      setUploadingFoto(false);
+      setFotoDialog(false);
+      setModificacaoDialog(true);
+      return;
+    }
+
+    await finalizarOrdem(file_url, prodSeg, false, "");
+    setUploadingFoto(false);
+    setFotoDialog(false);
+  };
+
+  const finalizarOrdem = async (fotoUrl, prodSeg, modBlankVal, modDescVal) => {
     onUpdate(o.id, {
       status: "finalizado",
-      foto_finalizacao_url: file_url,
+      foto_finalizacao_url: fotoUrl,
       tempo_producao_seg: prodSeg,
       inicio_producao_ts: null,
       data_finalizacao: format(new Date(), "yyyy-MM-dd"),
+      modificacao_blank: modBlankVal,
+      modificacao_descricao: modBlankVal && modDescVal.trim() ? modDescVal.trim() : null,
     });
-    // Se for uma ordem de corte, desbloquear a dobra vinculada
+    // Se for ordem de corte com dobra vinculada, desbloquear a dobra e repassar OBD
     if (o.ordem_dobra_maquina) {
       try {
         const ordensDobra = await base44.entities.OrdemMaquinaCD.filter({ ordem_corte_id: o.id, status: "aguardando_corte" });
         for (const od of ordensDobra) {
-          await base44.entities.OrdemMaquinaCD.update(od.id, { status: "pendente" });
+          const obsDobra = modBlankVal && modDescVal.trim()
+            ? `OBD: ${modDescVal.trim()}`
+            : null;
+          const updateData = { status: "pendente" };
+          if (obsDobra) {
+            updateData.observacoes = od.observacoes
+              ? `${od.observacoes}\n${obsDobra}`
+              : obsDobra;
+          }
+          await base44.entities.OrdemMaquinaCD.update(od.id, updateData);
+        }
+        if (modBlankVal && modDescVal.trim()) {
+          toast.success("OBD repassada para a dobra!");
         }
       } catch (e) { /* silencioso */ }
     }
-    setUploadingFoto(false);
-    setFotoDialog(false);
+  };
+
+  const confirmarModificacao = async () => {
+    setModificacaoDialog(false);
+    await finalizarOrdem(pendingFotoUrl, pendingProdSeg, modBlank, modDescricao);
+    setPendingFotoUrl(null);
+    setPendingProdSeg(0);
+    setModBlank(false);
+    setModDescricao("");
   };
 
   const showCronometro = o.status === "em_producao" || o.status === "pausado" || tempoProd > 0;
@@ -254,6 +302,11 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               </Badge>
               {o.quantidade > 0 && <span className="text-xs font-semibold text-foreground">{o.quantidade} pç</span>}
               {o.peso_kg > 0 && <span className="text-xs font-semibold text-emerald-700">≈ {o.peso_kg.toFixed(1)} kg</span>}
+              {o.modificacao_blank && (
+                <Badge className="bg-amber-100 text-amber-700 border-amber-300 text-[10px]">
+                  <Edit3 className="w-2.5 h-2.5 mr-0.5" /> Blank modificado
+                </Badge>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {o.foto_finalizacao_url && (
@@ -261,6 +314,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
                   <img src={o.foto_finalizacao_url} alt="Finalização" className="w-10 h-10 object-cover rounded border border-green-200" />
                 </a>
               )}
+              {o.numero_pedido && <HistoricoPedidoButton numeroPedido={o.numero_pedido} size="sm" />}
               {isGestor && (
                 <div className="flex gap-1">
                   <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] gap-1 text-amber-600 border-amber-300 hover:bg-amber-50"
@@ -408,6 +462,12 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
           <div className="flex flex-col items-end gap-1 shrink-0">
             <span className={`${z.info} font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded`}>{o.quantidade || 0} pç</span>
             {o.peso_kg > 0 && <span className={`${z.info} text-muted-foreground`}>{o.peso_kg}kg</span>}
+            {o.modificacao_blank && (
+              <Badge className="bg-amber-100 text-amber-700 border-amber-300 text-[10px]">
+                <Edit3 className="w-2.5 h-2.5 mr-0.5" /> OBD
+              </Badge>
+            )}
+            {o.numero_pedido && <HistoricoPedidoButton numeroPedido={o.numero_pedido} />}
           </div>
         </div>
 
@@ -590,6 +650,57 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setFotoDialog(false)}>Cancelar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Modificação de Blank (Guilhotina) */}
+      <Dialog open={modificacaoDialog} onOpenChange={setModificacaoDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit3 className="w-5 h-5 text-amber-500" />
+              Modificação no Blank?
+            </DialogTitle>
+            <DialogDescription>
+              Você fez alguma modificação no blank ou na peça durante o corte?
+              Esta informação será repassada como <strong className="text-foreground">OBD (Obs. de Dobra)</strong> para a dobradeira.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => setModBlank(false)}
+                className={`border-2 rounded-xl p-4 text-center transition-all ${!modBlank ? "border-green-500 bg-green-50" : "border-border hover:border-green-300"}`}>
+                <CheckCircle2 className="w-6 h-6 mx-auto mb-2 text-green-600" />
+                <p className="font-semibold text-sm">Não</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Sem modificação</p>
+              </button>
+              <button onClick={() => setModBlank(true)}
+                className={`border-2 rounded-xl p-4 text-center transition-all ${modBlank ? "border-amber-500 bg-amber-50" : "border-border hover:border-amber-300"}`}>
+                <Edit3 className="w-6 h-6 mx-auto mb-2 text-amber-600" />
+                <p className="font-semibold text-sm">Sim</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Houve modificação</p>
+              </button>
+            </div>
+            {modBlank && (
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Descreva a modificação (OBD)</Label>
+                <Textarea
+                  value={modDescricao}
+                  onChange={(e) => setModDescricao(e.target.value)}
+                  placeholder="Ex: Ajustei o blank em 5mm na lateral direita para caber na chapa..."
+                  rows={3}
+                  className="resize-none"
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setModificacaoDialog(false)}>Cancelar</Button>
+            <Button onClick={confirmarModificacao} disabled={modBlank && !modDescricao.trim()}
+              className="bg-green-600 hover:bg-green-700 gap-2">
+              <CheckCircle2 className="w-4 h-4" /> Confirmar Finalização
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

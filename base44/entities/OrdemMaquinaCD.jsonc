@@ -162,6 +162,15 @@
       "type": "string",
       "description": "Observa\u00e7\u00f5es"
     },
+    "modificacao_blank": {
+      "type": "boolean",
+      "default": false,
+      "description": "Indica se o operador da guilhotina fez modifica\u00e7\u00e3o no blank ou na pe\u00e7a"
+    },
+    "modificacao_descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o da modifica\u00e7\u00e3o feita no blank/pe\u00e7a (OBD \u2014 Obs. de Dobra)"
+    },
     "is_retrabalho": {
       "type": "boolean",
       "default": false,

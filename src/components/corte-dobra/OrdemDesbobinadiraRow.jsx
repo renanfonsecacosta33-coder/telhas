@@ -11,6 +11,7 @@ import { ptBR } from "date-fns/locale";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { getEtapaColor } from "@/components/corte-dobra/RetrabalhoDialog";
+import { HistoricoPedidoButton } from "@/components/corte-dobra/HistoricoPedidoSidebar";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -275,6 +276,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                   <img src={o.foto_finalizacao_url} alt="Finalização" className="w-10 h-10 object-cover rounded border border-green-200" />
                 </a>
               )}
+              {o.numero_pedido && <HistoricoPedidoButton numeroPedido={o.numero_pedido} size="sm" />}
               {isGestor && (
                 <div className="flex gap-1">
                   <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] gap-1 text-amber-600 border-amber-300 hover:bg-amber-50"
@@ -413,9 +415,10 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                   🔪 {o.guilhotina}{o.tamanho_corte_guilhotina ? ` — ${o.tamanho_corte_guilhotina}mm` : ""}
                 </span>
               )}
-            </div>
-          </div>
-        </div>
+              {o.numero_pedido && <HistoricoPedidoButton numeroPedido={o.numero_pedido} />}
+              </div>
+              </div>
+              </div>
 
         {/* Foto do pedido */}
         {o.foto_pedido_url && (
