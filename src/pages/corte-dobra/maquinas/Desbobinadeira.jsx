@@ -3,12 +3,13 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Layers } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Layers, AlertTriangle } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import OrdemFormDialogCD from "@/components/corte-dobra/OrdemFormDialogCD";
 import OrdemDesbobinadiraRow from "@/components/corte-dobra/OrdemDesbobinadiraRow";
+import RetrabalhoDialog from "@/components/corte-dobra/RetrabalhoDialog";
 import { useFilial } from "@/contexts/FilialContext";
 import { playAlertSound } from "@/lib/sounds";
 
@@ -21,6 +22,8 @@ export default function Desbobinadeira() {
   const [dialog, setDialog] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [filtroEspessura, setFiltroEspessura] = useState("todas");
+  const [dialogRetrabalho, setDialogRetrabalho] = useState(false);
+  const [ordemRetrabalho, setOrdemRetrabalho] = useState(null);
 
   const queryClient = useQueryClient();
 
@@ -315,9 +318,14 @@ export default function Desbobinadeira() {
                     {ordensDoDia.map(o => (
                       <div key={o.id}>
                         <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} pedidoSeq={pedidoSeqMap[o.id]} />
-                        {isGestor && o.status === "pendente" && (
-                          <div className="flex justify-end mt-1">
-                            <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
+                        {isGestor && (
+                          <div className="flex justify-end mt-1 gap-1">
+                            {o.status === "pendente" && (
+                              <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
+                            )}
+                            <Button size="sm" variant="ghost" className="text-xs text-red-600 h-6 px-2 hover:bg-red-50" onClick={() => { setOrdemRetrabalho(o); setDialogRetrabalho(true); }}>
+                              <AlertTriangle className="w-3 h-3 mr-1" /> Retrabalho
+                            </Button>
                           </div>
                         )}
                       </div>
@@ -359,9 +367,14 @@ export default function Desbobinadeira() {
               {ordensDiaFiltradas.map(o => (
                 <div key={o.id}>
                   <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} pedidoSeq={pedidoSeqMap[o.id]} />
-                  {isGestor && o.status === "pendente" && (
-                    <div className="flex justify-end mt-1">
-                      <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
+                  {isGestor && (
+                    <div className="flex justify-end mt-1 gap-1">
+                      {o.status === "pendente" && (
+                        <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
+                      )}
+                      <Button size="sm" variant="ghost" className="text-xs text-red-600 h-6 px-2 hover:bg-red-50" onClick={() => { setOrdemRetrabalho(o); setDialogRetrabalho(true); }}>
+                        <AlertTriangle className="w-3 h-3 mr-1" /> Retrabalho
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -377,6 +390,13 @@ export default function Desbobinadeira() {
         onSave={handleSave}
         editItem={editItem && !editItem._presets ? editItem : null}
         defaultDate={editItem?._presets?.data || selectedDay}
+      />
+
+      <RetrabalhoDialog
+        open={dialogRetrabalho}
+        onClose={() => { setDialogRetrabalho(false); setOrdemRetrabalho(null); }}
+        ordemOrigem={ordemRetrabalho ? { ...ordemRetrabalho, _desb: true } : null}
+        onCreate={() => queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] })}
       />
     </div>
   );
