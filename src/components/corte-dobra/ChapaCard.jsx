@@ -41,7 +41,7 @@ export default function ChapaCard({
 
   const temAnexos = !!chapa.anexo_nf_url || !!chapa.anexo_cf_url;
   const temFoto = !!chapa.foto_finalizacao_url || fotosHistorico.length > 0;
-  const temExpandir = temFoto || temAnexos;
+  const temExpandir = true;
 
   return (
     <div
@@ -196,23 +196,62 @@ export default function ChapaCard({
             </div>
           )}
 
-          {/* Anexos NF / CF */}
-          {temAnexos && (
-            <div className="flex gap-2 flex-wrap">
-              {chapa.anexo_nf_url && (
+          {/* Documentos: NF e Certificado */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <FileCheck className="w-3.5 h-3.5" /> Documentos
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* NF */}
+              {chapa.anexo_nf_url ? (
                 <a href={chapa.anexo_nf_url} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors font-medium">
-                  <FileCheck className="w-3.5 h-3.5" /> NF
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 transition-all group">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                    <FileCheck className="w-4.5 h-4.5 text-emerald-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-emerald-700">Nota Fiscal</p>
+                    <p className="text-[10px] text-emerald-600 truncate">{chapa.anexo_nf_nome || "ver_documento.pdf"}</p>
+                  </div>
+                  <span className="text-xs text-emerald-600 group-hover:underline font-medium">Abrir →</span>
                 </a>
+              ) : (
+                <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-dashed border-border bg-muted/30">
+                  <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                    <FileCheck className="w-4.5 h-4.5 text-muted-foreground/50" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground">Nota Fiscal</p>
+                    <p className="text-[10px] text-muted-foreground/60">Não anexada</p>
+                  </div>
+                </div>
               )}
-              {chapa.anexo_cf_url && (
+              {/* Certificado */}
+              {chapa.anexo_cf_url ? (
                 <a href={chapa.anexo_cf_url} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors font-medium">
-                  <ShieldCheck className="w-3.5 h-3.5" /> CF
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-blue-300 bg-blue-50 hover:bg-blue-100 transition-all group">
+                  <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                    <ShieldCheck className="w-4.5 h-4.5 text-blue-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-blue-700">Certificado</p>
+                    <p className="text-[10px] text-blue-600 truncate">{chapa.anexo_cf_nome || "ver_documento.pdf"}</p>
+                  </div>
+                  <span className="text-xs text-blue-600 group-hover:underline font-medium">Abrir →</span>
                 </a>
+              ) : (
+                <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-dashed border-border bg-muted/30">
+                  <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                    <ShieldCheck className="w-4.5 h-4.5 text-muted-foreground/50" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground">Certificado</p>
+                    <p className="text-[10px] text-muted-foreground/60">Não anexado</p>
+                  </div>
+                </div>
               )}
             </div>
-          )}
+          </div>
 
           {/* Info adicional */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
