@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Layers, AlertTriangle } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Layers, AlertTriangle, Search, X } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -22,6 +22,7 @@ export default function Desbobinadeira() {
   const [dialog, setDialog] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [filtroEspessura, setFiltroEspessura] = useState("todas");
+  const [buscaPedido, setBuscaPedido] = useState("");
   const [dialogRetrabalho, setDialogRetrabalho] = useState(false);
   const [ordemRetrabalho, setOrdemRetrabalho] = useState(null);
 
@@ -96,6 +97,10 @@ export default function Desbobinadeira() {
   }, [ordens, weekStart, weekEnd]);
 
   const ordensDia = useMemo(() => {
+    if (buscaPedido.trim()) {
+      const q = buscaPedido.toLowerCase().trim();
+      return ordens.filter(o => (o.numero_pedido || "").toLowerCase().includes(q) || (o.bobina_descricao || "").toLowerCase().includes(q));
+    }
     const hoje = format(new Date(), "yyyy-MM-dd");
     const isHoje = selectedDay === hoje;
     const doDia = ordens.filter(o => o.data === selectedDay);
@@ -113,7 +118,7 @@ export default function Desbobinadeira() {
       const ord = { em_producao: 0, pausado: 1, pendente: 2, finalizado: 3, cancelado: 4 };
       return (ord[a.status] ?? 2) - (ord[b.status] ?? 2);
     });
-  }, [ordens, selectedDay]);
+  }, [ordens, selectedDay, buscaPedido]);
 
   const updateOrdem = useMutation({
     mutationFn: ({ id, data }) => base44.entities.OrdemDesbobinadeira.update(id, data),
@@ -249,6 +254,23 @@ export default function Desbobinadeira() {
 
       {/* Toggles */}
       <div className="flex items-center gap-2 flex-wrap">
+        {/* Busca por pedido */}
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            value={buscaPedido}
+            onChange={(e) => { setBuscaPedido(e.target.value); if (e.target.value.trim()) setViewMode("dia"); }}
+            placeholder="Buscar por nº pedido..."
+            className="h-9 pl-8 pr-3 rounded-md border border-input bg-transparent text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring w-52"
+          />
+          {buscaPedido && (
+            <button onClick={() => setBuscaPedido("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
         <Button variant={viewMode === "semana" ? "default" : "outline"} size="sm" onClick={() => setViewMode("semana")}>Visão Semana</Button>
         <Button variant={viewMode === "dia" ? "default" : "outline"} size="sm"
           className={viewMode === "dia" ? "bg-orange-500 hover:bg-orange-600 border-0" : ""}
