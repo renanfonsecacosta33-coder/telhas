@@ -28,7 +28,7 @@ function StatusBadge({ status, destino, numeroPedido, origem }) {
 }
 
 export default function ChapaCard({
-  chapa, isAdmin, isConsumed,
+  chapa, bobina, isAdmin, isConsumed,
   onEdit, onDelete, onViewFoto
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -39,7 +39,14 @@ export default function ChapaCard({
 
   const fotosHistorico = historico.filter(h => h.anexo_url).reverse();
 
-  const temAnexos = !!chapa.anexo_nf_url || !!chapa.anexo_cf_url;
+  // Documentos: prioriza os da chapa, e se não tiver, herda da bobina de origem (rastreabilidade)
+  const nfUrl = chapa.anexo_nf_url || bobina?.anexo_nf_url || "";
+  const nfNome = chapa.anexo_nf_nome || bobina?.anexo_nf_nome || "";
+  const cfUrl = chapa.anexo_cf_url || bobina?.anexo_cert_url || "";
+  const cfNome = chapa.anexo_cf_nome || bobina?.anexo_cert_nome || "";
+  const docOrigem = !chapa.anexo_nf_url && bobina?.anexo_nf_url ? "bobina" : !chapa.anexo_cf_url && bobina?.anexo_cert_url ? "bobina" : "chapa";
+
+  const temAnexos = !!nfUrl || !!cfUrl;
   const temFoto = !!chapa.foto_finalizacao_url || fotosHistorico.length > 0;
   const temExpandir = true;
 
@@ -196,29 +203,34 @@ export default function ChapaCard({
             </div>
           )}
 
-          {/* Documentos: NF e Certificado */}
+          {/* Documentos: NF e Certificado (herdados da bobina se a chapa não tiver) */}
           <div>
             <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
               <FileCheck className="w-3.5 h-3.5" /> Documentos
+              {docOrigem === "bobina" && bobina?.codigo && (
+                <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 font-medium ml-1">
+                  ↳ Herdados da bobina {bobina.codigo}
+                </span>
+              )}
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* NF */}
-              {chapa.anexo_nf_url ? (
-                <a href={chapa.anexo_nf_url} target="_blank" rel="noopener noreferrer"
+              {nfUrl ? (
+                <a href={nfUrl} target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 transition-all group">
                   <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                    <FileCheck className="w-4.5 h-4.5 text-emerald-600" />
+                    <FileCheck className="w-4 h-4 text-emerald-600" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold text-emerald-700">Nota Fiscal</p>
-                    <p className="text-[10px] text-emerald-600 truncate">{chapa.anexo_nf_nome || "ver_documento.pdf"}</p>
+                    <p className="text-[10px] text-emerald-600 truncate">{nfNome || "ver_documento.pdf"}</p>
                   </div>
                   <span className="text-xs text-emerald-600 group-hover:underline font-medium">Abrir →</span>
                 </a>
               ) : (
                 <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-dashed border-border bg-muted/30">
                   <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-                    <FileCheck className="w-4.5 h-4.5 text-muted-foreground/50" />
+                    <FileCheck className="w-4 h-4 text-muted-foreground/50" />
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-muted-foreground">Nota Fiscal</p>
@@ -227,22 +239,22 @@ export default function ChapaCard({
                 </div>
               )}
               {/* Certificado */}
-              {chapa.anexo_cf_url ? (
-                <a href={chapa.anexo_cf_url} target="_blank" rel="noopener noreferrer"
+              {cfUrl ? (
+                <a href={cfUrl} target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-blue-300 bg-blue-50 hover:bg-blue-100 transition-all group">
                   <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                    <ShieldCheck className="w-4.5 h-4.5 text-blue-600" />
+                    <ShieldCheck className="w-4 h-4 text-blue-600" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold text-blue-700">Certificado</p>
-                    <p className="text-[10px] text-blue-600 truncate">{chapa.anexo_cf_nome || "ver_documento.pdf"}</p>
+                    <p className="text-[10px] text-blue-600 truncate">{cfNome || "ver_documento.pdf"}</p>
                   </div>
                   <span className="text-xs text-blue-600 group-hover:underline font-medium">Abrir →</span>
                 </a>
               ) : (
                 <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-dashed border-border bg-muted/30">
                   <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-                    <ShieldCheck className="w-4.5 h-4.5 text-muted-foreground/50" />
+                    <ShieldCheck className="w-4 h-4 text-muted-foreground/50" />
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-muted-foreground">Certificado</p>

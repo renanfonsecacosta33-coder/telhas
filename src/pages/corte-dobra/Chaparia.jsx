@@ -416,6 +416,16 @@ export default function Chaparia() {
     queryFn: () => base44.entities.ChapaCD.list("-created_date", 1000),
   });
 
+  const { data: bobinasMap = {} } = useQuery({
+    queryKey: ["bobinas-cd-chaparia", filialAtiva],
+    queryFn: async () => {
+      const bobs = await base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false, unidade: filialAtiva });
+      const map = {};
+      bobs.forEach(b => { map[b.id] = b; });
+      return map;
+    },
+  });
+
   const updateMut = useMutation({
     mutationFn: ({ id, data }) => base44.entities.ChapaCD.update(id, data),
     onSuccess: () => { qc.invalidateQueries(["chapas-cd"]); setEditChapa(null); },
@@ -589,6 +599,7 @@ export default function Chaparia() {
               <ChapaCard
                 key={c.id}
                 chapa={c}
+                bobina={c.bobina_id ? bobinasMap[c.bobina_id] : null}
                 isAdmin={isAdmin}
                 isConsumed={isConsumed}
                 onEdit={(chapa) => setEditChapa(chapa)}
