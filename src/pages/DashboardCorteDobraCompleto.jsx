@@ -107,8 +107,8 @@ export default function DashboardCorteDobraCompleto() {
 
   const ordensPeriodo = useMemo(() => ordensBase.filter(o => o.data >= filtroInicio && o.data <= filtroFim), [ordensBase, filtroInicio, filtroFim]);
 
-  const emProducaoAgora = ordensBase.filter(o => o.status === "em_producao").length;
-  const pausadosAgora = ordensBase.filter(o => o.status === "pausado").length;
+  const emProducaoAgora = ordensPeriodo.filter(o => o.status === "em_producao").length;
+  const pausadosAgora = ordensPeriodo.filter(o => o.status === "pausado").length;
   const finalizadosPeriodo = ordensPeriodo.filter(o => o.status === "finalizado").length;
   const pecasPeriodo = ordensPeriodo.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
   const kgPeriodo = ordensPeriodo.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.peso_kg || o.kg_estimado || 0), 0);
@@ -180,8 +180,8 @@ export default function DashboardCorteDobraCompleto() {
   const bobinasCriticas = bobinas.filter(b => (b.peso_kg || 0) < 100);
   const bobinasAlerta = bobinas.filter(b => b.estoque_minimo_kg && (b.peso_kg || 0) <= b.estoque_minimo_kg * 1.2 && (b.peso_kg || 0) > (b.peso_kg < 100 ? -1 : b.estoque_minimo_kg));
 
-  const ordensAtivas = useMemo(() => ordensBase.filter(o => o.status === "em_producao" || o.status === "pausado"), [ordensBase]);
-  const ordensPausadas = useMemo(() => ordensBase.filter(o => o.status === "pausado"), [ordensBase]);
+  const ordensAtivas = useMemo(() => ordensPeriodo.filter(o => o.status === "em_producao" || o.status === "pausado"), [ordensPeriodo]);
+  const ordensPausadas = useMemo(() => ordensPeriodo.filter(o => o.status === "pausado"), [ordensPeriodo]);
 
   return (
     <div className="space-y-6">
