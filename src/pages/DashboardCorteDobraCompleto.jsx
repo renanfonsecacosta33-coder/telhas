@@ -107,7 +107,11 @@ export default function DashboardCorteDobraCompleto() {
   // Filtra por máquina selecionada (null = todas)
   const ordensBase = useMemo(() => maquinaSel ? todasOrdens.filter(o => o.maquina === maquinaSel) : todasOrdens, [todasOrdens, maquinaSel]);
 
-  const ordensPeriodo = useMemo(() => ordensBase.filter(o => o.data >= filtroInicio && o.data <= filtroFim), [ordensBase, filtroInicio, filtroFim]);
+  // Ordens no período: finalizadas usam data_finalizacao, demais usam data planejada
+  const ordensPeriodo = useMemo(() => ordensBase.filter(o => {
+    const ref = (o.status === "finalizado" && o.data_finalizacao) ? o.data_finalizacao : o.data;
+    return ref >= filtroInicio && ref <= filtroFim;
+  }), [ordensBase, filtroInicio, filtroFim]);
 
   const emProducaoAgora = ordensPeriodo.filter(o => o.status === "em_producao").length;
   const pausadosAgora = ordensPeriodo.filter(o => o.status === "pausado").length;
@@ -126,7 +130,7 @@ export default function DashboardCorteDobraCompleto() {
     const numDias = Math.min(Math.ceil((new Date(filtroFim + "T12:00:00") - new Date(filtroInicio + "T12:00:00")) / 86400000) + 1, 31);
     return Array.from({ length: numDias > 0 ? numDias : 0 }, (_, i) => {
       const dia = format(addDays(new Date(filtroInicio + "T12:00:00"), i), "yyyy-MM-dd");
-      const fin = ordensPeriodo.filter(o => o.data === dia && o.status === "finalizado");
+      const fin = ordensPeriodo.filter(o => (o.data_finalizacao || o.data) === dia && o.status === "finalizado");
       return {
         dia: format(new Date(dia + "T12:00:00"), "EEE dd", { locale: ptBR }),
         pecas: fin.reduce((s, o) => s + (o.quantidade || 0), 0),
