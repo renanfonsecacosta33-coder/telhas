@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell } from "lucide-react";
 import { toast } from "sonner";
-import { playFinishSound } from "@/lib/sounds";
+import { playFinishSound, speakOpFinalizada } from "@/lib/sounds";
 import { useFilial } from "@/contexts/FilialContext";
 import PopupDobradeira from "./PopupDobradeira";
 
@@ -44,7 +44,8 @@ export default function AlertBellCD({ user }) {
       const newOnes = finalized.filter(o => !prev.has(o.id));
       if (newOnes.length > 0) {
         playFinishSound();
-        newOnes.forEach(o => {
+        newOnes.forEach((o, i) => {
+          setTimeout(() => speakOpFinalizada(o.maquina, o.numero_pedido || o.id?.slice(-4)), i * 3500);
           toast.success(`✅ OP Finalizada: ${o.maquina} — ${o.tipo_peca || ""}${o.numero_pedido ? ` (Pedido ${o.numero_pedido})` : ""}`, { duration: 6000 });
         });
       }
@@ -62,7 +63,8 @@ export default function AlertBellCD({ user }) {
       const newOnes = finalized.filter(o => !prev.has(o.id));
       if (newOnes.length > 0) {
         playFinishSound();
-        newOnes.forEach(o => {
+        newOnes.forEach((o, i) => {
+          setTimeout(() => speakOpFinalizada("Desbobinadeira", o.numero_pedido || o.id?.slice(-4)), i * 3500);
           toast.success(`✅ Desbobinadeira Finalizada: ${o.bobina_descricao || ""}${o.numero_pedido ? ` (Pedido ${o.numero_pedido})` : ""}`, { duration: 6000 });
         });
       }

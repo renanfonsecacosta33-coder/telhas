@@ -44,3 +44,21 @@ export function playFinishSound() {
   playBeep(660, 0.2, 0.15, "sine");
   setTimeout(() => playBeep(880, 0.3, 0.12, "sine"), 150);
 }
+
+// Voz que fala "Op finalizada [máquina] [número OP]"
+export function speakOpFinalizada(maquina, numeroOp) {
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+  try {
+    window.speechSynthesis.cancel();
+    const frase = `Op finalizada. ${maquina || ""}. ${numeroOp ? `Número ${numeroOp}` : ""}`;
+    const utter = new SpeechSynthesisUtterance(frase);
+    utter.lang = "pt-BR";
+    utter.rate = 1.0;
+    utter.volume = 1.0;
+    utter.pitch = 1.0;
+    const voices = window.speechSynthesis.getVoices();
+    const ptVoice = voices.find(v => v.lang?.startsWith("pt"));
+    if (ptVoice) utter.voice = ptVoice;
+    window.speechSynthesis.speak(utter);
+  } catch {}
+}
