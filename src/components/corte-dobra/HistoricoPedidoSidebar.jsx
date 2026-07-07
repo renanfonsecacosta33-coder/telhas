@@ -11,7 +11,7 @@ import {
   Edit3, Zap, Pause, Circle, History, X, Loader2, ShoppingCart,
   TrendingUp, Boxes, Weight, Timer, ArrowRight, FileText, MapPin,
   Ruler, Hammer, ClipboardList, Truck, PlayCircle, Hourglass,
-  CircleDot, Calendar
+  CircleDot, Calendar, DollarSign
 } from "lucide-react";
 
 const MAQUINA_INFO = {
@@ -61,6 +61,14 @@ function safeDate(d) {
 export default function HistoricoPedidoSidebar({ open, onClose, numeroPedido }) {
   const [loading, setLoading] = useState(false);
   const [etapas, setEtapas] = useState([]);
+  const [isGestor, setIsGestor] = useState(false);
+  const [bobinaCustoMap, setBobinaCustoMap] = useState({});
+
+  useEffect(() => {
+    base44.auth.me().then(u => {
+      setIsGestor(u?.role === "admin" || u?.role === "super_admin" || u?.role === "encarregado" || u?.full_name?.toLowerCase().includes("hudson"));
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (open && numeroPedido) {
@@ -76,6 +84,18 @@ export default function HistoricoPedidoSidebar({ open, onClose, numeroPedido }) 
         base44.entities.OrdemDesbobinadeira.filter({ numero_pedido: numeroPedido }, "data", 50),
         base44.entities.OrdemMaquinaCD.filter({ numero_pedido: numeroPedido }, "data", 50),
       ]);
+
+      // Buscar bobinas para calcular custo (apenas gestores veem o valor)
+      const bobinaIds = [...new Set([
+        ...ordensDesb.map(o => o.bobina_id).filter(Boolean),
+        ...ordensMaq.map(o => o.bobina_id).filter(Boolean),
+      ])];
+      let custoMap = {};
+      if (bobinaIds.length > 0) {
+        const bobinas = await base44.entities.Bobina.list("-created_date", 500).catch(() => []);
+        bobinas.forEach(b => { if (b.custo) custoMap[b.id] = b.custo; });
+        setBobinaCustoMap(custoMap);
+      }
 
       const desbFmt = ordensDesb.map(o => ({
         ...o, _tipo: "desbobinadeira", maquina: "DESBOBINADEIRA",
@@ -116,6 +136,13 @@ export default function HistoricoPedidoSidebar({ open, onClose, numeroPedido }) 
     const modificacoes = etapas.filter(e => e.modificacao_blank);
     const pctConcluido = etapas.length > 0 ? Math.round((finalizadas.length / etapas.length) * 100) : 0;
 
+    // Custo total (apenas gestores)
+    const custoTotal = etapas.reduce((s, e) => {
+      const kg = e.peso_kg || e.kg_estimado || 0;
+      const custo = bobinaCustoMap[e.bobina_id] || 0;
+      return s + (kg * custo);
+    }, 0);
+
     // Primeira data e última data
     const datas = etapas.map(e => safeDate(e.data || e.data_finalizacao)).filter(Boolean);
     const primeiraData = datas.length ? new Date(Math.min(...datas.map(d => d.getTime()))) : null;
@@ -129,7 +156,7 @@ export default function HistoricoPedidoSidebar({ open, onClose, numeroPedido }) 
     return {
       finalizadas, emAndamento, pendentes,
       totalKG, totalPecas, totalTempo, totalSetup, totalProd, totalPausa,
-      retrabalhos, modificacoes, pctConcluido,
+      retrabalhos, modificacoes, pctConcluido, custoTotal,
       primeiraData, ultimaData, diasDecorridos, cliente, unidade
     };
   }, [etapas]);
@@ -276,6 +303,23 @@ export default function HistoricoPedidoSidebar({ open, onClose, numeroPedido }) 
                 <MetricCard icon={Boxes} value={metrics.totalPecas} label="Peças" color="text-blue-600" bg="bg-blue-50" />
                 <MetricCard icon={Weight} value={metrics.totalKG.toFixed(0)} label="KG Total" color="text-emerald-600" bg="bg-emerald-50" />
               </div>
+
+              {isGestor && metrics.custoTotal > 0 && (
+                <div className="flex items-center gap-3 bg-gradient-to-r from-green-600/10 to-emerald-600/10 border border-green-600/30 rounded-xl px-4 py-3">
+                  <div className="w-9 h-9 rounded-lg bg-green-600/20 flex items-center justify-center">
+                    <DollarSign className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-green-700">Custo Total de Material (OPs)</p>
+                    <p className="text-xl font-black text-green-700">
+                      {metrics.custoTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <span className="ml-auto text-[10px] text-muted-foreground text-right">
+                    {metrics.totalKG.toFixed(0)}kg × custo/kg<br />de cada bobina
+                  </span>
+                </div>
+              )}
 
               {/* === TEMPOS === */}
               <div className="bg-card border border-border rounded-xl p-4">
@@ -514,6 +558,12 @@ export default function HistoricoPedidoSidebar({ open, onClose, numeroPedido }) 
                             {(etapa.tempo_producao_seg > 0 || etapa.tempo_setup_seg > 0) && (
                               <span className="flex items-center gap-0.5 text-muted-foreground">
                                 <Clock className="w-3 h-3" />{formatTempoCurto((etapa.tempo_producao_seg || 0) + (etapa.tempo_setup_seg || 0))}
+                              </span>
+                            )}
+                            {isGestor && kg > 0 && bobinaCustoMap[etapa.bobina_id] && (
+                              <span className="flex items-center gap-0.5 font-bold text-green-700 ml-auto">
+                                <DollarSign className="w-3 h-3" />
+                                {(kg * bobinaCustoMap[etapa.bobina_id]).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}
                               </span>
                             )}
                           </div>

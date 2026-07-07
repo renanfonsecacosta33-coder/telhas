@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers, Image as ImageIcon } from "lucide-react";
+import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers, Image as ImageIcon, DollarSign } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -44,7 +44,7 @@ const ZOOM_CFG = {
   grande:   { card: "p-5",   title: "text-lg", info: "text-base", badge: "text-sm", cronText: "text-base", cronLabel: "text-sm", cronPad: "px-4 py-2.5", btn: "h-10 text-sm", obs: "text-sm py-2", gap: "gap-2.5", mb: "mb-3" },
 };
 
-export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "normal", ordens = [], pedidoSeq }) {
+export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "normal", ordens = [], pedidoSeq, bobinaCustoMap = {} }) {
   const z = ZOOM_CFG[zoom] || ZOOM_CFG.normal;
   const [pauseDialog, setPauseDialog] = useState(false);
   const [pauseMotivo, setPauseMotivo] = useState("");
@@ -269,6 +269,12 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               {o.quantidade > 0 && <span className="text-xs font-semibold text-foreground">{o.quantidade} pç</span>}
               {o.comprimento_mm > 0 && <span className="text-xs text-muted-foreground">{o.comprimento_mm}mm</span>}
               {o.kg_estimado > 0 && <span className="text-xs font-semibold text-emerald-700">≈ {o.kg_estimado.toFixed(1)} kg</span>}
+              {isGestor && o.kg_estimado > 0 && bobinaCustoMap[o.bobina_id] && (
+                <span className="inline-flex items-center gap-0.5 text-xs font-bold text-green-700">
+                  <DollarSign className="w-2.5 h-2.5" />
+                  {(o.kg_estimado * bobinaCustoMap[o.bobina_id]).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {o.foto_finalizacao_url && (
@@ -385,6 +391,12 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               {o.comprimento_mm > 0 && <span>{o.comprimento_mm}mm de corte</span>}
               {o.kg_estimado > 0 && (
                 <span className="font-semibold text-emerald-700">≈ {o.kg_estimado.toFixed(1)} kg</span>
+              )}
+              {isGestor && o.kg_estimado > 0 && bobinaCustoMap[o.bobina_id] && (
+                <span className="inline-flex items-center gap-0.5 font-bold text-green-700">
+                  <DollarSign className="w-3 h-3" />
+                  {(o.kg_estimado * bobinaCustoMap[o.bobina_id]).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}
+                </span>
               )}
             </div>
             <div className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 ${z.info} text-muted-foreground mt-1`}>

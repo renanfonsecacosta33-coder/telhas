@@ -11,7 +11,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
-import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X } from "lucide-react";
+import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X, DollarSign } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 
 function labelBobina(b) {
@@ -54,7 +54,7 @@ function calcKgEstimado(bobina, comprimento_mm, quantidade) {
   return larg * comp * esp * qtd * 0.00000785;
 }
 
-export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, defaultDate }) {
+export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, defaultDate, isGestor }) {
   const [form, setForm] = useState({
     data: format(new Date(), "yyyy-MM-dd"),
     bobina_id: "",
@@ -386,6 +386,16 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                   <p className="text-red-600 font-bold flex items-center gap-1 mt-1">
                     <AlertCircle className="w-3.5 h-3.5" /> KG estimado excede o peso disponível!
                   </p>
+                )}
+                {isGestor && bobinaObj?.custo && kgEstimado && (
+                  <div className="flex items-center gap-2 bg-green-600/10 border border-green-600/30 rounded-lg px-3 py-2 mt-1">
+                    <DollarSign className="w-4 h-4 text-green-600" />
+                    <span className="text-xs font-semibold text-green-700">Custo de Material desta OP:</span>
+                    <span className="text-sm font-black text-green-700">
+                      {(kgEstimado * bobinaObj.custo).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground ml-auto">{bobinaObj.custo.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}/kg</span>
+                  </div>
                 )}
               </div>
             </div>

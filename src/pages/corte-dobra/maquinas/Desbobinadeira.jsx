@@ -66,6 +66,18 @@ export default function Desbobinadeira() {
     refetchInterval: 10000,
   });
 
+  // Mapa de custo por bobina (para exibir custo da OP — apenas gestores)
+  const { data: bobinasCusto = [] } = useQuery({
+    queryKey: ["bobinas-cd-ativas", filialAtiva],
+    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false, unidade: filialAtiva }),
+    refetchInterval: 30000,
+  });
+  const bobinaCustoMap = useMemo(() => {
+    const m = {};
+    bobinasCusto.forEach(b => { if (b.custo) m[b.id] = b.custo; });
+    return m;
+  }, [bobinasCusto]);
+
   // Mapa de sequência de pedidos: para cada ordem com numero_pedido,
   // calcula "1/3", "2/3", etc. com base na ordem de criação — cruzando
   // Desbobinadeira + todas as máquinas CD (guilhotina, dobra, etc.)
@@ -339,7 +351,7 @@ export default function Desbobinadeira() {
                   <div className="p-4 space-y-3">
                     {ordensDoDia.map(o => (
                       <div key={o.id}>
-                        <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} pedidoSeq={pedidoSeqMap[o.id]} />
+                        <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} pedidoSeq={pedidoSeqMap[o.id]} bobinaCustoMap={bobinaCustoMap} />
                         {isGestor && (
                           <div className="flex justify-end mt-1 gap-1">
                             {o.status === "pendente" && (
@@ -388,7 +400,7 @@ export default function Desbobinadeira() {
             <div className="p-4 space-y-3">
               {ordensDiaFiltradas.map(o => (
                 <div key={o.id}>
-                  <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} pedidoSeq={pedidoSeqMap[o.id]} />
+                  <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} pedidoSeq={pedidoSeqMap[o.id]} bobinaCustoMap={bobinaCustoMap} />
                   {isGestor && (
                     <div className="flex justify-end mt-1 gap-1">
                       {o.status === "pendente" && (
@@ -412,6 +424,7 @@ export default function Desbobinadeira() {
         onSave={handleSave}
         editItem={editItem && !editItem._presets ? editItem : null}
         defaultDate={editItem?._presets?.data || selectedDay}
+        isGestor={isGestor}
       />
 
       <RetrabalhoDialog
