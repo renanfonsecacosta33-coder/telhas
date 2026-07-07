@@ -7,12 +7,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Tooltip as UITooltip, TooltipTrigger as UITooltipTrigger, TooltipContent as UITooltipContent, TooltipProvider as UITooltipProvider } from "@/components/ui/tooltip";
 import QuickActionDialog from "@/components/corte-dobra/QuickActionDialog";
 import HistoricoBobinas from "@/components/corte-dobra/HistoricoBobinas";
+import KpiDetailSidebar from "@/components/corte-dobra/KpiDetailSidebar";
 import { format, subDays, addDays, startOfWeek, endOfWeek, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   TrendingUp, CheckCircle2, Clock, AlertTriangle, Package, Factory,
   BarChart2, Weight, Zap, Pause, Circle, ArrowRight, ChevronRight,
-  Calendar, Target, Activity, Scissors, Layers, Timer, Coffee, Square, RefreshCw
+  Calendar, Target, Activity, Scissors, Layers, Timer, Coffee, Square, RefreshCw, DollarSign
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useFilial } from "@/contexts/FilialContext";
@@ -57,6 +58,7 @@ export default function DashboardCorteDobraCompleto() {
   const [filtroPreset, setFiltroPreset] = useState("semana");
   const [filtroInicio, setFiltroInicio] = useState(weekStart);
   const [filtroFim, setFiltroFim] = useState(weekEnd);
+  const [kpiDetail, setKpiDetail] = useState(null);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
@@ -175,6 +177,21 @@ export default function DashboardCorteDobraCompleto() {
     return Object.values(map).sort((a, b) => b.kg_total - a.kg_total).slice(0, 8);
   }, [ordensPeriodo]);
 
+  // Custo de produção (material) — baseado no custo/kg da bobina
+  const custoProducao = useMemo(() => {
+    const finOrdens = ordensPeriodo.filter(o => o.status === "finalizado" && o.bobina_id);
+    const bobinaMap = {};
+    bobinas.forEach(b => { bobinaMap[b.id] = b; });
+    let total = 0;
+    finOrdens.forEach(o => {
+      const bob = bobinaMap[o.bobina_id];
+      if (bob && bob.custo) {
+        total += (o.peso_kg || o.kg_estimado || 0) * bob.custo;
+      }
+    });
+    return total;
+  }, [ordensPeriodo, bobinas]);
+
   // Estoque bobinas
   const totalPeso = bobinas.reduce((s, b) => s + (b.peso_kg || 0), 0);
   const bobinasCriticas = bobinas.filter(b => (b.peso_kg || 0) < 100);
@@ -283,10 +300,10 @@ export default function DashboardCorteDobraCompleto() {
           {/* KPIs principais */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: "Peças no Período", value: pecasPeriodo > 0 ? pecasPeriodo : "—", sub: "finalizadas", icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50", onClick: () => navigate("/corte-dobra/producao") },
+              { label: "Peças no Período", value: pecasPeriodo > 0 ? pecasPeriodo : "—", sub: "finalizadas", icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50", onClick: () => setKpiDetail("pecas") },
               { label: "Em Produção", value: emProducaoAgora || "—", sub: "ordens ativas", icon: Zap, color: "text-amber-600", bg: "bg-amber-50", onClick: () => setActiveSheetOpen(true) },
-              { label: "Finalizados no Período", value: finalizadosPeriodo || "—", sub: "ordens", icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50", onClick: () => navigate("/corte-dobra/producao") },
-              { label: "Eficiência", value: tempoTotal > 0 ? `${eficiencia}%` : "—", sub: "tempo produtivo/total", icon: Activity, color: eficiencia >= 70 ? "text-green-600" : eficiencia >= 50 ? "text-amber-600" : "text-red-600", bg: eficiencia >= 70 ? "bg-green-50" : eficiencia >= 50 ? "bg-amber-50" : "bg-red-50", tooltip: `Proporção entre tempo produtivo e tempo total (incluindo pausas e setup). Atual: ${eficiencia}% do tempo foi gasto produzindo.` },
+              { label: "Finalizados no Período", value: finalizadosPeriodo || "—", sub: "ordens", icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50", onClick: () => setKpiDetail("finalizados") },
+              { label: "Eficiência", value: tempoTotal > 0 ? `${eficiencia}%` : "—", sub: "tempo produtivo/total", icon: Activity, color: eficiencia >= 70 ? "text-green-600" : eficiencia >= 50 ? "text-amber-600" : "text-red-600", bg: eficiencia >= 70 ? "bg-green-50" : eficiencia >= 50 ? "bg-amber-50" : "bg-red-50", tooltip: `Proporção entre tempo produtivo e tempo total (incluindo pausas e setup). Atual: ${eficiencia}% do tempo foi gasto produzindo.`, onClick: () => setKpiDetail("eficiencia") },
               ].map(k => (
               <div key={k.label} onClick={k.onClick} title={k.tooltip}
                 className={`bg-card border border-border rounded-xl p-4 flex items-center gap-3 transition-all duration-200 ${k.onClick ? "hover:scale-[1.01] hover:shadow-md cursor-pointer" : ""}`}>
@@ -303,17 +320,19 @@ export default function DashboardCorteDobraCompleto() {
           </div>
 
           {/* KPIs secundários */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             {[
-               { label: "KG no Período", value: kgPeriodo > 0 ? `${kgPeriodo.toFixed(0)}kg` : "—", icon: Weight, color: "text-orange-600" },
-               { label: "Ordens no Período", value: ordensPeriodo.length || "—", icon: Layers, color: "text-slate-600" },
-               { label: "Retrabalhos", value: retrabalhosPeriodo.length || "✓", icon: RefreshCw, color: retrabalhosPeriodo.length > 0 ? "text-red-600" : "text-green-600" },
-               { label: "Pausadas Agora", value: pausadosAgora || "✓", icon: Pause, color: pausadosAgora > 0 ? "text-purple-600" : "text-green-600" },
+               { label: "KG no Período", value: kgPeriodo > 0 ? `${kgPeriodo.toFixed(0)}kg` : "—", icon: Weight, color: "text-orange-600", onClick: () => setKpiDetail("kg") },
+               { label: "Ordens no Período", value: ordensPeriodo.length || "—", icon: Layers, color: "text-slate-600", onClick: () => setKpiDetail("ordens") },
+               { label: "Retrabalhos", value: retrabalhosPeriodo.length || "✓", icon: RefreshCw, color: retrabalhosPeriodo.length > 0 ? "text-red-600" : "text-green-600", onClick: () => setKpiDetail("retrabalhos") },
+               { label: "Pausadas Agora", value: pausadosAgora || "✓", icon: Pause, color: pausadosAgora > 0 ? "text-purple-600" : "text-green-600", onClick: () => setKpiDetail("pausadas") },
+               { label: "Custo Produção", value: custoProducao > 0 ? custoProducao.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }) : "—", icon: DollarSign, color: "text-green-600", onClick: () => setKpiDetail("custo") },
              ].map(k => (
-               <div key={k.label} className="bg-card border border-border rounded-xl p-3 flex items-center gap-3">
+               <div key={k.label} onClick={k.onClick}
+                 className="bg-card border border-border rounded-xl p-3 flex items-center gap-3 transition-all duration-200 hover:scale-[1.02] hover:shadow-md cursor-pointer">
                  <k.icon className={`w-4 h-4 ${k.color} flex-shrink-0`} />
-                 <div>
-                   <p className={`text-lg font-black ${k.color}`}>{k.value}</p>
+                 <div className="min-w-0">
+                   <p className={`text-lg font-black ${k.color} truncate`}>{k.value}</p>
                    <p className="text-xs text-muted-foreground leading-tight">{k.label}</p>
                  </div>
                </div>
@@ -711,6 +730,21 @@ export default function DashboardCorteDobraCompleto() {
         open={!!quickActionOrder}
         onClose={() => setQuickActionOrder(null)}
         onUpdate={handleQuickUpdate}
+      />
+
+      {/* KPI Detail Sidebar */}
+      <KpiDetailSidebar
+        open={!!kpiDetail}
+        onClose={() => setKpiDetail(null)}
+        type={kpiDetail}
+        ordensPeriodo={ordensPeriodo}
+        bobinasAtivas={bobinas}
+        filialAtiva={filialAtiva}
+        eficiencia={eficiencia}
+        tempoProdTotal={tempoProdTotal}
+        tempoPausaTotal={tempoPausaTotal}
+        tempoSetupTotal={tempoSetupTotal}
+        tempoTotal={tempoTotal}
       />
     </div>
   );
