@@ -22,8 +22,8 @@ export default function Producao() {
     );
   }
 
-  // Admin vê visão completa
-  if (!user || user.role === "admin") {
+  // Admin e user (gestor) veem visão completa
+  if (!user || user.role === "admin" || user.role === "user" || user.role === "super_admin") {
     return <ProducaoAdmin />;
   }
 

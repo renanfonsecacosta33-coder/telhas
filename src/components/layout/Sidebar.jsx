@@ -46,8 +46,8 @@ export default function Sidebar({ isOpen, onToggle }) {
   }, []);
 
   const isSuperAdmin = user?.role === "super_admin";
-  const isAdmin = user?.role === "admin" || isSuperAdmin;
-  const isOperador = user?.role !== "admin" && user?.role !== "super_admin" && !!user;
+  const isAdmin = user?.role === "admin" || isSuperAdmin || user?.role === "user";
+  const isOperador = !!user && user.role === "operador";
   const isAmbos = user?.setor === "ambos" || isAdmin;
   const isGerencia = user?.gerencia === true;
 
