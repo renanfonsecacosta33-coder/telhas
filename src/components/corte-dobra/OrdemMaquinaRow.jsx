@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import {
   Play, Pause, CheckCircle2, Timer, Coffee, Square, Circle,
   AlertCircle, Clock, Camera, Loader2, Layers, Package, ShoppingCart, Trash2, Image as ImageIcon,
-  Edit3, History
+  Edit3, History, Star
 } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import { format } from "date-fns";
@@ -72,6 +72,8 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
   const [bloqueioDialog, setBloqueioDialog] = useState(false);
   const [ordemBloqueante, setOrdemBloqueante] = useState(null);
   const [acaoPendente, setAcaoPendente] = useState(null);
+  const [prioridadeDialog, setPrioridadeDialog] = useState(false);
+  const [ordemPrioritaria, setOrdemPrioritaria] = useState(null);
   const [modificacaoDialog, setModificacaoDialog] = useState(false);
   const [modBlank, setModBlank] = useState(false);
   const [modDescricao, setModDescricao] = useState("");
@@ -126,6 +128,21 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
 
   const handleIniciar = () => {
     if (verificarBloqueio("iniciar")) return;
+    // Se não é prioritária e existe uma prioritária pendente na mesma máquina, bloquear
+    if (!o.prioridade) {
+      const pri = (ordens || []).find(other =>
+        other.id !== o.id &&
+        other.maquina === o.maquina &&
+        other.prioridade === true &&
+        other.status !== "finalizado" &&
+        other.status !== "cancelado"
+      );
+      if (pri) {
+        setOrdemPrioritaria(pri);
+        setPrioridadeDialog(true);
+        return;
+      }
+    }
     doIniciar();
   };
 
@@ -410,6 +427,11 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
                 <span className={`${z.info} text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded`}>{o.dimensoes_livres}</span>
               )}
               <StatusBadge status={o.status} />
+              {o.prioridade && (
+                <Badge className="bg-amber-500 text-white border-amber-600 animate-pulse text-xs">
+                  <Star className="w-3 h-3 mr-0.5 fill-white" /> PRIORIDADE
+                </Badge>
+              )}
               {o.data < format(new Date(), "yyyy-MM-dd") && o.status !== "finalizado" && o.status !== "cancelado" && (
                 <Badge className="bg-red-500 text-white border-red-600 animate-pulse text-xs">⚠️ Prioridade (Dia Anterior)</Badge>
               )}
@@ -690,6 +712,35 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
           <DialogFooter>
             <Button variant="outline" onClick={() => { setBloqueioDialog(false); setAcaoPendente(null); setOrdemBloqueante(null); }}>Cancelar</Button>
             <Button className="bg-amber-500 hover:bg-amber-600" onClick={confirmarBloqueio}>Iniciar mesmo assim</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Prioridade — OP prioritária existe na máquina */}
+      <Dialog open={prioridadeDialog} onOpenChange={setPrioridadeDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Star className="w-5 h-5 text-amber-500 fill-amber-500" /> OP Prioritária Pendente</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">Existe uma OP marcada como <strong className="text-amber-600">prioritária</strong> nesta máquina que ainda não foi finalizada:</p>
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
+              <p className="font-semibold text-amber-900">{ordemPrioritaria?.tipo_peca || ordemPrioritaria?.chapa_descricao || "OP"}</p>
+              {ordemPrioritaria?.numero_pedido && <p className="text-xs text-amber-700">Pedido: {ordemPrioritaria.numero_pedido}</p>}
+              {ordemPrioritaria?.cliente && <p className="text-xs text-amber-700">Cliente: {ordemPrioritaria.cliente}</p>}
+              <p className="text-xs text-amber-700 mt-1">Finalize a OP prioritária antes de iniciar outras.</p>
+            </div>
+            {isGestor ? (
+              <p className="text-xs text-muted-foreground">Como gestor, você pode autorizar o início desta OP mesmo com a prioritária pendente.</p>
+            ) : (
+              <p className="text-xs text-red-600 font-semibold">⚠️ Apenas o gestor (Hudson) pode autorizar o início de uma OP não prioritária enquanto existe uma prioritária pendente.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setPrioridadeDialog(false); setOrdemPrioritaria(null); }}>Cancelar</Button>
+            {isGestor && (
+              <Button className="bg-amber-500 hover:bg-amber-600 gap-1" onClick={() => { setPrioridadeDialog(false); setOrdemPrioritaria(null); doIniciar(); }}>
+                <Star className="w-4 h-4" /> Autorizar início
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
