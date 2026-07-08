@@ -10,6 +10,7 @@ import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera } from "lucide-re
 import { toast } from "sonner";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
 import UploadButton from "@/components/ui/UploadButton";
+import ImageLink from "@/components/ui/ImageLink";
 
 const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "GL (IMP)"];
 
@@ -286,10 +287,10 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
                 {form.anexo_nf_url ? (
                   <div className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
                     <FileCheck className="w-4 h-4 shrink-0 text-emerald-600" />
-                    <a href={form.anexo_nf_url} target="_blank" rel="noopener noreferrer"
-                      className="truncate flex-1 underline underline-offset-2 font-medium" title={form.anexo_nf_nome}>
+                    <ImageLink url={form.anexo_nf_url} name={form.anexo_nf_nome}
+                      className="truncate flex-1 underline underline-offset-2 font-medium text-left text-emerald-800" title={form.anexo_nf_nome}>
                       {form.anexo_nf_nome || "NF anexada"}
-                    </a>
+                    </ImageLink>
                     <button onClick={() => setForm(f => ({ ...f, anexo_nf_url: "", anexo_nf_nome: "" }))}
                       className="ml-auto text-emerald-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>
@@ -307,10 +308,10 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
                 {form.anexo_cert_url ? (
                   <div className="flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs text-blue-800">
                     <ShieldCheck className="w-4 h-4 shrink-0 text-blue-600" />
-                    <a href={form.anexo_cert_url} target="_blank" rel="noopener noreferrer"
-                      className="truncate flex-1 underline underline-offset-2 font-medium" title={form.anexo_cert_nome}>
+                    <ImageLink url={form.anexo_cert_url} name={form.anexo_cert_nome}
+                      className="truncate flex-1 underline underline-offset-2 font-medium text-left text-blue-800" title={form.anexo_cert_nome}>
                       {form.anexo_cert_nome || "Certificado"}
-                    </a>
+                    </ImageLink>
                     <button onClick={() => setForm(f => ({ ...f, anexo_cert_url: "", anexo_cert_nome: "" }))}
                       className="ml-auto text-blue-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>
@@ -351,10 +352,10 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
               {form.foto_adicional_url ? (
                 <div className="flex items-center gap-2 rounded-lg border border-purple-300 bg-purple-50 px-3 py-2 text-xs text-purple-800">
                   <Camera className="w-4 h-4 shrink-0 text-purple-600" />
-                  <a href={form.foto_adicional_url} target="_blank" rel="noopener noreferrer"
-                    className="truncate flex-1 underline underline-offset-2 font-medium" title={form.foto_adicional_nome}>
+                  <ImageLink url={form.foto_adicional_url} name={form.foto_adicional_nome}
+                    className="truncate flex-1 underline underline-offset-2 font-medium text-left text-purple-800" title={form.foto_adicional_nome}>
                     {form.foto_adicional_nome || "Foto adicional"}
-                  </a>
+                  </ImageLink>
                   <button onClick={() => setForm(f => ({ ...f, foto_adicional_url: "", foto_adicional_nome: "" }))}
                     className="ml-auto text-purple-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                 </div>

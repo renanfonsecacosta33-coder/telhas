@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import ImageLink from "@/components/ui/ImageLink";
 
 function StatusBadge({ status, destino, numeroPedido, origem }) {
   if (status === "consumido") return <Badge className="bg-slate-100 text-slate-600 border-slate-200 border text-xs">Consumido</Badge>;
@@ -160,19 +161,13 @@ export default function ChapaCard({
               <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
                 <Camera className="w-3.5 h-3.5" /> Foto de finalização
               </p>
-              <div
-                className="relative w-full max-w-xs rounded-lg overflow-hidden border border-border cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all"
-                onClick={() => onViewFoto(chapa.foto_finalizacao_url)}
-              >
-                <img
-                  src={chapa.foto_finalizacao_url}
-                  alt="Finalização"
-                  className="w-full h-32 object-cover"
-                />
+              <ImageLink url={chapa.foto_finalizacao_url} name="Finalização"
+                className="relative block w-full max-w-xs rounded-lg overflow-hidden border border-border cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all">
+                <img src={chapa.foto_finalizacao_url} alt="Finalização" className="w-full h-32 object-cover" />
                 <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition-colors flex items-center justify-center">
                   <Camera className="w-6 h-6 text-white opacity-0 hover:opacity-100 transition-opacity" />
                 </div>
-              </div>
+              </ImageLink>
             </div>
           )}
 
@@ -185,12 +180,10 @@ export default function ChapaCard({
               <div className="flex flex-wrap gap-3">
                 {fotosHistorico.map((h, i) => (
                   <div key={i} className="space-y-1">
-                    <div
-                      className="relative w-24 h-24 rounded-lg overflow-hidden border border-border cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all"
-                      onClick={() => onViewFoto(h.anexo_url)}
-                    >
+                    <ImageLink url={h.anexo_url} name={h.motivo || "Histórico"}
+                      className="relative block w-24 h-24 rounded-lg overflow-hidden border border-border cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all">
                       <img src={h.anexo_url} alt={h.motivo || "Histórico"} className="w-full h-full object-cover" />
-                    </div>
+                    </ImageLink>
                     <p className="text-[10px] text-muted-foreground max-w-[96px] truncate" title={h.motivo}>
                       {h.motivo || "—"}
                     </p>
@@ -216,8 +209,8 @@ export default function ChapaCard({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* NF */}
               {nfUrl ? (
-                <a href={nfUrl} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 transition-all group">
+                <ImageLink url={nfUrl} name={nfNome}
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 transition-all group w-full text-left">
                   <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
                     <FileCheck className="w-4 h-4 text-emerald-600" />
                   </div>
@@ -226,7 +219,7 @@ export default function ChapaCard({
                     <p className="text-[10px] text-emerald-600 truncate">{nfNome || "ver_documento.pdf"}</p>
                   </div>
                   <span className="text-xs text-emerald-600 group-hover:underline font-medium">Abrir →</span>
-                </a>
+                </ImageLink>
               ) : (
                 <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-dashed border-border bg-muted/30">
                   <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
@@ -240,8 +233,8 @@ export default function ChapaCard({
               )}
               {/* Certificado */}
               {cfUrl ? (
-                <a href={cfUrl} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-blue-300 bg-blue-50 hover:bg-blue-100 transition-all group">
+                <ImageLink url={cfUrl} name={cfNome}
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-blue-300 bg-blue-50 hover:bg-blue-100 transition-all group w-full text-left">
                   <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
                     <ShieldCheck className="w-4 h-4 text-blue-600" />
                   </div>
@@ -250,7 +243,7 @@ export default function ChapaCard({
                     <p className="text-[10px] text-blue-600 truncate">{cfNome || "ver_documento.pdf"}</p>
                   </div>
                   <span className="text-xs text-blue-600 group-hover:underline font-medium">Abrir →</span>
-                </a>
+                </ImageLink>
               ) : (
                 <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-dashed border-border bg-muted/30">
                   <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">

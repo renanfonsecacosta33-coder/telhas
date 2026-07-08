@@ -9,6 +9,7 @@ import { base44 } from "@/api/base44Client";
 import { Paperclip, FileCheck, ShieldCheck, X, Loader2 } from "lucide-react";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
 import UploadButton from "@/components/ui/UploadButton";
+import ImageLink from "@/components/ui/ImageLink";
 
 export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }) {
   const [form, setForm] = useState({
@@ -258,10 +259,10 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
                 {form.anexo_nf_url ? (
                   <div className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
                     <FileCheck className="w-4 h-4 shrink-0 text-emerald-600" />
-                    <a href={form.anexo_nf_url} target="_blank" rel="noopener noreferrer"
-                      className="truncate flex-1 underline underline-offset-2 font-medium" title={form.anexo_nf_nome}>
+                    <ImageLink url={form.anexo_nf_url} name={form.anexo_nf_nome}
+                      className="truncate flex-1 underline underline-offset-2 font-medium text-left text-emerald-800" title={form.anexo_nf_nome}>
                       {form.anexo_nf_nome || "NF anexada"}
-                    </a>
+                    </ImageLink>
                     <button onClick={() => setForm(f => ({ ...f, anexo_nf_url: "", anexo_nf_nome: "" }))}
                       className="ml-auto text-emerald-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>
@@ -279,10 +280,10 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
                 {form.anexo_cf_url ? (
                   <div className="flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs text-blue-800">
                     <ShieldCheck className="w-4 h-4 shrink-0 text-blue-600" />
-                    <a href={form.anexo_cf_url} target="_blank" rel="noopener noreferrer"
-                      className="truncate flex-1 underline underline-offset-2 font-medium" title={form.anexo_cf_nome}>
+                    <ImageLink url={form.anexo_cf_url} name={form.anexo_cf_nome}
+                      className="truncate flex-1 underline underline-offset-2 font-medium text-left text-blue-800" title={form.anexo_cf_nome}>
                       {form.anexo_cf_nome || "CF anexado"}
-                    </a>
+                    </ImageLink>
                     <button onClick={() => setForm(f => ({ ...f, anexo_cf_url: "", anexo_cf_nome: "" }))}
                       className="ml-auto text-blue-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>

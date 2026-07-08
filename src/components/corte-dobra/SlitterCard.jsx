@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import {
   BarChart3, ChevronDown, FileText, Pencil, Trash2, Weight, Ruler, ScrollText
 } from "lucide-react";
+import ImageLink from "@/components/ui/ImageLink";
 
 const DENSIDADE_ACO = 7850; // kg/m³
 
@@ -93,10 +94,10 @@ export default function SlitterCard({ slitter, onEdit, onDelete }) {
         {/* Ações */}
         <div className="flex items-center gap-1 flex-shrink-0">
           {slitter.anexo_nf_url && (
-            <a href={slitter.anexo_nf_url} target="_blank" rel="noopener noreferrer"
+            <ImageLink url={slitter.anexo_nf_url} name={slitter.anexo_nf_nome}
               className="p-2 rounded-lg hover:bg-emerald-50 text-emerald-600 transition-colors" title="Ver NF">
               <FileText className="w-4 h-4" />
-            </a>
+            </ImageLink>
           )}
           <Button variant="ghost" size="icon" onClick={() => onEdit(slitter)} className="h-8 w-8">
             <Pencil className="w-3.5 h-3.5" />
@@ -168,10 +169,10 @@ export default function SlitterCard({ slitter, onEdit, onDelete }) {
           {slitter.anexo_nf_url && (
             <div>
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">NF Anexada</h4>
-              <a href={slitter.anexo_nf_url} target="_blank" rel="noopener noreferrer"
+              <ImageLink url={slitter.anexo_nf_url} name={slitter.anexo_nf_nome}
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors text-sm font-medium">
                 <FileText className="w-4 h-4" /> {slitter.anexo_nf_nome || "Ver NF"}
-              </a>
+              </ImageLink>
             </div>
           )}
 

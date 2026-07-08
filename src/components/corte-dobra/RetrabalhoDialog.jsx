@@ -9,6 +9,7 @@ import { AlertTriangle, Loader2, Camera, X, AlertCircle, Package } from "lucide-
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import ImageLink from "@/components/ui/ImageLink";
 
 const ETAPA_CORES = [
   { border: "border-l-red-500", bg: "bg-red-50/40", badge: "bg-red-500", text: "text-red-700", label: "Etapa 1" },
@@ -355,7 +356,9 @@ export default function RetrabalhoDialog({ open, onClose, ordemOrigem, onCreate 
               <div>
                 {foto1 ? (
                   <div className="relative group">
-                    <img src={foto1} alt="Foto 1" className="w-full h-28 object-cover rounded-lg border-2 border-red-300" />
+                    <ImageLink url={foto1} name="Foto 1" className="block">
+                      <img src={foto1} alt="Foto 1" className="w-full h-28 object-cover rounded-lg border-2 border-red-300" />
+                    </ImageLink>
                     <button onClick={() => setFoto1(null)}
                       className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-0.5 hover:bg-red-700 transition-colors">
                       <X className="w-3 h-3" />
@@ -374,7 +377,9 @@ export default function RetrabalhoDialog({ open, onClose, ordemOrigem, onCreate 
               <div>
                 {foto2 ? (
                   <div className="relative group">
-                    <img src={foto2} alt="Foto 2" className="w-full h-28 object-cover rounded-lg border-2 border-red-300" />
+                    <ImageLink url={foto2} name="Foto 2" className="block">
+                      <img src={foto2} alt="Foto 2" className="w-full h-28 object-cover rounded-lg border-2 border-red-300" />
+                    </ImageLink>
                     <button onClick={() => setFoto2(null)}
                       className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-0.5 hover:bg-red-700 transition-colors">
                       <X className="w-3 h-3" />

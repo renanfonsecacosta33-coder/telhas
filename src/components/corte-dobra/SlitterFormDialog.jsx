@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Paperclip, X } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
+import ImageLink from "@/components/ui/ImageLink";
 
 export default function SlitterFormDialog({ open, onClose, onSave, editItem, proximoCodigo }) {
   const codigoPreview = editItem?.codigo || `ST${String(proximoCodigo).padStart(4, "0")}`;
@@ -133,7 +134,10 @@ export default function SlitterFormDialog({ open, onClose, onSave, editItem, pro
                 onChange={e => handleUpload(e.target.files[0])} />
               {anexoUrl ? (
                 <div className="flex items-center gap-2 rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs">
-                  <span className="truncate flex-1 text-emerald-800 font-medium">{anexoNome}</span>
+                  <ImageLink url={anexoUrl} name={anexoNome}
+                    className="truncate flex-1 text-emerald-800 font-medium text-left underline underline-offset-2">
+                    {anexoNome}
+                  </ImageLink>
                   <button onClick={() => { setAnexoUrl(""); setAnexoNome(""); }} className="text-emerald-600 hover:text-red-500"><X className="w-3 h-3" /></button>
                 </div>
               ) : (

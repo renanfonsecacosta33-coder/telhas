@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Search, Filter, ShieldCheck, BookmarkPlus } from "lucide-react";
 import SolicitarReservaDialog from "@/components/vendedor/SolicitarReservaDialog";
 import FiliaisMultiSelect, { getFilialColor } from "@/components/vendedor/FiliaisMultiSelect";
+import ImageLink from "@/components/ui/ImageLink";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFilial } from "@/contexts/FilialContext";
 
@@ -175,11 +176,11 @@ export default function VendedorChapas({ vendedorNome, selectedFiliais }) {
                   </td>
                   <td className="px-2 py-2 text-center">
                     {c.anexo_cf_url ? (
-                      <a href={c.anexo_cf_url} target="_blank" rel="noopener noreferrer"
+                      <ImageLink url={c.anexo_cf_url} name={c.anexo_cf_nome || "Certificado"}
                         className="inline-flex items-center justify-center text-blue-600 hover:text-blue-800 transition-colors"
                         title="Ver certificado">
                         <ShieldCheck className="w-4 h-4" />
-                      </a>
+                      </ImageLink>
                     ) : (
                       <span className="text-xs text-muted-foreground">-</span>
                     )}

@@ -15,6 +15,8 @@ import UploadButton from "@/components/ui/UploadButton";
 import ReservaPanelChapa from "@/components/corte-dobra/ReservaPanelChapa";
 import ChapaFormDialog from "@/components/corte-dobra/ChapaFormDialog";
 import ChapaCard from "@/components/corte-dobra/ChapaCard";
+import ImageLink from "@/components/ui/ImageLink";
+import ImageViewer from "@/components/ui/ImageViewer";
 import { useFilial } from "@/contexts/FilialContext";
 
 function EditarQuantDialog({ chapa, open, onClose, onSave }) {
@@ -311,10 +313,10 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
                 {anexoNfUrl ? (
                   <div className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
                     <FileCheck className="w-4 h-4 shrink-0 text-emerald-600" />
-                    <a href={anexoNfUrl} target="_blank" rel="noopener noreferrer"
-                      className="truncate flex-1 underline underline-offset-2 font-medium" title={anexoNfNome}>
+                    <ImageLink url={anexoNfUrl} name={anexoNfNome}
+                      className="truncate flex-1 underline underline-offset-2 font-medium text-left text-emerald-800" title={anexoNfNome}>
                       {anexoNfNome || "NF anexada"}
-                    </a>
+                    </ImageLink>
                     <button onClick={() => { setAnexoNfUrl(""); setAnexoNfNome(""); }}
                       className="text-emerald-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>
@@ -332,10 +334,10 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
                 {anexoCfUrl ? (
                   <div className="flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs text-blue-800">
                     <ShieldCheck className="w-4 h-4 shrink-0 text-blue-600" />
-                    <a href={anexoCfUrl} target="_blank" rel="noopener noreferrer"
-                      className="truncate flex-1 underline underline-offset-2 font-medium" title={anexoCfNome}>
+                    <ImageLink url={anexoCfUrl} name={anexoCfNome}
+                      className="truncate flex-1 underline underline-offset-2 font-medium text-left text-blue-800" title={anexoCfNome}>
                       {anexoCfNome || "CF anexado"}
-                    </a>
+                    </ImageLink>
                     <button onClick={() => { setAnexoCfUrl(""); setAnexoCfNome(""); }}
                       className="text-blue-600 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>
@@ -371,7 +373,9 @@ function EditarQuantDialog({ chapa, open, onClose, onSave }) {
             {/* fileScanRef serve como galleryRef para o UploadButton */}
             {anexoUrl ? (
               <div className="flex items-center gap-2 rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs">
-                <img src={anexoUrl} alt="Anexo" className="w-10 h-10 object-cover rounded" />
+                <ImageLink url={anexoUrl} name={anexoNome} className="block shrink-0">
+                  <img src={anexoUrl} alt="Anexo" className="w-10 h-10 object-cover rounded" />
+                </ImageLink>
                 <span className="truncate flex-1 text-emerald-800 font-medium">{anexoNome}</span>
                 <button onClick={() => { setAnexoUrl(""); setAnexoNome(""); }} className="text-emerald-600 hover:text-red-500"><X className="w-3 h-3" /></button>
               </div>
@@ -628,16 +632,12 @@ export default function Chaparia() {
       />
 
       {/* Viewer foto */}
-      {fotoViewer && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setFotoViewer(null)}>
-          <div className="relative max-w-2xl w-full">
-            <button className="absolute -top-10 right-0 text-white hover:text-slate-300" onClick={() => setFotoViewer(null)}>
-              <X className="w-7 h-7" />
-            </button>
-            <img src={fotoViewer} alt="Foto de finalização" className="w-full rounded-xl shadow-2xl object-contain max-h-[80vh]" />
-          </div>
-        </div>
-      )}
+      <ImageViewer
+        open={!!fotoViewer}
+        onClose={() => setFotoViewer(null)}
+        url={fotoViewer || ""}
+        name="Foto de finalização"
+      />
     </div>
   );
 }

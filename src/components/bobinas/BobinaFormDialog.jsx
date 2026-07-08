@@ -368,16 +368,17 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
                     <FileCheck className="w-4 h-4 shrink-0 text-emerald-600" />
-                    <a href={form.foto_cor_url} target="_blank" rel="noopener noreferrer"
-                      className="truncate flex-1 underline underline-offset-2 font-medium" title={form.foto_cor_nome}>
+                    <button onClick={() => setViewer({ open: true, url: form.foto_cor_url, name: form.foto_cor_nome })}
+                      className="truncate flex-1 underline underline-offset-2 font-medium text-left" title={form.foto_cor_nome}>
                       {form.foto_cor_nome || "Foto da cor"}
-                    </a>
+                    </button>
                     <button onClick={() => setForm(f => ({ ...f, foto_cor_url: "", foto_cor_nome: "" }))}
                       className="ml-auto text-emerald-600 hover:text-red-500 shrink-0">
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  <img src={form.foto_cor_url} alt="Foto da cor" className="w-full max-h-32 object-cover rounded-lg border border-border" />
+                  <img src={form.foto_cor_url} alt="Foto da cor" onClick={() => setViewer({ open: true, url: form.foto_cor_url, name: form.foto_cor_nome })}
+                    className="w-full max-h-32 object-cover rounded-lg border border-border cursor-pointer hover:opacity-80 transition-opacity" />
                 </div>
               ) : (
                 <UploadButton label="Anexar Foto" icon={Paperclip} cameraRef={fotoCorCameraRef} fileRef={fotoCorInputRef} uploading={uploadingFotoCor} />

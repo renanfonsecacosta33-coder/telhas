@@ -12,6 +12,7 @@ import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { getEtapaColor } from "@/components/corte-dobra/RetrabalhoDialog";
 import { HistoricoPedidoButton } from "@/components/corte-dobra/HistoricoPedidoSidebar";
+import ImageLink from "@/components/ui/ImageLink";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -435,16 +436,16 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
         {/* Foto do pedido */}
         {o.foto_pedido_url && (
           <div className={`${z.mb} relative rounded-lg overflow-hidden border-2 border-blue-300 group`}>
-            <a href={o.foto_pedido_url} target="_blank" rel="noopener noreferrer">
+            <ImageLink url={o.foto_pedido_url} name="Foto do Pedido" className="block">
               <img src={o.foto_pedido_url} alt="Foto do pedido" className="w-full max-h-44 object-cover" />
-            </a>
-            <div className="absolute top-2 left-2 bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
+            </ImageLink>
+            <div className="absolute top-2 left-2 bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 pointer-events-none">
               <ImageIcon className="w-3 h-3" /> Foto do Pedido
             </div>
-            <a href={o.foto_pedido_url} target="_blank" rel="noopener noreferrer"
+            <ImageLink url={o.foto_pedido_url} name="Foto do Pedido"
               className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-black/80 transition-colors flex items-center gap-1">
               <ImageIcon className="w-3.5 h-3.5" /> Ampliar
-            </a>
+            </ImageLink>
           </div>
         )}
 
@@ -499,9 +500,9 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
         {/* Foto de finalização */}
         {o.foto_finalizacao_url && (
           <div className="mb-3">
-            <a href={o.foto_finalizacao_url} target="_blank" rel="noopener noreferrer">
+            <ImageLink url={o.foto_finalizacao_url} name="Finalização" className="block">
               <img src={o.foto_finalizacao_url} alt="Finalização" className="w-full max-h-40 object-cover rounded-lg border border-border" />
-            </a>
+            </ImageLink>
           </div>
         )}
 
