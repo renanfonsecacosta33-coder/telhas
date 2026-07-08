@@ -718,6 +718,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
         open={aproveitamentoDialog}
         onClose={() => setAproveitamentoDialog(false)}
         ordemGuilhotina={o}
+        espessuraBobina={extractEspessuraFromDesc(o.chapa_descricao) || extractEspessuraFromDesc(o.bobina_descricao)}
         onConfirm={handleAproveitamentoConfirm}
       />
 

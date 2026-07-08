@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -8,57 +8,57 @@ import { CheckCircle2, XCircle, Loader2, Recycle } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { parseEspessura } from "@/components/corte-dobra/CorChapaDot";
 
 /**
  * Dialog pós-finalização da guilhotina:
  * 1) Pergunta se houve aproveitamento (SIM | NÃO)
- * 2) Se SIM → seleciona perfil + espessura da tabela e quantidade → cria OP de dobra
+ * 2) Se SIM → seleciona o perfil (a espessura vem da bobina já selecionada) → cria OP de dobra
  * 3) Se NÃO → chama onConfirm() para seguir o fluxo normal
  */
-export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, onConfirm }) {
+export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, espessuraBobina, onConfirm }) {
   const [step, setStep] = useState("pergunta"); // pergunta | form | saving
   const [aproveitamentos, setAproveitamentos] = useState([]);
   const [loadingApr, setLoadingApr] = useState(false);
-  const [perfisUnicos, setPerfisUnicos] = useState([]);
-  const [espessurasFiltradas, setEspessurasFiltradas] = useState([]);
 
   const [perfilSel, setPerfilSel] = useState("");
-  const [espessuraSel, setEspessuraSel] = useState("");
   const [quantidade, setQuantidade] = useState("");
-  const [comprimento, setComprimento] = useState(null);
 
   // Maquina de dobra a partir da guilhotina de origem
   const maquinaDobra = ordemGuilhotina?.maquina === "CORTE 3M" ? "DOBRA 3M" : "DOBRA FUNDO 6M";
 
+  // Filtra aproveitamentos pela espessura da bobina
+  const aprFiltrados = useMemo(() => {
+    const espNum = parseEspessura(espessuraBobina);
+    if (espNum === null) return aproveitamentos;
+    return aproveitamentos.filter(a => parseEspessura(a.espessura) === espNum);
+  }, [aproveitamentos, espessuraBobina]);
+
+  const perfisUnicos = useMemo(() => [...new Set(aprFiltrados.map(d => d.perfil))], [aprFiltrados]);
+
+  const comprimento = useMemo(() => {
+    if (!perfilSel) return null;
+    const found = aprFiltrados.find(a => a.perfil === perfilSel);
+    return found?.comprimento_desenvolvido_mm || null;
+  }, [perfilSel, aprFiltrados]);
+
+  const espessuraLabel = useMemo(() => {
+    const espNum = parseEspessura(espessuraBobina);
+    if (espNum === null) return "—";
+    return String(espNum).replace(".", ",");
+  }, [espessuraBobina]);
+
   useEffect(() => {
-    if (!open) { setStep("pergunta"); setPerfilSel(""); setEspessuraSel(""); setQuantidade(""); setComprimento(null); }
+    if (!open) { setStep("pergunta"); setPerfilSel(""); setQuantidade(""); }
   }, [open]);
 
   useEffect(() => {
     if (step !== "form") return;
     setLoadingApr(true);
     base44.entities.AproveitamentoPerfil.filter({ ativo: true })
-      .then(data => {
-        setAproveitamentos(data);
-        const unicos = [...new Set(data.map(d => d.perfil))];
-        setPerfisUnicos(unicos);
-      })
+      .then(data => setAproveitamentos(data))
       .finally(() => setLoadingApr(false));
   }, [step]);
-
-  useEffect(() => {
-    if (!perfilSel) { setEspessurasFiltradas([]); setEspessuraSel(""); setComprimento(null); return; }
-    const filtered = aproveitamentos.filter(a => a.perfil === perfilSel);
-    setEspessurasFiltradas(filtered);
-    setEspessuraSel("");
-    setComprimento(null);
-  }, [perfilSel, aproveitamentos]);
-
-  useEffect(() => {
-    if (!espessuraSel) { setComprimento(null); return; }
-    const found = aproveitamentos.find(a => a.perfil === perfilSel && a.espessura === espessuraSel);
-    setComprimento(found?.comprimento_desenvolvido_mm || null);
-  }, [espessuraSel, perfilSel, aproveitamentos]);
 
   const handleNao = () => {
     onClose();
@@ -68,8 +68,8 @@ export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, o
   const handleSim = () => setStep("form");
 
   const handleCriarOP = async () => {
-    if (!perfilSel || !espessuraSel || !quantidade || Number(quantidade) <= 0) {
-      toast.error("Preencha o perfil, espessura e quantidade.");
+    if (!perfilSel || !quantidade || Number(quantidade) <= 0) {
+      toast.error("Preencha o perfil e a quantidade.");
       return;
     }
     setStep("saving");
@@ -82,7 +82,7 @@ export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, o
         maquina: maquinaDobra,
         chapa_origem: "chaparia",
         tipo_peca: perfilSel,
-        dimensoes_livres: `Esp ${espessuraSel} | Dev ${comprimento}mm`,
+        dimensoes_livres: `Esp ${espessuraLabel} | Dev ${comprimento}mm`,
         quantidade: Number(quantidade),
         status: "pendente",
         observacoes: obs,
@@ -150,6 +150,12 @@ export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, o
               </div>
             ) : (
               <div className="space-y-4 py-2">
+                {/* Espessura da bobina (somente leitura) */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 flex items-center justify-between">
+                  <span className="text-sm text-blue-800">Espessura da bobina</span>
+                  <span className="text-sm font-bold text-blue-900">{espessuraLabel} mm</span>
+                </div>
+
                 <div>
                   <Label className="text-sm font-medium mb-1 block">Perfil</Label>
                   <Select value={perfilSel} onValueChange={setPerfilSel}>
@@ -162,25 +168,12 @@ export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, o
                       ))}
                     </SelectContent>
                   </Select>
+                  {perfisUnicos.length === 0 && (
+                    <p className="text-xs text-red-500 mt-1">
+                      Nenhum aproveitamento cadastrado para espessura {espessuraLabel}mm.
+                    </p>
+                  )}
                 </div>
-
-                {perfilSel && (
-                  <div>
-                    <Label className="text-sm font-medium mb-1 block">Espessura</Label>
-                    <Select value={espessuraSel} onValueChange={setEspessuraSel}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione a espessura..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {espessurasFiltradas.map(a => (
-                          <SelectItem key={a.espessura} value={a.espessura}>
-                            Esp {a.espessura} — Dev {a.comprimento_desenvolvido_mm}mm
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
 
                 {comprimento && (
                   <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-sm text-emerald-800">
@@ -210,7 +203,7 @@ export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, o
               <Button
                 className="bg-emerald-600 hover:bg-emerald-700 gap-2"
                 onClick={handleCriarOP}
-                disabled={!perfilSel || !espessuraSel || !quantidade}
+                disabled={!perfilSel || !quantidade}
               >
                 <CheckCircle2 className="w-4 h-4" /> Criar OP de Aproveitamento
               </Button>
