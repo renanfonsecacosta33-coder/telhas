@@ -1,5 +1,5 @@
 import React from "react";
-import { Image as ImageIcon } from "lucide-react";
+import { Image as ImageIcon, FileText } from "lucide-react";
 import ImageLink from "@/components/ui/ImageLink";
 
 /**
@@ -25,20 +25,29 @@ export default function DualPhotoGallery({ fotoPedidoUrl, fotoMaterialUrl, fotoF
   const single = photos.length === 1;
   const gridCls = photos.length === 3 ? "grid-cols-3" : "grid-cols-2";
 
-  const renderPhotoBlock = (p, i) => (
+  const renderPhotoBlock = (p, i) => {
+    const isPdf = p.url?.toLowerCase().endsWith(".pdf") || p.url?.toLowerCase().includes(".pdf?");
+    return (
     <div key={i} className={`relative rounded-lg overflow-hidden border-2 ${single ? "w-full" : "flex-1"} ${p.borderCls}`}>
       <ImageLink url={p.url} name={p.label} className="block">
-        <img src={p.url} alt={p.label} className={`w-full ${hImg} object-cover`} />
+        {isPdf ? (
+          <div className={`w-full ${hImg} flex items-center justify-center bg-muted`}>
+            <FileText className="w-10 h-10 text-muted-foreground" />
+          </div>
+        ) : (
+          <img src={p.url} alt={p.label} className={`w-full ${hImg} object-cover`} />
+        )}
       </ImageLink>
       <div className={`absolute top-1.5 left-1.5 ${labelCls} font-bold rounded-full flex items-center gap-0.5 ${p.badgeCls}`}>
-        <ImageIcon className="w-3 h-3" /> {p.label}
+        {isPdf ? <FileText className="w-3 h-3" /> : <ImageIcon className="w-3 h-3" />} {p.label}
       </div>
       <ImageLink url={p.url} name={p.label}
         className="absolute bottom-1.5 right-1.5 bg-black/60 text-white text-[10px] px-2 py-1 rounded-lg hover:bg-black/80 transition-colors flex items-center gap-0.5">
         <ImageIcon className="w-3 h-3" /> Ampliar
       </ImageLink>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="mb-3">
