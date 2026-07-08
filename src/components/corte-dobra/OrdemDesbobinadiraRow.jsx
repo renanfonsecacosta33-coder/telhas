@@ -225,6 +225,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
             quantidade: o.quantidade || 0,
             status: "pendente",
             foto_pedido_url: o.foto_pedido_url || null,
+            foto_material_url: file_url,
             observacoes: o.observacoes
               ? `${o.observacoes}\n— OP gerada automaticamente pela Desbobinadeira (OP ${o.id.slice(-6).toUpperCase()})`
               : `OP gerada automaticamente pela Desbobinadeira (OP ${o.id.slice(-6).toUpperCase()})`,

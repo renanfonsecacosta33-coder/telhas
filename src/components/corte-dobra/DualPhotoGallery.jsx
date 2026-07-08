@@ -3,19 +3,27 @@ import { Image as ImageIcon } from "lucide-react";
 import ImageLink from "@/components/ui/ImageLink";
 
 /**
- * Exibe duas fotos lado a lado: a foto do pedido (encarregado) e a foto de finalização (operador).
- * Se só uma existir, mostra apenas a que tiver.
+ * Exibe fotos lado a lado: Foto do Pedido (PED), Foto do Material (MAT) e Foto de Finalização (FIN).
+ * A foto do material só aparece quando não há foto de finalização (OP ainda não finalizada na Guilhotina).
  */
-export default function DualPhotoGallery({ fotoPedidoUrl, fotoFinalizacaoUrl, z = "normal" }) {
+export default function DualPhotoGallery({ fotoPedidoUrl, fotoMaterialUrl, fotoFinalizacaoUrl, z = "normal" }) {
   const labelCls = z === "compacto" ? "text-[9px] px-1.5 py-0.5" : z === "grande" ? "text-xs px-2.5 py-1" : "text-[10px] px-2 py-0.5";
   const hImg = z === "compacto" ? "max-h-28" : z === "grande" ? "max-h-52" : "max-h-40";
 
   const hasPedido = !!fotoPedidoUrl;
+  // Mostra a foto do material apenas se não houver foto de finalização (evita redundância)
+  const showMaterial = !!fotoMaterialUrl && !fotoFinalizacaoUrl;
   const hasFinal = !!fotoFinalizacaoUrl;
 
-  if (!hasPedido && !hasFinal) return null;
+  if (!hasPedido && !showMaterial && !hasFinal) return null;
 
-  const single = hasPedido !== hasFinal;
+  const photos = [];
+  if (hasPedido) photos.push({ url: fotoPedidoUrl, label: "Foto do Pedido", borderCls: "border-blue-300", badgeCls: "bg-blue-600 text-white" });
+  if (showMaterial) photos.push({ url: fotoMaterialUrl, label: "Foto do Material", borderCls: "border-orange-300", badgeCls: "bg-orange-600 text-white" });
+  if (hasFinal) photos.push({ url: fotoFinalizacaoUrl, label: "Foto Finalização", borderCls: "border-green-300", badgeCls: "bg-green-600 text-white" });
+
+  const single = photos.length === 1;
+  const gridCls = photos.length === 3 ? "grid-cols-3" : "grid-cols-2";
 
   const PhotoBlock = ({ url, label, borderCls, badgeCls }) => (
     <div className={`relative rounded-lg overflow-hidden border-2 ${single ? "w-full" : "flex-1"} ${borderCls}`}>
@@ -35,13 +43,10 @@ export default function DualPhotoGallery({ fotoPedidoUrl, fotoFinalizacaoUrl, z 
   return (
     <div className="mb-3">
       {single ? (
-        hasPedido
-          ? <PhotoBlock url={fotoPedidoUrl} label="Foto do Pedido" borderCls="border-blue-300" badgeCls="bg-blue-600 text-white" />
-          : <PhotoBlock url={fotoFinalizacaoUrl} label="Foto Finalização" borderCls="border-green-300" badgeCls="bg-green-600 text-white" />
+        <PhotoBlock {...photos[0]} />
       ) : (
-        <div className="grid grid-cols-2 gap-2">
-          <PhotoBlock url={fotoPedidoUrl} label="Foto do Pedido" borderCls="border-blue-300" badgeCls="bg-blue-600 text-white" />
-          <PhotoBlock url={fotoFinalizacaoUrl} label="Foto Finalização" borderCls="border-green-300" badgeCls="bg-green-600 text-white" />
+        <div className={`grid ${gridCls} gap-2`}>
+          {photos.map((p, i) => <PhotoBlock key={i} {...p} />)}
         </div>
       )}
     </div>

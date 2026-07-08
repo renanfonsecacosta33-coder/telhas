@@ -151,6 +151,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
           ordem_corte_id: saved.id,
           status: "aguardando_corte",
           foto_pedido_url: data.foto_pedido_url || null,
+          foto_material_url: data.foto_material_url || null,
           observacoes: `Gerado automaticamente do ${data.maquina}`,
         });
         queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });

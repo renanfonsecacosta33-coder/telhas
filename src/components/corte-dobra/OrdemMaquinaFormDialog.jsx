@@ -111,6 +111,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         peso_kg: editItem.peso_kg || "",
         observacoes: editItem.observacoes || "",
         foto_pedido_url: editItem.foto_pedido_url || "",
+        foto_material_url: editItem.foto_material_url || "",
         desenvolvimento_id: editItem.desenvolvimento_id || "",
         desenvolvimento_descricao: editItem.desenvolvimento_descricao || "",
         ordem_dobra_maquina: editItem.ordem_dobra_maquina || "",
@@ -131,6 +132,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         peso_kg: "",
         observacoes: "",
         foto_pedido_url: "",
+        foto_material_url: "",
         desenvolvimento_id: "",
         desenvolvimento_descricao: "",
         ordem_dobra_maquina: "",
@@ -195,11 +197,14 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
   // Controle de edição manual do peso (para não sobrescrever)
   const pesoEditadoManual = useRef(false);
 
-  // Herdar foto do pedido da chapa selecionada (se a chapa tiver uma)
+  // Herdar foto do pedido e foto do material da chapa selecionada
   useEffect(() => {
     if (!chapaObj) return;
     if (chapaObj.foto_pedido_url && !form.foto_pedido_url) {
       set("foto_pedido_url", chapaObj.foto_pedido_url);
+    }
+    if (chapaObj.foto_finalizacao_url && !form.foto_material_url) {
+      set("foto_material_url", chapaObj.foto_finalizacao_url);
     }
   }, [chapaObj?.id]);
 

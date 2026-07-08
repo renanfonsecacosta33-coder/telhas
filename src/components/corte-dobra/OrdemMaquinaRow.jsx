@@ -372,9 +372,9 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
           </div>
         </div>
 
-        {/* Fotos: Pedido (encarregado) + Finalização (operador) */}
-        {(o.foto_pedido_url || o.foto_finalizacao_url) && (
-          <DualPhotoGallery fotoPedidoUrl={o.foto_pedido_url} fotoFinalizacaoUrl={o.foto_finalizacao_url} z={zoom} />
+        {/* Fotos: Pedido (encarregado) + Material (chapa) + Finalização (operador) */}
+        {(o.foto_pedido_url || o.foto_material_url || o.foto_finalizacao_url) && (
+          <DualPhotoGallery fotoPedidoUrl={o.foto_pedido_url} fotoMaterialUrl={o.foto_material_url} fotoFinalizacaoUrl={o.foto_finalizacao_url} z={zoom} />
         )}
 
         {/* Observações (finalizado) */}
@@ -482,9 +482,9 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
           </div>
         </div>
 
-        {/* Fotos: Pedido (encarregado) + Finalização (operador) */}
-        {(o.foto_pedido_url || o.foto_finalizacao_url) && (
-          <DualPhotoGallery fotoPedidoUrl={o.foto_pedido_url} fotoFinalizacaoUrl={o.foto_finalizacao_url} z={zoom} />
+        {/* Fotos: Pedido (encarregado) + Material (chapa) + Finalização (operador) */}
+        {(o.foto_pedido_url || o.foto_material_url || o.foto_finalizacao_url) && (
+          <DualPhotoGallery fotoPedidoUrl={o.foto_pedido_url} fotoMaterialUrl={o.foto_material_url} fotoFinalizacaoUrl={o.foto_finalizacao_url} z={zoom} />
         )}
 
         {/* Observações */}
