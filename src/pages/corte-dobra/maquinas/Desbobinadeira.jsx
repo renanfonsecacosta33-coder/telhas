@@ -364,7 +364,7 @@ export default function Desbobinadeira() {
                                 <Star className={`w-3 h-3 mr-1 ${o.prioridade ? "fill-amber-500 text-amber-500" : ""}`} /> {o.prioridade ? "Prioritária" : "Prioridade"}
                               </Button>
                             )}
-                            {o.status === "pendente" && (
+                            {o.status !== "cancelado" && (
                               <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
                             )}
                             {o.status === "finalizado" && (
@@ -420,7 +420,7 @@ export default function Desbobinadeira() {
                           <Star className={`w-3 h-3 mr-1 ${o.prioridade ? "fill-amber-500 text-amber-500" : ""}`} /> {o.prioridade ? "Prioritária" : "Prioridade"}
                         </Button>
                       )}
-                      {o.status === "pendente" && (
+                      {o.status !== "cancelado" && (
                         <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
                       )}
                       {o.status === "finalizado" && (
