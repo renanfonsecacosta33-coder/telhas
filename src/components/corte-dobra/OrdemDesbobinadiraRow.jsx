@@ -161,11 +161,12 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
   };
 
   const confirmarBloqueio = () => {
+    const acao = acaoPendente;
     setBloqueioDialog(false);
-    if (acaoPendente === "iniciar") doIniciar();
-    else if (acaoPendente === "retomar") doRetomar();
     setAcaoPendente(null);
     setOrdemBloqueante(null);
+    if (acao === "iniciar") setValidacaoDialog(true);
+    else if (acao === "retomar") doRetomar();
   };
 
   const handleFinalizar = () => {
