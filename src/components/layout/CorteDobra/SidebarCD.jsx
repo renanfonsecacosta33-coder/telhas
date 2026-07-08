@@ -64,6 +64,17 @@ export default function SidebarCD({ isOpen, onToggle }) {
     "DESBOBINADEIRA": "/corte-dobra/maquina/desbobinadeira",
   };
 
+  function parseMaquinas(maquina) {
+    if (!maquina) return [];
+    try {
+      const parsed = JSON.parse(maquina);
+      if (Array.isArray(parsed)) return parsed;
+      return [parsed];
+    } catch {
+      return [maquina];
+    }
+  }
+
   const renderLink = (item) => {
     const isActive = location.pathname === item.path;
     const Icon = item.icon;
@@ -135,10 +146,10 @@ export default function SidebarCD({ isOpen, onToggle }) {
               <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mb-3">
                 Minha Máquina
               </p>
-              {user?.maquina && MAQUINA_CD_ROUTE_MAP[user.maquina] && renderLink({
-                path: MAQUINA_CD_ROUTE_MAP[user.maquina],
-                label: user.maquina,
-                icon: Wrench,
+              {parseMaquinas(user?.maquina).map(m => {
+                const route = MAQUINA_CD_ROUTE_MAP[m];
+                if (!route) return null;
+                return renderLink({ path: route, label: m, icon: Wrench });
               })}
               {renderLink({ path: "/corte-dobra/calculos", label: "Cálculos", icon: FlaskConical })}
             </>

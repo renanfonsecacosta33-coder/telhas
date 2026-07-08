@@ -33,7 +33,7 @@ export default function AppLayoutCD() {
     return <Navigate to="/setor" replace />;
   }
 
-  // Operador restrito: só acessa sua máquina + cálculos, bloqueia outras páginas
+  // Operador restrito: só acessa suas máquinas + cálculos, bloqueia outras páginas
   const isOperadorRestrito = user && user.role !== "admin" && user.role !== "super_admin";
   if (isOperadorRestrito) {
     const MAQUINA_CD_ROUTE_MAP = {
@@ -45,19 +45,27 @@ export default function AppLayoutCD() {
       "PERFILADEIRA": "/corte-dobra/maquina/perfiladeira",
       "DESBOBINADEIRA": "/corte-dobra/maquina/desbobinadeira",
     };
-    const rotaMaquina = MAQUINA_CD_ROUTE_MAP[user.maquina];
-    const pathname = window.location.pathname;
-    // Operador no dashboard → redireciona direto pra sua máquina
-    if (pathname === "/corte-dobra" && rotaMaquina) {
-      return <Navigate to={rotaMaquina} replace />;
+    function parseMaquinas(maquina) {
+      if (!maquina) return [];
+      try {
+        const parsed = JSON.parse(maquina);
+        if (Array.isArray(parsed)) return parsed;
+        return [parsed];
+      } catch {
+        return [maquina];
+      }
     }
-    const rotasPermitidas = [
-      "/corte-dobra/calculos",
-      ...(rotaMaquina ? [rotaMaquina] : []),
-    ];
+    const maquinas = parseMaquinas(user.maquina);
+    const rotasMaquina = maquinas.map(m => MAQUINA_CD_ROUTE_MAP[m]).filter(Boolean);
+    const pathname = window.location.pathname;
+    // Operador no dashboard → redireciona pra primeira máquina
+    if (pathname === "/corte-dobra" && rotasMaquina.length > 0) {
+      return <Navigate to={rotasMaquina[0]} replace />;
+    }
+    const rotasPermitidas = ["/corte-dobra/calculos", ...rotasMaquina];
     const permitido = rotasPermitidas.some(r => pathname === r || pathname.startsWith(r));
     if (!permitido) {
-      return <Navigate to={rotaMaquina || "/corte-dobra/calculos"} replace />;
+      return <Navigate to={rotasMaquina[0] || "/corte-dobra/calculos"} replace />;
     }
   }
 
