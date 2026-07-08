@@ -159,6 +159,7 @@ export default function Desbobinadeira() {
         try {
           const chapas = await base44.entities.ChapaCD.filter({ ordem_id: editItem.id });
           for (const chapa of chapas) {
+            await base44.entities.ChapaCD.update(chapa.id, { foto_pedido_url: data.foto_pedido_url || null });
             const ops = await base44.entities.OrdemMaquinaCD.filter({ chapa_cd_id: chapa.id });
             for (const op of ops) {
               await base44.entities.OrdemMaquinaCD.update(op.id, { foto_pedido_url: data.foto_pedido_url || null });

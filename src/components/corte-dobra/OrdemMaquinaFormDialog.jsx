@@ -195,6 +195,14 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
   // Controle de edição manual do peso (para não sobrescrever)
   const pesoEditadoManual = useRef(false);
 
+  // Herdar foto do pedido da chapa selecionada (se a chapa tiver uma)
+  useEffect(() => {
+    if (!chapaObj) return;
+    if (chapaObj.foto_pedido_url && !form.foto_pedido_url) {
+      set("foto_pedido_url", chapaObj.foto_pedido_url);
+    }
+  }, [chapaObj?.id]);
+
   // Preencher dados do desenvolvimento selecionado
   useEffect(() => {
     if (!devObj || !isMaquinaPadrao) return;

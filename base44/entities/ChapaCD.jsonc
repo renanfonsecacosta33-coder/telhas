@@ -107,6 +107,10 @@
       "type": "string",
       "description": "URL da foto na finaliza\u00e7\u00e3o"
     },
+    "foto_pedido_url": {
+      "type": "string",
+      "description": "URL da foto do pedido (herdada da Desbobinadeira quando pedido_direto)"
+    },
     "anexo_nf_url": {
       "type": "string",
       "description": "URL do anexo NF"

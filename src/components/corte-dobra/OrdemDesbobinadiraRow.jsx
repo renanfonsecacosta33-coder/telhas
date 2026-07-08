@@ -205,6 +205,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
           data_corte: format(new Date(), "yyyy-MM-dd"),
           status: "disponivel",
           foto_finalizacao_url: file_url,
+          foto_pedido_url: o.foto_pedido_url || null,
           observacoes: o.observacoes || null,
         });
 
@@ -223,7 +224,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
             cliente: o.cliente || null,
             quantidade: o.quantidade || 0,
             status: "pendente",
-            foto_pedido_url: o.foto_pedido_url || file_url,
+            foto_pedido_url: o.foto_pedido_url || null,
             observacoes: o.observacoes
               ? `${o.observacoes}\n— OP gerada automaticamente pela Desbobinadeira (OP ${o.id.slice(-6).toUpperCase()})`
               : `OP gerada automaticamente pela Desbobinadeira (OP ${o.id.slice(-6).toUpperCase()})`,
