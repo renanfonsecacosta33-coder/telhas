@@ -9,6 +9,7 @@ import {
 import EtiquetaBTW from "@/components/bobinas/EtiquetaBTW";
 import HistoricoPedidosBobina from "@/components/bobinas/HistoricoPedidosBobina";
 import TransferenciaDialog from "@/components/bobinas/TransferenciaDialog";
+import ImageViewer from "@/components/ui/ImageViewer";
 import { useFilial } from "@/contexts/FilialContext";
 import { ArrowLeftRight } from "lucide-react";
 
@@ -59,6 +60,7 @@ export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statu
   const [expandido, setExpandido] = useState(false);
   const [showEtiqueta, setShowEtiqueta] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
+  const [viewer, setViewer] = useState({ open: false, url: "", name: "" });
   const { filialAtiva } = useFilial();
   const pctUso = getPorcentagemUso(bobina);
   const pctRestante = pctUso !== null ? 100 - pctUso : null;
@@ -285,16 +287,16 @@ export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statu
             {/* Anexos */}
             <div className="flex gap-2 flex-wrap">
               {bobina.anexo_nf_url && (
-                <a href={bobina.anexo_nf_url} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors font-medium">
+                <button onClick={() => setViewer({ open: true, url: bobina.anexo_nf_url, name: bobina.anexo_nf_nome })}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors font-medium cursor-pointer">
                   <FileCheck className="w-3.5 h-3.5" /> NF
-                </a>
+                </button>
               )}
               {bobina.anexo_cert_url && (
-                <a href={bobina.anexo_cert_url} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors font-medium">
+                <button onClick={() => setViewer({ open: true, url: bobina.anexo_cert_url, name: bobina.anexo_cert_nome })}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors font-medium cursor-pointer">
                   <ShieldCheck className="w-3.5 h-3.5" /> Certificado
-                </a>
+                </button>
               )}
               {bobina.anexo_cert_ausencia && (
                 <span className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-orange-300 bg-orange-50 text-orange-700 font-medium">
@@ -302,15 +304,22 @@ export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statu
                 </span>
               )}
               {bobina.foto_adicional_url && (
-                <a href={bobina.foto_adicional_url} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors font-medium">
+                <button onClick={() => setViewer({ open: true, url: bobina.foto_adicional_url, name: bobina.foto_adicional_nome })}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors font-medium cursor-pointer">
                   <Camera className="w-3.5 h-3.5" /> Foto adicional
-                </a>
+                </button>
               )}
             </div>
           </div>
         )}
       </div>
+
+      <ImageViewer
+        open={viewer.open}
+        onClose={() => setViewer({ open: false, url: "", name: "" })}
+        url={viewer.url}
+        name={viewer.name}
+      />
     </div>
   );
 }
