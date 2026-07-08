@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { getEtapaColor } from "@/components/corte-dobra/RetrabalhoDialog";
 import { HistoricoPedidoButton } from "@/components/corte-dobra/HistoricoPedidoSidebar";
 import ImageLink from "@/components/ui/ImageLink";
+import CorChapaDot from "@/components/corte-dobra/CorChapaDot";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -262,7 +263,8 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               )}
               <span className={`font-bold text-sm font-mono ${etpCorFin ? etpCorFin.text : "text-green-700"}`}>{o.bobina_descricao || "Bobina"}</span>
               {o.espessura_utilizada && (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                  <CorChapaDot espessura={o.espessura_utilizada} size="xs" />
                   <Layers className="w-2.5 h-2.5" /> {o.espessura_utilizada}mm
                 </span>
               )}
@@ -391,7 +393,8 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               )}
               <span className={`font-bold ${z.title} font-mono ${etpCor ? etpCor.text : "text-orange-600"}`}>{o.bobina_descricao || "Bobina"}</span>
               {o.espessura_utilizada && (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                  <CorChapaDot espessura={o.espessura_utilizada} size="xs" />
                   <Layers className="w-3 h-3" /> {o.espessura_utilizada}mm
                 </span>
               )}

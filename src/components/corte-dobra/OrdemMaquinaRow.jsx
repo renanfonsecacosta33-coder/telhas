@@ -18,6 +18,7 @@ import { getEtapaColor } from "@/components/corte-dobra/RetrabalhoDialog";
 import { HistoricoPedidoButton } from "@/components/corte-dobra/HistoricoPedidoSidebar";
 import ImageLink from "@/components/ui/ImageLink";
 import DualPhotoGallery from "@/components/corte-dobra/DualPhotoGallery";
+import CorChapaDot, { extractEspessuraFromDesc } from "@/components/corte-dobra/CorChapaDot";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -316,6 +317,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
                 </Badge>
               )}
               <span className="font-bold text-sm">{o.tipo_peca || "—"}</span>
+              <CorChapaDot espessura={extractEspessuraFromDesc(o.chapa_descricao) || extractEspessuraFromDesc(o.bobina_descricao)} size="sm" />
               {o.dimensoes_livres && (
                 <span className="text-[11px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">{o.dimensoes_livres}</span>
               )}
@@ -426,6 +428,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
                 </Badge>
               )}
               <span className={`font-bold ${z.title}`}>{o.tipo_peca || "—"}</span>
+              <CorChapaDot espessura={extractEspessuraFromDesc(o.chapa_descricao) || extractEspessuraFromDesc(o.bobina_descricao)} size="sm" />
               {o.dimensoes_livres && (
                 <span className={`${z.info} text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded`}>{o.dimensoes_livres}</span>
               )}

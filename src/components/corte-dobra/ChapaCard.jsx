@@ -9,6 +9,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import ImageLink from "@/components/ui/ImageLink";
+import CorChapaDot from "@/components/corte-dobra/CorChapaDot";
 
 function StatusBadge({ status, destino, numeroPedido, origem }) {
   if (status === "consumido") return <Badge className="bg-slate-100 text-slate-600 border-slate-200 border text-xs">Consumido</Badge>;
@@ -79,6 +80,7 @@ export default function ChapaCard({
             {chapa.codigo && (
               <span className="font-black text-base font-mono text-foreground">{chapa.codigo}</span>
             )}
+            <CorChapaDot espessura={chapa.espessura_mm} size="sm" />
             <span className="font-semibold text-sm text-muted-foreground">
               {chapa.bobina_descricao || (chapa.material ? `Mat: ${chapa.material}` : "Bobina")}
               {chapa.espessura_mm ? ` — ${chapa.espessura_mm}mm` : ""}
