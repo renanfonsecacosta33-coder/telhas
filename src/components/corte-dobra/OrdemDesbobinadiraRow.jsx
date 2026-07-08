@@ -218,12 +218,12 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
             chapa_descricao: chapaDesc,
             chapa_origem: "chaparia",
             tipo_peca: "Corte Guilhotina",
-            dimensoes_livres: o.tamanho_corte_guilhotina ? `${o.tamanho_corte_guilhotina}mm` : null,
+            dimensoes_livres: o.tamanho_corte_guilhotina ? `CORTE ${o.tamanho_corte_guilhotina}mm` : null,
             numero_pedido: o.numero_pedido || null,
             cliente: o.cliente || null,
             quantidade: o.quantidade || 0,
             status: "pendente",
-            foto_pedido_url: o.foto_pedido_url || null,
+            foto_pedido_url: o.foto_pedido_url || file_url,
             observacoes: o.observacoes
               ? `${o.observacoes}\n— OP gerada automaticamente pela Desbobinadeira (OP ${o.id.slice(-6).toUpperCase()})`
               : `OP gerada automaticamente pela Desbobinadeira (OP ${o.id.slice(-6).toUpperCase()})`,
