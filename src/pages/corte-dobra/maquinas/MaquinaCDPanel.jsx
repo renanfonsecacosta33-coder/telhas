@@ -30,8 +30,19 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
+  function parseMaquinas(maquina) {
+    if (!maquina) return [];
+    try {
+      const parsed = JSON.parse(maquina);
+      if (Array.isArray(parsed)) return parsed;
+      return [parsed];
+    } catch {
+      return [maquina];
+    }
+  }
+
   const isGestor = user?.role === "admin" || user?.role === "super_admin" || user?.gerencia === true || user?.full_name?.toLowerCase().includes("hudson");
-  const maquinaDoUsuario = user?.maquina; // máquina configurada no perfil do usuário
+  const maquinasDoUsuario = parseMaquinas(user?.maquina); // array de máquinas configuradas
   const isOperadorRestrito = user && !isGestor; // não-admin = operador restrito
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
@@ -171,7 +182,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const finalizadasSemana = ordensSemana.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
 
   // Operador sem máquina configurada
-  if (user && isOperadorRestrito && !maquinaDoUsuario) {
+  if (user && isOperadorRestrito && maquinasDoUsuario.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
         <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
@@ -184,14 +195,14 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   }
 
   // Operador tentando acessar máquina que não é a dele
-  if (user && isOperadorRestrito && maquinaDoUsuario && maquinaDoUsuario !== maquinaId) {
+  if (user && isOperadorRestrito && !maquinasDoUsuario.includes(maquinaId)) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
         <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
           <span className="text-3xl">🚫</span>
         </div>
         <h2 className="text-xl font-bold mb-2">Acesso restrito</h2>
-        <p className="text-muted-foreground max-w-sm">Você só pode acessar as ordens da sua máquina: <strong>{maquinaDoUsuario}</strong>.</p>
+        <p className="text-muted-foreground max-w-sm">Você só pode acessar as ordens das suas máquinas: <strong>{maquinasDoUsuario.join(", ")}</strong>.</p>
       </div>
     );
   }
