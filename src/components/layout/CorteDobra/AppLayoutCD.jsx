@@ -33,6 +33,31 @@ export default function AppLayoutCD() {
     return <Navigate to="/setor" replace />;
   }
 
+  // Operador restrito: só acessa sua máquina + cálculos, bloqueia outras páginas
+  const isOperadorRestrito = user && user.role !== "admin" && user.role !== "super_admin";
+  if (isOperadorRestrito) {
+    const MAQUINA_CD_ROUTE_MAP = {
+      "CORTE 3M": "/corte-dobra/maquina/corte-3m",
+      "DOBRA 3M": "/corte-dobra/maquina/dobra-3m",
+      "CORTE 6M": "/corte-dobra/maquina/corte-6m",
+      "DOBRA FUNDO 6M": "/corte-dobra/maquina/dobra-fundo-6m",
+      "DOBRA INICIO 6M": "/corte-dobra/maquina/dobra-inicio-6m",
+      "PERFILADEIRA": "/corte-dobra/maquina/perfiladeira",
+      "DESBOBINADEIRA": "/corte-dobra/maquina/desbobinadeira",
+    };
+    const rotaMaquina = MAQUINA_CD_ROUTE_MAP[user.maquina];
+    const rotasPermitidas = [
+      "/corte-dobra/calculos",
+      "/corte-dobra",
+      ...(rotaMaquina ? [rotaMaquina] : []),
+    ];
+    const pathname = window.location.pathname;
+    const permitido = rotasPermitidas.some(r => pathname === r || (r !== "/corte-dobra" && pathname.startsWith(r)));
+    if (!permitido) {
+      return <Navigate to={rotaMaquina || "/corte-dobra/calculos"} replace />;
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <SidebarCD isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
