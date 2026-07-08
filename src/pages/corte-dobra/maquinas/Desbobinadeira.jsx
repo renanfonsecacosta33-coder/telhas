@@ -150,10 +150,24 @@ export default function Desbobinadeira() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] }); setDialog(false); toast.success("Ordem criada!"); },
   });
 
-  const handleSave = (data) => {
+  const handleSave = async (data) => {
     if (editItem && !editItem._presets && editItem.id) {
       updateOrdem.mutate({ id: editItem.id, data });
       setDialog(false);
+      // Sincroniza foto_pedido_url para OPs da guilhotina vinculadas (através da ChapaCD)
+      if (data.foto_pedido_url !== undefined && (editItem.status === "finalizado" || data.status === "finalizado")) {
+        try {
+          const chapas = await base44.entities.ChapaCD.filter({ ordem_id: editItem.id });
+          for (const chapa of chapas) {
+            const ops = await base44.entities.OrdemMaquinaCD.filter({ chapa_cd_id: chapa.id });
+            for (const op of ops) {
+              await base44.entities.OrdemMaquinaCD.update(op.id, { foto_pedido_url: data.foto_pedido_url || null });
+            }
+          }
+        } catch (e) {
+          console.error("Erro ao sincronizar foto do pedido:", e);
+        }
+      }
     } else {
       createOrdem.mutate(data);
     }

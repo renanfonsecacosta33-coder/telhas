@@ -278,10 +278,21 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               )}
             </div>
             <div className="flex items-center gap-2">
+              {o.foto_pedido_url && (
+                <ImageLink url={o.foto_pedido_url} name="Foto do Pedido" className="flex-shrink-0 block">
+                  <div className="relative">
+                    <img src={o.foto_pedido_url} alt="Foto do pedido" className="w-10 h-10 object-cover rounded border-2 border-blue-400" />
+                    <span className="absolute -top-1 -left-1 bg-blue-600 text-white text-[8px] font-bold px-1 rounded-full leading-tight">PED</span>
+                  </div>
+                </ImageLink>
+              )}
               {o.foto_finalizacao_url && (
-                <a href={o.foto_finalizacao_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
-                  <img src={o.foto_finalizacao_url} alt="Finalização" className="w-10 h-10 object-cover rounded border border-green-200" />
-                </a>
+                <ImageLink url={o.foto_finalizacao_url} name="Foto de Finalização" className="flex-shrink-0 block">
+                  <div className="relative">
+                    <img src={o.foto_finalizacao_url} alt="Finalização" className="w-10 h-10 object-cover rounded border-2 border-green-400" />
+                    <span className="absolute -top-1 -left-1 bg-green-600 text-white text-[8px] font-bold px-1 rounded-full leading-tight">FIN</span>
+                  </div>
+                </ImageLink>
               )}
               {o.numero_pedido && <HistoricoPedidoButton numeroPedido={o.numero_pedido} size="sm" />}
               {isGestor && (
