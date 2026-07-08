@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { getEtapaColor } from "@/components/corte-dobra/RetrabalhoDialog";
 import { HistoricoPedidoButton } from "@/components/corte-dobra/HistoricoPedidoSidebar";
 import ImageLink from "@/components/ui/ImageLink";
+import DualPhotoGallery from "@/components/corte-dobra/DualPhotoGallery";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -310,11 +311,6 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               )}
             </div>
             <div className="flex items-center gap-2">
-              {o.foto_finalizacao_url && (
-                <ImageLink url={o.foto_finalizacao_url} name="Finalização" className="flex-shrink-0 block">
-                  <img src={o.foto_finalizacao_url} alt="Finalização" className="w-10 h-10 object-cover rounded border border-green-200" />
-                </ImageLink>
-              )}
               {o.numero_pedido && <HistoricoPedidoButton numeroPedido={o.numero_pedido} size="sm" />}
               {isGestor && (
                 <div className="flex gap-1">
@@ -356,20 +352,9 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
           </div>
         </div>
 
-        {/* Foto do pedido (finalizado) */}
-        {o.foto_pedido_url && (
-          <div className="mb-2 relative rounded-lg overflow-hidden border-2 border-blue-300 group">
-            <ImageLink url={o.foto_pedido_url} name="Foto do Pedido" className="block">
-              <img src={o.foto_pedido_url} alt="Foto do pedido" className="w-full max-h-44 object-cover" />
-            </ImageLink>
-            <div className="absolute top-2 left-2 bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 pointer-events-none">
-              <ImageIcon className="w-3 h-3" /> Foto do Pedido
-            </div>
-            <ImageLink url={o.foto_pedido_url} name="Foto do Pedido"
-              className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-black/80 transition-colors flex items-center gap-1">
-              <ImageIcon className="w-3.5 h-3.5" /> Ampliar
-            </ImageLink>
-          </div>
+        {/* Fotos: Pedido (encarregado) + Finalização (operador) */}
+        {(o.foto_pedido_url || o.foto_finalizacao_url) && (
+          <DualPhotoGallery fotoPedidoUrl={o.foto_pedido_url} fotoFinalizacaoUrl={o.foto_finalizacao_url} z={zoom} />
         )}
 
         {/* Observações (finalizado) */}
@@ -472,20 +457,9 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
           </div>
         </div>
 
-        {/* Foto do pedido */}
-        {o.foto_pedido_url && (
-          <div className={`${z.mb} relative rounded-lg overflow-hidden border-2 border-blue-300 group`}>
-            <ImageLink url={o.foto_pedido_url} name="Foto do Pedido" className="block">
-              <img src={o.foto_pedido_url} alt="Foto do pedido" className="w-full max-h-44 object-cover" />
-            </ImageLink>
-            <div className="absolute top-2 left-2 bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 pointer-events-none">
-              <ImageIcon className="w-3 h-3" /> Foto do Pedido
-            </div>
-            <ImageLink url={o.foto_pedido_url} name="Foto do Pedido"
-              className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-black/80 transition-colors flex items-center gap-1">
-              <ImageIcon className="w-3.5 h-3.5" /> Ampliar
-            </ImageLink>
-          </div>
+        {/* Fotos: Pedido (encarregado) + Finalização (operador) */}
+        {(o.foto_pedido_url || o.foto_finalizacao_url) && (
+          <DualPhotoGallery fotoPedidoUrl={o.foto_pedido_url} fotoFinalizacaoUrl={o.foto_finalizacao_url} z={zoom} />
         )}
 
         {/* Observações */}
@@ -536,14 +510,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
           </div>
         )}
 
-        {/* Foto finalização */}
-        {o.foto_finalizacao_url && (
-          <div className="mb-3">
-            <ImageLink url={o.foto_finalizacao_url} name="Finalização" className="block">
-              <img src={o.foto_finalizacao_url} alt="Finalização" className="w-full max-h-40 object-cover rounded-lg border border-border" />
-            </ImageLink>
-          </div>
-        )}
+
 
         {/* Quantidade produzida (finalizado) */}
         {o.status === "finalizado" && o.quantidade_produzida > 0 && (
