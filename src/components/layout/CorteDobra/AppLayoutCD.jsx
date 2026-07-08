@@ -46,13 +46,16 @@ export default function AppLayoutCD() {
       "DESBOBINADEIRA": "/corte-dobra/maquina/desbobinadeira",
     };
     const rotaMaquina = MAQUINA_CD_ROUTE_MAP[user.maquina];
+    const pathname = window.location.pathname;
+    // Operador no dashboard → redireciona direto pra sua máquina
+    if (pathname === "/corte-dobra" && rotaMaquina) {
+      return <Navigate to={rotaMaquina} replace />;
+    }
     const rotasPermitidas = [
       "/corte-dobra/calculos",
-      "/corte-dobra",
       ...(rotaMaquina ? [rotaMaquina] : []),
     ];
-    const pathname = window.location.pathname;
-    const permitido = rotasPermitidas.some(r => pathname === r || (r !== "/corte-dobra" && pathname.startsWith(r)));
+    const permitido = rotasPermitidas.some(r => pathname === r || pathname.startsWith(r));
     if (!permitido) {
       return <Navigate to={rotaMaquina || "/corte-dobra/calculos"} replace />;
     }
