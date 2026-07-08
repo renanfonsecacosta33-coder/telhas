@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers, Image as ImageIcon, DollarSign } from "lucide-react";
+import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers, Image as ImageIcon, DollarSign, ScanLine } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -14,6 +14,7 @@ import { getEtapaColor } from "@/components/corte-dobra/RetrabalhoDialog";
 import { HistoricoPedidoButton } from "@/components/corte-dobra/HistoricoPedidoSidebar";
 import ImageLink from "@/components/ui/ImageLink";
 import CorChapaDot from "@/components/corte-dobra/CorChapaDot";
+import ValidacaoEtiquetaDialog from "@/components/corte-dobra/ValidacaoEtiquetaDialog";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -59,6 +60,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
   const [acaoPendente, setAcaoPendente] = useState(null);
   const fotoInputRef = useRef();
   const fotoScanRef = useRef();
+  const [validacaoDialog, setValidacaoDialog] = useState(false);
 
   useEffect(() => {
     const iv = setInterval(() => setTick(t => t + 1), 1000);
@@ -102,7 +104,18 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
 
   const handleIniciar = () => {
     if (verificarBloqueio("iniciar")) return;
-    doIniciar();
+    setValidacaoDialog(true);
+  };
+
+  const handleEtiquetaAprovada = (fotoUrl, motivo) => {
+    setValidacaoDialog(false);
+    onUpdate(o.id, {
+      status: "em_producao",
+      inicio_producao_ts: new Date().toISOString(),
+      foto_etiqueta_bobina_url: fotoUrl,
+      validacao_etiqueta_status: "aprovado",
+      validacao_etiqueta_motivo: motivo || null,
+    });
   };
 
   const confirmarPausa = () => {
@@ -298,6 +311,14 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                   </div>
                 </ImageLink>
               )}
+              {o.foto_etiqueta_bobina_url && (
+                <ImageLink url={o.foto_etiqueta_bobina_url} name="Etiqueta da Bobina" className="flex-shrink-0 block">
+                  <div className="relative">
+                    <img src={o.foto_etiqueta_bobina_url} alt="Etiqueta da bobina" className="w-10 h-10 object-cover rounded border-2 border-orange-400" />
+                    <span className="absolute -top-1 -left-1 bg-orange-600 text-white text-[8px] font-bold px-1 rounded-full leading-tight">ETIQ</span>
+                  </div>
+                </ImageLink>
+              )}
               {o.numero_pedido && <HistoricoPedidoButton numeroPedido={o.numero_pedido} size="sm" />}
               {isGestor && (
                 <div className="flex gap-1">
@@ -448,6 +469,18 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               </div>
               </div>
               </div>
+
+        {/* Foto da etiqueta da bobina (validação ao iniciar) */}
+        {o.foto_etiqueta_bobina_url && (
+          <div className={`${z.mb} relative rounded-lg overflow-hidden border-2 border-orange-300 group`}>
+            <ImageLink url={o.foto_etiqueta_bobina_url} name="Etiqueta da Bobina" className="block">
+              <img src={o.foto_etiqueta_bobina_url} alt="Etiqueta da bobina" className="w-full max-h-32 object-cover" />
+            </ImageLink>
+            <div className="absolute top-2 left-2 bg-orange-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 pointer-events-none">
+              <ScanLine className="w-3 h-3" /> Etiqueta Validada
+            </div>
+          </div>
+        )}
 
         {/* Foto do pedido */}
         {o.foto_pedido_url && (
@@ -637,6 +670,13 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Dialog Validação de Etiqueta da Bobina */}
+      <ValidacaoEtiquetaDialog
+        open={validacaoDialog}
+        onClose={() => setValidacaoDialog(false)}
+        ordem={o}
+        onAprovado={handleEtiquetaAprovada}
+      />
     </>
   );
 }

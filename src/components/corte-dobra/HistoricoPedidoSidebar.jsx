@@ -11,7 +11,7 @@ import {
   Edit3, Zap, Pause, Circle, History, X, Loader2, ShoppingCart,
   TrendingUp, Boxes, Weight, Timer, ArrowRight, FileText, MapPin,
   Ruler, Hammer, ClipboardList, Truck, PlayCircle, Hourglass,
-  CircleDot, Calendar, DollarSign
+  CircleDot, Calendar, DollarSign, ScanLine
 } from "lucide-react";
 
 const MAQUINA_INFO = {
@@ -641,6 +641,9 @@ export default function HistoricoPedidoSidebar({ open, onClose, numeroPedido }) 
 
                           {/* Fotos */}
                           <div className="flex gap-2 mt-2 flex-wrap">
+                            {etapa.foto_etiqueta_bobina_url && (
+                              <PhotoThumb url={etapa.foto_etiqueta_bobina_url} label="Etiqueta" color="border-orange-300" icon={ScanLine} />
+                            )}
                             {etapa.foto_pedido_url && (
                               <PhotoThumb url={etapa.foto_pedido_url} label="Pedido" color="border-blue-300" icon={ShoppingCart} />
                             )}
