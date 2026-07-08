@@ -1,0 +1,28 @@
+{
+  "name": "AproveitamentoPerfil",
+  "type": "object",
+  "properties": {
+    "perfil": {
+      "type": "string",
+      "description": "Nome do perfil (ex: 25x50x25, 75x38 ENRRIJ.)"
+    },
+    "espessura": {
+      "type": "string",
+      "description": "Espessura (ex: 1,95 / 2,0 / 2,25 / 2,3 / 2,65 / 2,7 / 3,0)"
+    },
+    "comprimento_desenvolvido_mm": {
+      "type": "number",
+      "description": "Comprimento desenvolvido em mm para essa combina\u00e7\u00e3o perfil+espessura"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se este aproveitamento est\u00e1 ativo"
+    }
+  },
+  "required": [
+    "perfil",
+    "espessura",
+    "comprimento_desenvolvido_mm"
+  ]
+}

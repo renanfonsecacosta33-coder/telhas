@@ -19,6 +19,7 @@ import { HistoricoPedidoButton } from "@/components/corte-dobra/HistoricoPedidoS
 import ImageLink from "@/components/ui/ImageLink";
 import DualPhotoGallery from "@/components/corte-dobra/DualPhotoGallery";
 import CorChapaDot, { extractEspessuraFromDesc } from "@/components/corte-dobra/CorChapaDot";
+import AproveitamentoDialog from "@/components/corte-dobra/AproveitamentoDialog";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -80,6 +81,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
   const [modDescricao, setModDescricao] = useState("");
   const [pendingFotoUrl, setPendingFotoUrl] = useState(null);
   const [pendingProdSeg, setPendingProdSeg] = useState(0);
+  const [aproveitamentoDialog, setAproveitamentoDialog] = useState(false);
   const fotoInputRef = useRef();
   const fotoScanRef = useRef();
 
@@ -199,19 +201,15 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
     setOrdemBloqueante(null);
   };
 
-  const handleFinalizar = () => {
-    setPauseMotivo("");
-    setFotoDialog(true);
-  };
-
-  const handleUploadFoto = async (file) => {
-    if (!file) return;
-    setUploadingFoto(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+  const calcularProdSeg = () => {
     let prodSeg = o.tempo_producao_seg || 0;
     if (o.inicio_producao_ts) {
       prodSeg += Math.floor((Date.now() - new Date(o.inicio_producao_ts).getTime()) / 1000);
     }
+    return prodSeg;
+  };
+
+  const descontarEstoques = async () => {
     // Baixa automática de chapa da chaparia
     if (o.chapa_cd_id && (o.quantidade || 0) > 0) {
       try {
@@ -225,7 +223,6 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
         }
       } catch (e) { /* silencioso */ }
     }
-
     // Desconto de bobina direta
     if (o.chapa_origem === "direto" && o.bobina_id && (o.peso_kg || 0) > 0) {
       try {
@@ -237,19 +234,34 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
         }
       } catch (e) { /* silencioso */ }
     }
+  };
 
-    // Se for guilhotina, pedir info de modificação de blank antes de finalizar
+  const handleFinalizar = async () => {
+    setPauseMotivo("");
     if (isGuilhotina) {
-      setPendingFotoUrl(file_url);
+      // Guilhotina: desconta estoques e abre dialog de aproveitamento (sem foto)
+      await descontarEstoques();
+      const prodSeg = calcularProdSeg();
       setPendingProdSeg(prodSeg);
       setModBlank(false);
       setModDescricao("");
-      setUploadingFoto(false);
-      setFotoDialog(false);
-      setModificacaoDialog(true);
+      setAproveitamentoDialog(true);
       return;
     }
+    setFotoDialog(true);
+  };
 
+  // Chamado após o dialog de aproveitamento (SIM ou NÃO)
+  const handleAproveitamentoConfirm = () => {
+    finalizarOrdem(null, pendingProdSeg, false, "");
+  };
+
+  const handleUploadFoto = async (file) => {
+    if (!file) return;
+    setUploadingFoto(true);
+    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    const prodSeg = calcularProdSeg();
+    await descontarEstoques();
     await finalizarOrdem(file_url, prodSeg, false, "");
     setUploadingFoto(false);
     setFotoDialog(false);
@@ -700,6 +712,14 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog Aproveitamento — guilhotina finaliza sem foto */}
+      <AproveitamentoDialog
+        open={aproveitamentoDialog}
+        onClose={() => setAproveitamentoDialog(false)}
+        ordemGuilhotina={o}
+        onConfirm={handleAproveitamentoConfirm}
+      />
 
       {/* Dialog Bloqueio — OP em andamento */}
       <Dialog open={bloqueioDialog} onOpenChange={setBloqueioDialog}>
