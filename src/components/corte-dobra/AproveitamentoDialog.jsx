@@ -4,13 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle2, XCircle, Loader2, Recycle } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, Recycle, Package } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { parseEspessura } from "@/components/corte-dobra/CorChapaDot";
-
-const DOBRADEIRAS = ["DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M"];
 
 /**
  * Dialog pós-finalização da guilhotina:
@@ -26,7 +24,6 @@ export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, e
   const [loadingApr, setLoadingApr] = useState(false);
 
   const [perfilSel, setPerfilSel] = useState("");
-  const [dobradeiraSel, setDobradeiraSel] = useState("");
   const [quantidade, setQuantidade] = useState("");
 
   // Filtra aproveitamentos pela espessura da bobina
@@ -51,7 +48,7 @@ export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, e
   }, [espessuraBobina]);
 
   useEffect(() => {
-    if (!open) { setStep("pergunta"); setPerfilSel(""); setDobradeiraSel(""); setQuantidade(""); }
+    if (!open) { setStep("pergunta"); setPerfilSel(""); setQuantidade(""); }
   }, [open]);
 
   useEffect(() => {
@@ -70,34 +67,34 @@ export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, e
   const handleSim = () => setStep("form");
 
   const handleCriarOP = async () => {
-    if (!perfilSel || !dobradeiraSel || !quantidade || Number(quantidade) <= 0) {
-      toast.error("Preencha o perfil, a dobradeira e a quantidade.");
+    if (!perfilSel || !quantidade || Number(quantidade) <= 0) {
+      toast.error("Preencha o perfil e a quantidade.");
       return;
     }
     setStep("saving");
     const refPedido = ordemGuilhotina?.numero_pedido || ordemGuilhotina?.id?.slice(-6).toUpperCase();
-    const obs = `APROVEITAMENTO GERADO A PARTIR DO PEDIDO ${refPedido || "—"}`;
+    const espNum = parseEspessura(espessuraBobina) || 0;
+    const comp = comprimento || 0;
     try {
-      await base44.entities.OrdemMaquinaCD.create({
-        unidade: ordemGuilhotina?.unidade || "Matriz AJL",
-        data: format(new Date(), "yyyy-MM-dd"),
-        maquina: dobradeiraSel,
-        chapa_origem: "chaparia",
-        tipo_peca: perfilSel,
-        dimensoes_livres: `Esp ${espessuraLabel} | Dev ${comprimento}mm`,
-        quantidade: Number(quantidade),
-        status: "pendente",
-        observacoes: obs,
-        foto_pedido_url: ordemGuilhotina?.foto_pedido_url || null,
-        foto_material_url: ordemGuilhotina?.foto_material_url || null,
-        is_retrabalho: false,
-        prioridade: false,
+      await base44.entities.RetalhoCD.create({
+        origem: "sobra_producao",
+        ordem_id: ordemGuilhotina?.id,
+        material: ordemGuilhotina?.chapa_descricao || ordemGuilhotina?.bobina_descricao || "Aço galvanizado",
+        espessura_mm: espNum,
+        comprimento_mm: comp,
+        largura_mm: comp,
+        area_cm2: (comp * comp) / 100,
+        localizacao: "Estoque de Aproveitamento",
+        status: "disponivel",
+        produtos_compativeis: JSON.stringify({ perfil: perfilSel, quantidade: Number(quantidade) }),
+        data_entrada: format(new Date(), "yyyy-MM-dd"),
+        observacoes: `APROVEITAMENTO DO PEDIDO ${refPedido || "—"} | Perfil: ${perfilSel} | Qtd: ${quantidade} pç | Esp: ${espessuraLabel}mm`,
       });
-      toast.success(`OP de aproveitamento criada para ${dobradeiraSel}!`);
+      toast.success("Aproveitamento registrado no estoque!");
       onClose();
       onConfirm();
     } catch (e) {
-      toast.error("Erro ao criar OP de aproveitamento.");
+      toast.error("Erro ao registrar aproveitamento.");
       setStep("form");
     }
   };
@@ -177,21 +174,6 @@ export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, e
                   )}
                 </div>
 
-                {/* Dobradeira — encarregado escolhe */}
-                <div>
-                  <Label className="text-sm font-medium mb-1 block">Dobradeira de destino</Label>
-                  <Select value={dobradeiraSel} onValueChange={setDobradeiraSel}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="O encarregado deve escolher a dobradeira..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DOBRADEIRAS.map(d => (
-                        <SelectItem key={d} value={d}>{d}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 {comprimento && (
                   <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-sm text-emerald-800">
                     Comprimento desenvolvido: <strong>{comprimento} mm</strong>
@@ -209,8 +191,9 @@ export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, e
                   />
                 </div>
 
-                <div className="bg-muted/50 rounded-lg px-3 py-2 text-xs text-muted-foreground">
-                  Será criada uma OP para <strong>{dobradeiraSel || "a dobradeira escolhida"}</strong> sem número de pedido.
+                <div className="bg-muted/50 rounded-lg px-3 py-2 text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Package className="w-3.5 h-3.5" />
+                  Será registrado no <strong>Estoque de Aproveitamento</strong> como disponível.
                 </div>
               </div>
             )}
@@ -220,7 +203,7 @@ export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, e
               <Button
                 className="bg-emerald-600 hover:bg-emerald-700 gap-2"
                 onClick={handleCriarOP}
-                disabled={!perfilSel || !dobradeiraSel || !quantidade}
+                disabled={!perfilSel || !quantidade}
               >
                 <CheckCircle2 className="w-4 h-4" /> Criar OP de Aproveitamento
               </Button>
