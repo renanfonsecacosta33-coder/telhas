@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Layers, AlertTriangle, Search, X } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Layers, AlertTriangle, Search, X, Star } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -116,14 +116,19 @@ export default function Desbobinadeira() {
     const hoje = format(new Date(), "yyyy-MM-dd");
     const isHoje = selectedDay === hoje;
     const doDia = ordens.filter(o => o.data === selectedDay);
+    const priComp = (a, b) => (b.prioridade ? 1 : 0) - (a.prioridade ? 1 : 0);
     if (!isHoje) {
       return doDia.sort((a, b) => {
+        const p = priComp(a, b);
+        if (p !== 0) return p;
         const ord = { em_producao: 0, pausado: 1, pendente: 2, finalizado: 3, cancelado: 4 };
         return (ord[a.status] ?? 2) - (ord[b.status] ?? 2);
       });
     }
     const atrasadas = ordens.filter(o => o.data < hoje && o.status !== "finalizado" && o.status !== "cancelado");
     return [...atrasadas, ...doDia].sort((a, b) => {
+      const p = priComp(a, b);
+      if (p !== 0) return p;
       const aAtrasada = a.data < hoje ? 0 : 1;
       const bAtrasada = b.data < hoje ? 0 : 1;
       if (aAtrasada !== bAtrasada) return aAtrasada - bAtrasada;
@@ -354,6 +359,11 @@ export default function Desbobinadeira() {
                         <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} pedidoSeq={pedidoSeqMap[o.id]} bobinaCustoMap={bobinaCustoMap} />
                         {isGestor && (
                           <div className="flex justify-end mt-1 gap-1">
+                            {o.status !== "finalizado" && o.status !== "cancelado" && (
+                              <Button size="sm" variant="ghost" className={`text-xs h-6 px-2 ${o.prioridade ? "text-amber-600 font-bold" : "text-muted-foreground"}`} onClick={() => updateOrdem.mutate({ id: o.id, data: { prioridade: !o.prioridade } })}>
+                                <Star className={`w-3 h-3 mr-1 ${o.prioridade ? "fill-amber-500 text-amber-500" : ""}`} /> {o.prioridade ? "Prioritária" : "Prioridade"}
+                              </Button>
+                            )}
                             {o.status === "pendente" && (
                               <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
                             )}
@@ -405,6 +415,11 @@ export default function Desbobinadeira() {
                   <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} pedidoSeq={pedidoSeqMap[o.id]} bobinaCustoMap={bobinaCustoMap} />
                   {isGestor && (
                     <div className="flex justify-end mt-1 gap-1">
+                      {o.status !== "finalizado" && o.status !== "cancelado" && (
+                        <Button size="sm" variant="ghost" className={`text-xs h-6 px-2 ${o.prioridade ? "text-amber-600 font-bold" : "text-muted-foreground"}`} onClick={() => updateOrdem.mutate({ id: o.id, data: { prioridade: !o.prioridade } })}>
+                          <Star className={`w-3 h-3 mr-1 ${o.prioridade ? "fill-amber-500 text-amber-500" : ""}`} /> {o.prioridade ? "Prioritária" : "Prioridade"}
+                        </Button>
+                      )}
                       {o.status === "pendente" && (
                         <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
                       )}

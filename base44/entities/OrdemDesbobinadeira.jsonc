@@ -165,6 +165,11 @@
     "retrabalho_bobina_sub_descricao": {
       "type": "string",
       "description": "Descri\u00e7\u00e3o da bobina substituta"
+    },
+    "prioridade": {
+      "type": "boolean",
+      "default": false,
+      "description": "OP priorit\u00e1ria \u2014 fixada no topo e bloqueia in\u00edcio de outras OPs at\u00e9 ser finalizada"
     }
   },
   "required": [
