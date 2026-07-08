@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Camera, Loader2, CheckCircle2, XCircle, ScanLine, AlertTriangle, RefreshCw } from "lucide-react";
+import { Camera, Loader2, CheckCircle2, XCircle, ScanLine, AlertTriangle, RefreshCw, FileText } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
@@ -128,7 +128,14 @@ Responda em JSON com:
           {fotoUrl ? (
             <div className="relative rounded-lg overflow-hidden border-2 border-orange-300">
               <ImageLink url={fotoUrl} name="Etiqueta da Bobina" className="block">
-                <img src={fotoUrl} alt="Etiqueta da bobina" className="w-full max-h-48 object-cover" />
+                {fotoUrl.toLowerCase().endsWith(".pdf") ? (
+                  <div className="w-full max-h-48 flex flex-col items-center justify-center bg-slate-100 py-6 gap-2">
+                    <FileText className="w-12 h-12 text-orange-500" />
+                    <span className="text-xs text-muted-foreground">Documento PDF</span>
+                  </div>
+                ) : (
+                  <img src={fotoUrl} alt="Etiqueta da bobina" className="w-full max-h-48 object-cover" />
+                )}
               </ImageLink>
               {!validando && resultado && (
                 <div className="absolute top-2 right-2">
@@ -161,7 +168,7 @@ Responda em JSON com:
                 <>
                   <input ref={fotoInputRef} type="file" accept="image/*" capture="environment" className="hidden"
                     onChange={e => handleUpload(e.target.files?.[0])} />
-                  <input ref={fotoScanRef} type="file" accept="image/*" className="hidden"
+                  <input ref={fotoScanRef} type="file" accept="image/*,application/pdf" className="hidden"
                     onChange={e => handleUpload(e.target.files?.[0])} />
                   <UploadButton label="Tirar / Selecionar Foto" icon={Camera} cameraRef={fotoInputRef} fileRef={fotoScanRef} uploading={uploading} size="default" />
                 </>
