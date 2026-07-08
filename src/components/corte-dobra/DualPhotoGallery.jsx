@@ -31,7 +31,7 @@ export default function DualPhotoGallery({ fotoPedidoUrl, fotoMaterialUrl, fotoF
     <div key={i} className={`relative rounded-lg overflow-hidden border-2 ${single ? "w-full" : "flex-1"} ${p.borderCls}`}>
       <ImageLink url={p.url} name={p.label} className="block">
         {isPdf ? (
-          <div className={`w-full ${hImg} flex items-center justify-center bg-muted`}>
+          <div className={`w-full ${hImg} min-h-[112px] flex items-center justify-center bg-muted`}>
             <FileText className="w-10 h-10 text-muted-foreground" />
           </div>
         ) : (
