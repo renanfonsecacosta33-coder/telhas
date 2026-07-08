@@ -1,7 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2, CheckCircle2, Clock, Circle, Printer } from "lucide-react";
+import { Pencil, Trash2, CheckCircle2, Clock, Circle, Printer, Star } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -12,16 +12,17 @@ const STATUS_CONFIG = {
   cancelado: { label: "Cancelado", icon: Circle, badge: "bg-red-100 text-red-700 border-red-200" },
 };
 
-export default function PedidoCard({ pedido: p, maquinaCores, onEdit, onDelete, onStatusChange, onPrintOP }) {
+export default function PedidoCard({ pedido: p, maquinaCores, onEdit, onDelete, onStatusChange, onPrintOP, onTogglePrioridade }) {
   const st = STATUS_CONFIG[p.status] || STATUS_CONFIG.pendente;
   const Icon = st.icon;
 
   return (
-    <div className="px-4 py-3 hover:bg-muted/10 transition-colors">
+    <div className={`px-4 py-3 hover:bg-muted/10 transition-colors ${p.prioridade ? "bg-amber-50/50 border-l-4 border-l-amber-400" : ""}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           {/* Linha 1: produto + status + metros */}
           <div className="flex items-center gap-2 flex-wrap mb-1">
+            {p.prioridade && <Star className="w-4 h-4 text-amber-500 fill-amber-500 flex-shrink-0" />}
             <span className="font-semibold text-sm">{p.produto}</span>
             <Badge className={`border text-xs ${st.badge}`}>
               <Icon className="w-3 h-3 mr-1" />
@@ -50,6 +51,11 @@ export default function PedidoCard({ pedido: p, maquinaCores, onEdit, onDelete, 
 
         {/* Ações */}
         <div className="flex items-center gap-1 flex-shrink-0">
+          {onTogglePrioridade && p.status !== "finalizado" && p.status !== "cancelado" && (
+            <Button variant="ghost" size="icon" className={`h-7 w-7 ${p.prioridade ? "text-amber-500" : "text-muted-foreground"}`} title={p.prioridade ? "Remover prioridade" : "Marcar como prioritário"} onClick={() => onTogglePrioridade(p)}>
+              <Star className={`w-4 h-4 ${p.prioridade ? "fill-amber-500" : ""}`} />
+            </Button>
+          )}
           {p.status !== "finalizado" && (
             <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600 hover:text-green-700" title="Finalizar" onClick={() => onStatusChange(p, "finalizado")}>
               <CheckCircle2 className="w-4 h-4" />

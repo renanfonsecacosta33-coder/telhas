@@ -32,7 +32,7 @@ export default function Desbobinadeira() {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
-  const isGestor = user?.role === "admin" || user?.full_name?.toLowerCase().includes("hudson");
+  const isGestor = user?.role === "admin" || user?.role === "super_admin" || user?.gerencia === true || user?.full_name?.toLowerCase().includes("hudson");
   const maquinaDoUsuario = user?.maquina;
   const isOperadorRestrito = user && !isGestor;
 

@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, TrendingUp, Trash2 } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, TrendingUp, Trash2, Star } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Link } from "react-router-dom";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
@@ -85,6 +85,10 @@ export default function ProducaoAdmin() {
 
   const abrirOP = (p) => { setOpPedido(p); setOpOpen(true); };
 
+  const togglePrioridade = (p) => {
+    updateMutation.mutate({ id: p.id, data: { prioridade: !p.prioridade } });
+  };
+
   const confirmarDelete = (id) => {
     const p = pedidos.find(x => x.id === id);
     setDeleteConfirm(p || { id });
@@ -99,7 +103,7 @@ export default function ProducaoAdmin() {
 
   // Pedidos do dia selecionado
   const pedidosDia = useMemo(() => {
-    return pedidos.filter(p => p.data === selectedDay);
+    return pedidos.filter(p => p.data === selectedDay).sort((a, b) => (b.prioridade ? 1 : 0) - (a.prioridade ? 1 : 0));
   }, [pedidos, selectedDay]);
 
   const totalSemana = pedidosSemana.reduce((s, p) => s + (p.metros || 0), 0);
@@ -236,7 +240,7 @@ export default function ProducaoAdmin() {
           ) : (
             <div className="space-y-2">
               {pedidos.filter(p => p.maquina === "COLAGEM").sort((a, b) => b.data?.localeCompare(a.data)).map(p => (
-                <PedidoCard key={p.id} pedido={p} maquinaCores={MAQUINA_CORES} onEdit={(p) => { setEditItem(p); setDialogOpen(true); }} onDelete={confirmarDelete} onStatusChange={(p, status) => updateMutation.mutate({ id: p.id, data: { ...p, status } })} onPrintOP={abrirOP} />
+                <PedidoCard key={p.id} pedido={p} maquinaCores={MAQUINA_CORES} onEdit={(p) => { setEditItem(p); setDialogOpen(true); }} onDelete={confirmarDelete} onStatusChange={(p, status) => updateMutation.mutate({ id: p.id, data: { ...p, status } })} onPrintOP={abrirOP} onTogglePrioridade={togglePrioridade} />
               ))}
             </div>
           )}
@@ -390,7 +394,7 @@ export default function ProducaoAdmin() {
                 ) : (
                   <div className="divide-y divide-border">
                     {pedidosMaquina.map(p => (
-                      <PedidoCard key={p.id} pedido={p} maquinaCores={MAQUINA_CORES} onEdit={openEdit} onDelete={confirmarDelete} onStatusChange={(p, status) => updateMutation.mutate({ id: p.id, data: { ...p, status } })} onPrintOP={abrirOP} />
+                      <PedidoCard key={p.id} pedido={p} maquinaCores={MAQUINA_CORES} onEdit={openEdit} onDelete={confirmarDelete} onStatusChange={(p, status) => updateMutation.mutate({ id: p.id, data: { ...p, status } })} onPrintOP={abrirOP} onTogglePrioridade={togglePrioridade} />
                     ))}
                   </div>
                 )}

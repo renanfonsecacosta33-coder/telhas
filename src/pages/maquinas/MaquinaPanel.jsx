@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Circle, ChevronLeft, ChevronRight, ArrowLeft, BarChart2, Plus } from "lucide-react";
+import { Circle, ChevronLeft, ChevronRight, ArrowLeft, BarChart2, Plus, Star } from "lucide-react";
 import { format, addDays, subDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -86,8 +86,16 @@ export default function MaquinaPanel({ maquina }) {
 
   const ordenados = useMemo(() => {
     const order = { em_producao: 0, pausado: 1, pendente: 2, aguardando_colagem: 3, finalizado: 4, cancelado: 5 };
-    return [...pedidosDia].sort((a, b) => (order[a.status] ?? 2) - (order[b.status] ?? 2));
+    return [...pedidosDia].sort((a, b) => {
+      const pri = (b.prioridade ? 1 : 0) - (a.prioridade ? 1 : 0);
+      if (pri !== 0) return pri;
+      return (order[a.status] ?? 2) - (order[b.status] ?? 2);
+    });
   }, [pedidosDia]);
+
+  const togglePrioridade = (pedido) => {
+    updateMutation.mutate({ id: pedido.id, data: { prioridade: !pedido.prioridade } });
+  };
 
   // Próximos dias com pedidos
   const diasComPedidos = useMemo(() => {
@@ -233,7 +241,16 @@ export default function MaquinaPanel({ maquina }) {
       ) : (
         <div className="space-y-4">
           {ordenados.map(p => (
-            <PedidoRow key={p.id} pedido={p} onStatusChange={handleStatusChange} onUpdate={handleStatusChange} />
+            <div key={p.id}>
+              {p.status !== "finalizado" && p.status !== "cancelado" && (
+                <div className="flex justify-end mb-1">
+                  <Button size="sm" variant="ghost" className={`text-xs h-6 px-2 ${p.prioridade ? "text-amber-600 font-bold" : "text-muted-foreground"}`} onClick={() => togglePrioridade(p)}>
+                    <Star className={`w-3 h-3 mr-1 ${p.prioridade ? "fill-amber-500 text-amber-500" : ""}`} /> {p.prioridade ? "Prioritário" : "Prioridade"}
+                  </Button>
+                </div>
+              )}
+              <PedidoRow pedido={p} onStatusChange={handleStatusChange} onUpdate={handleStatusChange} />
+            </div>
           ))}
         </div>
       )}
