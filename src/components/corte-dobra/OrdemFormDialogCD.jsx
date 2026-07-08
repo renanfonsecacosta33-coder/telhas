@@ -11,7 +11,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
-import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X, DollarSign } from "lucide-react";
+import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X, DollarSign, Star } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 
 function labelBobina(b) {
@@ -67,6 +67,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     tamanho_corte_guilhotina: "",
     foto_pedido_url: "",
     observacoes: "",
+    prioridade: false,
   });
   const [confirmReserva, setConfirmReserva] = useState(false);
   const [uploadingFoto, setUploadingFoto] = useState(false);
@@ -102,6 +103,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         tamanho_corte_guilhotina: editItem.tamanho_corte_guilhotina || "",
         foto_pedido_url: editItem.foto_pedido_url || "",
         observacoes: editItem.observacoes || "",
+        prioridade: editItem.prioridade || false,
       });
     } else {
       setForm({
@@ -116,6 +118,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         tamanho_corte_guilhotina: "",
         foto_pedido_url: "",
         observacoes: "",
+        prioridade: false,
       });
     }
   }, [open, editItem, defaultDate]);
@@ -495,6 +498,22 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Prioridade */}
+          {isGestor && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => set("prioridade", !form.prioridade)}
+                className={`flex items-center gap-2 rounded-lg border-2 px-3 py-2 transition-all ${form.prioridade ? "border-amber-500 bg-amber-50" : "border-border bg-card hover:border-amber-300"}`}
+              >
+                <Star className={`w-4 h-4 ${form.prioridade ? "fill-amber-500 text-amber-500" : "text-muted-foreground"}`} />
+                <span className={`text-sm font-semibold ${form.prioridade ? "text-amber-700" : "text-muted-foreground"}`}>
+                  {form.prioridade ? "OP Prioritária" : "Marcar como prioridade"}
+                </span>
+              </button>
             </div>
           )}
 
