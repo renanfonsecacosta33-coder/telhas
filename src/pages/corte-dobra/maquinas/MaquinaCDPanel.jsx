@@ -322,9 +322,11 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
                             {o.status === "pendente" && (
                               <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
                             )}
+                            {o.status === "finalizado" && (
                             <Button size="sm" variant="ghost" className="text-xs text-red-600 h-6 px-2 hover:bg-red-50" onClick={() => { setOrdemRetrabalho(o); setDialogRetrabalho(true); }}>
                               <AlertTriangle className="w-3 h-3 mr-1" /> Retrabalho
                             </Button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -371,9 +373,11 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
                       {o.status === "pendente" && (
                         <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
                       )}
+                      {o.status === "finalizado" && (
                       <Button size="sm" variant="ghost" className="text-xs text-red-600 h-6 px-2 hover:bg-red-50" onClick={() => { setOrdemRetrabalho(o); setDialogRetrabalho(true); }}>
                         <AlertTriangle className="w-3 h-3 mr-1" /> Retrabalho
                       </Button>
+                      )}
                     </div>
                   )}
                 </div>
