@@ -9,7 +9,8 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
-import { Layers, Package } from "lucide-react";
+import { Layers, Package, Camera } from "lucide-react";
+import UploadButton from "@/components/ui/UploadButton";
 
 // etapa: "corte" | "dobra" | "ambas" | "perfiladeira"
 const TIPOS_PECA = [
@@ -60,7 +61,11 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     quantidade: "",
     peso_kg: "",
     observacoes: "",
+    foto_pedido_url: "",
   });
+  const fotoPedidoRef = useRef();
+  const fotoPedidoScanRef = useRef();
+  const [uploadingFoto, setUploadingFoto] = useState(false);
 
   const { filialAtiva } = useFilial();
 
@@ -105,6 +110,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         quantidade: editItem.quantidade || "",
         peso_kg: editItem.peso_kg || "",
         observacoes: editItem.observacoes || "",
+        foto_pedido_url: editItem.foto_pedido_url || "",
         desenvolvimento_id: editItem.desenvolvimento_id || "",
         desenvolvimento_descricao: editItem.desenvolvimento_descricao || "",
         ordem_dobra_maquina: editItem.ordem_dobra_maquina || "",
@@ -124,6 +130,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         quantidade: "",
         peso_kg: "",
         observacoes: "",
+        foto_pedido_url: "",
         desenvolvimento_id: "",
         desenvolvimento_descricao: "",
         ordem_dobra_maquina: "",
@@ -217,6 +224,18 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
 
     set("peso_kg", String(Math.round(pesoTotal * 10) / 10));
   }, [form.quantidade, form.tipo_peca, bobinaObj?.id]);
+
+  const handleUploadFotoPedido = async (file) => {
+    if (!file) return;
+    setUploadingFoto(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      set("foto_pedido_url", file_url);
+    } catch (e) {
+      alert("Erro ao enviar foto: " + e.message);
+    }
+    setUploadingFoto(false);
+  };
 
   const handleSave = async () => {
     if (!form.maquina) { alert("Selecione a máquina."); return; }
@@ -502,6 +521,28 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
           <div className="space-y-1">
             <Label>Cliente</Label>
             <Input placeholder="Nome do cliente" value={form.cliente} onChange={e => set("cliente", e.target.value)} />
+          </div>
+
+          <div className="space-y-1">
+            <Label>Foto do Pedido (Encarregado)</Label>
+            <input ref={fotoPedidoRef} type="file" accept="image/*" capture="environment" className="hidden"
+              onChange={e => handleUploadFotoPedido(e.target.files[0])} />
+            <input ref={fotoPedidoScanRef} type="file" accept="image/*" className="hidden"
+              onChange={e => handleUploadFotoPedido(e.target.files[0])} />
+            {form.foto_pedido_url ? (
+              <div className="relative rounded-lg overflow-hidden border-2 border-blue-300">
+                <img src={form.foto_pedido_url} alt="Foto do pedido" className="w-full max-h-40 object-cover" />
+                <button type="button" onClick={() => set("foto_pedido_url", "")}
+                  className="absolute top-1.5 right-1.5 bg-red-500 text-white text-xs px-2 py-1 rounded-lg hover:bg-red-600">
+                  Remover
+                </button>
+                <div className="absolute top-1.5 left-1.5 text-[10px] font-bold rounded-full flex items-center gap-0.5 bg-blue-600 text-white px-2 py-0.5">
+                  <Camera className="w-3 h-3" /> Foto do Pedido
+                </div>
+              </div>
+            ) : (
+              <UploadButton label="Anexar Foto do Pedido" icon={Camera} cameraRef={fotoPedidoRef} fileRef={fotoPedidoScanRef} uploading={uploadingFoto} size="default" variant="outline" />
+            )}
           </div>
 
           <div className="space-y-1">
