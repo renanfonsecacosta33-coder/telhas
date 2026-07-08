@@ -10,6 +10,7 @@ import CalculadoraVendedor from "@/components/vendedor/CalculadoraVendedor";
 import VendedorChapas from "@/components/vendedor/VendedorChapas";
 import VendedorSlitter from "@/components/vendedor/VendedorSlitter";
 import FiliaisMultiSelect, { getFilialColor } from "@/components/vendedor/FiliaisMultiSelect";
+import ImageLink from "@/components/ui/ImageLink";
 import { useFilial } from "@/contexts/FilialContext";
 
 const SENHA = "ajl1234";
@@ -425,11 +426,11 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                     </td>
                     <td className="px-2 py-2 text-center">
                       {b.anexo_cert_url ? (
-                        <a href={b.anexo_cert_url} target="_blank" rel="noopener noreferrer"
+                        <ImageLink url={b.anexo_cert_url} name={b.anexo_cert_nome || "Certificado"}
                           className="inline-flex items-center justify-center text-blue-600 hover:text-blue-800 transition-colors"
                           title="Ver certificado digital">
                           <ShieldCheck className="w-4 h-4" />
-                        </a>
+                        </ImageLink>
                       ) : (
                         <span className="text-xs text-muted-foreground">-</span>
                       )}
