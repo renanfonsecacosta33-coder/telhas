@@ -273,6 +273,9 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
             ? `OBD: ${modDescVal.trim()}`
             : null;
           const updateData = { status: "pendente" };
+          if (o.foto_pedido_url) {
+            updateData.foto_pedido_url = o.foto_pedido_url;
+          }
           if (obsDobra) {
             updateData.observacoes = od.observacoes
               ? `${od.observacoes}\n${obsDobra}`
