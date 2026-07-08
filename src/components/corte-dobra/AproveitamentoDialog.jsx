@@ -10,11 +10,15 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { parseEspessura } from "@/components/corte-dobra/CorChapaDot";
 
+const DOBRADEIRAS = ["DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M"];
+
 /**
  * Dialog pós-finalização da guilhotina:
  * 1) Pergunta se houve aproveitamento (SIM | NÃO)
- * 2) Se SIM → seleciona o perfil (a espessura vem da bobina já selecionada) → cria OP de dobra
- * 3) Se NÃO → chama onConfirm() para seguir o fluxo normal
+ * 2) Se SIM → seleciona perfil + dobradeira (encarregado escolhe) + quantidade → cria OP de dobra
+ * 3) Se NÃO → chama onConfirm() para seguir o fluxo normal (modificação de blank → finalizar)
+ *
+ * A espessura vem da bobina já selecionada na OP — não é escolhida aqui.
  */
 export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, espessuraBobina, onConfirm }) {
   const [step, setStep] = useState("pergunta"); // pergunta | form | saving
@@ -22,10 +26,8 @@ export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, e
   const [loadingApr, setLoadingApr] = useState(false);
 
   const [perfilSel, setPerfilSel] = useState("");
+  const [dobradeiraSel, setDobradeiraSel] = useState("");
   const [quantidade, setQuantidade] = useState("");
-
-  // Maquina de dobra a partir da guilhotina de origem
-  const maquinaDobra = ordemGuilhotina?.maquina === "CORTE 3M" ? "DOBRA 3M" : "DOBRA FUNDO 6M";
 
   // Filtra aproveitamentos pela espessura da bobina
   const aprFiltrados = useMemo(() => {
@@ -49,7 +51,7 @@ export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, e
   }, [espessuraBobina]);
 
   useEffect(() => {
-    if (!open) { setStep("pergunta"); setPerfilSel(""); setQuantidade(""); }
+    if (!open) { setStep("pergunta"); setPerfilSel(""); setDobradeiraSel(""); setQuantidade(""); }
   }, [open]);
 
   useEffect(() => {
@@ -68,8 +70,8 @@ export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, e
   const handleSim = () => setStep("form");
 
   const handleCriarOP = async () => {
-    if (!perfilSel || !quantidade || Number(quantidade) <= 0) {
-      toast.error("Preencha o perfil e a quantidade.");
+    if (!perfilSel || !dobradeiraSel || !quantidade || Number(quantidade) <= 0) {
+      toast.error("Preencha o perfil, a dobradeira e a quantidade.");
       return;
     }
     setStep("saving");
@@ -79,7 +81,7 @@ export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, e
       await base44.entities.OrdemMaquinaCD.create({
         unidade: ordemGuilhotina?.unidade || "Matriz AJL",
         data: format(new Date(), "yyyy-MM-dd"),
-        maquina: maquinaDobra,
+        maquina: dobradeiraSel,
         chapa_origem: "chaparia",
         tipo_peca: perfilSel,
         dimensoes_livres: `Esp ${espessuraLabel} | Dev ${comprimento}mm`,
@@ -91,7 +93,7 @@ export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, e
         is_retrabalho: false,
         prioridade: false,
       });
-      toast.success(`OP de aproveitamento criada para ${maquinaDobra}!`);
+      toast.success(`OP de aproveitamento criada para ${dobradeiraSel}!`);
       onClose();
       onConfirm();
     } catch (e) {
@@ -175,6 +177,21 @@ export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, e
                   )}
                 </div>
 
+                {/* Dobradeira — encarregado escolhe */}
+                <div>
+                  <Label className="text-sm font-medium mb-1 block">Dobradeira de destino</Label>
+                  <Select value={dobradeiraSel} onValueChange={setDobradeiraSel}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="O encarregado deve escolher a dobradeira..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DOBRADEIRAS.map(d => (
+                        <SelectItem key={d} value={d}>{d}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {comprimento && (
                   <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-sm text-emerald-800">
                     Comprimento desenvolvido: <strong>{comprimento} mm</strong>
@@ -193,7 +210,7 @@ export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, e
                 </div>
 
                 <div className="bg-muted/50 rounded-lg px-3 py-2 text-xs text-muted-foreground">
-                  Será criada uma OP para <strong>{maquinaDobra}</strong> sem número de pedido.
+                  Será criada uma OP para <strong>{dobradeiraSel || "a dobradeira escolhida"}</strong> sem número de pedido.
                 </div>
               </div>
             )}
@@ -203,7 +220,7 @@ export default function AproveitamentoDialog({ open, onClose, ordemGuilhotina, e
               <Button
                 className="bg-emerald-600 hover:bg-emerald-700 gap-2"
                 onClick={handleCriarOP}
-                disabled={!perfilSel || !quantidade}
+                disabled={!perfilSel || !dobradeiraSel || !quantidade}
               >
                 <CheckCircle2 className="w-4 h-4" /> Criar OP de Aproveitamento
               </Button>

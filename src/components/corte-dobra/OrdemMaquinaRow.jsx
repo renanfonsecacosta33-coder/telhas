@@ -243,6 +243,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
       await descontarEstoques();
       const prodSeg = calcularProdSeg();
       setPendingProdSeg(prodSeg);
+      setPendingFotoUrl(null);
       setModBlank(false);
       setModDescricao("");
       setAproveitamentoDialog(true);
@@ -251,9 +252,9 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
     setFotoDialog(true);
   };
 
-  // Chamado após o dialog de aproveitamento (SIM ou NÃO)
+  // Chamado após o dialog de aproveitamento (SIM ou NÃO) — abre modificação de blank
   const handleAproveitamentoConfirm = () => {
-    finalizarOrdem(null, pendingProdSeg, false, "");
+    setModificacaoDialog(true);
   };
 
   const handleUploadFoto = async (file) => {
