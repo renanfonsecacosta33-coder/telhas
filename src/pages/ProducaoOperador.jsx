@@ -455,6 +455,19 @@ export default function ProducaoOperador({ maquina, userName }) {
                       </Button>
                     )}
 
+                    {/* Aguardando Colagem → Iniciar Colagem */}
+                    {p.status === "aguardando_colagem" && (
+                      <Button
+                        size="sm"
+                        className="flex-1 gap-1 bg-amber-500 hover:bg-amber-600 text-white border-0"
+                        disabled={updateMutation.isPending}
+                        onClick={() => handleIniciar(p)}
+                      >
+                        <Play className="w-3 h-3" />
+                        Iniciar Colagem
+                      </Button>
+                    )}
+
                     {/* Em Produção → Pausar */}
                     {p.status === "em_producao" && (
                       <Button
