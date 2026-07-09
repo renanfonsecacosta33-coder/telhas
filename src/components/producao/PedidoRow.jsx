@@ -643,6 +643,12 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
             </Button>
           )}
 
+          {p.status === "aguardando_colagem" && p.maquina === "COLAGEM" && (
+            <Button size="sm" className="gap-1 bg-amber-500 hover:bg-amber-600 text-white border-0" onClick={handleIniciar}>
+              <Play className="w-3 h-3" /> Iniciar Colagem
+            </Button>
+          )}
+
           {p.status === "aguardando_colagem" && (
             <Button size="sm" variant="outline" className="gap-1 text-amber-600 border-amber-300 hover:bg-amber-50" onClick={() => onStatusChange(p, "pendente", { inicio_producao_ts: null })}>
               ↩ Retornar
