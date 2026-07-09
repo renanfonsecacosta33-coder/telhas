@@ -36,6 +36,17 @@ const MAQUINA_ROUTE_MAP = {
   "COLAGEM": "/maquina/colagem",
 };
 
+function parseMaquinas(maquina) {
+  if (!maquina) return [];
+  try {
+    const parsed = JSON.parse(maquina);
+    if (Array.isArray(parsed)) return parsed;
+    return [parsed];
+  } catch {
+    return [maquina];
+  }
+}
+
 export default function Sidebar({ isOpen, onToggle }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -138,11 +149,13 @@ export default function Sidebar({ isOpen, onToggle }) {
               <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mb-3">
                 Minha Máquina
               </p>
-              {user?.maquina && MAQUINA_ROUTE_MAP[user.maquina] && renderLink({
-                path: MAQUINA_ROUTE_MAP[user.maquina],
-                label: user.maquina,
-                icon: Factory,
-              })}
+              {parseMaquinas(user?.maquina)
+                .filter(m => MAQUINA_ROUTE_MAP[m])
+                .map(m => renderLink({
+                  path: MAQUINA_ROUTE_MAP[m],
+                  label: m,
+                  icon: Factory,
+                }))}
               {renderLink({ path: "/calculadora-isopor", label: "Calculadora Isopor", icon: Snowflake })}
               <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mt-5 mb-3">
                 Reservas
