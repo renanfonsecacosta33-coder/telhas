@@ -158,28 +158,30 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     }
   }, [open, editItem, defaultDate]);
 
-  // Auto-selecionar modelo padrão da máquina quando a máquina estiver preset e o modelo vazio
+  // Modelo sincronizado com a máquina — deriva automaticamente do cadastro
+  const modeloAutoObj = useMemo(() => {
+    if (!form.maquina || modelosCad.length === 0) return null;
+    const maquinaNorm = form.maquina.toUpperCase().replace(/\s/g, "");
+    return modelosCad.find(m => {
+      const mNorm = (m.maquinas || "").toUpperCase().replace(/\s/g, "");
+      const modNorm = (m.modelo || "").toUpperCase().replace(/\s/g, "");
+      return mNorm.includes(maquinaNorm) || modNorm.includes(maquinaNorm);
+    }) || null;
+  }, [form.maquina, modelosCad]);
+
   useEffect(() => {
-    if (open && form.maquina && !form.modelo && modelosCad.length > 0) {
-      const maquinaNorm = form.maquina.toUpperCase().replace(/\s/g, "");
-      const modeloMatch = modelosCad.find(m => {
-        const mNorm = (m.maquinas || "").toUpperCase().replace(/\s/g, "");
-        const modNorm = (m.modelo || "").toUpperCase().replace(/\s/g, "");
-        return mNorm.includes(maquinaNorm) || modNorm.includes(maquinaNorm);
-      });
-      if (modeloMatch) {
-        let epsAuto = "";
-        const vUp = (modeloMatch.modelo || "").toUpperCase();
-        if (vUp.includes("TP-25") || vUp.includes("TP25")) epsAuto = "EPS - TP 25";
-        else if (vUp.includes("BANDEJA")) epsAuto = "EPS - TP 40 BANDEJA";
-        else if (vUp.includes("TP-40") || vUp.includes("TP40")) epsAuto = "EPS - TP 40";
-        else if (vUp.includes("COLONIAL BANDEJA")) epsAuto = "EPS - COLONIAL BANDEJA";
-        else if (vUp.includes("COLONIAL")) epsAuto = "EPS - COLONIAL";
-        else if (vUp.includes("ONDULAD")) epsAuto = "EPS - ONDULADO";
-        setForm(f => ({ ...f, modelo: modeloMatch.modelo, eps: epsAuto || f.eps }));
-      }
+    if (open && form.maquina && modeloAutoObj && modeloAutoObj.modelo !== form.modelo) {
+      let epsAuto = "";
+      const vUp = (modeloAutoObj.modelo || "").toUpperCase();
+      if (vUp.includes("TP-25") || vUp.includes("TP25")) epsAuto = "EPS - TP 25";
+      else if (vUp.includes("BANDEJA")) epsAuto = "EPS - TP 40 BANDEJA";
+      else if (vUp.includes("TP-40") || vUp.includes("TP40")) epsAuto = "EPS - TP 40";
+      else if (vUp.includes("COLONIAL BANDEJA")) epsAuto = "EPS - COLONIAL BANDEJA";
+      else if (vUp.includes("COLONIAL")) epsAuto = "EPS - COLONIAL";
+      else if (vUp.includes("ONDULAD")) epsAuto = "EPS - ONDULADO";
+      setForm(f => ({ ...f, modelo: modeloAutoObj.modelo, eps: epsAuto || f.eps }));
     }
-  }, [open, form.maquina, form.modelo, modelosCad]);
+  }, [open, modeloAutoObj, form.modelo]);
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
@@ -363,51 +365,18 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
             </div>
           </div>
 
-          {/* Modelo — select do cadastro (substitui Máquina) */}
+          {/* Modelo — sincronizado automaticamente com a máquina */}
           <div className="space-y-1">
-            <Label>Modelo *</Label>
-            <Select
-              value={form.modelo}
-              onValueChange={(v) => {
-                const modeloObj = modelosCad.find((m) => m.modelo === v);
-                let maquinaAuto = modeloObj?.maquinas?.split(",")[0]?.trim() || "";
-                // TELHA BANDEJA: define máquina inicial pelo modelo
-                if (form.produto === "TELHA BANDEJA") {
-                  const vUp = v.toUpperCase();
-                  if (vUp.includes("COLONIAL")) maquinaAuto = "COLONIAL";
-                  else if (vUp.includes("TP") && vUp.includes("40")) maquinaAuto = "TP - 40";
-                }
-                // Deriva EPS automaticamente a partir do modelo
-                // Ex: "TP - 40" → "EPS - TP 40", "COLONIAL" → "EPS - COLONIAL"
-                let epsAuto = "";
-                if (v) {
-                  const vUp = v.toUpperCase();
-                  if (vUp.includes("TP - 25") || vUp.includes("TP25") || vUp.includes("TP-25")) epsAuto = "EPS - TP 25";else
-                  if (vUp.includes("BANDEJA")) epsAuto = "EPS - TP 40 BANDEJA";else
-                  if (vUp.includes("TP - 40") || vUp.includes("TP40") || vUp.includes("TP-40")) epsAuto = "EPS - TP 40";else
-                  if (vUp.includes("COLONIAL BANDEJA")) epsAuto = "EPS - COLONIAL BANDEJA";else
-                  if (vUp.includes("COLONIAL")) epsAuto = "EPS - COLONIAL";else
-                  if (vUp.includes("ONDULAD")) epsAuto = "EPS - ONDULADO";
-                }
-                setForm((f) => ({ ...f, modelo: v, maquina: maquinaAuto, eps: epsAuto || f.eps }));
-              }}>
-              
-              <SelectTrigger><SelectValue placeholder={form.produto ? "Selecione o modelo..." : "Selecione o produto primeiro"} /></SelectTrigger>
-              <SelectContent>
-                {modelosFiltrados.map((m) =>
-                <SelectItem key={m.id} value={m.modelo}>
-                    <span className="font-medium">{m.modelo}</span>
-                    {m.espessuras && <span className="text-muted-foreground text-xs ml-2">· {m.espessuras}</span>}
-                  </SelectItem>
-                )}
-                {modelosFiltrados.length === 0 &&
-                <SelectItem value="_nenhum" disabled>Nenhum modelo cadastrado para este produto</SelectItem>
-                }
-              </SelectContent>
-            </Select>
-            {form.maquina &&
-            <p className="text-xs text-muted-foreground">Máquina: <strong>{form.maquina}</strong></p>
-            }
+            <Label>Modelo</Label>
+            <div className="flex items-center gap-3 border border-border rounded-md px-3 py-2 bg-muted/30">
+              <span className="font-semibold text-sm">{form.modelo || <span className="text-muted-foreground">Sincronizado com a máquina</span>}</span>
+              {modeloAutoObj?.espessuras && (
+                <span className="text-xs text-muted-foreground">· {modeloAutoObj.espessuras}</span>
+              )}
+              {form.maquina && (
+                <span className="ml-auto text-xs text-muted-foreground">Máquina: <strong className="text-foreground">{form.maquina}</strong></span>
+              )}
+            </div>
           </div>
 
           {/* Vendedor / Cliente / Pedido */}
