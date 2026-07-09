@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import PedidoRow from "@/components/producao/PedidoRow";
 import PedidoFormDialog from "@/components/producao/PedidoFormDialog";
 import { useFilial } from "@/contexts/FilialContext";
+import { playAlertSound, speakNovaOp, playFinishSound, speakOpFinalizada } from "@/lib/sounds";
 
 
 
@@ -49,6 +50,24 @@ export default function MaquinaPanel({ maquina }) {
     refetchInterval: 10000,
   });
 
+  // Detectar novas OPs e anunciar por voz
+  const prevOrderIds = useRef(new Set());
+  useEffect(() => {
+    if (!pedidos || pedidos.length === 0) {
+      prevOrderIds.current = new Set();
+      return;
+    }
+    const currentIds = new Set(pedidos.map(p => p.id));
+    const newOrders = pedidos.filter(p => !prevOrderIds.current.has(p.id));
+    if (prevOrderIds.current.size > 0 && newOrders.length > 0) {
+      playAlertSound();
+      newOrders.forEach(p => {
+        speakNovaOp(p.maquina, p.numero_pedido);
+      });
+    }
+    prevOrderIds.current = currentIds;
+  }, [pedidos]);
+
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Pedido.update(id, data),
     onSuccess: () => {
@@ -68,13 +87,28 @@ export default function MaquinaPanel({ maquina }) {
 
   const handleStatusChange = (pedido, novoStatus, extraData = {}) => {
     const data = { ...pedido, status: novoStatus, ...extraData };
+    if (novoStatus === "finalizado") {
+      playFinishSound();
+      speakOpFinalizada(pedido.maquina, pedido.numero_pedido);
+    }
     updateMutation.mutate({ id: pedido.id, data });
   };
 
   // Pedidos que "passaram" por esta máquina (foram para outra após aqui)
   // Busca também pedidos com histórico nesta máquina
+  // No dia de hoje, inclui também pedidos atrasados (não finalizados/cancelados)
   const pedidosDia = useMemo(() => {
-    return pedidos.filter(p => p.data === selectedDay || p.status === "pausado" || p.status === "em_producao");
+    const hoje = format(new Date(), "yyyy-MM-dd");
+    const isHoje = selectedDay === hoje;
+    if (!isHoje) {
+      return pedidos.filter(p => p.data === selectedDay || p.status === "pausado" || p.status === "em_producao");
+    }
+    return pedidos.filter(p =>
+      p.data === selectedDay ||
+      p.status === "pausado" ||
+      p.status === "em_producao" ||
+      (p.data < hoje && p.status !== "finalizado" && p.status !== "cancelado")
+    );
   }, [pedidos, selectedDay]);
 
   const hoje = isToday(new Date(selectedDay + "T12:00:00"));
@@ -92,10 +126,14 @@ export default function MaquinaPanel({ maquina }) {
   const pendentes = pedidosDia.filter(p => p.status === "pendente").length;
 
   const ordenados = useMemo(() => {
+    const hoje = format(new Date(), "yyyy-MM-dd");
     const order = { em_producao: 0, pausado: 1, pendente: 2, aguardando_colagem: 3, finalizado: 4, cancelado: 5 };
     return [...pedidosDia].sort((a, b) => {
       const pri = (b.prioridade ? 1 : 0) - (a.prioridade ? 1 : 0);
       if (pri !== 0) return pri;
+      const aAtrasado = a.data < hoje ? 0 : 1;
+      const bAtrasado = b.data < hoje ? 0 : 1;
+      if (aAtrasado !== bAtrasado) return aAtrasado - bAtrasado;
       return (order[a.status] ?? 2) - (order[b.status] ?? 2);
     });
   }, [pedidosDia]);

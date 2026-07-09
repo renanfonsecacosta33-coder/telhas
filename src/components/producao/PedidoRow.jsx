@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee } from "lucide-react";
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
+import ValidacaoEtiquetaTelhasDialog from "@/components/producao/ValidacaoEtiquetaTelhasDialog";
+import { playFinishSound, speakOpFinalizada } from "@/lib/sounds";
 
 const PRODUTO_BG = {
   "TELHA":               "border-l-blue-400",
@@ -137,6 +139,7 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
   const [telhaSupOk, setTelhaSupOk] = useState(false);
   const [telhaInfOk, setTelhaInfOk] = useState(false);
   const [tick, setTick] = useState(0);
+  const [validacaoEtiquetaOpen, setValidacaoEtiquetaOpen] = useState(false);
   const intervalRef = useRef(null);
 
   // Tick a cada segundo para atualizar cronômetro ao vivo
@@ -181,9 +184,24 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
   }
 
   const handleIniciar = () => {
-    // Se é colagem, marca que começou a colagem (não reabrir)
+    // Validação de etiqueta obrigatória antes de iniciar (exceto colagem)
+    if (p.maquina !== "COLAGEM" && p.validacao_etiqueta_status !== "aprovado") {
+      setValidacaoEtiquetaOpen(true);
+      return;
+    }
     const updates = {
       inicio_producao_ts: new Date().toISOString(),
+    };
+    onStatusChange(p, "em_producao", updates);
+  };
+
+  const handleEtiquetaAprovada = (fotoUrl, motivo) => {
+    setValidacaoEtiquetaOpen(false);
+    const updates = {
+      inicio_producao_ts: new Date().toISOString(),
+      foto_etiqueta_bobina_url: fotoUrl,
+      validacao_etiqueta_status: "aprovado",
+      validacao_etiqueta_motivo: motivo,
     };
     onStatusChange(p, "em_producao", updates);
   };
@@ -280,6 +298,8 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
           await base44.entities.Isopor.update(isoporItem.id, { quantidade: novaQtd });
         }
       }
+      playFinishSound();
+      speakOpFinalizada(p.maquina, p.numero_pedido);
       onStatusChange(p, "finalizado", {
         tempo_colagem_seg: colagSeg,
         metragem_utilizada: metragemRealNum,
@@ -339,6 +359,10 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
 
     // Produto sem colagem → finaliza direto; com colagem → vai pra COLAGEM
     const novoStatus = precisaColagem ? "aguardando_colagem" : "finalizado";
+    if (novoStatus === "finalizado") {
+      playFinishSound();
+      speakOpFinalizada(p.maquina, p.numero_pedido);
+    }
     onStatusChange(p, novoStatus, {
       tempo_producao_seg: prodSeg,
       metragem_utilizada: metragemRealNum,
@@ -606,6 +630,14 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
           )}
         </div>
       </div>
+
+      {/* Dialog de validação de etiqueta */}
+      <ValidacaoEtiquetaTelhasDialog
+        open={validacaoEtiquetaOpen}
+        onClose={() => setValidacaoEtiquetaOpen(false)}
+        pedido={p}
+        onAprovado={handleEtiquetaAprovada}
+      />
 
       {/* Dialog de pausa */}
       <Dialog open={pauseDialog} onOpenChange={setPauseDialog}>
