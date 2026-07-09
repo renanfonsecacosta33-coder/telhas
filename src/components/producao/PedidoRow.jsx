@@ -503,8 +503,8 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
             </div>
           )
         ) : (
-          // Para máquinas: Produção + Pausa + Setup
-          (p.status === "em_producao" || p.status === "pausado" || tempoProducaoVivo > 0) && (
+          // Para máquinas: Produção + Pausa + Setup — sempre visível quando em produção, pausado, ou com tempo acumulado
+          (p.status === "em_producao" || p.status === "pausado" || tempoProducaoVivo > 0 || tempoSetupVivo > 0 || tempoPausaVivo > 0) && (
             <div className="grid grid-cols-3 gap-2 mb-3">
               <div className={`rounded-lg px-3 py-2 text-center ${p.status === "em_producao" ? "bg-green-50 border border-green-200" : "bg-slate-50 border border-border"}`}>
                 <div className="flex items-center justify-center gap-1 mb-0.5">
