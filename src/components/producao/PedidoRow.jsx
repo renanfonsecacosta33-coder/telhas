@@ -4,13 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText } from "lucide-react";
+import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route } from "lucide-react";
 import ImageLink from "@/components/ui/ImageLink";
 import RetrabalhoTelhasDialog from "@/components/producao/RetrabalhoTelhasDialog";
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
 import ValidacaoEtiquetaTelhasDialog from "@/components/producao/ValidacaoEtiquetaTelhasDialog";
-import { playFinishSound, speakOpFinalizada } from "@/lib/sounds";
+import ConfirmarInicioDialog from "@/components/producao/ConfirmarInicioDialog";
+import { playFinishSound, speakOpFinalizada, playAlertSound } from "@/lib/sounds";
+import { useFilial } from "@/contexts/FilialContext";
+import { useQuery } from "@tanstack/react-query";
 
 const PRODUTO_BG = {
   "TELHA":               "border-l-blue-400",
@@ -129,7 +132,7 @@ function formatTempo(segundos) {
   return `${String(m).padStart(2, "0")}m ${String(sec).padStart(2, "0")}s`;
 }
 
-export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRole }) {
+export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRole, opRodando, maquina, user, filialAtiva, appendHistoricoFn }) {
   const isOperador = userRole === "operador";
   const podeGerenciar = !isOperador;
   const [etapasOk, setEtapasOk] = useState({});
@@ -145,7 +148,19 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
   const [tick, setTick] = useState(0);
   const [validacaoEtiquetaOpen, setValidacaoEtiquetaOpen] = useState(false);
   const [retrabalhoOpen, setRetrabalhoOpen] = useState(false);
+  const [confirmarInicioOpen, setConfirmarInicioOpen] = useState(false);
   const intervalRef = useRef(null);
+
+  // Verifica se há solicitação pendente para este pedido
+  const { data: solicitacoesPendentes = [] } = useQuery({
+    queryKey: ["solicitacao-producao-pedido", p.id],
+    queryFn: () => base44.entities.SolicitacaoProducao.filter({
+      pedido_id: p.id, status: "pendente"
+    }, "-created_date", 5),
+    enabled: !!p.id,
+    refetchInterval: 5000,
+  });
+  const aguardandoAprovacao = solicitacoesPendentes.length > 0;
 
   // Tick a cada segundo para atualizar cronômetro ao vivo
   useEffect(() => {
@@ -189,15 +204,79 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
   }
 
   const handleIniciar = () => {
+    // Se há solicitação pendente, não permite iniciar
+    if (aguardandoAprovacao) {
+      playAlertSound();
+      alert("Aguardando aprovação do encarregado para iniciar esta OP.");
+      return;
+    }
     // Validação de etiqueta obrigatória antes de iniciar (exceto colagem)
     if (p.maquina !== "COLAGEM" && p.validacao_etiqueta_status !== "aprovado") {
       setValidacaoEtiquetaOpen(true);
+      return;
+    }
+    // Se já existe OP rodando nesta máquina, mostra confirmação
+    if (opRodando && opRodando.id !== p.id && opRodando.status === "em_producao") {
+      setConfirmarInicioOpen(true);
       return;
     }
     const updates = {
       inicio_producao_ts: new Date().toISOString(),
     };
     onStatusChange(p, "em_producao", updates);
+  };
+
+  const handleConfirmarInicio = async (motivo) => {
+    setConfirmarInicioOpen(false);
+    const isRotaOuPrioridade = p.rota || p.prioridade;
+
+    // Se é rota/prioridade: notifica o encarregado e inicia
+    if (isRotaOuPrioridade) {
+      // Cria solicitação de notificação
+      try {
+        await base44.entities.SolicitacaoProducao.create({
+          unidade: filialAtiva,
+          maquina: maquina || p.maquina,
+          pedido_id: p.id,
+          pedido_info: `${p.produto} — ${p.cliente || "sem cliente"}${p.numero_pedido ? ` #${p.numero_pedido}` : ""}`,
+          operador_nome: user?.full_name || user?.email || "—",
+          operador_id: user?.id || "",
+          pedido_rodando_id: opRodando?.id || "",
+          pedido_rodando_info: opRodando ? `${opRodando.produto} — ${opRodando.cliente || ""}${opRodando.numero_pedido ? ` #${opRodando.numero_pedido}` : ""}` : "",
+          tipo: "inicio_concomitante",
+          motivo: motivo || "",
+          status: "pendente",
+        });
+      } catch {}
+
+      // Inicia a produção
+      const updates = { inicio_producao_ts: new Date().toISOString() };
+      if (appendHistoricoFn) {
+        Object.assign(updates, appendHistoricoFn(p, "inicio_concomitante", "Iniciou OP (outra já rodando)", `Outra OP rodando: ${opRodando?.produto || ""}`));
+      }
+      onStatusChange(p, "em_producao", updates);
+    } else {
+      // Não é rota/prioridade: cria solicitação e aguarda aprovação
+      try {
+        await base44.entities.SolicitacaoProducao.create({
+          unidade: filialAtiva,
+          maquina: maquina || p.maquina,
+          pedido_id: p.id,
+          pedido_info: `${p.produto} — ${p.cliente || "sem cliente"}${p.numero_pedido ? ` #${p.numero_pedido}` : ""}`,
+          operador_nome: user?.full_name || user?.email || "—",
+          operador_id: user?.id || "",
+          pedido_rodando_id: opRodando?.id || "",
+          pedido_rodando_info: opRodando ? `${opRodando.produto} — ${opRodando.cliente || ""}${opRodando.numero_pedido ? ` #${opRodando.numero_pedido}` : ""}` : "",
+          tipo: "fora_prioridade",
+          motivo: motivo,
+          status: "pendente",
+        });
+        playAlertSound();
+        alert("Solicitação enviada para o encarregado. Aguarde a aprovação para iniciar.");
+      } catch (err) {
+        alert("Erro ao enviar solicitação: " + (err.message || ""));
+      }
+    }
   };
 
   const handleEtiquetaAprovada = (fotoUrl, motivo) => {
@@ -393,7 +472,17 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="font-bold text-base">{p.produto}</span>
+              {p.rota && (
+                <Badge className="bg-red-600 text-white border-red-700 text-xs gap-1 animate-pulse">
+                  <Route className="w-3 h-3" /> ROTA
+                </Badge>
+              )}
               <StatusBadge status={p.status} />
+              {aguardandoAprovacao && (
+                <Badge className="bg-orange-500 text-white border-orange-600 text-xs gap-1">
+                  <AlertTriangle className="w-3 h-3" /> Aguard. Aprovação
+                </Badge>
+              )}
               {p.status === "aguardando_colagem" && (
                 <Badge className="bg-orange-100 text-orange-700 border-orange-300 text-xs">
                   {p.produto === "TELHA BANDEJA" && p.maquina === "BANDEJA" ? "→ Bandeja" :
@@ -660,8 +749,13 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
         {/* Ações */}
         <div className="flex items-center justify-end gap-2 mt-3">
           {p.status === "pendente" && (
-            <Button size="sm" className="gap-1 bg-amber-500 hover:bg-amber-600 text-white border-0" onClick={handleIniciar}>
-              <Play className="w-3 h-3" /> {p.maquina === "COLAGEM" ? "Iniciar Colagem" : "Iniciar"}
+            <Button
+              size="sm"
+              className={`gap-1 border-0 ${aguardandoAprovacao ? "bg-slate-300 text-slate-500 cursor-not-allowed" : p.rota ? "bg-red-500 hover:bg-red-600 text-white" : "bg-amber-500 hover:bg-amber-600 text-white"}`}
+              onClick={handleIniciar}
+              disabled={aguardandoAprovacao}
+            >
+              <Play className="w-3 h-3" /> {aguardandoAprovacao ? "Aguardando..." : p.maquina === "COLAGEM" ? "Iniciar Colagem" : "Iniciar"}
             </Button>
           )}
 
@@ -724,6 +818,16 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
         onClose={() => setRetrabalhoOpen(false)}
         pedidoOrigem={p}
         onCreate={() => setRetrabalhoOpen(false)}
+      />
+
+      {/* Dialog de confirmação de início (2ª OP) */}
+      <ConfirmarInicioDialog
+        open={confirmarInicioOpen}
+        onClose={() => setConfirmarInicioOpen(false)}
+        pedido={p}
+        pedidoRodando={opRodando}
+        isRotaOuPrioridade={p.rota || p.prioridade}
+        onConfirm={handleConfirmarInicio}
       />
 
       {/* Dialog de pausa */}

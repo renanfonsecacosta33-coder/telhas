@@ -80,3 +80,28 @@ export function speakOpFinalizada(maquina, numeroOp) {
     window.speechSynthesis.speak(utter);
   } catch {}
 }
+
+// Som urgente (solicitação do operador para o encarregado)
+export function playUrgentSound() {
+  playBeep(660, 0.15, 0.35, "sawtooth");
+  setTimeout(() => playBeep(880, 0.15, 0.35, "sawtooth"), 180);
+  setTimeout(() => playBeep(660, 0.15, 0.35, "sawtooth"), 360);
+}
+
+// Voz que fala "Atenção, solicitação de produção pendente"
+export function speakSolicitacaoPendente(maquina) {
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+  try {
+    window.speechSynthesis.cancel();
+    const frase = `Atenção. Solicitação de produção pendente. ${maquina || ""}`;
+    const utter = new SpeechSynthesisUtterance(frase);
+    utter.lang = "pt-BR";
+    utter.rate = 1.0;
+    utter.volume = 1.0;
+    utter.pitch = 0.8;
+    const voices = window.speechSynthesis.getVoices();
+    const ptVoice = voices.find(v => v.lang?.startsWith("pt"));
+    if (ptVoice) utter.voice = ptVoice;
+    window.speechSynthesis.speak(utter);
+  } catch {}
+}

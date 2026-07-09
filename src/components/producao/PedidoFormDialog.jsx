@@ -65,7 +65,9 @@ const emptyForm = {
   data_prevista: "",
   observacoes: "",
   foto_pedido_url: "",
-  variacoes_telhas: ""
+  variacoes_telhas: "",
+  rota: false,
+  prioridade: false
 };
 
 export default function PedidoFormDialog({ open, onClose, onSave, editItem, defaultDate }) {
@@ -97,7 +99,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
 
   const { data: bobinas = [] } = useQuery({
     queryKey: ["bobinas-ativas"],
-    queryFn: () => base44.entities.Bobina.filter({ arquivada: false, reservada: false }),
+    queryFn: () => base44.entities.Bobina.filter({ arquivada: false, reservada: false, setor: "telhas" }),
     enabled: open
   });
 
@@ -177,7 +179,9 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           data_prevista: editItem.data_prevista || "",
           observacoes: editItem.observacoes || "",
           foto_pedido_url: editItem.foto_pedido_url || "",
-          variacoes_telhas: editItem.variacoes_telhas || ""
+          variacoes_telhas: editItem.variacoes_telhas || "",
+          rota: editItem.rota || false,
+          prioridade: editItem.prioridade || false
         });
       } else {
         const presets = editItem?._presets || {};

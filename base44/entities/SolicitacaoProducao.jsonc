@@ -1,0 +1,90 @@
+{
+  "name": "SolicitacaoProducao",
+  "type": "object",
+  "properties": {
+    "unidade": {
+      "type": "string",
+      "enum": [
+        "Matriz AJL",
+        "Pinhais",
+        "Ivaipor\u00e3",
+        "Ponta Grossa"
+      ],
+      "default": "Matriz AJL",
+      "description": "Unidade"
+    },
+    "maquina": {
+      "type": "string",
+      "description": "M\u00e1quina onde o operador quer iniciar"
+    },
+    "pedido_id": {
+      "type": "string",
+      "description": "ID do pedido que o operador quer iniciar"
+    },
+    "pedido_info": {
+      "type": "string",
+      "description": "Snapshot: produto, cliente, n\u00famero"
+    },
+    "operador_nome": {
+      "type": "string",
+      "description": "Nome do operador"
+    },
+    "operador_id": {
+      "type": "string",
+      "description": "ID do operador"
+    },
+    "pedido_rodando_id": {
+      "type": "string",
+      "description": "ID do pedido que j\u00e1 est\u00e1 em produ\u00e7\u00e3o nesta m\u00e1quina"
+    },
+    "pedido_rodando_info": {
+      "type": "string",
+      "description": "Snapshot do pedido que j\u00e1 est\u00e1 rodando"
+    },
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "inicio_concomitante",
+        "fora_prioridade"
+      ],
+      "description": "Tipo: iniciar junto (rota/prioridade) ou fora da rota/prioridade"
+    },
+    "motivo": {
+      "type": "string",
+      "description": "Motivo informado pelo operador"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pendente",
+        "aprovada",
+        "recusada"
+      ],
+      "default": "pendente",
+      "description": "Status da solicita\u00e7\u00e3o"
+    },
+    "resposta_admin": {
+      "type": "string",
+      "description": "Mensagem do encarregado"
+    },
+    "admin_nome": {
+      "type": "string",
+      "description": "Nome do encarregado que avaliou"
+    },
+    "data_avaliacao": {
+      "type": "string",
+      "description": "Data da avalia\u00e7\u00e3o"
+    }
+  },
+  "required": [
+    "maquina",
+    "pedido_id",
+    "operador_nome"
+  ],
+  "rls": {
+    "create": {},
+    "read": {},
+    "update": {},
+    "delete": {}
+  }
+}
