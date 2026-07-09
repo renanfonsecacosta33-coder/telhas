@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee } from "lucide-react";
+import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle } from "lucide-react";
+import RetrabalhoTelhasDialog from "@/components/producao/RetrabalhoTelhasDialog";
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
 import ValidacaoEtiquetaTelhasDialog from "@/components/producao/ValidacaoEtiquetaTelhasDialog";
@@ -127,7 +128,9 @@ function formatTempo(segundos) {
   return `${String(m).padStart(2, "0")}m ${String(sec).padStart(2, "0")}s`;
 }
 
-export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
+export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRole }) {
+  const isOperador = userRole === "operador";
+  const podeGerenciar = !isOperador;
   const [etapasOk, setEtapasOk] = useState({});
   const [mostrarEtapas, setMostrarEtapas] = useState(false);
   const [pauseDialog, setPauseDialog] = useState(false);
@@ -140,6 +143,7 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
   const [telhaInfOk, setTelhaInfOk] = useState(false);
   const [tick, setTick] = useState(0);
   const [validacaoEtiquetaOpen, setValidacaoEtiquetaOpen] = useState(false);
+  const [retrabalhoOpen, setRetrabalhoOpen] = useState(false);
   const intervalRef = useRef(null);
 
   // Tick a cada segundo para atualizar cronômetro ao vivo
@@ -623,10 +627,15 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
             </Button>
           )}
 
-          {p.status === "finalizado" && p.maquina !== "COLAGEM" && (
-            <Button size="sm" variant="outline" className="gap-1 text-slate-500" onClick={() => onStatusChange(p, "pendente", { inicio_producao_ts: null })}>
-              ↩ Reabrir
-            </Button>
+          {p.status === "finalizado" && p.maquina !== "COLAGEM" && podeGerenciar && (
+            <>
+              <Button size="sm" variant="outline" className="gap-1 text-slate-500" onClick={() => onStatusChange(p, "pendente", { inicio_producao_ts: null })}>
+                ↩ Reabrir
+              </Button>
+              <Button size="sm" variant="outline" className="gap-1 border-red-300 text-red-600 hover:bg-red-50" onClick={() => setRetrabalhoOpen(true)}>
+                <AlertTriangle className="w-3 h-3" /> Retrabalho
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -637,6 +646,14 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate }) {
         onClose={() => setValidacaoEtiquetaOpen(false)}
         pedido={p}
         onAprovado={handleEtiquetaAprovada}
+      />
+
+      {/* Dialog de retrabalho */}
+      <RetrabalhoTelhasDialog
+        open={retrabalhoOpen}
+        onClose={() => setRetrabalhoOpen(false)}
+        pedidoOrigem={p}
+        onCreate={() => setRetrabalhoOpen(false)}
       />
 
       {/* Dialog de pausa */}

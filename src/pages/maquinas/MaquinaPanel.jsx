@@ -390,7 +390,7 @@ export default function MaquinaPanel({ maquina }) {
                   </Button>
                 </div>
               )}
-              <PedidoRow pedido={p} onStatusChange={handleStatusChange} onUpdate={handleStatusChange} />
+              <PedidoRow pedido={p} onStatusChange={handleStatusChange} onUpdate={handleStatusChange} userRole={user?.role} />
             </div>
           ))}
         </div>
