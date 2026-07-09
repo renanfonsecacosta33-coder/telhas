@@ -321,8 +321,12 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
       prodSeg += Math.floor((Date.now() - new Date(p.inicio_producao_ts).getTime()) / 1000);
     }
 
-    // Calcula razão real/planejado para ajuste proporcional de KG
-    const metragemTotalPedido = (Number(p.metros) || 0) * ((Number(p.metragem_mm) || 0) / 1000);
+    // Calcula metragem total do pedido — suporta variações ou modo legado
+    let variacoesTelhas = [];
+    try { variacoesTelhas = JSON.parse(p.variacoes_telhas || "[]"); } catch { variacoesTelhas = []; }
+    const metragemTotalPedido = variacoesTelhas.length > 0
+      ? variacoesTelhas.reduce((sum, v) => sum + (Number(v.qty) || 0) * (Number(v.mm) || 0), 0) / 1000
+      : (Number(p.metros) || 0) * ((Number(p.metragem_mm) || 0) / 1000);
     const razao = metragemTotalPedido > 0 ? metragemRealNum / metragemTotalPedido : 1;
     const kgSuperiorReal = (Number(p.kg_superior) || 0) * razao;
     const kgInferiorReal = (Number(p.kg_inferior) || 0) * razao;
@@ -440,6 +444,38 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
             )}
           </div>
         )}
+
+        {/* Variações de telhas (múltiplas medidas) */}
+        {(() => {
+          let vars = [];
+          try { vars = JSON.parse(p.variacoes_telhas || "[]"); } catch { vars = []; }
+          if (!Array.isArray(vars) || vars.length === 0) return null;
+          return (
+            <div className="bg-indigo-50/50 border border-indigo-200 rounded-lg p-2.5 mb-3 space-y-1.5">
+              <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide">Medidas do Pedido ({vars.length})</p>
+              {vars.map((v, i) => {
+                const q = Number(v.qty) || 0;
+                const mm = Number(v.mm) || 0;
+                return (
+                  <div key={i} className="flex items-start gap-2 text-xs">
+                    <span className="font-mono font-bold text-indigo-500 flex-shrink-0">{i + 1}.</span>
+                    <div className="flex-1">
+                      <span className="font-semibold text-slate-700">{q} pçs</span>
+                      <span className="text-muted-foreground mx-1">×</span>
+                      <span className="font-semibold text-slate-700">{mm.toLocaleString("pt-BR")}mm</span>
+                      {q > 0 && mm > 0 && (
+                        <span className="text-indigo-500 ml-1">= {(q * mm / 1000).toFixed(2)}m</span>
+                      )}
+                      {v.obs && (
+                        <p className="text-muted-foreground italic mt-0.5">OBS: {v.obs}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* Detalhes técnicos */}
         <div className="flex flex-wrap gap-2 mb-3">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,7 +11,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import UploadButton from "@/components/ui/UploadButton";
 import ImageLink from "@/components/ui/ImageLink";
-import { Camera, X, Loader2, FileText } from "lucide-react";
+import { Camera, X, Loader2, FileText, Plus, Trash2 } from "lucide-react";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 const PRODUTOS = ["TELHA", "TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA", "BOBININHA", "CUMEEIRA", "PAINEL"];
@@ -63,7 +64,8 @@ const emptyForm = {
   data_pedido: "",
   data_prevista: "",
   observacoes: "",
-  foto_pedido_url: ""
+  foto_pedido_url: "",
+  variacoes_telhas: ""
 };
 
 export default function PedidoFormDialog({ open, onClose, onSave, editItem, defaultDate }) {
@@ -174,7 +176,8 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           data_pedido: editItem.data_pedido || "",
           data_prevista: editItem.data_prevista || "",
           observacoes: editItem.observacoes || "",
-          foto_pedido_url: editItem.foto_pedido_url || ""
+          foto_pedido_url: editItem.foto_pedido_url || "",
+          variacoes_telhas: editItem.variacoes_telhas || ""
         });
       } else {
         const presets = editItem?._presets || {};
@@ -243,14 +246,104 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
+  // ─── Variações de telhas (múltiplas medidas no mesmo pedido) ───
+  const variacoes = useMemo(() => {
+    try {
+      const parsed = JSON.parse(form.variacoes_telhas || "[]");
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+    } catch { return null; }
+  }, [form.variacoes_telhas]);
+
+  const initVariacoesIfNeeded = () => {
+    if (!variacoes) {
+      // Migra dados existentes (metros + metragem_mm) para a primeira variação
+      const primeira = {
+        qty: form.metros ? String(form.metros) : "",
+        mm: form.metragem_mm ? String(form.metragem_mm) : "",
+        obs: ""
+      };
+      setForm(f => ({ ...f, variacoes_telhas: JSON.stringify([primeira]) }));
+    }
+  };
+
+  const addVariacao = () => {
+    const atual = variacoes || [];
+    setForm(f => ({ ...f, variacoes_telhas: JSON.stringify([...atual, { qty: "", mm: "", obs: "" }]) }));
+  };
+
+  const removeVariacao = (idx) => {
+    const atual = variacoes || [];
+    if (atual.length <= 1) return;
+    const novo = atual.filter((_, i) => i !== idx);
+    setForm(f => ({ ...f, variacoes_telhas: JSON.stringify(novo) }));
+  };
+
+  const updateVariacao = (idx, field, val) => {
+    const atual = variacoes || [{ qty: "", mm: "", obs: "" }];
+    const novo = atual.map((v, i) => i === idx ? { ...v, [field]: val } : v);
+    setForm(f => ({ ...f, variacoes_telhas: JSON.stringify(novo) }));
+    // Recalcula KG e totais
+    recalcFromVariacoes(novo);
+  };
+
+  // Calcula totais a partir das variações
+  const calcTotaisVariacoes = (vars) => {
+    let totalTelhas = 0;
+    let totalMm = 0; // soma de qty × mm
+    vars.forEach(v => {
+      const q = Number(v.qty) || 0;
+      const mm = Number(v.mm) || 0;
+      totalTelhas += q;
+      totalMm += q * mm;
+    });
+    const totalMetros = totalMm / 1000;
+    return { totalTelhas, totalMm, totalMetros };
+  };
+
+  const recalcFromVariacoes = (vars) => {
+    const { totalTelhas, totalMetros } = calcTotaisVariacoes(vars);
+    const newForm = { ...form, variacoes_telhas: JSON.stringify(vars) };
+
+    // Mantém metros (qtd telhas) e metragem_mm (primeira variação) sincronizados para compat
+    newForm.metros = totalTelhas || "";
+    const primeiraMm = vars[0]?.mm;
+    newForm.metragem_mm = primeiraMm ? Number(primeiraMm) : "";
+    newForm.quantidade_telhas = totalTelhas > 0 ? +totalTelhas.toFixed(2) : "";
+
+    // KG = chapa × metragem total em metros
+    if (bobinaSuperiorObj && totalMetros > 0) {
+      const chapa = Number(bobinaSuperiorObj.chapa) || 0;
+      if (chapa > 0) newForm.kg_superior = +(chapa * totalMetros).toFixed(1);
+    }
+    if (bobinaInferiorObj && totalMetros > 0) {
+      const chapa = Number(bobinaInferiorObj.chapa) || 0;
+      if (chapa > 0) newForm.kg_inferior = +(chapa * totalMetros).toFixed(1);
+    }
+    newForm.kg_total = recalcTotal(newForm.kg_superior, newForm.kg_inferior);
+    setForm(newForm);
+  };
+
+  // Calcula metragem total (em metros) — suporta variações ou modo legado
+  const calcMetragemTotalM = (formData) => {
+    const vars = (() => {
+      try {
+        const parsed = JSON.parse(formData.variacoes_telhas || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+      } catch { return []; }
+    })();
+    if (vars.length > 0) {
+      return vars.reduce((sum, v) => sum + (Number(v.qty) || 0) * (Number(v.mm) || 0), 0) / 1000;
+    }
+    return (Number(formData.metros) || 0) * ((Number(formData.metragem_mm) || 0) / 1000);
+  };
+
   // Quando selecionar bobina superior, preenche RVM/Cor automaticamente
   const handleBobinaSupChange = (bobinaId) => {
     const b = bobinas.find((x) => x.id === bobinaId);
     const novoForm = { ...form, bobina_superior: bobinaId };
     if (b) {
       novoForm.rvm_superior = b.cor || "";
-      // Calcula KG: espessura (chapa) × metragem total do pedido (em metros)
-      const metragemTotal = (Number(form.metros) || 0) * ((Number(form.metragem_mm) || 0) / 1000);
+      const metragemTotal = calcMetragemTotalM(form);
       const chapa = Number(b.chapa) || 0;
       if (metragemTotal > 0 && chapa > 0) {
         novoForm.kg_superior = +(chapa * metragemTotal).toFixed(1);
@@ -265,7 +358,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     const novoForm = { ...form, bobina_inferior: bobinaId };
     if (b) {
       novoForm.rvm_inferior = b.cor || "";
-      const metragemTotal = (Number(form.metros) || 0) * ((Number(form.metragem_mm) || 0) / 1000);
+      const metragemTotal = calcMetragemTotalM(form);
       const chapa = Number(b.chapa) || 0;
       if (metragemTotal > 0 && chapa > 0) {
         novoForm.kg_inferior = +(chapa * metragemTotal).toFixed(1);
@@ -572,51 +665,156 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
             </div>
           }
 
-          {/* Quantidades */}
+          {/* Quantidades — Múltiplas Variações */}
           <div className="border border-border rounded-lg p-3 space-y-3">
-            <p className="text-sm font-semibold">Quantidades</p>
-
-            {/* Linha: Quantidade de telhas + Metragem individual em mm */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Quantidade de Telhas</Label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={form.metros}
-                  onChange={(e) => handleMetrosChange(e.target.value)}
-                  className="font-bold text-lg border-primary/50 focus:border-primary" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">
-                  Metragem Individual (mm)
-                  {form.metragem_mm && Number(form.metragem_mm) > 0 &&
-                    <span className="text-muted-foreground ml-1">({(Number(form.metragem_mm) / 1000).toFixed(3)}m)</span>
-                  }
-                </Label>
-                <Input
-                  type="number"
-                  placeholder="ex: 5000"
-                  value={form.metragem_mm}
-                  onChange={(e) => handleMetragemMmChange(e.target.value)} />
-              </div>
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold">Quantidades</p>
+              {variacoes && variacoes.length > 1 && (
+                <Badge variant="secondary" className="text-xs">{variacoes.length} medidas</Badge>
+              )}
             </div>
 
-            {/* Metragem Total — somente leitura */}
-            {form.metros && form.metragem_mm && Number(form.metros) > 0 && Number(form.metragem_mm) > 0 && (
-              <div className="bg-primary/5 border border-primary/20 rounded-lg px-4 py-3 flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">Metragem Total do Pedido</p>
-                  <p className="text-xs text-muted-foreground">{Number(form.metros)} telhas × {Number(form.metragem_mm)}mm</p>
+            {!variacoes ? (
+              /* Modo legado — botão para iniciar variações */
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Quantidade de Telhas</Label>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={form.metros}
+                      onChange={(e) => handleMetrosChange(e.target.value)}
+                      className="font-bold text-lg border-primary/50 focus:border-primary" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">
+                      Metragem Individual (mm)
+                      {form.metragem_mm && Number(form.metragem_mm) > 0 &&
+                        <span className="text-muted-foreground ml-1">({(Number(form.metragem_mm) / 1000).toFixed(3)}m)</span>
+                      }
+                    </Label>
+                    <Input
+                      type="number"
+                      placeholder="ex: 5000"
+                      value={form.metragem_mm}
+                      onChange={(e) => handleMetragemMmChange(e.target.value)} />
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-xl font-bold text-primary">
-                    {+(Number(form.metros) * Number(form.metragem_mm)).toFixed(0)}mm
-                  </span>
-                  <p className="text-sm font-semibold text-primary/80">
-                    ({+(Number(form.metros) * (Number(form.metragem_mm) / 1000)).toFixed(2)}m)
-                  </p>
-                </div>
+                <Button type="button" variant="outline" size="sm" className="w-full gap-1" onClick={initVariacoesIfNeeded}>
+                  <Plus className="w-3 h-3" /> Adicionar múltiplas medidas
+                </Button>
+              </div>
+            ) : (
+              /* Modo variações — múltiplas linhas */
+              <div className="space-y-2">
+                {variacoes.map((v, idx) => {
+                  const q = Number(v.qty) || 0;
+                  const mm = Number(v.mm) || 0;
+                  const subtotalMm = q * mm;
+                  const subtotalM = subtotalMm / 1000;
+                  return (
+                    <div key={idx} className="border border-border rounded-lg p-2.5 space-y-2 bg-muted/20">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-muted-foreground">Medida {idx + 1}</span>
+                        {variacoes.length > 1 && (
+                          <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:bg-red-50" onClick={() => removeVariacao(idx)}>
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-0.5">
+                          <Label className="text-xs text-muted-foreground">Qtd. Telhas</Label>
+                          <Input
+                            type="number"
+                            placeholder="0"
+                            value={v.qty}
+                            onChange={(e) => updateVariacao(idx, "qty", e.target.value)}
+                            className="font-bold text-base border-primary/50 focus:border-primary h-9" />
+                        </div>
+                        <div className="space-y-0.5">
+                          <Label className="text-xs text-muted-foreground">
+                            Metragem (mm)
+                            {mm > 0 && <span className="text-muted-foreground ml-1">({(mm / 1000).toFixed(3)}m)</span>}
+                          </Label>
+                          <Input
+                            type="number"
+                            placeholder="ex: 5000"
+                            value={v.mm}
+                            onChange={(e) => updateVariacao(idx, "mm", e.target.value)}
+                            className="h-9" />
+                        </div>
+                      </div>
+                      <div className="space-y-0.5">
+                        <Label className="text-xs text-muted-foreground">OBS desta medida</Label>
+                        <Input
+                          placeholder="Observação específica (opcional)"
+                          value={v.obs}
+                          onChange={(e) => updateVariacao(idx, "obs", e.target.value)}
+                          className="h-9 text-sm" />
+                      </div>
+                      {q > 0 && mm > 0 && (
+                        <p className="text-xs text-primary font-medium">
+                          Subtotal: {subtotalMm.toLocaleString("pt-BR")}mm ({subtotalM.toFixed(2)}m)
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+
+                <Button type="button" variant="outline" size="sm" className="w-full gap-1 border-dashed" onClick={addVariacao}>
+                  <Plus className="w-3 h-3" /> Adicionar outra medida
+                </Button>
+
+                {/* Totais */}
+                {(() => {
+                  const { totalTelhas, totalMm, totalMetros } = calcTotaisVariacoes(variacoes);
+                  if (totalTelhas <= 0 || totalMm <= 0) return null;
+                  return (
+                    <div className="bg-primary/5 border border-primary/20 rounded-lg px-4 py-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Soma Total de Todas as Medidas</p>
+                          <p className="text-xs text-muted-foreground">{totalTelhas} telhas no total</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xl font-bold text-primary">
+                            {totalMm.toLocaleString("pt-BR")}mm
+                          </span>
+                          <p className="text-sm font-semibold text-primary/80">
+                            ({totalMetros.toFixed(2)}m)
+                          </p>
+                        </div>
+                      </div>
+                      {form.kg_total && (
+                        <div className="flex items-center justify-between border-t border-primary/20 pt-2">
+                          <p className="text-xs font-medium text-muted-foreground">Peso Total (KG)</p>
+                          <div className="flex gap-2">
+                            {form.kg_superior && (
+                              <span className="bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold text-xs">
+                                Sup: {form.kg_superior} kg
+                              </span>
+                            )}
+                            {form.kg_inferior && (
+                              <span className="bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold text-xs">
+                                Inf: {form.kg_inferior} kg
+                              </span>
+                            )}
+                            <span className="bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-bold text-xs">
+                              Total: {form.kg_total} kg
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      {bobinaSuperiorObj && form.kg_superior && (
+                        <p className="text-xs text-blue-600 font-medium">
+                          ↓ Será descontado da bobina {bobinaSuperiorObj.codigo || ""} ao finalizar
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
@@ -627,7 +825,6 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                 placeholder="Quantos metros de bobina serão usados"
                 value={form.metragem_planejada}
                 onChange={(e) => set("metragem_planejada", e.target.value)} />
-              
               <p className="text-xs text-muted-foreground">O operador vai registrar o que realmente usou na máquina</p>
             </div>
           </div>

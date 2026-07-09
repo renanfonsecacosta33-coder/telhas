@@ -101,11 +101,15 @@
     },
     "metros": {
       "type": "number",
-      "description": "Metros do pedido"
+      "description": "Quantidade de telhas"
     },
     "metragem_mm": {
       "type": "number",
       "description": "Metragem em mil\u00edmetros"
+    },
+    "variacoes_telhas": {
+      "type": "string",
+      "description": "JSON string com varia\u00e7\u00f5es de telhas [{qty, mm, obs}] \u2014 m\u00faltiplas medidas diferentes no mesmo pedido"
     },
     "quantidade_telhas": {
       "type": "number",
