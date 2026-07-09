@@ -169,8 +169,26 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     }) || null;
   }, [form.maquina, modelosCad]);
 
+  // Fallback: deriva nome do modelo a partir da máquina quando não há cadastro
+  const modeloFromMaquina = (maquina) => {
+    if (!maquina) return "";
+    const map = {
+      "TP - 25": "TP-25",
+      "TP - 40": "TP-40",
+      "ONDULADA": "Ondulada",
+      "COLONIAL": "Colonial",
+      "BANDEJA": "Bandeja",
+      "DESBOBINADOR": "Desbobinador",
+      "CUMEEIRA": "Cumeeira",
+      "COLAGEM": "Colagem",
+    };
+    return map[maquina] || maquina;
+  };
+
   useEffect(() => {
-    if (open && form.maquina && modeloAutoObj && modeloAutoObj.modelo !== form.modelo) {
+    if (!open || !form.maquina) return;
+    // Se encontrou no cadastro, usa o modelo cadastrado
+    if (modeloAutoObj && modeloAutoObj.modelo !== form.modelo) {
       let epsAuto = "";
       const vUp = (modeloAutoObj.modelo || "").toUpperCase();
       if (vUp.includes("TP-25") || vUp.includes("TP25")) epsAuto = "EPS - TP 25";
@@ -180,8 +198,19 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
       else if (vUp.includes("COLONIAL")) epsAuto = "EPS - COLONIAL";
       else if (vUp.includes("ONDULAD")) epsAuto = "EPS - ONDULADO";
       setForm(f => ({ ...f, modelo: modeloAutoObj.modelo, eps: epsAuto || f.eps }));
+    } else if (!modeloAutoObj && !form.modelo) {
+      // Sem cadastro: deriva do nome da máquina
+      const modFallback = modeloFromMaquina(form.maquina);
+      let epsAuto = "";
+      const vUp = modFallback.toUpperCase();
+      if (vUp.includes("TP-25") || vUp.includes("TP25")) epsAuto = "EPS - TP 25";
+      else if (vUp.includes("BANDEJA")) epsAuto = "EPS - TP 40 BANDEJA";
+      else if (vUp.includes("TP-40") || vUp.includes("TP40")) epsAuto = "EPS - TP 40";
+      else if (vUp.includes("COLONIAL")) epsAuto = "EPS - COLONIAL";
+      else if (vUp.includes("ONDULAD")) epsAuto = "EPS - ONDULADO";
+      setForm(f => ({ ...f, modelo: modFallback, eps: epsAuto || f.eps }));
     }
-  }, [open, modeloAutoObj, form.modelo]);
+  }, [open, modeloAutoObj, form.maquina, form.modelo]);
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
