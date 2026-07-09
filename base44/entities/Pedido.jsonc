@@ -256,6 +256,10 @@
       "type": "number",
       "description": "Etapa do retrabalho (1, 2, 3...) para diferencia\u00e7\u00e3o visual de cor",
       "default": 1
+    },
+    "foto_pedido_url": {
+      "type": "string",
+      "description": "URL da foto da OP f\u00edsica anexada pelo encarregado"
     }
   },
   "required": [

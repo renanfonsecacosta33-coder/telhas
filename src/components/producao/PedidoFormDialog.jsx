@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
+import UploadButton from "@/components/ui/UploadButton";
+import ImageLink from "@/components/ui/ImageLink";
+import { Camera, X, Loader2, FileText } from "lucide-react";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 const PRODUTOS = ["TELHA", "TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA", "BOBININHA", "CUMEEIRA", "PAINEL"];
@@ -59,11 +62,36 @@ const emptyForm = {
   status: "pendente",
   data_pedido: "",
   data_prevista: "",
-  observacoes: ""
+  observacoes: "",
+  foto_pedido_url: ""
 };
 
 export default function PedidoFormDialog({ open, onClose, onSave, editItem, defaultDate }) {
   const [form, setForm] = useState(emptyForm);
+  const [uploadingFoto, setUploadingFoto] = useState(false);
+  const cameraRef = useRef(null);
+  const fileRef = useRef(null);
+
+  const isPdf = (url) => {
+    if (!url) return false;
+    return url.toLowerCase().endsWith(".pdf");
+  };
+
+  const handleUploadFoto = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingFoto(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setForm(f => ({ ...f, foto_pedido_url: file_url }));
+    } catch {
+      alert("Erro ao enviar foto da OP. Tente novamente.");
+    } finally {
+      setUploadingFoto(false);
+      if (cameraRef.current) cameraRef.current.value = "";
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
 
   const { data: bobinas = [] } = useQuery({
     queryKey: ["bobinas-ativas"],
@@ -145,7 +173,8 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           status: editItem.status || "pendente",
           data_pedido: editItem.data_pedido || "",
           data_prevista: editItem.data_prevista || "",
-          observacoes: editItem.observacoes || ""
+          observacoes: editItem.observacoes || "",
+          foto_pedido_url: editItem.foto_pedido_url || ""
         });
       } else {
         const presets = editItem?._presets || {};
@@ -630,6 +659,45 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           <div className="space-y-1">
             <Label>Observações</Label>
             <Textarea placeholder="Anotações, instruções especiais..." value={form.observacoes} onChange={(e) => set("observacoes", e.target.value)} className="h-16" />
+          </div>
+
+          {/* Foto da OP física */}
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold flex items-center gap-1">
+              <Camera className="w-3.5 h-3.5" />
+              Foto da OP Física
+            </Label>
+            <input type="file" accept="image/*" capture="environment" ref={cameraRef} className="hidden" onChange={handleUploadFoto} />
+            <input type="file" accept="image/*,application/pdf" ref={fileRef} className="hidden" onChange={handleUploadFoto} />
+            {form.foto_pedido_url ? (
+              <div className="flex items-center gap-3">
+                {isPdf(form.foto_pedido_url) ? (
+                  <ImageLink url={form.foto_pedido_url} name="OP Física" className="block">
+                    <div className="flex items-center gap-2 border-2 border-primary/30 rounded-lg px-3 py-2 cursor-pointer hover:bg-accent transition-colors">
+                      <FileText className="w-8 h-8 text-primary" />
+                      <div className="text-xs">
+                        <p className="font-medium text-foreground">OP Física (PDF)</p>
+                        <p className="text-muted-foreground">Toque para abrir</p>
+                      </div>
+                    </div>
+                  </ImageLink>
+                ) : (
+                  <ImageLink url={form.foto_pedido_url} name="OP Física" className="block">
+                    <img src={form.foto_pedido_url} alt="OP Física" className="w-24 h-24 object-cover rounded-lg border-2 border-primary/30 cursor-pointer" />
+                  </ImageLink>
+                )}
+                <Button type="button" variant="outline" size="sm" className="gap-1 text-red-600 border-red-300" onClick={() => set("foto_pedido_url", "")}>
+                  <X className="w-3 h-3" /> Remover
+                </Button>
+              </div>
+            ) : (
+              <UploadButton
+                label="Anexar Foto da OP"
+                cameraRef={cameraRef}
+                fileRef={fileRef}
+                uploading={uploadingFoto}
+              />
+            )}
           </div>
         </div>
 

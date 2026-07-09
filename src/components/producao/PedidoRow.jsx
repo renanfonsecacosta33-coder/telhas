@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText } from "lucide-react";
+import ImageLink from "@/components/ui/ImageLink";
 import RetrabalhoTelhasDialog from "@/components/producao/RetrabalhoTelhasDialog";
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
@@ -466,6 +467,27 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
         {p.observacoes && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-1.5 text-xs text-yellow-800 mb-3">
             {p.observacoes}
+          </div>
+        )}
+
+        {/* Foto da OP física */}
+        {p.foto_pedido_url && (
+          <div className="mb-3">
+            {p.foto_pedido_url.toLowerCase().endsWith(".pdf") ? (
+              <ImageLink url={p.foto_pedido_url} name="OP Física" className="block">
+                <div className="flex items-center gap-2 border-2 border-primary/30 rounded-lg px-3 py-2 cursor-pointer hover:bg-accent transition-colors w-fit">
+                  <FileText className="w-8 h-8 text-primary" />
+                  <div className="text-xs">
+                    <p className="font-semibold text-foreground">OP Física (PDF)</p>
+                    <p className="text-muted-foreground">Toque para abrir</p>
+                  </div>
+                </div>
+              </ImageLink>
+            ) : (
+              <ImageLink url={p.foto_pedido_url} name="OP Física" className="block">
+                <img src={p.foto_pedido_url} alt="OP Física" className="w-28 h-28 object-cover rounded-lg border-2 border-primary/30 cursor-pointer" />
+              </ImageLink>
+            )}
           </div>
         )}
 
