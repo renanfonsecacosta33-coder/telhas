@@ -257,10 +257,15 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   const initVariacoesIfNeeded = () => {
     if (!variacoes) {
       // Migra dados existentes (metros + metragem_mm) para a primeira variação
+      // e já traz a bobina global selecionada como padrão
       const primeira = {
         qty: form.metros ? String(form.metros) : "",
         mm: form.metragem_mm ? String(form.metragem_mm) : "",
-        obs: ""
+        obs: "",
+        bobina_id: form.bobina_superior || "",
+        bobina_inf_id: form.bobina_inferior || "",
+        bobina_desc: bobinaSuperiorObj ? labelBobina(bobinaSuperiorObj) : "",
+        bobina_inf_desc: bobinaInferiorObj ? labelBobina(bobinaInferiorObj) : ""
       };
       setForm(f => ({ ...f, variacoes_telhas: JSON.stringify([primeira]) }));
     }
@@ -268,7 +273,15 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
 
   const addVariacao = () => {
     const atual = variacoes || [];
-    setForm(f => ({ ...f, variacoes_telhas: JSON.stringify([...atual, { qty: "", mm: "", obs: "" }]) }));
+    // Nova variação herda a bobina da última variação como padrão
+    const ultima = atual[atual.length - 1] || {};
+    setForm(f => ({ ...f, variacoes_telhas: JSON.stringify([...atual, {
+      qty: "", mm: "", obs: "",
+      bobina_id: ultima.bobina_id || "",
+      bobina_inf_id: ultima.bobina_inf_id || "",
+      bobina_desc: ultima.bobina_desc || "",
+      bobina_inf_desc: ultima.bobina_inf_desc || ""
+    }]) }));
   };
 
   const removeVariacao = (idx) => {
@@ -279,8 +292,21 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   };
 
   const updateVariacao = (idx, field, val) => {
-    const atual = variacoes || [{ qty: "", mm: "", obs: "" }];
-    const novo = atual.map((v, i) => i === idx ? { ...v, [field]: val } : v);
+    const atual = variacoes || [{ qty: "", mm: "", obs: "", bobina_id: "", bobina_inf_id: "" }];
+    const novo = atual.map((v, i) => {
+      if (i !== idx) return v;
+      const updated = { ...v, [field]: val };
+      // Ao trocar a bobina, atualiza o snapshot de descrição
+      if (field === "bobina_id") {
+        const b = bobinas.find(x => x.id === val);
+        updated.bobina_desc = b ? labelBobina(b) : "";
+      }
+      if (field === "bobina_inf_id") {
+        const b = bobinas.find(x => x.id === val);
+        updated.bobina_inf_desc = b ? labelBobina(b) : "";
+      }
+      return updated;
+    });
     setForm(f => ({ ...f, variacoes_telhas: JSON.stringify(novo) }));
     // Recalcula KG e totais
     recalcFromVariacoes(novo);
@@ -310,15 +336,26 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     newForm.metragem_mm = primeiraMm ? Number(primeiraMm) : "";
     newForm.quantidade_telhas = totalTelhas > 0 ? +totalTelhas.toFixed(2) : "";
 
-    // KG = chapa × metragem total em metros
-    if (bobinaSuperiorObj && totalMetros > 0) {
-      const chapa = Number(bobinaSuperiorObj.chapa) || 0;
-      if (chapa > 0) newForm.kg_superior = +(chapa * totalMetros).toFixed(1);
-    }
-    if (bobinaInferiorObj && totalMetros > 0) {
-      const chapa = Number(bobinaInferiorObj.chapa) || 0;
-      if (chapa > 0) newForm.kg_inferior = +(chapa * totalMetros).toFixed(1);
-    }
+    // KG calculado por variação — cada item usa sua própria bobina
+    let totalKgSup = 0;
+    let totalKgInf = 0;
+    vars.forEach(v => {
+      const q = Number(v.qty) || 0;
+      const mm = Number(v.mm) || 0;
+      const metrosVar = (q * mm) / 1000;
+      if (metrosVar > 0 && v.bobina_id) {
+        const b = bobinas.find(x => x.id === v.bobina_id);
+        const chapa = Number(b?.chapa) || 0;
+        if (chapa > 0) totalKgSup += chapa * metrosVar;
+      }
+      if (metrosVar > 0 && v.bobina_inf_id) {
+        const b = bobinas.find(x => x.id === v.bobina_inf_id);
+        const chapa = Number(b?.chapa) || 0;
+        if (chapa > 0) totalKgInf += chapa * metrosVar;
+      }
+    });
+    newForm.kg_superior = totalKgSup > 0 ? +totalKgSup.toFixed(1) : "";
+    newForm.kg_inferior = totalKgInf > 0 ? +totalKgInf.toFixed(1) : "";
     newForm.kg_total = recalcTotal(newForm.kg_superior, newForm.kg_inferior);
     setForm(newForm);
   };
@@ -460,13 +497,28 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     if (!form.data) { alert("Informe a data do pedido."); return; }
     if (!form.produto) { alert("Selecione o tipo de produto."); return; }
 
-    // Monta dados do pedido
-    const bobinaSupTexto = bobinaSuperiorObj ? labelBobina(bobinaSuperiorObj) : form.bobina_superior;
-    const bobinaInfTexto = bobinaInferiorObj ? labelBobina(bobinaInferiorObj) : form.bobina_inferior;
+    // Monta dados do pedido — em modo variações, deriva bobinas da 1ª variação
+    let bobinaSupId = form.bobina_superior;
+    let bobinaInfId = form.bobina_inferior;
+    let bobinaSupTexto = bobinaSuperiorObj ? labelBobina(bobinaSuperiorObj) : form.bobina_superior;
+    let bobinaInfTexto = bobinaInferiorObj ? labelBobina(bobinaInferiorObj) : form.bobina_inferior;
+    if (variacoes && variacoes.length > 0) {
+      const fv = variacoes[0];
+      if (fv.bobina_id) {
+        bobinaSupId = fv.bobina_id;
+        const b = bobinas.find(x => x.id === fv.bobina_id);
+        if (b) bobinaSupTexto = labelBobina(b);
+      }
+      if (fv.bobina_inf_id) {
+        bobinaInfId = fv.bobina_inf_id;
+        const b = bobinas.find(x => x.id === fv.bobina_inf_id);
+        if (b) bobinaInfTexto = labelBobina(b);
+      }
+    }
     const data = {
       ...form,
-      bobina_superior_id: form.bobina_superior,
-      bobina_inferior_id: form.bobina_inferior,
+      bobina_superior_id: bobinaSupId,
+      bobina_inferior_id: bobinaInfId,
       bobina_superior: bobinaSupTexto,
       bobina_inferior: bobinaInfTexto,
       kg_superior: form.kg_superior !== "" ? Number(form.kg_superior) : undefined,
@@ -551,7 +603,8 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
             </div>
           </div>
 
-          {/* Bobinas - do estoque real */}
+          {/* Bobinas - do estoque real (apenas modo legado, sem variações) */}
+          {!variacoes && (
           <div className="border border-border rounded-lg p-3 space-y-3">
             <p className="text-sm font-semibold text-foreground">Bobinas do Estoque</p>
 
@@ -626,6 +679,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
               </div>
             }
           </div>
+          )}
 
           {/* EPS */}
           {precisaEPS &&
@@ -746,6 +800,45 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                             className="h-9" />
                         </div>
                       </div>
+                      {/* Bobina desta variação */}
+                      <div className="space-y-0.5">
+                        <Label className="text-xs text-muted-foreground">
+                          Bobina {precisaBobinaInferior ? "Superior" : "do Item"}
+                        </Label>
+                        <Select value={v.bobina_id || ""} onValueChange={(val) => updateVariacao(idx, "bobina_id", val)}>
+                          <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Selecionar bobina para esta medida..." /></SelectTrigger>
+                          <SelectContent>
+                            {bobinasList.map((b) => (
+                              <SelectItem key={b.id} value={b.id}>
+                                {b.codigo && <span className="font-mono font-bold text-primary">{b.codigo}</span>}
+                                <span className="font-medium ml-1">{b.chapa}</span>
+                                {b.qualidade && <span className="text-muted-foreground"> ({b.qualidade})</span>}
+                                {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
+                                {b.peso_kg && <span className="text-muted-foreground text-xs"> · {b.peso_kg}kg</span>}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {precisaBobinaInferior && (
+                        <div className="space-y-0.5">
+                          <Label className="text-xs text-muted-foreground">Bobina Inferior do Item</Label>
+                          <Select value={v.bobina_inf_id || ""} onValueChange={(val) => updateVariacao(idx, "bobina_inf_id", val)}>
+                            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Selecionar bobina inferior..." /></SelectTrigger>
+                            <SelectContent>
+                              {bobinasList.map((b) => (
+                                <SelectItem key={b.id} value={b.id}>
+                                  {b.codigo && <span className="font-mono font-bold text-primary">{b.codigo}</span>}
+                                  <span className="font-medium ml-1">{b.chapa}</span>
+                                  {b.qualidade && <span className="text-muted-foreground"> ({b.qualidade})</span>}
+                                  {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
+                                  {b.peso_kg && <span className="text-muted-foreground text-xs"> · {b.peso_kg}kg</span>}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                       <div className="space-y-0.5">
                         <Label className="text-xs text-muted-foreground">OBS desta medida</Label>
                         <Input
@@ -807,9 +900,12 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                           </div>
                         </div>
                       )}
-                      {bobinaSuperiorObj && form.kg_superior && (
+                      {form.kg_superior && (
                         <p className="text-xs text-blue-600 font-medium">
-                          ↓ Será descontado da bobina {bobinaSuperiorObj.codigo || ""} ao finalizar
+                          {variacoes && variacoes.some(v => v.bobina_id)
+                            ? `↓ ${new Set(variacoes.filter(v => v.bobina_id).map(v => v.bobina_id)).size} bobina(s) serão descontadas ao finalizar`
+                            : `↓ Será descontado da bobina ${bobinaSuperiorObj?.codigo || ""} ao finalizar`
+                          }
                         </p>
                       )}
                     </div>

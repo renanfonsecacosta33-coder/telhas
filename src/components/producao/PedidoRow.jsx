@@ -466,6 +466,12 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
                       {q > 0 && mm > 0 && (
                         <span className="text-indigo-500 ml-1">= {(q * mm / 1000).toFixed(2)}m</span>
                       )}
+                      {v.bobina_desc && (
+                        <p className="text-blue-600 font-medium mt-0.5">Bobina: {v.bobina_desc}</p>
+                      )}
+                      {v.bobina_inf_desc && (
+                        <p className="text-indigo-600 font-medium mt-0.5">Bobina Inf.: {v.bobina_inf_desc}</p>
+                      )}
                       {v.obs && (
                         <p className="text-muted-foreground italic mt-0.5">OBS: {v.obs}</p>
                       )}

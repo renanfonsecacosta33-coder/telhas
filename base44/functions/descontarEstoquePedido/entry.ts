@@ -25,32 +25,66 @@ Deno.serve(async (req) => {
 
     const descontos = [];
 
-    // ── 1. BOBINA SUPERIOR ────────────────────────────────────────────────────
-    if (ped.bobina_superior_id && ped.kg_superior) {
-      const bobina = await base44.asServiceRole.entities.Bobina.get(ped.bobina_superior_id);
-      if (bobina) {
-        const novoPeso = Math.max(0, (bobina.peso_kg || 0) - ped.kg_superior);
-        const novaMetragem = ped.metragem_utilizada
-          ? Math.max(0, (bobina.metragem_restante || bobina.metragem || 0) - ped.metragem_utilizada)
-          : (bobina.metragem_restante || bobina.metragem || 0);
+    // ── BOBINAS (superior + inferior) ─────────────────────────────────────────
+    // Suporta desconto por variação (cada item com sua própria bobina) ou modo legado
+    let variacoesTelhas = [];
+    try { variacoesTelhas = JSON.parse(ped.variacoes_telhas || "[]"); } catch { variacoesTelhas = []; }
+    const hasVarBobinas = Array.isArray(variacoesTelhas) && variacoesTelhas.some(v => v.bobina_id);
 
-        const updateData = { peso_kg: +novoPeso.toFixed(1) };
-        if (novaMetragem !== undefined) updateData.metragem_restante = +novaMetragem.toFixed(1);
+    if (hasVarBobinas) {
+      // Modo variações: desconta cada bobina individualmente, agrupando por bobina_id
+      const precisaInf = ["TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(ped.produto);
+      const deduzirPorBobina = async (idField, tipo) => {
+        const kgPorBobina = {};
+        for (const v of variacoesTelhas) {
+          const q = Number(v.qty) || 0;
+          const mm = Number(v.mm) || 0;
+          const metros = q * mm / 1000;
+          const bid = v[idField];
+          if (metros <= 0 || !bid) continue;
+          if (!kgPorBobina[bid]) {
+            const bob = await base44.asServiceRole.entities.Bobina.get(bid);
+            kgPorBobina[bid] = { kg: 0, chapa: Number(bob?.chapa) || 0, bob };
+          }
+          if (kgPorBobina[bid].chapa > 0) kgPorBobina[bid].kg += kgPorBobina[bid].chapa * metros;
+        }
+        for (const [bid, d] of Object.entries(kgPorBobina)) {
+          if (d.kg > 0 && d.bob) {
+            const novoPeso = Math.max(0, (d.bob.peso_kg || 0) - d.kg);
+            await base44.asServiceRole.entities.Bobina.update(bid, { peso_kg: +novoPeso.toFixed(1) });
+            descontos.push({ tipo, id: bid, kg_descontado: +d.kg.toFixed(1) });
+          }
+        }
+      };
+      await deduzirPorBobina('bobina_id', 'bobina_variacao');
+      if (precisaInf) await deduzirPorBobina('bobina_inf_id', 'bobina_inf_variacao');
+    } else {
+      // Modo legado: bobina única superior
+      if (ped.bobina_superior_id && ped.kg_superior) {
+        const bobina = await base44.asServiceRole.entities.Bobina.get(ped.bobina_superior_id);
+        if (bobina) {
+          const novoPeso = Math.max(0, (bobina.peso_kg || 0) - ped.kg_superior);
+          const novaMetragem = ped.metragem_utilizada
+            ? Math.max(0, (bobina.metragem_restante || bobina.metragem || 0) - ped.metragem_utilizada)
+            : (bobina.metragem_restante || bobina.metragem || 0);
 
-        await base44.asServiceRole.entities.Bobina.update(ped.bobina_superior_id, updateData);
-        descontos.push({ tipo: 'bobina_superior', id: ped.bobina_superior_id, kg_descontado: ped.kg_superior });
+          const updateData = { peso_kg: +novoPeso.toFixed(1) };
+          if (novaMetragem !== undefined) updateData.metragem_restante = +novaMetragem.toFixed(1);
+
+          await base44.asServiceRole.entities.Bobina.update(ped.bobina_superior_id, updateData);
+          descontos.push({ tipo: 'bobina_superior', id: ped.bobina_superior_id, kg_descontado: ped.kg_superior });
+        }
       }
-    }
-
-    // ── 2. BOBINA INFERIOR ────────────────────────────────────────────────────
-    if (ped.bobina_inferior_id && ped.kg_inferior) {
-      const bobina = await base44.asServiceRole.entities.Bobina.get(ped.bobina_inferior_id);
-      if (bobina) {
-        const novoPeso = Math.max(0, (bobina.peso_kg || 0) - ped.kg_inferior);
-        await base44.asServiceRole.entities.Bobina.update(ped.bobina_inferior_id, {
-          peso_kg: +novoPeso.toFixed(1),
-        });
-        descontos.push({ tipo: 'bobina_inferior', id: ped.bobina_inferior_id, kg_descontado: ped.kg_inferior });
+      // Modo legado: bobina única inferior
+      if (ped.bobina_inferior_id && ped.kg_inferior) {
+        const bobina = await base44.asServiceRole.entities.Bobina.get(ped.bobina_inferior_id);
+        if (bobina) {
+          const novoPeso = Math.max(0, (bobina.peso_kg || 0) - ped.kg_inferior);
+          await base44.asServiceRole.entities.Bobina.update(ped.bobina_inferior_id, {
+            peso_kg: +novoPeso.toFixed(1),
+          });
+          descontos.push({ tipo: 'bobina_inferior', id: ped.bobina_inferior_id, kg_descontado: ped.kg_inferior });
+        }
       }
     }
 
