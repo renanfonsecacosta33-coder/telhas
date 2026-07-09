@@ -222,6 +222,10 @@
       "type": "boolean",
       "default": false,
       "description": "Pedido priorit\u00e1rio \u2014 fixado no topo da fila de produ\u00e7\u00e3o"
+    },
+    "historico_alteracoes": {
+      "type": "string",
+      "description": "JSON string com hist\u00f3rico de altera\u00e7\u00f5es [{data, usuario, acao, acao_label, detalhes}]"
     }
   },
   "required": [

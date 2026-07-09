@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Circle, ChevronLeft, ChevronRight, ArrowLeft, BarChart2, Plus, Star } from "lucide-react";
+import { Circle, ChevronLeft, ChevronRight, ArrowLeft, BarChart2, Plus, Star, Trash2, Edit3 } from "lucide-react";
 import { format, addDays, subDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -12,6 +12,16 @@ import PedidoRow from "@/components/producao/PedidoRow";
 import PedidoFormDialog from "@/components/producao/PedidoFormDialog";
 import { useFilial } from "@/contexts/FilialContext";
 import { playAlertSound, speakNovaOp, playFinishSound, speakOpFinalizada } from "@/lib/sounds";
+import { HistoricoPedidoTelhasButton } from "@/components/producao/HistoricoPedidoTelhasSidebar";
+
+const STATUS_LABELS_TELHAS = {
+  pendente: "Pendente",
+  em_producao: "Em Produção",
+  pausado: "Pausado",
+  aguardando_colagem: "Aguardando Colagem",
+  finalizado: "Finalizado",
+  cancelado: "Cancelado",
+};
 
 
 
@@ -34,15 +44,34 @@ export default function MaquinaPanel({ maquina }) {
   const navigate = useNavigate();
   const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
   const [novoPedidoOpen, setNovoPedidoOpen] = useState(false);
+  const [editandoPedido, setEditandoPedido] = useState(null);
   const [user, setUser] = useState(null);
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
 
   const isOperador = user?.role === "operador";
+  const podeGerenciar = !isOperador;
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
+
+  // Adiciona entrada ao histórico de alterações do pedido
+  const appendHistorico = (pedido, acao, acaoLabel, detalhes = "") => {
+    if (!user) return {};
+    const hist = (() => {
+      try { return JSON.parse(pedido.historico_alteracoes || "[]"); }
+      catch { return []; }
+    })();
+    hist.push({
+      data: new Date().toISOString(),
+      usuario: user.full_name || user.email || "—",
+      acao,
+      acao_label: acaoLabel,
+      detalhes,
+    });
+    return { historico_alteracoes: JSON.stringify(hist) };
+  };
 
   const { data: pedidos = [], isLoading } = useQuery({
     queryKey: ["pedidos-maquina", maquina, filialAtiva],
@@ -77,7 +106,16 @@ export default function MaquinaPanel({ maquina }) {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data) => base44.entities.Pedido.create(data),
+    mutationFn: (data) => {
+      const hist = [{
+        data: new Date().toISOString(),
+        usuario: user?.full_name || user?.email || "—",
+        acao: "criado",
+        acao_label: "Pedido Criado",
+        detalhes: `Produto: ${data.produto || "—"}${data.cliente ? " · Cliente: " + data.cliente : ""}`,
+      }];
+      return base44.entities.Pedido.create({ ...data, historico_alteracoes: JSON.stringify(hist) });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pedidos-maquina", maquina] });
       setNovoPedidoOpen(false);
@@ -86,7 +124,22 @@ export default function MaquinaPanel({ maquina }) {
   });
 
   const handleStatusChange = (pedido, novoStatus, extraData = {}) => {
-    const data = { ...pedido, status: novoStatus, ...extraData };
+    const acaoMap = {
+      em_producao: pedido.status === "pausado" ? ["retomado", "Retomou Produção"] : ["iniciado", "Iniciou Produção"],
+      pausado: ["pausado", "Pausou Produção"],
+      finalizado: ["finalizado", "Finalizou Pedido"],
+      aguardando_colagem: ["status_alterado", "Enviado para Colagem"],
+      pendente: ["status_alterado", `Retornou para Pendente`],
+      cancelado: ["status_alterado", "Cancelado"],
+    };
+    const [acao, label] = acaoMap[novoStatus] || ["status_alterado", `Status → ${STATUS_LABELS_TELHAS[novoStatus] || novoStatus}`];
+    const detalhes = novoStatus === "pausado" && extraData.motivo_pausa
+      ? `Motivo: ${extraData.motivo_pausa}`
+      : novoStatus === "finalizado" && extraData.metragem_utilizada
+        ? `Metragem: ${extraData.metragem_utilizada}m`
+        : "";
+    const histData = appendHistorico(pedido, acao, label, detalhes);
+    const data = { ...pedido, status: novoStatus, ...extraData, ...histData };
     if (novoStatus === "finalizado") {
       playFinishSound();
       speakOpFinalizada(pedido.maquina, pedido.numero_pedido);
@@ -139,7 +192,29 @@ export default function MaquinaPanel({ maquina }) {
   }, [pedidosDia]);
 
   const togglePrioridade = (pedido) => {
-    updateMutation.mutate({ id: pedido.id, data: { prioridade: !pedido.prioridade } });
+    const novaPri = !pedido.prioridade;
+    const histData = appendHistorico(pedido, "prioridade", novaPri ? "Marcou Prioridade" : "Removeu Prioridade");
+    updateMutation.mutate({ id: pedido.id, data: { prioridade: novaPri, ...histData } });
+  };
+
+  const handleEditPedido = (pedido, formData) => {
+    const histData = appendHistorico(pedido, "editado", "Editou Pedido", "Campos atualizados");
+    updateMutation.mutate({ id: pedido.id, data: { ...formData, ...histData } });
+    setEditandoPedido(null);
+  };
+
+  const handleDeletePedido = async (pedido) => {
+    if (!confirm(`Excluir pedido ${pedido.numero_pedido ? "#" + pedido.numero_pedido : ""}?\nEsta ação não pode ser desfeita.`)) return;
+    const histData = appendHistorico(pedido, "excluido", "Excluiu Pedido");
+    // Registra no histórico antes de excluir (best-effort — se o pedido for excluído, o log se perde,
+    // mas o usuário será notificado via toast)
+    try {
+      await base44.entities.Pedido.delete(pedido.id);
+      toast.success("Pedido excluído!");
+      queryClient.invalidateQueries({ queryKey: ["pedidos-maquina", maquina] });
+    } catch (err) {
+      toast.error("Erro ao excluir: " + (err.message || ""));
+    }
   };
 
   // Próximos dias com pedidos
@@ -266,6 +341,16 @@ export default function MaquinaPanel({ maquina }) {
         editItem={{ _presets: { maquina, data: selectedDay } }}
       />
 
+      {/* Dialog editar pedido */}
+      {editandoPedido && (
+        <PedidoFormDialog
+          open={true}
+          onClose={() => setEditandoPedido(null)}
+          onSave={(data) => handleEditPedido(editandoPedido, data)}
+          editItem={editandoPedido}
+        />
+      )}
+
       {/* Lista de pedidos */}
       {isLoading ? (
         <div className="flex justify-center py-16">
@@ -289,10 +374,19 @@ export default function MaquinaPanel({ maquina }) {
         <div className="space-y-4">
           {ordenados.map(p => (
             <div key={p.id}>
-              {p.status !== "finalizado" && p.status !== "cancelado" && (
-                <div className="flex justify-end mb-1">
-                  <Button size="sm" variant="ghost" className={`text-xs h-6 px-2 ${p.prioridade ? "text-amber-600 font-bold" : "text-muted-foreground"}`} onClick={() => togglePrioridade(p)}>
-                    <Star className={`w-3 h-3 mr-1 ${p.prioridade ? "fill-amber-500 text-amber-500" : ""}`} /> {p.prioridade ? "Prioritário" : "Prioridade"}
+              {podeGerenciar && (
+                <div className="flex justify-end gap-1 mb-1">
+                  {p.status !== "finalizado" && p.status !== "cancelado" && (
+                    <Button size="sm" variant="ghost" className={`text-xs h-6 px-2 ${p.prioridade ? "text-amber-600 font-bold" : "text-muted-foreground"}`} onClick={() => togglePrioridade(p)}>
+                      <Star className={`w-3 h-3 mr-1 ${p.prioridade ? "fill-amber-500 text-amber-500" : ""}`} /> {p.prioridade ? "Prioritário" : "Prioridade"}
+                    </Button>
+                  )}
+                  <HistoricoPedidoTelhasButton pedido={p} />
+                  <Button size="sm" variant="ghost" className="text-xs h-6 px-2 text-muted-foreground hover:text-blue-600" onClick={() => setEditandoPedido(p)}>
+                    <Edit3 className="w-3 h-3 mr-1" /> Editar
+                  </Button>
+                  <Button size="sm" variant="ghost" className="text-xs h-6 px-2 text-muted-foreground hover:text-red-600" onClick={() => handleDeletePedido(p)}>
+                    <Trash2 className="w-3 h-3 mr-1" /> Excluir
                   </Button>
                 </div>
               )}
