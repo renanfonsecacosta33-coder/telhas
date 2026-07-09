@@ -24,11 +24,12 @@ function calcKgPorMetro(bobinaTexto) {
 }
 
 function labelBobina(b) {
+  const codigo = b.codigo ? `${b.codigo} ` : "";
   const cor = b.cor ? ` — ${b.cor}` : "";
   const chapa = b.chapa ? `${b.chapa}` : "";
   const qual = b.qualidade ? ` (${b.qualidade})` : "";
   const peso = b.peso_kg ? ` · ${b.peso_kg}kg` : "";
-  return `${chapa}${qual}${cor}${peso}`;
+  return `${codigo}${chapa}${qual}${cor}${peso}`;
 }
 
 const emptyForm = {
@@ -156,6 +157,29 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
       }
     }
   }, [open, editItem, defaultDate]);
+
+  // Auto-selecionar modelo padrão da máquina quando a máquina estiver preset e o modelo vazio
+  useEffect(() => {
+    if (open && form.maquina && !form.modelo && modelosCad.length > 0) {
+      const maquinaNorm = form.maquina.toUpperCase().replace(/\s/g, "");
+      const modeloMatch = modelosCad.find(m => {
+        const mNorm = (m.maquinas || "").toUpperCase().replace(/\s/g, "");
+        const modNorm = (m.modelo || "").toUpperCase().replace(/\s/g, "");
+        return mNorm.includes(maquinaNorm) || modNorm.includes(maquinaNorm);
+      });
+      if (modeloMatch) {
+        let epsAuto = "";
+        const vUp = (modeloMatch.modelo || "").toUpperCase();
+        if (vUp.includes("TP-25") || vUp.includes("TP25")) epsAuto = "EPS - TP 25";
+        else if (vUp.includes("BANDEJA")) epsAuto = "EPS - TP 40 BANDEJA";
+        else if (vUp.includes("TP-40") || vUp.includes("TP40")) epsAuto = "EPS - TP 40";
+        else if (vUp.includes("COLONIAL BANDEJA")) epsAuto = "EPS - COLONIAL BANDEJA";
+        else if (vUp.includes("COLONIAL")) epsAuto = "EPS - COLONIAL";
+        else if (vUp.includes("ONDULAD")) epsAuto = "EPS - ONDULADO";
+        setForm(f => ({ ...f, modelo: modeloMatch.modelo, eps: epsAuto || f.eps }));
+      }
+    }
+  }, [open, form.maquina, form.modelo, modelosCad]);
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
@@ -421,15 +445,16 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                 <SelectContent>
                   {bobinasList.map((b) =>
                   <SelectItem key={b.id} value={b.id}>
-                      <span className="font-medium">{b.chapa}</span>
+                      {b.codigo && <span className="font-mono font-bold text-primary">{b.codigo}</span>}
+                      <span className="font-medium ml-1">{b.chapa}</span>
                       {b.qualidade && <span className="text-muted-foreground"> ({b.qualidade})</span>}
                       {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
                       {b.peso_kg && <span className="text-muted-foreground text-xs"> · {b.peso_kg}kg</span>}
                     </SelectItem>
                   )}
-                </SelectContent>
-              </Select>
-              {bobinaSuperiorObj &&
+                  </SelectContent>
+                  </Select>
+                  {bobinaSuperiorObj &&
               <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-800 flex flex-wrap gap-3 items-center">
                   <span>Cód: <strong>{bobinaSuperiorObj.codigo || "—"}</strong></span>
                   <span>Cor/RVM: <strong>{bobinaSuperiorObj.cor || "—"}</strong></span>
@@ -455,13 +480,14 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                   </SelectTrigger>
                   <SelectContent>
                     {bobinasList.map((b) =>
-                  <SelectItem key={b.id} value={b.id}>
-                        <span className="font-medium">{b.chapa}</span>
-                        {b.qualidade && <span className="text-muted-foreground"> ({b.qualidade})</span>}
-                        {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
-                        {b.peso_kg && <span className="text-muted-foreground text-xs"> · {b.peso_kg}kg</span>}
-                      </SelectItem>
-                  )}
+                    <SelectItem key={b.id} value={b.id}>
+                       {b.codigo && <span className="font-mono font-bold text-primary">{b.codigo}</span>}
+                       <span className="font-medium ml-1">{b.chapa}</span>
+                       {b.qualidade && <span className="text-muted-foreground"> ({b.qualidade})</span>}
+                       {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
+                       {b.peso_kg && <span className="text-muted-foreground text-xs"> · {b.peso_kg}kg</span>}
+                     </SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
                 {bobinaInferiorObj &&
