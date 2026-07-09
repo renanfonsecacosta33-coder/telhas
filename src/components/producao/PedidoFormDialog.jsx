@@ -737,7 +737,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs">Quantidade de Telhas</Label>
+                    <Label className="text-xs">Quantidade de Chapas</Label>
                     <Input
                       type="number"
                       placeholder="0"
