@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -33,8 +33,15 @@ export default function MaquinaPanel({ maquina }) {
   const navigate = useNavigate();
   const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
   const [novoPedidoOpen, setNovoPedidoOpen] = useState(false);
+  const [user, setUser] = useState(null);
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
+
+  const isOperador = user?.role === "operador";
+
+  useEffect(() => {
+    base44.auth.me().then(setUser).catch(() => {});
+  }, []);
 
   const { data: pedidos = [], isLoading } = useQuery({
     queryKey: ["pedidos-maquina", maquina, filialAtiva],
@@ -116,20 +123,22 @@ export default function MaquinaPanel({ maquina }) {
           <ArrowLeft className="w-4 h-4" />
           Voltar para Produção
         </Button>
-        <div className="flex items-center gap-2">
-          {DASH_PATHS[maquina] && (
-            <Link to={DASH_PATHS[maquina]}>
-              <Button variant="outline" size="sm" className="gap-2">
-                <BarChart2 className="w-4 h-4" />
-                Dashboard
-              </Button>
-            </Link>
-          )}
-          <Button size="sm" className="gap-2" onClick={() => setNovoPedidoOpen(true)}>
-            <Plus className="w-4 h-4" />
-            Novo Pedido
-          </Button>
-        </div>
+        {!isOperador && (
+          <div className="flex items-center gap-2">
+            {DASH_PATHS[maquina] && (
+              <Link to={DASH_PATHS[maquina]}>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <BarChart2 className="w-4 h-4" />
+                  Dashboard
+                </Button>
+              </Link>
+            )}
+            <Button size="sm" className="gap-2" onClick={() => setNovoPedidoOpen(true)}>
+              <Plus className="w-4 h-4" />
+              Novo Pedido
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Header máquina */}
