@@ -62,6 +62,7 @@ import MapaBarracao from '@/pages/corte-dobra/MapaBarracao';
 import MapaBarracaoTelhas from '@/pages/MapaBarracaoTelhas';
 import BobinaQR from '@/pages/BobinaQR';
 import Logistica from '@/pages/corte-dobra/Logistica';
+import LogisticaStandalone from '@/pages/Logistica';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -123,6 +124,7 @@ const AuthenticatedApp = () => {
         <Route path="/dashboard-telhas" element={<DashboardTelhas />} />
       </Route>
       <Route path="/vendedor" element={<VendedorEstoque />} />
+      <Route path="/logistica" element={<LogisticaStandalone />} />
       <Route path="/setor" element={<SeletorSetor />} />
       <Route path="/bobina-qr/:id" element={<BobinaQR />} />
       <Route element={<AppLayoutCD />}>

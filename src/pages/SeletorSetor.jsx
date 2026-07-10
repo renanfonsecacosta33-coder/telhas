@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { ChevronRight, BookmarkPlus } from "lucide-react";
+import { ChevronRight, BookmarkPlus, Truck } from "lucide-react";
 
 export default function SeletorSetor() {
   const navigate = useNavigate();
@@ -59,6 +59,21 @@ export default function SeletorSetor() {
               <p className="text-sm text-muted-foreground mt-1">Setor de corte e dobra de chapas</p>
             </div>
             <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+          </button>
+
+          <button
+            onClick={() => { setNavegando(true); navigate("/logistica"); }}
+            disabled={navegando}
+            className="w-full bg-card border border-emerald-300 rounded-xl p-5 flex items-center justify-between hover:border-emerald-500 hover:bg-emerald-50 transition-all group text-left disabled:opacity-60"
+          >
+            <div>
+              <p className="font-bold text-base flex items-center gap-2">
+                <Truck className="w-5 h-5 text-emerald-600" />
+                Logística
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">Expedição, cargas e carregamento</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-emerald-600 transition-colors" />
           </button>
 
           {isGerencia && (

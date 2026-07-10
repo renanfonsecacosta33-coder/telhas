@@ -7,6 +7,16 @@ import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Truck, Plus, Trash2, CheckCircle2, Package, Loader2, X, Search } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import CarregamentoDialog from "@/components/logistica/CarregamentoDialog";
 
 export default function CargaCard({ carga, pedidosDisponiveis, onSelectItem }) {
@@ -14,6 +24,7 @@ export default function CargaCard({ carga, pedidosDisponiveis, onSelectItem }) {
   const [busca, setBusca] = useState("");
   const [carregamentoItem, setCarregamentoItem] = useState(null);
   const [carregamentoTipo, setCarregamentoTipo] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const queryClient = useQueryClient();
 
   const pedidosVinculados = useMemo(() => {
@@ -123,6 +134,30 @@ export default function CargaCard({ carga, pedidosDisponiveis, onSelectItem }) {
     setCarregamentoTipo(pedido.tipo || fullPedido._tipo);
   };
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      // Desvincular todos os pedidos da carga antes de excluir
+      for (const p of pedidosVinculados) {
+        const entityName = p.tipo === "pedido" ? "Pedido" : p.tipo === "ordem_maquina" ? "OrdemMaquinaCD" : "OrdemDesbobinadeira";
+        try {
+          await base44.entities[entityName].update(p.id, {
+            carga_id: "",
+            motorista_nome: "",
+          });
+        } catch {}
+      }
+      await base44.entities.Carga.delete(carga.id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cargas"] });
+      queryClient.invalidateQueries({ queryKey: ["logistica-pedidos"] });
+      queryClient.invalidateQueries({ queryKey: ["logistica-cd"] });
+      queryClient.invalidateQueries({ queryKey: ["expedicao-telhas"] });
+      queryClient.invalidateQueries({ queryKey: ["expedicao-cd-maq"] });
+      setConfirmDelete(false);
+    },
+  });
+
   return (
     <div className={`bg-card border-2 rounded-xl overflow-hidden ${carga.status === "em_transito" ? "border-blue-300" : "border-border"}`}>
       {/* Header da carga */}
@@ -148,6 +183,15 @@ export default function CargaCard({ carga, pedidosDisponiveis, onSelectItem }) {
             <Badge variant="secondary">{carga.status}</Badge>
           )}
           <Badge variant="outline" className="text-xs">{pedidosVinculados.length} pedidos</Badge>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 w-7 p-0 text-red-500 hover:bg-red-50 hover:text-red-600"
+            onClick={() => setConfirmDelete(true)}
+            title="Excluir carga"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
         </div>
       </div>
 
@@ -255,6 +299,37 @@ export default function CargaCard({ carga, pedidosDisponiveis, onSelectItem }) {
         motoristaNome={carga.motorista_nome}
         cargaId={carga.id}
       />
+
+      <AlertDialog open={confirmDelete} onOpenChange={(v) => !v && setConfirmDelete(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="w-5 h-5" />
+              Excluir Carga
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              <p>Tem certeza que deseja excluir a carga de <strong>{carga.motorista_nome}</strong>?</p>
+              {pedidosVinculados.length > 0 && (
+                <p className="mt-2 text-amber-600">
+                  ⚠️ {pedidosVinculados.length} pedido(s) vinculado(s) serão desvinculados.
+                </p>
+              )}
+              <p className="mt-2 text-xs text-muted-foreground">Esta ação é irreversível.</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteMutation.mutate()}
+              disabled={deleteMutation.isPending}
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground gap-1"
+            >
+              {deleteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

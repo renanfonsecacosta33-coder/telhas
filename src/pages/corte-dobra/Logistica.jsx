@@ -17,6 +17,7 @@ export default function Logistica() {
   const [dialogCarga, setDialogCarga] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedTipo, setSelectedTipo] = useState(null);
+  const [tab, setTab] = useState("telhas");
   const { filialAtiva } = useFilial();
   const queryClient = useQueryClient();
 
@@ -79,10 +80,16 @@ export default function Logistica() {
     return [...telhas, ...maq, ...desb];
   }, [pedidosTelhas, ordensMaq, ordensDesb]);
 
+  // Items filtered by active tab
+  const itensFiltradosTab = useMemo(() => {
+    if (tab === "telhas") return allItens.filter(i => i._setor === "Telhas");
+    return allItens.filter(i => i._setor === "Corte e Dobra");
+  }, [allItens, tab]);
+
   // Group by numero_pedido
   const pedidosAgrupados = useMemo(() => {
     const grupos = {};
-    allItens.forEach(item => {
+    itensFiltradosTab.forEach(item => {
       const key = item.numero_pedido || `SEM_PEDIDO_${item.id}`;
       if (!grupos[key]) {
         grupos[key] = {
@@ -114,7 +121,7 @@ export default function Logistica() {
       const order = { pronto_expedicao: 0, pronto_parcial: 1, em_producao: 2 };
       return (order[a.statusCarga] ?? 2) - (order[b.statusCarga] ?? 2);
     });
-  }, [allItens]);
+  }, [itensFiltradosTab]);
 
   // Filter by search
   const gruposFiltrados = useMemo(() => {
@@ -133,8 +140,8 @@ export default function Logistica() {
         } catch {}
       }
     });
-    return allItens.filter(i => !linkedIds.has(i.id) && (!i.status_expedicao || i.status_expedicao === "aguardando"));
-  }, [allItens, cargas]);
+    return itensFiltradosTab.filter(i => !linkedIds.has(i.id) && (!i.status_expedicao || i.status_expedicao === "aguardando"));
+  }, [itensFiltradosTab, cargas]);
 
   const cargasAtivas = cargas.filter(c => c.status === "carregando" || c.status === "em_transito");
   const isLoading = loadingTelhas || loadingMaq || loadingDesb || loadingCargas;
@@ -174,6 +181,22 @@ export default function Logistica() {
         <Button onClick={() => setDialogCarga(true)} className="gap-2">
           <Plus className="w-4 h-4" /> Nova Carga
         </Button>
+      </div>
+
+      {/* Tabs Barracões */}
+      <div className="flex items-center gap-2 border-b border-border">
+        <button
+          onClick={() => setTab("telhas")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all ${tab === "telhas" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+        >
+          <Factory className="w-4 h-4" /> Telhas
+        </button>
+        <button
+          onClick={() => setTab("cd")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all ${tab === "cd" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+        >
+          <Layers className="w-4 h-4" /> Corte e Dobra
+        </button>
       </div>
 
       {/* Stats */}
