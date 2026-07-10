@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
 import { Layers, Package, Camera, DollarSign, PackageX } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
+import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 
 // etapa: "corte" | "dobra" | "ambas" | "perfiladeira"
 const TIPOS_PECA = [
@@ -78,6 +79,9 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false, unidade: filialAtiva }),
     enabled: open && form.chapa_origem === "direto" && !(form.maquina === "PERFILADEIRA"),
   });
+
+  const filiaisHook = filialAtiva === "todas" ? null : [filialAtiva];
+  const { preBaixaMap } = usePreBaixaBobinas("corte_dobra", filiaisHook);
 
   const { data: slitters = [] } = useQuery({
     queryKey: ["slitters-perfiladeira", filialAtiva],
@@ -518,11 +522,15 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
                 <SelectContent>
                   {bobinasSliter.map(b => {
                     const reservadaParaOutro = b.reservada && b.reserva_numero_pedido && b.reserva_numero_pedido !== form.numero_pedido;
+                    const pb = preBaixaMap[b.id] || 0;
+                    const disp = (b.peso_kg || 0) - pb;
                     return (
                       <SelectItem key={b.id} value={b.id} disabled={reservadaParaOutro}>
                         <span className="font-mono font-bold">{b.codigo || "—"}</span>
                         {b.chapa && <span className="text-muted-foreground ml-2">{b.chapa}</span>}
                         {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
+                        {b.peso_kg && <span className="text-muted-foreground ml-2 text-xs">{disp.toFixed(0)}kg disp.</span>}
+                        {pb > 0 && <span className="text-blue-500 ml-1 text-xs">(pré-baixa: {pb.toFixed(0)}kg)</span>}
                         {b.reservada && !reservadaParaOutro && (
                           <span className="text-amber-600 ml-2 text-xs font-bold">🔒 Ped. {b.reserva_numero_pedido}</span>
                         )}

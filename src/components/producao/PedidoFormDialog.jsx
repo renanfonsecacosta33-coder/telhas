@@ -11,6 +11,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import UploadButton from "@/components/ui/UploadButton";
 import ImageLink from "@/components/ui/ImageLink";
+import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 import { Camera, X, Loader2, FileText, Plus, Trash2 } from "lucide-react";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
@@ -102,6 +103,8 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     queryFn: () => base44.entities.Bobina.filter({ arquivada: false, reservada: false, setor: "telhas" }),
     enabled: open
   });
+
+  const { preBaixaMap } = usePreBaixaBobinas("telhas");
 
   const { data: modelosCad = [] } = useQuery({
     queryKey: ["modelos-produto"],
@@ -620,23 +623,33 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                   <SelectValue placeholder="Selecione a bobina do estoque..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {bobinasList.map((b) =>
+                  {bobinasList.map((b) => {
+                    const pb = preBaixaMap[b.id] || 0;
+                    const disp = (b.peso_kg || 0) - pb;
+                    return (
                   <SelectItem key={b.id} value={b.id}>
                       {b.codigo && <span className="font-mono font-bold text-primary">{b.codigo}</span>}
                       <span className="font-medium ml-1">{b.chapa}</span>
                       {b.qualidade && <span className="text-muted-foreground"> ({b.qualidade})</span>}
                       {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
-                      {b.peso_kg && <span className="text-muted-foreground text-xs"> · {b.peso_kg}kg</span>}
+                      {b.peso_kg && <span className="text-muted-foreground text-xs"> · {disp.toFixed(0)}kg disp.</span>}
+                      {pb > 0 && <span className="text-blue-500 text-xs">(pré-baixa: {pb.toFixed(0)}kg)</span>}
                     </SelectItem>
-                  )}
+                    );
+                  })}
                   </SelectContent>
                   </Select>
-                  {bobinaSuperiorObj &&
+                  {bobinaSuperiorObj && (() => {
+                    const pb = preBaixaMap[bobinaSuperiorObj.id] || 0;
+                    const disp = (bobinaSuperiorObj.peso_kg || 0) - pb;
+                    return (
               <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-800 flex flex-wrap gap-3 items-center">
                   <span>Cód: <strong>{bobinaSuperiorObj.codigo || "—"}</strong></span>
                   <span>Cor/RVM: <strong>{bobinaSuperiorObj.cor || "—"}</strong></span>
                   <span>Qualidade: <strong>{bobinaSuperiorObj.qualidade || "—"}</strong></span>
-                  <span>Estoque atual: <strong>{bobinaSuperiorObj.peso_kg || 0}kg</strong></span>
+                  <span>Peso: <strong>{bobinaSuperiorObj.peso_kg || 0}kg</strong></span>
+                  {pb > 0 && <span className="text-blue-600 font-semibold">Pré-baixa: <strong>{pb.toFixed(1)}kg</strong></span>}
+                  <span className="text-emerald-700 font-semibold">Disponível: <strong>{disp.toFixed(1)}kg</strong></span>
                   {bobinaSuperiorObj.metragem_restante && <span>Metragem: <strong>{bobinaSuperiorObj.metragem_restante}m restantes</strong></span>}
                   {form.kg_superior &&
                 <span className="ml-auto bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold text-xs">
@@ -644,6 +657,8 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                     </span>
                 }
                 </div>
+                    );
+                  })()
               }
             </div>
 
@@ -656,30 +671,42 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                     <SelectValue placeholder="Selecione a bobina inferior..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {bobinasList.map((b) =>
+                    {bobinasList.map((b) => {
+                      const pb = preBaixaMap[b.id] || 0;
+                      const disp = (b.peso_kg || 0) - pb;
+                      return (
                     <SelectItem key={b.id} value={b.id}>
                        {b.codigo && <span className="font-mono font-bold text-primary">{b.codigo}</span>}
                        <span className="font-medium ml-1">{b.chapa}</span>
                        {b.qualidade && <span className="text-muted-foreground"> ({b.qualidade})</span>}
                        {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
-                       {b.peso_kg && <span className="text-muted-foreground text-xs"> · {b.peso_kg}kg</span>}
+                       {b.peso_kg && <span className="text-muted-foreground text-xs"> · {disp.toFixed(0)}kg disp.</span>}
+                       {pb > 0 && <span className="text-blue-500 text-xs">(pré-baixa: {pb.toFixed(0)}kg)</span>}
                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-                {bobinaInferiorObj &&
-              <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-800 flex flex-wrap gap-3 items-center">
-                    <span>Cód: <strong>{bobinaInferiorObj.codigo || "—"}</strong></span>
-                    <span>Cor/RVM: <strong>{bobinaInferiorObj.cor || "—"}</strong></span>
-                    <span>Qualidade: <strong>{bobinaInferiorObj.qualidade || "—"}</strong></span>
-                    <span>Estoque atual: <strong>{bobinaInferiorObj.peso_kg || 0}kg</strong></span>
-                    {form.kg_inferior &&
-                <span className="ml-auto bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold text-xs">
-                        ↓ {form.kg_inferior} kg serão usados
-                      </span>
-                }
-                  </div>
-              }
+                      );
+                    })}
+                    </SelectContent>
+                    </Select>
+                    {bobinaInferiorObj && (() => {
+                    const pb = preBaixaMap[bobinaInferiorObj.id] || 0;
+                    const disp = (bobinaInferiorObj.peso_kg || 0) - pb;
+                    return (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-800 flex flex-wrap gap-3 items-center">
+                     <span>Cód: <strong>{bobinaInferiorObj.codigo || "—"}</strong></span>
+                     <span>Cor/RVM: <strong>{bobinaInferiorObj.cor || "—"}</strong></span>
+                     <span>Qualidade: <strong>{bobinaInferiorObj.qualidade || "—"}</strong></span>
+                     <span>Peso: <strong>{bobinaInferiorObj.peso_kg || 0}kg</strong></span>
+                     {pb > 0 && <span className="text-blue-600 font-semibold">Pré-baixa: <strong>{pb.toFixed(1)}kg</strong></span>}
+                     <span className="text-emerald-700 font-semibold">Disponível: <strong>{disp.toFixed(1)}kg</strong></span>
+                     {form.kg_inferior &&
+                    <span className="ml-auto bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold text-xs">
+                         ↓ {form.kg_inferior} kg serão usados
+                       </span>
+                    }
+                    </div>
+                    );
+                    })()
+                    }
               </div>
             }
           </div>
@@ -810,17 +837,22 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                           Bobina {precisaBobinaInferior ? "Superior" : "do Item"}
                         </Label>
                         <Select value={v.bobina_id || ""} onValueChange={(val) => updateVariacao(idx, "bobina_id", val)}>
-                          <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Selecionar bobina para esta medida..." /></SelectTrigger>
-                          <SelectContent>
-                            {bobinasList.map((b) => (
-                              <SelectItem key={b.id} value={b.id}>
-                                {b.codigo && <span className="font-mono font-bold text-primary">{b.codigo}</span>}
-                                <span className="font-medium ml-1">{b.chapa}</span>
-                                {b.qualidade && <span className="text-muted-foreground"> ({b.qualidade})</span>}
-                                {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
-                                {b.peso_kg && <span className="text-muted-foreground text-xs"> · {b.peso_kg}kg</span>}
-                              </SelectItem>
-                            ))}
+                         <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Selecionar bobina para esta medida..." /></SelectTrigger>
+                         <SelectContent>
+                           {bobinasList.map((b) => {
+                             const pb = preBaixaMap[b.id] || 0;
+                             const disp = (b.peso_kg || 0) - pb;
+                             return (
+                             <SelectItem key={b.id} value={b.id}>
+                               {b.codigo && <span className="font-mono font-bold text-primary">{b.codigo}</span>}
+                               <span className="font-medium ml-1">{b.chapa}</span>
+                               {b.qualidade && <span className="text-muted-foreground"> ({b.qualidade})</span>}
+                               {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
+                               {b.peso_kg && <span className="text-muted-foreground text-xs"> · {disp.toFixed(0)}kg disp.</span>}
+                               {pb > 0 && <span className="text-blue-500 text-xs">(pré-baixa: {pb.toFixed(0)}kg)</span>}
+                             </SelectItem>
+                             );
+                           })}
                           </SelectContent>
                         </Select>
                       </div>
@@ -830,15 +862,20 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                           <Select value={v.bobina_inf_id || ""} onValueChange={(val) => updateVariacao(idx, "bobina_inf_id", val)}>
                             <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Selecionar bobina inferior..." /></SelectTrigger>
                             <SelectContent>
-                              {bobinasList.map((b) => (
+                              {bobinasList.map((b) => {
+                                const pb = preBaixaMap[b.id] || 0;
+                                const disp = (b.peso_kg || 0) - pb;
+                                return (
                                 <SelectItem key={b.id} value={b.id}>
                                   {b.codigo && <span className="font-mono font-bold text-primary">{b.codigo}</span>}
                                   <span className="font-medium ml-1">{b.chapa}</span>
                                   {b.qualidade && <span className="text-muted-foreground"> ({b.qualidade})</span>}
                                   {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
-                                  {b.peso_kg && <span className="text-muted-foreground text-xs"> · {b.peso_kg}kg</span>}
+                                  {b.peso_kg && <span className="text-muted-foreground text-xs"> · {disp.toFixed(0)}kg disp.</span>}
+                                  {pb > 0 && <span className="text-blue-500 text-xs">(pré-baixa: {pb.toFixed(0)}kg)</span>}
                                 </SelectItem>
-                              ))}
+                                );
+                              })}
                             </SelectContent>
                           </Select>
                         </div>

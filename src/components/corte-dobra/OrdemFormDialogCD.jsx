@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
 import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X, DollarSign, Star, PackageX, Wrench } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
+import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 
 const MAQUINAS_INICIAIS = [
   { id: "DESBOBINADEIRA", label: "Desbobinadeira", icon: Layers },
@@ -98,6 +99,9 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false, unidade: filialAtiva }),
     enabled: open && form.maquina_inicial === "DESBOBINADEIRA",
   });
+
+  const filiaisHook = filialAtiva === "todas" ? null : [filialAtiva];
+  const { preBaixaMap } = usePreBaixaBobinas("corte_dobra", filiaisHook);
 
   const { data: chapasDisponiveis = [] } = useQuery({
     queryKey: ["chapas-cd-form-dinamico", filialAtiva],
@@ -352,6 +356,8 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                 {bobinas.map(b => {
                   const reservadaParaEste = b.reservada && form.destino === "pedido_direto" && form.numero_pedido && b.reserva_numero_pedido === form.numero_pedido;
                   const reservadaParaOutro = b.reservada && !reservadaParaEste;
+                  const pb = preBaixaMap[b.id] || 0;
+                  const disp = (b.peso_kg || 0) - pb;
                   return (
                     <SelectItem key={b.id} value={b.id}>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -359,7 +365,8 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                         {(b.espessura_utilizada || b.chapa) && <span className="text-muted-foreground text-xs">{b.espessura_utilizada || b.chapa}mm</span>}
                         {b.cor && <span className="text-blue-600 text-xs font-medium">{b.cor}</span>}
                         {b.largura_mm && <span className="text-xs text-muted-foreground">{b.largura_mm}mm larg.</span>}
-                        {b.peso_kg && <span className="text-xs text-muted-foreground">{b.peso_kg}kg</span>}
+                        {b.peso_kg && <span className="text-xs text-muted-foreground">{disp.toFixed(0)}kg disp.</span>}
+                        {pb > 0 && <span className="text-blue-500 text-xs">(pré-baixa: {pb.toFixed(0)}kg)</span>}
                         {reservadaParaEste && (
                           <span className="text-emerald-600 text-xs font-bold">✅ Reservada para este pedido</span>
                         )}
@@ -407,6 +414,9 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                       <Weight className="w-3 h-3 text-slate-400" />
                       {bobinaObj.peso_kg ? `${bobinaObj.peso_kg} kg` : "—"}
                     </p>
+                    {(preBaixaMap[bobinaObj.id] || 0) > 0 && (
+                      <p className="text-[10px] text-blue-600 font-semibold mt-0.5">Pré-baixa: {(preBaixaMap[bobinaObj.id] || 0).toFixed(1)}kg · Disp: {Math.max(0, (bobinaObj.peso_kg || 0) - (preBaixaMap[bobinaObj.id] || 0)).toFixed(1)}kg</p>
+                    )}
                   </div>
                   <div>
                     <p className="text-muted-foreground uppercase tracking-wide text-[10px] mb-0.5">Metragem Restante</p>
