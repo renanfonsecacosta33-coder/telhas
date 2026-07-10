@@ -19,7 +19,7 @@ export default function LogisticaStandalone() {
         <span className="text-sm font-semibold">Setor Logística</span>
       </div>
       <div className="p-4 sm:p-6 max-w-7xl mx-auto">
-        <Logistica />
+        <Logistica mode="montagem" />
       </div>
     </div>
   );

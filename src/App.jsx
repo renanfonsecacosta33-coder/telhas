@@ -147,7 +147,7 @@ const AuthenticatedApp = () => {
         <Route path="/corte-dobra/maquina/perfiladeira" element={<Perfiladeira />} />
         <Route path="/corte-dobra/maquina/desbobinadeira" element={<Desbobinadeira />} />
         <Route path="/corte-dobra/mapa" element={<MapaBarracao />} />
-        <Route path="/corte-dobra/logistica" element={<Logistica />} />
+        <Route path="/corte-dobra/logistica" element={<Logistica mode="despacho" />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

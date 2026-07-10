@@ -11,7 +11,8 @@ import CargaFormDialog from "@/components/logistica/CargaFormDialog";
 import CargaCard from "@/components/logistica/CargaCard";
 import AuditSidebar from "@/components/logistica/AuditSidebar";
 
-export default function Logistica() {
+export default function Logistica({ mode = "montagem" }) {
+  const isDespacho = mode === "despacho";
   const [user, setUser] = useState(null);
   const [busca, setBusca] = useState("");
   const [dialogCarga, setDialogCarga] = useState(false);
@@ -178,9 +179,11 @@ export default function Logistica() {
           </h1>
           <p className="text-sm text-muted-foreground">Agrupamento de cargas e carregamento de caminhões</p>
         </div>
-        <Button onClick={() => setDialogCarga(true)} className="gap-2">
-          <Plus className="w-4 h-4" /> Nova Carga
-        </Button>
+        {!isDespacho && (
+          <Button onClick={() => setDialogCarga(true)} className="gap-2">
+            <Plus className="w-4 h-4" /> Nova Carga
+          </Button>
+        )}
       </div>
 
       {/* Tabs Barracões */}
@@ -235,13 +238,14 @@ export default function Logistica() {
           </h2>
           <div className="grid gap-3 lg:grid-cols-2">
             {cargasAtivas.map(c => (
-              <CargaCard key={c.id} carga={c} pedidosDisponiveis={pedidosDisponiveis} onSelectItem={handleSelectItem} />
+              <CargaCard key={c.id} carga={c} pedidosDisponiveis={pedidosDisponiveis} onSelectItem={handleSelectItem} mode={mode} />
             ))}
           </div>
         </div>
       )}
 
-      {/* Pedidos agrupados */}
+      {/* Pedidos agrupados — apenas na montagem */}
+      {!isDespacho && (
       <div className="space-y-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h2 className="text-lg font-bold">Pedidos Agrupados por Número</h2>
@@ -310,9 +314,10 @@ export default function Logistica() {
             })}
           </div>
         )}
-      </div>
+        </div>
+        )}
 
-      <CargaFormDialog open={dialogCarga} onClose={() => setDialogCarga(false)} filialAtiva={filialAtiva} />
+        <CargaFormDialog open={dialogCarga} onClose={() => setDialogCarga(false)} filialAtiva={filialAtiva} />
       <AuditSidebar open={!!selectedItem} onClose={() => setSelectedItem(null)} item={selectedItem} tipo={selectedTipo} />
     </div>
   );

@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import CarregamentoDialog from "@/components/logistica/CarregamentoDialog";
 
-export default function CargaCard({ carga, pedidosDisponiveis, onSelectItem }) {
+export default function CargaCard({ carga, pedidosDisponiveis, onSelectItem, mode = "montagem" }) {
+  const isDespacho = mode === "despacho";
   const [showLink, setShowLink] = useState(false);
   const [busca, setBusca] = useState("");
   const [carregamentoItem, setCarregamentoItem] = useState(null);
@@ -240,9 +241,11 @@ export default function CargaCard({ carga, pedidosDisponiveis, onSelectItem }) {
         {/* Ações */}
         {carga.status === "carregando" && (
           <div className="flex items-center gap-2 pt-2">
+            {!isDespacho && (
             <Button size="sm" variant="outline" className="gap-1 text-xs" onClick={() => setShowLink(!showLink)}>
               <Plus className="w-3.5 h-3.5" /> Vincular Pedido
             </Button>
+            )}
             {pedidosVinculados.length > 0 && (
               <Button size="sm" variant="outline" className="gap-1 text-xs" onClick={() => {
                 if (!todosCarregados) {
@@ -259,7 +262,7 @@ export default function CargaCard({ carga, pedidosDisponiveis, onSelectItem }) {
         )}
 
         {/* Lista de pedidos disponíveis para vincular */}
-        {showLink && carga.status === "carregando" && (
+        {!isDespacho && showLink && carga.status === "carregando" && (
           <div className="border border-border rounded-lg p-2 space-y-2 bg-muted/20">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
