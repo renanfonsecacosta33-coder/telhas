@@ -177,6 +177,7 @@ export default function Logistica({ mode = "montagem" }) {
       if (!c.pedidos_json) return true; // empty carga — show in both tabs
       try {
         const linked = JSON.parse(c.pedidos_json);
+        if (linked.length === 0) return true; // empty carga — show in both tabs
         if (tab === "telhas") return linked.some(p => p.tipo === "pedido");
         return linked.some(p => p.tipo === "ordem_maquina" || p.tipo === "ordem_desb");
       } catch {
