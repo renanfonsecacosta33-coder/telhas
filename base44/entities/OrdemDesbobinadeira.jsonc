@@ -18,6 +18,11 @@
       "format": "date",
       "description": "Data de produ\u00e7\u00e3o planejada"
     },
+    "maquina_inicial": {
+      "type": "string",
+      "description": "M\u00e1quina inicial escolhida no formul\u00e1rio din\u00e2mico (ex: DESBOBINADEIRA, CORTE 3M, DOBRA 3M...)",
+      "default": "DESBOBINADEIRA"
+    },
     "bobina_id": {
       "type": "string",
       "description": "ID da bobina do estoque CD"
@@ -71,6 +76,23 @@
       "type": "number",
       "description": "Tamanho de corte na guilhotina em mm (quando destino = pedido_direto)"
     },
+    "valor_pago_cliente": {
+      "type": "number",
+      "description": "Valor pago pelo cliente (R$)"
+    },
+    "material_em_falta": {
+      "type": "boolean",
+      "default": false,
+      "description": "Material em falta / a chegar \u2014 OP vai para aba 'OP sem Material'"
+    },
+    "material_espessura": {
+      "type": "string",
+      "description": "Espessura desejada informada manualmente (quando material em falta)"
+    },
+    "material_cor": {
+      "type": "string",
+      "description": "Cor desejada informada manualmente (quando material em falta)"
+    },
     "foto_pedido_url": {
       "type": "string",
       "description": "URL da foto do pedido anexada (quando destino = pedido_direto)"
@@ -86,7 +108,8 @@
         "em_producao",
         "pausado",
         "finalizado",
-        "cancelado"
+        "cancelado",
+        "aguardando_material"
       ],
       "default": "pendente",
       "description": "Status da ordem"
@@ -192,5 +215,11 @@
     "data",
     "bobina_id",
     "quantidade"
-  ]
+  ],
+  "rls": {
+    "create": {},
+    "read": {},
+    "update": {},
+    "delete": {}
+  }
 }

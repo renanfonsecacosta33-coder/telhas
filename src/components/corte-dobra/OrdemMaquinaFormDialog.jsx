@@ -9,7 +9,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
-import { Layers, Package, Camera } from "lucide-react";
+import { Layers, Package, Camera, DollarSign, PackageX } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 
 // etapa: "corte" | "dobra" | "ambas" | "perfiladeira"
@@ -62,6 +62,10 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     peso_kg: "",
     observacoes: "",
     foto_pedido_url: "",
+    valor_pago_cliente: "",
+    material_em_falta: false,
+    material_espessura: "",
+    material_cor: "",
   });
   const fotoPedidoRef = useRef();
   const fotoPedidoScanRef = useRef();
@@ -116,6 +120,10 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         desenvolvimento_descricao: editItem.desenvolvimento_descricao || "",
         ordem_dobra_maquina: editItem.ordem_dobra_maquina || "",
         ordem_corte_id: editItem.ordem_corte_id || "",
+        valor_pago_cliente: editItem.valor_pago_cliente || "",
+        material_em_falta: editItem.material_em_falta || false,
+        material_espessura: editItem.material_espessura || "",
+        material_cor: editItem.material_cor || "",
       });
     } else {
       setForm({
@@ -137,6 +145,10 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         desenvolvimento_descricao: "",
         ordem_dobra_maquina: "",
         ordem_corte_id: "",
+        valor_pago_cliente: "",
+        material_em_falta: false,
+        material_espessura: "",
+        material_cor: "",
       });
     }
   }, [open, editItem, defaultDate, maquinaProp]);
@@ -251,6 +263,25 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
   };
 
   const handleSave = async () => {
+    // Se material em falta, pular validação de chapa/bobina
+    if (form.material_em_falta) {
+      if (!form.material_espessura) { alert("Informe a espessura desejada."); return; }
+      if (!form.tipo_peca) { alert("Informe o tipo de peça."); return; }
+      if (!form.quantidade || Number(form.quantidade) <= 0) { alert("Informe a quantidade."); return; }
+
+      const ordemData = {
+        ...form,
+        status: "aguardando_material",
+        chapa_cd_id: "",
+        bobina_id: "",
+        chapa_descricao: "",
+        bobina_descricao: "",
+        quantidade: Number(form.quantidade),
+        valor_pago_cliente: form.valor_pago_cliente ? Number(form.valor_pago_cliente) : null,
+      };
+      onSave(ordemData);
+      return;
+    }
     if (!form.maquina) { alert("Selecione a máquina."); return; }
     if (isPerfiladeira && !form.bobina_id) { alert("Selecione a bobina slitter."); return; }
     if (isDobra && !form.chapa_cd_id) { alert("Selecione a chapa do estoque."); return; }
@@ -272,6 +303,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         : slitterSnap,
       quantidade: Number(form.quantidade),
       peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
+      valor_pago_cliente: form.valor_pago_cliente ? Number(form.valor_pago_cliente) : null,
       desenvolvimento_descricao: devObj ? `${devObj.nome_peca} — ${devObj.material || ""} ${devObj.espessura_mm || ""}mm` : form.desenvolvimento_descricao || "",
     };
 
@@ -365,7 +397,38 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
             </div>
           )}
 
-          {!isPerfiladeira && !isDobra && (
+          {/* Material em falta */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => set("material_em_falta", !form.material_em_falta)}
+              className={`flex items-center gap-2 rounded-lg border-2 px-3 py-2 transition-all ${form.material_em_falta ? "border-amber-500 bg-amber-50" : "border-border bg-card hover:border-amber-300"}`}
+            >
+              <PackageX className={`w-4 h-4 ${form.material_em_falta ? "text-amber-600" : "text-muted-foreground"}`} />
+              <span className={`text-sm font-semibold ${form.material_em_falta ? "text-amber-700" : "text-muted-foreground"}`}>
+                {form.material_em_falta ? "Material em falta / A chegar" : "Marcar material em falta"}
+              </span>
+            </button>
+          </div>
+
+          {/* Campos manuais quando material em falta */}
+          {form.material_em_falta && (
+            <div className="space-y-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <p className="text-xs font-semibold text-amber-700">A OP será criada na aba "OP sem Material" aguardando chegada do material.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Espessura Desejada *</Label>
+                  <Input placeholder="Ex: 0,43" value={form.material_espessura} onChange={e => set("material_espessura", e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Cor Desejada</Label>
+                  <Input placeholder="Ex: RVM Branco" value={form.material_cor} onChange={e => set("material_cor", e.target.value)} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!form.material_em_falta && !isPerfiladeira && !isDobra && (
             <div className="space-y-2">
               <Label>Origem da Chapa</Label>
               <div className="grid grid-cols-2 gap-2">
@@ -383,7 +446,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
             </div>
           )}
 
-          {(form.chapa_origem === "chaparia" || isDobra) && !isPerfiladeira && (
+          {!form.material_em_falta && (form.chapa_origem === "chaparia" || isDobra) && !isPerfiladeira && (
             <div className="space-y-1">
               <Label>{isDobra ? "Chapa do Estoque *" : "Chapa do Estoque (Chaparia)"}</Label>
               <Select value={form.chapa_cd_id} onValueChange={v => set("chapa_cd_id", v)}>
@@ -420,7 +483,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
             </div>
           )}
 
-          {isPerfiladeira && (
+          {!form.material_em_falta && isPerfiladeira && (
             <div className="space-y-1">
               <Label>Bobina Slitter *</Label>
               <Select value={form.bobina_id} onValueChange={v => { set("bobina_id", v); set("tipo_peca", ""); set("dimensoes_livres", ""); set("peso_kg", ""); pesoEditadoManual.current = false; }}>
@@ -447,7 +510,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
               )}
             </div>
           )}
-          {(form.chapa_origem === "direto" && !isPerfiladeira && !isDobra) && (
+          {!form.material_em_falta && (form.chapa_origem === "direto" && !isPerfiladeira && !isDobra) && (
             <div className="space-y-1">
               <Label>Bobina (entrada direta)</Label>
               <Select value={form.bobina_id} onValueChange={v => set("bobina_id", v)}>
@@ -556,6 +619,13 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
             ) : (
               <UploadButton label="Anexar Foto do Pedido" icon={Camera} cameraRef={fotoPedidoRef} fileRef={fotoPedidoScanRef} uploading={uploadingFoto} size="default" variant="outline" />
             )}
+          </div>
+
+          <div className="space-y-1">
+            <Label className="flex items-center gap-1">
+              <DollarSign className="w-4 h-4 text-green-600" /> Valor Pago pelo Cliente
+            </Label>
+            <Input type="number" step="0.01" placeholder="0,00" value={form.valor_pago_cliente} onChange={e => set("valor_pago_cliente", e.target.value)} />
           </div>
 
           <div className="space-y-1">

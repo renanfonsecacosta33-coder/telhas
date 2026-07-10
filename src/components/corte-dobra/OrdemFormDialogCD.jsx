@@ -11,8 +11,17 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
-import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X, DollarSign, Star } from "lucide-react";
+import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X, DollarSign, Star, PackageX, Wrench } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
+
+const MAQUINAS_INICIAIS = [
+  { id: "DESBOBINADEIRA", label: "Desbobinadeira", icon: Layers },
+  { id: "CORTE 3M", label: "Guilhotina 3m", icon: Wrench },
+  { id: "CORTE 6M", label: "Guilhotina 6m", icon: Wrench },
+  { id: "DOBRA 3M", label: "Dobradeira 3m", icon: Wrench },
+  { id: "DOBRA FUNDO 6M", label: "Dobradeira 6m (Fundo)", icon: Wrench },
+  { id: "DOBRA INICIO 6M", label: "Dobradeira 6m (Início)", icon: Wrench },
+];
 
 function labelBobina(b) {
   const parts = [];
@@ -57,7 +66,11 @@ function calcKgEstimado(bobina, comprimento_mm, quantidade) {
 export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, defaultDate, isGestor }) {
   const [form, setForm] = useState({
     data: format(new Date(), "yyyy-MM-dd"),
+    maquina_inicial: "DESBOBINADEIRA",
     bobina_id: "",
+    chapa_cd_id: "",
+    tipo_peca: "",
+    dimensoes_livres: "",
     comprimento_mm: "",
     quantidade: "",
     destino: "estoque",
@@ -68,6 +81,10 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     foto_pedido_url: "",
     observacoes: "",
     prioridade: false,
+    valor_pago_cliente: "",
+    material_em_falta: false,
+    material_espessura: "",
+    material_cor: "",
   });
   const [confirmReserva, setConfirmReserva] = useState(false);
   const [uploadingFoto, setUploadingFoto] = useState(false);
@@ -79,7 +96,13 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   const { data: bobinas = [] } = useQuery({
     queryKey: ["bobinas-cd-ativas", filialAtiva],
     queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false, unidade: filialAtiva }),
-    enabled: open,
+    enabled: open && form.maquina_inicial === "DESBOBINADEIRA",
+  });
+
+  const { data: chapasDisponiveis = [] } = useQuery({
+    queryKey: ["chapas-cd-form-dinamico", filialAtiva],
+    queryFn: () => base44.entities.ChapaCD.filter({ unidade: filialAtiva }),
+    enabled: open && form.maquina_inicial !== "DESBOBINADEIRA",
   });
 
   const { data: todasOrdens = [] } = useQuery({
@@ -93,7 +116,11 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     if (editItem) {
       setForm({
         data: editItem.data || format(new Date(), "yyyy-MM-dd"),
+        maquina_inicial: editItem.maquina_inicial || "DESBOBINADEIRA",
         bobina_id: editItem.bobina_id || "",
+        chapa_cd_id: editItem.chapa_cd_id || "",
+        tipo_peca: editItem.tipo_peca || "",
+        dimensoes_livres: editItem.dimensoes_livres || "",
         comprimento_mm: editItem.comprimento_mm || "",
         quantidade: editItem.quantidade || "",
         destino: editItem.destino || "estoque",
@@ -104,11 +131,19 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         foto_pedido_url: editItem.foto_pedido_url || "",
         observacoes: editItem.observacoes || "",
         prioridade: editItem.prioridade || false,
+        valor_pago_cliente: editItem.valor_pago_cliente || "",
+        material_em_falta: editItem.material_em_falta || false,
+        material_espessura: editItem.material_espessura || "",
+        material_cor: editItem.material_cor || "",
       });
     } else {
       setForm({
         data: defaultDate || format(new Date(), "yyyy-MM-dd"),
+        maquina_inicial: "DESBOBINADEIRA",
         bobina_id: "",
+        chapa_cd_id: "",
+        tipo_peca: "",
+        dimensoes_livres: "",
         comprimento_mm: "",
         quantidade: "",
         destino: "estoque",
@@ -119,12 +154,19 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         foto_pedido_url: "",
         observacoes: "",
         prioridade: false,
+        valor_pago_cliente: "",
+        material_em_falta: false,
+        material_espessura: "",
+        material_cor: "",
       });
     }
   }, [open, editItem, defaultDate]);
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
+  const isDesbobinadeira = form.maquina_inicial === "DESBOBINADEIRA";
   const bobinaObj = bobinas.find(b => b.id === form.bobina_id);
+  const chapaObj = chapasDisponiveis.find(c => c.id === form.chapa_cd_id);
+  const chapasFiltradas = chapasDisponiveis.filter(c => c.status === "disponivel" || c.status === "parcial");
   const maxChapas = calcMaxChapas(bobinaObj, form.comprimento_mm);
   const metrosRestantes = calcMetragem(bobinaObj);
   const kgEstimado = calcKgEstimado(bobinaObj, form.comprimento_mm, form.quantidade);
@@ -158,26 +200,55 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
 
   const doSave = () => {
     const bobinaSnap = bobinaObj ? labelBobina(bobinaObj) : "";
-    onSave({
+    const chapaSnap = chapaObj ? `${chapaObj.bobina_descricao || ""} · ${chapaObj.comprimento_mm}mm` : "";
+    const isMaterialEmFalta = form.material_em_falta;
+
+    const data = {
       ...form,
-      bobina_descricao: bobinaSnap,
+      bobina_descricao: isDesbobinadeira ? bobinaSnap : "",
       espessura_utilizada: bobinaObj?.espessura_utilizada || bobinaObj?.chapa || "",
-      comprimento_mm: Number(form.comprimento_mm),
+      comprimento_mm: Number(form.comprimento_mm) || 0,
       quantidade: Number(form.quantidade),
       kg_estimado: kgEstimado ? Math.round(kgEstimado * 100) / 100 : null,
       guilhotina: form.destino === "pedido_direto" ? (form.guilhotina || null) : null,
       tamanho_corte_guilhotina: form.destino === "pedido_direto" && form.tamanho_corte_guilhotina ? Number(form.tamanho_corte_guilhotina) : null,
       foto_pedido_url: form.destino === "pedido_direto" ? (form.foto_pedido_url || null) : null,
-    });
+      valor_pago_cliente: form.valor_pago_cliente ? Number(form.valor_pago_cliente) : null,
+      chapa_descricao: !isDesbobinadeira ? chapaSnap : "",
+      chapa_origem: !isDesbobinadeira ? "chaparia" : form.chapa_origem || undefined,
+    };
+
+    // Se material em falta, status = aguardando_material e limpa bobina/chapa vinculada
+    if (isMaterialEmFalta) {
+      data.status = "aguardando_material";
+      data.bobina_id = "";
+      data.chapa_cd_id = "";
+      data.bobina_descricao = "";
+      data.chapa_descricao = "";
+      data.kg_estimado = null;
+    }
+
+    onSave(data);
   };
 
   const handleSave = () => {
-    if (!form.bobina_id) { alert("Selecione a bobina."); return; }
-    if (!form.comprimento_mm || Number(form.comprimento_mm) <= 0) { alert("Informe o comprimento de corte em mm."); return; }
+    // Se material em falta, pular validação de bobina/chapa
+    if (form.material_em_falta) {
+      if (!form.material_espessura) { alert("Informe a espessura desejada."); return; }
+      if (!form.quantidade || Number(form.quantidade) <= 0) { alert("Informe a quantidade."); return; }
+      doSave();
+      return;
+    }
+    if (isDesbobinadeira) {
+      if (!form.bobina_id) { alert("Selecione a bobina."); return; }
+    } else {
+      if (!form.chapa_cd_id) { alert("Selecione a chapa do estoque."); return; }
+      if (!form.tipo_peca) { alert("Informe o tipo de peça."); return; }
+    }
+    if (isDesbobinadeira && (!form.comprimento_mm || Number(form.comprimento_mm) <= 0)) { alert("Informe o comprimento de corte em mm."); return; }
     if (!form.quantidade || Number(form.quantidade) <= 0) { alert("Informe a quantidade de chapas."); return; }
     if (form.destino === "pedido_direto" && !form.numero_pedido) { alert("Informe o número do pedido."); return; }
     if (excedePeso) { alert(`KG estimado (${kgEstimado.toFixed(1)} kg) excede o peso disponível na bobina (${pesoDisponivel.toFixed(1)} kg).\n\nPeso da bobina: ${pesoBobina.toFixed(1)} kg\nPré-reservado por outras ordens: ${preReservadoKg.toFixed(1)} kg\n\nReduza a quantidade ou escolha outra bobina.`); return; }
-    // Se a bobina está reservada para outro pedido, exigir confirmação explícita
     if (reservadaParaOutro) { setConfirmReserva(true); return; }
     doSave();
   };
@@ -214,7 +285,62 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
             <Input type="date" value={form.data} onChange={e => set("data", e.target.value)} />
           </div>
 
-          {/* Seleção de Bobina */}
+          {/* Máquina Inicial */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1">
+              <Wrench className="w-4 h-4 text-orange-500" /> Máquina Inicial do Processo
+            </Label>
+            <Select value={form.maquina_inicial} onValueChange={v => {
+              set("maquina_inicial", v);
+              set("bobina_id", "");
+              set("chapa_cd_id", "");
+            }}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Selecione a máquina..." />
+              </SelectTrigger>
+              <SelectContent>
+                {MAQUINAS_INICIAIS.map(m => {
+                  const Icon = m.icon;
+                  return (
+                    <SelectItem key={m.id} value={m.id}>
+                      <Icon className="w-4 h-4 mr-2 inline" /> {m.label}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Material em falta / A chegar */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => set("material_em_falta", !form.material_em_falta)}
+              className={`flex items-center gap-2 rounded-lg border-2 px-3 py-2 transition-all ${form.material_em_falta ? "border-amber-500 bg-amber-50" : "border-border bg-card hover:border-amber-300"}`}
+            >
+              <PackageX className={`w-4 h-4 ${form.material_em_falta ? "text-amber-600" : "text-muted-foreground"}`} />
+              <span className={`text-sm font-semibold ${form.material_em_falta ? "text-amber-700" : "text-muted-foreground"}`}>
+                {form.material_em_falta ? "Material em falta / A chegar" : "Marcar material em falta"}
+              </span>
+            </button>
+          </div>
+
+          {/* Campos manuais quando material em falta */}
+          {form.material_em_falta ? (
+            <div className="space-y-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <p className="text-xs font-semibold text-amber-700">Informe as especificações do material desejado. A OP será criada na aba "OP sem Material".</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Espessura Desejada *</Label>
+                  <Input placeholder="Ex: 0,43" value={form.material_espessura} onChange={e => set("material_espessura", e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Cor Desejada</Label>
+                  <Input placeholder="Ex: RVM Branco" value={form.material_cor} onChange={e => set("material_cor", e.target.value)} />
+                </div>
+              </div>
+            </div>
+          ) : isDesbobinadeira ? (
           <div className="space-y-2">
             <Label className="flex items-center gap-1">
               <Package className="w-4 h-4 text-blue-500" /> Bobina do Estoque *
@@ -334,6 +460,46 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
               </div>
             )}
           </div>
+          ) : (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">
+                <Layers className="w-4 h-4 text-orange-500" /> Chapa do Estoque (Chaparia) *
+              </Label>
+              <Select value={form.chapa_cd_id} onValueChange={v => set("chapa_cd_id", v)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecione a chapa..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-56">
+                  {chapasFiltradas.length === 0 && (
+                    <div className="px-3 py-4 text-sm text-muted-foreground text-center">Nenhuma chapa disponível</div>
+                  )}
+                  {chapasFiltradas.map(c => (
+                    <SelectItem key={c.id} value={c.id}>
+                      <span className="font-mono font-bold text-sm">{c.codigo || "—"}</span>
+                      <span className="text-muted-foreground ml-2 text-xs">{c.bobina_descricao || "—"}</span>
+                      <span className="text-muted-foreground ml-2 text-xs">{c.comprimento_mm}mm</span>
+                      <span className="text-green-600 ml-2 text-xs">{c.quantidade_disponivel}pç</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {chapaObj && (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs flex flex-wrap gap-3 text-orange-800">
+                  <span>Bobina: <strong>{chapaObj.bobina_descricao}</strong></span>
+                  <span>Corte: <strong>{chapaObj.comprimento_mm}mm</strong></span>
+                  <span>Disponível: <strong>{chapaObj.quantidade_disponivel} pç</strong></span>
+                </div>
+              )}
+              <div className="space-y-1">
+                <Label>Tipo de Peça *</Label>
+                <Input placeholder="Ex: Blank, Dobra simples..." value={form.tipo_peca} onChange={e => set("tipo_peca", e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Dimensões / Especificações</Label>
+                <Input placeholder="Ex: A=100 B=50 · 6m" value={form.dimensoes_livres} onChange={e => set("dimensoes_livres", e.target.value)} />
+              </div>
+            </div>
+          )}
 
           {/* Corte */}
           <div className="grid grid-cols-2 gap-3">
@@ -500,6 +666,20 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
               </div>
             </div>
           )}
+
+          {/* Valor Pago pelo Cliente */}
+          <div className="space-y-1">
+            <Label className="flex items-center gap-1">
+              <DollarSign className="w-4 h-4 text-green-600" /> Valor Pago pelo Cliente
+            </Label>
+            <Input
+              type="number"
+              step="0.01"
+              placeholder="0,00"
+              value={form.valor_pago_cliente}
+              onChange={e => set("valor_pago_cliente", e.target.value)}
+            />
+          </div>
 
           {/* Prioridade */}
           {isGestor && (

@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Factory, Calendar, Wrench, Download, ZoomIn, ZoomOut, Maximize2, Search, AlertTriangle, X } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Factory, Calendar, Wrench, Download, ZoomIn, ZoomOut, Maximize2, Search, AlertTriangle, X, PackageX } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ import DiaResumoCardCD from "@/components/corte-dobra/DiaResumoCardCD";
 import OrdemMaquinaFormDialog from "@/components/corte-dobra/OrdemMaquinaFormDialog.jsx";
 import OrdemMaquinaRow from "@/components/corte-dobra/OrdemMaquinaRow.jsx";
 import RetrabalhoDialog from "@/components/corte-dobra/RetrabalhoDialog";
+import OPSemMaterialTab from "@/components/corte-dobra/OPSemMaterialTab";
 import { useFilial } from "@/contexts/FilialContext";
 
 const MAQUINAS_OUTRAS = [
@@ -97,6 +98,31 @@ export default function ProducaoCD() {
   };
   const openEditDesb = (item) => { setEditDesb(item); setDialogDesb(true); };
   const handleSaveDesb = (data) => {
+    // Se a máquina inicial não for Desbobinadeira, criar como OrdemMaquinaCD
+    if (data.maquina_inicial && data.maquina_inicial !== "DESBOBINADEIRA") {
+      const maqData = {
+        ...data,
+        maquina: data.maquina_inicial,
+        quantidade: Number(data.quantidade),
+        peso_kg: data.kg_estimado || undefined,
+        chapa_cd_id: data.chapa_cd_id || "",
+        chapa_descricao: data.chapa_descricao || "",
+        chapa_origem: "chaparia",
+        tipo_peca: data.tipo_peca || "—",
+        dimensoes_livres: data.dimensoes_livres || "",
+        status: data.material_em_falta ? "aguardando_material" : "pendente",
+      };
+      delete maqData.bobina_id;
+      delete maqData.comprimento_mm;
+      delete maqData.kg_estimado;
+      delete maqData.destino;
+      delete maqData.guilhotina;
+      delete maqData.tamanho_corte_guilhotina;
+      delete maqData.maquina_inicial;
+      createMaq.mutate(maqData);
+      setDialogDesb(false);
+      return;
+    }
     if (editDesb && !editDesb._presets && editDesb.id) { updateDesb.mutate({ id: editDesb.id, data }); setDialogDesb(false); }
     else createDesb.mutate(data);
   };
@@ -120,25 +146,27 @@ export default function ProducaoCD() {
   }, [ordens, weekStart, weekEnd]);
 
   const ordensDia = useMemo(() => {
+    const base = ordens.filter(o => o.status !== "aguardando_material");
     if (buscaPedido.trim()) {
       const q = buscaPedido.toLowerCase().trim();
-      return ordens.filter(o => (o.numero_pedido || "").toLowerCase().includes(q) || (o.bobina_descricao || "").toLowerCase().includes(q));
+      return base.filter(o => (o.numero_pedido || "").toLowerCase().includes(q) || (o.bobina_descricao || "").toLowerCase().includes(q));
     }
     const hoje = format(new Date(), "yyyy-MM-dd");
-    if (selectedDay !== hoje) return ordens.filter(o => o.data === selectedDay);
-    const atrasadas = ordens.filter(o => o.data < hoje && o.status !== "finalizado" && o.status !== "cancelado");
-    return [...atrasadas, ...ordens.filter(o => o.data === selectedDay)];
+    if (selectedDay !== hoje) return base.filter(o => o.data === selectedDay);
+    const atrasadas = base.filter(o => o.data < hoje && o.status !== "finalizado" && o.status !== "cancelado");
+    return [...atrasadas, ...base.filter(o => o.data === selectedDay)];
   }, [ordens, selectedDay, buscaPedido]);
 
   const ordensMaqDia = useMemo(() => {
+    const base = ordensMaq.filter(o => o.status !== "aguardando_material");
     if (buscaPedido.trim()) {
       const q = buscaPedido.toLowerCase().trim();
-      return ordensMaq.filter(o => (o.numero_pedido || "").toLowerCase().includes(q) || (o.tipo_peca || "").toLowerCase().includes(q) || (o.chapa_descricao || "").toLowerCase().includes(q));
+      return base.filter(o => (o.numero_pedido || "").toLowerCase().includes(q) || (o.tipo_peca || "").toLowerCase().includes(q) || (o.chapa_descricao || "").toLowerCase().includes(q));
     }
     const hoje = format(new Date(), "yyyy-MM-dd");
-    if (selectedDay !== hoje) return ordensMaq.filter(o => o.data === selectedDay);
-    const atrasadas = ordensMaq.filter(o => o.data < hoje && o.status !== "finalizado" && o.status !== "cancelado");
-    return [...atrasadas, ...ordensMaq.filter(o => o.data === selectedDay)];
+    if (selectedDay !== hoje) return base.filter(o => o.data === selectedDay);
+    const atrasadas = base.filter(o => o.data < hoje && o.status !== "finalizado" && o.status !== "cancelado");
+    return [...atrasadas, ...base.filter(o => o.data === selectedDay)];
   }, [ordensMaq, selectedDay, buscaPedido]);
 
   const totalSemanaOrdens = ordensSemana.length;
@@ -290,6 +318,10 @@ export default function ProducaoCD() {
             className={viewMode === "dia" ? "bg-orange-500 hover:bg-orange-600 border-0" : ""}>
             Visão Dia — {format(new Date(selectedDay + "T12:00:00"), "dd/MM", { locale: ptBR })}
           </Button>
+          <Button variant={viewMode === "sem_material" ? "default" : "outline"} size="sm" onClick={() => setViewMode("sem_material")}
+            className={`gap-1 ${viewMode === "sem_material" ? "bg-amber-500 hover:bg-amber-600 border-0 text-white" : ""}`}>
+            <PackageX className="w-3 h-3" /> OP sem Material
+          </Button>
           <Button variant="outline" size="sm" onClick={() => { setSelectedDay(format(new Date(), "yyyy-MM-dd")); setCurrentWeek(new Date()); setViewMode("dia"); }} className="gap-1">
             <Calendar className="w-3 h-3" /> Hoje
           </Button>
@@ -325,6 +357,8 @@ export default function ProducaoCD() {
             );
           })}
         </div>
+      ) : viewMode === "sem_material" ? (
+        <OPSemMaterialTab />
       ) : (
         // ── VISÃO DIA ──
         <div className="space-y-4">
@@ -405,6 +439,7 @@ export default function ProducaoCD() {
         onSave={handleSaveDesb}
         editItem={editDesb && !editDesb._presets ? editDesb : null}
         defaultDate={editDesb?._presets?.data || selectedDay}
+        isGestor={isGestor}
       />
 
       <OrdemMaquinaFormDialog

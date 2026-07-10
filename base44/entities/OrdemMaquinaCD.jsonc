@@ -104,6 +104,23 @@
       "type": "number",
       "description": "Peso estimado em kg"
     },
+    "valor_pago_cliente": {
+      "type": "number",
+      "description": "Valor pago pelo cliente (R$)"
+    },
+    "material_em_falta": {
+      "type": "boolean",
+      "default": false,
+      "description": "Material em falta / a chegar \u2014 OP vai para aba 'OP sem Material'"
+    },
+    "material_espessura": {
+      "type": "string",
+      "description": "Espessura desejada informada manualmente (quando material em falta)"
+    },
+    "material_cor": {
+      "type": "string",
+      "description": "Cor desejada informada manualmente (quando material em falta)"
+    },
     "status": {
       "type": "string",
       "enum": [
@@ -112,7 +129,8 @@
         "em_producao",
         "pausado",
         "finalizado",
-        "cancelado"
+        "cancelado",
+        "aguardando_material"
       ],
       "default": "pendente",
       "description": "Status da ordem"
@@ -207,7 +225,7 @@
     },
     "retrabalho_bobina_sub_id": {
       "type": "string",
-      "description": "ID da bobina substituta (quando a original est\u00c3\u00a1 zerada)"
+      "description": "ID da bobina substituta (quando a original est\u00e1 zerada)"
     },
     "retrabalho_bobina_sub_descricao": {
       "type": "string",
@@ -224,5 +242,11 @@
     "maquina",
     "tipo_peca",
     "quantidade"
-  ]
+  ],
+  "rls": {
+    "create": {},
+    "read": {},
+    "update": {},
+    "delete": {}
+  }
 }
