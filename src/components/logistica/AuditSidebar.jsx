@@ -32,7 +32,8 @@ export default function AuditSidebar({ open, onClose, item, tipo }) {
   const [showCompare, setShowCompare] = useState(false);
   const queryClient = useQueryClient();
 
-  const fotoMaquina = item?.foto_finalizacao_url || item?.foto_etiqueta_bobina_url || item?.foto_pedido_url || "";
+  const fotoOP = item?.foto_pedido_url || "";
+  const fotoMaquina = item?.foto_finalizacao_url || "";
   const fotoCaminhao = item?.foto_carregamento_url || "";
 
   const historicoAlteracoes = useMemo(() => {
@@ -142,11 +143,28 @@ export default function AuditSidebar({ open, onClose, item, tipo }) {
             </div>
           </div>
 
+          {/* Foto da OP */}
+          <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+              <FileText className="w-3.5 h-3.5" /> Foto da OP
+            </h3>
+            {fotoOP ? (
+              <a href={fotoOP} target="_blank" rel="noopener noreferrer" className="block">
+                <img src={fotoOP} alt="Foto da OP" className="w-full rounded-lg border border-border object-cover max-h-56" />
+              </a>
+            ) : (
+              <div className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-8 text-muted-foreground">
+                <ImageOff className="w-8 h-8 mb-2" />
+                <p className="text-xs text-center">Nenhuma foto da OP anexada</p>
+              </div>
+            )}
+          </div>
+
           {/* Fotos — comparação lado a lado */}
           {(fotoMaquina || fotoCaminhao) && (
             <div className="bg-card border border-border rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Fotos</h3>
+                <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Fotos de Produção / Carregamento</h3>
                 {fotoMaquina && fotoCaminhao && (
                   <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setShowCompare(!showCompare)}>
                     <Images className="w-3.5 h-3.5" />
