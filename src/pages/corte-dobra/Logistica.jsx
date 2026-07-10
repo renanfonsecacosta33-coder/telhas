@@ -161,7 +161,20 @@ export default function Logistica({ mode = "montagem" }) {
     return itensFiltradosTab.filter(i => !linkedIds.has(i.id) && (!i.status_expedicao || i.status_expedicao === "aguardando"));
   }, [itensFiltradosTab, cargas]);
 
-  const cargasAtivas = cargas.filter(c => c.status === "carregando" || c.status === "em_transito");
+  // Filter cargas by active tab — only show cargas that have at least one pedido from the active sector
+  const cargasAtivas = useMemo(() => {
+    return cargas.filter(c => {
+      if (c.status !== "carregando" && c.status !== "em_transito") return false;
+      if (!c.pedidos_json) return true; // empty carga — show in both tabs
+      try {
+        const linked = JSON.parse(c.pedidos_json);
+        if (tab === "telhas") return linked.some(p => p.tipo === "pedido");
+        return linked.some(p => p.tipo === "ordem_maquina" || p.tipo === "ordem_desb");
+      } catch {
+        return true;
+      }
+    });
+  }, [cargas, tab]);
   const isLoading = loadingTelhas || loadingMaq || loadingDesb || loadingCargas;
 
   const statusConfig = {
@@ -292,7 +305,7 @@ export default function Logistica({ mode = "montagem" }) {
           </h2>
           <div className="grid gap-3 lg:grid-cols-2">
             {cargasAtivas.map(c => (
-              <CargaCard key={c.id} carga={c} pedidosDisponiveis={pedidosDisponiveis} onSelectItem={handleSelectItem} mode={mode} />
+              <CargaCard key={c.id} carga={c} pedidosDisponiveis={pedidosDisponiveis} onSelectItem={handleSelectItem} mode={mode} tab={tab} />
             ))}
           </div>
         </div>

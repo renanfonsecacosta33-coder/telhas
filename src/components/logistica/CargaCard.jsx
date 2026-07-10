@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import CarregamentoDialog from "@/components/logistica/CarregamentoDialog";
 
-export default function CargaCard({ carga, pedidosDisponiveis, onSelectItem, mode = "montagem" }) {
+export default function CargaCard({ carga, pedidosDisponiveis, onSelectItem, mode = "montagem", tab = "telhas" }) {
   const isDespacho = mode === "despacho";
   const [showLink, setShowLink] = useState(false);
   const [busca, setBusca] = useState("");
@@ -31,11 +31,14 @@ export default function CargaCard({ carga, pedidosDisponiveis, onSelectItem, mod
   const pedidosVinculados = useMemo(() => {
     if (!carga.pedidos_json) return [];
     try {
-      return JSON.parse(carga.pedidos_json);
+      const all = JSON.parse(carga.pedidos_json);
+      // Filter by active tab's sector
+      if (tab === "telhas") return all.filter(p => p.tipo === "pedido");
+      return all.filter(p => p.tipo === "ordem_maquina" || p.tipo === "ordem_desb");
     } catch {
       return [];
     }
-  }, [carga.pedidos_json]);
+  }, [carga.pedidos_json, tab]);
 
   const pedidosFiltrados = useMemo(() => {
     if (!busca.trim()) return pedidosDisponiveis;
