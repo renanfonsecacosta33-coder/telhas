@@ -105,17 +105,17 @@ export default function Desbobinadeira() {
   const ordensSemana = useMemo(() => {
     const s = format(weekStart, "yyyy-MM-dd");
     const e = format(weekEnd, "yyyy-MM-dd");
-    return ordens.filter(o => o.data >= s && o.data <= e);
+    return ordens.filter(o => o.data >= s && o.data <= e && o.status !== "aguardando_material");
   }, [ordens, weekStart, weekEnd]);
 
   const ordensDia = useMemo(() => {
     if (buscaPedido.trim()) {
       const q = buscaPedido.toLowerCase().trim();
-      return ordens.filter(o => (o.numero_pedido || "").toLowerCase().includes(q) || (o.bobina_descricao || "").toLowerCase().includes(q));
+      return ordens.filter(o => o.status !== "aguardando_material" && ((o.numero_pedido || "").toLowerCase().includes(q) || (o.bobina_descricao || "").toLowerCase().includes(q)));
     }
     const hoje = format(new Date(), "yyyy-MM-dd");
     const isHoje = selectedDay === hoje;
-    const doDia = ordens.filter(o => o.data === selectedDay);
+    const doDia = ordens.filter(o => o.data === selectedDay && o.status !== "aguardando_material");
     const priComp = (a, b) => (b.prioridade ? 1 : 0) - (a.prioridade ? 1 : 0);
     if (!isHoje) {
       return doDia.sort((a, b) => {
@@ -125,7 +125,7 @@ export default function Desbobinadeira() {
         return (ord[a.status] ?? 2) - (ord[b.status] ?? 2);
       });
     }
-    const atrasadas = ordens.filter(o => o.data < hoje && o.status !== "finalizado" && o.status !== "cancelado");
+    const atrasadas = ordens.filter(o => o.data < hoje && o.status !== "finalizado" && o.status !== "cancelado" && o.status !== "aguardando_material");
     return [...atrasadas, ...doDia].sort((a, b) => {
       const p = priComp(a, b);
       if (p !== 0) return p;
