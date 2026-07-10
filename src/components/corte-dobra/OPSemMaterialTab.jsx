@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Package, Layers, CheckCircle2, AlertTriangle, Link2, Play, DollarSign, Search, X, BellRing } from "lucide-react";
+import { Package, Layers, CheckCircle2, AlertTriangle, Link2, Play, DollarSign, Search, X, BellRing, Trash2, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useFilial } from "@/contexts/FilialContext";
@@ -158,6 +158,25 @@ export default function OPSemMaterialTab() {
     prevDisponiveisRef.current = currentDisponiveis;
   }, [opsComMaterial]);
 
+  // Excluir OP
+  const excluirMutation = useMutation({
+    mutationFn: async ({ tipo, id }) => {
+      if (tipo === "desb") {
+        await base44.entities.OrdemDesbobinadeira.delete(id);
+      } else {
+        await base44.entities.OrdemMaquinaCD.delete(id);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ops-sem-material-desb"] });
+      queryClient.invalidateQueries({ queryKey: ["ops-sem-material-maq"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
+      toast.success("OP excluída com sucesso!");
+    },
+    onError: (err) => toast.error("Erro ao excluir: " + err.message),
+  });
+
   const isLoading = loadingDesb || loadingMaq;
 
   if (isLoading) {
@@ -299,11 +318,30 @@ export default function OPSemMaterialTab() {
                     </Badge>
                   )}
 
-                  {temMaterial && !isVinculando && (
-                    <Button size="sm" className="bg-green-600 hover:bg-green-700 gap-1" onClick={() => setVinculando({ tipo: op._tipo, id: op.id, entidade: op._entidade })}>
-                      <Link2 className="w-3 h-3" /> Vincular e Liberar
+                  <div className="flex items-center gap-2">
+                    {temMaterial && !isVinculando && (
+                      <Button size="sm" className="bg-green-600 hover:bg-green-700 gap-1" onClick={() => setVinculando({ tipo: op._tipo, id: op.id, entidade: op._entidade })}>
+                        <Link2 className="w-3 h-3" /> Vincular e Liberar
+                      </Button>
+                    )}
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      className="text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300"
+                      disabled={excluirMutation.isPending && excluirMutation.variables?.id === op.id}
+                      onClick={() => {
+                        if (confirm("Excluir esta OP? Esta ação não pode ser desfeita.")) {
+                          excluirMutation.mutate({ tipo: op._tipo, id: op.id });
+                        }
+                      }}
+                    >
+                      {excluirMutation.isPending && excluirMutation.variables?.id === op.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
                     </Button>
-                  )}
+                  </div>
                 </div>
               </div>
 
