@@ -273,7 +273,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Layers className="w-5 h-5 text-orange-500" />
-            {editItem ? "Editar Ordem" : "Nova Ordem — Desbobinadeira"}
+            {editItem ? "Editar Ordem" : "Nova Ordem"}
           </DialogTitle>
         </DialogHeader>
 
