@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { base44 } from "@/api/base44Client";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Truck, Plus, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
@@ -33,32 +33,36 @@ export default function CargaFormDialog({ open, onClose, editItem, filialAtiva }
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const createMutation = useMutation({
-    mutationFn: (data) => base44.entities.Carga.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cargas"] });
-      toast.success("Carga criada com sucesso!");
-      onClose();
-    },
-    onError: (error) => {
-      toast.error("Erro ao criar carga: " + (error?.message || "Tente novamente."));
-    },
-  });
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.motorista_nome?.trim()) {
       toast.error("Informe o nome do motorista.");
       return;
     }
     const unidade = ["Matriz AJL", "Pinhais", "Ivaiporã", "Ponta Grossa"].includes(filialAtiva) ? filialAtiva : "Matriz AJL";
-    createMutation.mutate({
-      ...form,
-      unidade,
-      status: "carregando",
-      pedidos_json: "[]",
-      data_criacao: format(new Date(), "yyyy-MM-dd"),
-      historico: JSON.stringify([{ data: new Date().toISOString(), usuario: "—", acao: "Carga criada", detalhes: "" }]),
-    });
+    setSaving(true);
+    try {
+      const payload = {
+        motorista_nome: form.motorista_nome.trim(),
+        placa: form.placa || "",
+        transportadora: form.transportadora || "",
+        observacoes: form.observacoes || "",
+        unidade,
+        status: "carregando",
+        pedidos_json: "[]",
+        data_criacao: format(new Date(), "yyyy-MM-dd"),
+        historico: JSON.stringify([{ data: new Date().toISOString(), usuario: "—", acao: "Carga criada", detalhes: "" }]),
+      };
+      await base44.entities.Carga.create(payload);
+      queryClient.invalidateQueries({ queryKey: ["cargas"] });
+      toast.success("Carga criada com sucesso!");
+      onClose();
+    } catch (error) {
+      toast.error("Erro ao criar carga: " + (error?.message || "Tente novamente."));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -92,8 +96,8 @@ export default function CargaFormDialog({ open, onClose, editItem, filialAtiva }
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={createMutation.isPending} className="gap-1">
-            {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+          <Button onClick={handleSave} disabled={saving} className="gap-1">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
             Criar Carga
           </Button>
         </DialogFooter>
