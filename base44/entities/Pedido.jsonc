@@ -131,10 +131,24 @@
         "pausado",
         "aguardando_colagem",
         "finalizado",
-        "cancelado"
+        "cancelado",
+        "aguardando_material"
       ],
       "default": "pendente",
       "description": "Status do pedido"
+    },
+    "material_em_falta": {
+      "type": "boolean",
+      "default": false,
+      "description": "Material em falta / a chegar \u2014 OP vai para aba 'OP sem Material'"
+    },
+    "material_espessura": {
+      "type": "string",
+      "description": "Espessura desejada informada manualmente (quando material em falta)"
+    },
+    "material_cor": {
+      "type": "string",
+      "description": "Cor desejada informada manualmente (quando material em falta)"
     },
     "data_pedido": {
       "type": "string",

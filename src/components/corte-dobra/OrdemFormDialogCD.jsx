@@ -254,7 +254,27 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     if (isDesbobinadeira && (!form.comprimento_mm || Number(form.comprimento_mm) <= 0)) { alert("Informe o comprimento de corte em mm."); return; }
     if (!form.quantidade || Number(form.quantidade) <= 0) { alert("Informe a quantidade de chapas."); return; }
     if (form.destino === "pedido_direto" && !form.numero_pedido) { alert("Informe o número do pedido."); return; }
-    if (excedePeso) { alert(`KG estimado (${kgEstimado.toFixed(1)} kg) excede o peso disponível na bobina (${pesoDisponivel.toFixed(1)} kg).\n\nPeso da bobina: ${pesoBobina.toFixed(1)} kg\nPré-reservado por outras ordens: ${preReservadoKg.toFixed(1)} kg\n\nReduza a quantidade ou escolha outra bobina.`); return; }
+    if (excedePeso) {
+      alert(`⚠️ Material insuficiente!\n\nBobina: ${bobinaObj?.codigo || '—'}\nPeso atual: ${pesoBobina.toFixed(1)} kg\nPré-baixa (OPs ativas): ${preReservadoKg.toFixed(1)} kg\nDisponível: ${pesoDisponivel.toFixed(1)} kg\nNecessário: ${kgEstimado.toFixed(1)} kg\n\nA OP será criada como "OP sem Material".`);
+      onSave({
+        ...form,
+        material_em_falta: true,
+        material_espessura: bobinaObj?.espessura_utilizada || bobinaObj?.chapa || "",
+        material_cor: bobinaObj?.cor || "",
+        bobina_descricao: bobinaObj ? labelBobina(bobinaObj) : "",
+        espessura_utilizada: bobinaObj?.espessura_utilizada || bobinaObj?.chapa || "",
+        comprimento_mm: Number(form.comprimento_mm) || 0,
+        quantidade: Number(form.quantidade),
+        kg_estimado: null,
+        status: "aguardando_material",
+        bobina_id: "",
+        chapa_cd_id: "",
+        chapa_descricao: "",
+        foto_pedido_url: form.foto_pedido_url || null,
+        valor_pago_cliente: form.valor_pago_cliente ? Number(form.valor_pago_cliente) : null,
+      });
+      return;
+    }
     if (reservadaParaOutro) { setConfirmReserva(true); return; }
     doSave();
   };

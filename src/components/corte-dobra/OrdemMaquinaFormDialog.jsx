@@ -295,6 +295,34 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
       alert("Selecione a máquina de dobra."); return;
     }
 
+    // Validação de pré-baixa para bobina direta (não perfiladeira/slitter)
+    if (form.chapa_origem === "direto" && !isPerfiladeira && !isDobra && form.bobina_id && form.peso_kg) {
+      const pesoNecessario = Number(form.peso_kg);
+      const bobinaDireta = bobinasSliter.find(b => b.id === form.bobina_id);
+      if (bobinaDireta) {
+        const preBaixa = preBaixaMap[bobinaDireta.id] || 0;
+        const pesoDisp = (bobinaDireta.peso_kg || 0) - preBaixa;
+        if (pesoNecessario > pesoDisp) {
+          alert(`⚠️ Material insuficiente!\n\nBobina: ${bobinaDireta.codigo || '—'}\nPeso atual: ${(bobinaDireta.peso_kg || 0).toFixed(1)} kg\nPré-baixa: ${preBaixa.toFixed(1)} kg\nDisponível: ${pesoDisp.toFixed(1)} kg\nNecessário: ${pesoNecessario.toFixed(1)} kg\n\nA OP será criada como "OP sem Material".`);
+          onSave({
+            ...form,
+            material_em_falta: true,
+            material_espessura: bobinaDireta.chapa || "",
+            material_cor: bobinaDireta.cor || "",
+            bobina_descricao: `[${bobinaDireta.codigo || "—"}] ${bobinaDireta.chapa || ""} — ${bobinaDireta.cor || ""}`,
+            quantidade: Number(form.quantidade),
+            peso_kg: undefined,
+            status: "aguardando_material",
+            bobina_id: "",
+            chapa_cd_id: "",
+            chapa_descricao: "",
+            valor_pago_cliente: form.valor_pago_cliente ? Number(form.valor_pago_cliente) : null,
+          });
+          return;
+        }
+      }
+    }
+
     const chapaSnap = chapaObj ? `${chapaObj.bobina_descricao || ""} · ${chapaObj.comprimento_mm}mm` : "";
     const slitterSnap = bobinaObj ? `[${bobinaObj.codigo || "—"}] ${bobinaObj.qualidade || ""} ${bobinaObj.espessura_mm || ""}mm — ${bobinaObj.materiais_producao || ""}` : "";
 

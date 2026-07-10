@@ -538,6 +538,60 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
       isopor_utilizado: form.isopor_utilizado ? form.isopor_utilizado.total : undefined
     };
 
+    // Validação de pré-baixa: verifica se cada bobina tem peso suficiente
+    const bobinasChecar = [];
+    if (variacoes && variacoes.length > 0) {
+      const kgPorBobina = {};
+      variacoes.forEach(v => {
+        const q = Number(v.qty) || 0;
+        const mm = Number(v.mm) || 0;
+        const metros = q * mm / 1000;
+        if (metros > 0 && v.bobina_id) {
+          const b = bobinas.find(x => x.id === v.bobina_id);
+          const chapa = Number(b?.chapa) || 0;
+          if (chapa > 0) kgPorBobina[v.bobina_id] = (kgPorBobina[v.bobina_id] || 0) + chapa * metros;
+        }
+        if (metros > 0 && v.bobina_inf_id) {
+          const b = bobinas.find(x => x.id === v.bobina_inf_id);
+          const chapa = Number(b?.chapa) || 0;
+          if (chapa > 0) kgPorBobina[v.bobina_inf_id] = (kgPorBobina[v.bobina_inf_id] || 0) + chapa * metros;
+        }
+      });
+      Object.entries(kgPorBobina).forEach(([bid, kg]) => bobinasChecar.push({ id: bid, kg }));
+    } else {
+      if (bobinaSupId && Number(form.kg_superior) > 0) bobinasChecar.push({ id: bobinaSupId, kg: Number(form.kg_superior) });
+      if (bobinaInfId && Number(form.kg_inferior) > 0) bobinasChecar.push({ id: bobinaInfId, kg: Number(form.kg_inferior) });
+    }
+
+    const insuficientes = bobinasChecar.filter(bc => {
+      const b = bobinas.find(x => x.id === bc.id);
+      if (!b) return false;
+      const preBaixa = preBaixaMap[bc.id] || 0;
+      const disp = (b.peso_kg || 0) - preBaixa;
+      return disp < bc.kg;
+    });
+
+    if (insuficientes.length > 0) {
+      const msgs = insuficientes.map(bc => {
+        const b = bobinas.find(x => x.id === bc.id);
+        const pb = preBaixaMap[bc.id] || 0;
+        const disp = (b?.peso_kg || 0) - pb;
+        return `${b?.codigo || '—'}: ${disp.toFixed(1)}kg disp. / ${bc.kg.toFixed(1)}kg necessário`;
+      });
+      alert(`⚠️ Material insuficiente!\n\n${msgs.join('\n')}\n\nO pedido será criado como "OP sem Material".`);
+      const primeira = bobinas.find(x => x.id === insuficientes[0].id);
+      onSave({
+        ...data,
+        material_em_falta: true,
+        material_espessura: primeira?.chapa || "",
+        material_cor: primeira?.cor || "",
+        status: "aguardando_material",
+        bobina_superior_id: "",
+        bobina_inferior_id: "",
+      });
+      return;
+    }
+
     onSave(data);
   };
 
