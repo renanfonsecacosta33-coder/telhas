@@ -321,8 +321,7 @@ export default function Logistica({ mode = "montagem" }) {
         </div>
       )}
 
-      {/* Pedidos agrupados — apenas na montagem */}
-      {!isDespacho && (
+      {/* Pedidos agrupados */}
       <div className="space-y-3">
         <div className="space-y-3">
           <h2 className="text-lg font-bold">Pedidos Agrupados por Número</h2>
@@ -420,7 +419,6 @@ export default function Logistica({ mode = "montagem" }) {
           </div>
         )}
         </div>
-        )}
 
         <CargaFormDialog open={dialogCarga} onClose={() => setDialogCarga(false)} filialAtiva={filialAtiva} />
       <AuditSidebar open={!!selectedItem} onClose={() => setSelectedItem(null)} item={selectedItem} tipo={selectedTipo} />
