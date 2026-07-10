@@ -81,6 +81,32 @@ export function speakOpFinalizada(maquina, numeroOp) {
   } catch {}
 }
 
+// Som de material disponível (OP sem material que agora tem estoque)
+export function playMaterialDisponivelSound() {
+  playBeep(523, 0.12, 0.3, "sine");
+  setTimeout(() => playBeep(659, 0.12, 0.3, "sine"), 140);
+  setTimeout(() => playBeep(784, 0.12, 0.3, "sine"), 280);
+  setTimeout(() => playBeep(1047, 0.25, 0.3, "sine"), 420);
+}
+
+// Voz que fala "Material disponível para OP"
+export function speakMaterialDisponivel(maquina) {
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+  try {
+    window.speechSynthesis.cancel();
+    const frase = `Atenção. Material disponível para ordem de produção. ${maquina || ""}`;
+    const utter = new SpeechSynthesisUtterance(frase);
+    utter.lang = "pt-BR";
+    utter.rate = 1.0;
+    utter.volume = 1.0;
+    utter.pitch = 1.0;
+    const voices = window.speechSynthesis.getVoices();
+    const ptVoice = voices.find(v => v.lang?.startsWith("pt"));
+    if (ptVoice) utter.voice = ptVoice;
+    window.speechSynthesis.speak(utter);
+  } catch {}
+}
+
 // Som urgente (solicitação do operador para o encarregado)
 export function playUrgentSound() {
   playBeep(660, 0.15, 0.35, "sawtooth");

@@ -1,12 +1,13 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Package, Layers, CheckCircle2, AlertTriangle, Link2, Play, DollarSign, Search, X } from "lucide-react";
+import { Package, Layers, CheckCircle2, AlertTriangle, Link2, Play, DollarSign, Search, X, BellRing } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useFilial } from "@/contexts/FilialContext";
+import { playMaterialDisponivelSound, speakMaterialDisponivel } from "@/lib/sounds";
 
 function normalizeEspessura(val) {
   if (!val) return "";
@@ -130,6 +131,33 @@ export default function OPSemMaterialTab() {
     );
   }, [opsDesb, opsMaq, busca]);
 
+  // Detecta quando material fica disponível e dispara alerta TOP
+  const prevDisponiveisRef = useRef(null);
+  const opsComMaterial = useMemo(() => {
+    return listaUnificada.filter(op => {
+      const isDesb = op._tipo === "desb";
+      return checkDisponibilidade(op, isDesb).length > 0;
+    });
+  }, [listaUnificada, bobinas, chapas]);
+
+  useEffect(() => {
+    const currentDisponiveis = new Set(opsComMaterial.map(op => op.id));
+    if (prevDisponiveisRef.current !== null) {
+      const novos = [...currentDisponiveis].filter(id => !prevDisponiveisRef.current.has(id));
+      if (novos.length > 0) {
+        const novasOps = opsComMaterial.filter(op => novos.includes(op.id));
+        const maquina = novasOps[0]?._tipo === "desb" ? "Desbobinadeira" : novasOps[0]?.maquina;
+        playMaterialDisponivelSound();
+        speakMaterialDisponivel(maquina);
+        toast.success(
+          `🔔 MATERIAL DISPONÍVEL! ${novos.length} OP(s) pronta(s) para liberar — ${maquina}`,
+          { duration: 10000 }
+        );
+      }
+    }
+    prevDisponiveisRef.current = currentDisponiveis;
+  }, [opsComMaterial]);
+
   const isLoading = loadingDesb || loadingMaq;
 
   if (isLoading) {
@@ -152,6 +180,31 @@ export default function OPSemMaterialTab() {
 
   return (
     <div className="space-y-4">
+      {/* Banner TOP — Material disponível */}
+      {opsComMaterial.length > 0 && (
+        <div className="relative overflow-hidden rounded-xl border-2 border-green-500 bg-gradient-to-r from-green-500 to-emerald-600 p-4 text-white shadow-lg">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <BellRing className="w-6 h-6 animate-pulse" />
+              <span className="font-bold text-lg">MATERIAL DISPONÍVEL!</span>
+            </div>
+            <span className="text-sm bg-white/20 rounded-full px-3 py-0.5 font-semibold">
+              {opsComMaterial.length} OP(s) pronta(s) para liberar
+            </span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {opsComMaterial.map(op => {
+              const maquina = op._tipo === "desb" ? "Desbobinadeira" : op.maquina;
+              return (
+                <span key={op.id} className="text-xs bg-white/25 rounded-lg px-2 py-1 font-medium">
+                  {maquina} {op.numero_pedido ? `#${op.numero_pedido}` : ""} — {op.quantidade} {op._tipo === "desb" ? "chapas" : "peças"}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-bold flex items-center gap-2">
