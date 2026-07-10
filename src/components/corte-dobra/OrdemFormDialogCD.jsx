@@ -129,6 +129,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         guilhotina: editItem.guilhotina || "",
         tamanho_corte_guilhotina: editItem.tamanho_corte_guilhotina || "",
         foto_pedido_url: editItem.foto_pedido_url || "",
+        tamanho_blank: editItem.tamanho_corte_guilhotina || "",
         observacoes: editItem.observacoes || "",
         prioridade: editItem.prioridade || false,
         valor_pago_cliente: editItem.valor_pago_cliente || "",
@@ -152,6 +153,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         guilhotina: "",
         tamanho_corte_guilhotina: "",
         foto_pedido_url: "",
+        tamanho_blank: "",
         observacoes: "",
         prioridade: false,
         valor_pago_cliente: "",
@@ -211,8 +213,8 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
       quantidade: Number(form.quantidade),
       kg_estimado: kgEstimado ? Math.round(kgEstimado * 100) / 100 : null,
       guilhotina: form.destino === "pedido_direto" ? (form.guilhotina || null) : null,
-      tamanho_corte_guilhotina: form.destino === "pedido_direto" && form.tamanho_corte_guilhotina ? Number(form.tamanho_corte_guilhotina) : null,
-      foto_pedido_url: form.destino === "pedido_direto" ? (form.foto_pedido_url || null) : null,
+      tamanho_corte_guilhotina: form.destino === "pedido_direto" && form.tamanho_corte_guilhotina ? Number(form.tamanho_corte_guilhotina) : form.destino === "estoque" && form.tamanho_blank ? Number(form.tamanho_blank) : null,
+      foto_pedido_url: form.foto_pedido_url || null,
       valor_pago_cliente: form.valor_pago_cliente ? Number(form.valor_pago_cliente) : null,
       chapa_descricao: !isDesbobinadeira ? chapaSnap : "",
       chapa_origem: !isDesbobinadeira ? "chaparia" : form.chapa_origem || undefined,
@@ -329,15 +331,9 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
           {form.material_em_falta ? (
             <div className="space-y-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
               <p className="text-xs font-semibold text-amber-700">Informe as especificações do material desejado. A OP será criada na aba "OP sem Material".</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label>Espessura Desejada *</Label>
-                  <Input placeholder="Ex: 0,43" value={form.material_espessura} onChange={e => set("material_espessura", e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <Label>Cor Desejada</Label>
-                  <Input placeholder="Ex: RVM Branco" value={form.material_cor} onChange={e => set("material_cor", e.target.value)} />
-                </div>
+              <div className="space-y-1">
+                <Label>Espessura Desejada *</Label>
+                <Input placeholder="Ex: 0,43" value={form.material_espessura} onChange={e => set("material_espessura", e.target.value)} />
               </div>
             </div>
           ) : isDesbobinadeira ? (
@@ -598,6 +594,53 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
               </button>
             </div>
           </div>
+
+          {/* Campos de estoque */}
+          {form.destino === "estoque" && (
+            <div className="space-y-3 bg-orange-50 border border-orange-200 rounded-xl p-3">
+              <div className="space-y-1">
+                <Label className="flex items-center gap-1">
+                  <Ruler className="w-4 h-4 text-orange-500" /> Tamanho do Blank (mm)
+                </Label>
+                <Input
+                  type="number"
+                  placeholder="Ex: 1200"
+                  value={form.tamanho_blank}
+                  onChange={e => set("tamanho_blank", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Tamanho do blank que será cortado da chapa</p>
+              </div>
+
+              {/* Foto do blank / pedido */}
+              <div className="space-y-1">
+                <Label className="flex items-center gap-1">
+                  <Camera className="w-4 h-4 text-orange-500" /> Foto Anexa
+                </Label>
+                <input ref={fotoInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+                  onChange={e => handleUploadFoto(e.target.files[0])} />
+                <input ref={fotoScanRef} type="file" accept="image/*" className="hidden"
+                  onChange={e => handleUploadFoto(e.target.files[0])} />
+                {form.foto_pedido_url ? (
+                  <div className="relative rounded-lg overflow-hidden border-2 border-orange-300">
+                    <img src={form.foto_pedido_url} alt="Foto anexa" className="w-full max-h-48 object-cover" />
+                    <button type="button" onClick={() => set("foto_pedido_url", "")}
+                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors">
+                      <X className="w-4 h-4" />
+                    </button>
+                    <a href={form.foto_pedido_url} target="_blank" rel="noopener noreferrer"
+                      className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded hover:bg-black/80 transition-colors">
+                      Abrir
+                    </a>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <UploadButton label="Anexar foto" icon={Camera} cameraRef={fotoInputRef} fileRef={fotoScanRef} uploading={uploadingFoto} size="default" />
+                    <p className="text-xs text-muted-foreground">A foto acompanha a OP</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Campos de pedido direto */}
           {form.destino === "pedido_direto" && (
