@@ -56,7 +56,7 @@ function BarraProgresso({ pct, alerta }) {
   );
 }
 
-export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statusColors = {} }) {
+export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statusColors = {}, preBaixaKg = 0 }) {
   const [expandido, setExpandido] = useState(false);
   const [showEtiqueta, setShowEtiqueta] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
@@ -181,6 +181,19 @@ export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statu
             <p className="text-xs text-muted-foreground">{diasRestantes !== null ? "dias" : "sem consumo"}</p>
           </div>
         </div>
+
+        {/* Barra pré-baixa (OPs ativas) */}
+        {preBaixaKg > 0 && (
+          <div className="mt-3">
+            <div className="flex justify-between text-xs text-muted-foreground mb-1">
+              <span className="text-blue-700 font-semibold">Pré-baixa (OPs ativas): {preBaixaKg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg</span>
+              <span className="font-semibold text-emerald-700">Disponível real: {Math.max(0, (bobina.peso_kg || 0) - (bobina.reservada ? (bobina.reserva_tipo === "parcial" ? (bobina.reserva_kg || 0) : (bobina.peso_kg || 0)) : 0) - preBaixaKg).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg</span>
+            </div>
+            <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-blue-500" style={{ width: `${Math.min(100, (preBaixaKg / (bobina.peso_kg || 1)) * 100)}%` }} />
+            </div>
+          </div>
+        )}
 
         {/* Barra reserva parcial */}
         {bobina.reservada && bobina.reserva_tipo === "parcial" && reservaPct !== null && (

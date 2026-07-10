@@ -12,6 +12,7 @@ import VendedorSlitter from "@/components/vendedor/VendedorSlitter";
 import FiliaisMultiSelect, { getFilialColor } from "@/components/vendedor/FiliaisMultiSelect";
 import ImageLink from "@/components/ui/ImageLink";
 import { useFilial } from "@/contexts/FilialContext";
+import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 
 const SENHA = "ajl1234";
 const STORAGE_KEY = "vendedor_autenticado";
@@ -147,40 +148,8 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
   // Filtra bobinas pelas filiais selecionadas
   const bobinasFiltradas = bobinas.filter(b => selectedFiliais.includes(b.unidade || "Matriz AJL"));
 
-  // Busca ordens ativas para mostrar status da bobina (de todas as filiais selecionadas)
-  const { data: ordensAtivas = [] } = useQuery({
-    queryKey: ["ordens-ativas-vendedor", setor, "todas"],
-    queryFn: async () => {
-      if (setor === "telhas") {
-        const pedidos = await base44.entities.Pedido.filter({});
-        return pedidos.filter(p => !["finalizado", "cancelado"].includes(p.status));
-      } else {
-        const ordens = await base44.entities.OrdemDesbobinadeira.filter({});
-        return ordens.filter(o => !["finalizado", "cancelado"].includes(o.status));
-      }
-    },
-  });
-
-  // Mapa: bobina_id -> { maquina, status }
-  const statusMap = {};
-  const reservadoKgMap = {};
-  ordensAtivas.forEach(o => {
-    if (setor === "telhas") {
-      if (o.bobina_superior_id) {
-        statusMap[o.bobina_superior_id] = { maquina: o.maquina || "Produção", status: o.status };
-        reservadoKgMap[o.bobina_superior_id] = (reservadoKgMap[o.bobina_superior_id] || 0) + (o.kg_superior || 0);
-      }
-      if (o.bobina_inferior_id) {
-        statusMap[o.bobina_inferior_id] = { maquina: o.maquina || "Produção", status: o.status };
-        reservadoKgMap[o.bobina_inferior_id] = (reservadoKgMap[o.bobina_inferior_id] || 0) + (o.kg_inferior || 0);
-      }
-    } else {
-      if (o.bobina_id) {
-        statusMap[o.bobina_id] = { maquina: "Desbobinadeira", status: o.status };
-        reservadoKgMap[o.bobina_id] = (reservadoKgMap[o.bobina_id] || 0) + (o.kg_estimado || 0);
-      }
-    }
-  });
+  // Pré-baixa e status das bobinas via hook compartilhado
+  const { preBaixaMap, statusMap } = usePreBaixaBobinas(setor);
 
   const statusLabel = (s) => {
     if (!s) return null;
@@ -193,19 +162,22 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
     return map[s.status] || { label: s.status, cls: "bg-slate-100 text-slate-600" };
   };
 
-  // Peso reservado da própria bobina (reserva parcial ou inteira)
-  const getPesoReservadoBobina = (b) => {
+  // Pré-baixa (pedidos ativos) + reserva manual (parcial ou inteira)
+  const getPreBaixaKg = (b) => preBaixaMap[b.id] || 0;
+  const getPesoReservadoManual = (b) => {
     const peso = b.peso_kg || 0;
     if (!b.reservada) return 0;
     return b.reserva_tipo === "parcial" ? (b.reserva_kg || 0) : peso;
   };
+  const getPesoReservadoBobina = (b) => getPesoReservadoManual(b) + getPreBaixaKg(b);
   const getPesoDisponivel = (b) => (b.peso_kg || 0) - getPesoReservadoBobina(b);
   const disponiveis = bobinasFiltradas.filter(b => getPesoDisponivel(b) > 0);
 
   // Totais de KG
   const totalKg = bobinasFiltradas.reduce((s, b) => s + (b.peso_kg || 0), 0);
-  const totalReservadoKg = bobinasFiltradas.reduce((s, b) => s + getPesoReservadoBobina(b), 0);
-  const totalDisponivelKg = totalKg - totalReservadoKg;
+  const totalPreBaixaKg = bobinasFiltradas.reduce((s, b) => s + getPreBaixaKg(b), 0);
+  const totalReservadoManualKg = bobinasFiltradas.reduce((s, b) => s + getPesoReservadoManual(b), 0);
+  const totalDisponivelKg = totalKg - totalReservadoManualKg - totalPreBaixaKg;
   const fmtKg = (v) => Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
 
   // Qualidades únicas para filtros (das bobinas filtradas)
@@ -293,8 +265,13 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
             </div>
             <div className="w-px h-6 bg-border" />
             <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-600">KG Pré-baixa</span>
+              <span className="text-sm font-bold text-blue-700">{fmtKg(totalPreBaixaKg)} kg</span>
+            </div>
+            <div className="w-px h-6 bg-border" />
+            <div className="flex items-center gap-1.5">
               <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-600">KG Reservado</span>
-              <span className="text-sm font-bold text-amber-700">{fmtKg(totalReservadoKg)} kg</span>
+              <span className="text-sm font-bold text-amber-700">{fmtKg(totalReservadoManualKg)} kg</span>
             </div>
           </div>
         </div>
@@ -366,6 +343,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                   <th className="text-right px-2 py-2 whitespace-nowrap">Peso (kg)</th>
                   <th className="text-right px-2 py-2 whitespace-nowrap">Peso Inicial</th>
                   <th className="text-right px-2 py-2 whitespace-nowrap bg-amber-50/60">Reservado</th>
+                  <th className="text-right px-2 py-2 whitespace-nowrap bg-blue-50/60">Pré-baixa</th>
                   <th className="text-right px-2 py-2 whitespace-nowrap bg-emerald-50/60">Disponível</th>
                   <th className="text-left px-2 py-2 whitespace-nowrap">Status</th>
                   <th className="text-center px-2 py-2 whitespace-nowrap">Cert.</th>
@@ -409,7 +387,8 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                     <td className="px-2 py-2 whitespace-nowrap">{b.largura_mm ? `${b.largura_mm} mm` : "-"}</td>
                     <td className="px-2 py-2 text-right font-semibold whitespace-nowrap">{b.peso_kg ? `${b.peso_kg.toLocaleString("pt-BR")} kg` : "-"}</td>
                     <td className="px-2 py-2 text-right whitespace-nowrap text-muted-foreground">{b.peso_inicial ? `${b.peso_inicial.toLocaleString("pt-BR")} kg` : "-"}</td>
-                    <td className="px-2 py-2 text-right whitespace-nowrap bg-amber-50/40 font-semibold text-amber-800">{getPesoReservadoBobina(b) > 0 ? `${getPesoReservadoBobina(b).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : "-"}</td>
+                    <td className="px-2 py-2 text-right whitespace-nowrap bg-amber-50/40 font-semibold text-amber-800">{getPesoReservadoManual(b) > 0 ? `${getPesoReservadoManual(b).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : "-"}</td>
+                    <td className="px-2 py-2 text-right whitespace-nowrap bg-blue-50/40 font-semibold text-blue-700">{getPreBaixaKg(b) > 0 ? `${getPreBaixaKg(b).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : "-"}</td>
                     <td className="px-2 py-2 text-right whitespace-nowrap bg-emerald-50/40 font-bold text-emerald-700">{getPesoDisponivel(b) > 0 ? `${getPesoDisponivel(b).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : "-"}</td>
                     <td className="px-2 py-2 whitespace-nowrap">
                       {b.reservada ? (

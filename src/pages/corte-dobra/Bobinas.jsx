@@ -14,6 +14,7 @@ import BobinaCard, { getAlertaNivel } from "@/components/bobinas/BobinaCardShare
 import PainelSolicitacoesReserva from "@/components/vendedor/PainelSolicitacoesReserva";
 import PainelTransferencias from "@/components/bobinas/PainelTransferencias";
 import { useFilial } from "@/contexts/FilialContext";
+import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 
 export default function BobinasCD() {
   const { filialAtiva } = useFilial();
@@ -32,6 +33,9 @@ export default function BobinasCD() {
     queryKey: ["bobinas-cd", filialAtiva],
     queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", unidade: filialAtiva }, "-created_date", 500),
   });
+
+  const filiaisHook = filialAtiva === "todas" ? null : [filialAtiva];
+  const { preBaixaMap, totalPreBaixaKg } = usePreBaixaBobinas("corte_dobra", filiaisHook);
 
   const { data: bobinasGlobais = [] } = useQuery({
     queryKey: ["bobinas-cd-global-codigos"],
@@ -174,7 +178,8 @@ export default function BobinasCD() {
         <div className="bg-white border border-border rounded-xl p-4 text-center">
           <Weight className="w-5 h-5 text-green-500 mx-auto mb-1" />
           <p className="text-2xl font-bold">{totalPeso.toLocaleString("pt-BR")}</p>
-          <p className="text-xs text-muted-foreground">kg em estoque</p>
+          <p className="text-xs text-muted-foreground">kg disponíveis</p>
+          <p className="text-xs text-blue-600 font-medium mt-0.5">Pré-baixa: {totalPreBaixaKg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg</p>
         </div>
         <div className={`border rounded-xl p-4 text-center ${emAlerta.length > 0 ? "bg-red-50 border-red-300" : "bg-white border-border"}`}>
           <AlertTriangle className={`w-5 h-5 mx-auto mb-1 ${emAlerta.length > 0 ? "text-red-500" : "text-gray-400"}`} />
@@ -262,6 +267,7 @@ export default function BobinasCD() {
             <BobinaCard
               key={bobina.id}
               bobina={bobina}
+              preBaixaKg={preBaixaMap[bobina.id] || 0}
               onEdit={(b) => { setEditItem(b); setDialogOpen(true); }}
               onDelete={(b) => setDeleteItem(b)}
               onArquivar={(id, val) => arquivarMutation.mutate({ id, arquivada: val })}
