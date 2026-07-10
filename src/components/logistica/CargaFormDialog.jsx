@@ -9,6 +9,7 @@ import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Truck, Plus, Loader2, X } from "lucide-react";
+import { toast } from "sonner";
 
 export default function CargaFormDialog({ open, onClose, editItem, filialAtiva }) {
   const [form, setForm] = useState({
@@ -36,15 +37,23 @@ export default function CargaFormDialog({ open, onClose, editItem, filialAtiva }
     mutationFn: (data) => base44.entities.Carga.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cargas"] });
+      toast.success("Carga criada com sucesso!");
       onClose();
+    },
+    onError: (error) => {
+      toast.error("Erro ao criar carga: " + (error?.message || "Tente novamente."));
     },
   });
 
   const handleSave = () => {
-    if (!form.motorista_nome) { alert("Informe o nome do motorista."); return; }
+    if (!form.motorista_nome?.trim()) {
+      toast.error("Informe o nome do motorista.");
+      return;
+    }
+    const unidade = ["Matriz AJL", "Pinhais", "Ivaiporã", "Ponta Grossa"].includes(filialAtiva) ? filialAtiva : "Matriz AJL";
     createMutation.mutate({
       ...form,
-      unidade: filialAtiva,
+      unidade,
       status: "carregando",
       pedidos_json: "[]",
       data_criacao: format(new Date(), "yyyy-MM-dd"),
