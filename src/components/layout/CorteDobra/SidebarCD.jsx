@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, Circle, Factory, Users, Menu, X, ChevronRight, ChevronDown,
   LogOut, Layers, ShieldCheck, ArrowLeftRight, Calculator, BookOpen, Scissors,
-  FlaskConical, Wrench, Map, BookmarkPlus
+  FlaskConical, Wrench, Map, BookmarkPlus, Truck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +20,7 @@ const NAV = [
   { path: "/corte-dobra/slitter", label: "Slitter", icon: ArrowLeftRight },
   { path: "/corte-dobra/epi", label: "EPI", icon: ShieldCheck },
   { path: "/corte-dobra/mapa", label: "Mapa do Barracão", icon: Map },
+  { path: "/corte-dobra/logistica", label: "Logística", icon: Truck },
 ];
 
 const MAQUINAS_NAV = [

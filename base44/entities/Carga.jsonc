@@ -1,0 +1,70 @@
+{
+  "name": "Carga",
+  "type": "object",
+  "properties": {
+    "unidade": {
+      "type": "string",
+      "enum": [
+        "Matriz AJL",
+        "Pinhais",
+        "Ivaipor\u00e3",
+        "Ponta Grossa"
+      ],
+      "default": "Matriz AJL",
+      "description": "Unidade de origem da carga"
+    },
+    "motorista_nome": {
+      "type": "string",
+      "description": "Nome do motorista"
+    },
+    "placa": {
+      "type": "string",
+      "description": "Placa do caminh\u00e3o"
+    },
+    "transportadora": {
+      "type": "string",
+      "description": "Nome da transportadora"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "carregando",
+        "em_transito",
+        "entregue",
+        "cancelada"
+      ],
+      "default": "carregando",
+      "description": "Status da carga"
+    },
+    "pedidos_json": {
+      "type": "string",
+      "description": "JSON string com lista de pedidos vinculados [{tipo, id, numero_pedido, cliente}]"
+    },
+    "data_criacao": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de cria\u00e7\u00e3o da carga"
+    },
+    "data_saida": {
+      "type": "string",
+      "description": "Data/hora de sa\u00edda do caminh\u00e3o"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es da carga"
+    },
+    "historico": {
+      "type": "string",
+      "description": "JSON string com hist\u00f3rico de a\u00e7\u00f5es [{data, usuario, acao, detalhes}]"
+    }
+  },
+  "required": [
+    "motorista_nome"
+  ],
+  "rls": {
+    "create": {},
+    "read": {},
+    "update": {},
+    "delete": {}
+  }
+}

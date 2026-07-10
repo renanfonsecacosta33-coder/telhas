@@ -70,11 +70,11 @@
         "CORTE 3M",
         "CORTE 6M"
       ],
-      "description": "Guilhotina para onde a chapa ser\u00e1 enviada (quando destino = pedido_direto)"
+      "description": "Guilhotina para onde a chapa ser\u00e1 enviada"
     },
     "tamanho_corte_guilhotina": {
       "type": "number",
-      "description": "Tamanho de corte na guilhotina em mm (quando destino = pedido_direto)"
+      "description": "Tamanho de corte na guilhotina em mm"
     },
     "valor_pago_cliente": {
       "type": "number",
@@ -95,7 +95,7 @@
     },
     "foto_pedido_url": {
       "type": "string",
-      "description": "URL da foto do pedido anexada (quando destino = pedido_direto)"
+      "description": "URL da foto do pedido anexada"
     },
     "observacoes": {
       "type": "string",
@@ -209,6 +209,33 @@
       "type": "boolean",
       "default": false,
       "description": "OP priorit\u00e1ria \u2014 fixada no topo e bloqueia in\u00edcio de outras OPs at\u00e9 ser finalizada"
+    },
+    "foto_carregamento_url": {
+      "type": "string",
+      "description": "URL da foto do carregamento no caminh\u00e3o"
+    },
+    "status_expedicao": {
+      "type": "string",
+      "enum": [
+        "aguardando",
+        "carregado",
+        "em_transito",
+        "expedido"
+      ],
+      "default": "aguardando",
+      "description": "Status de expedi\u00e7\u00e3o/log\u00edstica"
+    },
+    "motorista_nome": {
+      "type": "string",
+      "description": "Nome do motorista que transportou"
+    },
+    "carga_id": {
+      "type": "string",
+      "description": "ID da Carga (caminh\u00e3o) vinculado"
+    },
+    "historico_expedicao": {
+      "type": "string",
+      "description": "JSON string com hist\u00f3rico de expedi\u00e7\u00e3o [{data, usuario, acao, detalhes}]"
     }
   },
   "required": [

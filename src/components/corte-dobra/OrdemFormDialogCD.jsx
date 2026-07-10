@@ -212,7 +212,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
       comprimento_mm: Number(form.comprimento_mm) || 0,
       quantidade: Number(form.quantidade),
       kg_estimado: kgEstimado ? Math.round(kgEstimado * 100) / 100 : null,
-      guilhotina: form.destino === "pedido_direto" ? (form.guilhotina || null) : null,
+      guilhotina: form.guilhotina || null,
       tamanho_corte_guilhotina: form.destino === "pedido_direto" && form.tamanho_corte_guilhotina ? Number(form.tamanho_corte_guilhotina) : form.destino === "estoque" && form.tamanho_blank ? Number(form.tamanho_blank) : null,
       foto_pedido_url: form.foto_pedido_url || null,
       valor_pago_cliente: form.valor_pago_cliente ? Number(form.valor_pago_cliente) : null,
@@ -572,7 +572,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => { set("destino", "estoque"); set("numero_pedido", ""); set("cliente", ""); set("guilhotina", ""); set("tamanho_corte_guilhotina", ""); }}
+                onClick={() => { set("destino", "estoque"); set("numero_pedido", ""); set("cliente", ""); }}
                 className={`flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all ${form.destino === "estoque" ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300 bg-card"}`}
               >
                 <Warehouse className={`w-6 h-6 ${form.destino === "estoque" ? "text-orange-600" : "text-muted-foreground"}`} />
@@ -609,6 +609,21 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                   onChange={e => set("tamanho_blank", e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">Tamanho do blank que será cortado da chapa</p>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="flex items-center gap-1">
+                  <Wrench className="w-4 h-4 text-orange-500" /> Guilhotina de Destino
+                </Label>
+                <Select value={form.guilhotina || ""} onValueChange={v => set("guilhotina", v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione a guilhotina..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CORTE 3M">Guilhotina 3m</SelectItem>
+                    <SelectItem value="CORTE 6M">Guilhotina 6m</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Foto do blank / pedido */}

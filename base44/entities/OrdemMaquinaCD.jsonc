@@ -235,6 +235,33 @@
       "type": "boolean",
       "default": false,
       "description": "OP priorit\u00e1ria \u2014 fixada no topo e bloqueia in\u00edcio de outras OPs na mesma m\u00e1quina at\u00e9 ser finalizada"
+    },
+    "foto_carregamento_url": {
+      "type": "string",
+      "description": "URL da foto do carregamento no caminh\u00e3o"
+    },
+    "status_expedicao": {
+      "type": "string",
+      "enum": [
+        "aguardando",
+        "carregado",
+        "em_transito",
+        "expedido"
+      ],
+      "default": "aguardando",
+      "description": "Status de expedi\u00e7\u00e3o/log\u00edstica"
+    },
+    "motorista_nome": {
+      "type": "string",
+      "description": "Nome do motorista que transportou"
+    },
+    "carga_id": {
+      "type": "string",
+      "description": "ID da Carga (caminh\u00e3o) vinculado"
+    },
+    "historico_expedicao": {
+      "type": "string",
+      "description": "JSON string com hist\u00f3rico de expedi\u00e7\u00e3o [{data, usuario, acao, detalhes}]"
     }
   },
   "required": [

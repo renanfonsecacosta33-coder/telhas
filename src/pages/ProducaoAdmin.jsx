@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, TrendingUp, Trash2, Star } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, TrendingUp, Trash2, Star, Truck } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Link } from "react-router-dom";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
@@ -16,6 +16,7 @@ import ProducaoDados from "@/pages/ProducaoDados";
 import AlertasEstoque from "@/components/producao/AlertasEstoque";
 import OPImpressao from "@/components/producao/OPImpressao";
 import { useFilial } from "@/contexts/FilialContext";
+import ExpedicaoTab from "@/components/logistica/ExpedicaoTab";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 
@@ -202,6 +203,14 @@ export default function ProducaoAdmin() {
           Dados
         </button>
 
+        <button
+          onClick={() => setActiveTab("expedicao")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "expedicao" ? "bg-card shadow text-blue-600" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          <Truck className="w-4 h-4" />
+          Expedição
+        </button>
+
         {/* Separador visual */}
         <div className="w-px bg-border mx-1 self-stretch" />
 
@@ -223,6 +232,8 @@ export default function ProducaoAdmin() {
       </div>
 
       {activeTab === "dados" && <ProducaoDados />}
+
+      {activeTab === "expedicao" && <ExpedicaoTab tipo="telhas" filialAtiva={filialAtiva} />}
 
       {activeTab === "colagem" && (
         <div className="space-y-4">

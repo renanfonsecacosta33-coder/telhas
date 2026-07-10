@@ -61,6 +61,7 @@ import Desbobinadeira from '@/pages/corte-dobra/maquinas/Desbobinadeira';
 import MapaBarracao from '@/pages/corte-dobra/MapaBarracao';
 import MapaBarracaoTelhas from '@/pages/MapaBarracaoTelhas';
 import BobinaQR from '@/pages/BobinaQR';
+import Logistica from '@/pages/corte-dobra/Logistica';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -144,6 +145,7 @@ const AuthenticatedApp = () => {
         <Route path="/corte-dobra/maquina/perfiladeira" element={<Perfiladeira />} />
         <Route path="/corte-dobra/maquina/desbobinadeira" element={<Desbobinadeira />} />
         <Route path="/corte-dobra/mapa" element={<MapaBarracao />} />
+        <Route path="/corte-dobra/logistica" element={<Logistica />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
