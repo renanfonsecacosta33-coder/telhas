@@ -3,7 +3,8 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, PackageCheck } from "lucide-react";
 import { toast } from "sonner";
-import { playFinishSound, speakOpFinalizada, playUrgentSound } from "@/lib/sounds";
+import { Button } from "@/components/ui/button";
+import { playFinishSound, speakOpFinalizada, playMaterialDisponivelSound, speakMaterialDisponivel } from "@/lib/sounds";
 import { useFilial } from "@/contexts/FilialContext";
 import PopupDobradeira from "./PopupDobradeira";
 
@@ -133,10 +134,10 @@ export default function AlertBellCD({ user }) {
         if (matchingOps.length > 0) {
           const esp = bEsp || b.espessura_utilizada || "?";
           const cor = b.cor || "";
-          const msg = `🔔 Chegou material de ${esp} ${cor}. Existem ${matchingOps.length} OP(s) aguardando liberação!`;
-          playUrgentSound();
-          toast.success(msg, { duration: 10000 });
-          setMaterialAlerts(prev => [...prev, { id: Date.now() + Math.random(), message: msg, espessura: esp, cor, count: matchingOps.length }]);
+          const msg = `Chegou material de ${esp}${cor ? " " + cor : ""}. ${matchingOps.length} OP(s) aguardando liberação!`;
+          playMaterialDisponivelSound();
+          speakMaterialDisponivel("Desbobinadeira");
+          setMaterialAlerts(prev => [...prev, { id: Date.now() + Math.random(), message: msg, espessura: esp, cor, count: matchingOps.length, tipo: "bobina" }]);
         }
       });
     }
@@ -156,10 +157,10 @@ export default function AlertBellCD({ user }) {
 
         if (matchingOps.length > 0) {
           const esp = cEsp || c.espessura_mm || "?";
-          const msg = `🔔 Chegou chapa de ${esp}. Existem ${matchingOps.length} OP(s) aguardando liberação!`;
-          playUrgentSound();
-          toast.success(msg, { duration: 10000 });
-          setMaterialAlerts(prev => [...prev, { id: Date.now() + Math.random(), message: msg, espessura: esp, cor: "", count: matchingOps.length }]);
+          const msg = `Chegou chapa de ${esp}. ${matchingOps.length} OP(s) aguardando liberação!`;
+          playMaterialDisponivelSound();
+          speakMaterialDisponivel("Corte e Dobra");
+          setMaterialAlerts(prev => [...prev, { id: Date.now() + Math.random(), message: msg, espessura: esp, cor: "", count: matchingOps.length, tipo: "chapa" }]);
         }
       });
     }
@@ -215,16 +216,57 @@ export default function AlertBellCD({ user }) {
         )}
       </button>
 
-      {/* Pop-up de alertas de material */}
-      {materialAlerts.length > 0 && !popupOpen && (
-        <div className="absolute top-full right-0 mt-1 z-50 bg-card border border-green-400 rounded-lg shadow-xl p-3 w-72 space-y-2">
-          {materialAlerts.map(a => (
-            <div key={a.id} className="flex items-start gap-2 text-xs">
-              <PackageCheck className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
-              <p className="text-foreground">{a.message}</p>
+      {/* POPUP PROMINENTE — Material disponível */}
+      {materialAlerts.length > 0 && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={() => setMaterialAlerts([])}>
+          <div
+            className="relative bg-card border-2 border-green-500 rounded-2xl shadow-2xl p-6 w-[90vw] max-w-md animate-in zoom-in-95 duration-300"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Barra superior colorida */}
+            <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-green-500 to-emerald-600 rounded-t-2xl" />
+
+            <div className="flex flex-col items-center text-center gap-3 pt-2">
+              <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center animate-pulse">
+                <PackageCheck className="w-8 h-8 text-green-600" />
+              </div>
+              <h3 className="text-xl font-bold text-foreground">MATERIAL DISPONÍVEL!</h3>
+              <p className="text-sm text-muted-foreground">
+                Foram detectados {materialAlerts.length} alerta(s) de material que chegou ao estoque
+              </p>
+
+              <div className="w-full space-y-2 mt-2">
+                {materialAlerts.map(a => (
+                  <div key={a.id} className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-left">
+                    <PackageCheck className="w-4 h-4 text-green-600 flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-foreground">{a.message}</p>
+                      <p className="text-xs text-muted-foreground">{a.count} OP(s) podem ser liberadas</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-2 w-full mt-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setMaterialAlerts([])}
+                >
+                  Fechar
+                </Button>
+                <Button
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  onClick={() => {
+                    setMaterialAlerts([]);
+                    window.location.href = "/corte-dobra/producao";
+                  }}
+                >
+                  Ver OPs
+                </Button>
+              </div>
             </div>
-          ))}
-          <button onClick={() => setMaterialAlerts([])} className="text-xs text-muted-foreground hover:text-foreground">Fechar</button>
+          </div>
         </div>
       )}
 
