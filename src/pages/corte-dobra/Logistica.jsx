@@ -29,23 +29,23 @@ export default function Logistica({ mode = "montagem" }) {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
-  // Fetch all finalized orders from Telhas
+  // Fetch orders from Telhas — pendente, em_producao, finalizado (not cancelado)
   const { data: pedidosTelhas = [], isLoading: loadingTelhas } = useQuery({
     queryKey: ["logistica-telhas", filialAtiva],
-    queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva, status: "finalizado" }, "-data_finalizacao", 300),
+    queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva, status: { $in: ["pendente", "em_producao", "finalizado"] } }, "-data_finalizacao", 300),
     refetchInterval: 15000,
   });
 
-  // Fetch all finalized orders from CD
+  // Fetch orders from CD — pendente, em_producao, finalizado (not cancelado)
   const { data: ordensMaq = [], isLoading: loadingMaq } = useQuery({
     queryKey: ["logistica-cd-maq", filialAtiva],
-    queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva, status: "finalizado" }, "-data_finalizacao", 300),
+    queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva, status: { $in: ["pendente", "aguardando_corte", "em_producao", "finalizado"] } }, "-data_finalizacao", 300),
     refetchInterval: 15000,
   });
 
   const { data: ordensDesb = [], isLoading: loadingDesb } = useQuery({
     queryKey: ["logistica-cd-desb", filialAtiva],
-    queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva, status: "finalizado" }, "-data_finalizacao", 300),
+    queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva, status: { $in: ["pendente", "em_producao", "finalizado"] } }, "-data_finalizacao", 300),
     refetchInterval: 15000,
   });
 
@@ -115,21 +115,30 @@ export default function Logistica({ mode = "montagem" }) {
       const expedidos = g.itens.filter(i => i.status_expedicao === "em_transito" || i.status_expedicao === "expedido").length;
 
       let statusCarga = "em_producao";
-      if (expedidos === total && total > 0) statusCarga = "pronto_expedicao";
-      else if (carregados > 0) statusCarga = "pronto_parcial";
-
-      // Also check if all are still finalizado (not loaded yet) = pronto
-      const todosNoPatio = g.itens.every(i => !i.status_expedicao || i.status_expedicao === "aguardando");
-      if (todosNoPatio && total > 0) statusCarga = "pronto_expedicao";
 
       // All items delivered = entregue
       const todosExpedidos = g.itens.every(i => i.status_expedicao === "expedido");
       if (todosExpedidos && total > 0) statusCarga = "entregue";
 
+      // All items finalized and not yet loaded = pronto_expedicao
+      const todosFinalizados = g.itens.every(i => i.status === "finalizado");
+      const todosNoPatio = g.itens.every(i => !i.status_expedicao || i.status_expedicao === "aguardando");
+      if (todosFinalizados && todosNoPatio && total > 0) statusCarga = "pronto_expedicao";
+      else if (todosFinalizados && expedidos === total && total > 0) statusCarga = "pronto_expedicao";
+      else if (todosFinalizados && carregados > 0) statusCarga = "pronto_parcial";
+
+      // If some items are still in production
+      const temEmProducao = g.itens.some(i => i.status === "em_producao");
+      if (!todosFinalizados && temEmProducao) statusCarga = "em_producao";
+
+      // If all pending (waiting for operator to start)
+      const todosPendentes = g.itens.every(i => i.status === "pendente" || i.status === "aguardando_corte");
+      if (todosPendentes && total > 0) statusCarga = "aguardando_inicio";
+
       return { ...g, total, carregados, expedidos, statusCarga };
     }).sort((a, b) => {
-      const order = { pronto_expedicao: 0, pronto_parcial: 1, em_producao: 2, entregue: 3 };
-      return (order[a.statusCarga] ?? 2) - (order[b.statusCarga] ?? 2);
+      const order = { pronto_expedicao: 0, pronto_parcial: 1, em_producao: 2, aguardando_inicio: 3, entregue: 4 };
+      return (order[a.statusCarga] ?? 3) - (order[b.statusCarga] ?? 3);
     });
   }, [itensFiltradosTab]);
 
@@ -178,6 +187,7 @@ export default function Logistica({ mode = "montagem" }) {
   const isLoading = loadingTelhas || loadingMaq || loadingDesb || loadingCargas;
 
   const statusConfig = {
+    aguardando_inicio: { label: "⏳ Aguardando Início", cor: "bg-zinc-100 text-zinc-600 border-zinc-200" },
     em_producao: { label: "🔴 Em Produção", cor: "bg-red-100 text-red-700 border-red-200" },
     pronto_parcial: { label: "🟡 Pronto Parcial", cor: "bg-amber-100 text-amber-700 border-amber-200" },
     pronto_expedicao: { label: "🟢 Pronto para Expedição", cor: "bg-green-100 text-green-700 border-green-200" },
@@ -344,6 +354,7 @@ export default function Logistica({ mode = "montagem" }) {
                 <option value="pronto_expedicao">Pronto p/ Expedição</option>
                 <option value="pronto_parcial">Pronto Parcial</option>
                 <option value="em_producao">Em Produção</option>
+                <option value="aguardando_inicio">Aguardando Início</option>
                 <option value="entregue">Entregue</option>
               </select>
             </div>
