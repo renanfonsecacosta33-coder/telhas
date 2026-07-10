@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, PackageCheck } from "lucide-react";
@@ -216,8 +217,8 @@ export default function AlertBellCD({ user }) {
         )}
       </button>
 
-      {/* POPUP PROMINENTE — Material disponível */}
-      {materialAlerts.length > 0 && (
+      {/* POPUP PROMINENTE — Material disponível (portal para escapar do header) */}
+      {materialAlerts.length > 0 && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={() => setMaterialAlerts([])}>
           <div
             className="relative bg-card border-2 border-green-500 rounded-2xl shadow-2xl p-6 w-[90vw] max-w-md animate-in zoom-in-95 duration-300"
@@ -267,7 +268,8 @@ export default function AlertBellCD({ user }) {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Badge vermelho flutuante quando minimizado */}
