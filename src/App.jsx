@@ -17,6 +17,7 @@ import Estoque from '@/pages/Estoque';
 import Producao from '@/pages/Producao';
 import Configuracoes from '@/pages/Configuracoes';
 import GerenciarUsuarios from '@/pages/GerenciarUsuarios';
+import UsuariosEquipe from '@/pages/UsuariosEquipe';
 import TP40 from '@/pages/maquinas/TP40';
 import TP25 from '@/pages/maquinas/TP25';
 import Ondulada from '@/pages/maquinas/Ondulada';
@@ -100,6 +101,7 @@ const AuthenticatedApp = () => {
         <Route path="/producao" element={<Producao />} />
         <Route path="/configuracoes" element={<Configuracoes />} />
         <Route path="/usuarios" element={<GerenciarUsuarios />} />
+        <Route path="/usuarios-equipe" element={<UsuariosEquipe />} />
         <Route path="/maquina/tp40" element={<TP40 />} />
         <Route path="/maquina/tp25" element={<TP25 />} />
         <Route path="/maquina/ondulada" element={<Ondulada />} />
