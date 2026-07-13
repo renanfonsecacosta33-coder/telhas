@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Search, AlertTriangle, X, Star } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Search, AlertTriangle, X, Star, Layers } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import OrdemMaquinaFormDialog from "@/components/corte-dobra/OrdemMaquinaFormDia
 import OrdemMaquinaRow from "@/components/corte-dobra/OrdemMaquinaRow.jsx";
 import RetrabalhoDialog from "@/components/corte-dobra/RetrabalhoDialog";
 import { useFilial } from "@/contexts/FilialContext";
+import FiltroChapa from "@/components/corte-dobra/FiltroChapa";
 
 export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const { filialAtiva } = useFilial();
@@ -21,6 +22,8 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const [dialog, setDialog] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [buscaPedido, setBuscaPedido] = useState("");
+  const [filtroEspessura, setFiltroEspessura] = useState("todas");
+  const [filtroChapa, setFiltroChapa] = useState("todas");
   const [dialogRetrabalho, setDialogRetrabalho] = useState(false);
   const [ordemRetrabalho, setOrdemRetrabalho] = useState(null);
 
@@ -181,6 +184,43 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const totalSemana = ordensSemana.length;
   const finalizadasSemana = ordensSemana.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
 
+  // Espessuras disponíveis (extraídas das ordens da semana)
+  const espessurasDisponiveis = useMemo(() => {
+    const set = new Set();
+    ordensSemana.forEach(o => {
+      const esp = o.desenvolvimento_descricao?.match(/([\d,]+)\s*mm/);
+      if (esp) set.add(esp[1]);
+    });
+    return Array.from(set).sort((a, b) => parseFloat(a.replace(",", ".")) - parseFloat(b.replace(",", ".")));
+  }, [ordensSemana]);
+
+  // Chapas em produção (extraídas das ordens da semana — chapa_descricao)
+  const chapasDisponiveis = useMemo(() => {
+    const set = new Set();
+    ordensSemana.forEach(o => { if (o.chapa_descricao) set.add(o.chapa_descricao); });
+    return Array.from(set).sort();
+  }, [ordensSemana]);
+
+  const ordensDiaFiltradas = useMemo(() => {
+    let r = ordensDia;
+    if (filtroEspessura !== "todas") r = r.filter(o => {
+      const esp = o.desenvolvimento_descricao?.match(/([\d,]+)\s*mm/);
+      return esp && esp[1] === filtroEspessura;
+    });
+    if (filtroChapa !== "todas") r = r.filter(o => o.chapa_descricao === filtroChapa);
+    return r;
+  }, [ordensDia, filtroEspessura, filtroChapa]);
+
+  const ordensSemanaFiltradas = useMemo(() => {
+    let r = ordensSemana;
+    if (filtroEspessura !== "todas") r = r.filter(o => {
+      const esp = o.desenvolvimento_descricao?.match(/([\d,]+)\s*mm/);
+      return esp && esp[1] === filtroEspessura;
+    });
+    if (filtroChapa !== "todas") r = r.filter(o => o.chapa_descricao === filtroChapa);
+    return r;
+  }, [ordensSemana, filtroEspessura, filtroChapa]);
+
   // Operador sem máquina configurada
   if (user && isOperadorRestrito && maquinasDoUsuario.length === 0) {
     return (
@@ -293,6 +333,31 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
         </Button>
       </div>
 
+      {/* Filtros por espessura e chapa */}
+      <div className="flex items-center gap-4 flex-wrap">
+        {espessurasDisponiveis.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Espessura:</span>
+            <button
+              onClick={() => setFiltroEspessura("todas")}
+              className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${filtroEspessura === "todas" ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border hover:bg-muted/50"}`}
+            >
+              Todas
+            </button>
+            {espessurasDisponiveis.map(esp => (
+              <button
+                key={esp}
+                onClick={() => setFiltroEspessura(filtroEspessura === esp ? "todas" : esp)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all flex items-center gap-1 ${filtroEspessura === esp ? "bg-blue-500 text-white border-blue-500" : "bg-card text-muted-foreground border-border hover:bg-muted/50"}`}
+              >
+                <Layers className="w-3 h-3" /> {esp}mm
+              </button>
+            ))}
+          </div>
+        )}
+        <FiltroChapa chapas={chapasDisponiveis} value={filtroChapa} onChange={setFiltroChapa} />
+      </div>
+
       {isLoading ? (
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
@@ -302,7 +367,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
         <div className="space-y-3">
           {diasDaSemana.map(dia => {
             const diaStr = format(dia, "yyyy-MM-dd");
-            const ordensDoDia = ordensSemana.filter(o => o.data === diaStr);
+            const ordensDoDia = ordensSemanaFiltradas.filter(o => o.data === diaStr);
             const finalizadas = ordensDoDia.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
             return (
               <div key={diaStr} className="bg-card border border-border rounded-xl overflow-hidden">
@@ -370,7 +435,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
               <span className="font-bold capitalize text-sm">
                 {format(new Date(selectedDay + "T12:00:00"), "EEEE, dd 'de' MMMM", { locale: ptBR })}
               </span>
-              <Badge variant="outline" className="text-xs">{ordensDia.length} ordens</Badge>
+              <Badge variant="outline" className="text-xs">{ordensDiaFiltradas.length} ordens</Badge>
             </div>
             {isGestor && (
               <Button variant="ghost" size="sm" onClick={() => openNew(selectedDay)} className="h-7 gap-1 text-xs">
@@ -378,7 +443,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
               </Button>
             )}
           </div>
-          {ordensDia.length === 0 ? (
+          {ordensDiaFiltradas.length === 0 ? (
             <div className="px-4 py-12 flex flex-col items-center gap-3">
               <Factory className="w-10 h-10 text-muted-foreground/20" />
               <p className="text-sm text-muted-foreground">Nenhuma ordem para este dia</p>
@@ -390,7 +455,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
             </div>
           ) : (
             <div className="p-4 space-y-3">
-              {ordensDia.map(o => (
+              {ordensDiaFiltradas.map(o => (
                 <div key={o.id}>
                   <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} ordens={ordensDaMaquina} pedidoSeq={pedidoSeqMap[o.id]} />
                   {isGestor && (

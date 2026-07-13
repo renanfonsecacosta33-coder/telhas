@@ -12,6 +12,7 @@ import OrdemDesbobinadiraRow from "@/components/corte-dobra/OrdemDesbobinadiraRo
 import RetrabalhoDialog from "@/components/corte-dobra/RetrabalhoDialog";
 import { useFilial } from "@/contexts/FilialContext";
 import { playAlertSound } from "@/lib/sounds";
+import FiltroChapa from "@/components/corte-dobra/FiltroChapa";
 
 export default function Desbobinadeira() {
   const { filialAtiva } = useFilial();
@@ -22,6 +23,7 @@ export default function Desbobinadeira() {
   const [dialog, setDialog] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [filtroEspessura, setFiltroEspessura] = useState("todas");
+  const [filtroChapa, setFiltroChapa] = useState("todas");
   const [buscaPedido, setBuscaPedido] = useState("");
   const [dialogRetrabalho, setDialogRetrabalho] = useState(false);
   const [ordemRetrabalho, setOrdemRetrabalho] = useState(null);
@@ -193,15 +195,26 @@ export default function Desbobinadeira() {
     return Array.from(set).sort((a, b) => parseFloat(a.replace(",", ".")) - parseFloat(b.replace(",", ".")));
   }, [ordensSemana]);
 
+  // Chapas em produção (extraídas das ordens da semana — bobina_descricao)
+  const chapasDisponiveis = useMemo(() => {
+    const set = new Set();
+    ordensSemana.forEach(o => { if (o.bobina_descricao) set.add(o.bobina_descricao); });
+    return Array.from(set).sort();
+  }, [ordensSemana]);
+
   const ordensDiaFiltradas = useMemo(() => {
-    if (filtroEspessura === "todas") return ordensDia;
-    return ordensDia.filter(o => o.espessura_utilizada === filtroEspessura);
-  }, [ordensDia, filtroEspessura]);
+    let r = ordensDia;
+    if (filtroEspessura !== "todas") r = r.filter(o => o.espessura_utilizada === filtroEspessura);
+    if (filtroChapa !== "todas") r = r.filter(o => o.bobina_descricao === filtroChapa);
+    return r;
+  }, [ordensDia, filtroEspessura, filtroChapa]);
 
   const ordensSemanaFiltradas = useMemo(() => {
-    if (filtroEspessura === "todas") return ordensSemana;
-    return ordensSemana.filter(o => o.espessura_utilizada === filtroEspessura);
-  }, [ordensSemana, filtroEspessura]);
+    let r = ordensSemana;
+    if (filtroEspessura !== "todas") r = r.filter(o => o.espessura_utilizada === filtroEspessura);
+    if (filtroChapa !== "todas") r = r.filter(o => o.bobina_descricao === filtroChapa);
+    return r;
+  }, [ordensSemana, filtroEspessura, filtroChapa]);
 
   // Operador sem máquina configurada
   if (user && isOperadorRestrito && !maquinaDoUsuario) {
@@ -317,27 +330,30 @@ export default function Desbobinadeira() {
         </Button>
       </div>
 
-      {/* Filtro por espessura */}
-      {espessurasDisponiveis.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Espessura:</span>
-          <button
-            onClick={() => setFiltroEspessura("todas")}
-            className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${filtroEspessura === "todas" ? "bg-orange-500 text-white border-orange-500" : "bg-card text-muted-foreground border-border hover:bg-muted/50"}`}
-          >
-            Todas
-          </button>
-          {espessurasDisponiveis.map(esp => (
+      {/* Filtros por espessura e chapa */}
+      <div className="flex items-center gap-4 flex-wrap">
+        {espessurasDisponiveis.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Espessura:</span>
             <button
-              key={esp}
-              onClick={() => setFiltroEspessura(filtroEspessura === esp ? "todas" : esp)}
-              className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all flex items-center gap-1 ${filtroEspessura === esp ? "bg-blue-500 text-white border-blue-500" : "bg-card text-muted-foreground border-border hover:bg-muted/50"}`}
+              onClick={() => setFiltroEspessura("todas")}
+              className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${filtroEspessura === "todas" ? "bg-orange-500 text-white border-orange-500" : "bg-card text-muted-foreground border-border hover:bg-muted/50"}`}
             >
-              <Layers className="w-3 h-3" /> {esp}mm
+              Todas
             </button>
-          ))}
-        </div>
-      )}
+            {espessurasDisponiveis.map(esp => (
+              <button
+                key={esp}
+                onClick={() => setFiltroEspessura(filtroEspessura === esp ? "todas" : esp)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all flex items-center gap-1 ${filtroEspessura === esp ? "bg-blue-500 text-white border-blue-500" : "bg-card text-muted-foreground border-border hover:bg-muted/50"}`}
+              >
+                <Layers className="w-3 h-3" /> {esp}mm
+              </button>
+            ))}
+          </div>
+        )}
+        <FiltroChapa chapas={chapasDisponiveis} value={filtroChapa} onChange={setFiltroChapa} />
+      </div>
 
       {isLoading ? (
         <div className="flex justify-center py-12">
