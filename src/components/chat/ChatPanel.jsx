@@ -82,7 +82,7 @@ export default function ChatPanel({ canal_tipo, canal_id, canal_label, currentUs
             const isMine = m.remetente_id === currentUser?.id;
             return (
               <div key={m.id} className={`flex flex-col ${isMine ? "items-end" : "items-start"}`}>
-                {!isMine && <span className="text-xs font-semibold text-muted-foreground mb-0.5">{m.remetente_nome}</span>}
+                <span className={`text-xs font-semibold mb-0.5 ${isMine ? "text-primary" : "text-muted-foreground"}`}>{m.remetente_nome || "Usuário"}</span>
                 <div className={`max-w-[80%] rounded-lg px-3 py-1.5 text-sm ${isMine ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                   <p className="whitespace-pre-wrap break-words">{m.conteudo}</p>
                   <span className={`text-[10px] block mt-0.5 ${isMine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
