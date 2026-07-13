@@ -14,6 +14,7 @@ import ConfirmarInicioDialog from "@/components/producao/ConfirmarInicioDialog";
 import { playFinishSound, speakOpFinalizada, playAlertSound } from "@/lib/sounds";
 import { useFilial } from "@/contexts/FilialContext";
 import { useQuery } from "@tanstack/react-query";
+import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
 
 const PRODUTO_BG = {
   "TELHA":               "border-l-blue-400",
@@ -497,11 +498,12 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
               {p.numero_pedido && <span className="text-muted-foreground font-mono text-xs">#{p.numero_pedido}</span>}
             </div>
           </div>
-          <div className="text-right flex-shrink-0">
+          <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
             <p className="text-3xl font-black text-primary leading-none">
               {(p.metros || 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
               <span className="text-base font-normal text-muted-foreground">m</span>
             </p>
+            <ChatPedidoButton canal_id={p.id} canal_label={`PED ${p.numero_pedido || p.id.slice(-6).toUpperCase()}`} currentUser={user} />
           </div>
         </div>
 

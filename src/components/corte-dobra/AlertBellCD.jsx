@@ -2,12 +2,14 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, PackageCheck } from "lucide-react";
+import { Bell, PackageCheck, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { playFinishSound, speakOpFinalizada, playMaterialDisponivelSound, speakMaterialDisponivel } from "@/lib/sounds";
+import { playFinishSound, speakOpFinalizada, playMaterialDisponivelSound, speakMaterialDisponivel, playAlertSound } from "@/lib/sounds";
 import { useFilial } from "@/contexts/FilialContext";
 import PopupDobradeira from "./PopupDobradeira";
+import CentralChats from "@/components/chat/CentralChats";
+import { useAllUnreadCount } from "@/hooks/useUnreadMessages";
 
 const GESTOR_ROLES = ["admin", "super_admin", "encarregado"];
 
@@ -21,11 +23,25 @@ export default function AlertBellCD({ user }) {
   const queryClient = useQueryClient();
   const [popupOpen, setPopupOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
+  const [centralChatsOpen, setCentralChatsOpen] = useState(false);
   const prevFinalizedMaqRef = useRef(null);
   const prevFinalizedDesbobRef = useRef(null);
   const prevPendingCountRef = useRef(0);
+  const prevChatCountRef = useRef(0);
 
   const isGestor = GESTOR_ROLES.includes(user?.role) || user?.full_name?.toLowerCase().includes("hudson");
+
+  const unreadChats = useAllUnreadCount(user);
+
+  // Notificação sonora quando chega nova mensagem de chat
+  useEffect(() => {
+    if (!isGestor) return;
+    if (prevChatCountRef.current !== null && unreadChats > prevChatCountRef.current) {
+      playAlertSound();
+      toast.info(`💬 Nova mensagem no chat!`, { duration: 4000 });
+    }
+    prevChatCountRef.current = unreadChats;
+  }, [unreadChats, isGestor]);
 
   const { data: ordensMaquina = [] } = useQuery({
     queryKey: ["alert-ordens-maquina", filialAtiva],
@@ -199,6 +215,19 @@ export default function AlertBellCD({ user }) {
   return (
     <>
       <button
+        onClick={() => setCentralChatsOpen(true)}
+        className="relative p-2 rounded-lg border border-border bg-card hover:bg-muted transition-colors cursor-pointer"
+        title="Central de Chats"
+      >
+        <MessageCircle className={`w-4 h-4 ${unreadChats > 0 ? "text-orange-500" : "text-muted-foreground"}`} />
+        {unreadChats > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 animate-pulse">
+            {unreadChats}
+          </span>
+        )}
+      </button>
+
+      <button
         onClick={() => {
           setPopupOpen(true);
           setMinimized(false);
@@ -293,6 +322,8 @@ export default function AlertBellCD({ user }) {
           queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
         }}
       />
+
+      <CentralChats user={user} open={centralChatsOpen} onOpenChange={setCentralChatsOpen} />
     </>
   );
 }

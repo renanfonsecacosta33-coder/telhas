@@ -1,0 +1,56 @@
+{
+  "name": "MensagemChat",
+  "type": "object",
+  "properties": {
+    "canal_tipo": {
+      "type": "string",
+      "enum": [
+        "maquina",
+        "pedido"
+      ],
+      "description": "Tipo do canal: chat de m\u00e1quina ou chat de pedido/OP"
+    },
+    "canal_id": {
+      "type": "string",
+      "description": "ID do canal (nome da m\u00e1quina ou ID do pedido/OP)"
+    },
+    "canal_label": {
+      "type": "string",
+      "description": "Nome leg\u00edvel do canal para exibi\u00e7\u00e3o (ex: Desbobinadeira, OP CD0071)"
+    },
+    "remetente_id": {
+      "type": "string",
+      "description": "ID do usu\u00e1rio remetente"
+    },
+    "remetente_nome": {
+      "type": "string",
+      "description": "Nome do remetente"
+    },
+    "conteudo": {
+      "type": "string",
+      "description": "Texto da mensagem"
+    },
+    "lido": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se a mensagem foi lida pelo destinat\u00e1rio"
+    },
+    "data_hora": {
+      "type": "string",
+      "description": "Timestamp ISO da mensagem"
+    }
+  },
+  "required": [
+    "canal_tipo",
+    "canal_id",
+    "remetente_nome",
+    "conteudo",
+    "data_hora"
+  ],
+  "rls": {
+    "create": {},
+    "read": {},
+    "update": {},
+    "delete": {}
+  }
+}

@@ -20,6 +20,7 @@ import ImageLink from "@/components/ui/ImageLink";
 import DualPhotoGallery from "@/components/corte-dobra/DualPhotoGallery";
 import CorChapaDot, { extractEspessuraFromDesc } from "@/components/corte-dobra/CorChapaDot";
 import AproveitamentoDialog from "@/components/corte-dobra/AproveitamentoDialog";
+import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -63,7 +64,7 @@ const ZOOM_CFG = {
   grande:   { card: "p-5",   title: "text-lg", info: "text-sm", badge: "text-sm", cronText: "text-base", cronLabel: "text-sm", cronPad: "px-4 py-2.5", btn: "h-10 text-sm", obs: "text-sm py-2", gap: "gap-2.5", mb: "mb-3" },
 };
 
-export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "normal", ordens = [], pedidoSeq }) {
+export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "normal", ordens = [], pedidoSeq, user }) {
   const z = ZOOM_CFG[zoom] || ZOOM_CFG.normal;
   const [pauseDialog, setPauseDialog] = useState(false);
   const [pauseMotivo, setPauseMotivo] = useState("");
@@ -495,6 +496,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               </Badge>
             )}
             {o.numero_pedido && <HistoricoPedidoButton numeroPedido={o.numero_pedido} />}
+            <ChatPedidoButton canal_id={o.id} canal_label={`OP ${o.maquina || "CD"} ${o.numero_pedido || o.id.slice(-6).toUpperCase()}`} currentUser={user} />
           </div>
         </div>
 

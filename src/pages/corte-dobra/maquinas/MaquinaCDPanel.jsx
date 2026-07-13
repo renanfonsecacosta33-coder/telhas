@@ -12,6 +12,7 @@ import OrdemMaquinaRow from "@/components/corte-dobra/OrdemMaquinaRow.jsx";
 import RetrabalhoDialog from "@/components/corte-dobra/RetrabalhoDialog";
 import { useFilial } from "@/contexts/FilialContext";
 import FiltroChapa from "@/components/corte-dobra/FiltroChapa";
+import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 
 export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const { filialAtiva } = useFilial();
@@ -401,7 +402,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
                       return (ord[a.status] ?? 3) - (ord[b.status] ?? 3);
                     }).map(o => (
                       <div key={o.id}>
-                        <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} ordens={ordensDaMaquina} pedidoSeq={pedidoSeqMap[o.id]} />
+                        <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} ordens={ordensDaMaquina} pedidoSeq={pedidoSeqMap[o.id]} user={user} />
                         {isGestor && (
                           <div className="flex justify-end mt-1 gap-1">
                             {o.status !== "finalizado" && o.status !== "cancelado" && (
@@ -457,7 +458,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
             <div className="p-4 space-y-3">
               {ordensDiaFiltradas.map(o => (
                 <div key={o.id}>
-                  <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} ordens={ordensDaMaquina} pedidoSeq={pedidoSeqMap[o.id]} />
+                  <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} ordens={ordensDaMaquina} pedidoSeq={pedidoSeqMap[o.id]} user={user} />
                   {isGestor && (
                     <div className="flex justify-end mt-1 gap-1">
                       {o.status !== "finalizado" && o.status !== "cancelado" && (
@@ -497,6 +498,8 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
         ordemOrigem={ordemRetrabalho}
         onCreate={() => queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] })}
       />
+
+      <ChatFloatingButton canal_id={maquinaId} canal_label={maquinaLabel} currentUser={user} />
     </div>
   );
 }

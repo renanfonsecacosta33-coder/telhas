@@ -14,6 +14,7 @@ import { useFilial } from "@/contexts/FilialContext";
 import { playAlertSound, speakNovaOp, playFinishSound, speakOpFinalizada } from "@/lib/sounds";
 import { HistoricoPedidoTelhasButton } from "@/components/producao/HistoricoPedidoTelhasSidebar";
 import PainelSolicitacoesProducao from "@/components/producao/PainelSolicitacoesProducao";
+import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 
 const STATUS_LABELS_TELHAS = {
   pendente: "Pendente",
@@ -423,6 +424,8 @@ export default function MaquinaPanel({ maquina }) {
           ))}
         </div>
       )}
+
+      <ChatFloatingButton canal_id={maquina} canal_label={maquina} currentUser={user} />
     </div>
   );
 }

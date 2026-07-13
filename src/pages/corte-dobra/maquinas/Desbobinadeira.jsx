@@ -13,6 +13,7 @@ import RetrabalhoDialog from "@/components/corte-dobra/RetrabalhoDialog";
 import { useFilial } from "@/contexts/FilialContext";
 import { playAlertSound } from "@/lib/sounds";
 import FiltroChapa from "@/components/corte-dobra/FiltroChapa";
+import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 
 export default function Desbobinadeira() {
   const { filialAtiva } = useFilial();
@@ -390,7 +391,7 @@ export default function Desbobinadeira() {
                   <div className="p-4 space-y-3">
                     {ordensDoDia.map(o => (
                       <div key={o.id}>
-                        <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} pedidoSeq={pedidoSeqMap[o.id]} bobinaCustoMap={bobinaCustoMap} />
+                        <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} pedidoSeq={pedidoSeqMap[o.id]} bobinaCustoMap={bobinaCustoMap} user={user} />
                         {isGestor && (
                           <div className="flex justify-end mt-1 gap-1">
                             {o.status !== "finalizado" && o.status !== "cancelado" && (
@@ -446,7 +447,7 @@ export default function Desbobinadeira() {
             <div className="p-4 space-y-3">
               {ordensDiaFiltradas.map(o => (
                 <div key={o.id}>
-                  <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} pedidoSeq={pedidoSeqMap[o.id]} bobinaCustoMap={bobinaCustoMap} />
+                  <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} pedidoSeq={pedidoSeqMap[o.id]} bobinaCustoMap={bobinaCustoMap} user={user} />
                   {isGestor && (
                     <div className="flex justify-end mt-1 gap-1">
                       {o.status !== "finalizado" && o.status !== "cancelado" && (
@@ -486,6 +487,8 @@ export default function Desbobinadeira() {
         ordemOrigem={ordemRetrabalho ? { ...ordemRetrabalho, _desb: true } : null}
         onCreate={() => queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] })}
       />
+
+      <ChatFloatingButton canal_id="DESBOBINADEIRA" canal_label="Desbobinadeira" currentUser={user} />
     </div>
   );
 }
