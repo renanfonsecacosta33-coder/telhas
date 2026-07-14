@@ -315,5 +315,43 @@
   "required": [
     "data",
     "produto"
-  ]
+  ],
+  "rls": {
+    "create": true,
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "gestor"
+          }
+        },
+        {
+          "data.vendedor": "{{user.full_name}}"
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "gestor"
+          }
+        },
+        {
+          "data.vendedor": "{{user.full_name}}"
+        }
+      ]
+    },
+    "delete": true
+  }
 }
