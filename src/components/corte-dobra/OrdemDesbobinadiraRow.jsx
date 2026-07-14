@@ -238,6 +238,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
             dimensoes_livres: o.tamanho_corte_guilhotina ? `CORTE ${o.tamanho_corte_guilhotina}mm` : null,
             numero_pedido: o.numero_pedido || null,
             cliente: o.cliente || null,
+            vendedor: o.vendedor || null,
             quantidade: o.quantidade || 0,
             status: "pendente",
             foto_pedido_url: o.foto_pedido_url || null,

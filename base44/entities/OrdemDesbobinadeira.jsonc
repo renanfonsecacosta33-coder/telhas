@@ -64,6 +64,10 @@
       "type": "string",
       "description": "Nome do cliente (quando destino = pedido_direto)"
     },
+    "vendedor": {
+      "type": "string",
+      "description": "Nome do vendedor respons\u00e1vel pela venda do pedido"
+    },
     "guilhotina": {
       "type": "string",
       "enum": [

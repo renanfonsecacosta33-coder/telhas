@@ -115,6 +115,12 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     enabled: open,
   });
 
+  const { data: vendedores = [] } = useQuery({
+    queryKey: ["vendedores-list"],
+    queryFn: () => base44.entities.User.filter({ role: "vendedor" }),
+    enabled: open,
+  });
+
   useEffect(() => {
     if (!open) return;
     if (editItem) {
@@ -140,6 +146,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         material_em_falta: editItem.material_em_falta || false,
         material_espessura: editItem.material_espessura || "",
         material_cor: editItem.material_cor || "",
+        vendedor: editItem.vendedor || "",
       });
     } else {
       setForm({
@@ -164,6 +171,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         material_em_falta: false,
         material_espessura: "",
         material_cor: "",
+        vendedor: "",
       });
     }
   }, [open, editItem, defaultDate]);
@@ -254,6 +262,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     if (isDesbobinadeira && (!form.comprimento_mm || Number(form.comprimento_mm) <= 0)) { alert("Informe o comprimento de corte em mm."); return; }
     if (!form.quantidade || Number(form.quantidade) <= 0) { alert("Informe a quantidade de chapas."); return; }
     if (form.destino === "pedido_direto" && !form.numero_pedido) { alert("Informe o número do pedido."); return; }
+    if (form.destino === "pedido_direto" && !form.vendedor) { alert("Selecione o vendedor responsável."); return; }
     if (excedePeso) {
       alert(`⚠️ Material insuficiente!\n\nBobina: ${bobinaObj?.codigo || '—'}\nPeso atual: ${pesoBobina.toFixed(1)} kg\nPré-baixa (OPs ativas): ${preReservadoKg.toFixed(1)} kg\nDisponível: ${pesoDisponivel.toFixed(1)} kg\nNecessário: ${kgEstimado.toFixed(1)} kg\n\nA OP será criada como "OP sem Material".`);
       onSave({
@@ -700,6 +709,25 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                   <Input placeholder="Nome do cliente" value={form.cliente} onChange={e => set("cliente", e.target.value)} />
                 </div>
               </div>
+              <div className="space-y-1">
+                <Label className="flex items-center gap-1">
+                  <DollarSign className="w-4 h-4 text-blue-500" /> Vendedor *
+                </Label>
+                <Select value={form.vendedor} onValueChange={v => set("vendedor", v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione o vendedor..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vendedores.length === 0 && (
+                      <SelectItem value="_empty" disabled>Nenhum vendedor cadastrado</SelectItem>
+                    )}
+                    {vendedores.map(v => (
+                      <SelectItem key={v.id} value={v.full_name || ""}>{v.full_name || "—"}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Guilhotina</Label>

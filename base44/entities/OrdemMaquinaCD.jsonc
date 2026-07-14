@@ -65,7 +65,7 @@
     },
     "tipo_peca": {
       "type": "string",
-      "description": "Tipo de pe\u00e7a do cat\u00e1logo (ex: Perfil Serralheiro n\u00ba5, Blank, Dobra simples...)"
+      "description": "Tipo de pe\u00e7a do cat\u00e1logo (ex: Perfil Serralheiro n\u00b05, Blank, Dobra simples...)"
     },
     "dimensoes_livres": {
       "type": "string",
@@ -91,6 +91,10 @@
     "cliente": {
       "type": "string",
       "description": "Nome do cliente"
+    },
+    "vendedor": {
+      "type": "string",
+      "description": "Nome do vendedor respons\u00e1vel pela venda do pedido"
     },
     "quantidade": {
       "type": "number",

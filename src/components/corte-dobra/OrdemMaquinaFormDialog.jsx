@@ -102,6 +102,12 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     enabled: open && (form.chapa_origem === "chaparia" || isDobra),
   });
 
+  const { data: vendedores = [] } = useQuery({
+    queryKey: ["vendedores-list"],
+    queryFn: () => base44.entities.User.filter({ role: "vendedor" }),
+    enabled: open,
+  });
+
   useEffect(() => {
     if (!open) return;
     if (editItem) {
@@ -128,6 +134,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         material_em_falta: editItem.material_em_falta || false,
         material_espessura: editItem.material_espessura || "",
         material_cor: editItem.material_cor || "",
+        vendedor: editItem.vendedor || "",
       });
     } else {
       setForm({
@@ -153,6 +160,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         material_em_falta: false,
         material_espessura: "",
         material_cor: "",
+        vendedor: "",
       });
     }
   }, [open, editItem, defaultDate, maquinaProp]);
@@ -294,6 +302,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     if (form.maquina === "CORTE 6M" && devObj?.maquina_dobra && devObj.maquina_dobra !== "PERFILADEIRA" && !form.ordem_dobra_maquina) {
       alert("Selecione a máquina de dobra."); return;
     }
+    if (form.numero_pedido && !form.vendedor) { alert("Selecione o vendedor responsável."); return; }
 
     // Validação de pré-baixa para bobina direta (não perfiladeira/slitter)
     if (form.chapa_origem === "direto" && !isPerfiladeira && !isDobra && form.bobina_id && form.peso_kg) {
@@ -633,6 +642,19 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
           <div className="space-y-1">
             <Label>Cliente</Label>
             <Input placeholder="Nome do cliente" value={form.cliente} onChange={e => set("cliente", e.target.value)} />
+          </div>
+
+          <div className="space-y-1">
+            <Label>Vendedor {form.numero_pedido ? "*" : "(opcional)"}</Label>
+            <Select value={form.vendedor} onValueChange={v => set("vendedor", v)}>
+              <SelectTrigger><SelectValue placeholder="Selecione o vendedor..." /></SelectTrigger>
+              <SelectContent>
+                {vendedores.length === 0 && <SelectItem value="_empty" disabled>Nenhum vendedor cadastrado</SelectItem>}
+                {vendedores.map(v => (
+                  <SelectItem key={v.id} value={v.full_name || ""}>{v.full_name || "—"}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-1">
