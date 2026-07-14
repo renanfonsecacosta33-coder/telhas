@@ -25,7 +25,7 @@ export default function ValidacaoEtiquetaDialog({ open, onClose, ordem, onAprova
   }, [open, ordem?.id]);
 
   const bobinaInfo = ordem
-    ? `Descrição: ${ordem.bobina_descricao || "—"}\nEspessura utilizada: ${ordem.espessura_utilizada || "—"}mm\nComprimento de corte: ${ordem.comprimento_mm || "—"}mm`
+    ? `Descrição: ${ordem.bobina_descricao || "—"}\nEspessura(s) utilizável(is): ${ordem.espessura_utilizada || "—"}\nComprimento de corte: ${ordem.comprimento_mm || "—"}mm`
     : "";
 
   const handleUpload = async (file) => {
@@ -52,12 +52,19 @@ Analise a foto enviada da etiqueta/QR code da bobina e verifique se ela correspo
 BOBINA ESPERADA:
 ${bobinaInfo}
 
+IMPORTANTE SOBRE ESPESSURA:
+O campo "Espessura(s) utilizável(is)" pode conter MÚLTIPLAS espessuras separadas por barra (ex: "2,70 / 3,00").
+Isso significa que a bobina fisicamente tem uma espessura (ex: 3,00mm) mas PODE SER UTILIZADA para produção de peças que exigem 2,70mm.
+Portanto, se a espessura lida na etiqueta for QUALQUER UMA das espessuras utilizáveis listadas, considere VÁLIDO.
+NÃO rejeite apenas porque a espessura lida (ex: 3,00) é diferente da esperada (ex: 2,70) — verifique se a espessura lida está entre as utilizáveis.
+
 Instruções:
 1. Tente ler o código da bobina na etiqueta (ex: TE0001, CD0026, etc.)
-2. Verifique se a espessura/chapa visível na etiqueta corresponde à esperada
-3. Verifique se a cor/RVM visível corresponde
-4. Se não conseguir ler nada, considere rejeitado
-5. Se os dados lidos forem inconsistentes com a bobina esperada, rejeite
+2. Leia a espessura visível na etiqueta e verifique se ela está entre as espessuras utilizáveis listadas
+3. Se a espessura lida for uma das utilizáveis (mesmo que não seja a primeira), considere VÁLIDO
+4. Verifique se a cor/RVM visível corresponde (se houver essa informação na etiqueta)
+5. Se não conseguir ler nada, considere rejeitado
+6. Só rejeite se a espessura lida NÃO estiver entre as utilizáveis, ou se o código for claramente diferente
 
 Responda em JSON com:
 - valido: true se a etiqueta corresponde à bobina esperada, false caso contrário
