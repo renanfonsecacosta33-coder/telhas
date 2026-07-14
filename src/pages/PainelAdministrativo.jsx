@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { ArrowLeft, DollarSign, AlertTriangle, Camera, BarChart3, MessageCircle, Building2 } from "lucide-react";
+import { ArrowLeft, DollarSign, AlertTriangle, Camera, BarChart3, MessageCircle, Building2, Package } from "lucide-react";
 import KpiFinanceiro from "@/components/admin/KpiFinanceiro";
 import AlertasEstoqueCritico from "@/components/admin/AlertasEstoqueCritico";
 import MuralQualidade from "@/components/admin/MuralQualidade";
 import EficienciaMaquinas from "@/components/admin/EficienciaMaquinas";
 import AuditoriaChats from "@/components/admin/AuditoriaChats";
+import GerenciarBobinas from "@/components/admin/GerenciarBobinas";
 
 export default function PainelAdministrativo() {
   const navigate = useNavigate();
@@ -37,6 +38,7 @@ export default function PainelAdministrativo() {
     { key: "qualidade", label: "Mural de Qualidade", icon: Camera },
     { key: "eficiencia", label: "Eficiência", icon: BarChart3 },
     { key: "chats", label: "Auditoria de Chats", icon: MessageCircle },
+    { key: "bobinas", label: "Gerenciar Bobinas", icon: Package },
   ];
 
   return (
@@ -76,6 +78,7 @@ export default function PainelAdministrativo() {
         {tab === "qualidade" && <MuralQualidade />}
         {tab === "eficiencia" && <EficienciaMaquinas />}
         {tab === "chats" && <AuditoriaChats />}
+        {tab === "bobinas" && <GerenciarBobinas />}
       </div>
     </div>
   );
