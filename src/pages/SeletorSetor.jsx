@@ -37,6 +37,18 @@ export default function SeletorSetor() {
         </div>
 
         <div className="space-y-3">
+          {user?.role === "admin" && (
+            <button
+              onClick={() => navigate("/painel-admin")}
+              className="w-full bg-gradient-to-r from-slate-800 to-slate-700 text-white rounded-xl p-5 flex items-center justify-between hover:from-slate-700 hover:to-slate-600 transition-all group text-left shadow-lg"
+            >
+              <div>
+                <p className="font-bold text-base">🏛️ Painel do Administrador</p>
+                <p className="text-sm text-slate-300 mt-1">Control Tower — Visão geral da operação</p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
+            </button>
+          )}
           <button
             onClick={() => selecionarSetor("telhas")}
             disabled={navegando}

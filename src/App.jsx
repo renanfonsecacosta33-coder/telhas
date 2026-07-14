@@ -40,6 +40,7 @@ import DashboardPerformance from '@/pages/DashboardPerformance';
 import Cola from '@/pages/Cola';
 import VendedorEstoque from '@/pages/VendedorEstoque';
 import VendedorDashboard from '@/pages/VendedorDashboard';
+import PainelAdministrativo from '@/pages/PainelAdministrativo';
 import SeletorSetor from '@/pages/SeletorSetor';
 import AppLayoutCD from '@/components/layout/CorteDobra/AppLayoutCD';
 import DashboardCD from '@/pages/corte-dobra/Dashboard';
@@ -128,6 +129,7 @@ const AuthenticatedApp = () => {
       </Route>
       <Route path="/vendedor" element={<VendedorEstoque />} />
       <Route path="/vendedor-dashboard" element={<VendedorDashboard />} />
+      <Route path="/painel-admin" element={<PainelAdministrativo />} />
       <Route path="/logistica" element={<LogisticaStandalone />} />
       <Route path="/setor" element={<SeletorSetor />} />
       <Route path="/bobina-qr/:id" element={<BobinaQR />} />
