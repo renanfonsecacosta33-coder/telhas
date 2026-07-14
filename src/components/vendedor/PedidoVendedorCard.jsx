@@ -1,6 +1,6 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, FileText, AlertCircle, Factory, CheckCircle2, Truck, Package } from "lucide-react";
+import { MessageSquare, FileText, AlertCircle, Factory, CheckCircle2, Truck, Package, Clock, Warehouse } from "lucide-react";
 import { format, differenceInCalendarDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -30,6 +30,23 @@ export function calcProgresso(card) {
   return Math.round((done / card.ops.length) * 100);
 }
 
+const TIMELINE_STAGES = [
+  { key: 0, label: "Aguardando", icon: Clock },
+  { key: 1, label: "Em Fabricação", icon: Factory },
+  { key: 2, label: "Pronto na Expedição", icon: Warehouse },
+  { key: 3, label: "A Caminho", icon: Truck },
+  { key: 4, label: "Entregue", icon: CheckCircle2 },
+];
+
+function getTimelineStage(card) {
+  const { status, status_expedicao } = card;
+  if (status_expedicao === "expedido") return 4;
+  if (status_expedicao === "em_transito" || status_expedicao === "carregado") return 3;
+  if (status === "finalizado") return 2;
+  if (["em_producao", "aguardando_corte", "aguardando_colagem", "pausado"].includes(status)) return 1;
+  return 0;
+}
+
 function getUrgency(data_prevista) {
   if (!data_prevista) return null;
   const date = new Date(data_prevista);
@@ -46,11 +63,7 @@ export default function PedidoVendedorCard({ card, onVerDetalhes, unreadCount = 
   const urgency = getUrgency(card.data_prevista);
   const statusCfg = STATUS_CONFIG[card.status] || STATUS_CONFIG.pendente;
   const StatusIcon = statusCfg.icon;
-
-  const expedidoLabel = card.status_expedicao === "expedido" ? "Expedido"
-    : card.status_expedicao === "em_transito" ? "Em Trânsito"
-    : card.status_expedicao === "carregado" ? "Carregado" : null;
-
+  const currentStage = getTimelineStage(card);
   const opsProntas = card.ops ? card.ops.filter(o => o.status === "finalizado").length : 0;
 
   return (
@@ -81,30 +94,44 @@ export default function PedidoVendedorCard({ card, onVerDetalhes, unreadCount = 
           <StatusIcon className="w-3 h-3" />
           {statusCfg.label}
         </span>
-        {expedidoLabel && (
-          <span className="flex items-center gap-1 text-emerald-600 font-medium">
-            <Truck className="w-3 h-3" />
-            {expedidoLabel}
-          </span>
-        )}
       </div>
 
       <p className="text-sm text-foreground line-clamp-2">{card.descricao}</p>
 
-      <div className="space-y-1">
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">
-            {card.tipo === "corte_dobra" && card.ops
-              ? `${opsProntas}/${card.ops.length} OPs Prontas`
-              : "Progresso"}
-          </span>
-          <span className="font-semibold text-foreground">{progresso}%</span>
-        </div>
-        <div className="h-2 bg-muted rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all ${progresso === 100 ? "bg-emerald-500" : progresso >= 50 ? "bg-blue-500" : "bg-amber-500"}`}
-            style={{ width: `${progresso}%` }}
-          />
+      {/* Linha do tempo comercial */}
+      <div className="py-1">
+        <div className="flex items-center">
+          {TIMELINE_STAGES.map((stage, i) => {
+            const StageIcon = stage.icon;
+            const isCompleted = currentStage > stage.key;
+            const isCurrent = currentStage === stage.key;
+            return (
+              <React.Fragment key={stage.key}>
+                <div className="flex flex-col items-center flex-shrink-0" style={{ width: "52px" }}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+                    isCompleted ? "bg-emerald-500 text-white" :
+                    isCurrent ? "bg-primary text-primary-foreground ring-2 ring-primary/30 ring-offset-1" :
+                    "bg-muted text-muted-foreground"
+                  }`}>
+                    <StageIcon className="w-3 h-3" />
+                  </div>
+                  <span className={`text-[9px] mt-1 text-center leading-tight ${
+                    isCompleted ? "text-emerald-600 font-medium" :
+                    isCurrent ? "text-foreground font-semibold" :
+                    "text-muted-foreground"
+                  }`}>
+                    {stage.label}
+                  </span>
+                  {stage.key === 1 && isCurrent && card.tipo === "corte_dobra" && card.ops && (
+                    <span className="text-[9px] text-blue-600 font-bold">{opsProntas}/{card.ops.length} OPs</span>
+                  )}
+                </div>
+                {i < TIMELINE_STAGES.length - 1 && (
+                  <div className={`flex-1 h-0.5 mx-0.5 -mt-4 ${currentStage > stage.key ? "bg-emerald-500" : "bg-muted"}`} />
+                )}
+              </React.Fragment>
+            );
+          })}
         </div>
       </div>
 

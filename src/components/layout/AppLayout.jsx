@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeftRight, MessageCircle } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import CentralChats from "@/components/chat/CentralChats";
-import { useAllUnreadCount } from "@/hooks/useUnreadMessages";
+import CentralMensagensDireto from "@/components/chat/CentralMensagensDireto";
+import { useAllUnreadCount, useUnreadCount } from "@/hooks/useUnreadMessages";
 import { playAlertSound } from "@/lib/sounds";
 import { toast } from "sonner";
 
@@ -15,6 +16,7 @@ export default function AppLayout() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [centralChatsOpen, setCentralChatsOpen] = useState(false);
+  const [centralDiretoOpen, setCentralDiretoOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -23,6 +25,7 @@ export default function AppLayout() {
 
   const isGestorTelhas = user?.role === "admin" || user?.role === "super_admin" || user?.gerencia === true;
   const unreadChats = useAllUnreadCount(user);
+  const unreadDirect = useUnreadCount(user, "direto");
   const prevChatRef = useRef(null);
 
   useEffect(() => {
@@ -55,9 +58,17 @@ export default function AppLayout() {
       <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
       <main className="lg:ml-64 min-h-screen">
         <div className="sticky top-0 z-30 bg-background/80 backdrop-blur border-b border-border px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-end gap-2 lg:hidden">
+          <button onClick={() => setCentralDiretoOpen(true)} className="relative p-2 rounded-lg border border-border bg-card hover:bg-muted transition-colors cursor-pointer" title="Mensagens Diretas">
+            <MessageCircle className={`w-4 h-4 ${unreadDirect > 0 ? "text-blue-500" : "text-muted-foreground"}`} />
+            {unreadDirect > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">{unreadDirect}</span>}
+          </button>
           <FilialSwitcher />
         </div>
         <div className="hidden lg:flex sticky top-0 z-30 bg-background/80 backdrop-blur border-b border-border px-8 py-2 items-center justify-end gap-2">
+          <button onClick={() => setCentralDiretoOpen(true)} className="relative p-2 rounded-lg border border-border bg-card hover:bg-muted transition-colors cursor-pointer" title="Mensagens Diretas">
+            <MessageCircle className={`w-4 h-4 ${unreadDirect > 0 ? "text-blue-500" : "text-muted-foreground"}`} />
+            {unreadDirect > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">{unreadDirect}</span>}
+          </button>
           {isGestorTelhas && (
             <button
               onClick={() => setCentralChatsOpen(true)}
@@ -82,6 +93,7 @@ export default function AppLayout() {
       {isGestorTelhas && (
         <CentralChats user={user} open={centralChatsOpen} onOpenChange={setCentralChatsOpen} />
       )}
+      <CentralMensagensDireto user={user} open={centralDiretoOpen} onOpenChange={setCentralDiretoOpen} />
     </div>
   );
 }
