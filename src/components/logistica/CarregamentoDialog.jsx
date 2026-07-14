@@ -61,7 +61,7 @@ export default function CarregamentoDialog({ open, onClose, item, tipo, motorist
 
       const updateData = {
         foto_carregamento_url: fotoUrl,
-        status_expedicao: "carregado",
+        status_expedicao: "em_transito",
         motorista_nome: motoristaNome || item.motorista_nome || "",
         carga_id: cargaId || item.carga_id || "",
         historico_expedicao: JSON.stringify([...histExp, novoRegistro]),

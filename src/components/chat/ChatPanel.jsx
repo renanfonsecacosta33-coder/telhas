@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-export default function ChatPanel({ canal_tipo, canal_id, canal_label, currentUser, heightClass = "h-[400px]" }) {
+export default function ChatPanel({ canal_tipo, canal_id, canal_label, currentUser, heightClass = "h-[400px]", destinatarioId }) {
   const [mensagens, setMensagens] = useState([]);
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -52,7 +52,7 @@ export default function ChatPanel({ canal_tipo, canal_id, canal_label, currentUs
     const conteudo = texto.trim();
     setTexto("");
     try {
-      const msg = await base44.entities.MensagemChat.create({
+      const msgData = {
         canal_tipo,
         canal_id,
         canal_label: canal_label || canal_id,
@@ -61,7 +61,9 @@ export default function ChatPanel({ canal_tipo, canal_id, canal_label, currentUs
         conteudo,
         lido: false,
         data_hora: new Date().toISOString(),
-      });
+      };
+      if (destinatarioId) msgData.destinatario_id = destinatarioId;
+      const msg = await base44.entities.MensagemChat.create(msgData);
       setMensagens(prev => [...prev, msg]);
     } catch (e) {
       alert("Erro ao enviar: " + e.message);
