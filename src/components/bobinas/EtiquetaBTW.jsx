@@ -27,6 +27,8 @@ export default function EtiquetaBTW({ bobina, onClose }) {
 
   const chapaReal = bobina.chapa || "—";
   const corBobina = bobina.cor || "—";
+  const isCorteDobra = bobina.setor === "corte_dobra";
+  const chapaUtilizada = bobina.espessura_utilizada || bobina.chapa || "—";
 
   const handlePrint = () => {
     const conteudo = printRef.current.innerHTML;
@@ -164,13 +166,13 @@ export default function EtiquetaBTW({ bobina, onClose }) {
                   </div>
                 </div>
 
-                {/* COR */}
+                {/* COR (Telhas) / CHAPA UTILIZADA (Corte e Dobra) */}
                 <div style={{ display: "flex", borderBottom: "0.75px solid #000", flex: 1 }}>
                   <div style={{ padding: "3px 8px", fontSize: "12px", background: "#f5f5f5", minWidth: "80px", display: "flex", alignItems: "center", borderRight: "0.75px solid #000", fontWeight: 700 }}>
-                    COR
+                    {isCorteDobra ? "CHAPA UTIL." : "COR"}
                   </div>
                   <div style={{ padding: "3px 8px", fontSize: "16px", fontWeight: 900, color: "#000", flex: 1, display: "flex", alignItems: "center" }}>
-                    {corBobina}
+                    {isCorteDobra ? chapaUtilizada : corBobina}
                   </div>
                 </div>
 
