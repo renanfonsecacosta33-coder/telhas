@@ -102,20 +102,36 @@ export default function GerenciarBobinas({ filters }) {
 
   if (isLoading) return <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>;
 
+  const setorLabel = { todos: "Todas", telhas: "Telhas", corte_dobra: "Corte e Dobra" };
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-2">
-          {["todos", "telhas", "corte_dobra"].map(f => (
-            <button key={f} onClick={() => setFiltroSetor(f)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filtroSetor === f ? "bg-primary text-primary-foreground" : "bg-card border border-border hover:bg-muted"}`}>{f === "todos" ? "Todos" : f === "telhas" ? "Telhas" : "Corte e Dobra"}</button>
-          ))}
+      {/* Barra de pesquisa redesenhada */}
+      <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
+        <div className="flex flex-col sm:flex-row gap-3">
+          {/* Tabs visuais de setor */}
+          <div className="flex bg-muted/50 rounded-lg p-1 gap-1 flex-shrink-0">
+            {["todos", "telhas", "corte_dobra"].map(f => (
+              <button key={f} onClick={() => setFiltroSetor(f)}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${filtroSetor === f ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                {f === "todos" ? "Todas" : f === "telhas" ? "Telhas" : "Corte e Dobra"}
+              </button>
+            ))}
+          </div>
+          {/* Busca */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <input type="text" value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por código, cor ou espessura..."
+              className="w-full h-10 pl-10 pr-10 rounded-lg border border-input bg-muted/30 text-sm placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary/40 transition-all" />
+            {busca && <button onClick={() => setBusca("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"><X className="w-4 h-4" /></button>}
+          </div>
+          {/* Contador */}
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/30 rounded-lg flex-shrink-0">
+            <Weight className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-sm font-medium">{filtered.length}</span>
+            <span className="text-xs text-muted-foreground">bobina(s) em {setorLabel[filtroSetor]}</span>
+          </div>
         </div>
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-          <input type="text" value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por código, cor, espessura..." className="w-full h-9 pl-8 pr-3 rounded-md border border-input bg-transparent text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
-          {busca && <button onClick={() => setBusca("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>}
-        </div>
-        <span className="text-sm text-muted-foreground">{filtered.length} bobina(s)</span>
       </div>
 
       {/* Grid de Cards */}
@@ -147,12 +163,19 @@ export default function GerenciarBobinas({ filters }) {
                 <p className="flex justify-between"><span className="text-muted-foreground">💰 Custo/KG:</span><span className="font-medium">{b.custo ? `R$ ${b.custo.toFixed(2)}` : "—"}</span></p>
                 <p className="flex justify-between"><span className="text-muted-foreground">📊 Custo Total:</span><span className="font-medium">{b.custo_total ? formatBRL(b.custo_total) : "—"}</span></p>
               </div>
-              {/* Linha de NF (Admin) */}
-              <div className="text-xs">
-                <p className="flex justify-between items-center">
-                  <span className="text-muted-foreground">📄 NF:</span>
-                  {b.anexo_nf_url ? <a href={b.anexo_nf_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-blue-600 hover:underline font-medium">{b.nf || "Ver anexo"}</a> : <span className="font-medium">{b.nf || "—"}</span>}
-                </p>
+              {/* Linha de NF e CV (Admin) */}
+              <div className="flex items-center justify-between text-xs gap-2">
+                <span className="text-muted-foreground">📄 NF:</span>
+                {b.anexo_nf_url ? <a href={b.anexo_nf_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-blue-600 hover:underline font-medium flex-1 truncate text-right">{b.nf || "Ver NF"}</a> : <span className="font-medium flex-1 text-right truncate">{b.nf || "—"}</span>}
+                <span className="text-muted-foreground">|</span>
+                <span className="text-muted-foreground">CV:</span>
+                {b.anexo_cert_url ? (
+                  <a href={b.anexo_cert_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-blue-600 hover:underline font-medium flex items-center gap-0.5">Ver Cert.</a>
+                ) : b.anexo_cert_ausencia ? (
+                  <span className="text-amber-600 font-medium" title={`Declarado por: ${b.anexo_cert_ausencia}`}>Sem CV</span>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
               </div>
             </div>
           );
