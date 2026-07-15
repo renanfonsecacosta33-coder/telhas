@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route } from "lucide-react";
+import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route, Camera } from "lucide-react";
 import ImageLink from "@/components/ui/ImageLink";
 import RetrabalhoTelhasDialog from "@/components/producao/RetrabalhoTelhasDialog";
 import { format } from "date-fns";
@@ -150,7 +150,16 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
   const [validacaoEtiquetaOpen, setValidacaoEtiquetaOpen] = useState(false);
   const [retrabalhoOpen, setRetrabalhoOpen] = useState(false);
   const [confirmarInicioOpen, setConfirmarInicioOpen] = useState(false);
+  const [fotoFinalizacaoUrl, setFotoFinalizacaoUrl] = useState("");
+  const [uploadingFoto, setUploadingFoto] = useState(false);
   const intervalRef = useRef(null);
+
+  // Parse variações de telhas para verificar se todos os itens estão finalizados
+  let _variacoesTelhas = [];
+  try { _variacoesTelhas = JSON.parse(p.variacoes_telhas || "[]"); } catch { _variacoesTelhas = []; }
+  if (!Array.isArray(_variacoesTelhas)) _variacoesTelhas = [];
+  const temVariacoes = _variacoesTelhas.length > 0;
+  const todosItensFinalizados = temVariacoes ? _variacoesTelhas.every(v => v.finalizado) : true;
 
   // Verifica se há solicitação pendente para este pedido
   const { data: solicitacoesPendentes = [] } = useQuery({
@@ -343,6 +352,11 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
   };
 
   const handleFinalizar = () => {
+    // Bloqueia se há variações e nem todos os itens estão finalizados
+    if (temVariacoes && !todosItensFinalizados) {
+      alert("Finalize todos os itens das 'Medidas do Pedido' antes de finalizar a OP!");
+      return;
+    }
     // TELHA + EPS + TELHA: pede checklist de telhas antes
     if (p.produto === "TELHA + EPS + TELHA" && p.maquina !== "COLAGEM") {
       setTelhaSupOk(false);
@@ -352,7 +366,21 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
     }
     // Abre dialog de confirmação de metragem
     setMetragemReal(p.metragem_planejada?.toString() || "");
+    setFotoFinalizacaoUrl("");
     setMetragemDialog(true);
+  };
+
+  const handleUploadFoto = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingFoto(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setFotoFinalizacaoUrl(file_url);
+    } catch (err) {
+      alert("Erro ao enviar foto: " + (err.message || ""));
+    }
+    setUploadingFoto(false);
   };
 
   const confirmarTelhasSandwich = () => {
@@ -390,6 +418,7 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
         metragem_utilizada: metragemRealNum,
         inicio_producao_ts: null,
         data_finalizacao: format(new Date(), "yyyy-MM-dd"),
+        foto_finalizacao_url: fotoFinalizacaoUrl,
       });
       setMetragemDialog(false);
       return;
@@ -458,6 +487,7 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
       metragem_planejada: metragemRealNum,
       inicio_producao_ts: null,
       data_finalizacao: novoStatus === "finalizado" ? format(new Date(), "yyyy-MM-dd") : undefined,
+      foto_finalizacao_url: fotoFinalizacaoUrl,
       ...(precisaColagem ? { maquina: "COLAGEM" } : {}),
     });
     setMetragemDialog(false);
@@ -810,9 +840,17 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
               <Button size="sm" variant="outline" className="gap-1 border-amber-300 text-amber-700 hover:bg-amber-50" onClick={handlePausar}>
                 <Pause className="w-3 h-3" /> Pausar
               </Button>
-              <Button size="sm" className="gap-1 bg-green-600 hover:bg-green-700 text-white border-0" onClick={handleFinalizar}>
+              <Button
+                size="sm"
+                className={`gap-1 border-0 ${temVariacoes && !todosItensFinalizados ? "bg-slate-300 text-slate-500 cursor-not-allowed" : "bg-green-600 hover:bg-green-700 text-white"}`}
+                onClick={handleFinalizar}
+                disabled={temVariacoes && !todosItensFinalizados}
+                title={temVariacoes && !todosItensFinalizados ? "Finalize todos os itens primeiro" : ""}
+              >
                 <CheckCircle2 className="w-3 h-3" />
-                {isBandejaMultiEtapa && proximaEtapaBandeja
+                {temVariacoes && !todosItensFinalizados
+                  ? `Finalize os itens (${_variacoesTelhas.filter(v => v.finalizado).length}/${_variacoesTelhas.length})`
+                  : isBandejaMultiEtapa && proximaEtapaBandeja
                   ? `Finalizar ${labelProximaEtapa(p.produto, p.maquina)}`
                   : precisaColagem ? "Finalizar → Colagem" : "✓ Finalizar"}
               </Button>
@@ -1013,12 +1051,46 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
               />
               <p className="text-xs text-muted-foreground">Se for diferente do planejado, o KG será ajustado proporcionalmente</p>
             </div>
+
+            {/* Foto obrigatória do material finalizado */}
+            <div className="space-y-2 border-t pt-4">
+              <Label className="text-sm font-semibold flex items-center gap-1">
+                <Camera className="w-4 h-4 text-green-600" /> Foto do Material Finalizado *
+              </Label>
+              {fotoFinalizacaoUrl ? (
+                <div className="relative">
+                  <img src={fotoFinalizacaoUrl} alt="Material finalizado" className="w-full h-36 object-cover rounded-lg border-2 border-green-400" />
+                  <button
+                    onClick={() => setFotoFinalizacaoUrl("")}
+                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm shadow-lg hover:bg-red-600"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-green-300 rounded-lg p-6 cursor-pointer hover:border-green-500 hover:bg-green-50/30 transition-colors">
+                  {uploadingFoto ? (
+                    <>
+                      <div className="w-8 h-8 border-4 border-slate-200 border-t-green-500 rounded-full animate-spin" />
+                      <span className="text-xs text-muted-foreground">Enviando foto...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="w-10 h-10 text-green-400" />
+                      <span className="text-sm font-medium text-green-600">Tirar foto do material finalizado</span>
+                      <span className="text-xs text-muted-foreground">Obrigatório para finalizar</span>
+                    </>
+                  )}
+                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleUploadFoto} disabled={uploadingFoto} />
+                </label>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setMetragemDialog(false)}>Cancelar</Button>
             <Button
               onClick={confirmarFinalizacao}
-              disabled={!metragemReal || Number(metragemReal) <= 0}
+              disabled={!metragemReal || Number(metragemReal) <= 0 || !fotoFinalizacaoUrl}
               className="gap-1 bg-green-600 hover:bg-green-700"
             >
               <CheckCircle2 className="w-4 h-4" /> Confirmar e Finalizar

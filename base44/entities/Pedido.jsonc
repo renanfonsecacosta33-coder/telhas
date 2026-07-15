@@ -109,7 +109,7 @@
     },
     "variacoes_telhas": {
       "type": "string",
-      "description": "JSON string com varia\u00e7\u00f5es de telhas [{qty, mm, obs, bobina_id, bobina_inf_id, bobina_desc, bobina_inf_desc}] \u2014 m\u00faltiplas medidas diferentes no mesmo pedido, cada uma com sua bobina"
+      "description": "JSON string com varia\u00e7\u00f5es de telhas [{qty, mm, obs, bobina_id, bobina_inf_id, bobina_desc, bobina_inf_desc, finalizado, observacao}] \u2014 m\u00faltiplas medidas diferentes no mesmo pedido, cada uma com sua bobina"
     },
     "quantidade_telhas": {
       "type": "number",
@@ -164,6 +164,10 @@
       "type": "string",
       "format": "date",
       "description": "Data de finaliza\u00e7\u00e3o"
+    },
+    "foto_finalizacao_url": {
+      "type": "string",
+      "description": "URL da foto do material finalizado (obrigat\u00f3ria ao finalizar)"
     },
     "unidade": {
       "type": "string",
