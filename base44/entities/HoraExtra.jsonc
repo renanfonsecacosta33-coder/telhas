@@ -1,0 +1,89 @@
+{
+  "name": "HoraExtra",
+  "type": "object",
+  "properties": {
+    "unidade": {
+      "type": "string",
+      "enum": [
+        "Matriz AJL",
+        "Pinhais",
+        "Ivaipor\u00e3",
+        "Ponta Grossa"
+      ],
+      "default": "Matriz AJL",
+      "description": "Unidade/filial"
+    },
+    "setor": {
+      "type": "string",
+      "enum": [
+        "telhas",
+        "corte_dobra"
+      ],
+      "description": "Setor (telhas ou corte e dobra)"
+    },
+    "maquina": {
+      "type": "string",
+      "description": "Nome da m\u00e1quina"
+    },
+    "operador_nome": {
+      "type": "string",
+      "description": "Nome do operador que finalizou o expediente"
+    },
+    "operador_id": {
+      "type": "string",
+      "description": "ID do operador"
+    },
+    "data": {
+      "type": "string",
+      "format": "date",
+      "description": "Data do expediente"
+    },
+    "horario_fim_expediente": {
+      "type": "string",
+      "description": "Timestamp ISO de quando o expediente foi finalizado"
+    },
+    "tem_hora_extra": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se houve hora extra (n\u00e3o finalizado at\u00e9 as 18:05)"
+    },
+    "inicio_hora_extra": {
+      "type": "string",
+      "description": "Timestamp ISO de in\u00edcio da hora extra (18:05 do dia)"
+    },
+    "fim_hora_extra": {
+      "type": "string",
+      "description": "Timestamp ISO de fim da hora extra (quando clicou ap\u00f3s 18:05)"
+    },
+    "duracao_extra_seg": {
+      "type": "number",
+      "description": "Dura\u00e7\u00e3o da hora extra em segundos"
+    },
+    "pedidos_ativos_json": {
+      "type": "string",
+      "description": "JSON com lista de OPs ativas no momento [{id, numero, produto}]"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ativo",
+        "finalizado"
+      ],
+      "default": "ativo",
+      "description": "Status do registro de expediente"
+    }
+  },
+  "required": [
+    "unidade",
+    "setor",
+    "maquina",
+    "operador_nome",
+    "data"
+  ],
+  "rls": {
+    "create": {},
+    "read": {},
+    "update": {},
+    "delete": {}
+  }
+}

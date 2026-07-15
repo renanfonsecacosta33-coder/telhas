@@ -13,6 +13,7 @@ import RetrabalhoDialog from "@/components/corte-dobra/RetrabalhoDialog";
 import { useFilial } from "@/contexts/FilialContext";
 import FiltroChapa from "@/components/corte-dobra/FiltroChapa";
 import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
+import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
 
 export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const { filialAtiva } = useFilial();
@@ -482,6 +483,31 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
           )}
         </div>
       )}
+
+      <FinalizarExpedienteButton
+        maquina={maquinaId}
+        setor="corte_dobra"
+        pedidosAtivos={ordensDia.filter(o => o.status === "em_producao" || o.status === "pausado")}
+        filialAtiva={filialAtiva}
+        user={user}
+        onPausarTodas={async () => {
+          const ativas = ordensDia.filter(o => o.status === "em_producao");
+          for (const o of ativas) {
+            let prodSeg = o.tempo_producao_seg || 0;
+            if (o.inicio_producao_ts) {
+              prodSeg += Math.floor((Date.now() - new Date(o.inicio_producao_ts).getTime()) / 1000);
+            }
+            await base44.entities.OrdemMaquinaCD.update(o.id, {
+              status: "pausado",
+              tempo_producao_seg: prodSeg,
+              inicio_producao_ts: null,
+              inicio_pausa_ts: new Date().toISOString(),
+              motivo_pausa: "expediente",
+            });
+          }
+          queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
+        }}
+      />
 
       <OrdemMaquinaFormDialog
         open={dialog}

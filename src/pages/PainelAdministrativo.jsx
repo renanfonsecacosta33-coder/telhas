@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { ArrowLeft, DollarSign, AlertTriangle, Camera, BarChart3, MessageCircle, Building2, Package } from "lucide-react";
+import { ArrowLeft, DollarSign, AlertTriangle, Camera, BarChart3, MessageCircle, Building2, Package, Clock } from "lucide-react";
 import FiltroGlobal from "@/components/admin/FiltroGlobal";
 import KpiFinanceiro from "@/components/admin/KpiFinanceiro";
 import AlertasEstoqueCritico from "@/components/admin/AlertasEstoqueCritico";
@@ -9,6 +9,7 @@ import MuralQualidade from "@/components/admin/MuralQualidade";
 import EficienciaMaquinas from "@/components/admin/EficienciaMaquinas";
 import AuditoriaChats from "@/components/admin/AuditoriaChats";
 import GerenciarBobinas from "@/components/admin/GerenciarBobinas";
+import HistoricoHoraExtraAdmin from "@/components/expediente/HistoricoHoraExtraAdmin";
 
 export default function PainelAdministrativo() {
   const navigate = useNavigate();
@@ -44,6 +45,7 @@ export default function PainelAdministrativo() {
     { key: "eficiencia", label: "Eficiência", icon: BarChart3 },
     { key: "chats", label: "Auditoria de Chats", icon: MessageCircle },
     { key: "bobinas", label: "Gerenciar Bobinas", icon: Package },
+    { key: "horas_extras", label: "Horas Extras", icon: Clock },
   ];
 
   return (
@@ -80,6 +82,7 @@ export default function PainelAdministrativo() {
         {tab === "eficiencia" && <EficienciaMaquinas filters={filters} />}
         {tab === "chats" && <AuditoriaChats />}
         {tab === "bobinas" && <GerenciarBobinas filters={filters} />}
+        {tab === "horas_extras" && <HistoricoHoraExtraAdmin filters={filters} />}
       </div>
     </div>
   );

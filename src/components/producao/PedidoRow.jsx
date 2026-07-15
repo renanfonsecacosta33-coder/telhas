@@ -541,31 +541,75 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
           let vars = [];
           try { vars = JSON.parse(p.variacoes_telhas || "[]"); } catch { vars = []; }
           if (!Array.isArray(vars) || vars.length === 0) return null;
+
+          const toggleFinalizado = (idx) => {
+            const novos = [...vars];
+            novos[idx] = { ...novos[idx], finalizado: !novos[idx].finalizado };
+            onStatusChange(p, p.status, { variacoes_telhas: JSON.stringify(novos) });
+          };
+          const salvarObs = (idx, obs) => {
+            const novos = [...vars];
+            novos[idx] = { ...novos[idx], observacao: obs };
+            onStatusChange(p, p.status, { variacoes_telhas: JSON.stringify(novos) });
+          };
+          const todosFinalizados = vars.every(v => v.finalizado);
+
           return (
-            <div className="bg-indigo-50/50 border border-indigo-200 rounded-lg p-2.5 mb-3 space-y-1.5">
-              <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide">Medidas do Pedido ({vars.length})</p>
+            <div className="bg-indigo-50/50 border border-indigo-200 rounded-lg p-2.5 mb-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide">Medidas do Pedido ({vars.length})</p>
+                {todosFinalizados && (
+                  <span className="text-xs font-bold text-green-600 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Todos finalizados
+                  </span>
+                )}
+              </div>
               {vars.map((v, i) => {
                 const q = Number(v.qty) || 0;
                 const mm = Number(v.mm) || 0;
+                const fin = !!v.finalizado;
                 return (
-                  <div key={i} className="flex items-start gap-2 text-xs">
-                    <span className="font-mono font-bold text-indigo-500 flex-shrink-0">{i + 1}.</span>
-                    <div className="flex-1">
-                      <span className="font-semibold text-slate-700">{q} pçs</span>
-                      <span className="text-muted-foreground mx-1">×</span>
-                      <span className="font-semibold text-slate-700">{mm.toLocaleString("pt-BR")}mm</span>
-                      {q > 0 && mm > 0 && (
-                        <span className="text-indigo-500 ml-1">= {(q * mm / 1000).toFixed(2)}m</span>
-                      )}
-                      {v.bobina_desc && (
-                        <p className="text-blue-600 font-medium mt-0.5">Bobina: {v.bobina_desc}</p>
-                      )}
-                      {v.bobina_inf_desc && (
-                        <p className="text-indigo-600 font-medium mt-0.5">Bobina Inf.: {v.bobina_inf_desc}</p>
-                      )}
-                      {v.obs && (
-                        <p className="text-muted-foreground italic mt-0.5">OBS: {v.obs}</p>
-                      )}
+                  <div key={i} className={`rounded-lg border p-2 transition-all ${fin ? "bg-green-50 border-green-300" : "bg-white border-slate-200"}`}>
+                    <div className="flex items-start gap-2 text-xs">
+                      <span className={`font-mono font-bold flex-shrink-0 ${fin ? "text-green-600" : "text-indigo-500"}`}>{i + 1}.</span>
+                      <div className="flex-1">
+                        <span className={`font-semibold ${fin ? "text-green-700 line-through" : "text-slate-700"}`}>{q} pçs</span>
+                        <span className="text-muted-foreground mx-1">×</span>
+                        <span className={`font-semibold ${fin ? "text-green-700 line-through" : "text-slate-700"}`}>{mm.toLocaleString("pt-BR")}mm</span>
+                        {q > 0 && mm > 0 && (
+                          <span className={`${fin ? "text-green-500" : "text-indigo-500"} ml-1`}>= {(q * mm / 1000).toFixed(2)}m</span>
+                        )}
+                        {v.bobina_desc && (
+                          <p className="text-blue-600 font-medium mt-0.5">Bobina: {v.bobina_desc}</p>
+                        )}
+                        {v.bobina_inf_desc && (
+                          <p className="text-indigo-600 font-medium mt-0.5">Bobina Inf.: {v.bobina_inf_desc}</p>
+                        )}
+                        {v.obs && (
+                          <p className="text-muted-foreground italic mt-0.5">OBS: {v.obs}</p>
+                        )}
+                      </div>
+                    </div>
+                    {/* Checkbox finalizar + campo observação por item */}
+                    <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-200">
+                      <button
+                        onClick={() => toggleFinalizado(i)}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all border ${
+                          fin
+                            ? "bg-green-500 text-white border-green-500"
+                            : "bg-white text-slate-600 border-slate-300 hover:border-green-400 hover:text-green-600"
+                        }`}
+                      >
+                        <CheckCircle2 className={`w-3 h-3 ${fin ? "fill-white text-green-500" : ""}`} />
+                        {fin ? "Finalizado" : "Finalizar Item"}
+                      </button>
+                      <input
+                        type="text"
+                        value={v.observacao || ""}
+                        onChange={(e) => salvarObs(i, e.target.value)}
+                        placeholder="Observação deste item..."
+                        className="flex-1 h-7 px-2 text-xs border border-slate-200 rounded-md bg-slate-50 focus:outline-none focus:ring-1 focus:ring-indigo-400 focus:bg-white"
+                      />
                     </div>
                   </div>
                 );

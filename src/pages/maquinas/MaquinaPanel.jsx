@@ -15,6 +15,7 @@ import { playAlertSound, speakNovaOp, playFinishSound, speakOpFinalizada } from 
 import { HistoricoPedidoTelhasButton } from "@/components/producao/HistoricoPedidoTelhasSidebar";
 import PainelSolicitacoesProducao from "@/components/producao/PainelSolicitacoesProducao";
 import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
+import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
 
 const STATUS_LABELS_TELHAS = {
   pendente: "Pendente",
@@ -242,6 +243,28 @@ export default function MaquinaPanel({ maquina }) {
   // OP que está rodando agora nesta máquina
   const opRodando = pedidosDia.find(p => p.status === "em_producao");
 
+  // Pedidos ativos (em produção ou pausados) para o botão de expediente
+  const pedidosAtivosExpediente = pedidosDia.filter(p => p.status === "em_producao" || p.status === "pausado");
+
+  // Pausar todas as OPs ativas (para o botão de finalizar expediente)
+  const pausarTodasOPs = async () => {
+    const ativas = pedidosDia.filter(p => p.status === "em_producao");
+    for (const p of ativas) {
+      let prodSeg = p.tempo_producao_seg || 0;
+      if (p.inicio_producao_ts) {
+        prodSeg += Math.floor((Date.now() - new Date(p.inicio_producao_ts).getTime()) / 1000);
+      }
+      await base44.entities.Pedido.update(p.id, {
+        status: "pausado",
+        tempo_producao_seg: prodSeg,
+        inicio_producao_ts: null,
+        inicio_pausa_ts: new Date().toISOString(),
+        motivo_pausa: "expediente",
+      });
+    }
+    queryClient.invalidateQueries({ queryKey: ["pedidos-maquina", maquina] });
+  };
+
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
       {/* Painel de solicitações de produção para o encarregado */}
@@ -424,6 +447,15 @@ export default function MaquinaPanel({ maquina }) {
           ))}
         </div>
       )}
+
+      <FinalizarExpedienteButton
+        maquina={maquina}
+        setor="telhas"
+        pedidosAtivos={pedidosAtivosExpediente}
+        filialAtiva={filialAtiva}
+        user={user}
+        onPausarTodas={pausarTodasOPs}
+      />
 
       <ChatFloatingButton canal_id={maquina} canal_label={maquina} currentUser={user} />
     </div>
