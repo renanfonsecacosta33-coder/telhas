@@ -653,6 +653,29 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
           {p.bobina_superior && (
             <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full">Bobina: {p.bobina_superior}</span>
           )}
+          {/* Cálculo de placas de isopor — visível principalmente na colagem */}
+          {p.maquina === "COLAGEM" && p.isopor_utilizado > 0 && (() => {
+            const comprTelhaM = (Number(p.metragem_mm) || 0) / 1000;
+            const placasPorTelha = Math.ceil(comprTelhaM / 2);
+            const inteirasPorTelha = Math.floor(comprTelhaM / 2);
+            const sobraPorTelha = +(comprTelhaM - inteirasPorTelha * 2).toFixed(4);
+            const total = p.isopor_utilizado;
+            const inteiras = inteirasPorTelha * (Number(p.metros) || 0);
+            const pedacos = sobraPorTelha > 0 ? (Number(p.metros) || 0) : 0;
+            return (
+              <div className="w-full bg-orange-50 border border-orange-300 rounded-lg px-3 py-2 mt-1">
+                <p className="text-xs font-bold text-orange-800 uppercase tracking-wide mb-1">EPS / Isopor para Colagem</p>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    {p.eps && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-semibold">{p.eps}</span>}
+                    {inteiras > 0 && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">{inteiras} inteiras (2m)</span>}
+                    {pedacos > 0 && <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">{pedacos} pedaços ({Math.round(sobraPorTelha * 1000)}mm)</span>}
+                  </div>
+                  <span className="text-lg font-black text-orange-700">{total} placas</span>
+                </div>
+              </div>
+            );
+          })()}
           {p.rvm_superior && (
             <span className="bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded-full">
               {p.rvm_superior}{p.rvm_inferior ? ` / ${p.rvm_inferior}` : ""}

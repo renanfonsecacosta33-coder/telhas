@@ -772,9 +772,12 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
               <p className="text-sm font-semibold">EPS / Isopor <span className="text-xs font-normal text-muted-foreground">— processo: COLAGEM</span></p>
               <div className="space-y-1">
                 <Label className="text-xs">Tipo de EPS</Label>
-                <div className="bg-muted/40 border border-border rounded-md px-3 py-2 text-sm font-medium">
-                  {form.eps || <span className="text-muted-foreground">Selecione o modelo para definir o EPS</span>}
-                </div>
+                <Select value={form.eps || ""} onValueChange={(v) => set("eps", v)}>
+                  <SelectTrigger><SelectValue placeholder="Selecione o modelo para definir o EPS" /></SelectTrigger>
+                  <SelectContent>
+                    {tiposEPS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               {/* Quantidade de isopor calculada automaticamente */}
               {form.isopor_utilizado ? (
