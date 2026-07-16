@@ -1,19 +1,29 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Search, AlertTriangle, X, Star, Layers } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Layers, Star, AlertTriangle } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import OrdemMaquinaFormDialog from "@/components/corte-dobra/OrdemMaquinaFormDialog.jsx";
-import OrdemMaquinaRow from "@/components/corte-dobra/OrdemMaquinaRow.jsx";
 import RetrabalhoDialog from "@/components/corte-dobra/RetrabalhoDialog";
 import { useFilial } from "@/contexts/FilialContext";
 import FiltroChapa from "@/components/corte-dobra/FiltroChapa";
 import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
+import ImageViewer from "@/components/ui/ImageViewer";
+import { extractEspessuraFromDesc } from "@/components/corte-dobra/CorChapaDot";
+
+import WorkListPanel from "@/components/corte-dobra/Cockpit/WorkListPanel";
+import DetalheOPPanel from "@/components/corte-dobra/Cockpit/DetalheOPPanel";
+import InsumosCQPanel from "@/components/corte-dobra/Cockpit/InsumosCQPanel";
+import ActionBar from "@/components/corte-dobra/Cockpit/ActionBar";
+import StatusFooter from "@/components/corte-dobra/Cockpit/StatusFooter";
+import {
+  PausaDialog, FinalizarFotoDialog, ModificacaoBlankDialog,
+  BloqueioDialog, PrioridadeDialog, SucataDialog, AproveitamentoWrapper,
+} from "@/components/corte-dobra/Cockpit/CockpitDialogs";
 
 export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const { filialAtiva } = useFilial();
@@ -28,6 +38,30 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const [filtroChapa, setFiltroChapa] = useState("todas");
   const [dialogRetrabalho, setDialogRetrabalho] = useState(false);
   const [ordemRetrabalho, setOrdemRetrabalho] = useState(null);
+
+  // ─── Cockpit state ───
+  const [ordemSelecionada, setOrdemSelecionada] = useState(null);
+  const [medicao1, setMedicao1] = useState("");
+  const [medicao2, setMedicao2] = useState("");
+  const [cqAprovado, setCqAprovado] = useState(null);
+
+  // Dialog state
+  const [pausaDialog, setPausaDialog] = useState(false);
+  const [fotoDialog, setFotoDialog] = useState(false);
+  const [uploadingFoto, setUploadingFoto] = useState(false);
+  const [modificacaoDialog, setModificacaoDialog] = useState(false);
+  const [aproveitamentoDialog, setAproveitamentoDialog] = useState(false);
+  const [bloqueioDialog, setBloqueioDialog] = useState(false);
+  const [ordemBloqueante, setOrdemBloqueante] = useState(null);
+  const [acaoPendente, setAcaoPendente] = useState(null);
+  const [prioridadeDialog, setPrioridadeDialog] = useState(false);
+  const [ordemPrioritaria, setOrdemPrioritaria] = useState(null);
+  const [sucataDialog, setSucataDialog] = useState(false);
+  const [imageViewerOpen, setImageViewerOpen] = useState(false);
+
+  // Pending state para finalização (guilhotina flow)
+  const [pendingFotoUrl, setPendingFotoUrl] = useState(null);
+  const [pendingProdSeg, setPendingProdSeg] = useState(0);
 
   const queryClient = useQueryClient();
 
@@ -47,8 +81,8 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   }
 
   const isGestor = user?.role === "admin" || user?.role === "super_admin" || user?.gerencia === true || user?.full_name?.toLowerCase().includes("hudson");
-  const maquinasDoUsuario = parseMaquinas(user?.maquina); // array de máquinas configuradas
-  const isOperadorRestrito = user && !isGestor; // não-admin = operador restrito
+  const maquinasDoUsuario = parseMaquinas(user?.maquina);
+  const isOperadorRestrito = user && !isGestor;
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
@@ -60,8 +94,6 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     refetchInterval: 10000,
   });
 
-  // Busca também as OPs da Desbobinadeira para calcular a sequência do
-  // pedido cruzando todos os setores (Desbobinadeira → Guilhotina → Dobra...)
   const { data: ordensDesbob = [] } = useQuery({
     queryKey: ["ordens-desbobinadeira", filialAtiva],
     queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva }, "-data", 500),
@@ -73,9 +105,6 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     [ordens, maquinaId]
   );
 
-  // Mapa de sequência de pedidos: para cada ordem com numero_pedido repetido,
-  // calcula "1/4", "2/4", etc. com base na ordem de criação — cruzando
-  // Desbobinadeira + todas as máquinas CD
   const pedidoSeqMap = useMemo(() => {
     const map = {};
     const groups = {};
@@ -86,13 +115,10 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
       groups[o.numero_pedido].push(o);
     }
     for (const items of Object.values(groups)) {
-      // Dedup por id (caso a mesma OP apareça nas duas listas)
       const unique = Array.from(new Map(items.map(i => [i.id, i])).values());
       unique.sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
       const total = unique.length;
-      unique.forEach((item, idx) => {
-        map[item.id] = `${idx + 1}/${total}`;
-      });
+      unique.forEach((item, idx) => { map[item.id] = `${idx + 1}/${total}`; });
     }
     return map;
   }, [ordens, ordensDesbob]);
@@ -106,7 +132,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const ordensDia = useMemo(() => {
     if (buscaPedido.trim()) {
       const q = buscaPedido.toLowerCase().trim();
-      return ordensDaMaquina.filter(o => (o.numero_pedido || "").toLowerCase().includes(q) || (o.tipo_peca || "").toLowerCase().includes(q) || (o.chapa_descricao || "").toLowerCase().includes(q));
+      return ordensDaMaquina.filter(o => (o.numero_pedido || "").toLowerCase().includes(q) || (o.tipo_peca || "").toLowerCase().includes(q) || (o.chapa_descricao || "").toLowerCase().includes(q) || (o.cliente || "").toLowerCase().includes(q));
     }
     const hoje = format(new Date(), "yyyy-MM-dd");
     const isHoje = selectedDay === hoje;
@@ -148,26 +174,15 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     } else {
       const saved = await createMaq.mutateAsync(data);
       toast.success("Ordem criada!");
-      // Se for CORTE 3M ou CORTE 6M e gerou dobra, criar ordem de dobra vinculada
       if (data.ordem_dobra_maquina && data.chapa_cd_id) {
         await base44.entities.OrdemMaquinaCD.create({
-          data: data.data,
-          maquina: data.ordem_dobra_maquina,
-          tipo_peca: data.tipo_peca,
-          dimensoes_livres: data.dimensoes_livres,
-          quantidade: data.quantidade,
-          peso_kg: data.peso_kg,
-          numero_pedido: data.numero_pedido,
-          cliente: data.cliente,
-          chapa_cd_id: data.chapa_cd_id,
-          chapa_descricao: data.chapa_descricao,
-          chapa_origem: "chaparia",
-          desenvolvimento_id: data.desenvolvimento_id,
-          desenvolvimento_descricao: data.desenvolvimento_descricao,
-          ordem_corte_id: saved.id,
-          status: "aguardando_corte",
-          foto_pedido_url: data.foto_pedido_url || null,
-          foto_material_url: data.foto_material_url || null,
+          data: data.data, maquina: data.ordem_dobra_maquina, tipo_peca: data.tipo_peca,
+          dimensoes_livres: data.dimensoes_livres, quantidade: data.quantidade, peso_kg: data.peso_kg,
+          numero_pedido: data.numero_pedido, cliente: data.cliente, chapa_cd_id: data.chapa_cd_id,
+          chapa_descricao: data.chapa_descricao, chapa_origem: "chaparia",
+          desenvolvimento_id: data.desenvolvimento_id, desenvolvimento_descricao: data.desenvolvimento_descricao,
+          ordem_corte_id: saved.id, status: "aguardando_corte",
+          foto_pedido_url: data.foto_pedido_url || null, foto_material_url: data.foto_material_url || null,
           observacoes: `Gerado automaticamente do ${data.maquina}`,
         });
         queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
@@ -177,72 +192,234 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     }
   };
 
-  const openNew = (date = null) => {
-    setEditItem(date ? { _presets: { data: date } } : null);
-    setDialog(true);
-  };
+  const openNew = (date = null) => { setEditItem(date ? { _presets: { data: date } } : null); setDialog(true); };
   const openEdit = (item) => { setEditItem(item); setDialog(true); };
 
-  const totalSemana = ordensSemana.length;
-  const finalizadasSemana = ordensSemana.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
+  // Lista para o WorkListPanel (visão semana mostra toda a semana, dia mostra o dia)
+  const listaWorkList = viewMode === "semana" ? ordensSemana : ordensDia;
 
-  // Espessuras disponíveis (extraídas das ordens da semana)
-  const espessurasDisponiveis = useMemo(() => {
-    const set = new Set();
-    ordensSemana.forEach(o => {
-      const esp = o.desenvolvimento_descricao?.match(/([\d,]+)\s*mm/);
-      if (esp) set.add(esp[1]);
-    });
-    return Array.from(set).sort((a, b) => parseFloat(a.replace(",", ".")) - parseFloat(b.replace(",", ".")));
-  }, [ordensSemana]);
+  // Auto-selecionar a primeira OP não finalizada ao carregar
+  useEffect(() => {
+    if (!ordemSelecionada && listaWorkList.length > 0) {
+      const primeira = listaWorkList.find(o => o.status !== "finalizado" && o.status !== "cancelado") || listaWorkList[0];
+      setOrdemSelecionada(primeira);
+    }
+    // Se a OP selecionada não está mais na lista, limpar
+    if (ordemSelecionada && !listaWorkList.find(o => o.id === ordemSelecionada.id)) {
+      const primeira = listaWorkList.find(o => o.status !== "finalizado" && o.status !== "cancelado") || listaWorkList[0] || null;
+      setOrdemSelecionada(primeira);
+    }
+  }, [listaWorkList]);
 
-  // Chapas em produção (extraídas das ordens da semana — chapa_descricao)
-  const chapasDisponiveis = useMemo(() => {
-    const set = new Set();
-    ordensSemana.forEach(o => { if (o.chapa_descricao) set.add(o.chapa_descricao); });
-    return Array.from(set).sort();
-  }, [ordensSemana]);
+  // ─── Ações do Cockpit (lógica de negócio) ───
+  const o = ordemSelecionada;
+  const isGuilhotina = o?.maquina === "CORTE 3M" || o?.maquina === "CORTE 6M";
 
-  const ordensDiaFiltradas = useMemo(() => {
-    let r = ordensDia;
-    if (filtroEspessura !== "todas") r = r.filter(o => {
-      const esp = o.desenvolvimento_descricao?.match(/([\d,]+)\s*mm/);
-      return esp && esp[1] === filtroEspessura;
-    });
-    if (filtroChapa !== "todas") r = r.filter(o => o.chapa_descricao === filtroChapa);
-    return r;
-  }, [ordensDia, filtroEspessura, filtroChapa]);
+  const verificarBloqueio = (acao) => {
+    if (!o) return false;
+    const ativa = (ordensDaMaquina || []).find(other =>
+      other.id !== o.id && other.maquina === o.maquina &&
+      (other.status === "em_producao" || other.status === "pausado")
+    );
+    if (ativa) {
+      if (isGestor) {
+        setOrdemBloqueante(ativa);
+        setAcaoPendente(acao);
+        setBloqueioDialog(true);
+      } else {
+        toast.error("Já existe uma OP em andamento nesta máquina. Finalize ou pause a OP atual antes de iniciar outra.");
+      }
+      return true;
+    }
+    return false;
+  };
 
-  const ordensSemanaFiltradas = useMemo(() => {
-    let r = ordensSemana;
-    if (filtroEspessura !== "todas") r = r.filter(o => {
-      const esp = o.desenvolvimento_descricao?.match(/([\d,]+)\s*mm/);
-      return esp && esp[1] === filtroEspessura;
-    });
-    if (filtroChapa !== "todas") r = r.filter(o => o.chapa_descricao === filtroChapa);
-    return r;
-  }, [ordensSemana, filtroEspessura, filtroChapa]);
+  const doIniciar = () => {
+    if (!o) return;
+    updateMaq.mutate({ id: o.id, data: { status: "em_producao", inicio_producao_ts: new Date().toISOString() } });
+    setOrdemSelecionada(prev => prev ? { ...prev, status: "em_producao", inicio_producao_ts: new Date().toISOString() } : prev);
+  };
 
-  // Operador sem máquina configurada
+  const handleIniciar = () => {
+    if (!o) return;
+    if (verificarBloqueio("iniciar")) return;
+    if (!o.prioridade) {
+      const pri = (ordensDaMaquina || []).find(other =>
+        other.id !== o.id && other.maquina === o.maquina && other.prioridade === true &&
+        other.status !== "finalizado" && other.status !== "cancelado"
+      );
+      if (pri) {
+        setOrdemPrioritaria(pri);
+        setPrioridadeDialog(true);
+        return;
+      }
+    }
+    doIniciar();
+  };
+
+  const handlePausar = () => setPausaDialog(true);
+
+  const confirmarPausa = (motivo) => {
+    if (!o) return;
+    let prodSeg = o.tempo_producao_seg || 0;
+    if (o.inicio_producao_ts) {
+      prodSeg += Math.floor((Date.now() - new Date(o.inicio_producao_ts).getTime()) / 1000);
+    }
+    updateMaq.mutate({ id: o.id, data: {
+      status: "pausado", tempo_producao_seg: prodSeg, inicio_producao_ts: null,
+      inicio_pausa_ts: new Date().toISOString(), motivo_pausa: motivo,
+    }});
+    setOrdemSelecionada(prev => prev ? { ...prev, status: "pausado", tempo_producao_seg: prodSeg, inicio_producao_ts: null, inicio_pausa_ts: new Date().toISOString(), motivo_pausa: motivo } : prev);
+  };
+
+  const confirmarBloqueio = () => {
+    setBloqueioDialog(false);
+    if (acaoPendente === "iniciar") doIniciar();
+    setAcaoPendente(null);
+    setOrdemBloqueante(null);
+  };
+
+  const calcularProdSeg = () => {
+    if (!o) return 0;
+    let prodSeg = o.tempo_producao_seg || 0;
+    if (o.inicio_producao_ts) {
+      prodSeg += Math.floor((Date.now() - new Date(o.inicio_producao_ts).getTime()) / 1000);
+    }
+    return prodSeg;
+  };
+
+  const descontarEstoques = async () => {
+    if (!o) return;
+    if (o.chapa_cd_id && (o.quantidade || 0) > 0) {
+      try {
+        const chapa = await base44.entities.ChapaCD.get(o.chapa_cd_id);
+        if (chapa) {
+          const novaQtd = Math.max(0, (chapa.quantidade_disponivel || 0) - o.quantidade);
+          await base44.entities.ChapaCD.update(o.chapa_cd_id, {
+            quantidade_disponivel: novaQtd, status: novaQtd === 0 ? "consumido" : chapa.status,
+          });
+        }
+      } catch {}
+    }
+    if (o.chapa_origem === "direto" && o.bobina_id && (o.peso_kg || 0) > 0) {
+      try {
+        const bobina = await base44.entities.Bobina.get(o.bobina_id);
+        if (bobina) {
+          await base44.entities.Bobina.update(o.bobina_id, {
+            peso_kg: Math.max(0, (bobina.peso_kg || 0) - o.peso_kg),
+          });
+        }
+      } catch {}
+    }
+  };
+
+  const handleConcluir = async () => {
+    if (!o) return;
+    if (isGuilhotina) {
+      await descontarEstoques();
+      const prodSeg = calcularProdSeg();
+      setPendingProdSeg(prodSeg);
+      setPendingFotoUrl(null);
+      setAproveitamentoDialog(true);
+      return;
+    }
+    setFotoDialog(true);
+  };
+
+  const handleUploadFoto = async (file) => {
+    if (!file || !o) return;
+    setUploadingFoto(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const prodSeg = calcularProdSeg();
+      await descontarEstoques();
+      await finalizarOrdem(file_url, prodSeg, false, "");
+    } catch (err) {
+      toast.error("Erro ao enviar foto: " + (err.message || ""));
+    }
+    setUploadingFoto(false);
+    setFotoDialog(false);
+  };
+
+  const finalizarOrdem = async (fotoUrl, prodSeg, modBlankVal, modDescVal) => {
+    if (!o) return;
+    updateMaq.mutate({ id: o.id, data: {
+      status: "finalizado", foto_finalizacao_url: fotoUrl, tempo_producao_seg: prodSeg,
+      inicio_producao_ts: null, data_finalizacao: format(new Date(), "yyyy-MM-dd"),
+      modificacao_blank: modBlankVal,
+      modificacao_descricao: modBlankVal && modDescVal.trim() ? modDescVal.trim() : null,
+    }});
+    setOrdemSelecionada(prev => prev ? { ...prev, status: "finalizado", foto_finalizacao_url: fotoUrl, tempo_producao_seg: prodSeg, inicio_producao_ts: null } : prev);
+
+    if (o.ordem_dobra_maquina) {
+      try {
+        const ordensDobra = await base44.entities.OrdemMaquinaCD.filter({ ordem_corte_id: o.id, status: "aguardando_corte" });
+        for (const od of ordensDobra) {
+          const obsDobra = modBlankVal && modDescVal.trim() ? `OBD: ${modDescVal.trim()}` : null;
+          const updateData = { status: "pendente" };
+          if (o.foto_pedido_url) updateData.foto_pedido_url = o.foto_pedido_url;
+          if (obsDobra) updateData.observacoes = od.observacoes ? `${od.observacoes}\n${obsDobra}` : obsDobra;
+          await base44.entities.OrdemMaquinaCD.update(od.id, updateData);
+        }
+        if (modBlankVal && modDescVal.trim()) toast.success("OBD repassada para a dobra!");
+      } catch {}
+    }
+  };
+
+  const handleAproveitamentoConfirm = () => setModificacaoDialog(true);
+
+  const confirmarModificacao = async (modBlank, modDesc) => {
+    await finalizarOrdem(pendingFotoUrl, pendingProdSeg, modBlank, modDesc);
+    setPendingFotoUrl(null);
+    setPendingProdSeg(0);
+  };
+
+  const handleSucata = (motivo, qtdPerdida) => {
+    if (!o) return;
+    const hist = JSON.parse(o.historico_pausas || "[]");
+    hist.push({ motivo: `SUCATA/PARADA: ${motivo}`, inicio: new Date().toISOString(), fim: new Date().toISOString(), segundos: 0, quantidade_perdida: qtdPerdida });
+    const obs = `${o.observacoes || ""}\n⚠️ PARADA/SUCATA: ${motivo}${qtdPerdida > 0 ? ` (${qtdPerdida} pç perdidas)` : ""}`.trim();
+    updateMaq.mutate({ id: o.id, data: { observacoes: obs, historico_pausas: JSON.stringify(hist) }});
+    setOrdemSelecionada(prev => prev ? { ...prev, observacoes: obs, historico_pausas: JSON.stringify(hist) } : prev);
+    toast.success("Parada/sucata registrada no histórico.");
+  };
+
+  const handleRegistrarCQ = () => {
+    if (!o || !medicao1 || !medicao2 || cqAprovado === null) return;
+    const cqText = `CQ: Med1=${medicao1}mm, Med2=${medicao2}mm, Resultado=${cqAprovado ? "APROVADO" : "REPROVADO"}`;
+    const obs = `${o.observacoes || ""}\n📋 ${cqText}`.trim();
+    updateMaq.mutate({ id: o.id, data: { observacoes: obs }});
+    setOrdemSelecionada(prev => prev ? { ...prev, observacoes: obs } : prev);
+    toast.success("Inspeção de CQ registrada!");
+    setMedicao1("");
+    setMedicao2("");
+    setCqAprovado(null);
+  };
+
+  const handleAmpliarFoto = () => {
+    if (!o) return;
+    const foto = o.foto_pedido_url || o.foto_material_url || o.foto_finalizacao_url;
+    if (foto) setImageViewerOpen(true);
+    else toast.info("Esta OP não possui foto.");
+  };
+
+  const fotoPrincipalViewer = o?.foto_pedido_url || o?.foto_material_url || o?.foto_finalizacao_url || "";
+  const espessuraOrdem = o ? (extractEspessuraFromDesc(o.chapa_descricao) || extractEspessuraFromDesc(o.bobina_descricao)) : null;
+
+  // ─── Guards de acesso ───
   if (user && isOperadorRestrito && maquinasDoUsuario.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
-          <span className="text-3xl">🔧</span>
-        </div>
+        <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4"><span className="text-3xl">🔧</span></div>
         <h2 className="text-xl font-bold mb-2">Máquina não configurada</h2>
         <p className="text-muted-foreground max-w-sm">Peça ao administrador para configurar a máquina associada ao seu usuário.</p>
       </div>
     );
   }
-
-  // Operador tentando acessar máquina que não é a dele
   if (user && isOperadorRestrito && !maquinasDoUsuario.includes(maquinaId)) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
-          <span className="text-3xl">🚫</span>
-        </div>
+        <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4"><span className="text-3xl">🚫</span></div>
         <h2 className="text-xl font-bold mb-2">Acesso restrito</h2>
         <p className="text-muted-foreground max-w-sm">Você só pode acessar as ordens das suas máquinas: <strong>{maquinasDoUsuario.join(", ")}</strong>.</p>
       </div>
@@ -250,264 +427,121 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Factory className="w-6 h-6" />
-            {maquinaLabel}
-          </h1>
-          <p className="text-sm text-muted-foreground">Ordens de produção — Corte e Dobra</p>
-        </div>
-        {isGestor && (
-          <Button onClick={() => openNew(selectedDay)} className="gap-2">
-            <Plus className="w-4 h-4" /> Nova Ordem
-          </Button>
-        )}
-      </div>
-
-      {/* Navegação semana */}
-      <div className="bg-card border border-border rounded-xl p-4">
-        <div className="flex items-center justify-between mb-4">
-          <Button variant="outline" size="icon" onClick={() => setCurrentWeek(w => subWeeks(w, 1))}>
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <div className="text-center">
-            <p className="font-bold text-base">
-              {format(weekStart, "dd 'de' MMM", { locale: ptBR })} — {format(weekEnd, "dd 'de' MMM yyyy", { locale: ptBR })}
-            </p>
-            <Badge variant="outline" className="text-xs mt-1">
-              {totalSemana} ordens · {finalizadasSemana} peças finalizadas
-            </Badge>
+    <div className="flex flex-col h-[calc(100vh-4rem)]">
+      {/* Header compacto */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-white border-b border-slate-200 flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Factory className="w-5 h-5 text-slate-600" />
+            <h1 className="text-base font-bold text-slate-800">{maquinaLabel}</h1>
           </div>
-          <Button variant="outline" size="icon" onClick={() => setCurrentWeek(w => addWeeks(w, 1))}>
-            <ChevronRight className="w-4 h-4" />
-          </Button>
+          {/* Navegação semana compacta */}
+          <div className="hidden md:flex items-center gap-1 ml-2">
+            <button onClick={() => setCurrentWeek(w => subWeeks(w, 1))} className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100">
+              <ChevronLeft className="w-4 h-4 text-slate-500" />
+            </button>
+            <span className="text-xs font-medium text-slate-500 min-w-[140px] text-center">
+              {format(weekStart, "dd/MM", { locale: ptBR })} — {format(weekEnd, "dd/MM", { locale: ptBR })}
+            </span>
+            <button onClick={() => setCurrentWeek(w => addWeeks(w, 1))} className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100">
+              <ChevronRight className="w-4 h-4 text-slate-500" />
+            </button>
+          </div>
         </div>
-        <div className="grid grid-cols-7 gap-1">
-          {diasDaSemana.map(dia => {
-            const diaStr = format(dia, "yyyy-MM-dd");
-            const cnt = ordensSemana.filter(o => o.data === diaStr).length;
-            const isSelected = selectedDay === diaStr;
-            const isHoje = isToday(dia);
-            return (
-              <button key={diaStr} onClick={() => { setSelectedDay(diaStr); setViewMode("dia"); }}
-                className={`rounded-lg p-2 text-center transition-all duration-200 cursor-pointer border ${isSelected ? "bg-primary text-primary-foreground border-primary" : isHoje ? "border-primary/40 bg-primary/5" : "border-border hover:bg-muted/50"}`}>
-                <p className="text-xs font-semibold uppercase">{format(dia, "EEE", { locale: ptBR })}</p>
-                <p className="text-lg font-bold">{format(dia, "dd")}</p>
-                {cnt > 0 && (
-                  <div className={`text-xs mt-0.5 ${isSelected ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-                    {cnt}o
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Toggles + Busca */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {/* Busca por pedido */}
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-          <input
-            type="text"
-            value={buscaPedido}
-            onChange={(e) => { setBuscaPedido(e.target.value); if (e.target.value.trim()) setViewMode("dia"); }}
-            placeholder="Buscar por nº pedido..."
-            className="h-9 pl-8 pr-3 rounded-md border border-input bg-transparent text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring w-52"
+        <div className="flex items-center gap-2">
+          <FiltroChapa chapas={[...new Set(ordensSemana.map(o => o.chapa_descricao).filter(Boolean))].sort()} value={filtroChapa} onChange={setFiltroChapa} />
+          {isGestor && (
+            <Button onClick={() => openNew(selectedDay)} size="sm" className="gap-1">
+              <Plus className="w-4 h-4" /> Nova OP
+            </Button>
+          )}
+          <FinalizarExpedienteButton
+            maquina={maquinaId} setor="corte_dobra"
+            pedidosAtivos={ordensDia.filter(o => o.status === "em_producao" || o.status === "pausado")}
+            filialAtiva={filialAtiva} user={user}
+            onPausarTodas={async () => {
+              const ativas = ordensDia.filter(o => o.status === "em_producao");
+              for (const ord of ativas) {
+                let prodSeg = ord.tempo_producao_seg || 0;
+                if (ord.inicio_producao_ts) {
+                  prodSeg += Math.floor((Date.now() - new Date(ord.inicio_producao_ts).getTime()) / 1000);
+                }
+                await base44.entities.OrdemMaquinaCD.update(ord.id, {
+                  status: "pausado", tempo_producao_seg: prodSeg, inicio_producao_ts: null,
+                  inicio_pausa_ts: new Date().toISOString(), motivo_pausa: "expediente",
+                });
+              }
+              queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
+            }}
           />
-          {buscaPedido && (
-            <button onClick={() => setBuscaPedido("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
         </div>
-        <Button variant={viewMode === "semana" ? "default" : "outline"} size="sm" onClick={() => setViewMode("semana")}>Visão Semana</Button>
-        <Button variant={viewMode === "dia" ? "default" : "outline"} size="sm" onClick={() => setViewMode("dia")}>
-          Dia — {format(new Date(selectedDay + "T12:00:00"), "dd/MM", { locale: ptBR })}
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => { setSelectedDay(format(new Date(), "yyyy-MM-dd")); setCurrentWeek(new Date()); setViewMode("dia"); }} className="gap-1">
-          <Calendar className="w-3 h-3" /> Hoje
-        </Button>
       </div>
 
-      {/* Filtros por espessura e chapa */}
-      <div className="flex items-center gap-4 flex-wrap">
-        {espessurasDisponiveis.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Espessura:</span>
-            <button
-              onClick={() => setFiltroEspessura("todas")}
-              className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${filtroEspessura === "todas" ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border hover:bg-muted/50"}`}
-            >
-              Todas
-            </button>
-            {espessurasDisponiveis.map(esp => (
-              <button
-                key={esp}
-                onClick={() => setFiltroEspessura(filtroEspessura === esp ? "todas" : esp)}
-                className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all flex items-center gap-1 ${filtroEspessura === esp ? "bg-blue-500 text-white border-blue-500" : "bg-card text-muted-foreground border-border hover:bg-muted/50"}`}
-              >
-                <Layers className="w-3 h-3" /> {esp}mm
-              </button>
-            ))}
-          </div>
-        )}
-        <FiltroChapa chapas={chapasDisponiveis} value={filtroChapa} onChange={setFiltroChapa} />
+      {/* Cockpit — 3 colunas */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* PAINEL ESQUERDO — Work List */}
+        <div className="w-full md:w-1/4 flex-shrink-0 min-w-0">
+          <WorkListPanel
+            ordens={listaWorkList}
+            ordemSelecionada={ordemSelecionada}
+            onSelectOrdem={setOrdemSelecionada}
+            buscaPedido={buscaPedido}
+            setBuscaPedido={setBuscaPedido}
+            viewMode={viewMode}
+            setViewMode={setViewMode}
+            selectedDay={selectedDay}
+            setSelectedDay={setSelectedDay}
+            user={user}
+            maquinaLabel={maquinaLabel}
+          />
+        </div>
+
+        {/* PAINEL CENTRAL — Detalhe da OP + Action Bar */}
+        <div className="hidden md:flex flex-col flex-1 min-w-0 border-x border-slate-200">
+          <DetalheOPPanel
+            ordem={o}
+            pedidoSeq={o ? pedidoSeqMap[o.id] : null}
+            user={user}
+            ordens={ordensDaMaquina}
+            isGestor={isGestor}
+            onAmpliarFoto={handleAmpliarFoto}
+          />
+          <ActionBar
+            ordem={o}
+            onIniciar={handleIniciar}
+            onPausar={handlePausar}
+            onConcluir={handleConcluir}
+            onSucata={() => setSucataDialog(true)}
+            onAmpliarFoto={handleAmpliarFoto}
+            isGestor={isGestor}
+          />
+        </div>
+
+        {/* PAINEL DIREITO — Insumos e CQ */}
+        <div className="hidden lg:block w-1/4 flex-shrink-0 min-w-0">
+          <InsumosCQPanel
+            ordem={o}
+            medicao1={medicao1} setMedicao1={setMedicao1}
+            medicao2={medicao2} setMedicao2={setMedicao2}
+            cqAprovado={cqAprovado} setCqAprovado={setCqAprovado}
+            onRegistrarCQ={handleRegistrarCQ}
+          />
+        </div>
       </div>
 
-      {isLoading ? (
-        <div className="flex justify-center py-12">
-          <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
-        </div>
-      ) : viewMode === "semana" ? (
-        /* VISÃO SEMANA */
-        <div className="space-y-3">
-          {diasDaSemana.map(dia => {
-            const diaStr = format(dia, "yyyy-MM-dd");
-            const ordensDoDia = ordensSemanaFiltradas.filter(o => o.data === diaStr);
-            const finalizadas = ordensDoDia.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
-            return (
-              <div key={diaStr} className="bg-card border border-border rounded-xl overflow-hidden">
-                <div className="px-4 py-3 flex items-center justify-between border-b border-border">
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold capitalize text-sm">
-                      {format(dia, "EEEE, dd/MM", { locale: ptBR })}
-                    </span>
-                    {isToday(dia) && <Badge className="text-xs bg-primary text-primary-foreground">Hoje</Badge>}
-                    <span className="text-xs text-muted-foreground">{ordensDoDia.length} ordem(ns)</span>
-                    {finalizadas > 0 && <span className="text-xs font-bold text-green-600">{finalizadas} pç ✓</span>}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="sm" className="h-7 text-xs"
-                      onClick={() => { setSelectedDay(diaStr); setViewMode("dia"); }}>Ver dia</Button>
-                    {isGestor && (
-                      <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={() => openNew(diaStr)}>
-                        <Plus className="w-3 h-3" /> Adicionar
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                {ordensDoDia.length === 0 ? (
-                  <div className="px-4 py-4 text-xs text-muted-foreground text-center">Sem ordens</div>
-                ) : (
-                  <div className="p-4 space-y-3">
-                    {ordensDoDia.sort((a, b) => {
-                      const p = (b.prioridade ? 1 : 0) - (a.prioridade ? 1 : 0);
-                      if (p !== 0) return p;
-                      const ord = { em_producao: 0, pausado: 1, aguardando_corte: 2, pendente: 3, finalizado: 4, cancelado: 5 };
-                      return (ord[a.status] ?? 3) - (ord[b.status] ?? 3);
-                    }).map(o => (
-                      <div key={o.id}>
-                        <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} ordens={ordensDaMaquina} pedidoSeq={pedidoSeqMap[o.id]} user={user} />
-                        {isGestor && (
-                          <div className="flex justify-end mt-1 gap-1">
-                            {o.status !== "finalizado" && o.status !== "cancelado" && (
-                              <Button size="sm" variant="ghost" className={`text-xs h-6 px-2 ${o.prioridade ? "text-amber-600 font-bold" : "text-muted-foreground"}`} onClick={() => updateMaq.mutate({ id: o.id, data: { prioridade: !o.prioridade } })}>
-                                <Star className={`w-3 h-3 mr-1 ${o.prioridade ? "fill-amber-500 text-amber-500" : ""}`} /> {o.prioridade ? "Prioritária" : "Prioridade"}
-                              </Button>
-                            )}
-                            {o.status === "pendente" && (
-                              <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
-                            )}
-                            {o.status === "finalizado" && (
-                            <Button size="sm" variant="ghost" className="text-xs text-red-600 h-6 px-2 hover:bg-red-50" onClick={() => { setOrdemRetrabalho(o); setDialogRetrabalho(true); }}>
-                              <AlertTriangle className="w-3 h-3 mr-1" /> Retrabalho
-                            </Button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        /* VISÃO DIA */
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="px-4 py-3 flex items-center justify-between border-b border-border">
-            <div className="flex items-center gap-3">
-              <span className="font-bold capitalize text-sm">
-                {format(new Date(selectedDay + "T12:00:00"), "EEEE, dd 'de' MMMM", { locale: ptBR })}
-              </span>
-              <Badge variant="outline" className="text-xs">{ordensDiaFiltradas.length} ordens</Badge>
-            </div>
-            {isGestor && (
-              <Button variant="ghost" size="sm" onClick={() => openNew(selectedDay)} className="h-7 gap-1 text-xs">
-                <Plus className="w-3 h-3" /> Adicionar
-              </Button>
-            )}
-          </div>
-          {ordensDiaFiltradas.length === 0 ? (
-            <div className="px-4 py-12 flex flex-col items-center gap-3">
-              <Factory className="w-10 h-10 text-muted-foreground/20" />
-              <p className="text-sm text-muted-foreground">Nenhuma ordem para este dia</p>
-              {isGestor && (
-                <Button size="sm" onClick={() => openNew(selectedDay)} className="gap-1 mt-1">
-                  <Plus className="w-3 h-3" /> Nova Ordem
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="p-4 space-y-3">
-              {ordensDiaFiltradas.map(o => (
-                <div key={o.id}>
-                  <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} ordens={ordensDaMaquina} pedidoSeq={pedidoSeqMap[o.id]} user={user} />
-                  {isGestor && (
-                    <div className="flex justify-end mt-1 gap-1">
-                      {o.status !== "finalizado" && o.status !== "cancelado" && (
-                        <Button size="sm" variant="ghost" className={`text-xs h-6 px-2 ${o.prioridade ? "text-amber-600 font-bold" : "text-muted-foreground"}`} onClick={() => updateMaq.mutate({ id: o.id, data: { prioridade: !o.prioridade } })}>
-                          <Star className={`w-3 h-3 mr-1 ${o.prioridade ? "fill-amber-500 text-amber-500" : ""}`} /> {o.prioridade ? "Prioritária" : "Prioridade"}
-                        </Button>
-                      )}
-                      {o.status === "pendente" && (
-                        <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
-                      )}
-                      {o.status === "finalizado" && (
-                      <Button size="sm" variant="ghost" className="text-xs text-red-600 h-6 px-2 hover:bg-red-50" onClick={() => { setOrdemRetrabalho(o); setDialogRetrabalho(true); }}>
-                        <AlertTriangle className="w-3 h-3 mr-1" /> Retrabalho
-                      </Button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {/* Rodapé de status */}
+      <StatusFooter user={user} maquinaLabel={maquinaLabel} />
 
-      <FinalizarExpedienteButton
-        maquina={maquinaId}
-        setor="corte_dobra"
-        pedidosAtivos={ordensDia.filter(o => o.status === "em_producao" || o.status === "pausado")}
-        filialAtiva={filialAtiva}
-        user={user}
-        onPausarTodas={async () => {
-          const ativas = ordensDia.filter(o => o.status === "em_producao");
-          for (const o of ativas) {
-            let prodSeg = o.tempo_producao_seg || 0;
-            if (o.inicio_producao_ts) {
-              prodSeg += Math.floor((Date.now() - new Date(o.inicio_producao_ts).getTime()) / 1000);
-            }
-            await base44.entities.OrdemMaquinaCD.update(o.id, {
-              status: "pausado",
-              tempo_producao_seg: prodSeg,
-              inicio_producao_ts: null,
-              inicio_pausa_ts: new Date().toISOString(),
-              motivo_pausa: "expediente",
-            });
-          }
-          queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
-        }}
-      />
+      {/* ─── Diálogos ─── */}
+      <PausaDialog open={pausaDialog} onClose={() => setPausaDialog(false)} onConfirm={confirmarPausa} />
+      <FinalizarFotoDialog open={fotoDialog} onClose={() => setFotoDialog(false)} onUpload={handleUploadFoto} uploading={uploadingFoto} />
+      <ModificacaoBlankDialog open={modificacaoDialog} onClose={() => setModificacaoDialog(false)} onConfirm={confirmarModificacao} />
+      <AproveitamentoWrapper open={aproveitamentoDialog} onClose={() => setAproveitamentoDialog(false)} ordem={o} espessura={espessuraOrdem} onConfirm={handleAproveitamentoConfirm} />
+      <BloqueioDialog open={bloqueioDialog} onClose={() => { setBloqueioDialog(false); setAcaoPendente(null); setOrdemBloqueante(null); }} ordemBloqueante={ordemBloqueante} isGestor={isGestor} onConfirm={confirmarBloqueio} />
+      <PrioridadeDialog open={prioridadeDialog} onClose={() => { setPrioridadeDialog(false); setOrdemPrioritaria(null); }} ordemPrioritaria={ordemPrioritaria} isGestor={isGestor} onConfirm={() => { setPrioridadeDialog(false); setOrdemPrioritaria(null); doIniciar(); }} />
+      <SucataDialog open={sucataDialog} onClose={() => setSucataDialog(false)} onConfirm={handleSucata} />
+
+      <ImageViewer url={fotoPrincipalViewer} name={`OP ${o?.numero_pedido || ""}`} open={imageViewerOpen} onClose={() => setImageViewerOpen(false)} />
 
       <OrdemMaquinaFormDialog
         open={dialog}
@@ -517,14 +551,12 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
         defaultDate={editItem?._presets?.data || selectedDay}
         maquina={maquinaId}
       />
-
       <RetrabalhoDialog
         open={dialogRetrabalho}
         onClose={() => { setDialogRetrabalho(false); setOrdemRetrabalho(null); }}
         ordemOrigem={ordemRetrabalho}
         onCreate={() => queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] })}
       />
-
       <ChatFloatingButton canal_id={maquinaId} canal_label={maquinaLabel} currentUser={user} />
     </div>
   );
