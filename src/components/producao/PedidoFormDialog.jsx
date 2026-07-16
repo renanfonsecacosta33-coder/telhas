@@ -12,6 +12,9 @@ import { useQuery } from "@tanstack/react-query";
 import UploadButton from "@/components/ui/UploadButton";
 import ImageLink from "@/components/ui/ImageLink";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
+import { useBobinaStatusTelhas } from "@/hooks/useBobinaStatusTelhas";
+import BobinaStatusBadge from "@/components/bobinas/BobinaStatusBadge";
+import { useFilial } from "@/contexts/FilialContext";
 import { Camera, X, Loader2, FileText, Plus, Trash2 } from "lucide-react";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
@@ -105,6 +108,8 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   });
 
   const { preBaixaMap } = usePreBaixaBobinas("telhas");
+  const { filialAtiva } = useFilial();
+  const { getStatus: getStatusBobina } = useBobinaStatusTelhas(filialAtiva);
 
   const { data: modelosCad = [] } = useQuery({
     queryKey: ["modelos-produto"],
@@ -687,7 +692,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                       {b.qualidade && <span className="text-muted-foreground"> ({b.qualidade})</span>}
                       {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
                       {b.peso_kg && <span className="text-muted-foreground text-xs"> · {disp.toFixed(0)}kg disp.</span>}
-                      {pb > 0 && <span className="text-blue-500 text-xs">(pré-baixa: {pb.toFixed(0)}kg)</span>}
+                      {pb > 0 && <span className="text-blue-500 text-xs">(pré-baixa: {pb.toFixed(0)}kg)</span>} <BobinaStatusBadge status={getStatusBobina(b)} size="xs" />
                     </SelectItem>
                     );
                   })}
@@ -702,6 +707,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                   <span>Cor/RVM: <strong>{bobinaSuperiorObj.cor || "—"}</strong></span>
                   <span>Qualidade: <strong>{bobinaSuperiorObj.qualidade || "—"}</strong></span>
                   <span>Peso: <strong>{bobinaSuperiorObj.peso_kg || 0}kg</strong></span>
+                  <span>Status: <BobinaStatusBadge status={getStatusBobina(bobinaSuperiorObj)} size="xs" /></span>
                   {pb > 0 && <span className="text-blue-600 font-semibold">Pré-baixa: <strong>{pb.toFixed(1)}kg</strong></span>}
                   <span className="text-emerald-700 font-semibold">Disponível: <strong>{disp.toFixed(1)}kg</strong></span>
                   {bobinaSuperiorObj.metragem_restante && <span>Metragem: <strong>{bobinaSuperiorObj.metragem_restante}m restantes</strong></span>}
@@ -735,7 +741,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                        {b.qualidade && <span className="text-muted-foreground"> ({b.qualidade})</span>}
                        {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
                        {b.peso_kg && <span className="text-muted-foreground text-xs"> · {disp.toFixed(0)}kg disp.</span>}
-                       {pb > 0 && <span className="text-blue-500 text-xs">(pré-baixa: {pb.toFixed(0)}kg)</span>}
+                       {pb > 0 && <span className="text-blue-500 text-xs">(pré-baixa: {pb.toFixed(0)}kg)</span>} <BobinaStatusBadge status={getStatusBobina(b)} size="xs" />
                      </SelectItem>
                       );
                     })}
@@ -750,6 +756,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                      <span>Cor/RVM: <strong>{bobinaInferiorObj.cor || "—"}</strong></span>
                      <span>Qualidade: <strong>{bobinaInferiorObj.qualidade || "—"}</strong></span>
                      <span>Peso: <strong>{bobinaInferiorObj.peso_kg || 0}kg</strong></span>
+                     <span>Status: <BobinaStatusBadge status={getStatusBobina(bobinaInferiorObj)} size="xs" /></span>
                      {pb > 0 && <span className="text-blue-600 font-semibold">Pré-baixa: <strong>{pb.toFixed(1)}kg</strong></span>}
                      <span className="text-emerald-700 font-semibold">Disponível: <strong>{disp.toFixed(1)}kg</strong></span>
                      {form.kg_inferior &&
@@ -906,7 +913,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                                {b.qualidade && <span className="text-muted-foreground"> ({b.qualidade})</span>}
                                {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
                                {b.peso_kg && <span className="text-muted-foreground text-xs"> · {disp.toFixed(0)}kg disp.</span>}
-                               {pb > 0 && <span className="text-blue-500 text-xs">(pré-baixa: {pb.toFixed(0)}kg)</span>}
+                               {pb > 0 && <span className="text-blue-500 text-xs">(pré-baixa: {pb.toFixed(0)}kg)</span>} <BobinaStatusBadge status={getStatusBobina(b)} size="xs" />
                              </SelectItem>
                              );
                            })}
@@ -929,7 +936,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                                   {b.qualidade && <span className="text-muted-foreground"> ({b.qualidade})</span>}
                                   {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
                                   {b.peso_kg && <span className="text-muted-foreground text-xs"> · {disp.toFixed(0)}kg disp.</span>}
-                                  {pb > 0 && <span className="text-blue-500 text-xs">(pré-baixa: {pb.toFixed(0)}kg)</span>}
+                                  {pb > 0 && <span className="text-blue-500 text-xs">(pré-baixa: {pb.toFixed(0)}kg)</span>} <BobinaStatusBadge status={getStatusBobina(b)} size="xs" />
                                 </SelectItem>
                                 );
                               })}
