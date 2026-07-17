@@ -47,6 +47,25 @@ export function getAlertaNivel(bobina) {
   return null;
 }
 
+export function getStatusBadge(statusInfo, bobina) {
+  if (statusInfo) {
+    const maq = statusInfo.maquina || "Máquina";
+    if (statusInfo.status === "em_producao") {
+      const label = maq === "Desbobinadeira" ? "Na Desbobinadeira" : `Na Máquina: ${maq}`;
+      return { label, cls: "bg-emerald-100 text-emerald-800 border-emerald-300 border font-bold" };
+    } else {
+      const label = maq === "Desbobinadeira" ? "Agendada p/ Desbobinadeira" : `Agendada para: ${maq}`;
+      return { label, cls: "bg-blue-100 text-blue-800 border-blue-300 border font-bold" };
+    }
+  }
+  const pesoAtual = bobina.peso_kg || 0;
+  const pesoInicial = bobina.peso_inicial || 0;
+  if (pesoInicial > 0 && pesoAtual >= pesoInicial - 1) {
+    return { label: "Fechada", cls: "bg-slate-100 text-slate-600 border border-slate-200 font-bold" };
+  }
+  return { label: "Aberta", cls: "bg-orange-100 text-orange-800 border border-orange-200 font-bold" };
+}
+
 function BarraProgresso({ pct, alerta }) {
   const cor = alerta === "critico" ? "bg-red-500" : alerta === "atencao" ? "bg-amber-500" : "bg-emerald-500";
   return (
@@ -56,7 +75,7 @@ function BarraProgresso({ pct, alerta }) {
   );
 }
 
-export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statusColors = {}, preBaixaKg = 0 }) {
+export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statusColors = {}, preBaixaKg = 0, statusInfo }) {
   const [expandido, setExpandido] = useState(false);
   const [showEtiqueta, setShowEtiqueta] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
@@ -67,6 +86,8 @@ export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statu
   const diasRestantes = getPrevisaoAcabar(bobina);
   const alerta = getAlertaNivel(bobina);
   const custoTotal = bobina.custo && bobina.peso_kg ? bobina.custo * bobina.peso_kg : null;
+
+  const infoStatus = getStatusBadge(statusInfo, bobina);
 
   const reservaPct = bobina.reservada && bobina.reserva_tipo === "parcial" && bobina.reserva_kg && bobina.peso_kg
     ? Math.min(100, (bobina.reserva_kg / bobina.peso_kg) * 100)
@@ -109,8 +130,8 @@ export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statu
                   {bobina.qualidade} · {qualidadeNomes[bobina.qualidade] || bobina.qualidade}
                 </Badge>
               )}
-              {bobina.status && (
-                <Badge variant="outline" className={`text-xs ${statusColors[bobina.status] || ""}`}>{bobina.status}</Badge>
+              {infoStatus && (
+                <Badge variant="outline" className={`text-xs ${infoStatus.cls}`}>{infoStatus.label}</Badge>
               )}
               {bobina.reservada && (
                 <Badge variant="outline" className="text-xs bg-purple-100 text-purple-800 border-purple-300">

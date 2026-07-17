@@ -151,15 +151,23 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
   // Pré-baixa e status das bobinas via hook compartilhado
   const { preBaixaMap, statusMap } = usePreBaixaBobinas(setor);
 
-  const statusLabel = (s) => {
-    if (!s) return null;
-    const map = {
-      em_producao:    { label: "Em produção",  cls: "bg-emerald-100 text-emerald-700" },
-      pendente:       { label: "Aguardando",   cls: "bg-blue-100 text-blue-700" },
-      pausado:        { label: "Parado",       cls: "bg-amber-100 text-amber-700" },
-      aguardando_colagem: { label: "Aguardando colagem", cls: "bg-purple-100 text-purple-700" },
-    };
-    return map[s.status] || { label: s.status, cls: "bg-slate-100 text-slate-600" };
+  const statusLabel = (st, bobina) => {
+    if (st) {
+      const maq = st.maquina || "Máquina";
+      if (st.status === "em_producao") {
+        const label = maq === "Desbobinadeira" ? "Na Desbobinadeira" : `Na Máquina: ${maq}`;
+        return { label, cls: "bg-emerald-100 text-emerald-800 border-emerald-300 border font-bold" };
+      } else {
+        const label = maq === "Desbobinadeira" ? "Agendada p/ Desbobinadeira" : `Agendada para: ${maq}`;
+        return { label, cls: "bg-blue-100 text-blue-800 border-blue-300 border font-bold" };
+      }
+    }
+    const pesoAtual = bobina.peso_kg || 0;
+    const pesoInicial = bobina.peso_inicial || 0;
+    if (pesoInicial > 0 && pesoAtual >= pesoInicial - 1) {
+      return { label: "Fechada", cls: "bg-slate-100 text-slate-600 border border-slate-200 font-bold" };
+    }
+    return { label: "Aberta", cls: "bg-orange-100 text-orange-800 border border-orange-200 font-bold" };
   };
 
   // Pré-baixa (pedidos ativos) + reserva manual (parcial ou inteira)
@@ -353,7 +361,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
               <tbody className="divide-y divide-border">
                 {filtered.map(b => {
                   const st = statusMap[b.id];
-                  const info = statusLabel(st);
+                  const info = statusLabel(st, b);
                   const filialColor = getFilialColor(b.unidade || "Matriz AJL");
                   const showFilialBadge = selectedFiliais.length > 1;
                   return (
@@ -395,12 +403,10 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                         <span className="text-xs font-semibold bg-amber-200 text-amber-800 px-2 py-0.5 rounded" title={`Reservada por: ${b.reserva_autorizado_por || "Admin"} — Pedido: ${b.reserva_numero_pedido || "-"}`}>
                           Reservada
                         </span>
-                      ) : info ? (
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded ${info.cls}`} title={`Máquina: ${st.maquina}`}>
+                      ) : (
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded ${info.cls}`}>
                           {info.label}
                         </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Disponível</span>
                       )}
                     </td>
                     <td className="px-2 py-2 text-center">

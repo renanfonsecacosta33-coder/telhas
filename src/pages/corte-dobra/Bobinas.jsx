@@ -35,7 +35,7 @@ export default function BobinasCD() {
   });
 
   const filiaisHook = filialAtiva === "todas" ? null : [filialAtiva];
-  const { preBaixaMap, totalPreBaixaKg } = usePreBaixaBobinas("corte_dobra", filiaisHook);
+  const { preBaixaMap, statusMap, totalPreBaixaKg } = usePreBaixaBobinas("corte_dobra", filiaisHook);
 
   const { data: bobinasGlobais = [] } = useQuery({
     queryKey: ["bobinas-cd-global-codigos"],
@@ -268,6 +268,7 @@ export default function BobinasCD() {
               key={bobina.id}
               bobina={bobina}
               preBaixaKg={preBaixaMap[bobina.id] || 0}
+              statusInfo={statusMap[bobina.id]}
               onEdit={(b) => { setEditItem(b); setDialogOpen(true); }}
               onDelete={(b) => setDeleteItem(b)}
               onArquivar={(id, val) => arquivarMutation.mutate({ id, arquivada: val })}

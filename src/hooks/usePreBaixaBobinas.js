@@ -28,8 +28,19 @@ export function usePreBaixaBobinas(setor, filiais = null) {
       };
 
       const addStatus = (bobinaId, maquina, status) => {
-        if (!bobinaId || statusMap[bobinaId]) return;
-        statusMap[bobinaId] = { maquina, status };
+        if (!bobinaId) return;
+        const existing = statusMap[bobinaId];
+        if (existing) {
+          if (status === "em_producao") {
+            statusMap[bobinaId] = { maquina, status };
+          } else if (existing.status === "em_producao") {
+            return;
+          } else if (status === "pausado" && existing.status !== "pausado") {
+            statusMap[bobinaId] = { maquina, status };
+          }
+        } else {
+          statusMap[bobinaId] = { maquina, status };
+        }
       };
 
       const filialMatch = (unidade) => !filiais || filiais.includes(unidade);
@@ -79,15 +90,15 @@ export function usePreBaixaBobinas(setor, filiais = null) {
               if (metros > 0 && v.bobina_id) {
                 const chapa = bobinaChapas[v.bobina_id] || 0;
                 if (chapa > 0) kgPorBobina[v.bobina_id] = (kgPorBobina[v.bobina_id] || 0) + chapa * metros;
+                addStatus(v.bobina_id, p.maquina || "Produção", p.status);
               }
               if (metros > 0 && v.bobina_inf_id) {
                 const chapa = bobinaChapas[v.bobina_inf_id] || 0;
                 if (chapa > 0) kgPorBobina[v.bobina_inf_id] = (kgPorBobina[v.bobina_inf_id] || 0) + chapa * metros;
+                addStatus(v.bobina_inf_id, p.maquina || "Produção", p.status);
               }
             });
             Object.entries(kgPorBobina).forEach(([bid, kg]) => addKg(bid, kg));
-            const firstBid = vars[0]?.bobina_id;
-            if (firstBid) addStatus(firstBid, p.maquina || "Produção", p.status);
           } else {
             // Modo legado: usar KG direto do pedido
             addKg(p.bobina_superior_id, p.kg_superior);
