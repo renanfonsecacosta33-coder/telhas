@@ -159,25 +159,10 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
   };
 
   const buildPayload = () => {
-    // Auto-calcula o status da bobina com base no peso e reserva
-    const peso = Number(form.peso_kg) || 0;
-    const inicial = Number(form.peso_inicial) || peso;
-    let statusAuto = form.status;
-    if (form.reservada) {
-      statusAuto = "RESERVADA";
-    } else if (form.arquivada) {
-      statusAuto = "Finalizada";
-    } else if (inicial > 0 && peso >= inicial * 0.99) {
-      statusAuto = "Fechada";
-    } else if (peso > 0) {
-      statusAuto = "Aberta";
-    }
-
     const p = {
       ...form,
       setor: "telhas",
       reservada: form.reservada || false,
-      status: statusAuto,
     };
 
     // Números — só inclui se preenchido

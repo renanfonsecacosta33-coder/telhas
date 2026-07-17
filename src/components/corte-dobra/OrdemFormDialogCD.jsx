@@ -13,7 +13,6 @@ import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
 import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X, DollarSign, Star, PackageX, Wrench } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
-import BobinaStatusBadge from "@/components/bobinas/BobinaStatusBadge";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 
 const MAQUINAS_INICIAIS = [
@@ -102,7 +101,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   });
 
   const filiaisHook = filialAtiva === "todas" ? null : [filialAtiva];
-  const { preBaixaMap, statusMap } = usePreBaixaBobinas("corte_dobra", filiaisHook);
+  const { preBaixaMap } = usePreBaixaBobinas("corte_dobra", filiaisHook);
 
   const { data: chapasDisponiveis = [] } = useQuery({
     queryKey: ["chapas-cd-form-dinamico", filialAtiva],
@@ -402,7 +401,6 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                         {reservadaParaOutro && (
                           <span className="text-red-500 text-xs font-bold">🔒 Reservada — Pedido {b.reserva_numero_pedido || "?"}{b.reserva_motivo ? ` (${b.reserva_motivo})` : ""}</span>
                         )}
-                        <BobinaStatusBadge bobina={b} statusInfo={statusMap[b.id]} size="xs" />
                       </div>
                     </SelectItem>
                   );
@@ -418,7 +416,6 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                   <div className="flex items-center gap-1">
                     {reservadaParaEste && <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs"><ShieldCheck className="w-3 h-3 mr-1" />Reservada p/ este pedido</Badge>}
                     {reservadaParaOutro && <Badge className="bg-red-100 text-red-700 border-red-200 text-xs"><ShieldAlert className="w-3 h-3 mr-1" />Reservada p/ outro</Badge>}
-                    <BobinaStatusBadge bobina={bobinaObj} statusInfo={statusMap[bobinaObj.id]} size="sm" />
                     <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs">Setor CD</Badge>
                   </div>
                 </div>
