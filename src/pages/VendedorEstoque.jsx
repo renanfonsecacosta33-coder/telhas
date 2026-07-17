@@ -343,10 +343,11 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                 <tr className="bg-muted/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
                   <th className="text-left px-2 py-2 whitespace-nowrap">Cód.</th>
                   <th className="text-left px-2 py-2 whitespace-nowrap">Cor</th>
+                  <th className="text-center px-2 py-2 whitespace-nowrap">Foto</th>
                   <th className="text-left px-2 py-2 whitespace-nowrap">Qual.</th>
                   <th className="text-left px-2 py-2 whitespace-nowrap">Espessura</th>
-                  <th className="text-left px-2 py-2 whitespace-nowrap">Q. Bobina</th>
-                  <th className="text-left px-2 py-2 whitespace-nowrap bg-amber-50/60">Esp. Util.</th>
+                  {isCorteDobra && <th className="text-left px-2 py-2 whitespace-nowrap">Q. Bobina</th>}
+                  {isCorteDobra && <th className="text-left px-2 py-2 whitespace-nowrap bg-amber-50/60">Esp. Util.</th>}
                   <th className="text-left px-2 py-2 whitespace-nowrap">Largura</th>
                   <th className="text-right px-2 py-2 whitespace-nowrap">Peso (kg)</th>
                   <th className="text-right px-2 py-2 whitespace-nowrap">Peso Inicial</th>
@@ -384,14 +385,27 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                         <span className="ml-1.5 text-[10px] font-semibold bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded">Reservada</span>
                       )}
                     </td>
+                    <td className="px-2 py-2 text-center whitespace-nowrap">
+                      {b.foto_cor_url ? (
+                        <ImageLink url={b.foto_cor_url} name={b.foto_cor_nome || "Foto Cor"}
+                          className="inline-flex items-center justify-center text-blue-600 hover:text-blue-800 transition-colors"
+                          title="Ver foto da cor">
+                          <img src={b.foto_cor_url} alt="Cor" className="w-8 h-8 rounded object-cover border border-border mx-auto" />
+                        </ImageLink>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </td>
                     <td className="px-2 py-2 whitespace-nowrap">
                       <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded">{b.qualidade || "-"}</span>
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap">{b.chapa || "-"}</td>
-                    <td className="px-2 py-2 whitespace-nowrap">{b.espessura_real || "-"}</td>
-                    <td className={`px-2 py-2 whitespace-nowrap font-semibold ${b.reservada ? "bg-amber-100/50 text-amber-900" : "bg-amber-50/40 text-amber-900"}`}>
-                      {b.espessura_utilizada || "-"}
-                    </td>
+                    {isCorteDobra && <td className="px-2 py-2 whitespace-nowrap">{b.espessura_real || "-"}</td>}
+                    {isCorteDobra && (
+                      <td className={`px-2 py-2 whitespace-nowrap font-semibold ${b.reservada ? "bg-amber-100/50 text-amber-900" : "bg-amber-50/40 text-amber-900"}`}>
+                        {b.espessura_utilizada || "-"}
+                      </td>
+                    )}
                     <td className="px-2 py-2 whitespace-nowrap">{b.largura_mm ? `${b.largura_mm} mm` : "-"}</td>
                     <td className="px-2 py-2 text-right font-semibold whitespace-nowrap">{b.peso_kg ? `${b.peso_kg.toLocaleString("pt-BR")} kg` : "-"}</td>
                     <td className="px-2 py-2 text-right whitespace-nowrap text-muted-foreground">{b.peso_inicial ? `${b.peso_inicial.toLocaleString("pt-BR")} kg` : "-"}</td>
