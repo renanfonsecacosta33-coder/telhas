@@ -211,37 +211,13 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
   };
 
   const descontarEstoques = async () => {
-    // Baixa automática de chapa da chaparia
-    if (o.chapa_cd_id && (o.quantidade || 0) > 0) {
-      try {
-        const chapa = await base44.entities.ChapaCD.get(o.chapa_cd_id);
-        if (chapa) {
-          const novaQtd = Math.max(0, (chapa.quantidade_disponivel || 0) - o.quantidade);
-          await base44.entities.ChapaCD.update(o.chapa_cd_id, {
-            quantidade_disponivel: novaQtd,
-            status: novaQtd === 0 ? "consumido" : chapa.status,
-          });
-        }
-      } catch (e) { /* silencioso */ }
-    }
-    // Desconto de bobina direta
-    if (o.chapa_origem === "direto" && o.bobina_id && (o.peso_kg || 0) > 0) {
-      try {
-        const bobina = await base44.entities.Bobina.get(o.bobina_id);
-        if (bobina) {
-          await base44.entities.Bobina.update(o.bobina_id, {
-            peso_kg: Math.max(0, (bobina.peso_kg || 0) - o.peso_kg),
-          });
-        }
-      } catch (e) { /* silencioso */ }
-    }
+    // A baixa do estoque agora roda na trigger de backend (descontarEstoqueMaquinaCD)
   };
 
   const handleFinalizar = async () => {
     setPauseMotivo("");
     if (isGuilhotina) {
-      // Guilhotina: desconta estoques e abre dialog de aproveitamento (sem foto)
-      await descontarEstoques();
+      // Guilhotina: abre dialog de aproveitamento (sem foto)
       const prodSeg = calcularProdSeg();
       setPendingProdSeg(prodSeg);
       setPendingFotoUrl(null);
@@ -263,7 +239,6 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
     setUploadingFoto(true);
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
     const prodSeg = calcularProdSeg();
-    await descontarEstoques();
     await finalizarOrdem(file_url, prodSeg, false, "");
     setUploadingFoto(false);
     setFotoDialog(false);
@@ -279,29 +254,9 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
       modificacao_blank: modBlankVal,
       modificacao_descricao: modBlankVal && modDescVal.trim() ? modDescVal.trim() : null,
     });
-    // Se for ordem de corte com dobra vinculada, desbloquear a dobra e repassar OBD
-    if (o.ordem_dobra_maquina) {
-      try {
-        const ordensDobra = await base44.entities.OrdemMaquinaCD.filter({ ordem_corte_id: o.id, status: "aguardando_corte" });
-        for (const od of ordensDobra) {
-          const obsDobra = modBlankVal && modDescVal.trim()
-            ? `OBD: ${modDescVal.trim()}`
-            : null;
-          const updateData = { status: "pendente" };
-          if (o.foto_pedido_url) {
-            updateData.foto_pedido_url = o.foto_pedido_url;
-          }
-          if (obsDobra) {
-            updateData.observacoes = od.observacoes
-              ? `${od.observacoes}\n${obsDobra}`
-              : obsDobra;
-          }
-          await base44.entities.OrdemMaquinaCD.update(od.id, updateData);
-        }
-        if (modBlankVal && modDescVal.trim()) {
-          toast.success("OBD repassada para a dobra!");
-        }
-      } catch (e) { /* silencioso */ }
+    // O desbloqueio da dobra vinculada e repasse de OBD agora rodam na trigger de backend (descontarEstoqueMaquinaCD)
+    if (o.ordem_dobra_maquina && modBlankVal && modDescVal.trim()) {
+      toast.success("OBD repassada para a dobra!");
     }
   };
 

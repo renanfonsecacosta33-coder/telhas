@@ -247,6 +247,22 @@
     "bobina_id",
     "quantidade"
   ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "finalizado"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "foto_finalizacao_url"
+        ]
+      }
+    }
+  ],
   "rls": {
     "create": true,
     "read": {

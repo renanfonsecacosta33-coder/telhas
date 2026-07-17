@@ -15,6 +15,7 @@ import { HistoricoPedidoButton } from "@/components/corte-dobra/HistoricoPedidoS
 import ImageLink from "@/components/ui/ImageLink";
 import CorChapaDot from "@/components/corte-dobra/CorChapaDot";
 import ValidacaoEtiquetaDialog from "@/components/corte-dobra/ValidacaoEtiquetaDialog";
+import DualPhotoGallery from "@/components/corte-dobra/DualPhotoGallery";
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
 
 function formatTempo(segundos) {
@@ -184,73 +185,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
     if (o.inicio_producao_ts) {
       prodSeg += Math.floor((Date.now() - new Date(o.inicio_producao_ts).getTime()) / 1000);
     }
-    // Desconta KG da bobina e cria ChapaCD no estoque
-    if (o.bobina_id) {
-      const bobinaList = await base44.entities.Bobina.list("-created_date", 500).catch(() => []);
-      const bobina = bobinaList.find(b => b.id === o.bobina_id) || null;
-      if (bobina) {
-        // Desconta KG
-        if (o.kg_estimado > 0) {
-          await base44.entities.Bobina.update(o.bobina_id, {
-            peso_kg: Math.max(0, (bobina.peso_kg || 0) - o.kg_estimado),
-          });
-        }
-        // Gera código automático CH0001, CH0002 ...
-        const todasChapas = await base44.entities.ChapaCD.list("-created_date", 500).catch(() => []);
-        let maxNum = 0;
-        todasChapas.forEach(c => {
-          const m = c.codigo && c.codigo.match(/^CH(\d+)$/i);
-          if (m) { const n = parseInt(m[1], 10); if (n > maxNum) maxNum = n; }
-        });
-        const novoCodigo = `CH${String(maxNum + 1).padStart(4, "0")}`;
-
-        // Cria ChapaCD no estoque da Chaparia
-        const chapaCriada = await base44.entities.ChapaCD.create({
-          codigo: novoCodigo,
-          origem: "desbobinadeira",
-          ordem_id: o.id,
-          bobina_id: o.bobina_id,
-          bobina_descricao: o.bobina_descricao || "",
-          comprimento_mm: o.comprimento_mm || 0,
-          largura_mm: bobina.largura_mm || 0,
-          quantidade_total: o.quantidade || 0,
-          quantidade_disponivel: o.quantidade || 0,
-          destino: o.destino === "pedido_direto" ? "pedido_direto" : "estoque",
-          numero_pedido: o.numero_pedido || null,
-          cliente: o.cliente || null,
-          data_corte: format(new Date(), "yyyy-MM-dd"),
-          status: "disponivel",
-          foto_finalizacao_url: file_url,
-          foto_pedido_url: o.foto_pedido_url || null,
-          observacoes: o.observacoes || null,
-        });
-
-        // Se for pedido direto com guilhotina definida, cria OP automática na guilhotina
-        if (o.destino === "pedido_direto" && o.guilhotina && chapaCriada?.id) {
-          const chapaDesc = `${novoCodigo} — ${o.bobina_descricao || ""} ${o.comprimento_mm || 0}mm`.trim();
-          await base44.entities.OrdemMaquinaCD.create({
-            data: format(new Date(), "yyyy-MM-dd"),
-            maquina: o.guilhotina,
-            chapa_cd_id: chapaCriada.id,
-            chapa_descricao: chapaDesc,
-            chapa_origem: "chaparia",
-            tipo_peca: "Corte Guilhotina",
-            dimensoes_livres: o.tamanho_corte_guilhotina ? `CORTE ${o.tamanho_corte_guilhotina}mm` : null,
-            numero_pedido: o.numero_pedido || null,
-            cliente: o.cliente || null,
-            vendedor: o.vendedor || null,
-            quantidade: o.quantidade || 0,
-            status: "pendente",
-            foto_pedido_url: o.foto_pedido_url || null,
-            foto_material_url: file_url,
-            observacoes: o.observacoes
-              ? `${o.observacoes}\n— OP gerada automaticamente pela Desbobinadeira (OP ${o.id.slice(-6).toUpperCase()})`
-              : `OP gerada automaticamente pela Desbobinadeira (OP ${o.id.slice(-6).toUpperCase()})`,
-          });
-          toast.success(`OP automática criada na ${o.guilhotina}`);
-        }
-      }
-    }
+    // A baixa do estoque e geração de OP automática agora rodam na trigger de backend (descontarEstoqueDesbobinadeira)
     onUpdate(o.id, {
       status: "finalizado",
       foto_finalizacao_url: file_url,
@@ -475,32 +410,15 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               </div>
               </div>
 
-        {/* Foto da etiqueta da bobina (validação ao iniciar) */}
-        {o.foto_etiqueta_bobina_url && (
-          <div className={`${z.mb} relative rounded-lg overflow-hidden border-2 border-orange-300 group`}>
-            <ImageLink url={o.foto_etiqueta_bobina_url} name="Etiqueta da Bobina" className="block">
-              <img src={o.foto_etiqueta_bobina_url} alt="Etiqueta da bobina" className="w-full max-h-32 object-cover" />
-            </ImageLink>
-            <div className="absolute top-2 left-2 bg-orange-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 pointer-events-none">
-              <ScanLine className="w-3 h-3" /> Etiqueta Validada
-            </div>
-          </div>
-        )}
-
-        {/* Foto do pedido */}
-        {o.foto_pedido_url && (
-          <div className={`${z.mb} relative rounded-lg overflow-hidden border-2 border-blue-300 group`}>
-            <ImageLink url={o.foto_pedido_url} name="Foto do Pedido" className="block">
-              <img src={o.foto_pedido_url} alt="Foto do pedido" className="w-full max-h-44 object-cover" />
-            </ImageLink>
-            <div className="absolute top-2 left-2 bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 pointer-events-none">
-              <ImageIcon className="w-3 h-3" /> Foto do Pedido
-            </div>
-            <ImageLink url={o.foto_pedido_url} name="Foto do Pedido"
-              className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-black/80 transition-colors flex items-center gap-1">
-              <ImageIcon className="w-3.5 h-3.5" /> Ampliar
-            </ImageLink>
-          </div>
+        {/* Fotos: Pedido + Etiqueta da Bobina + Finalização */}
+        {(o.foto_pedido_url || o.foto_etiqueta_bobina_url || o.foto_finalizacao_url) && (
+          <DualPhotoGallery
+            fotoPedidoUrl={o.foto_pedido_url}
+            fotoMaterialUrl={o.foto_etiqueta_bobina_url}
+            fotoFinalizacaoUrl={o.foto_finalizacao_url}
+            labelMaterial="Etiqueta da Bobina"
+            z={zoom}
+          />
         )}
 
         {/* Observações */}
@@ -551,14 +469,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
           </div>
         )}
 
-        {/* Foto de finalização */}
-        {o.foto_finalizacao_url && (
-          <div className="mb-3">
-            <ImageLink url={o.foto_finalizacao_url} name="Finalização" className="block">
-              <img src={o.foto_finalizacao_url} alt="Finalização" className="w-full max-h-40 object-cover rounded-lg border border-border" />
-            </ImageLink>
-          </div>
-        )}
+
 
         {/* Ações */}
         <div className={`flex items-center justify-end ${z.gap} mt-3`}>

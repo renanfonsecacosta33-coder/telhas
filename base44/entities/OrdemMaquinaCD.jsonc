@@ -274,6 +274,22 @@
     "tipo_peca",
     "quantidade"
   ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "finalizado"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "foto_finalizacao_url"
+        ]
+      }
+    }
+  ],
   "rls": {
     "create": true,
     "read": {

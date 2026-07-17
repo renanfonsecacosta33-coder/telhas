@@ -1,12 +1,32 @@
-import React from "react";
+import React, { useState } from "react";
 import { Image as ImageIcon, FileText } from "lucide-react";
 import ImageLink from "@/components/ui/ImageLink";
+
+function SafeImage({ src, alt, className }) {
+  const [error, setError] = useState(false);
+  if (error || !src) {
+    return (
+      <div className="w-full h-full min-h-[112px] flex flex-col items-center justify-center bg-slate-100 text-slate-400 gap-1 p-2">
+        <ImageIcon className="w-6 h-6" />
+        <span className="text-[10px] font-medium text-center">Sem imagem disponível</span>
+      </div>
+    );
+  }
+  return (
+    <img 
+      src={src} 
+      alt={alt} 
+      className={className} 
+      onError={() => setError(true)} 
+    />
+  );
+}
 
 /**
  * Exibe fotos lado a lado: Foto do Pedido (PED), Foto do Material (MAT) e Foto de Finalização (FIN).
  * A foto do material só aparece quando não há foto de finalização (OP ainda não finalizada na Guilhotina).
  */
-export default function DualPhotoGallery({ fotoPedidoUrl, fotoMaterialUrl, fotoFinalizacaoUrl, z = "normal" }) {
+export default function DualPhotoGallery({ fotoPedidoUrl, fotoMaterialUrl, fotoFinalizacaoUrl, z = "normal", labelMaterial }) {
   const labelCls = z === "compacto" ? "text-[9px] px-1.5 py-0.5" : z === "grande" ? "text-xs px-2.5 py-1" : "text-[10px] px-2 py-0.5";
   const hImg = z === "compacto" ? "max-h-28" : z === "grande" ? "max-h-52" : "max-h-40";
 
@@ -19,7 +39,7 @@ export default function DualPhotoGallery({ fotoPedidoUrl, fotoMaterialUrl, fotoF
 
   const photos = [];
   if (hasPedido) photos.push({ url: fotoPedidoUrl, label: "Foto do Pedido", borderCls: "border-blue-300", badgeCls: "bg-blue-600 text-white" });
-  if (showMaterial) photos.push({ url: fotoMaterialUrl, label: "Foto do Material", borderCls: "border-orange-300", badgeCls: "bg-orange-600 text-white" });
+  if (showMaterial) photos.push({ url: fotoMaterialUrl, label: labelMaterial || "Foto do Material", borderCls: "border-orange-300", badgeCls: "bg-orange-600 text-white" });
   if (hasFinal) photos.push({ url: fotoFinalizacaoUrl, label: "Foto Finalização", borderCls: "border-green-300", badgeCls: "bg-green-600 text-white" });
 
   const single = photos.length === 1;
@@ -35,7 +55,7 @@ export default function DualPhotoGallery({ fotoPedidoUrl, fotoMaterialUrl, fotoF
             <FileText className="w-10 h-10 text-muted-foreground" />
           </div>
         ) : (
-          <img src={p.url} alt={p.label} className={`w-full ${hImg} object-cover`} />
+          <SafeImage src={p.url} alt={p.label} className={`w-full ${hImg} object-cover`} />
         )}
       </ImageLink>
       <div className={`absolute top-1.5 left-1.5 ${labelCls} font-bold rounded-full flex items-center gap-0.5 ${p.badgeCls}`}>
