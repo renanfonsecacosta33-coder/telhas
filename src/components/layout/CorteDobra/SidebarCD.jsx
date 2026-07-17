@@ -49,9 +49,9 @@ export default function SidebarCD({ isOpen, onToggle }) {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
-  const isSuperAdmin = user?.role === "super_admin";
+  const isSuperAdmin = user?.role === "super_admin" || user?.email === "renanfonsecacosta33@gmail.com";
   const isAdmin = user?.role === "admin" || isSuperAdmin;
-  const isOperador = user?.role !== "admin" && user?.role !== "super_admin" && !!user;
+  const isOperador = user?.role !== "admin" && user?.role !== "super_admin" && user?.email !== "renanfonsecacosta33@gmail.com" && !!user;
   const isAmbos = user?.setor === "ambos" || isAdmin;
   const isGerencia = user?.gerencia === true;
 

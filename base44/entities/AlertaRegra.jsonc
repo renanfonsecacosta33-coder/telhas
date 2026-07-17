@@ -12,7 +12,11 @@
         "estoque_baixo",
         "pedido_pronto",
         "reserva_vencida",
-        "maquina_parada"
+        "maquina_parada",
+        "nova_op_prioritaria",
+        "atraso_producao",
+        "refugo_alto",
+        "novo_usuario"
       ],
       "default": "estoque_baixo",
       "description": "Gatilho ou evento disparador do alerta"
@@ -36,7 +40,10 @@
         "nenhum",
         "sirene.mp3",
         "caixa_registradora.mp3",
-        "ding.mp3"
+        "ding.mp3",
+        "buzina.mp3",
+        "alarme_industrial.mp3",
+        "sucesso.mp3"
       ],
       "default": "nenhum",
       "description": "Som a ser reproduzido nas interfaces do galpão/escritório"

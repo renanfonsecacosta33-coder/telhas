@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
-import { Bell, Plus, Play, Volume2, Trash2, Edit3, UserCheck, Search, Lock, ShieldCheck, Mail, PhoneCall } from "lucide-react";
+import { Bell, Plus, Play, Volume2, Trash2, Edit3, UserCheck, Search, Lock, ShieldCheck, Mail, PhoneCall, Check } from "lucide-react";
 import { toast } from "sonner";
 
 const EVENTO_LABELS = {
@@ -16,6 +16,10 @@ const EVENTO_LABELS = {
   pedido_pronto: "Pedido Concluído",
   reserva_vencida: "Reserva Expirada (48h)",
   maquina_parada: "Máquina Inativa",
+  nova_op_prioritaria: "Nova OP Prioritária",
+  atraso_producao: "Atraso na Fila de Produção",
+  refugo_alto: "Desperdício/Refugo Alto",
+  novo_usuario: "Novo Usuário no Sistema",
 };
 
 const SOUNDS = [
@@ -23,6 +27,9 @@ const SOUNDS = [
   { value: "sirene.mp3", label: "🚨 Sirene Industrial" },
   { value: "caixa_registradora.mp3", label: "💰 Caixa Registradora" },
   { value: "ding.mp3", label: "🔔 Bipe / Notificação" },
+  { value: "buzina.mp3", label: "📯 Buzina / Alerta Curto" },
+  { value: "alarme_industrial.mp3", label: "💥 Alarme Industrial Contínuo" },
+  { value: "sucesso.mp3", label: "✨ Sucesso / Conclusão" },
 ];
 
 const playSound = (soundFile) => {
@@ -31,6 +38,9 @@ const playSound = (soundFile) => {
     "sirene.mp3": "https://assets.mixkit.co/active_storage/sfx/951/951-84.wav",
     "caixa_registradora.mp3": "https://assets.mixkit.co/active_storage/sfx/2019/2019-84.wav",
     "ding.mp3": "https://assets.mixkit.co/active_storage/sfx/911/911-84.wav",
+    "buzina.mp3": "https://assets.mixkit.co/active_storage/sfx/2756/2756-84.wav",
+    "alarme_industrial.mp3": "https://assets.mixkit.co/active_storage/sfx/1006/1006-84.wav",
+    "sucesso.mp3": "https://assets.mixkit.co/active_storage/sfx/1435/1435-84.wav",
   };
   const url = soundUrls[soundFile];
   if (url) {
@@ -52,8 +62,8 @@ export default function CentralAlertas() {
   const [nome, setNome] = useState("");
   const [evento, setEvento] = useState("estoque_baixo");
   const [limiteKg, setLimiteKg] = useState(1000);
-  const [destinatariosEmail, setDestinatariosEmail] = useState("");
-  const [destinatariosWhatsapp, setDestinatariosWhatsapp] = useState("");
+  const [selectedEmails, setSelectedEmails] = useState([]);
+  const [phoneFields, setPhoneFields] = useState([""]);
   const [som, setSom] = useState("nenhum");
   const [ativo, setAtivo] = useState(true);
 
@@ -115,8 +125,8 @@ export default function CentralAlertas() {
     setNome("");
     setEvento("estoque_baixo");
     setLimiteKg(1000);
-    setDestinatariosEmail("");
-    setDestinatariosWhatsapp("");
+    setSelectedEmails([]);
+    setPhoneFields([""]);
     setSom("nenhum");
     setAtivo(true);
   };
@@ -126,8 +136,19 @@ export default function CentralAlertas() {
     setNome(regra.nome || "");
     setEvento(regra.evento || "estoque_baixo");
     setLimiteKg(regra.limite_kg ?? 1000);
-    setDestinatariosEmail(regra.destinatarios_email || "");
-    setDestinatariosWhatsapp(regra.destinatarios_whatsapp || "");
+    
+    // Parse emails de string separada por virgula para array
+    const emailsArray = regra.destinatarios_email 
+      ? regra.destinatarios_email.split(",").map(e => e.trim()).filter(Boolean) 
+      : [];
+    setSelectedEmails(emailsArray);
+
+    // Parse telefones de string separada por virgula para array
+    const phonesArray = regra.destinatarios_whatsapp 
+      ? regra.destinatarios_whatsapp.split(",").map(p => p.trim()).filter(Boolean) 
+      : [""];
+    setPhoneFields(phonesArray.length > 0 ? phonesArray : [""]);
+
     setSom(regra.som || "nenhum");
     setAtivo(regra.ativo ?? true);
     setDialogOpen(true);
@@ -138,12 +159,15 @@ export default function CentralAlertas() {
       toast.error("Por favor, digite o nome do alerta.");
       return;
     }
+
+    const filteredPhones = phoneFields.map(p => p.trim()).filter(Boolean);
+
     const payload = {
       nome: nome.trim(),
       evento,
       limite_kg: Number(limiteKg) || 0,
-      destinatarios_email: destinatariosEmail.trim(),
-      destinatarios_whatsapp: destinatariosWhatsapp.trim(),
+      destinatarios_email: selectedEmails.join(", "),
+      destinatarios_whatsapp: filteredPhones.join(", "),
       som,
       ativo,
     };
@@ -170,7 +194,7 @@ export default function CentralAlertas() {
     );
   }
 
-  const isSuperAdmin = currentUser.role === "super_admin";
+  const isSuperAdmin = currentUser.role === "super_admin" || currentUser.email === "renanfonsecacosta33@gmail.com";
   const hasAccess = isSuperAdmin || currentUser.role === "admin" || currentUser.permitido_central_alertas === true;
 
   if (!hasAccess) {
@@ -185,9 +209,9 @@ export default function CentralAlertas() {
     );
   }
 
-  // Filtragem de usuários para concessão de acesso
+  // Filtragem de usuários para concessão de acesso ao Hub
   const filteredUsers = users.filter(u => {
-    if (u.id === currentUser.id) return false; // Não auto-editar
+    if (u.id === currentUser.id) return false;
     const q = searchUser.toLowerCase();
     return (
       u.full_name?.toLowerCase().includes(q) ||
@@ -232,8 +256,8 @@ export default function CentralAlertas() {
                 <tr className="bg-slate-50/50 text-[10px] font-semibold text-slate-500 uppercase tracking-wide border-b border-border">
                   <th className="text-left px-4 py-3">Nome da Regra</th>
                   <th className="text-left px-4 py-3">Gatilho (Evento)</th>
-                  <th className="text-left px-4 py-3">E-mails</th>
-                  <th className="text-left px-4 py-3">WhatsApp</th>
+                  <th className="text-left px-4 py-3">E-mails Destinatários</th>
+                  <th className="text-left px-4 py-3">WhatsApp Destinatários</th>
                   <th className="text-center px-4 py-3">Som de Alerta</th>
                   <th className="text-center px-4 py-3">Status</th>
                   <th className="px-4 py-3 text-right">Ações</th>
@@ -305,7 +329,7 @@ export default function CentralAlertas() {
         )}
       </div>
 
-      {/* Access Permissions Section (Restrito ao Super Admin) */}
+      {/* Access Permissions Section (Restrito ao Super Admin / Proprietário) */}
       {isSuperAdmin && (
         <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
           <div className="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -341,10 +365,12 @@ export default function CentralAlertas() {
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       <Badge variant="outline" className="text-[9px] px-1 py-0 capitalize bg-white">{u.role || "operador"}</Badge>
                       <span className="text-[9px] text-slate-400 uppercase font-medium">{u.setor || "telhas"}</span>
+                      {u.email === "renanfonsecacosta33@gmail.com" && <Badge className="bg-blue-600 text-[8px] text-white">Dono</Badge>}
                     </div>
                   </div>
                   <Switch 
-                    checked={!!u.permitido_central_alertas}
+                    disabled={u.email === "renanfonsecacosta33@gmail.com"}
+                    checked={u.email === "renanfonsecacosta33@gmail.com" ? true : !!u.permitido_central_alertas}
                     onCheckedChange={(checked) => toggleUserMutation.mutate({ id: u.id, permitido: checked })}
                   />
                 </div>
@@ -360,7 +386,7 @@ export default function CentralAlertas() {
           <DialogHeader>
             <DialogTitle>{editItem ? "✏️ Editar Regra de Alerta" : "➕ Nova Regra de Alerta"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4 text-xs">
+          <div className="space-y-4 py-2 text-xs">
             {/* Nome */}
             <div className="space-y-1.5">
               <Label className="text-slate-700 font-semibold">Nome do Alerta</Label>
@@ -381,10 +407,9 @@ export default function CentralAlertas() {
                     <SelectValue placeholder="Escolha um evento" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="estoque_baixo">Estoque Crítico (KG)</SelectItem>
-                    <SelectItem value="pedido_pronto">Pedido Concluído</SelectItem>
-                    <SelectItem value="reserva_vencida">Reserva Expirada (48h)</SelectItem>
-                    <SelectItem value="maquina_parada">Máquina Inativa</SelectItem>
+                    {Object.entries(EVENTO_LABELS).map(([k, v]) => (
+                      <SelectItem key={k} value={k}>{v}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -418,28 +443,85 @@ export default function CentralAlertas() {
               </div>
             )}
 
-            {/* Destinatários E-mail */}
+            {/* Destinatários E-mail Checklist dos Usuários Logados */}
             <div className="space-y-1.5">
-              <Label className="text-slate-700 font-semibold">Destinatários E-mail</Label>
-              <Input 
-                placeholder="Ex: compras@ajl.com, gerente@ajl.com" 
-                value={destinatariosEmail}
-                onChange={e => setDestinatariosEmail(e.target.value)}
-                className="h-9"
-              />
-              <p className="text-[10px] text-slate-400">Separe múltiplos endereços usando vírgulas.</p>
+              <Label className="text-slate-700 font-semibold">Escolher E-mails Destinatários (Usuários Cadastrados)</Label>
+              <div className="max-h-32 overflow-y-auto border border-border rounded-lg p-2 space-y-1 bg-slate-50/30">
+                {users.length === 0 ? (
+                  <p className="text-[10px] text-slate-400 italic p-1">Nenhum usuário cadastrado encontrado.</p>
+                ) : (
+                  users.map(u => {
+                    if (!u.email) return null;
+                    const isChecked = selectedEmails.includes(u.email);
+                    return (
+                      <label key={u.id} className="flex items-center gap-2 cursor-pointer hover:bg-slate-100/60 p-1.5 rounded transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedEmails([...selectedEmails, u.email]);
+                            } else {
+                              setSelectedEmails(selectedEmails.filter(email => email !== u.email));
+                            }
+                          }}
+                          className="w-3.5 h-3.5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold text-slate-800 truncate">{u.full_name || u.email}</p>
+                          <p className="text-[10px] text-slate-500 truncate">{u.email}</p>
+                        </div>
+                        {isChecked && <Check className="w-3 h-3 text-blue-600" />}
+                      </label>
+                    );
+                  })
+                )}
+              </div>
             </div>
 
-            {/* Destinatários WhatsApp */}
+            {/* Destinatários WhatsApp com Botões + e Lixeira */}
             <div className="space-y-1.5">
-              <Label className="text-slate-700 font-semibold">Destinatários WhatsApp</Label>
-              <Input 
-                placeholder="Ex: +5541999999999, +5541888888888" 
-                value={destinatariosWhatsapp}
-                onChange={e => setDestinatariosWhatsapp(e.target.value)}
-                className="h-9"
-              />
-              <p className="text-[10px] text-slate-400 font-medium text-amber-600">Use formato DDI+DDD+número (com sinal de +).</p>
+              <div className="flex items-center justify-between">
+                <Label className="text-slate-700 font-semibold">WhatsApp Destinatários</Label>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="xs" 
+                  onClick={() => setPhoneFields([...phoneFields, ""])}
+                  className="h-6 px-2 text-[10px] text-blue-600 border-blue-200 hover:bg-blue-50 gap-0.5"
+                >
+                  <Plus className="w-3 h-3" /> Telefone
+                </Button>
+              </div>
+              <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                {phoneFields.map((phone, idx) => (
+                  <div key={idx} className="flex items-center gap-1.5">
+                    <Input 
+                      placeholder="Ex: +5541999999999" 
+                      value={phone}
+                      onChange={(e) => {
+                        const newFields = [...phoneFields];
+                        newFields[idx] = e.target.value;
+                        setPhoneFields(newFields);
+                      }}
+                      className="h-8 flex-1"
+                    />
+                    {phoneFields.length > 1 && (
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setPhoneFields(phoneFields.filter((_, i) => i !== idx))}
+                        className="p-1.5 h-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        title="Remover telefone"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="text-[9px] text-slate-400">Use DDI + DDD + número (ex: +5541999999999). Não use vírgulas.</p>
             </div>
 
             {/* Ativo */}
