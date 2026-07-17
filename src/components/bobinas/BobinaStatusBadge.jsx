@@ -1,31 +1,41 @@
 import React from "react";
-import { Badge } from "@/components/ui/badge";
-import { Lock, Unlock, Factory, Star, CheckCircle2, PackageCheck } from "lucide-react";
 
 const STATUS_CONFIG = {
-  "RESERVADA":      { color: "bg-purple-100 text-purple-700 border-purple-200",   Icon: Star },
-  "Fechada":        { color: "bg-green-100 text-green-700 border-green-200",       Icon: Lock },
-  "Aberta":         { color: "bg-blue-100 text-blue-700 border-blue-200",          Icon: Unlock },
-  "Finalizada":     { color: "bg-slate-100 text-slate-500 border-slate-200",       Icon: CheckCircle2 },
+  em_producao:         { label: "Em produção",   cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  pendente:            { label: "Aguardando",    cls: "bg-blue-100 text-blue-700 border-blue-200" },
+  pausado:             { label: "Parado",        cls: "bg-amber-100 text-amber-700 border-amber-200" },
+  aguardando_colagem:  { label: "Agl. colagem",  cls: "bg-purple-100 text-purple-700 border-purple-200" },
+  aguardando_material: { label: "Sem material",  cls: "bg-orange-100 text-orange-700 border-orange-200" },
+  aguardando_corte:    { label: "Agl. corte",    cls: "bg-blue-100 text-blue-700 border-blue-200" },
 };
 
-function getStatusConfig(status) {
-  // "Na TP40", "Na DESBOBINADOR", etc.
-  if (status.startsWith("Na ")) return { color: "bg-orange-100 text-orange-700 border-orange-200", Icon: Factory };
-  return STATUS_CONFIG[status] || { color: "bg-slate-100 text-slate-500 border-slate-200", Icon: PackageCheck };
-}
-
 /**
- * Badge compacto para mostrar o status da bobina ao lado dela no dropdown.
+ * Badge de status da bobina — consistente entre Telhas e Corte e Dobra.
+ * Usa o statusMap do usePreBaixaBobinas (mesma lógica da tabela de vendedores).
+ *
+ * @param {Object} bobina - A bobina
+ * @param {Object|null} statusInfo - { maquina, status } do statusMap, ou null
+ * @param {string} size - "xs" ou "sm"
  */
-export default function BobinaStatusBadge({ status, size = "sm" }) {
-  if (!status) return null;
-  const cfg = getStatusConfig(status);
+export default function BobinaStatusBadge({ bobina, statusInfo, size = "xs" }) {
+  if (!bobina) return null;
+
+  let label, cls;
+  if (bobina.reservada) {
+    label = "Reservada";
+    cls = "bg-amber-200 text-amber-800 border-amber-300";
+  } else if (statusInfo && STATUS_CONFIG[statusInfo.status]) {
+    label = STATUS_CONFIG[statusInfo.status].label;
+    cls = STATUS_CONFIG[statusInfo.status].cls;
+  } else {
+    label = "Disponível";
+    cls = "bg-slate-100 text-slate-500 border-slate-200";
+  }
+
   const sizeClass = size === "xs" ? "text-[9px] px-1 py-0" : "text-[10px] px-1.5 py-0";
   return (
-    <Badge className={`border ${cfg.color} ${sizeClass} font-semibold whitespace-nowrap inline-flex items-center gap-0.5`}>
-      <cfg.Icon className="w-2.5 h-2.5" />
-      {status}
-    </Badge>
+    <span className={`inline-flex items-center rounded border font-semibold whitespace-nowrap ${cls} ${sizeClass}`}>
+      {label}
+    </span>
   );
 }
