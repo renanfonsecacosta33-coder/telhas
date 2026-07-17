@@ -45,7 +45,21 @@ function calcularBarras(pesoKg, larguraMm, espessuraMm) {
   return { barras, kgPorBarra, kgPorMetro };
 }
 
-export default function SlitterCard({ slitter, onEdit, onDelete }) {
+export function getStatusBadge(statusInfo, slitter) {
+  if (statusInfo) {
+    const maq = statusInfo.maquina || "Máquina";
+    if (statusInfo.status === "em_producao") {
+      const label = maq === "Perfiladeira" ? "Na Perfiladeira" : `Na Máquina: ${maq}`;
+      return { label, cls: "bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold" };
+    } else {
+      const label = maq === "Perfiladeira" ? "Agendada p/ Perfiladeira" : `Agendada para: ${maq}`;
+      return { label, cls: "bg-blue-100 text-blue-800 border border-blue-200 font-bold" };
+    }
+  }
+  return { label: slitter.status || "Disponível", cls: "bg-gray-100 text-gray-700 border border-gray-200" };
+}
+
+export default function SlitterCard({ slitter, onEdit, onDelete, statusInfo }) {
   const [expanded, setExpanded] = useState(false);
   const materiais = parseMateriais(slitter.materiais_producao);
   const temExpandir = materiais.length > 0 || !!(slitter.anexo_nf_url || slitter.observacoes);
@@ -56,6 +70,8 @@ export default function SlitterCard({ slitter, onEdit, onDelete }) {
   const kgPorMetro = largM * espM * 7850;
   const kgPorBarraBase = kgPorMetro * 6;
   const totalBarras = kgPorBarraBase > 0 ? Math.floor((slitter.peso_kg || 0) / kgPorBarraBase) : 0;
+
+  const infoStatus = getStatusBadge(statusInfo, slitter);
 
   return (
     <div className="bg-white border border-border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
@@ -68,9 +84,11 @@ export default function SlitterCard({ slitter, onEdit, onDelete }) {
             <Badge className={qualidadeColors[slitter.qualidade] || "bg-gray-100 text-gray-800"}>
               {slitter.qualidade}
             </Badge>
-            <Badge className="bg-gray-100 text-gray-700">
-              {slitter.status || "Disponível"}
-            </Badge>
+            {infoStatus && (
+              <Badge className={infoStatus.cls}>
+                {infoStatus.label}
+              </Badge>
+            )}
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
             {slitter.data && <span>{new Date(slitter.data + "T00:00:00").toLocaleDateString("pt-BR")}</span>}

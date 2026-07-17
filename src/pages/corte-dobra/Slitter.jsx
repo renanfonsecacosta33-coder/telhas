@@ -27,6 +27,30 @@ export default function SlitterPage() {
     queryFn: () => base44.entities.Slitter.filter({ unidade: filialAtiva }),
   });
 
+  const { data: ordensMaq = [] } = useQuery({
+    queryKey: ["ordens-maquina-slitters-admin"],
+    queryFn: () => base44.entities.OrdemMaquinaCD.filter({
+      status: { $nin: ["finalizado", "cancelado"] }
+    }),
+  });
+
+  const statusMap = {};
+  ordensMaq.forEach(o => {
+    if (!o.bobina_id) return;
+    const existing = statusMap[o.bobina_id];
+    if (existing) {
+      if (o.status === "em_producao") {
+        statusMap[o.bobina_id] = { maquina: o.maquina, status: o.status };
+      } else if (existing.status === "em_producao") {
+        return;
+      } else if (o.status === "pausado" && existing.status !== "pausado") {
+        statusMap[o.bobina_id] = { maquina: o.maquina, status: o.status };
+      }
+    } else {
+      statusMap[o.bobina_id] = { maquina: o.maquina, status: o.status };
+    }
+  });
+
   const { data: slittersGlobais = [] } = useQuery({
     queryKey: ["slitters-global-codigos"],
     queryFn: () => base44.entities.Slitter.list("-created_date", 1000),
@@ -181,6 +205,7 @@ export default function SlitterPage() {
             <SlitterCard
               key={slitter.id}
               slitter={slitter}
+              statusInfo={statusMap[slitter.id]}
               onEdit={(s) => { setEditItem(s); setDialogOpen(true); }}
               onDelete={(s) => setDeleteItem(s)}
             />

@@ -338,7 +338,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
           <div className="text-center py-12 text-muted-foreground text-sm">Nenhuma bobina disponível encontrada.</div>
         ) : (
           <div className="bg-card border border-border rounded-xl overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className={`w-full text-xs ${isCorteDobra ? "min-w-[1300px]" : "min-w-[1000px]"}`}>
               <thead>
                 <tr className="bg-muted/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
                   <th className="text-left px-2 py-2 whitespace-nowrap">Cód.</th>
@@ -382,7 +382,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                         </span>
                       )}
                       {b.reservada && (
-                        <span className="ml-1.5 text-[10px] font-semibold bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded">Reservada</span>
+                        <span className="ml-1.5 text-[10px] font-semibold bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded whitespace-nowrap">Reservada</span>
                       )}
                     </td>
                     <td className="px-2 py-2 text-center whitespace-nowrap">
@@ -414,11 +414,11 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
                     <td className="px-2 py-2 text-right whitespace-nowrap bg-emerald-50/40 font-bold text-emerald-700">{getPesoDisponivel(b) > 0 ? `${getPesoDisponivel(b).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : "-"}</td>
                     <td className="px-2 py-2 whitespace-nowrap">
                       {b.reservada ? (
-                        <span className="text-xs font-semibold bg-amber-200 text-amber-800 px-2 py-0.5 rounded" title={`Reservada por: ${b.reserva_autorizado_por || "Admin"} — Pedido: ${b.reserva_numero_pedido || "-"}`}>
+                        <span className="text-xs font-semibold bg-amber-200 text-amber-800 px-2 py-0.5 rounded whitespace-nowrap" title={`Reservada por: ${b.reserva_autorizado_por || "Admin"} — Pedido: ${b.reserva_numero_pedido || "-"}`}>
                           Reservada
                         </span>
                       ) : (
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded ${info.cls}`}>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded whitespace-nowrap ${info.cls}`}>
                           {info.label}
                         </span>
                       )}

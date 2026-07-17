@@ -21,6 +21,45 @@ export default function VendedorSlitter({ vendedorNome, selectedFiliais }) {
     queryFn: () => base44.entities.Slitter.filter({}),
   });
 
+  const { data: ordensMaq = [] } = useQuery({
+    queryKey: ["ordens-maquina-slitters"],
+    queryFn: () => base44.entities.OrdemMaquinaCD.filter({
+      status: { $nin: ["finalizado", "cancelado"] }
+    }),
+  });
+
+  const statusMap = {};
+  ordensMaq.forEach(o => {
+    if (!o.bobina_id) return;
+    const existing = statusMap[o.bobina_id];
+    if (existing) {
+      if (o.status === "em_producao") {
+        statusMap[o.bobina_id] = { maquina: o.maquina, status: o.status };
+      } else if (existing.status === "em_producao") {
+        return;
+      } else if (o.status === "pausado" && existing.status !== "pausado") {
+        statusMap[o.bobina_id] = { maquina: o.maquina, status: o.status };
+      }
+    } else {
+      statusMap[o.bobina_id] = { maquina: o.maquina, status: o.status };
+    }
+  });
+
+  const getStatusLabel = (sl) => {
+    const st = statusMap[sl.id];
+    if (st) {
+      const maq = st.maquina || "Máquina";
+      if (st.status === "em_producao") {
+        const label = maq === "Perfiladeira" ? "Na Perfiladeira" : `Na Máquina: ${maq}`;
+        return { label, cls: "bg-emerald-100 text-emerald-800 border-emerald-300 border font-bold" };
+      } else {
+        const label = maq === "Perfiladeira" ? "Agendada p/ Perfiladeira" : `Agendada para: ${maq}`;
+        return { label, cls: "bg-blue-100 text-blue-800 border-blue-300 border font-bold" };
+      }
+    }
+    return { label: sl.status || "Disponível", cls: "bg-emerald-100 text-emerald-700 border-emerald-200 border font-bold" };
+  };
+
   const slittersFiltrados = slitters.filter(s => filiais.includes(s.unidade || "Matriz AJL"));
   const ativas = slittersFiltrados.filter(s => s.status !== "arquivado");
 
@@ -121,7 +160,7 @@ export default function VendedorSlitter({ vendedorNome, selectedFiliais }) {
         <div className="text-center py-12 text-muted-foreground text-sm">Nenhum slitter disponível encontrado.</div>
       ) : (
         <div className="bg-card border border-border rounded-xl overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full text-xs min-w-[1000px]">
             <thead>
               <tr className="bg-muted/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
                 <th className="text-left px-2 py-2 whitespace-nowrap">Cód.</th>
@@ -139,6 +178,7 @@ export default function VendedorSlitter({ vendedorNome, selectedFiliais }) {
               {filtered.map(s => {
                 const filialColor = getFilialColor(s.unidade || "Matriz AJL");
                 const showFilialBadge = filiais.length > 1;
+                const info = getStatusLabel(s);
                 return (
                 <tr key={s.id} className={`transition-colors ${filialColor.rowBorder} ${filialColor.rowBg} ${filialColor.rowHover}`}>
                   <td className="px-2 py-2 font-medium whitespace-nowrap">
@@ -159,9 +199,9 @@ export default function VendedorSlitter({ vendedorNome, selectedFiliais }) {
                   <td className="px-2 py-2 whitespace-nowrap text-muted-foreground">{s.nf || "-"}</td>
                   <td className="px-2 py-2 whitespace-nowrap">
                     {s.reservada ? (
-                      <span className="text-xs font-semibold bg-amber-200 text-amber-800 px-2 py-0.5 rounded">Reservada</span>
+                      <span className="text-xs font-semibold bg-amber-200 text-amber-800 px-2 py-0.5 rounded whitespace-nowrap">Reservada</span>
                     ) : (
-                      <span className="text-xs font-semibold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded">{s.status || "Disponível"}</span>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded whitespace-nowrap ${info.cls}`}>{info.label}</span>
                     )}
                   </td>
                   <td className="px-2 py-2 text-right whitespace-nowrap">

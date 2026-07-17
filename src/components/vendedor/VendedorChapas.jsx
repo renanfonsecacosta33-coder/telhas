@@ -22,6 +22,49 @@ export default function VendedorChapas({ vendedorNome, selectedFiliais }) {
     queryFn: () => base44.entities.ChapaCD.filter({ status: { $ne: "cancelado" } }),
   });
 
+  const { data: ordensMaq = [] } = useQuery({
+    queryKey: ["ordens-maquina-chapas"],
+    queryFn: () => base44.entities.OrdemMaquinaCD.filter({
+      status: { $nin: ["finalizado", "cancelado"] },
+      chapa_origem: "chaparia"
+    }),
+  });
+
+  const statusMap = {};
+  ordensMaq.forEach(o => {
+    if (!o.chapa_cd_id) return;
+    const existing = statusMap[o.chapa_cd_id];
+    if (existing) {
+      if (o.status === "em_producao") {
+        statusMap[o.chapa_cd_id] = { maquina: o.maquina, status: o.status };
+      } else if (existing.status === "em_producao") {
+        return;
+      } else if (o.status === "pausado" && existing.status !== "pausado") {
+        statusMap[o.chapa_cd_id] = { maquina: o.maquina, status: o.status };
+      }
+    } else {
+      statusMap[o.chapa_cd_id] = { maquina: o.maquina, status: o.status };
+    }
+  });
+
+  const getStatusLabel = (c) => {
+    const st = statusMap[c.id];
+    if (st) {
+      const maq = st.maquina || "Máquina";
+      if (st.status === "em_producao") {
+        return { label: `Na Máquina: ${maq}`, cls: "bg-emerald-100 text-emerald-800 border-emerald-300 border font-bold" };
+      } else {
+        return { label: `Agendada para: ${maq}`, cls: "bg-blue-100 text-blue-800 border-blue-300 border font-bold" };
+      }
+    }
+    const total = c.quantidade_total || 0;
+    const disp = c.quantidade_disponivel || 0;
+    if (total > 0 && disp >= total) {
+      return { label: "Fechada", cls: "bg-slate-100 text-slate-600 border border-slate-200 font-bold" };
+    }
+    return { label: "Aberta", cls: "bg-orange-100 text-orange-800 border border-orange-200 font-bold" };
+  };
+
   const chapasFiltradas = chapas.filter(c => filiais.includes(c.unidade || "Matriz AJL"));
   const ativas = chapasFiltradas.filter(c => c.status !== "consumido" && (c.quantidade_disponivel ?? 0) > 0 && (c.destino === "estoque" || c.origem === "manual"));
 
@@ -123,7 +166,7 @@ export default function VendedorChapas({ vendedorNome, selectedFiliais }) {
         <div className="text-center py-12 text-muted-foreground text-sm">Nenhuma chapa disponível encontrada.</div>
       ) : (
         <div className="bg-card border border-border rounded-xl overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full text-xs min-w-[1000px]">
             <thead>
               <tr className="bg-muted/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
                 <th className="text-left px-2 py-2 whitespace-nowrap">Cód.</th>
@@ -143,6 +186,7 @@ export default function VendedorChapas({ vendedorNome, selectedFiliais }) {
               {filtered.map(c => {
                 const filialColor = getFilialColor(c.unidade || "Matriz AJL");
                 const showFilialBadge = filiais.length > 1;
+                const info = getStatusLabel(c);
                 return (
                 <tr key={c.id} className={`transition-colors ${filialColor.rowBorder} ${c.reservada ? "bg-amber-50/60 hover:bg-amber-100/70" : `${filialColor.rowBg} ${filialColor.rowHover}`}`}>
                   <td className="px-2 py-2 font-medium whitespace-nowrap">
@@ -153,7 +197,7 @@ export default function VendedorChapas({ vendedorNome, selectedFiliais }) {
                       </span>
                     )}
                     {c.reservada && (
-                      <span className="ml-1.5 text-[10px] font-semibold bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded">Reservada</span>
+                      <span className="ml-1.5 text-[10px] font-semibold bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded whitespace-nowrap">Reservada</span>
                     )}
                   </td>
                   <td className="px-2 py-2 whitespace-nowrap">
@@ -167,11 +211,9 @@ export default function VendedorChapas({ vendedorNome, selectedFiliais }) {
                   <td className="px-2 py-2 text-right whitespace-nowrap">{fmtKg(c.peso_kg)}</td>
                   <td className="px-2 py-2 whitespace-nowrap">
                     {c.reservada ? (
-                      <span className="text-xs font-semibold bg-amber-200 text-amber-800 px-2 py-0.5 rounded">Reservada</span>
-                    ) : c.status === "parcial" ? (
-                      <span className="text-xs font-semibold bg-orange-100 text-orange-700 px-2 py-0.5 rounded">Parcial</span>
+                      <span className="text-xs font-semibold bg-amber-200 text-amber-800 px-2 py-0.5 rounded whitespace-nowrap">Reservada</span>
                     ) : (
-                      <span className="text-xs font-semibold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded">Disponível</span>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded whitespace-nowrap ${info.cls}`}>{info.label}</span>
                     )}
                   </td>
                   <td className="px-2 py-2 text-center">
