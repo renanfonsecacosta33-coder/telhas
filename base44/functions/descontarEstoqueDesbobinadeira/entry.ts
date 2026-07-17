@@ -33,12 +33,13 @@ Deno.serve(async (req) => {
       const bobina = await base44.asServiceRole.entities.Bobina.get(o.bobina_id).catch(() => null);
       if (bobina) {
         // Desconta KG
-        if (o.kg_estimado > 0) {
-          const novoPeso = Math.max(0, (bobina.peso_kg || 0) - o.kg_estimado);
+        const pesoADescontar = o.peso_real_balanca_kg > 0 ? o.peso_real_balanca_kg : (o.kg_estimado || 0);
+        if (pesoADescontar > 0) {
+          const novoPeso = Math.max(0, (bobina.peso_kg || 0) - pesoADescontar);
           await base44.asServiceRole.entities.Bobina.update(o.bobina_id, {
             peso_kg: +novoPeso.toFixed(1),
           });
-          descontos.push({ tipo: 'bobina', id: o.bobina_id, kg_descontado: o.kg_estimado, novo_peso: novoPeso });
+          descontos.push({ tipo: 'bobina', id: o.bobina_id, kg_descontado: pesoADescontar, novo_peso: novoPeso });
         }
 
         // Gera código automático CH0001, CH0002 ...
@@ -50,6 +51,19 @@ Deno.serve(async (req) => {
         });
         const novoCodigo = `CH${String(maxNum + 1).padStart(4, "0")}`;
 
+        const pesoFinal = o.peso_real_balanca_kg > 0 ? o.peso_real_balanca_kg : (o.kg_estimado || 0);
+        const espessuraChapa = bobina.espessura_real ? Number(bobina.espessura_real) : (bobina.chapa ? Number(bobina.chapa) : null);
+
+        const hist = [{
+          data: new Date().toISOString(),
+          usuario: "Desbobinadeira",
+          motivo: o.peso_real_balanca_kg > 0 ? "Criada com Pesagem Real na Balança" : "Criada com Peso Estimado (Teórico)",
+          qtd_antes: 0,
+          qtd_depois: o.quantidade || 0,
+          peso_kg: pesoFinal,
+          foto_url: o.foto_finalizacao_url || null
+        }];
+
         // Cria ChapaCD no estoque da Chaparia
         const chapaCriada = await base44.asServiceRole.entities.ChapaCD.create({
           codigo: novoCodigo,
@@ -57,10 +71,13 @@ Deno.serve(async (req) => {
           ordem_id: o.id,
           bobina_id: o.bobina_id,
           bobina_descricao: o.bobina_descricao || "",
+          qualidade: bobina.qualidade || null,
+          espessura_mm: espessuraChapa,
           comprimento_mm: o.comprimento_mm || 0,
           largura_mm: bobina.largura_mm || 0,
           quantidade_total: o.quantidade || 0,
           quantidade_disponivel: o.quantidade || 0,
+          peso_kg: pesoFinal,
           destino: o.destino === "pedido_direto" ? "pedido_direto" : "estoque",
           numero_pedido: o.numero_pedido || null,
           cliente: o.cliente || null,
@@ -69,6 +86,7 @@ Deno.serve(async (req) => {
           foto_finalizacao_url: o.foto_finalizacao_url || null,
           foto_pedido_url: o.foto_pedido_url || null,
           observacoes: o.observacoes || null,
+          historico_movimentacoes: JSON.stringify(hist),
         });
         descontos.push({ tipo: 'chapa_cd_criada', id: chapaCriada.id, codigo: novoCodigo });
 

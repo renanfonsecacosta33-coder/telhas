@@ -56,6 +56,9 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
   const [pauseTipo, setPauseTipo] = useState("setup");
   const [fotoDialog, setFotoDialog] = useState(false);
   const [uploadingFoto, setUploadingFoto] = useState(false);
+  const [confirmarPesoDialog, setConfirmarPesoDialog] = useState(false);
+  const [pesoRealLido, setPesoRealLido] = useState("");
+  const [tempFotoUrl, setTempFotoUrl] = useState("");
   const [tick, setTick] = useState(0);
   const [bloqueioDialog, setBloqueioDialog] = useState(false);
   const [ordemBloqueante, setOrdemBloqueante] = useState(null);
@@ -179,22 +182,39 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
   const handleUploadFoto = async (file) => {
     if (!file) return;
     setUploadingFoto(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    // Acumula tempo de produção
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setTempFotoUrl(file_url);
+      setPesoRealLido(Math.round(o.kg_estimado || 0).toString());
+      setConfirmarPesoDialog(true);
+      setFotoDialog(false);
+    } catch (err) {
+      toast.error("Erro no upload da foto: " + err.message);
+    } finally {
+      setUploadingFoto(false);
+    }
+  };
+
+  const handleConfirmarFinalizacao = () => {
+    const pesoNum = Number(pesoRealLido);
+    if (!pesoNum || pesoNum <= 0) {
+      toast.error("Por favor, informe o peso real medido na balança.");
+      return;
+    }
     let prodSeg = o.tempo_producao_seg || 0;
     if (o.inicio_producao_ts) {
       prodSeg += Math.floor((Date.now() - new Date(o.inicio_producao_ts).getTime()) / 1000);
     }
-    // A baixa do estoque e geração de OP automática agora rodam na trigger de backend (descontarEstoqueDesbobinadeira)
     onUpdate(o.id, {
       status: "finalizado",
-      foto_finalizacao_url: file_url,
+      foto_finalizacao_url: tempFotoUrl,
+      peso_real_balanca_kg: pesoNum,
       tempo_producao_seg: prodSeg,
       inicio_producao_ts: null,
       data_finalizacao: format(new Date(), "yyyy-MM-dd"),
     });
-    setUploadingFoto(false);
-    setFotoDialog(false);
+    setConfirmarPesoDialog(false);
+    toast.success("Ordem finalizada e estoque atualizado!");
   };
 
   const showCronometro = o.status === "em_producao" || o.status === "pausado" || tempoProd > 0;
@@ -225,6 +245,11 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               {o.quantidade > 0 && <span className="text-xs font-semibold text-foreground">{o.quantidade} pç</span>}
               {o.comprimento_mm > 0 && <span className="text-xs text-muted-foreground">{o.comprimento_mm}mm</span>}
               {o.kg_estimado > 0 && <span className="text-xs font-semibold text-emerald-700">≈ {o.kg_estimado.toFixed(1)} kg</span>}
+              {o.peso_real_balanca_kg > 0 && (
+                <span className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+                  ⚖️ Balança: {o.peso_real_balanca_kg.toLocaleString("pt-BR")} kg
+                </span>
+              )}
               {isGestor && o.kg_estimado > 0 && bobinaCustoMap[o.bobina_id] && (
                 <span className="inline-flex items-center gap-0.5 text-xs font-bold text-green-700">
                   <DollarSign className="w-2.5 h-2.5" />
@@ -593,6 +618,51 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
         ordem={o}
         onAprovado={handleEtiquetaAprovada}
       />
+
+      {/* Dialog Confirmar Peso da Balança */}
+      <Dialog open={confirmarPesoDialog} onOpenChange={setConfirmarPesoDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-1.5 text-slate-800">
+              ⚖️ Confirmar Peso da Balança
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2 text-xs">
+            <p className="text-slate-600">
+              Verifique a foto da balança e informe o peso exato (KG) exibido no visor digital:
+            </p>
+            
+            {/* Foto da Balança */}
+            {tempFotoUrl && (
+              <div className="border border-border rounded-xl overflow-hidden max-h-[240px] bg-slate-950 flex items-center justify-center shadow-inner">
+                <img src={tempFotoUrl} alt="Foto da balança" className="max-h-[240px] w-auto object-contain" />
+              </div>
+            )}
+
+            {/* Input de Peso */}
+            <div className="space-y-1.5">
+              <Label className="text-slate-700 font-semibold text-xs">Peso Real Aferido (KG)</Label>
+              <Input 
+                type="number" 
+                value={pesoRealLido} 
+                onChange={e => setPesoRealLido(e.target.value)} 
+                className="text-center font-mono font-bold text-xl h-11 border-blue-300 text-blue-900 focus-visible:ring-blue-500" 
+                placeholder="Digite o peso da balança..."
+                autoFocus
+              />
+              <p className="text-[10px] text-slate-400 text-center">
+                *O estoque da chapa gerada e o saldo da bobina serão atualizados com este peso real.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setConfirmarPesoDialog(false)}>Cancelar</Button>
+            <Button onClick={handleConfirmarFinalizacao} className="bg-green-600 hover:bg-green-700 text-white border-0 gap-1.5">
+              <CheckCircle2 className="w-4 h-4" /> Confirmar e Finalizar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
