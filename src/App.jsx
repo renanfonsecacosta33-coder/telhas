@@ -66,6 +66,7 @@ import MapaBarracaoTelhas from '@/pages/MapaBarracaoTelhas';
 import BobinaQR from '@/pages/BobinaQR';
 import Logistica from '@/pages/corte-dobra/Logistica';
 import LogisticaStandalone from '@/pages/Logistica';
+import CentralAlertas from '@/pages/corte-dobra/CentralAlertas';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -140,6 +141,7 @@ const AuthenticatedApp = () => {
         <Route path="/corte-dobra/chaparia" element={<Chaparia />} />
         <Route path="/corte-dobra/epi" element={<EPI />} />
         <Route path="/corte-dobra/usuarios" element={<UsuariosCD />} />
+        <Route path="/corte-dobra/alertas" element={<CentralAlertas />} />
         <Route path="/corte-dobra/desenvolvimento" element={<DesenvolvimentoCD />} />
         <Route path="/corte-dobra/catalogo" element={<CatalogoCD />} />
         <Route path="/corte-dobra/retalhos" element={<RetalhosCD />} />

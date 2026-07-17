@@ -35,6 +35,11 @@
       "type": "boolean",
       "default": false,
       "description": "Usu\u00e1rio \u00e9 da ger\u00eancia - tem acesso ao setor gerencial"
+    },
+    "permitido_central_alertas": {
+      "type": "boolean",
+      "default": false,
+      "description": "Usuário tem permissão para acessar e gerenciar a Central de Alertas"
     }
   }
 }

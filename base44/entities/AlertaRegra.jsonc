@@ -1,0 +1,54 @@
+{
+  "name": "AlertaRegra",
+  "type": "object",
+  "properties": {
+    "nome": {
+      "type": "string",
+      "description": "Nome identificador do alerta (ex: Estoque Crítico de Bobina)"
+    },
+    "evento": {
+      "type": "string",
+      "enum": [
+        "estoque_baixo",
+        "pedido_pronto",
+        "reserva_vencida",
+        "maquina_parada"
+      ],
+      "default": "estoque_baixo",
+      "description": "Gatilho ou evento disparador do alerta"
+    },
+    "limite_kg": {
+      "type": "number",
+      "default": 1000,
+      "description": "Limite em kg para alertas de estoque_baixo (opcional)"
+    },
+    "destinatarios_email": {
+      "type": "string",
+      "description": "E-mails separados por vírgula para notificação"
+    },
+    "destinatarios_whatsapp": {
+      "type": "string",
+      "description": "Números de WhatsApp (DDI+DDD+número) separados por vírgula"
+    },
+    "som": {
+      "type": "string",
+      "enum": [
+        "nenhum",
+        "sirene.mp3",
+        "caixa_registradora.mp3",
+        "ding.mp3"
+      ],
+      "default": "nenhum",
+      "description": "Som a ser reproduzido nas interfaces do galpão/escritório"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Indica se esta regra de alerta está ativa"
+    }
+  },
+  "required": [
+    "nome",
+    "evento"
+  ]
+}
