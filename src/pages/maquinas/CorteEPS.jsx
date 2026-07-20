@@ -8,8 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { 
-  Snowflake, Play, CheckCircle2, Pause, Circle, Clock, Search, Filter, 
-  Calendar, Layers, Scissors, Package, AlertTriangle, RefreshCw, ChevronLeft, ChevronRight, User, Check
+  Snowflake, Play, CheckCircle2, Circle, Search, 
+  Calendar, Layers, Scissors, Package, RefreshCw, ChevronLeft, ChevronRight, Check
 } from "lucide-react";
 import { format, addDays, subDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -28,12 +28,17 @@ const STATUS_EPS_LABELS = {
 };
 
 function calcularNecessidadeEPS(pedido) {
+  if (!pedido) return { totalMetrosLinear: 0, placasEstimatativas: 0, detalhamento: [] };
+
   let totalMetrosLinear = 0;
   let detalhamento = [];
 
-  // Checa variações de telha
   let vars = [];
-  try { vars = JSON.parse(pedido.variacoes_telhas || "[]"); } catch {}
+  try { 
+    if (pedido.variacoes_telhas) {
+      vars = JSON.parse(pedido.variacoes_telhas); 
+    }
+  } catch {}
 
   if (Array.isArray(vars) && vars.length > 0) {
     vars.forEach(v => {
@@ -41,7 +46,9 @@ function calcularNecessidadeEPS(pedido) {
       const mm = Number(v.mm) || 0;
       const m = (q * mm) / 1000;
       totalMetrosLinear += m;
-      detalhesPush(detalhamento, `${q} pçs x ${mm}mm = ${m.toFixed(1)}m`);
+      if (q > 0 && mm > 0) {
+        detalhamento.push(`${q} pçs x ${mm}mm = ${m.toFixed(1)}m`);
+      }
     });
   } else {
     const q = Number(pedido.quantidade_telhas || pedido.metros) || 0;
@@ -55,8 +62,7 @@ function calcularNecessidadeEPS(pedido) {
     }
   }
 
-  // Se for Telha Sanduíche de dupla camada (ex: TELHA + EPS + TELHA), multiplica por 1 ou 2 conforme estrutura
-  const placasEstimatativas = Math.ceil(totalMetrosLinear / 2); // placa padrão 2 metros
+  const placasEstimatativas = Math.ceil(totalMetrosLinear / 2);
 
   return {
     totalMetrosLinear,
@@ -65,18 +71,13 @@ function calcularNecessidadeEPS(pedido) {
   };
 }
 
-function detalhesPush(arr, item) {
-  if (item) arr.push(item);
-}
-
 export default function CorteEPS() {
   const { filialAtiva } = useFilial();
-  const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [selectedDay, setSelectedDay] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState("todos"); // "todos" | "pendente" | "em_corte" | "pronto"
+  const [filterStatus, setFilterStatus] = useState("todos");
   const [user, setUser] = useState(null);
 
-  // Modais de Conclusão / Ação
   const [concluirDialog, setConcluirDialog] = useState(false);
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
   const [observacoesCorte, setObservacoesCorte] = useState("");
@@ -88,16 +89,16 @@ export default function CorteEPS() {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
-  // Busca todos os pedidos da filial
   const { data: todosPedidos = [], isLoading } = useQuery({
     queryKey: ["pedidos-corte-eps", filialAtiva],
     queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva }, "-data", 400),
     refetchInterval: 10000,
   });
 
-  // Filtra apenas pedidos que exigem EPS (por produto ou campo eps preenchido ou máquina colagem)
   const pedidosEPS = useMemo(() => {
+    if (!Array.isArray(todosPedidos)) return [];
     return todosPedidos.filter(p => {
+      if (!p) return false;
       const e = (p.eps || "").trim();
       const prod = (p.produto || "").toUpperCase();
       const maq = (p.maquina || "").toUpperCase();
@@ -106,22 +107,20 @@ export default function CorteEPS() {
     });
   }, [todosPedidos]);
 
-  // Alerta sonoro quando um novo pedido com EPS pendente entra
   const prevCountRef = useRef(null);
   useEffect(() => {
-    const pendentesCount = pedidosEPS.filter(p => (p.eps_status || "pendente") === "pendente").length;
+    const pendentesCount = pedidosEPS.filter(p => (p?.eps_status || "pendente") === "pendente").length;
     if (prevCountRef.current !== null && pendentesCount > prevCountRef.current) {
       playAlertSound();
     }
     prevCountRef.current = pendentesCount;
   }, [pedidosEPS]);
 
-  // Filtros aplicados por data, status e busca
   const pedidosFiltrados = useMemo(() => {
     return pedidosEPS.filter(p => {
+      if (!p) return false;
       const st = p.eps_status || "pendente";
 
-      // Filtro de Busca
       if (search.trim()) {
         const q = search.toLowerCase().trim();
         const matchNum = (p.numero_pedido || "").toLowerCase().includes(q);
@@ -131,26 +130,24 @@ export default function CorteEPS() {
         if (!matchNum && !matchCli && !matchEps && !matchProd) return false;
       }
 
-      // Filtro de Status
       if (filterStatus !== "todos" && st !== filterStatus) return false;
 
-      // Se não houver busca, filtra por data selecionada (ou pedidos em corte/pendentes não finalizados)
       if (!search.trim() && filterStatus === "todos") {
-        const isSelectedDay = p.data === selectedDay;
-        const isEmAndamento = st === "em_corte" || (st === "pendente" && p.data <= selectedDay);
+        const pData = p.data || "";
+        const isSelectedDay = pData === selectedDay;
+        const isEmAndamento = st === "em_corte" || (st === "pendente" && pData <= selectedDay);
         return isSelectedDay || isEmAndamento;
       }
 
       return true;
     }).sort((a, b) => {
       const ord = { em_corte: 0, pendente: 1, pronto: 2 };
-      const stA = a.eps_status || "pendente";
-      const stB = b.eps_status || "pendente";
+      const stA = a?.eps_status || "pendente";
+      const stB = b?.eps_status || "pendente";
       return (ord[stA] ?? 1) - (ord[stB] ?? 1);
     });
   }, [pedidosEPS, selectedDay, search, filterStatus]);
 
-  // Stats KPIs
   const stats = useMemo(() => {
     let pendentes = 0;
     let emCorte = 0;
@@ -159,6 +156,7 @@ export default function CorteEPS() {
     let totalPlacas = 0;
 
     pedidosEPS.forEach(p => {
+      if (!p) return;
       const st = p.eps_status || "pendente";
       if (st === "pendente") pendentes++;
       if (st === "em_corte") emCorte++;
@@ -174,7 +172,6 @@ export default function CorteEPS() {
     return { pendentes, emCorte, prontos, totalMetros, totalPlacas };
   }, [pedidosEPS]);
 
-  // Mutation para atualizar status do EPS no pedido
   const updateEpsMutation = useMutation({
     mutationFn: ({ id, updates }) => base44.entities.Pedido.update(id, updates),
     onSuccess: () => {
@@ -184,6 +181,7 @@ export default function CorteEPS() {
   });
 
   const handleIniciarCorte = (p) => {
+    if (!p?.id) return;
     updateEpsMutation.mutate({
       id: p.id,
       updates: {
@@ -202,7 +200,7 @@ export default function CorteEPS() {
   };
 
   const handleConfirmarConclusao = () => {
-    if (!pedidoSelecionado) return;
+    if (!pedidoSelecionado?.id) return;
     const locStr = carrinhoLocalizacao.trim() ? ` [Local: ${carrinhoLocalizacao.trim()}]` : "";
     const obsStr = observacoesCorte.trim() ? ` — ${observacoesCorte.trim()}` : "";
     const finalObs = `Pronto e separado por ${user?.full_name || "Operador"}${locStr}${obsStr}`;
@@ -222,6 +220,7 @@ export default function CorteEPS() {
   };
 
   const handleReabrir = (p) => {
+    if (!p?.id) return;
     updateEpsMutation.mutate({
       id: p.id,
       updates: { eps_status: "pendente" }
@@ -398,7 +397,7 @@ export default function CorteEPS() {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <span className="font-bold text-base text-slate-900 font-mono block">
-                        #{p.numero_pedido || p.id.slice(-6).toUpperCase()}
+                        #{p.numero_pedido || (p.id ? p.id.slice(-6).toUpperCase() : "---")}
                       </span>
                       <p className="text-xs font-semibold text-slate-700 truncate max-w-[200px]">
                         {p.cliente || "Cliente não informado"}
@@ -471,7 +470,7 @@ export default function CorteEPS() {
                     )}
                     <ChatPedidoButton 
                       canal_id={p.id} 
-                      canal_label={`EPS #${p.numero_pedido || p.id.slice(-4)}`} 
+                      canal_label={`EPS #${p.numero_pedido || (p.id ? p.id.slice(-4) : "")}`} 
                       currentUser={user} 
                     />
                   </div>
@@ -527,7 +526,7 @@ export default function CorteEPS() {
           {pedidoSelecionado && (
             <div className="space-y-4 py-2 text-xs">
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-emerald-950 space-y-1">
-                <p className="font-bold text-sm">Pedido #{pedidoSelecionado.numero_pedido || pedidoSelecionado.id.slice(-6).toUpperCase()}</p>
+                <p className="font-bold text-sm">Pedido #{pedidoSelecionado.numero_pedido || (pedidoSelecionado.id ? pedidoSelecionado.id.slice(-6).toUpperCase() : "")}</p>
                 <p className="text-emerald-800 font-medium">{pedidoSelecionado.cliente || "Sem cliente"}</p>
                 <p className="text-emerald-700 font-mono">Especificação: {pedidoSelecionado.eps || "EPS Padrão"}</p>
               </div>
