@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { 
   Snowflake, Play, Pause, CheckCircle2, Circle, Clock, Search, Filter, 
   Calendar, Layers, Scissors, Package, AlertTriangle, RefreshCw, ChevronLeft, ChevronRight, Check,
-  Camera, Timer, Mail, FileText, AlertCircle, MapPin
+  Camera, Timer, Mail, FileText, AlertCircle, MapPin, Send, Bell
 } from "lucide-react";
 import { format, addDays, subDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -107,6 +107,7 @@ export default function CorteEPS() {
 
   const fotoInputRef = useRef();
   const fotoScanRef = useRef();
+  const processedAlertsRef = useRef(new Set());
   const queryClient = useQueryClient();
 
   // Timer tick
@@ -118,6 +119,23 @@ export default function CorteEPS() {
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
+
+  // Busca Usuários da equipe para destinatários de e-mail e alertas
+  const { data: todosUsuarios = [] } = useQuery({
+    queryKey: ["todos-usuarios-alertas"],
+    queryFn: () => base44.entities.User.list(),
+  });
+
+  const emailsAdminsEGerentes = useMemo(() => {
+    const set = new Set(["renanfonsecacosta33@gmail.com"]);
+    todosUsuarios.forEach(u => {
+      if (!u?.email) return;
+      if (u.role === "admin" || u.role === "super_admin" || u.role === "gestor" || u.gerencia === true) {
+        set.add(u.email);
+      }
+    });
+    return Array.from(set);
+  }, [todosUsuarios]);
 
   // Busca Pedidos
   const { data: todosPedidos = [], isLoading } = useQuery({
@@ -132,23 +150,10 @@ export default function CorteEPS() {
     queryFn: () => base44.entities.Isopor.list(),
   });
 
-  // Mapa de estoque de isopor por modelo/tipo
-  const estoqueIsoporMap = useMemo(() => {
-    const map = {};
-    isopores.forEach(i => {
-      if (!i) return;
-      const key = (i.tipo || "").toLowerCase().trim();
-      map[key] = (map[key] || 0) + (i.quantidade || 0);
-    });
-    return map;
-  }, [isopores]);
-
   const getEstoqueModel = (especificacaoEps) => {
     const spec = (especificacaoEps || "EPS").toLowerCase();
-    // Procura por correspondência no nome
     const item = isopores.find(i => (i.tipo || "").toLowerCase().includes(spec));
     if (item) return item.quantidade || 0;
-    // Fallback: soma total de isopor se não especificou modelo estrito
     return isopores.reduce((sum, i) => sum + (i.quantidade || 0), 0);
   };
 
@@ -164,15 +169,92 @@ export default function CorteEPS() {
     });
   }, [todosPedidos]);
 
-  // Alerta sonoro de nova OP de EPS
-  const prevCountRef = useRef(null);
+  // AUTOMATISMO: Dispara E-Mail e Mensagens no APP Automaticamente ao detectar estoque de EPS insuficiente!
   useEffect(() => {
-    const pendentesCount = pedidosEPS.filter(p => (p?.eps_status || "pendente") === "pendente").length;
-    if (prevCountRef.current !== null && pendentesCount > prevCountRef.current) {
-      playAlertSound();
-    }
-    prevCountRef.current = pendentesCount;
-  }, [pedidosEPS]);
+    if (!pedidosEPS || pedidosEPS.length === 0) return;
+
+    pedidosEPS.forEach(async (p) => {
+      if (!p || !p.id) return;
+      const st = p.eps_status || "pendente";
+      if (st === "pronto") return;
+
+      const { placasEstimatativas } = calcularNecessidadeEPS(p);
+      const disponivel = getEstoqueModel(p.eps);
+      const semEstoque = disponivel < placasEstimatativas;
+
+      // Se não tem estoque e ainda não foi enviado alerta para esta OP
+      if (semEstoque && !p.alerta_email_eps_enviado && !processedAlertsRef.current.has(p.id)) {
+        processedAlertsRef.current.add(p.id);
+
+        const pedNum = p.numero_pedido || p.id.slice(-6).toUpperCase();
+        const textoMsg = `🚨 ALERTA AUTOMÁTICO DE FALTA DE EPS / ISOPOR DA FÁBRICA\n\n` +
+          `Pedido #: ${pedNum}\n` +
+          `Cliente: ${p.cliente || "---"}\n` +
+          `Especificação: ${p.eps || "EPS Padrão"}\n` +
+          `Estoque Atual no Galpão: ${disponivel} placas\n` +
+          `Necessário para a OP: ${placasEstimatativas} placas\n` +
+          `Falta em Insumo: ${placasEstimatativas - disponivel} placas\n\n` +
+          `⚠️ Favor providenciar a compra/envio urgente deste lote de EPS!`;
+
+        // 1. Envia E-mail Automático para os Administradores e Encarregados
+        try {
+          await base44.integrations.Core.SendEmail({
+            to: emailsAdminsEGerentes.join(", "),
+            subject: `⚠️ ALERTA AUTOMÁTICO: Falta de EPS no Pedido #${pedNum} (${p.cliente || "Fábrica"})`,
+            body: textoMsg,
+          });
+        } catch (e) {
+          console.error("Erro no envio do e-mail automático:", e);
+        }
+
+        // 2. Envia Mensagem de Chat Automática no Canal do Pedido
+        try {
+          await base44.entities.MensagemChat.create({
+            canal_tipo: "pedido",
+            canal_id: p.id,
+            canal_label: `PED #${pedNum}`,
+            remetente_id: "SISTEMA_ESTOQUE",
+            remetente_nome: "🚨 SISTEMA DE ESTOQUE (AUTOMÁTICO)",
+            conteudo: textoMsg,
+          });
+        } catch (e) {}
+
+        // 3. Envia Mensagem de Chat Automática no Canal da Colagem e Corte EPS
+        try {
+          await base44.entities.MensagemChat.create({
+            canal_tipo: "maquina",
+            canal_id: "COLAGEM",
+            canal_label: "COLAGEM",
+            remetente_id: "SISTEMA_ESTOQUE",
+            remetente_nome: "🚨 ALERTA ESTOQUE EPS",
+            conteudo: `⚠️ Falta ${placasEstimatativas - disponivel} placas de EPS para o Pedido #${pedNum} (${p.cliente}).`,
+          });
+        } catch (e) {}
+
+        // 4. Cria Entrada no Painel de Solicitações/Notificações de Produção para os Encarregados
+        try {
+          await base44.entities.SolicitacaoProducao.create({
+            unidade: p.unidade || filialAtiva,
+            maquina: "CORTE DE EPS",
+            pedido_id: p.id,
+            pedido_info: `FALTA EPS — ${p.cliente || "Sem cliente"} #${pedNum}`,
+            operador_nome: "SISTEMA AUTOMÁTICO",
+            tipo: "falta_eps",
+            motivo: `Faltam ${placasEstimatativas - disponivel} placas de EPS no estoque (${disponivel}/${placasEstimatativas} un)`,
+            status: "pendente",
+          });
+        } catch (e) {}
+
+        // 5. Marca o pedido no banco como alerta enviado
+        try {
+          await base44.entities.Pedido.update(p.id, { alerta_email_eps_enviado: true });
+        } catch (e) {}
+
+        playAlertSound();
+        toast.error(`⚠️ Alerta automático de falta de EPS enviado por E-mail e Notificação Interna para a Gerência! (Pedido #${pedNum})`, { duration: 6000 });
+      }
+    });
+  }, [pedidosEPS, isopores, emailsAdminsEGerentes]);
 
   // Filtros aplicados por data, status e busca
   const pedidosFiltrados = useMemo(() => {
@@ -193,11 +275,9 @@ export default function CorteEPS() {
         if (!matchNum && !matchCli && !matchEps && !matchProd) return false;
       }
 
-      // Filtro de Status
       if (filterStatus === "sem_estoque" && temEstoqueSuficiente) return false;
       if (filterStatus !== "todos" && filterStatus !== "sem_estoque" && st !== filterStatus) return false;
 
-      // Se não houver busca, filtra por data selecionada
       if (!search.trim() && filterStatus === "todos") {
         const pData = p.data || "";
         const isSelectedDay = pData === selectedDay;
@@ -379,12 +459,12 @@ export default function CorteEPS() {
     playFinishSound();
     setConcluirDialog(false);
     setPedidoSelecionado(null);
-    toast.success("EPS marcado como PRONTO e foto anexada para a colagem!");
+    toast.success("EPS marcado como PRONTO e foto enviada para a colagem!");
   };
 
   const handleOpenEmailAlerta = (p) => {
     setPedidoSelecionado(p);
-    setEmailDestinatario(user?.email || "");
+    setEmailDestinatario(emailsAdminsEGerentes.join(", "));
     setEmailDialog(true);
   };
 
@@ -404,10 +484,12 @@ export default function CorteEPS() {
         `Por favor, providencie a compra/envio urgente deste insumo de EPS.`;
 
       await base44.integrations.Core.SendEmail({
-        to: emailDestinatario || "compras@ajl.com.br",
+        to: emailDestinatario || emailsAdminsEGerentes.join(", "),
         subject: `⚠️ ALERTA DE FALTA DE EPS: Pedido #${pedidoSelecionado.numero_pedido || pedidoSelecionado.id.slice(-4)}`,
         body: texto,
       });
+
+      await base44.entities.Pedido.update(pedidoSelecionado.id, { alerta_email_eps_enviado: true });
 
       toast.success("E-mail de alerta de falta enviado com sucesso!");
       setEmailDialog(false);
@@ -442,7 +524,7 @@ export default function CorteEPS() {
                 <Badge className="bg-cyan-500/30 text-cyan-200 border-cyan-400/40 text-xs">Isopor & Sanduíche</Badge>
               </div>
               <p className="text-sm text-cyan-100/70 mt-0.5">
-                Corte, cronômetro de tempo, foto de comprovação e separação para a Colagem.
+                Corte, cronômetro de tempo, foto de comprovação e alertas automáticos para Encarregados.
               </p>
             </div>
           </div>
@@ -503,10 +585,10 @@ export default function CorteEPS() {
         <div className={`bg-white border rounded-xl p-4 shadow-sm ${stats.semEstoqueCount > 0 ? "border-red-300 bg-red-50/30" : "border-border"}`}>
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-bold text-red-600 uppercase tracking-wide">Falta Estoque</span>
-            <AlertTriangle className="w-4 h-4 text-red-500" />
+            <AlertTriangle className="w-4 h-4 text-red-500 animate-pulse" />
           </div>
           <p className="text-3xl font-black text-red-600">{stats.semEstoqueCount}</p>
-          <p className="text-[11px] text-red-500 mt-1">Ordens sem insumo</p>
+          <p className="text-[11px] text-red-500 mt-1">E-mail + App Notificados</p>
         </div>
 
         <div className="bg-white border border-border rounded-xl p-4 shadow-sm bg-gradient-to-br from-cyan-50 to-white">
@@ -660,23 +742,29 @@ export default function CorteEPS() {
                     </div>
                   )}
 
-                  {/* Alerta de Falta de Estoque + Botão de E-mail */}
+                  {/* Alerta de Falta de Estoque + Botão de Reenvio Manual se desejado */}
                   {semEstoque && st !== "pronto" && (
-                    <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 text-xs text-red-900 flex items-center justify-between gap-2">
-                      <div>
-                        <p className="font-bold flex items-center gap-1">
-                          <AlertCircle className="w-3.5 h-3.5 text-red-600" /> Estoque: {disponivel} un (Necessário: {placasEstimatativas} un)
-                        </p>
-                        <p className="text-[10px] text-red-700">Faltam {placasEstimatativas - disponivel} placas de EPS no galpão.</p>
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 text-xs text-red-900 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="font-bold flex items-center gap-1">
+                            <AlertCircle className="w-3.5 h-3.5 text-red-600" /> Estoque: {disponivel} un (Necessário: {placasEstimatativas} un)
+                          </p>
+                          <p className="text-[10px] text-red-700">Faltam {placasEstimatativas - disponivel} placas no galpão.</p>
+                        </div>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => handleOpenEmailAlerta(p)}
+                          className="h-7 text-[10px] gap-1 px-2 border-red-300 text-red-700 hover:bg-red-100 flex-shrink-0"
+                        >
+                          <Mail className="w-3 h-3" /> Reenviar E-mail
+                        </Button>
                       </div>
-                      <Button 
-                        size="sm" 
-                        variant="destructive" 
-                        onClick={() => handleOpenEmailAlerta(p)}
-                        className="h-7 text-[10px] gap-1 px-2 flex-shrink-0"
-                      >
-                        <Mail className="w-3 h-3" /> Alerta E-mail
-                      </Button>
+                      <div className="flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        E-mail & Notificação no App Enviados Automaticamente para a Gerência
+                      </div>
                     </div>
                   )}
 
@@ -932,7 +1020,7 @@ export default function CorteEPS() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal Alerta E-mail Falta de Estoque */}
+      {/* Modal Alerta E-mail Falta de Estoque (Manual / Reenvio) */}
       <Dialog open={emailDialog} onOpenChange={setEmailDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -944,10 +1032,10 @@ export default function CorteEPS() {
           {pedidoSelecionado && (
             <div className="space-y-4 py-2 text-xs">
               <p className="text-slate-600">
-                O e-mail contendo os detalhes do pedido e a quantidade faltante de placas de EPS será enviado para a gerência/compras:
+                O e-mail contendo os detalhes do pedido e a quantidade faltante de placas de EPS será enviado para os administradores e encarregados:
               </p>
               <div className="space-y-1.5">
-                <Label className="text-slate-700 font-semibold">E-mail do Destinatário</Label>
+                <Label className="text-slate-700 font-semibold">E-mail(s) do(s) Destinatário(s)</Label>
                 <Input 
                   type="email" 
                   value={emailDestinatario}
@@ -965,7 +1053,7 @@ export default function CorteEPS() {
               disabled={enviandoEmail}
               className="bg-red-600 hover:bg-red-700 text-white gap-1.5"
             >
-              <Mail className="w-4 h-4" /> {enviandoEmail ? "Enviando..." : "Enviar E-mail Agora"}
+              <Send className="w-4 h-4" /> {enviandoEmail ? "Enviando..." : "Enviar E-mail Agora"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -93,6 +93,11 @@
       "type": "string",
       "description": "Observações para o operador de corte de EPS"
     },
+    "alerta_email_eps_enviado": {
+      "type": "boolean",
+      "default": false,
+      "description": "Indica se o e-mail automático de falta de EPS já foi disparado para esta OP"
+    },
     "foto_eps_url": {
       "type": "string",
       "description": "URL da foto do EPS cortado tirada pelo operador de corte"
