@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Users, Plus, Mail, Settings2, Monitor, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
-const MAQUINAS_TELHAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
+const MAQUINAS_TELHAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM", "CORTE DE EPS"];
 const MAQUINAS_CD = ["CORTE 3M", "CORTE 6M", "DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M", "PERFILADEIRA", "DESBOBINADEIRA"];
 const UNIDADES = ["Matriz AJL", "Pinhais", "Ivaiporã", "Ponta Grossa", ""];
 

@@ -24,8 +24,8 @@ import Ondulada from '@/pages/maquinas/Ondulada';
 import Colonial from '@/pages/maquinas/Colonial';
 import Bandeja from '@/pages/maquinas/Bandeja';
 import Desbobinador from '@/pages/maquinas/Desbobinador';
-import Cumeeira from '@/pages/maquinas/Cumeeira';
 import Colagem from '@/pages/maquinas/Colagem';
+import CorteEPS from '@/pages/maquinas/CorteEPS';
 import DashboardProducao from '@/pages/DashboardProducao';
 import DashboardTP40 from '@/pages/maquinas/DashboardTP40';
 import DashboardTP25 from '@/pages/maquinas/DashboardTP25';
@@ -113,6 +113,7 @@ const AuthenticatedApp = () => {
         <Route path="/maquina/desbobinador" element={<Desbobinador />} />
         <Route path="/maquina/cumeeira" element={<Cumeeira />} />
         <Route path="/maquina/colagem" element={<Colagem />} />
+        <Route path="/maquina/corte-eps" element={<CorteEPS />} />
         <Route path="/dashboard-producao" element={<DashboardProducao />} />
         <Route path="/dashboard/tp40" element={<DashboardTP40 />} />
         <Route path="/dashboard/tp25" element={<DashboardTP25 />} />

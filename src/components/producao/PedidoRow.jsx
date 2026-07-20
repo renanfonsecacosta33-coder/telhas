@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route, Camera } from "lucide-react";
+import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route, Camera, Scissors, Snowflake } from "lucide-react";
 import ImageLink from "@/components/ui/ImageLink";
 import RetrabalhoTelhasDialog from "@/components/producao/RetrabalhoTelhasDialog";
 import { format } from "date-fns";
@@ -519,6 +519,22 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
                   {p.produto === "TELHA BANDEJA" && p.maquina === "BANDEJA" ? "→ Bandeja" :
                    p.produto === "TELHA BANDEJA" && p.maquina === "COLAGEM" ? "→ Colagem" :
                    "→ Colagem"}
+                </Badge>
+              )}
+              {(p.eps || PRODUTOS_COM_EPS.includes(p.produto)) && (
+                <Badge className={`text-xs gap-1 border font-semibold ${
+                  p.eps_status === "pronto" 
+                    ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                    : p.eps_status === "em_corte" 
+                    ? "bg-blue-100 text-blue-800 border-blue-300" 
+                    : "bg-amber-100 text-amber-800 border-amber-300"
+                }`}>
+                  {p.eps_status === "pronto" ? <CheckCircle2 className="w-3 h-3 text-emerald-600" /> :
+                   p.eps_status === "em_corte" ? <Scissors className="w-3 h-3 text-blue-600" /> :
+                   <Snowflake className="w-3 h-3 text-amber-600" />}
+                  {p.eps_status === "pronto" ? "EPS Pronto / Separado" :
+                   p.eps_status === "em_corte" ? "EPS em Corte" :
+                   "EPS Pendente Corte"}
                 </Badge>
               )}
             </div>

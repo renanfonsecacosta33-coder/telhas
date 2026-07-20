@@ -5,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, Circle, Snowflake, Package, Menu, X, ChevronRight,
   Factory, Settings, Droplets, Wrench, Layers, Box, ShoppingCart,
-  Truck, BarChart2, FileText, Tag, Archive, Zap, Users, LogOut, Cog, FlaskConical, ArrowLeftRight, Map, BookmarkPlus
+  Truck, BarChart2, FileText, Tag, Archive, Zap, Users, LogOut, Cog, FlaskConical, ArrowLeftRight, Map, BookmarkPlus, Scissors
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +19,8 @@ const FIXED_NAV = [
   { path: "/", label: "Dashboard", icon: LayoutDashboard },
   { path: "/producao", label: "Produção", icon: Factory },
   { path: "/bobinas", label: "Bobinas", icon: Circle },
-  { path: "/isopor", label: "Isopor", icon: Snowflake },
+  { path: "/isopor", label: "Estoque Isopor", icon: Snowflake },
+  { path: "/maquina/corte-eps", label: "Corte de EPS", icon: Scissors },
   { path: "/cola", label: "Cola", icon: FlaskConical },
   { path: "/estoque", label: "Outros Produtos", icon: Package },
   { path: "/mapa-barracao", label: "Mapa do Barracão", icon: Map },
@@ -35,6 +36,7 @@ const MAQUINA_ROUTE_MAP = {
   "DESBOBINADOR": "/maquina/desbobinador",
   "CUMEEIRA": "/maquina/cumeeira",
   "COLAGEM": "/maquina/colagem",
+  "CORTE DE EPS": "/maquina/corte-eps",
 };
 
 function parseMaquinas(maquina) {

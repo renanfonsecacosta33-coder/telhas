@@ -79,6 +79,20 @@
       "type": "string",
       "description": "Tipo de EPS (se aplic\u00e1vel)"
     },
+    "eps_status": {
+      "type": "string",
+      "enum": [
+        "pendente",
+        "em_corte",
+        "pronto"
+      ],
+      "default": "pendente",
+      "description": "Status de preparação/corte do EPS"
+    },
+    "eps_observacoes": {
+      "type": "string",
+      "description": "Observações para o operador de corte de EPS"
+    },
     "maquinario_superior": {
       "type": "string",
       "description": "Maquin\u00e1rio superior"
