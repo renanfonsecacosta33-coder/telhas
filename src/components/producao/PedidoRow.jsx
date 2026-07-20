@@ -152,6 +152,9 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
   const [confirmarInicioOpen, setConfirmarInicioOpen] = useState(false);
   const [fotoFinalizacaoUrl, setFotoFinalizacaoUrl] = useState("");
   const [uploadingFoto, setUploadingFoto] = useState(false);
+  const [validarEpsColagemOpen, setValidarEpsColagemOpen] = useState(false);
+  const [fotoColagemEpsUrl, setFotoColagemEpsUrl] = useState("");
+  const [uploadingFotoColagemEps, setUploadingFotoColagemEps] = useState(false);
   const intervalRef = useRef(null);
 
   // Parse variações de telhas para verificar se todos os itens estão finalizados
@@ -171,6 +174,36 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
     refetchInterval: 5000,
   });
   const aguardandoAprovacao = solicitacoesPendentes.length > 0;
+
+  const handleUploadFotoColagemEps = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingFotoColagemEps(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setFotoColagemEpsUrl(file_url);
+    } catch {
+      alert("Erro ao enviar foto de validação do EPS.");
+    } finally {
+      setUploadingFotoColagemEps(false);
+    }
+  };
+
+  const handleConfirmarColagemEps = () => {
+    if (!fotoColagemEpsUrl) {
+      alert("Por favor, tire uma foto do bloco de EPS para validar antes de iniciar!");
+      return;
+    }
+    setValidarEpsColagemOpen(false);
+    const updates = {
+      inicio_producao_ts: new Date().toISOString(),
+      foto_colagem_eps_url: fotoColagemEpsUrl,
+    };
+    if (appendHistoricoFn) {
+      Object.assign(updates, appendHistoricoFn(p, "inicio_colagem_validado", "Validou EPS e iniciou colagem"));
+    }
+    onStatusChange(p, "em_producao", updates);
+  };
 
   // Tick a cada segundo para atualizar cronômetro ao vivo
   useEffect(() => {
@@ -1133,6 +1166,84 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
               className="gap-1 bg-green-600 hover:bg-green-700"
             >
               <CheckCircle2 className="w-4 h-4" /> Confirmar e Finalizar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Validação de EPS pela Colagem */}
+      <Dialog open={validarEpsColagemOpen} onOpenChange={setValidarEpsColagemOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-cyan-900">
+              <Scissors className="w-5 h-5 text-cyan-600" />
+              Validar EPS antes de Iniciar a Colagem
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2 text-xs">
+            <p className="text-slate-600">
+              Confira a foto do EPS cortado pelo operador de corte para garantir que pegou os blocos corretos:
+            </p>
+
+            {/* Referência da foto do cortador */}
+            {p.foto_eps_url && (
+              <div className="border border-emerald-300 bg-emerald-50/50 rounded-xl p-3 space-y-2">
+                <p className="font-bold text-emerald-950 flex items-center gap-1">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Referência: Foto enviada pelo Operador de Corte
+                </p>
+                <div className="border border-emerald-400 rounded-lg overflow-hidden max-h-[160px] bg-slate-900 flex items-center justify-center">
+                  <img src={p.foto_eps_url} alt="Foto do EPS cortado" className="max-h-[160px] w-auto object-contain" />
+                </div>
+                {p.eps_observacoes && (
+                  <p className="text-[11px] text-emerald-800 bg-white p-2 rounded border border-emerald-200">
+                    <strong>Local/Obs:</strong> {p.eps_observacoes}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Tirar foto de confirmação pelo operador da colagem */}
+            <div className="space-y-2 border-t pt-3">
+              <Label className="text-xs font-bold text-slate-800 flex items-center gap-1">
+                <Camera className="w-4 h-4 text-cyan-600" /> Tire uma foto do EPS que você pegou *
+              </Label>
+              {fotoColagemEpsUrl ? (
+                <div className="relative border-2 border-cyan-500 rounded-xl overflow-hidden max-h-[150px] bg-slate-900 flex items-center justify-center">
+                  <img src={fotoColagemEpsUrl} alt="Foto colagem EPS" className="max-h-[150px] w-auto object-contain" />
+                  <button
+                    onClick={() => setFotoColagemEpsUrl("")}
+                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow-lg hover:bg-red-600"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-cyan-300 rounded-xl p-5 cursor-pointer hover:border-cyan-500 hover:bg-cyan-50/30 transition-colors">
+                  {uploadingFotoColagemEps ? (
+                    <>
+                      <div className="w-6 h-6 border-3 border-slate-200 border-t-cyan-600 rounded-full animate-spin" />
+                      <span className="text-xs text-slate-500">Enviando foto...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="w-8 h-8 text-cyan-500" />
+                      <span className="text-xs font-bold text-cyan-700">Tirar foto do bloco de EPS em mãos</span>
+                      <span className="text-[10px] text-slate-400">Obrigatório para iniciar a colagem</span>
+                    </>
+                  )}
+                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleUploadFotoColagemEps} disabled={uploadingFotoColagemEps} />
+                </label>
+              )}
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setValidarEpsColagemOpen(false)}>Cancelar</Button>
+            <Button
+              onClick={handleConfirmarColagemEps}
+              disabled={!fotoColagemEpsUrl}
+              className="bg-cyan-600 hover:bg-cyan-700 text-white gap-1.5"
+            >
+              <CheckCircle2 className="w-4 h-4" /> Confirmar EPS e Iniciar Colagem
             </Button>
           </DialogFooter>
         </DialogContent>

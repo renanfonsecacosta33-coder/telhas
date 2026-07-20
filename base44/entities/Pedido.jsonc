@@ -93,6 +93,34 @@
       "type": "string",
       "description": "Observações para o operador de corte de EPS"
     },
+    "foto_eps_url": {
+      "type": "string",
+      "description": "URL da foto do EPS cortado tirada pelo operador de corte"
+    },
+    "foto_colagem_eps_url": {
+      "type": "string",
+      "description": "URL da foto do EPS validada pelo operador da colagem ao iniciar"
+    },
+    "eps_tempo_corte_seg": {
+      "type": "number",
+      "description": "Tempo acumulado de corte do EPS em segundos"
+    },
+    "eps_tempo_pausa_seg": {
+      "type": "number",
+      "description": "Tempo acumulado de pausa no corte do EPS em segundos"
+    },
+    "eps_inicio_corte_ts": {
+      "type": "string",
+      "description": "Timestamp ISO de início da sessão de corte de EPS"
+    },
+    "eps_inicio_pausa_ts": {
+      "type": "string",
+      "description": "Timestamp ISO de início da pausa no corte de EPS"
+    },
+    "eps_motivo_pausa": {
+      "type": "string",
+      "description": "Motivo da pausa do corte de EPS"
+    },
     "maquinario_superior": {
       "type": "string",
       "description": "Maquin\u00e1rio superior"
