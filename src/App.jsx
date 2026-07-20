@@ -24,6 +24,7 @@ import Ondulada from '@/pages/maquinas/Ondulada';
 import Colonial from '@/pages/maquinas/Colonial';
 import Bandeja from '@/pages/maquinas/Bandeja';
 import Desbobinador from '@/pages/maquinas/Desbobinador';
+import Cumeeira from '@/pages/maquinas/Cumeeira';
 import Colagem from '@/pages/maquinas/Colagem';
 import CorteEPS from '@/pages/maquinas/CorteEPS';
 import DashboardProducao from '@/pages/DashboardProducao';
