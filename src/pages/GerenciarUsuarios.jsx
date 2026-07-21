@@ -123,6 +123,7 @@ const ROLE_COLORS = {
 export const APLICATIVOS_MENU = [
   { key: "app_fabrica_telhas", title: "Barracão Telhas", desc: "Operação, máquinas e produção de telhas", icon: Factory, gradient: "from-slate-800 to-slate-900", iconColor: "text-white" },
   { key: "app_corte_dobra", title: "Barracão C&D", desc: "Operação, máquinas e produção de corte e dobra", icon: Scissors, gradient: "from-slate-800 to-slate-900", iconColor: "text-white" },
+  { key: "app_hora_extra", title: "Hora Extra", desc: "Exibe o cartão Hora Extra & Ponto no menu inicial.", icon: Clock, gradient: "from-slate-800 to-slate-900", iconColor: "text-amber-400" },
   { key: "app_logistica", title: "Logística", desc: "Expedição, cargas, romaneios e frota", icon: Truck, gradient: "from-slate-800 to-slate-900", iconColor: "text-emerald-400" },
   { key: "app_consulta_estoque", title: "Estoque Rápido", desc: "Consulte saldo e realize reservas de bobinas", icon: BookmarkPlus, gradient: "from-slate-800 to-slate-900", iconColor: "text-blue-400" },
   { key: "app_painel_vendedor", title: "Painel de Vendas", desc: "Visão geral, metas, comissões e histórico", icon: BarChart3, gradient: "from-slate-800 to-slate-900", iconColor: "text-indigo-400" },

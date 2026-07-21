@@ -13,7 +13,8 @@ import {
   ShieldAlert, 
   Users, 
   GripVertical,
-  Search
+  Search,
+  Clock
 } from "lucide-react";
 import UserAvatarButton from "@/components/UserAvatarButton";
 import GlobalCommandPalette from "@/components/GlobalCommandPalette";
@@ -41,6 +42,17 @@ const ALL_MODULES = [
     iconBg: "bg-slate-700 shadow-slate-900/50",
     type: "action_setor",
     setorTarget: "corte_dobra"
+  },
+  {
+    key: "app_hora_extra",
+    title: "Hora Extra",
+    description: "Registro, ponto e gestão de horas extras de expedição",
+    icon: <Clock className="w-6 h-6 sm:w-7 sm:h-7 text-amber-400" />,
+    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
+    borderColor: "border-slate-700/50 hover:border-amber-500/50",
+    iconBg: "bg-amber-500/10 shadow-amber-900/20",
+    type: "link",
+    href: "https://hora-extra.base44.app"
   },
   {
     key: "app_logistica",
@@ -195,7 +207,7 @@ export default function SeletorSetor() {
     if (role === "super_admin" || role === "admin") return true;
 
     if (role === "encarregado") {
-      return ["app_fabrica_telhas", "app_corte_dobra", "app_logistica", "app_consulta_estoque", "app_dashboard_ajl"].includes(appKey);
+      return ["app_fabrica_telhas", "app_corte_dobra", "app_hora_extra", "app_logistica", "app_consulta_estoque", "app_dashboard_ajl"].includes(appKey);
     }
 
     if (role === "vendedor") {
@@ -205,7 +217,7 @@ export default function SeletorSetor() {
     if (role === "operador") {
       if (user.setor === "corte_dobra") return appKey === "app_corte_dobra";
       if (user.setor === "telhas") return appKey === "app_fabrica_telhas";
-      return ["app_fabrica_telhas", "app_corte_dobra"].includes(appKey);
+      return ["app_fabrica_telhas", "app_corte_dobra", "app_hora_extra"].includes(appKey);
     }
 
     return true;
@@ -262,7 +274,7 @@ export default function SeletorSetor() {
       <div className="absolute top-0 right-0 w-[500px] sm:w-[800px] h-[500px] sm:h-[800px] bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-[400px] sm:w-[600px] h-[400px] sm:h-[600px] bg-blue-500/5 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4 pointer-events-none" />
 
-      {/* Header Responsivo (Celular, Tablet e Desktop) */}
+      {/* Header Responsivo */}
       <div className="w-full max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center z-10 mb-6 sm:mb-10 gap-4 mt-2 sm:mt-4 lg:mt-8">
         <div className="flex items-center gap-3 sm:gap-4">
           <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20 shrink-0">
@@ -279,7 +291,6 @@ export default function SeletorSetor() {
         </div>
 
         <div className="flex items-center justify-between w-full sm:w-auto gap-3 pt-2 sm:pt-0">
-          {/* Botão de Busca Rápida responsivo */}
           <button
             onClick={() => setCommandPaletteOpen(true)}
             className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm hover:border-primary transition-all cursor-pointer w-full sm:w-auto justify-center"
@@ -293,7 +304,7 @@ export default function SeletorSetor() {
         </div>
       </div>
 
-      {/* Grid de Módulos Responsivo: 1 col (celular), 2 col (tablet), 3/4 col (desktop) */}
+      {/* Grid de Módulos */}
       <div className="w-full max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 z-10 pb-12">
         {visibleModules.map((mod, index) => {
           const isBeingDragged = draggedIndex === index;

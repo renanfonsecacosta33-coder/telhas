@@ -12,7 +12,7 @@ import {
   SheetClose
 } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Camera, Sun, Moon, Monitor, LogOut, Briefcase, MapPin, MonitorPlay, ChevronRight } from 'lucide-react';
+import { Camera, Sun, Moon, Monitor, LogOut, Briefcase, MapPin, MonitorPlay, ChevronRight, Clock } from 'lucide-react';
 
 export default function UserSettingsDrawer({ open, onOpenChange }) {
   const { user, logout } = useAuth();
@@ -167,14 +167,28 @@ export default function UserSettingsDrawer({ open, onOpenChange }) {
         </div>
 
         {/* Actions Section */}
-        <div className="p-6 border-t border-border/50 bg-background">
+        <div className="p-6 border-t border-border/50 bg-background space-y-2">
           <button 
             onClick={handleTrocarSetor}
-            className="w-full flex items-center justify-between p-3 mb-3 bg-secondary/30 hover:bg-secondary/60 text-foreground rounded-xl transition-colors duration-200"
+            className="w-full flex items-center justify-between p-3 bg-secondary/30 hover:bg-secondary/60 text-foreground rounded-xl transition-colors duration-200"
           >
             <span className="font-medium text-sm">Trocar Setor</span>
             <ChevronRight size={18} className="text-muted-foreground" />
           </button>
+
+          <a 
+            href="https://hora-extra.base44.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => onOpenChange(false)}
+            className="w-full flex items-center justify-between p-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl transition-colors duration-200"
+          >
+            <div className="flex items-center gap-2">
+              <Clock size={18} />
+              <span className="font-medium text-sm">Lançar Hora Extra (App)</span>
+            </div>
+            <ChevronRight size={18} className="text-amber-500" />
+          </a>
           
           <button 
             onClick={handleLogout}

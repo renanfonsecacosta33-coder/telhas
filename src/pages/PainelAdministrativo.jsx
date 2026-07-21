@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { ArrowLeft, DollarSign, AlertTriangle, Camera, BarChart3, MessageCircle, Building2, Package, Clock, Activity, TrendingDown } from "lucide-react";
+import { ArrowLeft, DollarSign, AlertTriangle, Camera, BarChart3, MessageCircle, Building2, Package, Clock, Activity, ExternalLink } from "lucide-react";
 import FiltroGlobal from "@/components/admin/FiltroGlobal";
 import KpiFinanceiro from "@/components/admin/KpiFinanceiro";
 import AlertasEstoqueCritico from "@/components/admin/AlertasEstoqueCritico";
@@ -12,6 +12,7 @@ import GerenciarBobinas from "@/components/admin/GerenciarBobinas";
 import HistoricoHoraExtraAdmin from "@/components/expediente/HistoricoHoraExtraAdmin";
 import OeeEfficiencyWidget from "@/components/OeeEfficiencyWidget";
 import EstoquePreditivoWidget from "@/components/EstoquePreditivoWidget";
+import { Button } from "@/components/ui/button";
 
 export default function PainelAdministrativo() {
   const navigate = useNavigate();
@@ -48,7 +49,7 @@ export default function PainelAdministrativo() {
     { key: "eficiencia", label: "Eficiência Máquinas", icon: BarChart3 },
     { key: "chats", label: "Auditoria de Chats", icon: MessageCircle },
     { key: "bobinas", label: "Gerenciar Bobinas", icon: Package },
-    { key: "horas_extras", label: "Horas Extras", icon: Clock },
+    { key: "horas_extras", label: "Horas Extras (App Integrado)", icon: Clock },
   ];
 
   return (
@@ -93,7 +94,6 @@ export default function PainelAdministrativo() {
       </div>
 
       <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
-        {/* Aba Principal: Monitoramento em Tempo Real (OEE + Estoque Preditivo) */}
         {tab === "monitoramento" && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -109,7 +109,32 @@ export default function PainelAdministrativo() {
         {tab === "eficiencia" && <EficienciaMaquinas filters={filters} />}
         {tab === "chats" && <AuditoriaChats />}
         {tab === "bobinas" && <GerenciarBobinas filters={filters} />}
-        {tab === "horas_extras" && <HistoricoHoraExtraAdmin filters={filters} />}
+        
+        {/* Aba Horas Extras com Integração Direta com a plataforma hora-extra.base44.app */}
+        {tab === "horas_extras" && (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
+                  <Clock className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">Plataforma Integrada de Hora Extra & Ponto</h3>
+                  <p className="text-xs text-muted-foreground">Acesse diretamente o aplicativo mestre de registro de jornada ou audite as solicitações abaixo.</p>
+                </div>
+              </div>
+              <Button 
+                onClick={() => window.open("https://hora-extra.base44.app", "_blank")}
+                className="gap-2 bg-amber-600 hover:bg-amber-700 text-white shrink-0 shadow-sm"
+              >
+                <span>Abrir App Hora Extra</span>
+                <ExternalLink className="w-4 h-4" />
+              </Button>
+            </div>
+
+            <HistoricoHoraExtraAdmin filters={filters} />
+          </div>
+        )}
       </div>
     </div>
   );
