@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 const ALL_MODULES = [
   {
     key: "app_fabrica_telhas",
-    title: "Fábrica de Telhas",
+    title: "Barracão Telhas",
     description: "Operação, máquinas e produção de telhas",
     icon: <Factory className="w-7 h-7 text-white" />,
     gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
@@ -32,7 +32,7 @@ const ALL_MODULES = [
   },
   {
     key: "app_corte_dobra",
-    title: "Corte e Dobra",
+    title: "Barracão C&D",
     description: "Operação, máquinas e produção de corte e dobra",
     icon: <Scissors className="w-7 h-7 text-white" />,
     gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
@@ -43,7 +43,7 @@ const ALL_MODULES = [
   },
   {
     key: "app_logistica",
-    title: "Logística & Frota",
+    title: "Logística",
     description: "Expedição, cargas, romaneios e frota",
     icon: <Truck className="w-7 h-7 text-emerald-400" />,
     gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
@@ -54,7 +54,7 @@ const ALL_MODULES = [
   },
   {
     key: "app_consulta_estoque",
-    title: "Consulta de Estoque",
+    title: "Estoque Rápido",
     description: "Consulte saldo e realize reservas de bobinas",
     icon: <BookmarkPlus className="w-7 h-7 text-blue-400" />,
     gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
@@ -65,7 +65,7 @@ const ALL_MODULES = [
   },
   {
     key: "app_painel_vendedor",
-    title: "Painel do Vendedor",
+    title: "Painel de Vendas",
     description: "Visão geral, metas, comissões e histórico",
     icon: <BarChart3 className="w-7 h-7 text-indigo-400" />,
     gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
@@ -87,7 +87,7 @@ const ALL_MODULES = [
   },
   {
     key: "app_gerencia_fabricas",
-    title: "Gerência de Fábricas",
+    title: "Gerencial",
     description: "Controle avançado, OEE e eficiência",
     icon: <Settings className="w-7 h-7 text-amber-400" />,
     gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
@@ -98,7 +98,7 @@ const ALL_MODULES = [
   },
   {
     key: "app_control_tower",
-    title: "Control Tower",
+    title: "Painel Administrativo",
     description: "Acesso irrestrito às configurações do ERP",
     icon: <ShieldAlert className="w-7 h-7 text-rose-400" />,
     gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
@@ -109,7 +109,7 @@ const ALL_MODULES = [
   },
   {
     key: "app_gestao_usuarios",
-    title: "Gestão de Usuários",
+    title: "Usuários",
     description: "Permissões, layouts e acessos Odoo-style",
     icon: <Users className="w-7 h-7 text-purple-400" />,
     gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
