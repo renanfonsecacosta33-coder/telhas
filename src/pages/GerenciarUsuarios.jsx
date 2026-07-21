@@ -82,8 +82,9 @@ function serializeMaquinas(arr) {
 const ROLES = [
   { value: "super_admin", label: "Super Administrador", desc: "Controle total — gerencia usuários e permissões" },
   { value: "admin", label: "Administrador", desc: "Acesso total ao sistema" },
-  { value: "operador", label: "Operador", desc: "Vê pedidos da sua máquina" },
-  { value: "vendedor", label: "Vendedor", desc: "Cadastra e acompanha pedidos" },
+  { value: "encarregado", label: "Encarregado / Líder", desc: "Chefe dos operadores — lança OPs e comanda o barracão" },
+  { value: "operador", label: "Operador", desc: "Vê e executa pedidos da sua máquina" },
+  { value: "vendedor", label: "Vendedor", desc: "Cadastra e acompanha pedidos comerciais" },
 ];
 
 const SETORES = [
@@ -101,6 +102,7 @@ const SETOR_COLORS = {
 const ROLE_COLORS = {
   super_admin: "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800",
   admin: "bg-red-100 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800",
+  encarregado: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800",
   operador: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800",
   vendedor: "bg-green-100 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800",
 };
@@ -226,6 +228,23 @@ export function getDefaultPermissionsForRole(role) {
   if (role === "super_admin" || role === "admin") {
     // Admins possuem todas as 50+ permissões ativas por padrão
     Object.keys(perms).forEach(k => { perms[k] = true; });
+    return perms;
+  }
+
+  if (role === "encarregado") {
+    // Encarregado é o líder de produção e chefe dos operadores (lança OP, gerencia fila e libera bypasses)
+    perms.ignorar_bloqueio_op = true;
+    perms.finalizar_op_parcial = true;
+    perms.imprimir_etiqueta_avulsa = true;
+    perms.remover_sobra_bobina = true;
+    perms.alterar_velocidade_linha = true;
+    perms.alterar_operador_op = true;
+    perms.pular_foto_balanca = true;
+    perms.priorizar_fila_producao = true;
+    perms.autorizar_carregamento_parcial = true;
+    perms.reaproveitar_retalho_critico = true;
+    perms.override_perda_sucata = true;
+    perms.layout_compacto = true;
     return perms;
   }
 
@@ -409,7 +428,7 @@ export default function GerenciarUsuarios() {
       </div>
 
       {/* Roles explicação */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         {ROLES.map(r => {
           const count = users.filter(u => u.role === r.value).length;
           return (

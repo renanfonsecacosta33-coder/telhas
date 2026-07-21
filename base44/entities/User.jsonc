@@ -7,6 +7,7 @@
       "enum": [
         "super_admin",
         "admin",
+        "encarregado",
         "operador",
         "vendedor"
       ],
