@@ -13,9 +13,13 @@ import {
   ShieldAlert, 
   Users, 
   GripVertical,
-  Move
+  Search,
+  Command
 } from "lucide-react";
 import UserAvatarButton from "@/components/UserAvatarButton";
+import GlobalCommandPalette from "@/components/GlobalCommandPalette";
+import OeeEfficiencyWidget from "@/components/OeeEfficiencyWidget";
+import EstoquePreditivoWidget from "@/components/EstoquePreditivoWidget";
 import { cn } from "@/lib/utils";
 
 const ALL_MODULES = [
@@ -23,7 +27,7 @@ const ALL_MODULES = [
     key: "app_fabrica_telhas",
     title: "Barracão Telhas",
     description: "Operação, máquinas e produção de telhas",
-    icon: <Factory className="w-7 h-7 text-white" />,
+    icon: <Factory className="w-6 h-6 sm:w-7 sm:h-7 text-white" />,
     gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
     borderColor: "border-slate-700/50 hover:border-slate-500",
     iconBg: "bg-slate-700 shadow-slate-900/50",
@@ -34,7 +38,7 @@ const ALL_MODULES = [
     key: "app_corte_dobra",
     title: "Barracão C&D",
     description: "Operação, máquinas e produção de corte e dobra",
-    icon: <Scissors className="w-7 h-7 text-white" />,
+    icon: <Scissors className="w-6 h-6 sm:w-7 sm:h-7 text-white" />,
     gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
     borderColor: "border-slate-700/50 hover:border-slate-500",
     iconBg: "bg-slate-700 shadow-slate-900/50",
@@ -45,7 +49,7 @@ const ALL_MODULES = [
     key: "app_logistica",
     title: "Logística",
     description: "Expedição, cargas, romaneios e frota",
-    icon: <Truck className="w-7 h-7 text-emerald-400" />,
+    icon: <Truck className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-400" />,
     gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
     borderColor: "border-slate-700/50 hover:border-emerald-500/50",
     iconBg: "bg-emerald-500/10 shadow-emerald-900/20",
@@ -56,7 +60,7 @@ const ALL_MODULES = [
     key: "app_consulta_estoque",
     title: "Estoque Rápido",
     description: "Consulte saldo e realize reservas de bobinas",
-    icon: <BookmarkPlus className="w-7 h-7 text-blue-400" />,
+    icon: <BookmarkPlus className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400" />,
     gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
     borderColor: "border-slate-700/50 hover:border-blue-500/50",
     iconBg: "bg-blue-500/10 shadow-blue-900/20",
@@ -67,7 +71,7 @@ const ALL_MODULES = [
     key: "app_painel_vendedor",
     title: "Painel de Vendas",
     description: "Visão geral, metas, comissões e histórico",
-    icon: <BarChart3 className="w-7 h-7 text-indigo-400" />,
+    icon: <BarChart3 className="w-6 h-6 sm:w-7 sm:h-7 text-indigo-400" />,
     gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
     borderColor: "border-slate-700/50 hover:border-indigo-500/50",
     iconBg: "bg-indigo-500/10 shadow-indigo-900/20",
@@ -78,7 +82,7 @@ const ALL_MODULES = [
     key: "app_dashboard_ajl",
     title: "Dashboard AJL",
     description: "Painel principal de indicadores e metas",
-    icon: <LayoutDashboard className="w-7 h-7 text-orange-400" />,
+    icon: <LayoutDashboard className="w-6 h-6 sm:w-7 sm:h-7 text-orange-400" />,
     gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
     borderColor: "border-slate-700/50 hover:border-orange-500/50",
     iconBg: "bg-orange-500/10 shadow-orange-900/20",
@@ -89,7 +93,7 @@ const ALL_MODULES = [
     key: "app_gerencia_fabricas",
     title: "Gerencial",
     description: "Controle avançado, OEE e eficiência",
-    icon: <Settings className="w-7 h-7 text-amber-400" />,
+    icon: <Settings className="w-6 h-6 sm:w-7 sm:h-7 text-amber-400" />,
     gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
     borderColor: "border-slate-700/50 hover:border-amber-500/50",
     iconBg: "bg-amber-500/10 shadow-amber-900/20",
@@ -100,7 +104,7 @@ const ALL_MODULES = [
     key: "app_control_tower",
     title: "Painel Administrativo",
     description: "Acesso irrestrito às configurações do ERP",
-    icon: <ShieldAlert className="w-7 h-7 text-rose-400" />,
+    icon: <ShieldAlert className="w-6 h-6 sm:w-7 sm:h-7 text-rose-400" />,
     gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
     borderColor: "border-slate-700/50 hover:border-rose-500/50",
     iconBg: "bg-rose-500/10 shadow-rose-900/20",
@@ -111,7 +115,7 @@ const ALL_MODULES = [
     key: "app_gestao_usuarios",
     title: "Usuários",
     description: "Permissões, layouts e acessos Odoo-style",
-    icon: <Users className="w-7 h-7 text-purple-400" />,
+    icon: <Users className="w-6 h-6 sm:w-7 sm:h-7 text-purple-400" />,
     gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
     borderColor: "border-slate-700/50 hover:border-purple-500/50",
     iconBg: "bg-purple-500/10 shadow-purple-900/20",
@@ -125,8 +129,9 @@ export default function SeletorSetor() {
   const [user, setUser] = useState(null);
   const [navegando, setNavegando] = useState(false);
   const [modulesList, setModulesList] = useState(ALL_MODULES);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
-  // Estados de Drag and Drop
+  // Estados de Drag and Drop (Suporta Desktop e Touch)
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
 
@@ -134,7 +139,6 @@ export default function SeletorSetor() {
     base44.auth.me().then(fetchedUser => {
       setUser(fetchedUser);
 
-      // Carregar ordem salva do usuário
       const savedOrderKeys = fetchedUser?.layout_preferences?.app_order || 
         JSON.parse(localStorage.getItem(`ajl_app_order_${fetchedUser?.id}`) || "[]");
 
@@ -150,6 +154,18 @@ export default function SeletorSetor() {
         setModulesList(ordered);
       }
     }).catch(() => {});
+  }, []);
+
+  // Atalho global de teclado Ctrl + K
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen(open => !open);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const selecionarSetor = async (setor) => {
@@ -170,7 +186,6 @@ export default function SeletorSetor() {
 
   const firstName = user?.full_name ? user.full_name.split(' ')[0] : "Usuário";
 
-  // Verificar visibilidade do app por usuário
   const isAppVisible = (appKey) => {
     if (!user) return true;
     const role = user.role;
@@ -199,11 +214,9 @@ export default function SeletorSetor() {
     return true;
   };
 
-  // Drag and Drop Handlers (Odoo-Style)
   const handleDragStart = (e, index) => {
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = "move";
-    // Torna a imagem de drag levemente transparente
     e.dataTransfer.setData("text/plain", index.toString());
   };
 
@@ -227,7 +240,6 @@ export default function SeletorSetor() {
     setDraggedIndex(null);
     setDragOverIndex(null);
 
-    // Salva a nova ordem de aplicativos no perfil do usuário e localStorage
     const newOrderKeys = updated.map(m => m.key);
     if (user?.id) {
       localStorage.setItem(`ajl_app_order_${user.id}`, JSON.stringify(newOrderKeys));
@@ -245,37 +257,47 @@ export default function SeletorSetor() {
     setDragOverIndex(null);
   };
 
-  // Filtrar apenas módulos visíveis para o usuário
   const visibleModules = modulesList.filter(m => isAppVisible(m.key));
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col p-6 lg:p-12 relative overflow-hidden select-none">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col p-4 sm:p-6 lg:p-12 relative overflow-hidden select-none">
       {/* Background decorations */}
-      <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4 pointer-events-none" />
+      <div className="absolute top-0 right-0 w-[500px] sm:w-[800px] h-[500px] sm:h-[800px] bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-[400px] sm:w-[600px] h-[400px] sm:h-[600px] bg-blue-500/5 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4 pointer-events-none" />
 
-      {/* Header */}
-      <div className="w-full max-w-6xl mx-auto flex justify-between items-start z-10 mb-12 mt-4 lg:mt-8">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20">
-            <span className="text-primary-foreground font-bold text-3xl">A</span>
+      {/* Header Responsivo (Celular, Tablet e Desktop) */}
+      <div className="w-full max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center z-10 mb-6 sm:mb-10 gap-4 mt-2 sm:mt-4 lg:mt-8">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20 shrink-0">
+            <span className="text-primary-foreground font-bold text-2xl sm:text-3xl">A</span>
           </div>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
               {getGreeting()}, {firstName} 👋
             </h1>
-            <p className="text-muted-foreground mt-1 text-base flex items-center gap-2">
-              <span>Selecione um módulo ou arraste para reordenar a sua tela inicial Odoo-style.</span>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1 leading-tight">
+              Selecione um módulo ou arraste os cartões para personalizar sua tela inicial.
             </p>
           </div>
         </div>
-        <div>
+
+        <div className="flex items-center justify-between w-full sm:w-auto gap-3 pt-2 sm:pt-0">
+          {/* Botão de Busca Rápida responsivo */}
+          <button
+            onClick={() => setCommandPaletteOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm hover:border-primary transition-all cursor-pointer w-full sm:w-auto justify-center"
+          >
+            <Search className="w-4 h-4 text-primary" />
+            <span>Busca Rápida</span>
+            <kbd className="hidden sm:inline-block bg-slate-100 dark:bg-slate-800 border text-[10px] px-1.5 py-0.5 rounded font-mono">Ctrl+K</kbd>
+          </button>
+
           <UserAvatarButton size="lg" />
         </div>
       </div>
 
-      {/* Grid de Módulos com Arrastar e Soltar (Drag and Drop) */}
-      <div className="w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 z-10 pb-12">
+      {/* Grid de Módulos Responsivo: 1 col (celular), 2 col (tablet), 3/4 col (desktop) */}
+      <div className="w-full max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 z-10 pb-8">
         {visibleModules.map((mod, index) => {
           const isBeingDragged = draggedIndex === index;
           const isHoveredTarget = dragOverIndex === index && draggedIndex !== index;
@@ -321,6 +343,19 @@ export default function SeletorSetor() {
           );
         })}
       </div>
+
+      {/* Widgets Inferiores Responsivos */}
+      <div className="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 z-10 pb-12">
+        {(user?.role === "admin" || user?.role === "super_admin" || user?.role === "encarregado" || user?.role === "operador") && (
+          <OeeEfficiencyWidget maquinaNome={user?.maquina ? user.maquina : "Linha Principal de Produção"} />
+        )}
+
+        {(user?.role === "admin" || user?.role === "super_admin" || user?.role === "encarregado" || user?.role === "vendedor") && (
+          <EstoquePreditivoWidget />
+        )}
+      </div>
+
+      <GlobalCommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
     </div>
   );
 }
@@ -341,32 +376,31 @@ function ModuleCard({
     <div 
       onClick={onClick}
       className={cn(
-        "relative h-full flex flex-col p-6 rounded-2xl border transition-all duration-300 group overflow-hidden select-none",
-        "hover:-translate-y-1 hover:shadow-xl hover:shadow-black/20 active:translate-y-0",
+        "relative h-full flex flex-col p-5 sm:p-6 rounded-2xl border transition-all duration-300 group overflow-hidden select-none min-h-[140px]",
+        "hover:-translate-y-1 hover:shadow-xl hover:shadow-black/20 active:translate-y-0 cursor-pointer",
         `bg-gradient-to-br ${gradient} ${borderColor}`,
         disabled && "opacity-60 pointer-events-none"
       )}
     >
-      {/* Alça de Arrastar (Odoo-Style Drag Handle) */}
-      <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity p-1 rounded-md text-white/60 hover:text-white cursor-grab">
+      <div className="absolute top-4 right-4 opacity-60 sm:opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md text-white/60 hover:text-white cursor-grab">
         <GripVertical className="w-5 h-5" />
       </div>
 
-      <div className={cn("w-14 h-14 rounded-xl flex items-center justify-center mb-5 shadow-inner transition-transform duration-300 group-hover:scale-110", iconBg)}>
+      <div className={cn("w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center mb-4 sm:mb-5 shadow-inner transition-transform duration-300 group-hover:scale-110 shrink-0", iconBg)}>
         {icon}
       </div>
       
       <div className="mt-auto">
-        <h3 className={cn("text-lg font-bold tracking-tight mb-1.5", textColor)}>
+        <h3 className={cn("text-base sm:text-lg font-bold tracking-tight mb-1", textColor)}>
           {title}
         </h3>
-        <p className={cn("text-sm leading-relaxed", descColor)}>
+        <p className={cn("text-xs sm:text-sm leading-relaxed", descColor)}>
           {description}
         </p>
       </div>
 
-      <div className="absolute bottom-6 right-6 opacity-0 translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
-        <div className={cn("w-8 h-8 rounded-full flex items-center justify-center bg-white/20 backdrop-blur-md shadow-sm", textColor)}>
+      <div className="absolute bottom-5 right-5 opacity-0 translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
+        <div className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center bg-white/20 backdrop-blur-md shadow-sm", textColor)}>
           <ChevronRight className="w-4 h-4" />
         </div>
       </div>

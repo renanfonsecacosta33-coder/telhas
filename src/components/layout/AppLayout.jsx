@@ -11,6 +11,8 @@ import CentralMensagensDireto from "@/components/chat/CentralMensagensDireto";
 import { useAllUnreadCount, useUnreadCount } from "@/hooks/useUnreadMessages";
 import { playAlertSound } from "@/lib/sounds";
 import { toast } from "sonner";
+import GlobalCommandPalette from "@/components/GlobalCommandPalette";
+import { Search } from "lucide-react";
 
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -18,6 +20,7 @@ export default function AppLayout() {
   const [loading, setLoading] = useState(true);
   const [centralChatsOpen, setCentralChatsOpen] = useState(false);
   const [centralDiretoOpen, setCentralDiretoOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -37,6 +40,18 @@ export default function AppLayout() {
     }
     prevChatRef.current = unreadChats;
   }, [unreadChats, isGestorTelhas]);
+
+  // Listener global de teclado para Ctrl + K / Cmd + K
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen(open => !open);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   if (loading) return (
     <div className="fixed inset-0 flex items-center justify-center bg-background">
@@ -67,6 +82,16 @@ export default function AppLayout() {
           <UserAvatarButton size="sm" />
         </div>
         <div className="hidden lg:flex sticky top-0 z-30 bg-background/80 backdrop-blur border-b border-border px-8 py-2 items-center justify-end gap-2">
+          {/* Botão de Busca Rápida Ctrl+K */}
+          <button 
+            onClick={() => setCommandPaletteOpen(true)}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground bg-muted/50 border border-border rounded-lg hover:bg-muted hover:text-foreground transition-colors cursor-pointer mr-auto"
+          >
+            <Search className="w-3.5 h-3.5" />
+            <span>Buscar OPs, Bobinas, Clientes...</span>
+            <kbd className="bg-background border border-border text-[10px] px-1.5 py-0.5 rounded font-mono">Ctrl+K</kbd>
+          </button>
+
           <button onClick={() => setCentralDiretoOpen(true)} className="relative p-2 rounded-lg border border-border bg-card hover:bg-muted transition-colors cursor-pointer" title="Mensagens Diretas">
             <MessageCircle className={`w-4 h-4 ${unreadDirect > 0 ? "text-blue-500" : "text-muted-foreground"}`} />
             {unreadDirect > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">{unreadDirect}</span>}
@@ -97,6 +122,7 @@ export default function AppLayout() {
         <CentralChats user={user} open={centralChatsOpen} onOpenChange={setCentralChatsOpen} />
       )}
       <CentralMensagensDireto user={user} open={centralDiretoOpen} onOpenChange={setCentralDiretoOpen} />
+      <GlobalCommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
     </div>
   );
 }
