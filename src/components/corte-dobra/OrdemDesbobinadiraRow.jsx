@@ -196,10 +196,28 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
     }
   };
 
+  const handleFinalizarComPesoTeorico = () => {
+    let prodSeg = o.tempo_producao_seg || 0;
+    if (o.inicio_producao_ts) {
+      prodSeg += Math.floor((Date.now() - new Date(o.inicio_producao_ts).getTime()) / 1000);
+    }
+    onUpdate(o.id, {
+      status: "finalizado",
+      foto_finalizacao_url: tempFotoUrl || null,
+      peso_real_balanca_kg: null,
+      tempo_producao_seg: prodSeg,
+      inicio_producao_ts: null,
+      data_finalizacao: format(new Date(), "yyyy-MM-dd"),
+    });
+    setConfirmarPesoDialog(false);
+    setFotoDialog(false);
+    toast.success("Ordem finalizada com Peso Teórico estimado!");
+  };
+
   const handleConfirmarFinalizacao = () => {
     const pesoNum = Number(pesoRealLido);
     if (!pesoNum || pesoNum <= 0) {
-      toast.error("Por favor, informe o peso real medido na balança.");
+      toast.error("Por favor, informe o peso real medido na balança ou escolha 'Usar Peso Teórico'.");
       return;
     }
     let prodSeg = o.tempo_producao_seg || 0;
@@ -208,14 +226,14 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
     }
     onUpdate(o.id, {
       status: "finalizado",
-      foto_finalizacao_url: tempFotoUrl,
+      foto_finalizacao_url: tempFotoUrl || null,
       peso_real_balanca_kg: pesoNum,
       tempo_producao_seg: prodSeg,
       inicio_producao_ts: null,
       data_finalizacao: format(new Date(), "yyyy-MM-dd"),
     });
     setConfirmarPesoDialog(false);
-    toast.success("Ordem finalizada e estoque atualizado!");
+    toast.success("Ordem finalizada e peso real atualizado!");
   };
 
   const showCronometro = o.status === "em_producao" || o.status === "pausado" || tempoProd > 0;
@@ -570,24 +588,34 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Finalizar — foto obrigatória */}
+      {/* Dialog Finalizar — foto opcional com peso teórico */}
       <Dialog open={fotoDialog} onOpenChange={setFotoDialog}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Finalizar — Foto Obrigatória</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Finalizar Ordem</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center space-y-3">
               <Camera className="w-10 h-10 mx-auto text-orange-500" />
-              <p className="font-semibold text-sm">Tire uma foto do material cortado</p>
-              <p className="text-xs text-muted-foreground">A foto é obrigatória para registrar a conclusão da ordem</p>
+              <p className="font-semibold text-sm">Tirar foto da balança (Opcional)</p>
+              <p className="text-xs text-muted-foreground">Você pode tirar a foto da balança para aferir o peso real ou continuar com o peso teórico estimado.</p>
               <input ref={fotoInputRef} type="file" accept="image/*" capture="environment" className="hidden"
                 onChange={e => handleUploadFoto(e.target.files[0])} />
               <input ref={fotoScanRef} type="file" accept="image/*" className="hidden"
                 onChange={e => handleUploadFoto(e.target.files[0])} />
-              <UploadButton label="Tirar / Selecionar Foto" icon={Camera} cameraRef={fotoInputRef} fileRef={fotoScanRef} uploading={uploadingFoto} size="default" variant="default" />
+              <UploadButton label="Tirar / Selecionar Foto da Balança" icon={Camera} cameraRef={fotoInputRef} fileRef={fotoScanRef} uploading={uploadingFoto} size="default" variant="default" />
             </div>
+
+            {o.kg_estimado > 0 && (
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center">
+                <p className="text-xs font-semibold text-slate-600">Peso Teórico Estimado</p>
+                <p className="text-xl font-bold text-slate-800">≈ {o.kg_estimado.toFixed(1)} kg</p>
+              </div>
+            )}
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => setFotoDialog(false)}>Cancelar</Button>
+            <Button variant="secondary" onClick={handleFinalizarComPesoTeorico} className="gap-1 border-slate-300">
+              Usar Peso Teórico (≈ {(o.kg_estimado || 0).toFixed(1)} kg)
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -612,6 +640,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       {/* Dialog Validação de Etiqueta da Bobina */}
       <ValidacaoEtiquetaDialog
         open={validacaoDialog}
@@ -620,46 +649,49 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
         onAprovado={handleEtiquetaAprovada}
       />
 
-      {/* Dialog Confirmar Peso da Balança */}
+      {/* Dialog Confirmar Peso da Balança (Opcional) */}
       <Dialog open={confirmarPesoDialog} onOpenChange={setConfirmarPesoDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-1.5 text-slate-800">
-              ⚖️ Confirmar Peso da Balança
+              ⚖️ Confirmar Peso da Balança (Opcional)
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2 text-xs">
             <p className="text-slate-600">
-              Verifique a foto da balança e informe o peso exato (KG) exibido no visor digital:
+              Você pode informar o peso real exibido no visor digital ou continuar com o peso teórico estimado:
             </p>
             
             {/* Foto da Balança */}
             {tempFotoUrl && (
-              <div className="border border-border rounded-xl overflow-hidden max-h-[240px] bg-slate-950 flex items-center justify-center shadow-inner">
-                <img src={tempFotoUrl} alt="Foto da balança" className="max-h-[240px] w-auto object-contain" />
+              <div className="border border-border rounded-xl overflow-hidden max-h-[220px] bg-slate-950 flex items-center justify-center shadow-inner">
+                <img src={tempFotoUrl} alt="Foto da balança" className="max-h-[220px] w-auto object-contain" />
               </div>
             )}
 
             {/* Input de Peso */}
             <div className="space-y-1.5">
-              <Label className="text-slate-700 font-semibold text-xs">Peso Real Aferido (KG)</Label>
+              <Label className="text-slate-700 font-semibold text-xs">Peso Real Aferido na Balança (KG)</Label>
               <Input 
                 type="number" 
                 value={pesoRealLido} 
                 onChange={e => setPesoRealLido(e.target.value)} 
                 className="text-center font-mono font-bold text-xl h-11 border-blue-300 text-blue-900 focus-visible:ring-blue-500" 
-                placeholder="Digite o peso da balança..."
+                placeholder="Digite o peso..."
                 autoFocus
               />
               <p className="text-[10px] text-slate-400 text-center">
-                *O estoque da chapa gerada e o saldo da bobina serão atualizados com este peso real.
+                *Opcional: Se deixar em branco ou escolher peso teórico, o sistema calculará o peso automático (≈ {(o.kg_estimado || 0).toFixed(1)} kg).
               </p>
             </div>
           </div>
-          <DialogFooter className="gap-2">
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => setConfirmarPesoDialog(false)}>Cancelar</Button>
+            <Button variant="secondary" onClick={handleFinalizarComPesoTeorico} className="border-slate-300">
+              Usar Peso Teórico (≈ {(o.kg_estimado || 0).toFixed(1)} kg)
+            </Button>
             <Button onClick={handleConfirmarFinalizacao} className="bg-green-600 hover:bg-green-700 text-white border-0 gap-1.5">
-              <CheckCircle2 className="w-4 h-4" /> Confirmar e Finalizar
+              <CheckCircle2 className="w-4 h-4" /> Confirmar Peso Real
             </Button>
           </DialogFooter>
         </DialogContent>
