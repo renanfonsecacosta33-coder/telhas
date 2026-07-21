@@ -13,13 +13,10 @@ import {
   ShieldAlert, 
   Users, 
   GripVertical,
-  Search,
-  Command
+  Search
 } from "lucide-react";
 import UserAvatarButton from "@/components/UserAvatarButton";
 import GlobalCommandPalette from "@/components/GlobalCommandPalette";
-import OeeEfficiencyWidget from "@/components/OeeEfficiencyWidget";
-import EstoquePreditivoWidget from "@/components/EstoquePreditivoWidget";
 import { cn } from "@/lib/utils";
 
 const ALL_MODULES = [
@@ -297,7 +294,7 @@ export default function SeletorSetor() {
       </div>
 
       {/* Grid de Módulos Responsivo: 1 col (celular), 2 col (tablet), 3/4 col (desktop) */}
-      <div className="w-full max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 z-10 pb-8">
+      <div className="w-full max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 z-10 pb-12">
         {visibleModules.map((mod, index) => {
           const isBeingDragged = draggedIndex === index;
           const isHoveredTarget = dragOverIndex === index && draggedIndex !== index;
@@ -342,17 +339,6 @@ export default function SeletorSetor() {
             </div>
           );
         })}
-      </div>
-
-      {/* Widgets Inferiores Responsivos */}
-      <div className="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 z-10 pb-12">
-        {(user?.role === "admin" || user?.role === "super_admin" || user?.role === "encarregado" || user?.role === "operador") && (
-          <OeeEfficiencyWidget maquinaNome={user?.maquina ? user.maquina : "Linha Principal de Produção"} />
-        )}
-
-        {(user?.role === "admin" || user?.role === "super_admin" || user?.role === "encarregado" || user?.role === "vendedor") && (
-          <EstoquePreditivoWidget />
-        )}
       </div>
 
       <GlobalCommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
