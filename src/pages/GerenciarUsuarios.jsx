@@ -28,7 +28,25 @@ import {
   LayoutTemplate, 
   Shield, 
   User, 
-  Settings 
+  Settings,
+  Factory,
+  Package,
+  ShoppingCart,
+  Truck,
+  DollarSign,
+  FileText,
+  Sliders,
+  CheckSquare,
+  Wrench,
+  Percent,
+  Ban,
+  Clock,
+  Layers,
+  FileCheck,
+  Zap,
+  Lock,
+  Download,
+  Activity
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -42,7 +60,6 @@ function getMaquinasPorSetor(setor) {
   return [...MAQUINAS_TELHAS, ...MAQUINAS_CD];
 }
 
-// Parse maquina field: pode ser string simples ou JSON array
 function parseMaquinas(maquina) {
   if (!maquina) return [];
   try {
@@ -86,13 +103,117 @@ const ROLE_COLORS = {
   vendedor: "bg-green-100 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800",
 };
 
-const DEFAULT_PERMISSIONS = {
-  pular_foto_balanca: false,
-  aprovar_reserva_automatica: false,
-  ver_dados_financeiros: false,
-  ignorar_bloqueio_op: false,
-  layout_compacto: false,
-};
+// ----------------------------------------------------
+// 50+ REGRAS ODOO-STYLE DIVIDIDAS POR TÓPICOS E CATEGORIAS
+// ----------------------------------------------------
+export const REGRAS_CATEGORIZADAS = [
+  {
+    categoriaId: "producao",
+    categoriaNome: "1. Produção & MES",
+    icon: Factory,
+    cor: "text-blue-500",
+    regras: [
+      { key: "pular_foto_balanca", label: "Pular Foto da Balança", desc: "Permite finalizar OP usando peso teórico sem foto da balança.", icon: Camera },
+      { key: "ignorar_bloqueio_op", label: "Ignorar Bloqueio de OP", desc: "Iniciar Ordens de Produção mesmo se houver divergência ou dependência pendente.", icon: AlertTriangle },
+      { key: "remover_sobra_bobina", label: "Registrar Retalho sem Pesagem", desc: "Permite cadastrar sobras/retalhos de bobinas sem pesagem obrigatória.", icon: Layers },
+      { key: "alterar_velocidade_linha", label: "Alterar Cadência da Máquina", desc: "Ajustar velocidade nominal e metros/min da linha de produção.", icon: Zap },
+      { key: "finalizar_op_parcial", label: "Finalização Parcial de OP", desc: "Finalizar parcialmente uma OP sem necessidade de senha de supervisor.", icon: CheckCircle },
+      { key: "override_perda_sucata", label: "Aprovar Perda/Sucata > 3%", desc: "Lançar refugo de aço acima da taxa de tolerância padrão da fábrica.", icon: Percent },
+      { key: "ignorar_manutencao_preventiva", label: "Bypass de Alerta de Manutenção", desc: "Permite rodar máquina com alerta de preventiva ou checagem pendente.", icon: Wrench },
+      { key: "imprimir_etiqueta_avulsa", label: "Impressão Manual de Etiquetas", desc: "Gerar etiquetas de lote/rastreabilidade fora do fluxo de OP.", icon: FileText },
+      { key: "alterar_operador_op", label: "Reatribuir Operador da OP", desc: "Transferir a Ordem de Produção ativa para outro operador em tempo real.", icon: User },
+      { key: "reaproveitar_retalho_critico", label: "Usar Retalho sem Laudo QC", desc: "Iniciar corte usando retalho estocado sem inspeção prévia de qualidade.", icon: CheckSquare },
+    ]
+  },
+  {
+    categoriaId: "estoque",
+    categoriaNome: "2. Estoque & Bobinas",
+    icon: Package,
+    cor: "text-orange-500",
+    regras: [
+      { key: "aprovar_reserva_automatica", label: "Reserva Automática de Bobina", desc: "Reservar estoque de bobinas/chapas automaticamente sem validação gerencial.", icon: CheckCircle },
+      { key: "movimentar_bobina_bloqueada", label: "Movimentar Bobina Retida", desc: "Transferir bobina que está sob quarentena ou bloqueio de qualidade.", icon: Lock },
+      { key: "dar_baixa_manual_materia_prima", label: "Baixa de Matéria-Prima sem QR Code", desc: "Dar baixa em insumo digitando código manualmente sem escaneamento.", icon: Sliders },
+      { key: "alterar_espessura_aco", label: "Alterar Corrida/Espessura na OP", desc: "Substituir liga/espessura do aço selecionado durante a produção.", icon: Layers },
+      { key: "reclassificar_bobina_b_grade", label: "Reclassificar Bobina B-Grade/Sucata", desc: "Alterar classificação de bobina master para segunda linha ou refugo.", icon: AlertTriangle },
+      { key: "ajustar_inventario_manual", label: "Ajuste Manual de Saldo de Estoque", desc: "Realizar acerto direto de quilos e metros no estoque de matéria-prima.", icon: Settings },
+      { key: "liberar_insumo_sem_estoque", label: "Uso de Insumos com Saldo Negativo", desc: "Consumir cola/EPS/chapa mesmo se o saldo no ERP estiver zerado.", icon: Ban },
+      { key: "receber_bobina_com_divergencia", label: "Receber Carga com Divergência de Peso", desc: "Dar entrada de bobina da usina com divergência superior a 1% da Nota Fiscal.", icon: FileCheck },
+      { key: "bloquear_bobina_para_cliente", label: "Cativar Bobina Exclusiva para Cliente", desc: "Travar lote de bobinas master exclusivamente para determinado cliente.", icon: Lock },
+      { key: "cancelar_reserva_estoque", label: "Cancelar Reserva de Pedido Ativo", desc: "Liberar matéria-prima reservada para um pedido e alocar em outro.", icon: Ban },
+    ]
+  },
+  {
+    categoriaId: "vendas",
+    categoriaNome: "3. Vendas & Comercial",
+    icon: ShoppingCart,
+    cor: "text-green-500",
+    regras: [
+      { key: "desconto_acima_limite", label: "Conceder Desconto > Teto Misto", desc: "Aplicar descontos acima da alçada do vendedor sem aprovação da diretoria.", icon: Percent },
+      { key: "vender_sem_estoque", label: "Vender sem Bobina em Estoque", desc: "Lançar pedido comercial de material sem saldo de matéria-prima garantido.", icon: ShoppingCart },
+      { key: "liberar_credito_cliente", label: "Liberar Venda para Cliente Inadimplente", desc: "Aprovar pedido para cliente com títulos vencidos ou restrição financeira.", icon: DollarSign },
+      { key: "alterar_tabela_precos", label: "Alterar Tabela de Preços no Orçamento", desc: "Seleção livre da tabela de preços (Promocional/Distribuidor/Atacado).", icon: Sliders },
+      { key: "cancelar_pedido_em_producao", label: "Cancelar Pedido em Produção", desc: "Sustar ou alterar pedido de venda que já está sendo cortado na fábrica.", icon: Ban },
+      { key: "bloquear_venda_margem_baixa", label: "Permitir Venda com Margem < Custo", desc: "Lançar orçamento com margem de contribuição abaixo do limite mínimo.", icon: Percent },
+      { key: "priorizar_fila_producao", label: "Priorizar Fila de Produção", desc: "Mudar a sequência de prioridade do pedido na fila de máquinas da fábrica.", icon: Clock },
+      { key: "ver_clientes_outros_vendedores", label: "Ver Carteira de Outros Vendedores", desc: "Acessar e visualizar pedidos e orçamentos de toda a equipe comercial.", icon: Eye },
+      { key: "aprovar_bonificacao_amostra", label: "Aprovar Amostra / Bonificação Grátis", desc: "Autorizar emissão de pedido de amostra sem cobrança do cliente.", icon: CheckCircle },
+      { key: "gerar_orcamento_condicao_especial", label: "Prazo de Pagamento Especial", desc: "Inserir prazos de faturamento estendidos (ex: 90/120 dias).", icon: Clock },
+    ]
+  },
+  {
+    categoriaId: "logistica",
+    categoriaNome: "4. Logística & Expedição",
+    icon: Truck,
+    cor: "text-purple-500",
+    regras: [
+      { key: "autorizar_carregamento_parcial", label: "Carregamento Parcial de Caminhão", desc: "Liberar saída de veículo com pedido incompleto ou carga dividida.", icon: Truck },
+      { key: "liberar_saida_sem_nota", label: "Saída de Carga sem Emissão de NF", desc: "Autorizar saída do caminhão da fábrica com romaneio provisório.", icon: FileText },
+      { key: "sobrecarregar_peso_veiculo", label: "Bypass de Peso Máximo do Veículo", desc: "Ignorar alerta de excesso de tonelagem no caminhão da entrega.", icon: AlertTriangle },
+      { key: "alterar_rota_entrega", label: "Alterar Ordem de Rotas Logísticas", desc: "Reorganizar a sequência de paradas de entrega do motorista.", icon: Sliders },
+      { key: "confirmar_entrega_sem_canhoto", label: "Confirmar Entrega sem Canhoto", desc: "Dar baixa em entrega realizada sem foto/imagem do canhoto assinado.", icon: FileCheck },
+      { key: "solicitar_frete_terceiro", label: "Contratar Frete Terceirizado Extra", desc: "Solicitar inclusão de motorista/transportadora terceirizada.", icon: Truck },
+      { key: "liberar_devolucao_cliente", label: "Aceitar Devolução de Material no Local", desc: "Autorizar retorno de perfil/telha avariada no caminhão.", icon: ArrowLeft },
+      { key: "reimprimir_romaneio_carga", label: "Reimpressão de Romaneio de Carga", desc: "Reimprimir folhas de carregamento e mapas de expedição.", icon: FileText },
+      { key: "atribuir_motorista_veiculo", label: "Vincular Placa/Motorista à Carga", desc: "Alterar cadastro do caminhão e motorista alocado no despacho.", icon: User },
+      { key: "bloquear_carga_incompleta", label: "Impedir Faturamento de Carga Incompleta", desc: "Travar faturamento se houver item de telha/dobra faltando no lote.", icon: Lock },
+    ]
+  },
+  {
+    categoriaId: "financeiro",
+    categoriaNome: "5. Financeiro & Custos",
+    icon: DollarSign,
+    cor: "text-emerald-500",
+    regras: [
+      { key: "ver_dados_financeiros", label: "Ver Dados Financeiros & Margens", desc: "Exibir custos de matéria-prima, margens de lucro e DRE nas OPs e vendas.", icon: Eye },
+      { key: "aprovar_pagamento_fornecedor", label: "Aprovar Contas a Pagar sem Nota Auditada", desc: "Autorizar liberação financeira de pagamento sem auditoria prévia.", icon: DollarSign },
+      { key: "emitir_nota_devolucao", label: "Emissão Manual de NF de Devolução", desc: "Emitir notas de entrada/remessa/troca manualmente no ERP.", icon: FileText },
+      { key: "estornar_faturamento", label: "Estornar Faturamento de Pedido", desc: "Cancelar faturamento emitido e retornar pedido para fila de produção.", icon: Ban },
+      { key: "alterar_dados_bancarios", label: "Alterar Chave Pix / Dados de Pagamento", desc: "Modificar cadastro bancário de clientes e fornecedores no sistema.", icon: Settings },
+    ]
+  },
+  {
+    categoriaId: "sistema",
+    categoriaNome: "6. Sistema, Qualidade & Layout",
+    icon: Shield,
+    cor: "text-amber-500",
+    regras: [
+      { key: "layout_compacto", label: "Layout Compacto Denso", desc: "Forçar exibição densa de tabelas e cartões para otimizar espaço de tela.", icon: LayoutTemplate },
+      { key: "alterar_parametros_sistema", label: "Modificar Configurações Globais ERP", desc: "Acessar parâmetros mestres da fábrica e integrações de API.", icon: Settings },
+      { key: "exportar_relatorios_excel", label: "Exportar Relatórios Comerciais em Excel", desc: "Permite baixar dados sensíveis de vendas e estoque em planilha.", icon: Download },
+      { key: "gerenciar_usuarios_sistema", label: "Acessar Gestão de Usuários", desc: "Conceder acesso à tela de permissões e cadastro de funcionários.", icon: Users },
+      { key: "ver_log_auditoria", label: "Visualizar Logs e Trilha de Auditoria", desc: "Consultar histórico de ações, edições e acessos efetuados no ERP.", icon: Activity },
+    ]
+  }
+];
+
+// Flat permissions default
+const DEFAULT_PERMISSIONS = {};
+REGRAS_CATEGORIZADAS.forEach(cat => {
+  cat.regras.forEach(r => {
+    DEFAULT_PERMISSIONS[r.key] = false;
+  });
+});
 
 export default function GerenciarUsuarios() {
   const navigate = useNavigate();
@@ -101,6 +222,7 @@ export default function GerenciarUsuarios() {
   const [editUser, setEditUser] = useState(null);
   const [activeTab, setActiveTab] = useState("perfil");
   const [searchTerm, setSearchTerm] = useState("");
+  const [regrasSearchTerm, setRegrasSearchTerm] = useState("");
 
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("operador");
@@ -135,8 +257,6 @@ export default function GerenciarUsuarios() {
       toast.error("Erro ao atualizar usuário.");
     }
   });
-
-  const isSuperAdmin = currentUser?.role === "super_admin";
 
   const handleInvite = async () => {
     if (!inviteEmail) return;
@@ -224,10 +344,10 @@ export default function GerenciarUsuarios() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
               <Users className="w-6 h-6 text-primary" />
-              Gerenciar Usuários
+              Gerenciar Usuários & Motor de Regras (50+ Permissões)
             </h1>
             <p className="text-sm text-muted-foreground">
-              Configure quem acessa o sistema, com qual papel, máquinas atribuídas e permissões Odoo-style.
+              Configure acessos, máquinas e ative permissões granulares por tópicos (Produção, Estoque, Vendas, Logística).
             </p>
           </div>
         </div>
@@ -288,6 +408,10 @@ export default function GerenciarUsuarios() {
             {filteredUsers.map(u => {
               const perms = u.permissions || {};
               const userMaquinas = parseMaquinas(u.maquina);
+              
+              // Contar regras especiais ativas para este usuário
+              const totalRegrasAtivas = Object.values(perms).filter(Boolean).length;
+
               return (
                 <div key={u.id} className="px-4 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-muted/30 transition-colors">
                   <div className="flex items-center gap-3 min-w-0">
@@ -333,15 +457,14 @@ export default function GerenciarUsuarios() {
                       </Badge>
                     )}
 
-                    {/* Badges de Permissão Granular */}
-                    {perms.pular_foto_balanca && (
-                      <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200 gap-1">
-                        <Camera className="w-3 h-3" /> Peso Teórico
+                    {/* Contador de Regras Ativas */}
+                    {totalRegrasAtivas > 0 ? (
+                      <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200 gap-1 font-semibold">
+                        <Shield className="w-3 h-3" /> {totalRegrasAtivas} Regra(s) Ativa(s)
                       </Badge>
-                    )}
-                    {perms.aprovar_reserva_automatica && (
-                      <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700 border-green-200 gap-1">
-                        <CheckCircle className="w-3 h-3" /> Auto Reserva
+                    ) : (
+                      <Badge variant="outline" className="text-xs text-muted-foreground font-normal">
+                        Regras Padrão
                       </Badge>
                     )}
 
@@ -403,7 +526,7 @@ export default function GerenciarUsuarios() {
               </Select>
             </div>
             <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
-              O usuário receberá um email com link de acesso. Depois que entrar, você pode configurar as máquinas e permissões Odoo-style dele aqui.
+              O usuário receberá um email com link de acesso. Depois que entrar, você pode ativar as 50+ regras Odoo-style dele aqui.
             </div>
           </div>
           <DialogFooter>
@@ -415,15 +538,15 @@ export default function GerenciarUsuarios() {
         </DialogContent>
       </Dialog>
 
-      {/* Sheet Lateral Configurar Usuário (Perfil + Permissões Granulares) */}
+      {/* Sheet Lateral Configurar Usuário (Perfil + Motor de 50+ Regras Categorizadas) */}
       <Sheet open={editOpen} onOpenChange={open => { setEditOpen(open); if(!open) setEditUser(null); }}>
-        <SheetContent className="w-[420px] sm:w-[540px] border-border bg-background/95 backdrop-blur-xl overflow-y-auto p-6">
+        <SheetContent className="w-[500px] sm:w-[680px] border-border bg-background/95 backdrop-blur-xl overflow-y-auto p-6">
           {editUser && (
             <>
               <SheetHeader className="mb-6 pb-4 border-b border-border">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20">
-                    <span className="text-primary font-bold text-base">
+                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20">
+                    <span className="text-primary font-bold text-lg">
                       {(editUser.full_name || editUser.email || "?").charAt(0).toUpperCase()}
                     </span>
                   </div>
@@ -441,8 +564,8 @@ export default function GerenciarUsuarios() {
                     Perfil & Máquinas
                   </TabsTrigger>
                   <TabsTrigger value="permissoes" className="gap-2">
-                    <Shield className="w-4 h-4" />
-                    Regras Odoo-Style
+                    <Shield className="w-4 h-4 text-purple-500" />
+                    Motor de Regras (50+)
                   </TabsTrigger>
                 </TabsList>
 
@@ -528,100 +651,78 @@ export default function GerenciarUsuarios() {
                   </div>
                 </TabsContent>
 
-                {/* Aba 2: Regras e Permissões Granulares (Odoo-Style) */}
-                <TabsContent value="permissoes" className="space-y-4">
-                  <div className="space-y-3">
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      <Shield className="w-4 h-4 text-primary" />
-                      Regras Operacionais e Bypasses
-                    </h3>
-
-                    <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/60 bg-card/40 hover:bg-card/60 transition-colors">
-                      <div className="space-y-0.5 pr-4">
-                        <Label className="text-sm font-medium flex items-center gap-2">
-                          <Camera className="h-4 w-4 text-blue-500" />
-                          Pular Foto da Balança
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          Permite que este usuário finalize a OP usando diretamente o <strong>peso teórico</strong> sem obrigatoriedade de foto da balança.
-                        </p>
-                      </div>
-                      <Switch 
-                        checked={editUser.permissions?.pular_foto_balanca || false}
-                        onCheckedChange={() => handlePermissionToggle('pular_foto_balanca')}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/60 bg-card/40 hover:bg-card/60 transition-colors">
-                      <div className="space-y-0.5 pr-4">
-                        <Label className="text-sm font-medium flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4 text-green-500" />
-                          Aprovar Reserva Automática
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          Aprova automaticamente reservas de estoque sem depender da autorização da gerência.
-                        </p>
-                      </div>
-                      <Switch 
-                        checked={editUser.permissions?.aprovar_reserva_automatica || false}
-                        onCheckedChange={() => handlePermissionToggle('aprovar_reserva_automatica')}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/60 bg-card/40 hover:bg-card/60 transition-colors">
-                      <div className="space-y-0.5 pr-4">
-                        <Label className="text-sm font-medium flex items-center gap-2">
-                          <Eye className="h-4 w-4 text-purple-500" />
-                          Ver Dados Financeiros
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          Exibe custos de matéria-prima, margens de lucro e valores financeiros nas OPs.
-                        </p>
-                      </div>
-                      <Switch 
-                        checked={editUser.permissions?.ver_dados_financeiros || false}
-                        onCheckedChange={() => handlePermissionToggle('ver_dados_financeiros')}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/60 bg-card/40 hover:bg-card/60 transition-colors">
-                      <div className="space-y-0.5 pr-4">
-                        <Label className="text-sm font-medium flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4 text-amber-500" />
-                          Ignorar Bloqueio de OP
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          Permite iniciar Ordens de Produção mesmo se houver divergência de estoque.
-                        </p>
-                      </div>
-                      <Switch 
-                        checked={editUser.permissions?.ignorar_bloqueio_op || false}
-                        onCheckedChange={() => handlePermissionToggle('ignorar_bloqueio_op')}
-                      />
-                    </div>
+                {/* Aba 2: Motor de 50+ Regras Granulares Odoo-Style por Tópicos */}
+                <TabsContent value="permissoes" className="space-y-6">
+                  {/* Busca de Regras */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input 
+                      placeholder="Pesquisar entre as 50+ regras..." 
+                      value={regrasSearchTerm}
+                      onChange={e => setRegrasSearchTerm(e.target.value)}
+                      className="pl-9 h-9 text-xs"
+                    />
                   </div>
 
-                  <div className="space-y-3 pt-3 border-t border-border/50">
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      <Settings className="w-4 h-4 text-primary" />
-                      Preferências de Layout
-                    </h3>
+                  <div className="space-y-6">
+                    {REGRAS_CATEGORIZADAS.map(cat => {
+                      const CatIcon = cat.icon;
+                      
+                      // Filtrar regras da categoria com base na busca interna
+                      const regrasFiltradas = cat.regras.filter(r => 
+                        r.label.toLowerCase().includes(regrasSearchTerm.toLowerCase()) ||
+                        r.desc.toLowerCase().includes(regrasSearchTerm.toLowerCase())
+                      );
 
-                    <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/60 bg-card/40 hover:bg-card/60 transition-colors">
-                      <div className="space-y-0.5 pr-4">
-                        <Label className="text-sm font-medium flex items-center gap-2">
-                          <LayoutTemplate className="h-4 w-4 text-slate-500" />
-                          Layout Compacto
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          Força exibição densa de tabelas e cartões para otimizar espaço de tela.
-                        </p>
-                      </div>
-                      <Switch 
-                        checked={editUser.permissions?.layout_compacto || false}
-                        onCheckedChange={() => handlePermissionToggle('layout_compacto')}
-                      />
-                    </div>
+                      if (regrasFiltradas.length === 0) return null;
+
+                      return (
+                        <div key={cat.categoriaId} className="space-y-3">
+                          <div className="flex items-center gap-2 border-b border-border/60 pb-2">
+                            <CatIcon className={`w-4 h-4 ${cat.cor}`} />
+                            <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                              {cat.categoriaNome}
+                            </h3>
+                            <Badge variant="outline" className="text-[10px] ml-auto font-mono">
+                              {regrasFiltradas.length} regra(s)
+                            </Badge>
+                          </div>
+
+                          <div className="space-y-2.5">
+                            {regrasFiltradas.map(regra => {
+                              const RegraIcon = regra.icon || Shield;
+                              const isChecked = !!editUser.permissions?.[regra.key];
+
+                              return (
+                                <div 
+                                  key={regra.key} 
+                                  className={`flex items-start justify-between p-3 rounded-xl border transition-all ${
+                                    isChecked 
+                                      ? "border-primary/40 bg-primary/5 dark:bg-primary/10 shadow-sm" 
+                                      : "border-border/60 bg-card/40 hover:bg-card/70"
+                                  }`}
+                                >
+                                  <div className="space-y-0.5 pr-3">
+                                    <Label className="text-xs font-semibold flex items-center gap-2 cursor-pointer" onClick={() => handlePermissionToggle(regra.key)}>
+                                      <RegraIcon className={`h-3.5 w-3.5 ${isChecked ? "text-primary font-bold" : "text-muted-foreground"}`} />
+                                      {regra.label}
+                                    </Label>
+                                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                      {regra.desc}
+                                    </p>
+                                  </div>
+                                  <Switch 
+                                    checked={isChecked}
+                                    onCheckedChange={() => handlePermissionToggle(regra.key)}
+                                    className="mt-0.5 shrink-0"
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </TabsContent>
               </Tabs>
