@@ -29,7 +29,7 @@ function SetorSelector({ onSelect }) {
         <Button 
           variant="outline" 
           size="sm" 
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/setor")}
           className="gap-2 text-xs font-semibold bg-white shadow-sm border-slate-300 hover:bg-slate-100"
         >
           <Home className="w-4 h-4 text-primary" />
@@ -96,7 +96,7 @@ function SetorSelector({ onSelect }) {
           <Button 
             variant="ghost" 
             size="sm" 
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/setor")}
             className="text-xs text-muted-foreground gap-1.5"
           >
             <Home className="w-3.5 h-3.5" /> Voltar ao Painel Geral (ADM)
@@ -274,7 +274,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
           <Button variant="outline" size="sm" onClick={() => navigate("/vendedor-dashboard")} className="h-8 text-xs gap-1.5 text-blue-700 border-blue-300 bg-blue-50 hover:bg-blue-100 font-semibold">
             <BarChart3 className="w-3.5 h-3.5" /> Meu Dashboard
           </Button>
-          <Button variant="outline" size="sm" onClick={() => navigate("/")} className="h-8 text-xs gap-1.5 border-slate-300">
+          <Button variant="outline" size="sm" onClick={() => navigate("/setor")} className="h-8 text-xs gap-1.5 border-slate-300">
             <Home className="w-3.5 h-3.5" /> Painel ADM
           </Button>
           <Button variant="ghost" size="sm" onClick={onLogout} className="h-8 text-xs gap-1 text-muted-foreground">

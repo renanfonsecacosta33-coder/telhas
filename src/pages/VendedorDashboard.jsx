@@ -205,7 +205,7 @@ export default function VendedorDashboard() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/setor")}
               className="gap-1.5 text-xs font-semibold shrink-0 border-slate-300 hover:bg-slate-100"
             >
               <Home className="w-3.5 h-3.5 text-primary" />
