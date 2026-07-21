@@ -6,11 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { 
   Users, 
@@ -53,13 +53,18 @@ import {
   BookmarkPlus,
   BarChart3,
   LayoutDashboard,
-  AppWindow
+  AppWindow,
+  Save,
+  Check,
+  X,
+  ChevronRight
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const MAQUINAS_TELHAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM", "CORTE DE EPS"];
 const MAQUINAS_CD = ["CORTE 3M", "CORTE 6M", "DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M", "PERFILADEIRA", "DESBOBINADEIRA"];
-const UNIDADES = ["Matriz AJL", "Pinhais", "Ivaiporã", "Ponta Grossa", ""];
+const UNIDADES = ["Matriz AJL", "Pinhais", "Ivaiporã", "Ponta Grossa"];
 
 function getMaquinasPorSetor(setor) {
   if (setor === "telhas") return MAQUINAS_TELHAS;
@@ -113,26 +118,24 @@ const ROLE_COLORS = {
 };
 
 // ----------------------------------------------------
-// 50+ REGRAS ODOO-STYLE + SELEÇÃO DE APLICATIVOS VISÍVEIS
+// APLICATIVOS DA TELA INICIAL (MENU)
+// ----------------------------------------------------
+export const APLICATIVOS_MENU = [
+  { key: "app_fabrica_telhas", title: "Fábrica de Telhas", desc: "Operação, máquinas e produção de telhas", icon: Factory, gradient: "from-slate-800 to-slate-900", iconColor: "text-white" },
+  { key: "app_corte_dobra", title: "Corte e Dobra", desc: "Operação, máquinas e produção de corte e dobra", icon: Scissors, gradient: "from-slate-800 to-slate-900", iconColor: "text-white" },
+  { key: "app_logistica", title: "Logística & Frota", desc: "Expedição, cargas, romaneios e frota", icon: Truck, gradient: "from-slate-800 to-slate-900", iconColor: "text-emerald-400" },
+  { key: "app_consulta_estoque", title: "Consulta de Estoque", desc: "Consulte saldo e realize reservas de bobinas", icon: BookmarkPlus, gradient: "from-slate-800 to-slate-900", iconColor: "text-blue-400" },
+  { key: "app_painel_vendedor", title: "Painel do Vendedor", desc: "Visão geral, metas, comissões e histórico", icon: BarChart3, gradient: "from-slate-800 to-slate-900", iconColor: "text-indigo-400" },
+  { key: "app_dashboard_ajl", title: "Dashboard AJL", desc: "Painel principal de indicadores e metas", icon: LayoutDashboard, gradient: "from-slate-800 to-slate-900", iconColor: "text-orange-400" },
+  { key: "app_gerencia_fabricas", title: "Gerência de Fábricas", desc: "Controle avançado, OEE e eficiência", icon: Settings, gradient: "from-slate-800 to-slate-900", iconColor: "text-amber-400" },
+  { key: "app_control_tower", title: "Control Tower", desc: "Acesso irrestrito às configurações do ERP", icon: ShieldAlert, gradient: "from-slate-800 to-slate-900", iconColor: "text-rose-400" },
+  { key: "app_gestao_usuarios", title: "Gestão de Usuários", desc: "Permissões, layouts e acessos Odoo-style", icon: Users, gradient: "from-slate-800 to-slate-900", iconColor: "text-purple-400" },
+];
+
+// ----------------------------------------------------
+// 50+ REGRAS ODOO-STYLE DIVIDIDAS POR CATEGORIAS
 // ----------------------------------------------------
 export const REGRAS_CATEGORIZADAS = [
-  {
-    categoriaId: "aplicativos",
-    categoriaNome: "0. Aplicativos Visíveis na Tela Inicial (Menu)",
-    icon: AppWindow,
-    cor: "text-purple-600 font-bold",
-    regras: [
-      { key: "app_fabrica_telhas", label: "Módulo Fábrica de Telhas", desc: "Exibe o cartão Fábrica de Telhas no menu inicial do usuário.", icon: Factory },
-      { key: "app_corte_dobra", label: "Módulo Corte e Dobra", desc: "Exibe o cartão Corte e Dobra no menu inicial do usuário.", icon: Scissors },
-      { key: "app_logistica", label: "Módulo Logística & Frota", desc: "Exibe o cartão Logística & Frota no menu inicial do usuário.", icon: Truck },
-      { key: "app_consulta_estoque", label: "Módulo Consulta de Estoque", desc: "Exibe o cartão Consulta de Estoque no menu inicial do usuário.", icon: BookmarkPlus },
-      { key: "app_painel_vendedor", label: "Módulo Painel do Vendedor", desc: "Exibe o cartão Painel do Vendedor no menu inicial do usuário.", icon: BarChart3 },
-      { key: "app_dashboard_ajl", label: "Módulo Dashboard AJL", desc: "Exibe o cartão Dashboard AJL no menu inicial do usuário.", icon: LayoutDashboard },
-      { key: "app_gerencia_fabricas", label: "Módulo Gerência de Fábricas", desc: "Exibe o cartão Gerência de Fábricas (OEE) no menu inicial.", icon: Settings },
-      { key: "app_control_tower", label: "Módulo Control Tower", desc: "Exibe o cartão Control Tower no menu inicial do usuário.", icon: ShieldAlert },
-      { key: "app_gestao_usuarios", label: "Módulo Gestão de Usuários", desc: "Exibe o cartão Gestão de Usuários no menu inicial do usuário.", icon: Users },
-    ]
-  },
   {
     categoriaId: "producao",
     categoriaNome: "1. Produção & MES",
@@ -233,35 +236,26 @@ export const REGRAS_CATEGORIZADAS = [
   }
 ];
 
-// Flat permissions default
 const DEFAULT_PERMISSIONS = {};
+APLICATIVOS_MENU.forEach(app => { DEFAULT_PERMISSIONS[app.key] = false; });
 REGRAS_CATEGORIZADAS.forEach(cat => {
-  cat.regras.forEach(r => {
-    DEFAULT_PERMISSIONS[r.key] = false;
-  });
+  cat.regras.forEach(r => { DEFAULT_PERMISSIONS[r.key] = false; });
 });
 
-// ----------------------------------------------------
-// GERADOR DE REGRAS PADRÃO POR FUNÇÃO / PAPEL (ROLE TEMPLATES)
-// ----------------------------------------------------
 export function getDefaultPermissionsForRole(role) {
   const perms = { ...DEFAULT_PERMISSIONS };
 
   if (role === "super_admin" || role === "admin") {
-    // Admins possuem todas as 50+ permissões e todos os aplicativos ativos por padrão
     Object.keys(perms).forEach(k => { perms[k] = true; });
     return perms;
   }
 
   if (role === "encarregado") {
-    // Encarregado vê os apps de produção, logística, estoque e dashboard
     perms.app_fabrica_telhas = true;
     perms.app_corte_dobra = true;
     perms.app_logistica = true;
     perms.app_consulta_estoque = true;
     perms.app_dashboard_ajl = true;
-
-    // Regras operacionais
     perms.ignorar_bloqueio_op = true;
     perms.finalizar_op_parcial = true;
     perms.imprimir_etiqueta_avulsa = true;
@@ -278,11 +272,8 @@ export function getDefaultPermissionsForRole(role) {
   }
 
   if (role === "operador") {
-    // Operadores veem apps da fábrica
     perms.app_fabrica_telhas = true;
     perms.app_corte_dobra = true;
-
-    // Regras de fábrica
     perms.ignorar_bloqueio_op = true;
     perms.finalizar_op_parcial = true;
     perms.imprimir_etiqueta_avulsa = true;
@@ -293,12 +284,9 @@ export function getDefaultPermissionsForRole(role) {
   }
 
   if (role === "vendedor") {
-    // Vendedores veem comercial e estoque
     perms.app_painel_vendedor = true;
     perms.app_consulta_estoque = true;
     perms.app_dashboard_ajl = true;
-
-    // Regras comerciais
     perms.vender_sem_estoque = true;
     perms.alterar_tabela_precos = true;
     perms.aprovar_bonificacao_amostra = true;
@@ -312,25 +300,27 @@ export function getDefaultPermissionsForRole(role) {
 
 export default function GerenciarUsuarios() {
   const navigate = useNavigate();
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editUser, setEditUser] = useState(null);
-  const [activeTab, setActiveTab] = useState("perfil");
+  const queryClient = useQueryClient();
+
   const [searchTerm, setSearchTerm] = useState("");
   const [regrasSearchTerm, setRegrasSearchTerm] = useState("");
 
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("operador");
   const [inviting, setInviting] = useState(false);
+
+  // Usuário atualmente em edição (quando é null, mostra a lista geral de 37 usuários; quando tem objeto, mostra a tela completa de edição)
+  const [editingUser, setEditingUser] = useState(null);
+  const [activeTab, setActiveTab] = useState("perfil");
+
   const [currentUser, setCurrentUser] = useState(null);
-  const queryClient = useQueryClient();
 
   const { data: rawUsers = [], isLoading } = useQuery({
     queryKey: ["users"],
     queryFn: () => base44.entities.User.list(),
   });
 
-  // Garantir que todo usuário receba as permissões vinculadas à sua função por padrão se não tiver salvas
   const users = rawUsers.map(u => {
     const hasCustomPerms = u.permissions && Object.keys(u.permissions).length > 0;
     return {
@@ -347,13 +337,12 @@ export default function GerenciarUsuarios() {
     mutationFn: ({ id, data }) => base44.entities.User.update(id, data),
     onSuccess: () => { 
       queryClient.invalidateQueries({ queryKey: ["users"] }); 
-      setEditOpen(false); 
-      setEditUser(null); 
-      toast.success("Usuário atualizado com sucesso!"); 
+      setEditingUser(null); 
+      toast.success("Alterações do usuário salvas com sucesso!"); 
     },
     onError: (err) => {
       console.error(err);
-      toast.error("Erro ao atualizar usuário.");
+      toast.error("Erro ao salvar alterações do usuário.");
     }
   });
 
@@ -374,24 +363,24 @@ export default function GerenciarUsuarios() {
     setInviting(false);
   };
 
-  const handleUpdateUser = () => {
-    if (!editUser) return;
+  const handleSaveUser = () => {
+    if (!editingUser) return;
     updateMutation.mutate({ 
-      id: editUser.id, 
+      id: editingUser.id, 
       data: {
-        full_name: editUser.full_name,
-        role: editUser.role,
-        maquina: serializeMaquinas(editUser.maquinas || []),
-        unidade: editUser.unidade || "",
-        setor: editUser.setor || "telhas",
-        gerencia: editUser.gerencia || false,
-        permissions: editUser.permissions || getDefaultPermissionsForRole(editUser.role)
+        full_name: editingUser.full_name,
+        role: editingUser.role,
+        maquina: serializeMaquinas(editingUser.maquinas || []),
+        unidade: editingUser.unidade || "",
+        setor: editingUser.setor || "telhas",
+        gerencia: editingUser.gerencia || false,
+        permissions: editingUser.permissions || getDefaultPermissionsForRole(editingUser.role)
       }
     });
   };
 
   const toggleMaquina = (m) => {
-    setEditUser(u => {
+    setEditingUser(u => {
       const maquinas = u.maquinas || [];
       const exists = maquinas.includes(m);
       return { ...u, maquinas: exists ? maquinas.filter(x => x !== m) : [...maquinas, m] };
@@ -399,7 +388,7 @@ export default function GerenciarUsuarios() {
   };
 
   const handlePermissionToggle = (permKey) => {
-    setEditUser(u => {
+    setEditingUser(u => {
       const currentPerms = u.permissions || getDefaultPermissionsForRole(u.role);
       return {
         ...u,
@@ -411,12 +400,11 @@ export default function GerenciarUsuarios() {
     });
   };
 
-  // Restaurar permissões padrão da função do usuário
   const handleApplyRoleDefaults = () => {
-    if (!editUser) return;
-    const defaults = getDefaultPermissionsForRole(editUser.role);
-    setEditUser(u => ({ ...u, permissions: defaults }));
-    toast.success(`Permissões padrão de ${ROLES.find(r => r.value === editUser.role)?.label || editUser.role} aplicadas!`);
+    if (!editingUser) return;
+    const defaults = getDefaultPermissionsForRole(editingUser.role);
+    setEditingUser(u => ({ ...u, permissions: defaults }));
+    toast.success(`Permissões padrão de ${ROLES.find(r => r.value === editingUser.role)?.label || editingUser.role} aplicadas!`);
   };
 
   const filteredUsers = users.filter(u => {
@@ -427,7 +415,6 @@ export default function GerenciarUsuarios() {
     );
   });
 
-  // Bloqueia acesso se não for admin/super_admin
   if (currentUser && currentUser.role !== "admin" && currentUser.role !== "super_admin") {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -440,6 +427,366 @@ export default function GerenciarUsuarios() {
     );
   }
 
+  // =========================================================================
+  // TELA DE EDIÇÃO COMPLETA EM LARGURA TOTAL (FORM VIEW MASTER)
+  // =========================================================================
+  if (editingUser) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 sm:p-6 lg:p-8 animate-in fade-in duration-300">
+        <div className="max-w-7xl mx-auto space-y-6">
+          
+          {/* Topbar do Formulario de Edição */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-4 rounded-2xl border border-border/80 shadow-sm">
+            <div className="flex items-center gap-4">
+              <Button 
+                variant="outline" 
+                onClick={() => setEditingUser(null)} 
+                className="gap-2 shrink-0 border-border/80"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Voltar à Lista
+              </Button>
+
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20">
+                  <span className="text-primary font-bold text-lg">
+                    {(editingUser.full_name || editingUser.email || "?").charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-xl font-bold tracking-tight text-foreground">
+                      {editingUser.full_name || editingUser.email}
+                    </h1>
+                    <Badge className={`border text-xs ${ROLE_COLORS[editingUser.role] || ""}`}>
+                      {ROLES.find(r => r.value === editingUser.role)?.label || editingUser.role}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{editingUser.email}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <Button 
+                variant="outline" 
+                onClick={handleApplyRoleDefaults} 
+                className="gap-2 text-xs border-purple-300 text-purple-700 dark:text-purple-300 hover:bg-purple-50"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Restaurar Regras Padrão
+              </Button>
+              <Button 
+                onClick={handleSaveUser} 
+                disabled={updateMutation.isPending} 
+                className="gap-2 shadow-sm"
+              >
+                <Save className="w-4 h-4" />
+                {updateMutation.isPending ? "Salvando..." : "Salvar Alterações"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Abas Amplas (Full Width Tabs) */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
+            <TabsList className="grid w-full grid-cols-3 max-w-2xl h-12 p-1 bg-muted/60 rounded-xl">
+              <TabsTrigger value="perfil" className="gap-2 text-sm font-medium">
+                <User className="w-4 h-4" />
+                Perfil & Máquinas
+              </TabsTrigger>
+              <TabsTrigger value="aplicativos" className="gap-2 text-sm font-medium">
+                <AppWindow className="w-4 h-4 text-purple-500" />
+                Aplicativos Visíveis
+              </TabsTrigger>
+              <TabsTrigger value="permissoes" className="gap-2 text-sm font-medium">
+                <Shield className="w-4 h-4 text-blue-500" />
+                Regras Granulares (50+)
+              </TabsTrigger>
+            </TabsList>
+
+            {/* ABA 1: PERFIL & MÁQUINAS (2 COLUNAS AMPLAS) */}
+            <TabsContent value="perfil" className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                {/* Dados Gerais */}
+                <Card className="border border-border/80 shadow-sm bg-card/80 backdrop-blur">
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <User className="w-4 h-4 text-primary" />
+                      Dados Cadastrais & Acessos
+                    </CardTitle>
+                    <CardDescription>Informações básicas do colaborador e escopo de atuação</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="user-name">Nome Completo</Label>
+                      <Input 
+                        id="user-name"
+                        value={editingUser.full_name || ""} 
+                        onChange={e => setEditingUser(u => ({ ...u, full_name: e.target.value }))}
+                        placeholder="Nome do colaborador"
+                        className="h-10"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label>Papel no Sistema *</Label>
+                        <Select 
+                          value={editingUser.role || "operador"} 
+                          onValueChange={v => {
+                            const newDefaults = getDefaultPermissionsForRole(v);
+                            setEditingUser(u => ({ 
+                              ...u, 
+                              role: v,
+                              permissions: { ...newDefaults, ...(u.permissions || {}) }
+                            }));
+                          }}
+                        >
+                          <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {ROLES.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label>Setor Principal</Label>
+                        <Select value={editingUser.setor || "telhas"} onValueChange={v => setEditingUser(u => ({ ...u, setor: v, maquinas: [] }))}>
+                          <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {SETORES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label>Unidade de Alocação</Label>
+                      <Select value={editingUser.unidade || "todas"} onValueChange={v => setEditingUser(u => ({ ...u, unidade: v === "todas" ? "" : v }))}>
+                        <SelectTrigger className="h-10"><SelectValue placeholder="Selecione a unidade" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="todas">Todas as Unidades</SelectItem>
+                          {UNIDADES.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-3 pt-3 border-t border-border/60">
+                      <div className="bg-muted/40 rounded-xl p-3.5 border border-border/60 flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm font-semibold cursor-pointer">Acesso Gerencial OEE</Label>
+                          <p className="text-xs text-muted-foreground">Concede permissão para acessar relatórios gerenciais e eficiência</p>
+                        </div>
+                        <Switch
+                          checked={editingUser.gerencia || false}
+                          onCheckedChange={v => setEditingUser(u => ({ ...u, gerencia: v }))}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Máquinas Associadas */}
+                <Card className="border border-border/80 shadow-sm bg-card/80 backdrop-blur">
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Monitor className="w-4 h-4 text-primary" />
+                      Máquinas Associadas (Visibilidade de OP no MES)
+                    </CardTitle>
+                    <CardDescription>Marque as máquinas que este operador tem autorização para visualizar e operar</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[340px] overflow-y-auto p-1">
+                      {getMaquinasPorSetor(editingUser.setor || "telhas").map(m => {
+                        const isChecked = (editingUser.maquinas || []).includes(m);
+                        return (
+                          <div 
+                            key={m}
+                            onClick={() => toggleMaquina(m)}
+                            className={cn(
+                              "flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all",
+                              isChecked 
+                                ? "border-primary/50 bg-primary/5 shadow-sm" 
+                                : "border-border/60 bg-muted/20 hover:bg-muted/50"
+                            )}
+                          >
+                            <Checkbox checked={isChecked} />
+                            <div className="flex items-center gap-2">
+                              <Monitor className={cn("w-4 h-4", isChecked ? "text-primary" : "text-muted-foreground")} />
+                              <span className="text-xs font-semibold">{m}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="bg-primary/5 rounded-xl p-3 border border-primary/20 text-xs text-primary font-medium flex items-center justify-between">
+                      <span>{(editingUser.maquinas || []).length} máquina(s) selecionada(s)</span>
+                      {(editingUser.maquinas || []).length === 0 && (
+                        <span className="text-muted-foreground font-normal">Verá todas as máquinas por padrão</span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+              </div>
+            </TabsContent>
+
+            {/* ABA 2: APLICATIVOS VISÍVEIS NA TELA INICIAL (GRADE VISUAL) */}
+            <TabsContent value="aplicativos" className="space-y-6">
+              <Card className="border border-border/80 shadow-sm bg-card/80 backdrop-blur">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <AppWindow className="w-4 h-4 text-purple-500" />
+                    Selecione os Módulos Visíveis na Tela Inicial do Funcionário
+                  </CardTitle>
+                  <CardDescription>
+                    Clique nos cartões abaixo para Ativar (colorido) ou Ocultar (desativado) o aplicativo do menu principal deste usuário.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {APLICATIVOS_MENU.map(app => {
+                      const AppIcon = app.icon;
+                      const isEnabled = !!editingUser.permissions?.[app.key];
+
+                      return (
+                        <div
+                          key={app.key}
+                          onClick={() => handlePermissionToggle(app.key)}
+                          className={cn(
+                            "relative flex flex-col p-5 rounded-2xl border transition-all duration-300 cursor-pointer overflow-hidden group select-none",
+                            isEnabled 
+                              ? "bg-slate-900 border-purple-500/50 shadow-lg shadow-purple-950/20 scale-[1.01]" 
+                              : "bg-muted/30 border-border/60 opacity-60 hover:opacity-90 grayscale"
+                          )}
+                        >
+                          <div className="flex items-start justify-between mb-4">
+                            <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shadow-inner", isEnabled ? "bg-white/10" : "bg-muted")}>
+                              <AppIcon className={cn("w-6 h-6", isEnabled ? app.iconColor : "text-muted-foreground")} />
+                            </div>
+                            <Switch 
+                              checked={isEnabled} 
+                              onCheckedChange={() => handlePermissionToggle(app.key)} 
+                            />
+                          </div>
+
+                          <div>
+                            <h4 className={cn("font-bold text-base mb-1", isEnabled ? "text-white" : "text-foreground")}>
+                              {app.title}
+                            </h4>
+                            <p className={cn("text-xs leading-relaxed", isEnabled ? "text-slate-300" : "text-muted-foreground")}>
+                              {app.desc}
+                            </p>
+                          </div>
+
+                          <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-[11px] font-semibold">
+                            <span className={isEnabled ? "text-purple-400" : "text-muted-foreground"}>
+                              {isEnabled ? "✓ Visível no Menu" : "✕ Oculto no Menu"}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* ABA 3: MOTOR DE 50+ REGRAS OPERACIONAIS (GRID 2 COLUNAS POR CATEGORIA) */}
+            <TabsContent value="permissoes" className="space-y-6">
+              {/* Barra de Pesquisa de Regras */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-card p-4 rounded-xl border border-border/80 shadow-sm">
+                <div className="relative w-full sm:w-96">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input 
+                    placeholder="Pesquisar entre as 50+ regras operacionais..." 
+                    value={regrasSearchTerm}
+                    onChange={e => setRegrasSearchTerm(e.target.value)}
+                    className="pl-9 h-10 text-sm"
+                  />
+                </div>
+                <div className="text-xs text-muted-foreground font-medium">
+                  Ative ou desative as regras de negócio Odoo-style para este colaborador.
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {REGRAS_CATEGORIZADAS.map(cat => {
+                  const CatIcon = cat.icon;
+                  const regrasFiltradas = cat.regras.filter(r => 
+                    r.label.toLowerCase().includes(regrasSearchTerm.toLowerCase()) ||
+                    r.desc.toLowerCase().includes(regrasSearchTerm.toLowerCase())
+                  );
+
+                  if (regrasFiltradas.length === 0) return null;
+
+                  return (
+                    <Card key={cat.categoriaId} className="border border-border/80 shadow-sm bg-card/80 backdrop-blur">
+                      <CardHeader className="py-4 border-b border-border/50">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <CatIcon className={`w-5 h-5 ${cat.cor}`} />
+                            {cat.categoriaNome}
+                          </CardTitle>
+                          <Badge variant="outline" className="text-xs font-mono">
+                            {regrasFiltradas.length} regra(s)
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-4 sm:p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {regrasFiltradas.map(regra => {
+                            const RegraIcon = regra.icon || Shield;
+                            const isChecked = !!editingUser.permissions?.[regra.key];
+
+                            return (
+                              <div 
+                                key={regra.key} 
+                                onClick={() => handlePermissionToggle(regra.key)}
+                                className={cn(
+                                  "flex items-start justify-between p-4 rounded-xl border cursor-pointer transition-all select-none",
+                                  isChecked 
+                                    ? "border-primary/50 bg-primary/5 shadow-sm" 
+                                    : "border-border/60 bg-muted/20 hover:bg-muted/50"
+                                )}
+                              >
+                                <div className="space-y-1 pr-4">
+                                  <Label className="text-sm font-semibold flex items-center gap-2 cursor-pointer">
+                                    <RegraIcon className={cn("h-4 w-4 shrink-0", isChecked ? "text-primary font-bold" : "text-muted-foreground")} />
+                                    {regra.label}
+                                  </Label>
+                                  <p className="text-xs text-muted-foreground leading-relaxed">
+                                    {regra.desc}
+                                  </p>
+                                </div>
+                                <Switch 
+                                  checked={isChecked}
+                                  onCheckedChange={() => handlePermissionToggle(regra.key)}
+                                  className="mt-0.5 shrink-0"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </TabsContent>
+
+          </Tabs>
+
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // TELA PRINCIPAL: LISTA GERAL DE TODOS OS 37 USUÁRIOS (TABELA MASTER)
+  // =========================================================================
   return (
     <div className="space-y-6 max-w-7xl mx-auto p-4 sm:p-6 animate-in fade-in duration-300">
       {/* Cabeçalho */}
@@ -516,7 +863,7 @@ export default function GerenciarUsuarios() {
               const perms = u.permissions || getDefaultPermissionsForRole(u.role);
               const userMaquinas = parseMaquinas(u.maquina);
               
-              // Contar regras especiais ativas para este usuário
+              // Contar regras e apps ativos
               const totalRegrasAtivas = Object.values(perms).filter(Boolean).length;
 
               return (
@@ -576,17 +923,16 @@ export default function GerenciarUsuarios() {
                     )}
 
                     <Button 
-                      variant="ghost" 
+                      variant="outline" 
                       size="sm" 
-                      className="h-8 gap-1 ml-1" 
+                      className="h-9 gap-1.5 ml-1 border-primary/30 text-primary hover:bg-primary/5" 
                       onClick={() => { 
-                        setEditUser({ 
+                        setEditingUser({ 
                           ...u, 
                           maquinas: userMaquinas,
                           permissions: u.permissions || getDefaultPermissionsForRole(u.role)
                         }); 
                         setActiveTab("perfil");
-                        setEditOpen(true); 
                       }}
                     >
                       <Settings2 className="w-4 h-4" />
@@ -644,246 +990,6 @@ export default function GerenciarUsuarios() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Sheet Lateral Configurar Usuário (Perfil + Motor de 50+ Regras Categorizadas + Apps Visíveis) */}
-      <Sheet open={editOpen} onOpenChange={open => { setEditOpen(open); if(!open) setEditUser(null); }}>
-        <SheetContent className="w-[500px] sm:w-[680px] border-border bg-background/95 backdrop-blur-xl overflow-y-auto p-6">
-          {editUser && (
-            <>
-              <SheetHeader className="mb-6 pb-4 border-b border-border">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20">
-                    <span className="text-primary font-bold text-lg">
-                      {(editUser.full_name || editUser.email || "?").charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <div>
-                    <SheetTitle className="text-lg">{editUser.full_name || editUser.email}</SheetTitle>
-                    <SheetDescription className="text-xs flex items-center gap-2 mt-0.5">
-                      <span>{editUser.email}</span>
-                      <Badge className={`border text-[10px] py-0 ${ROLE_COLORS[editUser.role] || ""}`}>
-                        {ROLES.find(r => r.value === editUser.role)?.label || editUser.role}
-                      </Badge>
-                    </SheetDescription>
-                  </div>
-                </div>
-              </SheetHeader>
-
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-6">
-                  <TabsTrigger value="perfil" className="gap-2">
-                    <User className="w-4 h-4" />
-                    Perfil & Máquinas
-                  </TabsTrigger>
-                  <TabsTrigger value="permissoes" className="gap-2">
-                    <Shield className="w-4 h-4 text-purple-500" />
-                    Aplicativos & Regras (50+)
-                  </TabsTrigger>
-                </TabsList>
-
-                {/* Aba 1: Perfil & Máquinas */}
-                <TabsContent value="perfil" className="space-y-4">
-                  <div className="space-y-1">
-                    <Label htmlFor="user-name">Nome Completo</Label>
-                    <Input 
-                      id="user-name"
-                      value={editUser.full_name || ""} 
-                      onChange={e => setEditUser(u => ({ ...u, full_name: e.target.value }))}
-                      placeholder="Nome do colaborador"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label>Papel *</Label>
-                    <Select 
-                      value={editUser.role || "operador"} 
-                      onValueChange={v => {
-                        const newDefaults = getDefaultPermissionsForRole(v);
-                        setEditUser(u => ({ 
-                          ...u, 
-                          role: v,
-                          permissions: { ...newDefaults, ...(u.permissions || {}) }
-                        }));
-                      }}
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {ROLES.map(r => <SelectItem key={r.value} value={r.value}>{r.label} — {r.desc}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label>Setor</Label>
-                    <Select value={editUser.setor || "telhas"} onValueChange={v => setEditUser(u => ({ ...u, setor: v, maquinas: [] }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {SETORES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">Define em qual setor este usuário trabalha</p>
-                  </div>
-
-                  {editUser.role === "operador" && (
-                    <div className="space-y-2 pt-2 border-t border-border/50">
-                      <Label className="flex items-center gap-2">
-                        <Monitor className="w-4 h-4 text-primary" />
-                        Máquinas Associadas
-                      </Label>
-                      <div className="border border-border rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto bg-card/50">
-                        {getMaquinasPorSetor(editUser.setor || "telhas").map(m => (
-                          <label key={m} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 transition-colors">
-                            <Checkbox
-                              checked={(editUser.maquinas || []).includes(m)}
-                              onCheckedChange={() => toggleMaquina(m)}
-                            />
-                            <span className="text-xs">{m}</span>
-                          </label>
-                        ))}
-                      </div>
-                      {(editUser.maquinas || []).length > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          {(editUser.maquinas || []).length} máquina(s) selecionada(s): {(editUser.maquinas || []).join(", ")}
-                        </p>
-                      )}
-                      <p className="text-xs text-muted-foreground">O operador verá apenas os pedidos das máquinas selecionadas</p>
-                    </div>
-                  )}
-
-                  <div className="bg-card/40 rounded-lg p-3 border border-border flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold">Acesso Gerencial</p>
-                      <p className="text-xs text-muted-foreground">Acesso ao setor gerencial (link externo OEE)</p>
-                    </div>
-                    <Switch
-                      checked={editUser.gerencia || false}
-                      onCheckedChange={v => setEditUser(u => ({ ...u, gerencia: v }))}
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label>Unidade</Label>
-                    <Select value={editUser.unidade || "todas"} onValueChange={v => setEditUser(u => ({ ...u, unidade: v === "todas" ? "" : v }))}>
-                      <SelectTrigger><SelectValue placeholder="Selecione a unidade" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todas">Todas</SelectItem>
-                        {UNIDADES.filter(u => u).map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </TabsContent>
-
-                {/* Aba 2: Aplicativos Visíveis + Motor de 50+ Regras Granulares Odoo-Style por Tópicos */}
-                <TabsContent value="permissoes" className="space-y-5">
-                  <div className="flex items-center justify-between gap-2 bg-purple-50 dark:bg-purple-950/40 p-3 rounded-xl border border-purple-200 dark:border-purple-800">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
-                      <div>
-                        <p className="text-xs font-semibold text-purple-900 dark:text-purple-200">
-                          Template: {ROLES.find(r => r.value === editUser.role)?.label || editUser.role}
-                        </p>
-                        <p className="text-[11px] text-purple-700 dark:text-purple-300">
-                          Aplicativos e regras vinculados à função do usuário.
-                        </p>
-                      </div>
-                    </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={handleApplyRoleDefaults}
-                      className="h-8 text-xs gap-1 border-purple-300 text-purple-800 hover:bg-purple-100 shrink-0"
-                    >
-                      <RotateCcw className="w-3 h-3" />
-                      Restaurar Padrão
-                    </Button>
-                  </div>
-
-                  {/* Busca de Regras */}
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input 
-                      placeholder="Pesquisar aplicativos ou regras..." 
-                      value={regrasSearchTerm}
-                      onChange={e => setRegrasSearchTerm(e.target.value)}
-                      className="pl-9 h-9 text-xs"
-                    />
-                  </div>
-
-                  <div className="space-y-6">
-                    {REGRAS_CATEGORIZADAS.map(cat => {
-                      const CatIcon = cat.icon;
-                      
-                      // Filtrar regras da categoria com base na busca interna
-                      const regrasFiltradas = cat.regras.filter(r => 
-                        r.label.toLowerCase().includes(regrasSearchTerm.toLowerCase()) ||
-                        r.desc.toLowerCase().includes(regrasSearchTerm.toLowerCase())
-                      );
-
-                      if (regrasFiltradas.length === 0) return null;
-
-                      return (
-                        <div key={cat.categoriaId} className="space-y-3">
-                          <div className="flex items-center gap-2 border-b border-border/60 pb-2">
-                            <CatIcon className={`w-4 h-4 ${cat.cor}`} />
-                            <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">
-                              {cat.categoriaNome}
-                            </h3>
-                            <Badge variant="outline" className="text-[10px] ml-auto font-mono">
-                              {regrasFiltradas.length} item(ns)
-                            </Badge>
-                          </div>
-
-                          <div className="space-y-2.5">
-                            {regrasFiltradas.map(regra => {
-                              const RegraIcon = regra.icon || Shield;
-                              const isChecked = !!editUser.permissions?.[regra.key];
-
-                              return (
-                                <div 
-                                  key={regra.key} 
-                                  className={`flex items-start justify-between p-3 rounded-xl border transition-all ${
-                                    isChecked 
-                                      ? "border-primary/40 bg-primary/5 dark:bg-primary/10 shadow-sm" 
-                                      : "border-border/60 bg-card/40 hover:bg-card/70"
-                                  }`}
-                                >
-                                  <div className="space-y-0.5 pr-3">
-                                    <Label className="text-xs font-semibold flex items-center gap-2 cursor-pointer" onClick={() => handlePermissionToggle(regra.key)}>
-                                      <RegraIcon className={`h-3.5 w-3.5 ${isChecked ? "text-primary font-bold" : "text-muted-foreground"}`} />
-                                      {regra.label}
-                                    </Label>
-                                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                                      {regra.desc}
-                                    </p>
-                                  </div>
-                                  <Switch 
-                                    checked={isChecked}
-                                    onCheckedChange={() => handlePermissionToggle(regra.key)}
-                                    className="mt-0.5 shrink-0"
-                                  />
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </TabsContent>
-              </Tabs>
-
-              <div className="pt-6 mt-6 border-t border-border flex items-center justify-end gap-2">
-                <Button variant="outline" onClick={() => { setEditOpen(false); setEditUser(null); }}>
-                  Cancelar
-                </Button>
-                <Button onClick={handleUpdateUser} disabled={updateMutation.isPending}>
-                  {updateMutation.isPending ? "Salvando..." : "Salvar Alterações"}
-                </Button>
-              </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }
