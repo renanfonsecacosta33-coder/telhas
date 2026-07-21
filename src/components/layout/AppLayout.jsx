@@ -12,6 +12,7 @@ import { useAllUnreadCount, useUnreadCount } from "@/hooks/useUnreadMessages";
 import { playAlertSound } from "@/lib/sounds";
 import { toast } from "sonner";
 import GlobalCommandPalette from "@/components/GlobalCommandPalette";
+import AjlCopilot from "@/components/ai/AjlCopilot";
 import { Search } from "lucide-react";
 
 export default function AppLayout() {
@@ -123,6 +124,7 @@ export default function AppLayout() {
       )}
       <CentralMensagensDireto user={user} open={centralDiretoOpen} onOpenChange={setCentralDiretoOpen} />
       <GlobalCommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
+      <AjlCopilot />
     </div>
   );
 }

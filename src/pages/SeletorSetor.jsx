@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import UserAvatarButton from "@/components/UserAvatarButton";
 import GlobalCommandPalette from "@/components/GlobalCommandPalette";
+import AjlCopilot from "@/components/ai/AjlCopilot";
 import { cn } from "@/lib/utils";
 
 const ALL_MODULES = [
@@ -217,7 +218,7 @@ export default function SeletorSetor() {
     if (role === "operador") {
       if (user.setor === "corte_dobra") return appKey === "app_corte_dobra";
       if (user.setor === "telhas") return appKey === "app_fabrica_telhas";
-      return ["app_fabrica_telhas", "app_corte_dobra", "app_hora_extra"].includes(appKey);
+      return ["app_fabrica_telhas", "app_corte_dobra"].includes(appKey);
     }
 
     return true;
@@ -353,6 +354,7 @@ export default function SeletorSetor() {
       </div>
 
       <GlobalCommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
+      <AjlCopilot />
     </div>
   );
 }
