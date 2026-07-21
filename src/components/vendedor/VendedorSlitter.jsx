@@ -4,14 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Search, Filter, BookmarkPlus } from "lucide-react";
 import SolicitarReservaDialog from "@/components/vendedor/SolicitarReservaDialog";
-import { getFilialColor } from "@/components/vendedor/FiliaisMultiSelect";
-import { useQueryClient } from "@tanstack/react-query";
-import { useFilial } from "@/contexts/FilialContext";
+import { FILIAIS_LIST, getFilialColor } from "@/components/vendedor/FiliaisMultiSelect";
 
 export default function VendedorSlitter({ vendedorNome, selectedFiliais }) {
   const qc = useQueryClient();
   const { filialAtiva } = useFilial();
-  const filiais = selectedFiliais || [filialAtiva];
+  const filiais = selectedFiliais && selectedFiliais.length > 0 ? selectedFiliais : FILIAIS_LIST;
   const [search, setSearch] = useState("");
   const [filtroQualidade, setFiltroQualidade] = useState(null);
   const [solicitarItem, setSolicitarItem] = useState(null);

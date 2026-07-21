@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Search, Filter, ShieldCheck, BookmarkPlus } from "lucide-react";
 import SolicitarReservaDialog from "@/components/vendedor/SolicitarReservaDialog";
-import FiliaisMultiSelect, { getFilialColor } from "@/components/vendedor/FiliaisMultiSelect";
+import FiliaisMultiSelect, { FILIAIS_LIST, getFilialColor } from "@/components/vendedor/FiliaisMultiSelect";
 import ImageLink from "@/components/ui/ImageLink";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFilial } from "@/contexts/FilialContext";
@@ -12,7 +12,7 @@ import { useFilial } from "@/contexts/FilialContext";
 export default function VendedorChapas({ vendedorNome, selectedFiliais }) {
   const qc = useQueryClient();
   const { filialAtiva } = useFilial();
-  const filiais = selectedFiliais || [filialAtiva];
+  const filiais = selectedFiliais && selectedFiliais.length > 0 ? selectedFiliais : FILIAIS_LIST;
   const [search, setSearch] = useState("");
   const [filtroQualidade, setFiltroQualidade] = useState(null);
   const [solicitarItem, setSolicitarItem] = useState(null);

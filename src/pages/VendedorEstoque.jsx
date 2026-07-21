@@ -130,7 +130,7 @@ function LoginScreen({ onLogin }) {
 // Tela do estoque
 function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
   const { filialAtiva } = useFilial();
-  const [selectedFiliais, setSelectedFiliais] = useState([filialAtiva]);
+  const [selectedFiliais, setSelectedFiliais] = useState(FILIAIS_LIST);
   const [search, setSearch] = useState("");
   const [solicitarBobina, setSolicitarBobina] = useState(null);
   const [filtroQualidade, setFiltroQualidade] = useState(null); // null = todas
@@ -140,13 +140,17 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
   const setorEmoji = setor === "telhas" ? "🏗️" : "✂️";
   const isCorteDobra = setor === "corte_dobra";
 
-  const { data: bobinas = [], isLoading, refetch } = useQuery({
-    queryKey: ["bobinas-vendedor", setor, "todas"],
-    queryFn: () => base44.entities.Bobina.filter({ setor, arquivada: false }),
+  const { data: todasBobinas = [], isLoading, refetch } = useQuery({
+    queryKey: ["bobinas-vendedor-todas"],
+    queryFn: () => base44.entities.Bobina.filter({ arquivada: false }),
   });
 
-  // Filtra bobinas pelas filiais selecionadas
-  const bobinasFiltradas = bobinas.filter(b => selectedFiliais.includes(b.unidade || "Matriz AJL"));
+  // Filtra por setor se especificado (se bobina não tem setor, exibe no setor atual por compatibilidade)
+  const bobinas = todasBobinas.filter(b => !setor || !b.setor || b.setor === setor);
+
+  // Filtra bobinas pelas filiais selecionadas (se nenhuma selecionada, usa todas)
+  const activeFiliais = selectedFiliais && selectedFiliais.length > 0 ? selectedFiliais : FILIAIS_LIST;
+  const bobinasFiltradas = bobinas.filter(b => activeFiliais.includes(b.unidade || "Matriz AJL"));
 
   // Pré-baixa e status das bobinas via hook compartilhado
   const { preBaixaMap, statusMap } = usePreBaixaBobinas(setor);
