@@ -184,7 +184,7 @@ export default function SeletorSetor() {
               iconBg="bg-purple-500/10 shadow-purple-900/20"
               textColor="text-white"
               descColor="text-slate-400"
-              onClick={() => navigate("/admin/usuarios")}
+              onClick={() => navigate("/usuarios")}
               disabled={navegando}
             />
           </>

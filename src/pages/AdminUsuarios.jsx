@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 import { 
   Camera, 
   CheckCircle, 
@@ -33,7 +34,8 @@ import {
   Shield,
   Settings,
   UserPlus,
-  Loader2
+  Loader2,
+  ArrowLeft
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 
@@ -56,6 +58,7 @@ const DEFAULT_USER_FORM = {
 };
 
 export default function AdminUsuarios() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -186,11 +189,16 @@ export default function AdminUsuarios() {
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto animate-in fade-in zoom-in-95 duration-300">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Gestão de Usuários</h1>
-          <p className="text-muted-foreground mt-2">
-            Gerencie acessos, papéis, permissões granulares e perfis dos usuários do sistema.
-          </p>
+        <div className="flex items-center gap-4">
+          <Button variant="outline" size="icon" onClick={() => navigate(-1)} title="Voltar">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Gestão de Usuários</h1>
+            <p className="text-muted-foreground mt-2">
+              Gerencie acessos, papéis, permissões granulares e perfis dos usuários do sistema.
+            </p>
+          </div>
         </div>
         <Button onClick={handleCreateUserClick} className="gap-2">
           <UserPlus className="h-4 w-4" />

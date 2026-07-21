@@ -17,7 +17,6 @@ import Isopor from '@/pages/Isopor';
 import Estoque from '@/pages/Estoque';
 import Producao from '@/pages/Producao';
 import Configuracoes from '@/pages/Configuracoes';
-import GerenciarUsuarios from '@/pages/GerenciarUsuarios';
 import UsuariosEquipe from '@/pages/UsuariosEquipe';
 import TP40 from '@/pages/maquinas/TP40';
 import TP25 from '@/pages/maquinas/TP25';
@@ -51,7 +50,6 @@ import ProducaoCD from '@/pages/corte-dobra/Producao';
 import BobinasCD from '@/pages/corte-dobra/Bobinas';
 import Chaparia from '@/pages/corte-dobra/Chaparia';
 import EPI from '@/pages/corte-dobra/EPI';
-import UsuariosCD from '@/pages/corte-dobra/Usuarios';
 import DesenvolvimentoCD from '@/pages/corte-dobra/Desenvolvimento';
 import CatalogoCD from '@/pages/corte-dobra/Catalogo';
 import RetalhosCD from '@/pages/corte-dobra/Retalhos';
@@ -106,7 +104,7 @@ const AuthenticatedApp = () => {
         <Route path="/estoque" element={<Estoque />} />
         <Route path="/producao" element={<Producao />} />
         <Route path="/configuracoes" element={<Configuracoes />} />
-        <Route path="/usuarios" element={<GerenciarUsuarios />} />
+        <Route path="/usuarios" element={<AdminUsuarios />} />
         <Route path="/usuarios-equipe" element={<UsuariosEquipe />} />
         <Route path="/maquina/tp40" element={<TP40 />} />
         <Route path="/maquina/tp25" element={<TP25 />} />
@@ -145,7 +143,7 @@ const AuthenticatedApp = () => {
         <Route path="/corte-dobra/bobinas" element={<BobinasCD />} />
         <Route path="/corte-dobra/chaparia" element={<Chaparia />} />
         <Route path="/corte-dobra/epi" element={<EPI />} />
-        <Route path="/corte-dobra/usuarios" element={<UsuariosCD />} />
+        <Route path="/corte-dobra/usuarios" element={<AdminUsuarios />} />
         <Route path="/corte-dobra/alertas" element={<CentralAlertas />} />
         <Route path="/corte-dobra/desenvolvimento" element={<DesenvolvimentoCD />} />
         <Route path="/corte-dobra/catalogo" element={<CatalogoCD />} />
