@@ -46,7 +46,9 @@ import {
   Zap,
   Lock,
   Download,
-  Activity
+  Activity,
+  RotateCcw,
+  Sparkles
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -215,6 +217,42 @@ REGRAS_CATEGORIZADAS.forEach(cat => {
   });
 });
 
+// ----------------------------------------------------
+// GERADOR DE REGRAS PADRÃO POR FUNÇÃO / PAPEL (ROLE TEMPLATES)
+// ----------------------------------------------------
+export function getDefaultPermissionsForRole(role) {
+  const perms = { ...DEFAULT_PERMISSIONS };
+
+  if (role === "super_admin" || role === "admin") {
+    // Admins possuem todas as 50+ permissões ativas por padrão
+    Object.keys(perms).forEach(k => { perms[k] = true; });
+    return perms;
+  }
+
+  if (role === "operador") {
+    // Operadores recebem permissões operacionais de Produção, MES e Estoque
+    perms.ignorar_bloqueio_op = true;
+    perms.finalizar_op_parcial = true;
+    perms.imprimir_etiqueta_avulsa = true;
+    perms.remover_sobra_bobina = true;
+    perms.alterar_velocidade_linha = true;
+    perms.layout_compacto = true;
+    return perms;
+  }
+
+  if (role === "vendedor") {
+    // Vendedores recebem permissões comerciais e de orçamentação
+    perms.vender_sem_estoque = true;
+    perms.alterar_tabela_precos = true;
+    perms.aprovar_bonificacao_amostra = true;
+    perms.gerar_orcamento_condicao_especial = true;
+    perms.desconto_acima_limite = true;
+    return perms;
+  }
+
+  return perms;
+}
+
 export default function GerenciarUsuarios() {
   const navigate = useNavigate();
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -235,10 +273,14 @@ export default function GerenciarUsuarios() {
     queryFn: () => base44.entities.User.list(),
   });
 
-  const users = rawUsers.map(u => ({
-    ...u,
-    permissions: u.permissions || { ...DEFAULT_PERMISSIONS }
-  }));
+  // Garantir que todo usuário receba as permissões vinculadas à sua função por padrão se não tiver salvas
+  const users = rawUsers.map(u => {
+    const hasCustomPerms = u.permissions && Object.keys(u.permissions).length > 0;
+    return {
+      ...u,
+      permissions: hasCustomPerms ? u.permissions : getDefaultPermissionsForRole(u.role)
+    };
+  });
 
   useEffect(() => {
     base44.auth.me().then(setCurrentUser).catch(() => {});
@@ -286,7 +328,7 @@ export default function GerenciarUsuarios() {
         unidade: editUser.unidade || "",
         setor: editUser.setor || "telhas",
         gerencia: editUser.gerencia || false,
-        permissions: editUser.permissions || { ...DEFAULT_PERMISSIONS }
+        permissions: editUser.permissions || getDefaultPermissionsForRole(editUser.role)
       }
     });
   };
@@ -301,7 +343,7 @@ export default function GerenciarUsuarios() {
 
   const handlePermissionToggle = (permKey) => {
     setEditUser(u => {
-      const currentPerms = u.permissions || { ...DEFAULT_PERMISSIONS };
+      const currentPerms = u.permissions || getDefaultPermissionsForRole(u.role);
       return {
         ...u,
         permissions: {
@@ -310,6 +352,14 @@ export default function GerenciarUsuarios() {
         }
       };
     });
+  };
+
+  // Restaurar permissões padrão da função do usuário
+  const handleApplyRoleDefaults = () => {
+    if (!editUser) return;
+    const defaults = getDefaultPermissionsForRole(editUser.role);
+    setEditUser(u => ({ ...u, permissions: defaults }));
+    toast.success(`Permissões padrão de ${ROLES.find(r => r.value === editUser.role)?.label || editUser.role} aplicadas!`);
   };
 
   const filteredUsers = users.filter(u => {
@@ -344,10 +394,10 @@ export default function GerenciarUsuarios() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
               <Users className="w-6 h-6 text-primary" />
-              Gerenciar Usuários & Motor de Regras (50+ Permissões)
+              Gerenciar Usuários & Perfis de Regras (50+)
             </h1>
             <p className="text-sm text-muted-foreground">
-              Configure acessos, máquinas e ative permissões granulares por tópicos (Produção, Estoque, Vendas, Logística).
+              Todos os usuários com permissões predefinidas por função (Operador, Vendedor, Admin) e totalmente personalizáveis.
             </p>
           </div>
         </div>
@@ -406,7 +456,7 @@ export default function GerenciarUsuarios() {
         ) : (
           <div className="divide-y divide-border">
             {filteredUsers.map(u => {
-              const perms = u.permissions || {};
+              const perms = u.permissions || getDefaultPermissionsForRole(u.role);
               const userMaquinas = parseMaquinas(u.maquina);
               
               // Contar regras especiais ativas para este usuário
@@ -460,7 +510,7 @@ export default function GerenciarUsuarios() {
                     {/* Contador de Regras Ativas */}
                     {totalRegrasAtivas > 0 ? (
                       <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200 gap-1 font-semibold">
-                        <Shield className="w-3 h-3" /> {totalRegrasAtivas} Regra(s) Ativa(s)
+                        <Sparkles className="w-3 h-3 text-purple-500" /> {totalRegrasAtivas} Regra(s) Vinculada(s)
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="text-xs text-muted-foreground font-normal">
@@ -476,7 +526,7 @@ export default function GerenciarUsuarios() {
                         setEditUser({ 
                           ...u, 
                           maquinas: userMaquinas,
-                          permissions: u.permissions || { ...DEFAULT_PERMISSIONS }
+                          permissions: u.permissions || getDefaultPermissionsForRole(u.role)
                         }); 
                         setActiveTab("perfil");
                         setEditOpen(true); 
@@ -526,7 +576,7 @@ export default function GerenciarUsuarios() {
               </Select>
             </div>
             <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
-              O usuário receberá um email com link de acesso. Depois que entrar, você pode ativar as 50+ regras Odoo-style dele aqui.
+              O novo usuário já entrará no sistema com as regras e permissões padrão vinculadas à função escolhida!
             </div>
           </div>
           <DialogFooter>
@@ -552,7 +602,12 @@ export default function GerenciarUsuarios() {
                   </div>
                   <div>
                     <SheetTitle className="text-lg">{editUser.full_name || editUser.email}</SheetTitle>
-                    <SheetDescription className="text-xs">{editUser.email}</SheetDescription>
+                    <SheetDescription className="text-xs flex items-center gap-2 mt-0.5">
+                      <span>{editUser.email}</span>
+                      <Badge className={`border text-[10px] py-0 ${ROLE_COLORS[editUser.role] || ""}`}>
+                        {ROLES.find(r => r.value === editUser.role)?.label || editUser.role}
+                      </Badge>
+                    </SheetDescription>
                   </div>
                 </div>
               </SheetHeader>
@@ -583,7 +638,17 @@ export default function GerenciarUsuarios() {
 
                   <div className="space-y-1">
                     <Label>Papel *</Label>
-                    <Select value={editUser.role || "operador"} onValueChange={v => setEditUser(u => ({ ...u, role: v }))}>
+                    <Select 
+                      value={editUser.role || "operador"} 
+                      onValueChange={v => {
+                        const newDefaults = getDefaultPermissionsForRole(v);
+                        setEditUser(u => ({ 
+                          ...u, 
+                          role: v,
+                          permissions: { ...newDefaults, ...(u.permissions || {}) }
+                        }));
+                      }}
+                    >
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {ROLES.map(r => <SelectItem key={r.value} value={r.value}>{r.label} — {r.desc}</SelectItem>)}
@@ -652,7 +717,30 @@ export default function GerenciarUsuarios() {
                 </TabsContent>
 
                 {/* Aba 2: Motor de 50+ Regras Granulares Odoo-Style por Tópicos */}
-                <TabsContent value="permissoes" className="space-y-6">
+                <TabsContent value="permissoes" className="space-y-5">
+                  <div className="flex items-center justify-between gap-2 bg-purple-50 dark:bg-purple-950/40 p-3 rounded-xl border border-purple-200 dark:border-purple-800">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                      <div>
+                        <p className="text-xs font-semibold text-purple-900 dark:text-purple-200">
+                          Template: {ROLES.find(r => r.value === editUser.role)?.label || editUser.role}
+                        </p>
+                        <p className="text-[11px] text-purple-700 dark:text-purple-300">
+                          Regras padrão da função ativadas automaticamente.
+                        </p>
+                      </div>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleApplyRoleDefaults}
+                      className="h-8 text-xs gap-1 border-purple-300 text-purple-800 hover:bg-purple-100 shrink-0"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      Restaurar Padrão
+                    </Button>
+                  </div>
+
                   {/* Busca de Regras */}
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
