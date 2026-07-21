@@ -1,10 +1,11 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Search, LogOut, Lock, ChevronRight, ArrowLeft, BookmarkPlus, ShieldCheck, Filter, Calculator } from "lucide-react";
+import { Search, LogOut, Lock, ChevronRight, ArrowLeft, BookmarkPlus, ShieldCheck, Filter, Calculator, Home, BarChart3, RefreshCw } from "lucide-react";
 import SolicitarReservaDialog from "@/components/vendedor/SolicitarReservaDialog";
 import CalculadoraVendedor from "@/components/vendedor/CalculadoraVendedor";
 import VendedorChapas from "@/components/vendedor/VendedorChapas";
@@ -20,47 +21,86 @@ const NOME_KEY = "vendedor_nome";
 
 // Tela de seleção de setor
 function SetorSelector({ onSelect }) {
+  const navigate = useNavigate();
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-sm space-y-6">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 relative">
+      {/* Botão de retorno ao painel principal ERP (para ADM / Gerência) */}
+      <div className="absolute top-4 left-4">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => navigate("/")}
+          className="gap-2 text-xs font-semibold bg-white shadow-sm border-slate-300 hover:bg-slate-100"
+        >
+          <Home className="w-4 h-4 text-primary" />
+          Painel Principal (ADM)
+        </Button>
+      </div>
+
+      <div className="w-full max-w-sm space-y-6 my-auto">
         <div className="text-center space-y-2">
-          <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center mx-auto">
+          <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center mx-auto shadow-md">
             <span className="text-primary-foreground font-bold text-2xl">A</span>
           </div>
-          <h1 className="text-2xl font-bold">AJL - Estoque</h1>
-          <p className="text-sm text-muted-foreground">Selecione o setor para consultar</p>
+          <h1 className="text-2xl font-bold text-slate-900">AJL - Estoque & Vendas</h1>
+          <p className="text-sm text-muted-foreground">Selecione o setor para consultar ou seu dashboard</p>
         </div>
         <div className="space-y-3">
           <button
             onClick={() => onSelect("telhas")}
-            className="w-full bg-card border border-border rounded-xl p-5 flex items-center justify-between hover:border-primary hover:bg-primary/5 transition-all group"
+            className="w-full bg-card border border-border rounded-xl p-4 flex items-center justify-between hover:border-primary hover:bg-primary/5 transition-all group shadow-sm"
           >
             <div className="text-left">
-              <p className="font-bold text-base">🏗️ Telhas</p>
-              <p className="text-sm text-muted-foreground mt-1">Bobinas do barracão de telhas</p>
+              <p className="font-bold text-base text-slate-900">🏗️ Telhas</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Bobinas do barracão de telhas</p>
             </div>
             <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
           </button>
           <button
             onClick={() => onSelect("corte_dobra")}
-            className="w-full bg-card border border-border rounded-xl p-5 flex items-center justify-between hover:border-primary hover:bg-primary/5 transition-all group"
+            className="w-full bg-card border border-border rounded-xl p-4 flex items-center justify-between hover:border-primary hover:bg-primary/5 transition-all group shadow-sm"
           >
             <div className="text-left">
-              <p className="font-bold text-base">✂️ Corte e Dobra</p>
-              <p className="text-sm text-muted-foreground mt-1">Bobinas do setor de corte e dobra</p>
+              <p className="font-bold text-base text-slate-900">✂️ Corte e Dobra</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Bobinas, Chapas e Slitter de corte e dobra</p>
             </div>
             <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
           </button>
           <button
             onClick={() => onSelect("calculos")}
-            className="w-full bg-card border border-border rounded-xl p-5 flex items-center justify-between hover:border-primary hover:bg-primary/5 transition-all group"
+            className="w-full bg-card border border-border rounded-xl p-4 flex items-center justify-between hover:border-primary hover:bg-primary/5 transition-all group shadow-sm"
           >
             <div className="text-left">
-              <p className="font-bold text-base">🧮 Cálculos</p>
-              <p className="text-sm text-muted-foreground mt-1">Calculadora de peso teórico de chapas</p>
+              <p className="font-bold text-base text-slate-900">🧮 Cálculos</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Calculadora de peso teórico de chapas</p>
             </div>
             <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
           </button>
+
+          {/* Card Dashboard do Vendedor */}
+          <button
+            onClick={() => navigate("/vendedor-dashboard")}
+            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white border border-blue-700 rounded-xl p-4 flex items-center justify-between hover:opacity-95 transition-all group shadow-md"
+          >
+            <div className="text-left">
+              <p className="font-bold text-base flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-blue-200" /> Meu Dashboard Vendedor
+              </p>
+              <p className="text-xs text-blue-100 mt-0.5">Acompanhamento de OPs, Vendas e Reservas</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-blue-200 group-hover:translate-x-0.5 transition-transform" />
+          </button>
+        </div>
+
+        <div className="pt-2 text-center">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => navigate("/")}
+            className="text-xs text-muted-foreground gap-1.5"
+          >
+            <Home className="w-3.5 h-3.5" /> Voltar ao Painel Geral (ADM)
+          </Button>
         </div>
       </div>
     </div>
@@ -129,6 +169,7 @@ function LoginScreen({ onLogin }) {
 
 // Tela do estoque
 function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
+  const navigate = useNavigate();
   const { filialAtiva } = useFilial();
   const [selectedFiliais, setSelectedFiliais] = useState(FILIAIS_LIST);
   const [search, setSearch] = useState("");
@@ -213,20 +254,33 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="bg-card border-b border-border px-4 py-4 flex items-center justify-between">
+      <div className="bg-card border-b border-border px-4 py-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <button onClick={onVoltar} className="text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={onVoltar} className="p-1 text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-muted" title="Trocar Setor">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="font-bold text-base leading-tight">{setorEmoji} Bobinas — {setorLabel}</h1>
+            <h1 className="font-bold text-base leading-tight flex items-center gap-2">
+              {setorEmoji} Bobinas — {setorLabel}
+            </h1>
             <p className="text-xs text-muted-foreground">Olá, <span className="font-semibold">{vendedorNome}</span></p>
           </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={onLogout} className="gap-2 text-muted-foreground">
-          <LogOut className="w-4 h-4" />
-          Sair
-        </Button>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={onVoltar} className="h-8 text-xs gap-1.5 border-slate-300">
+            <RefreshCw className="w-3.5 h-3.5" /> Trocar Setor
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigate("/vendedor-dashboard")} className="h-8 text-xs gap-1.5 text-blue-700 border-blue-300 bg-blue-50 hover:bg-blue-100 font-semibold">
+            <BarChart3 className="w-3.5 h-3.5" /> Meu Dashboard
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigate("/")} className="h-8 text-xs gap-1.5 border-slate-300">
+            <Home className="w-3.5 h-3.5" /> Painel ADM
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onLogout} className="h-8 text-xs gap-1 text-muted-foreground">
+            <LogOut className="w-3.5 h-3.5" /> Sair
+          </Button>
+        </div>
       </div>
 
       <div className="p-4 space-y-4 max-w-7xl mx-auto">
