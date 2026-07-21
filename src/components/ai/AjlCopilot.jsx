@@ -182,8 +182,8 @@ export default function AjlCopilot() {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent 
           className={cn(
-            "border-l border-border bg-slate-950 text-slate-100 flex flex-col p-0 shadow-2xl transition-all duration-300",
-            isExpanded ? "w-full sm:w-[90vw] lg:w-[90vw]" : "w-full sm:w-[680px] lg:w-[850px] xl:w-[950px]"
+            "border-l border-border bg-slate-950 text-slate-100 flex flex-col p-0 shadow-2xl transition-all duration-300 max-w-none sm:max-w-none",
+            isExpanded ? "w-full sm:w-[92vw] lg:w-[92vw]" : "w-full sm:w-[700px] md:w-[850px] lg:w-[950px] xl:w-[1050px]"
           )}
         >
           
