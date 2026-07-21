@@ -1,14 +1,16 @@
 import React, { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Package, Factory, CheckCircle2, Truck, Bell } from "lucide-react";
+import { Search, Package, Factory, CheckCircle2, Truck, Bell, Home, ArrowLeft, Layers, BookOpen } from "lucide-react";
 import PedidoVendedorCard from "@/components/vendedor/PedidoVendedorCard";
 import PedidoDetalheDrawer from "@/components/vendedor/PedidoDetalheDrawer";
 
 export default function VendedorDashboard() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [filtroSetor, setFiltroSetor] = useState("todos");
@@ -170,19 +172,64 @@ export default function VendedorDashboard() {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-sm border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-foreground">AJL Ferro & Aço — Painel do Vendedor</h1>
-            <p className="text-xs text-muted-foreground">{vendedorNome || "—"}</p>
+        <div className="max-w-7xl mx-auto px-4 py-3">
+          {/* Linha principal: título + notificações */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => navigate(-1)}
+                className="h-9 w-9 shrink-0 border-slate-300 hover:bg-slate-100"
+                title="Voltar"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+              <div>
+                <h1 className="text-lg font-bold text-foreground">AJL Ferro & Aço — Painel do Vendedor</h1>
+                <p className="text-xs text-muted-foreground">{vendedorNome || "—"}</p>
+              </div>
+            </div>
+            <Button variant="outline" size="icon" className="relative">
+              <Bell className="w-4 h-4" />
+              {totalUnread > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                  {totalUnread > 9 ? "9+" : totalUnread}
+                </span>
+              )}
+            </Button>
           </div>
-          <Button variant="outline" size="icon" className="relative">
-            <Bell className="w-4 h-4" />
-            {totalUnread > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                {totalUnread > 9 ? "9+" : totalUnread}
-              </span>
-            )}
-          </Button>
+
+          {/* Barra de navegação rápida */}
+          <div className="flex items-center gap-2 mt-2 overflow-x-auto pb-1 scrollbar-hide">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/")}
+              className="gap-1.5 text-xs font-semibold shrink-0 border-slate-300 hover:bg-slate-100"
+            >
+              <Home className="w-3.5 h-3.5 text-primary" />
+              Painel ADM
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/vendedor")}
+              className="gap-1.5 text-xs font-semibold shrink-0 border-blue-300 text-blue-700 hover:bg-blue-50"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              Consultar Estoque
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/setor")}
+              className="gap-1.5 text-xs font-semibold shrink-0 border-slate-300 hover:bg-slate-100"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              Trocar Setor
+            </Button>
+          </div>
         </div>
       </header>
 
