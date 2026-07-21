@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { ChevronRight, BookmarkPlus, Truck } from "lucide-react";
+import { ChevronRight, BookmarkPlus, Truck, BarChart3 } from "lucide-react";
 
 export default function SeletorSetor() {
   const navigate = useNavigate();
@@ -123,11 +123,25 @@ export default function SeletorSetor() {
             <div>
               <p className="font-bold text-base flex items-center gap-2">
                 <BookmarkPlus className="w-5 h-5 text-blue-600" />
-                Reserva de Bobinas
+                Reserva & Consulta de Estoque
               </p>
               <p className="text-sm text-muted-foreground mt-1">Consultar estoque e reservar bobinas</p>
             </div>
             <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-blue-600 transition-colors" />
+          </button>
+
+          <button
+            onClick={() => navigate("/vendedor-dashboard")}
+            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl p-5 flex items-center justify-between hover:opacity-95 transition-all group text-left shadow-md"
+          >
+            <div>
+              <p className="font-bold text-base flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-blue-200" />
+                📊 Dashboard do Vendedor
+              </p>
+              <p className="text-sm text-blue-100 mt-1">Status de OPs, vendas e reservas individuais</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-blue-200 group-hover:translate-x-0.5 transition-transform" />
           </button>
         </div>
       </div>
