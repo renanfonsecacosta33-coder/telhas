@@ -30,8 +30,16 @@ import {
   Shield,
   Settings
 } from "lucide-react";
+import { base44 } from "@/api/base44Client";
 
-// Mock data
+// Default permissions state to use as fallback
+const DEFAULT_PERMISSIONS = {
+  pular_foto_balanca: false,
+  aprovar_reserva_automatica: false,
+  ver_dados_financeiros: false,
+  ignorar_bloqueio_op: false,
+  layout_compacto: false,
+};
 const INITIAL_USERS = [
   {
     id: "usr_1",
@@ -76,24 +84,33 @@ const INITIAL_USERS = [
     }
   },
 ];
-
 export default function AdminUsuarios() {
-  const [users, setUsers] = useState(INITIAL_USERS);
+  const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // In a real scenario, fetch users here
-  // useEffect(() => {
-  //   const fetchUsers = async () => {
-  //     try {
-  //       const data = await base44.integrations.Core.ListUsers();
-  //       setUsers(data);
-  //     } catch (error) {
-  //       console.error("Failed to fetch users", error);
-  //     }
-  //   };
-  //   fetchUsers();
-  // }, []);
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        setIsLoading(true);
+        // Busca os usuários reais no banco
+        const data = await base44.db.User.findMany({});
+        // Garante que a propriedade permissions exista
+        const usersComPermissions = data.map(u => ({
+          ...u,
+          permissions: u.permissions || { ...DEFAULT_PERMISSIONS }
+        }));
+        setUsers(usersComPermissions);
+      } catch (error) {
+        console.error("Failed to fetch users", error);
+        toast.error("Erro ao carregar usuários");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchUsers();
+  }, []);
 
   const handleRowClick = (user) => {
     setSelectedUser(user);
@@ -118,18 +135,14 @@ export default function AdminUsuarios() {
     setUsers(users.map(u => u.id === updatedUser.id ? updatedUser : u));
 
     try {
-      // Mock API Call
-      // await base44.integrations.Core.UpdateUser({ id: updatedUser.id, permissions: updatedPermissions });
-      
-      // Simulate network request
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
+      await base44.db.User.update(updatedUser.id, { permissions: updatedPermissions });
       toast.success('Permissão atualizada com sucesso');
     } catch (error) {
+      console.error(error);
       // Revert on error
-      toast.error('Erro ao atualizar permissão');
       setSelectedUser(selectedUser);
       setUsers(users.map(u => u.id === selectedUser.id ? selectedUser : u));
+      toast.error('Erro ao atualizar permissão no banco');
     }
   };
 
@@ -146,51 +159,60 @@ export default function AdminUsuarios() {
 
       <Card className="border-border/50 shadow-sm bg-card/50 backdrop-blur-sm">
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead>Usuário</TableHead>
-                <TableHead>Papel</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow 
-                  key={user.id} 
-                  className="cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => handleRowClick(user)}
-                >
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
-                        {user.name.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="font-medium">{user.name}</p>
-                        <p className="text-xs text-muted-foreground">{user.email}</p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Shield className="h-4 w-4 text-muted-foreground" />
-                      {user.role}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={user.status === 'Ativo' ? 'default' : 'secondary'} className="font-normal">
-                      {user.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm">Editar</Button>
-                  </TableCell>
+          {isLoading ? (
+            <div className="flex items-center justify-center p-12 text-muted-foreground">
+              Carregando usuários do sistema...
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-[300px]">Usuário</TableHead>
+                  <TableHead>Papel</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {users.map((user) => (
+                  <TableRow key={user.id} className="group">
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center text-sm font-medium text-slate-600">
+                          {user.full_name ? user.full_name.charAt(0).toUpperCase() : (user.name ? user.name.charAt(0).toUpperCase() : 'U')}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{user.full_name || user.name || "Sem Nome"}</span>
+                          <span className="text-xs text-muted-foreground">{user.email || user.username}</span>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                        <User className="w-4 h-4" />
+                        {user.role || "Operador"}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className={user.status === 'Inativo' ? 'bg-slate-100 text-slate-500' : 'bg-slate-900 text-slate-50'}>
+                        {user.status || 'Ativo'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleRowClick(user)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        Editar
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -198,13 +220,10 @@ export default function AdminUsuarios() {
         <SheetContent className="w-[400px] sm:w-[540px] border-border/50 bg-background/95 backdrop-blur-xl overflow-y-auto">
           {selectedUser && (
             <>
-              <SheetHeader className="mb-6 pb-6 border-b border-border/50">
-                <SheetTitle className="text-2xl flex items-center gap-2">
-                  <User className="h-6 w-6 text-primary" />
-                  {selectedUser.name}
-                </SheetTitle>
+              <SheetHeader className="mb-6">
+                <SheetTitle>Gestão de Acessos</SheetTitle>
                 <SheetDescription>
-                  {selectedUser.email} • {selectedUser.role}
+                  Gerenciando permissões para <strong className="text-foreground">{selectedUser?.full_name || selectedUser?.name || "Usuário"}</strong>
                 </SheetDescription>
               </SheetHeader>
 
