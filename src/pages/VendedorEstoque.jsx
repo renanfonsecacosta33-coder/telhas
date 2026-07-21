@@ -9,7 +9,7 @@ import SolicitarReservaDialog from "@/components/vendedor/SolicitarReservaDialog
 import CalculadoraVendedor from "@/components/vendedor/CalculadoraVendedor";
 import VendedorChapas from "@/components/vendedor/VendedorChapas";
 import VendedorSlitter from "@/components/vendedor/VendedorSlitter";
-import FiliaisMultiSelect, { getFilialColor } from "@/components/vendedor/FiliaisMultiSelect";
+import FiliaisMultiSelect, { FILIAIS_LIST, getFilialColor } from "@/components/vendedor/FiliaisMultiSelect";
 import ImageLink from "@/components/ui/ImageLink";
 import { useFilial } from "@/contexts/FilialContext";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
