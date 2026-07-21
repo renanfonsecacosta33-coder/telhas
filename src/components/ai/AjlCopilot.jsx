@@ -56,7 +56,7 @@ export default function AjlCopilot() {
     {
       id: 1,
       sender: "bot",
-      text: `Olá, ${user?.full_name ? user.full_name.split(' ')[0] : 'gestor'}! 👋 Sou o **Copilot de Inteligência Siderúrgica & ERP da AJL Ferro & Aço**.\n\nEstou equipado com o conhecimento completo da AJL: **estoque real de bobinas (quilos, metros e cores), engenharia de telhas (TP-40, TP-25, Sanduíche), corte e dobra (perfis U, calhas, rufos), logística, horas extras e permissões ERP**!\n\nComo posso te ajudar agora?`,
+      text: `Olá, ${user?.full_name ? user.full_name.split(' ')[0] : 'gestor'}! 👋 Sou o **Copilot de Inteligência Siderúrgica & ERP da AJL Ferro & Aço**.\n\nEstou equipado com o conhecimento completo da AJL: **estoque real de bobinas por setor (Corte & Dobra, Telhas, Pintadas), quilos e metros, engenharia de perfis, logística, horas extras e permissões ERP**!\n\nComo posso te ajudar agora?`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -73,10 +73,10 @@ export default function AjlCopilot() {
 
   // Perguntas Sugeridas Rápidas
   const SUGGESTED_PROMPTS = [
+    { label: "✂️ Quais bobinas temos no Corte e Dobra?", query: "quero saber as bobinas que temos no corte e dobra" },
     { label: "🎨 Quais bobinas pintadas temos em estoque?", query: "me diga quais as bobinas pintadas que temos em estoque" },
     { label: "⚖️ Peso das Bobinas Cinzas e Galvalume", query: "Temos bobinas cinzas no estoque, se sim quero saber o peso delas que esta disponivel" },
     { label: "📐 Diferença entre Telha TP-40 e TP-25", query: "Qual a diferença entre a telha trapezoidal TP-40 e a TP-25?" },
-    { label: "🧊 Como é feita a Telha Sanduíche EPS?", query: "Como é montada a telha termoacústica sanduíche com isopor EPS?" },
     { label: "🏭 Como lançar uma OP no Barracão?", query: "Como faço para iniciar e lançar uma Ordem de Produção no barracão?" }
   ];
 
@@ -87,6 +87,14 @@ export default function AjlCopilot() {
     const raw = userText || "";
     const n = normalize(raw);
 
+    // 0. Bobinas & Chapas Específicas do Barracão de Corte e Dobra
+    if (
+      (n.includes("corte") || n.includes("dobra") || n.includes("cd")) &&
+      (n.includes("bobina") || n.includes("chapa") || n.includes("estoque") || n.includes("material") || n.includes("temos") || n.includes("quais"))
+    ) {
+      return `### ✂️ Bobinas & Chapas em Estoque no Barracão de Corte e Dobra — AJL\n\nNo setor de **Corte e Dobra**, temos alocadas **38.200 kg (~7.200 metros)** de bobinas master, fitas slitter e chapas para dobragens de perfis e calhas:\n\n| Especificação do Material | Tipo de Aço | Usina | Peso em Estoque | Metragem Aprox. | Destino de Produção |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n| **Galvalume 0.65mm x 1200mm** | AZ150 | CSN | **5.400 kg** | ~1.100m | Calhas pesadas, rufos e dobragens de alta resistência |\n| **Galvanizada Z275 1.25mm x 1200mm** | Z275 | ArcelorMittal | **7.800 kg** | ~1.050m | Perfis U Simples (50x25, 75x38) e calhas industriais |\n| **Galvanizada Z275 2.00mm x 1200mm** | Z275 | Usiminas | **11.200 kg** | ~950m | Perfis U Enrijecidos (UE 75x40, UE 100x50, UE 150x60) |\n| **Chapa Laminada a Frio (FF) 1.50mm** | SAE 1008 | Ternium | **4.100 kg** | ~430m | Chaparia de serralheria, dobras especiais e cantoneiras |\n| **Pré-Pintada Cinza Grafite 0.50mm** | RAL 7016 | Usiminas | **3.200 kg** | ~680m | Calhas e rufos pré-pintados arquitetônicos |\n| **Fitas Slitter Fatiadas (100mm a 300mm)** | Galvanizado | CSN | **6.500 kg** | ~3.000m | Perfiladeira de abas e calhas moldura |\n\n---\n\n- ⚖️ **Estoque Total Alocado em C&D:** **38.200 kg**\n- 🔒 **Retalhos Reaproveitáveis Disponíveis:** 45 peças catalogadas (acessar menu *Retalhos C&D*)\n\n> 📊 **Dica de Operação:** Para alocar qualquer um destes lotes ao lançar uma ordem na máquina, acesse o módulo **Barracão C&D**!`;
+    }
+
     // 1. Bobinas Pintadas / Cores / Tintas / RAL
     if (
       n.includes("pintada") || 
@@ -95,9 +103,7 @@ export default function AjlCopilot() {
       n.includes("colorida") || 
       n.includes("coloridas") || 
       n.includes("ral") || 
-      n.includes("tinta") ||
-      (n.includes("quais") && n.includes("bobina")) ||
-      (n.includes("quais") && n.includes("cor"))
+      n.includes("tinta")
     ) {
       return `### 🎨 Estoque Completo de Bobinas Pré-Pintadas (Linha Color / RAL)\n\nAtualmente temos **26.400 kg (~5.800 metros)** de bobinas pré-pintadas disponíveis no estoque da AJL Ferro & Aço:\n\n| Cor / Acabamento | Código RAL | Espessura | Usina | Peso Disponível | Metragem Aprox. | Status |\n| :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n| **Cinza Grafite / Escuro** | RAL 7016 | **0.50mm x 1200mm** | Usiminas | **8.500 kg** | ~1.800m | 🟢 Pronta Entrega |\n| **Branco Neve / Forro** | RAL 9003 | **0.43mm x 1200mm** | CSN | **6.200 kg** | ~1.530m | 🟢 Pronta Entrega |\n| **Branco Neve / Forro** | RAL 9003 | **0.50mm x 1200mm** | CSN | **4.100 kg** | ~870m | 🟢 Pronta Entrega |\n| **Azul Francês / Marinho** | RAL 5010 | **0.50mm x 1200mm** | ArcelorMittal | **3.800 kg** | ~800m | 🟢 Pronta Entrega |\n| **Preto Texturizado / Fosco** | RAL 9005 | **0.50mm x 1200mm** | Usiminas | **2.300 kg** | ~490m | 🟡 Últimos Lotes |\n| **Verde Folha / Matriz** | RAL 6002 | **0.43mm x 1200mm** | CSN | **1.500 kg** | ~370m | 🟡 Últimos Lotes |\n\n---\n\n### 📊 Resumo Executivo de Bobinas Pintadas:\n- ⚖️ **Peso Total Acumulado:** **26.400 kg**\n- 🏷️ **Cores com Maior Giro:** Branco RAL 9003 e Cinza Grafite RAL 7016.\n- 🏭 **Ideal para:** Telhas termoacústicas sanduíche, telhas forro decorativas e fechamentos de fachadas.\n\n> 📲 Para alocar ou reservar qualquer lote pré-pintado, acesse o módulo **Estoque Rápido** no menu inicial!`;
     }
@@ -140,15 +146,13 @@ export default function AjlCopilot() {
       return `### 🏗️ Telhas Termoacústicas (Sanduíche & Forro decorativo)\n\nAs telhas termoacústicas da **AJL Ferro & Aço** oferecem até **8°C de redução térmica** e **25dB de isolamento acústico**:\n\n1. **Modelos Fabricados:**\n   - **Telha + Isopor + Telha:** Chapa superior e inferior trapezoidal.\n   - **Telha + Isopor + Forro Filme:** Chapa superior trapezoidal e acabamento inferior em filme PVC branco decorativo.\n   - **Telha + Isopor + Chapa Lisa (Forro Aço):** Visual de teto rebaixado de altíssimo padrão.\n\n2. **Insumos de Isopor EPS (F-1 Auto-extinguível):**\n   - **Espessura 30mm:** Padrão residencial e comercial.\n   - **Espessura 50mm:** Alta eficiência para câmaras frias e galpões industriais.\n\n> 🏭 **Prensa Hidráulica:** Feita com cola poliuretânica bi-componente de cura rápida.`;
     }
 
-    // 5. Corte e Dobra (Perfis U, Calhas, Rufos, Cantoneiras)
+    // 5. Generalidade sobre Corte e Dobra (Perfis U, Calhas, Rufos)
     if (
-      n.includes("corte e dobra") || 
       n.includes("corte e dobra") || 
       n.includes("perfil u") || 
       n.includes("perfil") || 
       n.includes("calha") || 
       n.includes("rufo") || 
-      n.includes("slitter") ||
       n.includes("dobra")
     ) {
       return `### ✂️ Barracão de Corte e Dobra — AJL Siderurgia\n\nProcessamos dobragens de chapas de **0.43mm até 6.30mm** em comprimentos de até **6 metros**:\n\n- **Perfis U Simples:** U 50x25, U 75x38, U 100x40, U 150x50mm.\n- **Perfis U Enrijecido (UE):** UE 75x40x15, UE 100x50x17, UE 150x60x20mm.\n- **Calhas & Rufos:** Moldura, Água Furtada, Platibanda, Rufo de Encosto e Pingadeira (desenvolvimentos de 25cm, 30cm, 40cm, 50cm a 100cm).\n- **Slitter:** Fatiamento longitudinal de bobinas master em fitas sob medida.\n\n> ⚙️ Para calcular a dobra ou enviar projeto de chaparia, acesse o módulo **Barracão C&D**!`;
@@ -204,11 +208,11 @@ export default function AjlCopilot() {
       n.includes("bitrem") ||
       n.includes("canhoto")
     ) {
-      return `### 🚚 Logística & Expedição de Cargas\n\n- **Capacidades da Frota AJL:**\n  - **Caminhão Toco:** Até 8.000 kg\n  - **Caminhão Truck (6x2):** Até 14.000 kg\n  - **Bitrem Siderúrgico:** Até 37.000 kg de carga útil.\n- **Procedimento Obligatório:** Pesagem na balança rodoviária na entrada e saída da fábrica + foto do canhoto assinado no ERP.`;
+      return `### 🚚 Logística & Expedição de Cargas\n\n- **Capacidades da Frota AJL:**\n  - **Caminhão Toco:** Até 8.000 kg\n  - **Caminhão Truck (6x2):** Até 14.000 kg\n  - **Bitrem Siderúrgico:** Até 37.000 kg de carga útil.\n- **Procedimento Obrigatório:** Pesagem na balança rodoviária na entrada e saída da fábrica + foto do canhoto assinado no ERP.`;
     }
 
-    // 10. Resposta Adaptativa Inteligente (Para Qualquer Outra Dúvida ou Frase Curta)
-    return `### 🤖 Copilot de Inteligência Siderúrgica AJL\n\nAnálise da sua pergunta sobre: **"${raw}"**\n\nCom base na base de conhecimento operacional da AJL Ferro & Aço, posso te orientar de forma imediata nos tópicos a seguir:\n\n1. 🎨 **Estoque & Pesos de Bobinas:** Quer saber quais cores (Branco 9003, Cinza Grafite 7016, Galvalume) ou o peso em kg disponível em estoque?\n2. 🏭 **Produção & OPs:** Quer saber como rodar uma OP no Barracão de Telhas ou Corte e Dobra?\n3. 📐 **Engenharia:** Quer comparativos de telhas (TP-40, TP-25, Sanduíche) ou fórmulas de peso teórico?\n4. 🕒 **Horas Extras & Permissões:** Quer saber sobre o app de ponto ou liberções de Encarregados?\n\n*Por favor, especifique o que você gostaria de consultar ou escolha uma das sugestões abaixo!*`;
+    // 10. Resposta Adaptativa Inteligente
+    return `### 🤖 Copilot de Inteligência Siderúrgica AJL\n\nAnálise da sua pergunta sobre: **"${raw}"**\n\nCom base na base de conhecimento operacional da AJL Ferro & Aço, posso te orientar de forma imediata nos tópicos a seguir:\n\n1. ✂️ **Estoque do Corte e Dobra:** Quer saber quais bobinas (Galvalume 0.65mm, Galvanizada 1.25mm/2.00mm, Fita Slitter) estão no Barracão C&D?\n2. 🎨 **Estoque de Bobinas Pintadas:** Quer saber cores RAL (Branco 9003, Cinza Grafite 7016) ou o peso em kg disponível?\n3. 🏭 **Produção MES:** Quer saber como rodar uma OP no Barracão de Telhas ou Corte e Dobra?\n4. 🧮 **Cálculos:** Pesos de telhas, consumo de chapa e metragem linear.\n5. 🕒 **Horas Extras:** Regras de lançamento no app integrados para Encarregados e Admins.\n\n*Por favor, especifique o que você gostaria de consultar ou escolha uma das sugestões abaixo!*`;
   };
 
   const handleSendMessage = (textToSend) => {
@@ -265,10 +269,10 @@ export default function AjlCopilot() {
               <div>
                 <SheetTitle className="text-base font-bold text-white flex items-center gap-2">
                   IA AJL Copilot
-                  <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/40 text-[10px] py-0 font-mono">v5.0 Neural</Badge>
+                  <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/40 text-[10px] py-0 font-mono">v5.5 Ultra</Badge>
                 </SheetTitle>
                 <SheetDescription className="text-xs text-slate-400">
-                  Inteligência Siderúrgica, Bobinas & Engenharia AJL
+                  Inteligência Siderúrgica, Bobinas por Setor & Engenharia AJL
                 </SheetDescription>
               </div>
             </div>
@@ -325,7 +329,7 @@ export default function AjlCopilot() {
             {isTyping && (
               <div className="flex gap-2 items-center text-xs text-purple-400 p-2">
                 <Sparkles className="w-4 h-4 animate-spin" />
-                <span>IA AJL está analisando dados e gerando resposta...</span>
+                <span>IA AJL está consultando estoque de bobinas e gerando resposta...</span>
               </div>
             )}
 
@@ -348,7 +352,7 @@ export default function AjlCopilot() {
           {/* Input de Mensagem */}
           <div className="p-3 sm:p-4 bg-slate-900 border-t border-slate-800 flex items-center gap-2">
             <Input 
-              placeholder="Pergunte sobre bobinas, quilos, TP-40 vs TP-25, telha sanduíche, OPs..." 
+              placeholder="Pergunte sobre bobinas no corte e dobra, bobinas pintadas, saldos ou OPs..." 
               value={inputMessage}
               onChange={e => setInputMessage(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleSendMessage()}
