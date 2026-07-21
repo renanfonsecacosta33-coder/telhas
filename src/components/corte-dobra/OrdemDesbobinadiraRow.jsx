@@ -177,7 +177,12 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
 
   const handleFinalizar = () => {
     setPauseMotivo("");
-    setFotoDialog(true);
+    if (user?.permissions?.pular_foto_balanca) {
+      // Odoo-style: se tem permissão, ignora a foto e finaliza com peso teórico num clique só
+      handleFinalizarComPesoTeorico();
+    } else {
+      setFotoDialog(true);
+    }
   };
 
   const handleUploadFoto = async (file) => {

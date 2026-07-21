@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { ChevronRight, BookmarkPlus, Truck, BarChart3, Settings, Factory, Scissors, ShieldAlert, LayoutDashboard } from "lucide-react";
+import { ChevronRight, BookmarkPlus, Truck, BarChart3, Factory, Scissors, LayoutDashboard, Settings, ShieldAlert, Users } from "lucide-react";
 import UserAvatarButton from "@/components/UserAvatarButton";
 import { cn } from "@/lib/utils";
 
@@ -162,18 +162,32 @@ export default function SeletorSetor() {
         )}
 
         {isAdmin && (
-          <ModuleCard
-            title="Control Tower"
-            description="Acesso irrestrito às configurações do ERP"
-            icon={<ShieldAlert className="w-7 h-7 text-rose-400" />}
-            gradient="from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950"
-            borderColor="border-slate-700/50 hover:border-rose-500/50"
-            iconBg="bg-rose-500/10 shadow-rose-900/20"
-            textColor="text-white"
-            descColor="text-slate-400"
-            onClick={() => navigate("/painel-admin")}
-            disabled={navegando}
-          />
+          <>
+            <ModuleCard
+              title="Control Tower"
+              description="Acesso irrestrito às configurações do ERP"
+              icon={<ShieldAlert className="w-7 h-7 text-rose-400" />}
+              gradient="from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950"
+              borderColor="border-slate-700/50 hover:border-rose-500/50"
+              iconBg="bg-rose-500/10 shadow-rose-900/20"
+              textColor="text-white"
+              descColor="text-slate-400"
+              onClick={() => navigate("/painel-admin")}
+              disabled={navegando}
+            />
+            <ModuleCard
+              title="Gestão de Usuários"
+              description="Permissões, layouts e acessos Odoo-style"
+              icon={<Users className="w-7 h-7 text-purple-400" />}
+              gradient="from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950"
+              borderColor="border-slate-700/50 hover:border-purple-500/50"
+              iconBg="bg-purple-500/10 shadow-purple-900/20"
+              textColor="text-white"
+              descColor="text-slate-400"
+              onClick={() => navigate("/admin/usuarios")}
+              disabled={navegando}
+            />
+          </>
         )}
 
       </div>
