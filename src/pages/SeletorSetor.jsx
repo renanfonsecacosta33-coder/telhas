@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { ChevronRight, BookmarkPlus, Truck, BarChart3 } from "lucide-react";
+import UserAvatarButton from "@/components/UserAvatarButton";
 
 export default function SeletorSetor() {
   const navigate = useNavigate();
@@ -26,7 +27,11 @@ export default function SeletorSetor() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
+      {/* Avatar do usuário — acesso rápido a configurações */}
+      <div className="absolute top-4 right-4 z-10">
+        <UserAvatarButton size="default" />
+      </div>
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
           <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center mx-auto">

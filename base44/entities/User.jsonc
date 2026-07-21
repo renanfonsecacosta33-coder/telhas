@@ -40,6 +40,20 @@
       "type": "boolean",
       "default": false,
       "description": "Usuário tem permissão para acessar e gerenciar a Central de Alertas"
+    },
+    "tema": {
+      "type": "string",
+      "enum": [
+        "claro",
+        "escuro",
+        "sistema"
+      ],
+      "default": "claro",
+      "description": "Preferência de tema visual do usuário"
+    },
+    "avatar_url": {
+      "type": "string",
+      "description": "URL da foto de perfil do usuário"
     }
   }
 }

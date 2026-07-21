@@ -14,6 +14,7 @@ import FiliaisMultiSelect, { FILIAIS_LIST, getFilialColor } from "@/components/v
 import ImageLink from "@/components/ui/ImageLink";
 import { useFilial } from "@/contexts/FilialContext";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
+import UserAvatarButton from "@/components/UserAvatarButton";
 
 const SENHA = "ajl1234";
 const STORAGE_KEY = "vendedor_autenticado";
@@ -277,9 +278,7 @@ function EstoqueView({ setor, vendedorNome, onLogout, onVoltar }) {
           <Button variant="outline" size="sm" onClick={() => navigate("/setor")} className="h-8 text-xs gap-1.5 border-slate-300">
             <Home className="w-3.5 h-3.5" /> Painel ADM
           </Button>
-          <Button variant="ghost" size="sm" onClick={onLogout} className="h-8 text-xs gap-1 text-muted-foreground">
-            <LogOut className="w-3.5 h-3.5" /> Sair
-          </Button>
+          <UserAvatarButton size="sm" />
         </div>
       </div>
 

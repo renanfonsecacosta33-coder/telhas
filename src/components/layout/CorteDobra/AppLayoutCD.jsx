@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Outlet, Navigate, useNavigate } from "react-router-dom";
 import SidebarCD from "./SidebarCD";
 import FilialSwitcher from "@/components/FilialSwitcher";
+import UserAvatarButton from "@/components/UserAvatarButton";
 import AlertBellCD from "@/components/corte-dobra/AlertBellCD";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftRight, MessageCircle } from "lucide-react";
@@ -85,6 +86,7 @@ export default function AppLayoutCD() {
             {unreadDirect > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">{unreadDirect}</span>}
           </button>
           <FilialSwitcher />
+          <UserAvatarButton size="sm" />
         </div>
         <div className="hidden lg:flex sticky top-0 z-30 bg-background/80 backdrop-blur border-b border-border px-8 py-2 items-center justify-end gap-2">
           <AlertBellCD user={user} />
@@ -93,6 +95,7 @@ export default function AppLayoutCD() {
             {unreadDirect > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">{unreadDirect}</span>}
           </button>
           <FilialSwitcher />
+          <UserAvatarButton size="sm" />
         </div>
         <div className="p-4 sm:p-6 lg:p-8">
           <Outlet />

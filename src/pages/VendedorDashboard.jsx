@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Search, Package, Factory, CheckCircle2, Truck, Bell, Home, ArrowLeft, Layers, BookOpen } from "lucide-react";
 import PedidoVendedorCard from "@/components/vendedor/PedidoVendedorCard";
 import PedidoDetalheDrawer from "@/components/vendedor/PedidoDetalheDrawer";
+import UserAvatarButton from "@/components/UserAvatarButton";
 
 export default function VendedorDashboard() {
   const navigate = useNavigate();
@@ -190,14 +191,17 @@ export default function VendedorDashboard() {
                 <p className="text-xs text-muted-foreground">{vendedorNome || "—"}</p>
               </div>
             </div>
-            <Button variant="outline" size="icon" className="relative">
-              <Bell className="w-4 h-4" />
-              {totalUnread > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                  {totalUnread > 9 ? "9+" : totalUnread}
-                </span>
-              )}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" className="relative">
+                <Bell className="w-4 h-4" />
+                {totalUnread > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                    {totalUnread > 9 ? "9+" : totalUnread}
+                  </span>
+                )}
+              </Button>
+              <UserAvatarButton size="sm" />
+            </div>
           </div>
 
           {/* Barra de navegação rápida */}
