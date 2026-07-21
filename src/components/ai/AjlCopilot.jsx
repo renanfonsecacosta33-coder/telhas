@@ -32,11 +32,16 @@ export default function AjlCopilot() {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
 
+  // A IA está oculta para Operadores de Máquina (Regra de Segurança AJL)
+  if (user?.role === "operador") {
+    return null;
+  }
+
   const [messages, setMessages] = useState([
     {
       id: 1,
       sender: "bot",
-      text: `Olá, ${user?.full_name ? user.full_name.split(' ')[0] : 'operador'}! 👋 Sou a **IA Assistente da AJL Ferro & Aço**.\n\nEstou treinada com todo o conhecimento da AJL: **estoque de bobinas (cores/espessuras), fabricação de telhas, corte e dobra, logística, horas extras e permissões ERP**! Como posso te ajudar?`,
+      text: `Olá, ${user?.full_name ? user.full_name.split(' ')[0] : 'gestor'}! 👋 Sou a **IA Assistente da AJL Ferro & Aço**.\n\nEstou treinada com todo o conhecimento da AJL: **estoque de bobinas (cinza/cores/espessuras), fabricação de telhas, corte e dobra, logística, horas extras e permissões ERP**! Como posso te ajudar?`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
