@@ -17,6 +17,7 @@ import Isopor from '@/pages/Isopor';
 import Estoque from '@/pages/Estoque';
 import Producao from '@/pages/Producao';
 import Configuracoes from '@/pages/Configuracoes';
+import GerenciarUsuarios from '@/pages/GerenciarUsuarios';
 import UsuariosEquipe from '@/pages/UsuariosEquipe';
 import TP40 from '@/pages/maquinas/TP40';
 import TP25 from '@/pages/maquinas/TP25';
@@ -104,7 +105,7 @@ const AuthenticatedApp = () => {
         <Route path="/estoque" element={<Estoque />} />
         <Route path="/producao" element={<Producao />} />
         <Route path="/configuracoes" element={<Configuracoes />} />
-        <Route path="/usuarios" element={<AdminUsuarios />} />
+        <Route path="/usuarios" element={<GerenciarUsuarios />} />
         <Route path="/usuarios-equipe" element={<UsuariosEquipe />} />
         <Route path="/maquina/tp40" element={<TP40 />} />
         <Route path="/maquina/tp25" element={<TP25 />} />
@@ -133,7 +134,7 @@ const AuthenticatedApp = () => {
       <Route path="/vendedor" element={<VendedorEstoque />} />
       <Route path="/vendedor-dashboard" element={<VendedorDashboard />} />
       <Route path="/painel-admin" element={<PainelAdministrativo />} />
-      <Route path="/admin/usuarios" element={<AdminUsuarios />} />
+      <Route path="/admin/usuarios" element={<GerenciarUsuarios />} />
       <Route path="/logistica" element={<LogisticaStandalone />} />
       <Route path="/setor" element={<SeletorSetor />} />
       <Route path="/bobina-qr/:id" element={<BobinaQR />} />
@@ -143,7 +144,7 @@ const AuthenticatedApp = () => {
         <Route path="/corte-dobra/bobinas" element={<BobinasCD />} />
         <Route path="/corte-dobra/chaparia" element={<Chaparia />} />
         <Route path="/corte-dobra/epi" element={<EPI />} />
-        <Route path="/corte-dobra/usuarios" element={<AdminUsuarios />} />
+        <Route path="/corte-dobra/usuarios" element={<GerenciarUsuarios />} />
         <Route path="/corte-dobra/alertas" element={<CentralAlertas />} />
         <Route path="/corte-dobra/desenvolvimento" element={<DesenvolvimentoCD />} />
         <Route path="/corte-dobra/catalogo" element={<CatalogoCD />} />
