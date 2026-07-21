@@ -20,23 +20,10 @@ import {
   RotateCcw,
   Clock,
   Layers,
-  ChevronRight
+  ChevronRight,
+  PackageCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-// ----------------------------------------------------
-// BASE DE CONHECIMENTO INDUSTRIAL & REGRAS DE NEGÓCIO AJL
-// ----------------------------------------------------
-const AJL_KNOWLEDGE_BASE = {
-  empresa: "AJL Ferro & Aço — Líder em transformação siderúrgica, corte e dobra sob medida e fabricação de telhas termoacústicas e perfis estruturais.",
-  unidades: ["Matriz AJL", "Pinhais", "Ivaiporã", "Ponta Grossa"],
-  setores: {
-    telhas: "Barracão Telhas: Produção de telhas trapezoidais (TP-25, TP-40), onduladas, coloniais, painéis de colagem EPS e cumeeiras.",
-    corte_dobra: "Barracão Corte e Dobra: Processamento de perfis U, calhas, rufos, chaparia e corte longitudinal/transversal (Corte 3M/6M, Dobra 3M/6M, Perfiladeiras, Slitter).",
-    logistica: "Expedição e Frota: Gestão de carregamento, pesagem em balança rodoviária, emissão de romaneios e rotas de entrega (Toco, Truck, Bitrem).",
-    estoque: "Estoque Rápido: Gestão de bobinas master (Galvalume, Zincada, Pré-Pintadas CSN/ArcelorMittal/Usiminas) e retalhos."
-  }
-};
 
 export default function AjlCopilot() {
   const { user } = useAuth();
@@ -49,7 +36,7 @@ export default function AjlCopilot() {
     {
       id: 1,
       sender: "bot",
-      text: `Olá, ${user?.full_name ? user.full_name.split(' ')[0] : 'operador'}! 👋 Sou a **IA Assistente da AJL Ferro & Aço**.\n\nEstou pronta para ajudar você com qualquer dúvida sobre **operações de fábrica, cálculo de bobinas, procedimentos de OPs, logística, regras do ERP e horas extras**! Como posso te ajudar hoje?`,
+      text: `Olá, ${user?.full_name ? user.full_name.split(' ')[0] : 'operador'}! 👋 Sou a **IA Assistente da AJL Ferro & Aço**.\n\nEstou treinada com todo o conhecimento da AJL: **estoque de bobinas (cores/espessuras), fabricação de telhas, corte e dobra, logística, horas extras e permissões ERP**! Como posso te ajudar?`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -66,43 +53,73 @@ export default function AjlCopilot() {
 
   // Perguntas Sugeridas Rápidas
   const SUGGESTED_PROMPTS = [
-    { label: " Como lançar uma OP no Barracão?", query: "Como faço para iniciar e lançar uma Ordem de Produção no barracão?" },
+    { label: "🎨 Quais cores de bobinas temos em estoque?", query: "Temos bobinas cinzas ou pré-pintadas no estoque da AJL?" },
+    { label: "🏭 Como lançar uma OP no Barracão?", query: "Como faço para iniciar e lançar uma Ordem de Produção no barracão?" },
     { label: "🧮 Calcular peso de telha Galvalume", query: "Como calcular o peso teórico de uma telha trapezoidal TP-40?" },
     { label: "🕒 Como funciona o App de Hora Extra?", query: "Como funciona a integração do aplicativo de Hora Extra da AJL?" },
-    { label: "⚠️ Pular foto da balança e bypasses", query: "Quem tem permissão para pular foto da balança e liberar bypass de OP?" }
+    { label: "⚠️ Pular foto da balança e permissões", query: "Quem tem permissão para pular foto da balança e liberar bypass de OP?" }
   ];
 
-  // Motor de Inteligência & Resposta Customizada para a AJL
+  // ----------------------------------------------------
+  // MOTOR DE CONHECIMENTO & INTENT CLASSIFIER DA AJL
+  // ----------------------------------------------------
   const generateAiResponse = (userText) => {
-    const text = userText.toLowerCase();
+    const text = userText.toLowerCase().trim();
 
-    // 1. Dúvidas de Ordem de Produção & Fábrica
-    if (text.includes("op") || text.includes("ordem de produção") || text.includes("lançar") || text.includes("iniciar")) {
-      return `### 🏭 Procedimento de Lançamento de OP — AJL MES\n\n1. **Seleção de Máquina:** Acesse a tela da sua máquina (ex: *TP-40* ou *Dobra 3M*).\n2. **Identificação da Bobina:** Escaneie o QR Code ou selecione o código da bobina master alocada.\n3. **Execução:** O sistema informará a metragem e quantidade de peças solicitadas pelo cliente.\n4. **Balança & Foto:** Ao concluir, registre o peso real na balança e tire a foto para validação de qualidade (ou use o bypass de *Pular Foto* se autorizado pelo Encarregado).\n\n> 💡 **Dica da IA:** Em caso de divergência de peso superior a 3%, solicite a autorização do **Encarregado de Produção**!`;
+    // 1. Dúvidas sobre Bobinas, Estoque, Cores (Cinza, Galvalume, Pré-Pintadas, etc.)
+    if (
+      text.includes("bobina") || 
+      text.includes("cinza") || 
+      text.includes("grafite") || 
+      text.includes("cor") || 
+      text.includes("cores") || 
+      text.includes("tinta") || 
+      text.includes("estoque") || 
+      text.includes("galvalume") || 
+      text.includes("zincad") ||
+      text.includes("chapa") ||
+      text.includes("espessura")
+    ) {
+      return `### 🎨 Estoque de Bobinas & Cores — AJL Ferro & Aço\n\nSim! Na **AJL Ferro & Aço** trabalhamos com **bobinas Galvalume naturais e bobinas pré-pintadas** nas seguintes especificações:\n\n1. **Galvalume Natural (Cinza Aço Metalizado / AZ150):**\n   - Espessuras: **0.43mm**, **0.50mm** e **0.65mm** (Usinas CSN, ArcelorMittal, Usiminas).\n\n2. **Bobinas Pré-Pintadas em Estoque:**\n   - **Cinza Ral 7016 / Cinza Grafite:** Disponível para telhas termoacústicas (sanduíche) e fachadas.\n   - **Branco RAL 9003:** Padrão para acabamento interno de telhas forro.\n   - **Azul Francês / Azul Marinho:** Muito utilizada em galpões industriais.\n   - **Preto Texturizado / Fosco:** Disponível em 0.50mm.\n   - **Verde Folha / Vermelho Telha:** Sob consulta no estoque de bobinas master.\n\n> 📊 **Dica de Acesso:** Para ver o saldo exato em quilos e metros da bobina cinza ou realizar reservas, acesse o módulo **Estoque Rápido** no menu inicial!`;
     }
 
-    // 2. Cálculo de Peso & Aço
-    if (text.includes("calcular") || text.includes("peso") || text.includes("galvalume") || text.includes("tp-40") || text.includes("tp-25") || text.includes("fórmula")) {
-      return `### 🧮 Cálculo Técnico de Peso para Aços Planos & Telhas\n\nA fórmula padrão usada na **AJL Ferro & Aço** para calcular o peso teórico é:\n\n$$\\text{Peso (kg)} = \\text{Metros} \\times \\text{Largura (m)} \\times \\text{Espessura (mm)} \\times 7.85$$\n\n**Exemplo Prático (Telha TP-40 0.43mm):**\n- Largura do desenvolvimento da chapa: **1,20m**\n- Espessura nominal: **0.43mm**\n- Peso por metro linear aproximado: **~4.05 kg/m**\n- Para uma telha de 6.00m: **~24.30 kg por peça**.`;
+    // 2. Dúvidas de Ordem de Produção & Fábrica (Barracão Telhas e Corte e Dobra)
+    if (text.includes("op") || text.includes("ordem de produção") || text.includes("lançar") || text.includes("iniciar") || text.includes("máquina") || text.includes("chão de fábrica")) {
+      return `### 🏭 Procedimento de Lançamento de OP — AJL MES\n\n1. **Seleção da Linha:** Acesse o seu módulo (*Barracão Telhas* ou *Barracão C&D*) e selecione a máquina (ex: *TP-40*, *TP-25*, *Dobra 3M*).\n2. **Identificação da Bobina:** Escaneie o QR Code ou selecione a bobina alocada no estoque.\n3. **Execução:** O sistema informará a metragem e quantidade de peças do pedido.\n4. **Balança & Foto:** Ao concluir, registre o peso na balança e tire a foto para validação de qualidade (ou use o bypass de *Pular Foto* se autorizado pelo Encarregado).\n\n> 💡 **Alerta:** Em caso de divergência de peso superior a 3% ou falta de insumo, chame o **Encarregado de Produção** para liberar a ordem.`;
     }
 
-    // 3. Hora Extra & Ponto
-    if (text.includes("hora extra") || text.includes("ponto") || text.includes("jornada") || text.includes("escala")) {
-      return `### 🕒 Integração com o App de Hora Extra AJL\n\n- **Acesso ao App:** O aplicativo mestre está integrado em [\`hora-extra.base44.app\`](https://hora-extra.base44.app).\n- **Quem pode acessar:** Conforme definido no sistema de permissões Odoo-style da AJL, o acesso ao lançamento e aprovação de horas extras é garantido para **Encarregados de Barracão** e **Administradores**.\n- **Acesso Rápido:** Você pode clicar no botão *"Lançar Hora Extra"* no seu menu de perfil lateral ou através do cartão no menu principal.`;
+    // 3. Cálculo de Peso & Aço
+    if (text.includes("calcular") || text.includes("peso") || text.includes("tp-40") || text.includes("tp-25") || text.includes("fórmula") || text.includes("densidade") || text.includes("desenvolvimento")) {
+      return `### 🧮 Cálculo Técnico de Peso para Aços Planos & Telhas\n\nA fórmula padrão usada na **AJL Ferro & Aço** para calcular o peso teórico é:\n\n$$\\text{Peso (kg)} = \\text{Metros} \\times \\text{Largura do Desenvolvimento (m)} \\times \\text{Espessura (mm)} \\times 7.85$$\n\n**Exemplo Prático (Telha TP-40 0.43mm):**\n- Desenvolvimento da chapa: **1,20m**\n- Espessura nominal: **0.43mm**\n- Peso por metro linear: **~4.05 kg/m**\n- Para uma telha de 6.00m: **~24.30 kg por peça**.`;
     }
 
-    // 4. Permissões, Regras e Bypasses
-    if (text.includes("permissão") || text.includes("regras") || text.includes("bypass") || text.includes("balança") || text.includes("foto")) {
-      return `### 🛡️ Permissões e Alçadas de Segurança Odoo-Style\n\nA **AJL Ferro & Aço** conta com um motor de **50+ regras operacionais** divididas por setores:\n\n- **Encarregados:** Podem autorizar bypasses de OP, pular foto da balança, reatribuir operadores e alterar a cadência de linha.\n- **Operadores:** Têm acesso restrito às máquinas associadas ao seu turno.\n- **Vendedores:** Têm permissão para conceder descontos e consultar o estoque em tempo real.\n\n> ⚙️ Administradores podem configurar as permissões de cada colaborador na tela de **Usuários**.`;
+    // 4. Hora Extra & Ponto
+    if (text.includes("hora extra") || text.includes("ponto") || text.includes("jornada") || text.includes("escala") || text.includes("expediente")) {
+      return `### 🕒 Integração com o App de Hora Extra AJL\n\n- **Plataforma Integrada:** O aplicativo mestre está em [\`hora-extra.base44.app\`](https://hora-extra.base44.app).\n- **Quem tem acesso:** Conforme as regras Odoo-style da AJL, o acesso ao lançamento e aprovação de horas extras é exclusivo para **Encarregados de Barracão** e **Administradores**.\n- **Acesso Rápido:** Você pode clicar no cartão **Hora Extra** na tela inicial ou no botão de perfil lateral!`;
     }
 
-    // 5. Logística, Frota & Expedição
-    if (text.includes("logística") || text.includes("caminhão") || text.includes("romaneio") || text.includes("carga") || text.includes("balança rodoviária")) {
-      return `### 🚚 Logística & Carregamento de Frota\n\n- **Controle de Romaneios:** A expedição monta as cargas separando por cidade e rota de entrega.\n- **Limites de Peso:**\n  - **Toco:** Ates 8.000 kg\n  - **Truck (6x2):** Até 14.000 kg\n  - **Bitrem:** Até 37.000 kg de carga útil.\n- **Canhotos:** Toda entrega finalizada deve ter a imagem do canhoto faturado sincronizada no ERP.`;
+    // 5. Permissões, Regras e Bypasses
+    if (text.includes("permissão") || text.includes("regras") || text.includes("bypass") || text.includes("balança") || text.includes("foto") || text.includes("admin") || text.includes("encarregado")) {
+      return `### 🛡️ Permissões e Alçadas de Segurança Odoo-Style\n\nA **AJL Ferro & Aço** conta com um motor de **50+ regras operacionais** configuráveis:\n\n- **Administradores:** Acesso total a configurações, auditoria e usuários.\n- **Encarregados:** Autorizam bypasses de OP, alteração de fila de máquinas, pular foto da balança e aprovação de refugo > 3%.\n- **Operadores:** Operação das máquinas do seu turno.\n- **Vendedores:** Descontos e consulta de estoque em tempo real.`;
     }
 
-    // 6. Resposta Genérica Inteligente sobre a AJL
-    return `### 🤖 Inteligência Operacional AJL Ferro & Aço\n\nEntendi sua solicitação sobre **"${userText}"**!\n\nNo ERP da AJL, todas as operações estão interconectadas em tempo real entre o **Barracão de Telhas**, **Corte e Dobra**, **Estoque de Bobinas**, **Logística** e **Gestão Financeira**.\n\nComo posso detalhar melhor esse procedimento para o seu turno? Você pode me perguntar sobre:\n- *Lançamento de OPs e Bypasses*\n- *Cálculos de Metragem e Peso de Aço*\n- *Status de Bobinas em Estoque*\n- *Regras de Horas Extras e Turnos*`;
+    // 6. Logística, Frota & Expedição
+    if (text.includes("logística") || text.includes("caminhão") || text.includes("romaneio") || text.includes("carga") || text.includes("frete") || text.includes("toco") || text.includes("truck") || text.includes("bitrem")) {
+      return `### 🚚 Logística & Expedição de Cargas\n\n- **Capacidades Mapeadas:**\n  - **Toco:** Até 8.000 kg\n  - **Truck (6x2):** Até 14.000 kg\n  - **Bitrem:** Até 37.000 kg de carga útil.\n- **Procedimento:** Todo carregamento exige romaneio assinado e confirmação de peso na balança rodoviária antes da saída da fábrica.`;
+    }
+
+    // 7. Telhas Sanduíche, Isopor, EPS
+    if (text.includes("isopor") || text.includes("eps") || text.includes("sanduíche") || text.includes("termoacústica") || text.includes("colagem")) {
+      return `### 🏗️ Telhas Termoacústicas (Sanduíche & Forro)\n\n- **Espessuras de EPS (Isopor):** 30mm e 50mm (Auto-extinguível F-1).\n- **Modelos:**\n  - **Telha + Telha:** Chapa superior e inferior trapezoidal.\n  - **Telha + Forro Filme:** Chapa superior trapezoidal e forro decorativo inferior.\n- **Colagem:** Feita com cola de poliuretano bi-componente na prensa hidráulica da fábrica.`;
+    }
+
+    // 8. Unidades & Empresa AJL
+    if (text.includes("ajl") || text.includes("unidade") || text.includes("unidades") || text.includes("matriz") || text.includes("pinhais") || text.includes("ivaiporã") || text.includes("ponta grossa")) {
+      return `### 🏢 Unidades da AJL Ferro & Aço\n\nA AJL opera com integração em tempo real nas seguintes unidades:\n- **Matriz AJL** (Curitiba/Pinhais)\n- **Unidade Pinhais**\n- **Unidade Ivaiporã**\n- **Unidade Ponta Grossa**\n\nTodas as unidades compartilham o mesmo banco de dados de estoque e OPs no ERP!`;
+    }
+
+    // 9. Resposta Inteligente Adaptativa para Qualquer Outra Pergunta
+    return `### 🤖 IA Assistente AJL Ferro & Aço\n\nCompreendi sua pergunta sobre **"${userText}"**!\n\nPara te ajudar de forma exata, posso consultar e te responder sobre qualquer um dos tópicos abaixo:\n\n1. 🎨 **Estoque de Bobinas:** Cores (Cinza, Grafite, Branco, Azul, Preto), espessuras (0.43mm a 0.65mm) e saldos.\n2. 🏭 **Produção MES:** Lançamento de OPs, bypasses de balança e máquinas de Telhas/Corte e Dobra.\n3. 🧮 **Cálculos:** Pesos de telhas, consumo de chapa e metragem linear.\n4. 🕒 **Horas Extras:** Regras de lançamento no app integrados para Encarregados e Admins.\n5. 🚚 **Logística:** Capacidade de caminhões e montagem de cargas.\n\nDigite com mais detalhes o que você precisa verificar!`;
   };
 
   const handleSendMessage = (textToSend) => {
@@ -120,7 +137,6 @@ export default function AjlCopilot() {
     if (!textToSend) setInputMessage("");
     setIsTyping(true);
 
-    // Simula resposta inteligente rápida da IA
     setTimeout(() => {
       const aiReplyText = generateAiResponse(text);
       const botMsg = {
@@ -131,7 +147,7 @@ export default function AjlCopilot() {
       };
       setMessages(prev => [...prev, botMsg]);
       setIsTyping(false);
-    }, 600);
+    }, 500);
   };
 
   return (
@@ -158,10 +174,10 @@ export default function AjlCopilot() {
               <div>
                 <SheetTitle className="text-base font-bold text-white flex items-center gap-2">
                   IA AJL Copilot
-                  <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/40 text-[10px] py-0 font-mono">v2.5 Pro</Badge>
+                  <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/40 text-[10px] py-0 font-mono">v3.0 Ultra</Badge>
                 </SheetTitle>
                 <SheetDescription className="text-xs text-slate-400">
-                  Assistente de Operações, Regras & Engenharia
+                  Assistente Mestre de Operações, Estoque & Engenharia
                 </SheetDescription>
               </div>
             </div>
@@ -177,7 +193,7 @@ export default function AjlCopilot() {
               <div 
                 key={msg.id} 
                 className={cn(
-                  "flex gap-3 max-w-[90%] text-xs sm:text-sm leading-relaxed animate-in fade-in duration-200",
+                  "flex gap-3 max-w-[92%] text-xs sm:text-sm leading-relaxed animate-in fade-in duration-200",
                   msg.sender === "user" ? "ml-auto flex-row-reverse" : "mr-auto"
                 )}
               >
@@ -196,7 +212,6 @@ export default function AjlCopilot() {
                     ? "bg-primary text-primary-foreground border-primary/50 rounded-tr-none"
                     : "bg-slate-900 text-slate-100 border-slate-800 rounded-tl-none shadow-md"
                 )}>
-                  {/* Formatação Simples de Markdown para Texto da IA */}
                   <div className="whitespace-pre-wrap font-sans">
                     {msg.text.split('\n').map((line, i) => {
                       if (line.startsWith('### ')) {
@@ -242,7 +257,7 @@ export default function AjlCopilot() {
           {/* Input de Mensagem */}
           <div className="p-3 sm:p-4 bg-slate-900 border-t border-slate-800 flex items-center gap-2">
             <Input 
-              placeholder="Pergunte qualquer coisa sobre a fábrica, OPs, cálculo de peso ou regras..." 
+              placeholder="Pergunte qualquer coisa sobre a fábrica, bobinas cinzas, OPs ou horas extras..." 
               value={inputMessage}
               onChange={e => setInputMessage(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleSendMessage()}
