@@ -48,7 +48,12 @@ import {
   Download,
   Activity,
   RotateCcw,
-  Sparkles
+  Sparkles,
+  Scissors,
+  BookmarkPlus,
+  BarChart3,
+  LayoutDashboard,
+  AppWindow
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -108,9 +113,26 @@ const ROLE_COLORS = {
 };
 
 // ----------------------------------------------------
-// 50+ REGRAS ODOO-STYLE DIVIDIDAS POR TÓPICOS E CATEGORIAS
+// 50+ REGRAS ODOO-STYLE + SELEÇÃO DE APLICATIVOS VISÍVEIS
 // ----------------------------------------------------
 export const REGRAS_CATEGORIZADAS = [
+  {
+    categoriaId: "aplicativos",
+    categoriaNome: "0. Aplicativos Visíveis na Tela Inicial (Menu)",
+    icon: AppWindow,
+    cor: "text-purple-600 font-bold",
+    regras: [
+      { key: "app_fabrica_telhas", label: "Módulo Fábrica de Telhas", desc: "Exibe o cartão Fábrica de Telhas no menu inicial do usuário.", icon: Factory },
+      { key: "app_corte_dobra", label: "Módulo Corte e Dobra", desc: "Exibe o cartão Corte e Dobra no menu inicial do usuário.", icon: Scissors },
+      { key: "app_logistica", label: "Módulo Logística & Frota", desc: "Exibe o cartão Logística & Frota no menu inicial do usuário.", icon: Truck },
+      { key: "app_consulta_estoque", label: "Módulo Consulta de Estoque", desc: "Exibe o cartão Consulta de Estoque no menu inicial do usuário.", icon: BookmarkPlus },
+      { key: "app_painel_vendedor", label: "Módulo Painel do Vendedor", desc: "Exibe o cartão Painel do Vendedor no menu inicial do usuário.", icon: BarChart3 },
+      { key: "app_dashboard_ajl", label: "Módulo Dashboard AJL", desc: "Exibe o cartão Dashboard AJL no menu inicial do usuário.", icon: LayoutDashboard },
+      { key: "app_gerencia_fabricas", label: "Módulo Gerência de Fábricas", desc: "Exibe o cartão Gerência de Fábricas (OEE) no menu inicial.", icon: Settings },
+      { key: "app_control_tower", label: "Módulo Control Tower", desc: "Exibe o cartão Control Tower no menu inicial do usuário.", icon: ShieldAlert },
+      { key: "app_gestao_usuarios", label: "Módulo Gestão de Usuários", desc: "Exibe o cartão Gestão de Usuários no menu inicial do usuário.", icon: Users },
+    ]
+  },
   {
     categoriaId: "producao",
     categoriaNome: "1. Produção & MES",
@@ -226,13 +248,20 @@ export function getDefaultPermissionsForRole(role) {
   const perms = { ...DEFAULT_PERMISSIONS };
 
   if (role === "super_admin" || role === "admin") {
-    // Admins possuem todas as 50+ permissões ativas por padrão
+    // Admins possuem todas as 50+ permissões e todos os aplicativos ativos por padrão
     Object.keys(perms).forEach(k => { perms[k] = true; });
     return perms;
   }
 
   if (role === "encarregado") {
-    // Encarregado é o líder de produção e chefe dos operadores (lança OP, gerencia fila e libera bypasses)
+    // Encarregado vê os apps de produção, logística, estoque e dashboard
+    perms.app_fabrica_telhas = true;
+    perms.app_corte_dobra = true;
+    perms.app_logistica = true;
+    perms.app_consulta_estoque = true;
+    perms.app_dashboard_ajl = true;
+
+    // Regras operacionais
     perms.ignorar_bloqueio_op = true;
     perms.finalizar_op_parcial = true;
     perms.imprimir_etiqueta_avulsa = true;
@@ -249,7 +278,11 @@ export function getDefaultPermissionsForRole(role) {
   }
 
   if (role === "operador") {
-    // Operadores recebem permissões operacionais de Produção, MES e Estoque
+    // Operadores veem apps da fábrica
+    perms.app_fabrica_telhas = true;
+    perms.app_corte_dobra = true;
+
+    // Regras de fábrica
     perms.ignorar_bloqueio_op = true;
     perms.finalizar_op_parcial = true;
     perms.imprimir_etiqueta_avulsa = true;
@@ -260,7 +293,12 @@ export function getDefaultPermissionsForRole(role) {
   }
 
   if (role === "vendedor") {
-    // Vendedores recebem permissões comerciais e de orçamentação
+    // Vendedores veem comercial e estoque
+    perms.app_painel_vendedor = true;
+    perms.app_consulta_estoque = true;
+    perms.app_dashboard_ajl = true;
+
+    // Regras comerciais
     perms.vender_sem_estoque = true;
     perms.alterar_tabela_precos = true;
     perms.aprovar_bonificacao_amostra = true;
@@ -413,10 +451,10 @@ export default function GerenciarUsuarios() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
               <Users className="w-6 h-6 text-primary" />
-              Gerenciar Usuários & Perfis de Regras (50+)
+              Gerenciar Usuários & Aplicativos Visíveis
             </h1>
             <p className="text-sm text-muted-foreground">
-              Todos os usuários com permissões predefinidas por função (Operador, Vendedor, Admin) e totalmente personalizáveis.
+              Configure quais aplicativos aparecem no menu de cada usuário e gerencie 50+ regras operacionais.
             </p>
           </div>
         </div>
@@ -529,7 +567,7 @@ export default function GerenciarUsuarios() {
                     {/* Contador de Regras Ativas */}
                     {totalRegrasAtivas > 0 ? (
                       <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200 gap-1 font-semibold">
-                        <Sparkles className="w-3 h-3 text-purple-500" /> {totalRegrasAtivas} Regra(s) Vinculada(s)
+                        <Sparkles className="w-3 h-3 text-purple-500" /> {totalRegrasAtivas} Regra(s) / App(s)
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="text-xs text-muted-foreground font-normal">
@@ -595,7 +633,7 @@ export default function GerenciarUsuarios() {
               </Select>
             </div>
             <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
-              O novo usuário já entrará no sistema com as regras e permissões padrão vinculadas à função escolhida!
+              O novo usuário já entrará no sistema com os aplicativos e permissões padrão vinculados à função escolhida!
             </div>
           </div>
           <DialogFooter>
@@ -607,7 +645,7 @@ export default function GerenciarUsuarios() {
         </DialogContent>
       </Dialog>
 
-      {/* Sheet Lateral Configurar Usuário (Perfil + Motor de 50+ Regras Categorizadas) */}
+      {/* Sheet Lateral Configurar Usuário (Perfil + Motor de 50+ Regras Categorizadas + Apps Visíveis) */}
       <Sheet open={editOpen} onOpenChange={open => { setEditOpen(open); if(!open) setEditUser(null); }}>
         <SheetContent className="w-[500px] sm:w-[680px] border-border bg-background/95 backdrop-blur-xl overflow-y-auto p-6">
           {editUser && (
@@ -639,7 +677,7 @@ export default function GerenciarUsuarios() {
                   </TabsTrigger>
                   <TabsTrigger value="permissoes" className="gap-2">
                     <Shield className="w-4 h-4 text-purple-500" />
-                    Motor de Regras (50+)
+                    Aplicativos & Regras (50+)
                   </TabsTrigger>
                 </TabsList>
 
@@ -735,7 +773,7 @@ export default function GerenciarUsuarios() {
                   </div>
                 </TabsContent>
 
-                {/* Aba 2: Motor de 50+ Regras Granulares Odoo-Style por Tópicos */}
+                {/* Aba 2: Aplicativos Visíveis + Motor de 50+ Regras Granulares Odoo-Style por Tópicos */}
                 <TabsContent value="permissoes" className="space-y-5">
                   <div className="flex items-center justify-between gap-2 bg-purple-50 dark:bg-purple-950/40 p-3 rounded-xl border border-purple-200 dark:border-purple-800">
                     <div className="flex items-center gap-2">
@@ -745,7 +783,7 @@ export default function GerenciarUsuarios() {
                           Template: {ROLES.find(r => r.value === editUser.role)?.label || editUser.role}
                         </p>
                         <p className="text-[11px] text-purple-700 dark:text-purple-300">
-                          Regras padrão da função ativadas automaticamente.
+                          Aplicativos e regras vinculados à função do usuário.
                         </p>
                       </div>
                     </div>
@@ -764,7 +802,7 @@ export default function GerenciarUsuarios() {
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input 
-                      placeholder="Pesquisar entre as 50+ regras..." 
+                      placeholder="Pesquisar aplicativos ou regras..." 
                       value={regrasSearchTerm}
                       onChange={e => setRegrasSearchTerm(e.target.value)}
                       className="pl-9 h-9 text-xs"
@@ -791,7 +829,7 @@ export default function GerenciarUsuarios() {
                               {cat.categoriaNome}
                             </h3>
                             <Badge variant="outline" className="text-[10px] ml-auto font-mono">
-                              {regrasFiltradas.length} regra(s)
+                              {regrasFiltradas.length} item(ns)
                             </Badge>
                           </div>
 

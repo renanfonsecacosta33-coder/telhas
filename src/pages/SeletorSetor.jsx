@@ -14,9 +14,6 @@ export default function SeletorSetor() {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
-  const isGerencia = user?.gerencia === true;
-  const isAdmin = user?.role === "admin";
-
   const selecionarSetor = async (setor) => {
     if (navegando) return;
     setNavegando(true);
@@ -36,6 +33,37 @@ export default function SeletorSetor() {
   };
 
   const firstName = user?.full_name ? user.full_name.split(' ')[0] : "Usuário";
+
+  // Função para verificar se um aplicativo/módulo está visível para o usuário atual
+  const isAppVisible = (appKey) => {
+    if (!user) return true;
+    const role = user.role;
+    const perms = user.permissions || {};
+
+    // 1. Se a permissão do aplicativo foi definida explicitamente (true/false) pelo Admin
+    if (typeof perms[appKey] === "boolean") {
+      return perms[appKey];
+    }
+
+    // 2. Regras padrão por Papel/Função
+    if (role === "super_admin" || role === "admin") return true;
+
+    if (role === "encarregado") {
+      return ["app_fabrica_telhas", "app_corte_dobra", "app_logistica", "app_consulta_estoque", "app_dashboard_ajl"].includes(appKey);
+    }
+
+    if (role === "vendedor") {
+      return ["app_painel_vendedor", "app_consulta_estoque", "app_dashboard_ajl"].includes(appKey);
+    }
+
+    if (role === "operador") {
+      if (user.setor === "corte_dobra") return appKey === "app_corte_dobra";
+      if (user.setor === "telhas") return appKey === "app_fabrica_telhas";
+      return ["app_fabrica_telhas", "app_corte_dobra"].includes(appKey);
+    }
+
+    return true;
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col p-6 lg:p-12 relative overflow-hidden">
@@ -66,88 +94,103 @@ export default function SeletorSetor() {
       {/* Grid of Modules */}
       <div className="w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 z-10 pb-12">
         
-        {/* Produção Group */}
-        <ModuleCard
-          title="Fábrica de Telhas"
-          description="Operação, máquinas e produção de telhas"
-          icon={<Factory className="w-7 h-7 text-white" />}
-          gradient="from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950"
-          borderColor="border-slate-700/50 hover:border-slate-500"
-          iconBg="bg-slate-700 shadow-slate-900/50"
-          textColor="text-white"
-          descColor="text-slate-400"
-          onClick={() => selecionarSetor("telhas")}
-          disabled={navegando}
-        />
+        {/* Fábrica de Telhas */}
+        {isAppVisible("app_fabrica_telhas") && (
+          <ModuleCard
+            title="Fábrica de Telhas"
+            description="Operação, máquinas e produção de telhas"
+            icon={<Factory className="w-7 h-7 text-white" />}
+            gradient="from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950"
+            borderColor="border-slate-700/50 hover:border-slate-500"
+            iconBg="bg-slate-700 shadow-slate-900/50"
+            textColor="text-white"
+            descColor="text-slate-400"
+            onClick={() => selecionarSetor("telhas")}
+            disabled={navegando}
+          />
+        )}
 
-        <ModuleCard
-          title="Corte e Dobra"
-          description="Operação, máquinas e produção de corte e dobra"
-          icon={<Scissors className="w-7 h-7 text-white" />}
-          gradient="from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950"
-          borderColor="border-slate-700/50 hover:border-slate-500"
-          iconBg="bg-slate-700 shadow-slate-900/50"
-          textColor="text-white"
-          descColor="text-slate-400"
-          onClick={() => selecionarSetor("corte_dobra")}
-          disabled={navegando}
-        />
+        {/* Corte e Dobra */}
+        {isAppVisible("app_corte_dobra") && (
+          <ModuleCard
+            title="Corte e Dobra"
+            description="Operação, máquinas e produção de corte e dobra"
+            icon={<Scissors className="w-7 h-7 text-white" />}
+            gradient="from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950"
+            borderColor="border-slate-700/50 hover:border-slate-500"
+            iconBg="bg-slate-700 shadow-slate-900/50"
+            textColor="text-white"
+            descColor="text-slate-400"
+            onClick={() => selecionarSetor("corte_dobra")}
+            disabled={navegando}
+          />
+        )}
 
         {/* Logística */}
-        <ModuleCard
-          title="Logística & Frota"
-          description="Expedição, cargas, romaneios e frota"
-          icon={<Truck className="w-7 h-7 text-emerald-400" />}
-          gradient="from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950"
-          borderColor="border-slate-700/50 hover:border-emerald-500/50"
-          iconBg="bg-emerald-500/10 shadow-emerald-900/20"
-          textColor="text-white"
-          descColor="text-slate-400"
-          onClick={() => { setNavegando(true); navigate("/logistica"); }}
-          disabled={navegando}
-        />
+        {isAppVisible("app_logistica") && (
+          <ModuleCard
+            title="Logística & Frota"
+            description="Expedição, cargas, romaneios e frota"
+            icon={<Truck className="w-7 h-7 text-emerald-400" />}
+            gradient="from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950"
+            borderColor="border-slate-700/50 hover:border-emerald-500/50"
+            iconBg="bg-emerald-500/10 shadow-emerald-900/20"
+            textColor="text-white"
+            descColor="text-slate-400"
+            onClick={() => { setNavegando(true); navigate("/logistica"); }}
+            disabled={navegando}
+          />
+        )}
 
-        {/* Vendas */}
-        <ModuleCard
-          title="Consulta de Estoque"
-          description="Consulte saldo e realize reservas de bobinas"
-          icon={<BookmarkPlus className="w-7 h-7 text-blue-400" />}
-          gradient="from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950"
-          borderColor="border-slate-700/50 hover:border-blue-500/50"
-          iconBg="bg-blue-500/10 shadow-blue-900/20"
-          textColor="text-white"
-          descColor="text-slate-400"
-          onClick={() => navigate("/vendedor")}
-          disabled={navegando}
-        />
+        {/* Consulta de Estoque */}
+        {isAppVisible("app_consulta_estoque") && (
+          <ModuleCard
+            title="Consulta de Estoque"
+            description="Consulte saldo e realize reservas de bobinas"
+            icon={<BookmarkPlus className="w-7 h-7 text-blue-400" />}
+            gradient="from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950"
+            borderColor="border-slate-700/50 hover:border-blue-500/50"
+            iconBg="bg-blue-500/10 shadow-blue-900/20"
+            textColor="text-white"
+            descColor="text-slate-400"
+            onClick={() => navigate("/vendedor")}
+            disabled={navegando}
+          />
+        )}
 
-        <ModuleCard
-          title="Painel do Vendedor"
-          description="Visão geral, metas, comissões e histórico"
-          icon={<BarChart3 className="w-7 h-7 text-indigo-400" />}
-          gradient="from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950"
-          borderColor="border-slate-700/50 hover:border-indigo-500/50"
-          iconBg="bg-indigo-500/10 shadow-indigo-900/20"
-          textColor="text-white"
-          descColor="text-slate-400"
-          onClick={() => navigate("/vendedor-dashboard")}
-          disabled={navegando}
-        />
+        {/* Painel do Vendedor */}
+        {isAppVisible("app_painel_vendedor") && (
+          <ModuleCard
+            title="Painel do Vendedor"
+            description="Visão geral, metas, comissões e histórico"
+            icon={<BarChart3 className="w-7 h-7 text-indigo-400" />}
+            gradient="from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950"
+            borderColor="border-slate-700/50 hover:border-indigo-500/50"
+            iconBg="bg-indigo-500/10 shadow-indigo-900/20"
+            textColor="text-white"
+            descColor="text-slate-400"
+            onClick={() => navigate("/vendedor-dashboard")}
+            disabled={navegando}
+          />
+        )}
 
-        {/* Admin / Gestão */}
-        <ModuleCard
-          title="Dashboard AJL"
-          description="Painel principal de indicadores e metas"
-          icon={<LayoutDashboard className="w-7 h-7 text-orange-400" />}
-          gradient="from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950"
-          borderColor="border-slate-700/50 hover:border-orange-500/50"
-          iconBg="bg-orange-500/10 shadow-orange-900/20"
-          textColor="text-white"
-          descColor="text-slate-400"
-          href="https://dashboard-ajl.base44.app"
-        />
+        {/* Dashboard AJL */}
+        {isAppVisible("app_dashboard_ajl") && (
+          <ModuleCard
+            title="Dashboard AJL"
+            description="Painel principal de indicadores e metas"
+            icon={<LayoutDashboard className="w-7 h-7 text-orange-400" />}
+            gradient="from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950"
+            borderColor="border-slate-700/50 hover:border-orange-500/50"
+            iconBg="bg-orange-500/10 shadow-orange-900/20"
+            textColor="text-white"
+            descColor="text-slate-400"
+            href="https://dashboard-ajl.base44.app"
+          />
+        )}
 
-        {isGerencia && (
+        {/* Gerência de Fábricas */}
+        {isAppVisible("app_gerencia_fabricas") && (
           <ModuleCard
             title="Gerência de Fábricas"
             description="Controle avançado, OEE e eficiência"
@@ -161,33 +204,36 @@ export default function SeletorSetor() {
           />
         )}
 
-        {isAdmin && (
-          <>
-            <ModuleCard
-              title="Control Tower"
-              description="Acesso irrestrito às configurações do ERP"
-              icon={<ShieldAlert className="w-7 h-7 text-rose-400" />}
-              gradient="from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950"
-              borderColor="border-slate-700/50 hover:border-rose-500/50"
-              iconBg="bg-rose-500/10 shadow-rose-900/20"
-              textColor="text-white"
-              descColor="text-slate-400"
-              onClick={() => navigate("/painel-admin")}
-              disabled={navegando}
-            />
-            <ModuleCard
-              title="Gestão de Usuários"
-              description="Permissões, layouts e acessos Odoo-style"
-              icon={<Users className="w-7 h-7 text-purple-400" />}
-              gradient="from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950"
-              borderColor="border-slate-700/50 hover:border-purple-500/50"
-              iconBg="bg-purple-500/10 shadow-purple-900/20"
-              textColor="text-white"
-              descColor="text-slate-400"
-              onClick={() => navigate("/usuarios")}
-              disabled={navegando}
-            />
-          </>
+        {/* Control Tower */}
+        {isAppVisible("app_control_tower") && (
+          <ModuleCard
+            title="Control Tower"
+            description="Acesso irrestrito às configurações do ERP"
+            icon={<ShieldAlert className="w-7 h-7 text-rose-400" />}
+            gradient="from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950"
+            borderColor="border-slate-700/50 hover:border-rose-500/50"
+            iconBg="bg-rose-500/10 shadow-rose-900/20"
+            textColor="text-white"
+            descColor="text-slate-400"
+            onClick={() => navigate("/painel-admin")}
+            disabled={navegando}
+          />
+        )}
+
+        {/* Gestão de Usuários */}
+        {isAppVisible("app_gestao_usuarios") && (
+          <ModuleCard
+            title="Gestão de Usuários"
+            description="Permissões, layouts e acessos Odoo-style"
+            icon={<Users className="w-7 h-7 text-purple-400" />}
+            gradient="from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950"
+            borderColor="border-slate-700/50 hover:border-purple-500/50"
+            iconBg="bg-purple-500/10 shadow-purple-900/20"
+            textColor="text-white"
+            descColor="text-slate-400"
+            onClick={() => navigate("/usuarios")}
+            disabled={navegando}
+          />
         )}
 
       </div>
