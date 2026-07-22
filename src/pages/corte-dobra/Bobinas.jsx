@@ -37,22 +37,43 @@ export default function BobinasCD() {
   const filiaisHook = filialAtiva === "todas" ? null : [filialAtiva];
   const { preBaixaMap, statusMap, totalPreBaixaKg } = usePreBaixaBobinas("corte_dobra", filiaisHook);
 
-  const { data: bobinasGlobais = [] } = useQuery({
+  const { data: bobinasGlobais = [], refetch: refetchCodigos } = useQuery({
     queryKey: ["bobinas-cd-global-codigos"],
-    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra" }, "-created_date", 1000),
+    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra" }, "codigo", 2000),
+    staleTime: 0,
+    gcTime: 0,
   });
 
-  const proximoNumero = (() => {
+  // Calcula o PRÓXIMO número disponível com base em TODOS os códigos existentes (incluindo arquivados)
+  const calcProximoNumero = (lista) => {
     let max = 0;
-    bobinasGlobais.forEach(b => {
+    lista.forEach(b => {
       const match = b.codigo && b.codigo.match(/^CD(\d+)$/i);
       if (match) { const n = parseInt(match[1], 10); if (n > max) max = n; }
     });
     return max + 1;
-  })();
+  };
+
+  const proximoNumero = calcProximoNumero(bobinasGlobais);
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
+      // 🔒 TRAVA ANTI-DUPLICATA: Busca lista atualizada no momento do save
+      const listaAtualizada = await base44.entities.Bobina.filter({ setor: "corte_dobra" }, "codigo", 2000);
+      queryClient.setQueryData(["bobinas-cd-global-codigos"], listaAtualizada);
+
+      // Verifica se o código já existe
+      const codigoExiste = listaAtualizada.some(
+        b => b.codigo && b.codigo.toUpperCase() === (data.codigo || "").toUpperCase()
+      );
+
+      if (codigoExiste) {
+        // Gera o próximo número seguro
+        const numSeguro = calcProximoNumero(listaAtualizada);
+        data = { ...data, codigo: `CD${String(numSeguro).padStart(4, "0")}` };
+        toast.warning(`Código duplicado detectado. Código corrigido para ${data.codigo} automaticamente.`);
+      }
+
       const result = await base44.entities.Bobina.create(data);
       if (!result || !result.id) throw new Error("Resposta inesperada do servidor");
       return result;
@@ -162,7 +183,7 @@ export default function BobinasCD() {
           </div>
           <p className="text-sm text-muted-foreground">Estoque de bobinas do setor de Corte e Dobra</p>
         </div>
-        <Button onClick={() => { setEditItem(null); setDialogOpen(true); }} className="gap-2">
+        <Button onClick={() => { setEditItem(null); refetchCodigos(); setDialogOpen(true); }} className="gap-2">
           <Plus className="w-4 h-4" /> Nova Bobina
         </Button>
       </div>
@@ -260,7 +281,7 @@ export default function BobinasCD() {
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
         </div>
       ) : sorted.length === 0 ? (
-        <EmptyState title="Nenhuma bobina encontrada" description="Adicione bobinas ao estoque." onAdd={() => { setEditItem(null); setDialogOpen(true); }} />
+        <EmptyState title="Nenhuma bobina encontrada" description="Adicione bobinas ao estoque." onAdd={() => { setEditItem(null); refetchCodigos(); setDialogOpen(true); }} />
       ) : (
         <div className="space-y-3">
           {sorted.map(bobina => (

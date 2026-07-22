@@ -126,10 +126,11 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
   };
 
   const gerarProximoCodigo = async () => {
-    const bobinas = await base44.entities.Bobina.list("-created_date", 200);
+    // Busca TODAS as bobinas de telhas (incluindo arquivadas) para garantir código único
+    const bobinas = await base44.entities.Bobina.filter({ setor: "telhas" }, "codigo", 2000);
     const numeros = bobinas
       .map(b => b.codigo)
-      .filter(c => c && /^TE\d{4}$/.test(c))
+      .filter(c => c && /^TE\d{4}$/i.test(c))
       .map(c => parseInt(c.slice(2)));
     const proximo = numeros.length > 0 ? Math.max(...numeros) + 1 : 1;
     return `TE${String(proximo).padStart(4, "0")}`;
@@ -232,6 +233,20 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
         await Promise.race([base44.entities.Bobina.update(editItem.id, payload), timeoutPromise]);
         toast.success("Bobina atualizada!");
       } else {
+        // 🔒 TRAVA ANTI-DUPLICATA: verifica códigos existentes antes de criar
+        const listaAtualizada = await base44.entities.Bobina.filter({ setor: "telhas" }, "codigo", 2000);
+        const codigoExiste = listaAtualizada.some(
+          b => b.codigo && b.codigo.toUpperCase() === (payload.codigo || "").toUpperCase()
+        );
+        if (codigoExiste) {
+          const numeros = listaAtualizada
+            .map(b => b.codigo)
+            .filter(c => c && /^TE\d{4}$/i.test(c))
+            .map(c => parseInt(c.slice(2)));
+          const proximo = numeros.length > 0 ? Math.max(...numeros) + 1 : 1;
+          payload.codigo = `TE${String(proximo).padStart(4, "0")}`;
+          toast.warning(`Código duplicado detectado. Código corrigido para ${payload.codigo} automaticamente.`);
+        }
         const result = await Promise.race([base44.entities.Bobina.create(payload), timeoutPromise]);
         if (!result || !result.id) {
           throw new Error("Resposta inválida do servidor — a bobina pode não ter sido criada.");
