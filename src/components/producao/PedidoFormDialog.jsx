@@ -12,8 +12,8 @@ import { useQuery } from "@tanstack/react-query";
 import UploadButton from "@/components/ui/UploadButton";
 import ImageLink from "@/components/ui/ImageLink";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
-import { getBobinaStatus } from "@/lib/bobinaStatusHelper";
-import { Camera, X, Loader2, FileText, Plus, Trash2 } from "lucide-react";
+import { getBobinaStatus, calcMetrosDisponiveis } from "@/lib/bobinaStatusHelper";
+import { Building2, X, Loader2, FileText, Plus, Trash2 } from "lucide-react";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 const PRODUTOS = ["TELHA", "TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA", "BOBININHA", "CUMEEIRA", "PAINEL"];
@@ -687,6 +687,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                   {bobinasList.map((b) => {
                     const pb = preBaixaMap[b.id] || 0;
                     const disp = (b.peso_kg || 0) - pb;
+                    const metrosDisp = calcMetrosDisponiveis(b, disp);
                     const st = getBobinaStatus(b, ordensAtivas);
                     return (
                       <SelectItem key={b.id} value={b.id} className="py-2 cursor-pointer">
@@ -696,7 +697,10 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                             <span className="font-medium ml-0.5">{b.chapa}</span>
                             {b.qualidade && <span className="text-muted-foreground">({b.qualidade})</span>}
                             {b.cor && <span className="text-blue-600 font-semibold">— {b.cor}</span>}
-                            {b.peso_kg && <span className="text-muted-foreground text-xs"> · {disp.toFixed(0)}kg disp.</span>}
+                            <span className="text-emerald-600 dark:text-emerald-400 font-bold text-xs">
+                              · {disp.toFixed(0)}kg disp. {metrosDisp ? `(~${metrosDisp.toLocaleString("pt-BR")}m)` : ""}
+                            </span>
+                            {pb > 0 && <span className="text-amber-600 text-xs font-semibold">(pré-baixa: {pb.toFixed(0)}kg)</span>}
                           </div>
                           {st && (
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${st.bgClass}`}>
@@ -744,6 +748,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                     {bobinasList.map((b) => {
                       const pb = preBaixaMap[b.id] || 0;
                       const disp = (b.peso_kg || 0) - pb;
+                      const metrosDisp = calcMetrosDisponiveis(b, disp);
                       const st = getBobinaStatus(b, ordensAtivas);
                       return (
                         <SelectItem key={b.id} value={b.id} className="py-2 cursor-pointer">
@@ -753,7 +758,10 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                               <span className="font-medium ml-0.5">{b.chapa}</span>
                               {b.qualidade && <span className="text-muted-foreground">({b.qualidade})</span>}
                               {b.cor && <span className="text-blue-600 font-semibold">— {b.cor}</span>}
-                              {b.peso_kg && <span className="text-muted-foreground text-xs"> · {disp.toFixed(0)}kg disp.</span>}
+                              <span className="text-emerald-600 dark:text-emerald-400 font-bold text-xs">
+                                · {disp.toFixed(0)}kg disp. {metrosDisp ? `(~${metrosDisp.toLocaleString("pt-BR")}m)` : ""}
+                              </span>
+                              {pb > 0 && <span className="text-amber-600 text-xs font-semibold">(pré-baixa: {pb.toFixed(0)}kg)</span>}
                             </div>
                             {st && (
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${st.bgClass}`}>

@@ -14,7 +14,7 @@ import { useFilial } from "@/contexts/FilialContext";
 import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X, DollarSign, Star, PackageX, Wrench } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
-import { getBobinaStatus } from "@/lib/bobinaStatusHelper";
+import { getBobinaStatus, calcMetrosDisponiveis } from "@/lib/bobinaStatusHelper";
 
 const MAQUINAS_INICIAIS = [
   { id: "DESBOBINADEIRA", label: "Desbobinadeira", icon: Layers },
@@ -385,6 +385,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                 {bobinas.map(b => {
                     const pb = preBaixaMap[b.id] || 0;
                     const disp = Math.max(0, (b.peso_kg || 0) - pb);
+                    const metrosDisp = calcMetrosDisponiveis(b, disp);
                     const st = getBobinaStatus(b, todasOrdens);
 
                     return (
@@ -395,7 +396,10 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                             {(b.espessura_utilizada || b.chapa) && <span className="text-muted-foreground text-xs">{b.espessura_utilizada || b.chapa}mm</span>}
                             {b.cor && <span className="text-blue-600 text-xs font-semibold">— {b.cor}</span>}
                             {b.largura_mm && <span className="text-xs text-muted-foreground">{b.largura_mm}mm larg.</span>}
-                            {b.peso_kg && <span className="text-xs text-muted-foreground">· {disp.toFixed(0)}kg disp.</span>}
+                            <span className="text-emerald-600 dark:text-emerald-400 font-bold text-xs">
+                              · {disp.toFixed(0)}kg disp. {metrosDisp ? `(~${metrosDisp.toLocaleString("pt-BR")}m)` : ""}
+                            </span>
+                            {pb > 0 && <span className="text-amber-600 text-xs font-semibold">(pré-baixa: {pb.toFixed(0)}kg)</span>}
                           </div>
                           {st && (
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${st.bgClass}`}>

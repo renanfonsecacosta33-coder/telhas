@@ -1,4 +1,4 @@
-// Helper universal para cálculo de status em tempo real das bobinas no ERP AJL
+// Helper universal para cálculo de status e metragens em tempo real das bobinas no ERP AJL
 
 export function getBobinaStatus(bobina, ordensAtivas = []) {
   if (!bobina) return null;
@@ -59,6 +59,29 @@ export function getBobinaStatus(bobina, ordensAtivas = []) {
     dotColor: "bg-emerald-500",
     badgeType: "disponivel"
   };
+}
+
+export function calcMetrosDisponiveis(bobina, dispKg) {
+  if (!bobina || dispKg === undefined || dispKg === null) return null;
+  const disp = Math.max(0, Number(dispKg) || 0);
+  if (disp <= 0) return 0;
+
+  // Se o cadastro da bobina possui metragem_restante direta
+  if (bobina.metragem_restante && Number(bobina.peso_kg) > 0) {
+    const ratio = disp / Number(bobina.peso_kg);
+    return Math.round(Number(bobina.metragem_restante) * ratio);
+  }
+
+  // Senão, calcula com base na chapa/espessura (densidade 7.85 kg/m² por mm x 1.2m)
+  const esp = Number(bobina.chapa || bobina.espessura_mm || bobina.espessura_utilizada) || 0.43;
+  const largM = (Number(bobina.largura_mm) || 1200) / 1000;
+  const kgPorMetro = esp * 7.85 * largM;
+
+  if (kgPorMetro > 0) {
+    return Math.round(disp / kgPorMetro);
+  }
+
+  return null;
 }
 
 function formatNomeMaquina(nome) {
