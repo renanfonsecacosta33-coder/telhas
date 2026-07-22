@@ -56,11 +56,6 @@ export default function AjlCopilot() {
   const [etiquetaModalData, setEtiquetaModalData] = useState(null);
   const messagesEndRef = useRef(null);
 
-  // A IA está oculta para Operadores de Máquina (Regra de Segurança AJL)
-  if (user?.role === "operador") {
-    return null;
-  }
-
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -229,6 +224,11 @@ export default function AjlCopilot() {
       setIsTyping(false);
     }, 350);
   };
+
+  // A IA está oculta para Operadores de Máquina (Regra de Segurança AJL)
+  if (user?.role === "operador") {
+    return null;
+  }
 
   return (
     <>
