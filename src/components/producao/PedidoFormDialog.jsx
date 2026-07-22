@@ -111,7 +111,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     enabled: open
   });
 
-  const { preBaixaMap } = usePreBaixaBobinas("telhas");
+  const { preBaixaMap, statusMap } = usePreBaixaBobinas("telhas");
 
   const { data: modelosCad = [] } = useQuery({
     queryKey: ["modelos-produto"],
@@ -688,7 +688,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                     const pb = preBaixaMap[b.id] || 0;
                     const disp = (b.peso_kg || 0) - pb;
                     const metrosDisp = calcMetrosDisponiveis(b, disp);
-                    const st = getBobinaStatus(b, ordensAtivas);
+                    const st = getBobinaStatus(b, ordensAtivas, statusMap);
                     return (
                       <SelectItem key={b.id} value={b.id} className="py-2 cursor-pointer">
                         <div className="flex items-center justify-between gap-2 w-full pr-2">
@@ -749,7 +749,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                       const pb = preBaixaMap[b.id] || 0;
                       const disp = (b.peso_kg || 0) - pb;
                       const metrosDisp = calcMetrosDisponiveis(b, disp);
-                      const st = getBobinaStatus(b, ordensAtivas);
+                      const st = getBobinaStatus(b, ordensAtivas, statusMap);
                       return (
                         <SelectItem key={b.id} value={b.id} className="py-2 cursor-pointer">
                           <div className="flex items-center justify-between gap-2 w-full pr-2">

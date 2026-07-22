@@ -102,7 +102,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   });
 
   const filiaisHook = filialAtiva === "todas" ? null : [filialAtiva];
-  const { preBaixaMap } = usePreBaixaBobinas("corte_dobra", filiaisHook);
+  const { preBaixaMap, statusMap } = usePreBaixaBobinas("corte_dobra", filiaisHook);
 
   const { data: chapasDisponiveis = [] } = useQuery({
     queryKey: ["chapas-cd-form-dinamico", filialAtiva],
@@ -386,7 +386,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                     const pb = preBaixaMap[b.id] || 0;
                     const disp = Math.max(0, (b.peso_kg || 0) - pb);
                     const metrosDisp = calcMetrosDisponiveis(b, disp);
-                    const st = getBobinaStatus(b, todasOrdens);
+                    const st = getBobinaStatus(b, todasOrdens, statusMap);
 
                     return (
                       <SelectItem key={b.id} value={b.id} className="py-2 cursor-pointer">

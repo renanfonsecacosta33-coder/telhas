@@ -1,19 +1,50 @@
 // Helper universal para cálculo de status e metragens em tempo real das bobinas no ERP AJL
 
-export function getBobinaStatus(bobina, ordensAtivas = []) {
+export function getBobinaStatus(bobina, ordensAtivas = [], statusMap = {}) {
   if (!bobina) return null;
 
-  // 1. Procura se a bobina está montada ou sendo cortada em alguma máquina ("em_producao")
-  const ordemEmProducao = ordensAtivas.find(o => 
-    (o.bobina_id === bobina.id || o.bobina_superior === bobina.id || o.bobina_inferior === bobina.id) &&
-    o.status === "em_producao"
-  );
+  const bId = bobina.id;
+
+  // 1. Checa se o statusMap (do usePreBaixaBobinas) já tem o estado resolvido
+  const mapStatus = statusMap[bId];
+  if (mapStatus) {
+    const nomeAmigavel = formatNomeMaquina(mapStatus.maquina);
+    if (mapStatus.status === "em_producao") {
+      return {
+        label: `⚡ Em uso no ${nomeAmigavel}`,
+        shortLabel: `⚡ ${nomeAmigavel}`,
+        bgClass: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40",
+        dotColor: "bg-amber-500 animate-pulse",
+        badgeType: "em_uso"
+      };
+    } else {
+      return {
+        label: `📅 Programada no ${nomeAmigavel}`,
+        shortLabel: `📅 Prog. ${nomeAmigavel}`,
+        bgClass: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/40",
+        dotColor: "bg-blue-500",
+        badgeType: "programada"
+      };
+    }
+  }
+
+  // 2. Busca na lista de ordens ativas recebidas
+  const isBobinaMatch = (o) => {
+    if (o.bobina_id === bId || o.bobina_superior === bId || o.bobina_superior_id === bId || o.bobina_inferior === bId || o.bobina_inferior_id === bId) return true;
+    try {
+      const vars = JSON.parse(o.variacoes_telhas || "[]");
+      if (Array.isArray(vars) && vars.some(v => v.bobina_id === bId || v.bobina_inf_id === bId)) return true;
+    } catch {}
+    return false;
+  };
+
+  const ordemEmProducao = ordensAtivas.find(o => isBobinaMatch(o) && ["em_producao", "produzindo", "iniciado"].includes(o.status?.toLowerCase()));
 
   if (ordemEmProducao) {
     const maq = ordemEmProducao.maquina || ordemEmProducao.maquina_inicial || "Linha";
     const nomeAmigavel = formatNomeMaquina(maq);
     return {
-      label: `⚡ Em uso na ${nomeAmigavel}`,
+      label: `⚡ Em uso no ${nomeAmigavel}`,
       shortLabel: `⚡ ${nomeAmigavel}`,
       bgClass: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40",
       dotColor: "bg-amber-500 animate-pulse",
@@ -21,17 +52,13 @@ export function getBobinaStatus(bobina, ordensAtivas = []) {
     };
   }
 
-  // 2. Procura se a bobina está alocada para uma ordem em fila ("pendente", "pausado", "programado")
-  const ordemProgramada = ordensAtivas.find(o => 
-    (o.bobina_id === bobina.id || o.bobina_superior === bobina.id || o.bobina_inferior === bobina.id) &&
-    ["pendente", "pausado", "programado", "aguardando"].includes(o.status)
-  );
+  const ordemProgramada = ordensAtivas.find(o => isBobinaMatch(o) && ["pendente", "pausado", "programado", "aguardando"].includes(o.status?.toLowerCase()));
 
   if (ordemProgramada) {
     const maq = ordemProgramada.maquina || ordemProgramada.maquina_inicial || "Linha";
     const nomeAmigavel = formatNomeMaquina(maq);
     return {
-      label: `📅 Programada na ${nomeAmigavel}`,
+      label: `📅 Programada no ${nomeAmigavel}`,
       shortLabel: `📅 Prog. ${nomeAmigavel}`,
       bgClass: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/40",
       dotColor: "bg-blue-500",
@@ -87,7 +114,7 @@ export function calcMetrosDisponiveis(bobina, dispKg) {
 function formatNomeMaquina(nome) {
   if (!nome) return "Linha";
   const n = nome.toUpperCase();
-  if (n.includes("DESBOBINAD")) return "Bobininha / Desbobinador";
+  if (n.includes("DESBOBINAD")) return "Desbobinador";
   if (n.includes("TP40") || n.includes("TP - 40")) return "TP-40";
   if (n.includes("TP25") || n.includes("TP - 25")) return "TP-25";
   if (n.includes("ONDULADA")) return "Ondulada";
