@@ -12,6 +12,8 @@ import { useFilial } from "@/contexts/FilialContext";
 import { Layers, Package, Camera, DollarSign, PackageX } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
+import { getBobinaStatus } from "@/lib/bobinaStatusHelper";
+import { Scissors } from "lucide-react";
 
 // etapa: "corte" | "dobra" | "ambas" | "perfiladeira"
 const TIPOS_PECA = [
@@ -530,15 +532,27 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
               <Select value={form.bobina_id} onValueChange={v => { set("bobina_id", v); set("tipo_peca", ""); set("dimensoes_livres", ""); set("peso_kg", ""); pesoEditadoManual.current = false; }}>
                 <SelectTrigger><SelectValue placeholder="Selecione a slitter..." /></SelectTrigger>
                 <SelectContent>
-                  {slitters.filter(s => !["consumido", "arquivado"].includes(s.status?.toLowerCase())).map(s => (
-                    <SelectItem key={s.id} value={s.id}>
-                      <span className="font-mono font-bold">{s.codigo || "—"}</span>
-                      {s.qualidade && <span className="text-muted-foreground ml-2">{s.qualidade}</span>}
-                      <span className="text-muted-foreground ml-2">{s.espessura_mm}mm</span>
-                      {s.materiais_producao && <span className="text-blue-600 ml-2">{s.materiais_producao}</span>}
-                      <span className="text-green-600 ml-2 font-bold">{s.peso_kg?.toLocaleString("pt-BR")}kg</span>
-                    </SelectItem>
-                  ))}
+                  {slitters.filter(s => !["consumido", "arquivado"].includes(s.status?.toLowerCase())).map(s => {
+                    const st = getBobinaStatus(s, todasOrdens);
+                    return (
+                      <SelectItem key={s.id} value={s.id} className="py-2 cursor-pointer">
+                        <div className="flex items-center justify-between gap-2 w-full pr-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono font-bold text-primary">{s.codigo || "—"}</span>
+                            {s.qualidade && <span className="text-muted-foreground">{s.qualidade}</span>}
+                            <span className="text-muted-foreground">{s.espessura_mm}mm</span>
+                            {s.materiais_producao && <span className="text-blue-600 font-semibold">{s.materiais_producao}</span>}
+                            <span className="text-green-600 font-bold">· {s.peso_kg?.toLocaleString("pt-BR")}kg</span>
+                          </div>
+                          {st && (
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${st.bgClass}`}>
+                              {st.label}
+                            </span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
               {bobinaObj && (

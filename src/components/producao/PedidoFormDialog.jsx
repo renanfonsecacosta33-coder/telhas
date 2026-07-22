@@ -12,6 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import UploadButton from "@/components/ui/UploadButton";
 import ImageLink from "@/components/ui/ImageLink";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
+import { getBobinaStatus } from "@/lib/bobinaStatusHelper";
 import { Camera, X, Loader2, FileText, Plus, Trash2 } from "lucide-react";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
@@ -100,7 +101,13 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
 
   const { data: bobinas = [] } = useQuery({
     queryKey: ["bobinas-ativas"],
-    queryFn: () => base44.entities.Bobina.filter({ arquivada: false, reservada: false, setor: "telhas" }),
+    queryFn: () => base44.entities.Bobina.filter({ arquivada: false, setor: "telhas" }),
+    enabled: open
+  });
+
+  const { data: ordensAtivas = [] } = useQuery({
+    queryKey: ["ordens-ativas-telhas"],
+    queryFn: () => base44.entities.OrdemProducao.filter({ arquivada: false }),
     enabled: open
   });
 
@@ -680,15 +687,24 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                   {bobinasList.map((b) => {
                     const pb = preBaixaMap[b.id] || 0;
                     const disp = (b.peso_kg || 0) - pb;
+                    const st = getBobinaStatus(b, ordensAtivas);
                     return (
-                  <SelectItem key={b.id} value={b.id}>
-                      {b.codigo && <span className="font-mono font-bold text-primary">{b.codigo}</span>}
-                      <span className="font-medium ml-1">{b.chapa}</span>
-                      {b.qualidade && <span className="text-muted-foreground"> ({b.qualidade})</span>}
-                      {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
-                      {b.peso_kg && <span className="text-muted-foreground text-xs"> · {disp.toFixed(0)}kg disp.</span>}
-                      {pb > 0 && <span className="text-blue-500 text-xs">(pré-baixa: {pb.toFixed(0)}kg)</span>}
-                    </SelectItem>
+                      <SelectItem key={b.id} value={b.id} className="py-2 cursor-pointer">
+                        <div className="flex items-center justify-between gap-2 w-full pr-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {b.codigo && <span className="font-mono font-bold text-primary">{b.codigo}</span>}
+                            <span className="font-medium ml-0.5">{b.chapa}</span>
+                            {b.qualidade && <span className="text-muted-foreground">({b.qualidade})</span>}
+                            {b.cor && <span className="text-blue-600 font-semibold">— {b.cor}</span>}
+                            {b.peso_kg && <span className="text-muted-foreground text-xs"> · {disp.toFixed(0)}kg disp.</span>}
+                          </div>
+                          {st && (
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${st.bgClass}`}>
+                              {st.label}
+                            </span>
+                          )}
+                        </div>
+                      </SelectItem>
                     );
                   })}
                   </SelectContent>
@@ -728,15 +744,24 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                     {bobinasList.map((b) => {
                       const pb = preBaixaMap[b.id] || 0;
                       const disp = (b.peso_kg || 0) - pb;
+                      const st = getBobinaStatus(b, ordensAtivas);
                       return (
-                    <SelectItem key={b.id} value={b.id}>
-                       {b.codigo && <span className="font-mono font-bold text-primary">{b.codigo}</span>}
-                       <span className="font-medium ml-1">{b.chapa}</span>
-                       {b.qualidade && <span className="text-muted-foreground"> ({b.qualidade})</span>}
-                       {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
-                       {b.peso_kg && <span className="text-muted-foreground text-xs"> · {disp.toFixed(0)}kg disp.</span>}
-                       {pb > 0 && <span className="text-blue-500 text-xs">(pré-baixa: {pb.toFixed(0)}kg)</span>}
-                     </SelectItem>
+                        <SelectItem key={b.id} value={b.id} className="py-2 cursor-pointer">
+                          <div className="flex items-center justify-between gap-2 w-full pr-2">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {b.codigo && <span className="font-mono font-bold text-primary">{b.codigo}</span>}
+                              <span className="font-medium ml-0.5">{b.chapa}</span>
+                              {b.qualidade && <span className="text-muted-foreground">({b.qualidade})</span>}
+                              {b.cor && <span className="text-blue-600 font-semibold">— {b.cor}</span>}
+                              {b.peso_kg && <span className="text-muted-foreground text-xs"> · {disp.toFixed(0)}kg disp.</span>}
+                            </div>
+                            {st && (
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${st.bgClass}`}>
+                                {st.label}
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
                       );
                     })}
                     </SelectContent>

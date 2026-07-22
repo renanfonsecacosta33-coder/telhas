@@ -14,6 +14,7 @@ import { useFilial } from "@/contexts/FilialContext";
 import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X, DollarSign, Star, PackageX, Wrench } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
+import { getBobinaStatus } from "@/lib/bobinaStatusHelper";
 
 const MAQUINAS_INICIAIS = [
   { id: "DESBOBINADEIRA", label: "Desbobinadeira", icon: Layers },
@@ -382,29 +383,29 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                   <div className="px-3 py-4 text-sm text-muted-foreground text-center">Nenhuma bobina ativa</div>
                 )}
                 {bobinas.map(b => {
-                  const reservadaParaEste = b.reservada && form.destino === "pedido_direto" && form.numero_pedido && b.reserva_numero_pedido === form.numero_pedido;
-                  const reservadaParaOutro = b.reservada && !reservadaParaEste;
-                  const pb = preBaixaMap[b.id] || 0;
-                  const disp = (b.peso_kg || 0) - pb;
-                  return (
-                    <SelectItem key={b.id} value={b.id}>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono font-bold text-sm">{b.codigo || "—"}</span>
-                        {(b.espessura_utilizada || b.chapa) && <span className="text-muted-foreground text-xs">{b.espessura_utilizada || b.chapa}mm</span>}
-                        {b.cor && <span className="text-blue-600 text-xs font-medium">{b.cor}</span>}
-                        {b.largura_mm && <span className="text-xs text-muted-foreground">{b.largura_mm}mm larg.</span>}
-                        {b.peso_kg && <span className="text-xs text-muted-foreground">{disp.toFixed(0)}kg disp.</span>}
-                        {pb > 0 && <span className="text-blue-500 text-xs">(pré-baixa: {pb.toFixed(0)}kg)</span>}
-                        {reservadaParaEste && (
-                          <span className="text-emerald-600 text-xs font-bold">✅ Reservada para este pedido</span>
-                        )}
-                        {reservadaParaOutro && (
-                          <span className="text-red-500 text-xs font-bold">🔒 Reservada — Pedido {b.reserva_numero_pedido || "?"}{b.reserva_motivo ? ` (${b.reserva_motivo})` : ""}</span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  );
-                })}
+                    const pb = preBaixaMap[b.id] || 0;
+                    const disp = Math.max(0, (b.peso_kg || 0) - pb);
+                    const st = getBobinaStatus(b, todasOrdens);
+
+                    return (
+                      <SelectItem key={b.id} value={b.id} className="py-2 cursor-pointer">
+                        <div className="flex items-center justify-between gap-2 w-full pr-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono font-bold text-sm text-primary">{b.codigo || "—"}</span>
+                            {(b.espessura_utilizada || b.chapa) && <span className="text-muted-foreground text-xs">{b.espessura_utilizada || b.chapa}mm</span>}
+                            {b.cor && <span className="text-blue-600 text-xs font-semibold">— {b.cor}</span>}
+                            {b.largura_mm && <span className="text-xs text-muted-foreground">{b.largura_mm}mm larg.</span>}
+                            {b.peso_kg && <span className="text-xs text-muted-foreground">· {disp.toFixed(0)}kg disp.</span>}
+                          </div>
+                          {st && (
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${st.bgClass}`}>
+                              {st.label}
+                            </span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
               </SelectContent>
             </Select>
 
