@@ -91,6 +91,12 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     enabled: open && form.maquina === "PERFILADEIRA",
   });
 
+  const { data: todasOrdens = [] } = useQuery({
+    queryKey: ["ordens-maquina-cd-ativas", filialAtiva],
+    queryFn: () => base44.entities.OrdemMaquinaCD.filter({ status: { $nin: ["finalizado", "cancelado"] } }),
+    enabled: open && form.maquina === "PERFILADEIRA",
+  });
+
   // flags de máquina
   const isCorte = ["CORTE 3M", "CORTE 6M"].includes(form.maquina);
   const isDobra = ["DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M"].includes(form.maquina);
