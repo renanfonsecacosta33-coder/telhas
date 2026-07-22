@@ -686,21 +686,42 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                 <SelectContent>
                   {bobinasList.map((b) => {
                     const pb = preBaixaMap[b.id] || 0;
-                    const disp = (b.peso_kg || 0) - pb;
-                    const metrosDisp = calcMetrosDisponiveis(b, disp);
+                    const pesoBruto = b.peso_kg || 0;
+                    const dispLivre = Math.max(0, pesoBruto - pb);
+                    const metrosLivres = calcMetrosDisponiveis(b, dispLivre);
+                    const metrosBrutos = calcMetrosDisponiveis(b, pesoBruto);
                     const st = getBobinaStatus(b, ordensAtivas, statusMap);
                     return (
-                      <SelectItem key={b.id} value={b.id} className="py-2 cursor-pointer">
+                      <SelectItem key={b.id} value={b.id} className="py-2.5 cursor-pointer">
                         <div className="flex items-center justify-between gap-2 w-full pr-2">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {b.codigo && <span className="font-mono font-bold text-primary">{b.codigo}</span>}
-                            <span className="font-medium ml-0.5">{b.chapa}</span>
-                            {b.qualidade && <span className="text-muted-foreground">({b.qualidade})</span>}
-                            {b.cor && <span className="text-blue-600 font-semibold">— {b.cor}</span>}
-                            <span className="text-emerald-600 dark:text-emerald-400 font-bold text-xs">
-                              · {disp.toFixed(0)}kg disp. {metrosDisp ? `(~${metrosDisp.toLocaleString("pt-BR")}m)` : ""}
-                            </span>
-                            {pb > 0 && <span className="text-amber-600 text-xs font-semibold">(pré-baixa: {pb.toFixed(0)}kg)</span>}
+                          <div className="space-y-0.5">
+                            {/* Linha 1: Identificação */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {b.codigo && <span className="font-mono font-bold text-primary text-xs">{b.codigo}</span>}
+                              <span className="font-medium text-xs">{b.chapa}</span>
+                              {b.qualidade && <span className="text-muted-foreground text-[11px]">({b.qualidade})</span>}
+                              {b.cor && <span className="text-blue-600 font-semibold text-[11px]">— {b.cor}</span>}
+                            </div>
+                            {/* Linha 2: Peso e metros */}
+                            {pb > 0 ? (
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-muted-foreground text-[10px]">
+                                  Total: {pesoBruto.toLocaleString("pt-BR")}kg{metrosBrutos ? ` (~${metrosBrutos.toLocaleString("pt-BR")}m)` : ""}
+                                </span>
+                                <span className="text-amber-600 text-[10px] font-bold">
+                                  − {pb.toFixed(0)}kg reservado
+                                </span>
+                                <span className="text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">
+                                  = {dispLivre.toFixed(0)}kg livre{metrosLivres ? ` (~${metrosLivres.toLocaleString("pt-BR")}m)` : ""}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">
+                                  {dispLivre.toFixed(0)}kg disp.{metrosLivres ? ` (~${metrosLivres.toLocaleString("pt-BR")}m)` : ""}
+                                </span>
+                              </div>
+                            )}
                           </div>
                           {st && (
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${st.bgClass}`}>
@@ -747,21 +768,40 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                   <SelectContent>
                     {bobinasList.map((b) => {
                       const pb = preBaixaMap[b.id] || 0;
-                      const disp = (b.peso_kg || 0) - pb;
-                      const metrosDisp = calcMetrosDisponiveis(b, disp);
+                      const pesoBruto = b.peso_kg || 0;
+                      const dispLivre = Math.max(0, pesoBruto - pb);
+                      const metrosLivres = calcMetrosDisponiveis(b, dispLivre);
+                      const metrosBrutos = calcMetrosDisponiveis(b, pesoBruto);
                       const st = getBobinaStatus(b, ordensAtivas, statusMap);
                       return (
-                        <SelectItem key={b.id} value={b.id} className="py-2 cursor-pointer">
+                        <SelectItem key={b.id} value={b.id} className="py-2.5 cursor-pointer">
                           <div className="flex items-center justify-between gap-2 w-full pr-2">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              {b.codigo && <span className="font-mono font-bold text-primary">{b.codigo}</span>}
-                              <span className="font-medium ml-0.5">{b.chapa}</span>
-                              {b.qualidade && <span className="text-muted-foreground">({b.qualidade})</span>}
-                              {b.cor && <span className="text-blue-600 font-semibold">— {b.cor}</span>}
-                              <span className="text-emerald-600 dark:text-emerald-400 font-bold text-xs">
-                                · {disp.toFixed(0)}kg disp. {metrosDisp ? `(~${metrosDisp.toLocaleString("pt-BR")}m)` : ""}
-                              </span>
-                              {pb > 0 && <span className="text-amber-600 text-xs font-semibold">(pré-baixa: {pb.toFixed(0)}kg)</span>}
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {b.codigo && <span className="font-mono font-bold text-primary text-xs">{b.codigo}</span>}
+                                <span className="font-medium text-xs">{b.chapa}</span>
+                                {b.qualidade && <span className="text-muted-foreground text-[11px]">({b.qualidade})</span>}
+                                {b.cor && <span className="text-blue-600 font-semibold text-[11px]">— {b.cor}</span>}
+                              </div>
+                              {pb > 0 ? (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-muted-foreground text-[10px]">
+                                    Total: {pesoBruto.toLocaleString("pt-BR")}kg{metrosBrutos ? ` (~${metrosBrutos.toLocaleString("pt-BR")}m)` : ""}
+                                  </span>
+                                  <span className="text-amber-600 text-[10px] font-bold">
+                                    − {pb.toFixed(0)}kg reservado
+                                  </span>
+                                  <span className="text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">
+                                    = {dispLivre.toFixed(0)}kg livre{metrosLivres ? ` (~${metrosLivres.toLocaleString("pt-BR")}m)` : ""}
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">
+                                    {dispLivre.toFixed(0)}kg disp.{metrosLivres ? ` (~${metrosLivres.toLocaleString("pt-BR")}m)` : ""}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                             {st && (
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${st.bgClass}`}>
