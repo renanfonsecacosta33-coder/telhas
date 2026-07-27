@@ -70,6 +70,15 @@ import Logistica from '@/pages/corte-dobra/Logistica';
 import LogisticaStandalone from '@/pages/Logistica';
 import CentralAlertas from '@/pages/corte-dobra/CentralAlertas';
 
+// Expedição
+import AppLayoutExpedicao from '@/components/layout/Expedicao/AppLayoutExpedicao';
+import DashboardExpedicao from '@/pages/expedicao/Dashboard';
+import RecebimentoExpedicao from '@/pages/expedicao/Recebimento';
+import EstoqueExpedicao from '@/pages/expedicao/Estoque';
+import MapaArmazenagem from '@/pages/expedicao/MapaArmazenagem';
+import FrisadaPage from '@/pages/expedicao/Frisada';
+import HistoricoExpedicao from '@/pages/expedicao/Historico';
+
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 
@@ -162,6 +171,14 @@ const AuthenticatedApp = () => {
         <Route path="/corte-dobra/logistica" element={<Logistica mode="despacho" />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
+      <Route element={<AppLayoutExpedicao />}>
+        <Route path="/expedicao"             element={<DashboardExpedicao />} />
+        <Route path="/expedicao/recebimento" element={<RecebimentoExpedicao />} />
+        <Route path="/expedicao/estoque"     element={<EstoqueExpedicao />} />
+        <Route path="/expedicao/mapa"        element={<MapaArmazenagem />} />
+        <Route path="/expedicao/frisada"     element={<FrisadaPage />} />
+        <Route path="/expedicao/historico"   element={<HistoricoExpedicao />} />
+      </Route>
     </Routes>
     </FilialProvider>
   );

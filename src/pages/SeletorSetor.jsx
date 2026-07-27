@@ -14,7 +14,8 @@ import {
   Users, 
   GripVertical,
   Search,
-  Clock
+  Clock,
+  PackageCheck
 } from "lucide-react";
 import UserAvatarButton from "@/components/UserAvatarButton";
 import GlobalCommandPalette from "@/components/GlobalCommandPalette";
@@ -43,6 +44,17 @@ const ALL_MODULES = [
     iconBg: "bg-slate-700 shadow-slate-900/50",
     type: "action_setor",
     setorTarget: "corte_dobra"
+  },
+  {
+    key: "app_expedicao",
+    title: "Expedição",
+    description: "Recebimento, estoque de material e máquina de Frisada",
+    icon: <PackageCheck className="w-6 h-6 sm:w-7 sm:h-7 text-teal-400" />,
+    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
+    borderColor: "border-slate-700/50 hover:border-teal-500/50",
+    iconBg: "bg-teal-500/10 shadow-teal-900/20",
+    type: "action_setor",
+    setorTarget: "expedicao"
   },
   {
     key: "app_hora_extra",
@@ -184,7 +196,10 @@ export default function SeletorSetor() {
     try {
       await base44.auth.updateMe({ setor });
     } catch (e) {}
-    navigate(setor === "telhas" ? "/" : "/corte-dobra");
+    if (setor === "telhas")      navigate("/");
+    else if (setor === "corte_dobra") navigate("/corte-dobra");
+    else if (setor === "expedicao")   navigate("/expedicao");
+    else navigate("/");
   };
 
   const getGreeting = () => {
@@ -208,7 +223,7 @@ export default function SeletorSetor() {
     if (role === "super_admin" || role === "admin") return true;
 
     if (role === "encarregado") {
-      return ["app_fabrica_telhas", "app_corte_dobra", "app_hora_extra", "app_logistica", "app_consulta_estoque", "app_dashboard_ajl"].includes(appKey);
+      return ["app_fabrica_telhas", "app_corte_dobra", "app_expedicao", "app_hora_extra", "app_logistica", "app_consulta_estoque", "app_dashboard_ajl"].includes(appKey);
     }
 
     if (role === "vendedor") {
@@ -217,8 +232,9 @@ export default function SeletorSetor() {
 
     if (role === "operador") {
       if (user.setor === "corte_dobra") return appKey === "app_corte_dobra";
-      if (user.setor === "telhas") return appKey === "app_fabrica_telhas";
-      return ["app_fabrica_telhas", "app_corte_dobra"].includes(appKey);
+      if (user.setor === "telhas")      return appKey === "app_fabrica_telhas";
+      if (user.setor === "expedicao")   return appKey === "app_expedicao";
+      return ["app_fabrica_telhas", "app_corte_dobra", "app_expedicao"].includes(appKey);
     }
 
     return true;

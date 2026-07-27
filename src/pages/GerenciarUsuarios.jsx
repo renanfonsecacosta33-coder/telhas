@@ -57,6 +57,9 @@ import {
   Save,
   Check,
   X,
+  PackageCheck,
+  MapPin,
+  ArrowLeftRight,
   ChevronRight
 } from "lucide-react";
 import { toast } from "sonner";
@@ -64,12 +67,14 @@ import { cn } from "@/lib/utils";
 
 const MAQUINAS_TELHAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM", "CORTE DE EPS"];
 const MAQUINAS_CD = ["CORTE 3M", "CORTE 6M", "DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M", "PERFILADEIRA", "DESBOBINADEIRA"];
+const MAQUINAS_EXPEDICAO = ["FRISADA"];
 const UNIDADES = ["Matriz AJL", "Pinhais", "Ivaiporã", "Ponta Grossa"];
 
 function getMaquinasPorSetor(setor) {
   if (setor === "telhas") return MAQUINAS_TELHAS;
   if (setor === "corte_dobra") return MAQUINAS_CD;
-  return [...MAQUINAS_TELHAS, ...MAQUINAS_CD];
+  if (setor === "expedicao") return MAQUINAS_EXPEDICAO;
+  return [...MAQUINAS_TELHAS, ...MAQUINAS_CD, ...MAQUINAS_EXPEDICAO];
 }
 
 function parseMaquinas(maquina) {
@@ -98,15 +103,17 @@ const ROLES = [
 ];
 
 const SETORES = [
-  { value: "telhas", label: "🏗️ Telhas" },
+  { value: "telhas",      label: "🏗️ Telhas" },
   { value: "corte_dobra", label: "✂️ Corte e Dobra" },
-  { value: "ambos", label: "🏭 Ambos os setores" },
+  { value: "expedicao",   label: "📦 Expedição" },
+  { value: "ambos",       label: "🏭 Todos os setores" },
 ];
 
 const SETOR_COLORS = {
-  telhas: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800",
+  telhas:      "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800",
   corte_dobra: "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800",
-  ambos: "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800",
+  expedicao:   "bg-teal-100 text-teal-700 border-teal-200 dark:bg-teal-950 dark:text-teal-300 dark:border-teal-800",
+  ambos:       "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800",
 };
 
 const ROLE_COLORS = {
@@ -121,16 +128,17 @@ const ROLE_COLORS = {
 // APLICATIVOS DA TELA INICIAL (MENU)
 // ----------------------------------------------------
 export const APLICATIVOS_MENU = [
-  { key: "app_fabrica_telhas", title: "Barracão Telhas", desc: "Operação, máquinas e produção de telhas", icon: Factory, gradient: "from-slate-800 to-slate-900", iconColor: "text-white" },
-  { key: "app_corte_dobra", title: "Barracão C&D", desc: "Operação, máquinas e produção de corte e dobra", icon: Scissors, gradient: "from-slate-800 to-slate-900", iconColor: "text-white" },
-  { key: "app_hora_extra", title: "Hora Extra", desc: "Exibe o cartão Hora Extra & Ponto no menu inicial.", icon: Clock, gradient: "from-slate-800 to-slate-900", iconColor: "text-amber-400" },
-  { key: "app_logistica", title: "Logística", desc: "Expedição, cargas, romaneios e frota", icon: Truck, gradient: "from-slate-800 to-slate-900", iconColor: "text-emerald-400" },
-  { key: "app_consulta_estoque", title: "Estoque Rápido", desc: "Consulte saldo e realize reservas de bobinas", icon: BookmarkPlus, gradient: "from-slate-800 to-slate-900", iconColor: "text-blue-400" },
-  { key: "app_painel_vendedor", title: "Painel de Vendas", desc: "Visão geral, metas, comissões e histórico", icon: BarChart3, gradient: "from-slate-800 to-slate-900", iconColor: "text-indigo-400" },
-  { key: "app_dashboard_ajl", title: "Dashboard AJL", desc: "Painel principal de indicadores e metas", icon: LayoutDashboard, gradient: "from-slate-800 to-slate-900", iconColor: "text-orange-400" },
-  { key: "app_gerencia_fabricas", title: "Gerencial", desc: "Controle avançado, OEE e eficiência", icon: Settings, gradient: "from-slate-800 to-slate-900", iconColor: "text-amber-400" },
-  { key: "app_control_tower", title: "Painel Administrativo", desc: "Acesso irrestrito às configurações do ERP", icon: ShieldAlert, gradient: "from-slate-800 to-slate-900", iconColor: "text-rose-400" },
-  { key: "app_gestao_usuarios", title: "Usuários", desc: "Permissões, layouts e acessos Odoo-style", icon: Users, gradient: "from-slate-800 to-slate-900", iconColor: "text-purple-400" },
+  { key: "app_fabrica_telhas",  title: "Barracão Telhas",      desc: "Operação, máquinas e produção de telhas",                   icon: Factory,      gradient: "from-slate-800 to-slate-900", iconColor: "text-white" },
+  { key: "app_corte_dobra",    title: "Barracão C&D",         desc: "Operação, máquinas e produção de corte e dobra",           icon: Scissors,     gradient: "from-slate-800 to-slate-900", iconColor: "text-white" },
+  { key: "app_expedicao",      title: "Expedição",            desc: "Recebimento, estoque de material acabado e frisada",       icon: PackageCheck, gradient: "from-slate-800 to-slate-900", iconColor: "text-teal-400" },
+  { key: "app_hora_extra",     title: "Hora Extra",           desc: "Exibe o cartão Hora Extra & Ponto no menu inicial.",       icon: Clock,        gradient: "from-slate-800 to-slate-900", iconColor: "text-amber-400" },
+  { key: "app_logistica",      title: "Logística",            desc: "Expedição, cargas, romaneios e frota",                    icon: Truck,        gradient: "from-slate-800 to-slate-900", iconColor: "text-emerald-400" },
+  { key: "app_consulta_estoque",title: "Estoque Rápido",      desc: "Consulte saldo e realize reservas de bobinas",           icon: BookmarkPlus, gradient: "from-slate-800 to-slate-900", iconColor: "text-blue-400" },
+  { key: "app_painel_vendedor",title: "Painel de Vendas",    desc: "Visão geral, metas, comissões e histórico",               icon: BarChart3,    gradient: "from-slate-800 to-slate-900", iconColor: "text-indigo-400" },
+  { key: "app_dashboard_ajl",  title: "Dashboard AJL",       desc: "Painel principal de indicadores e metas",                 icon: LayoutDashboard,gradient:"from-slate-800 to-slate-900",iconColor:"text-orange-400"},
+  { key: "app_gerencia_fabricas",title:"Gerencial",           desc: "Controle avançado, OEE e eficiência",                    icon: Settings,     gradient: "from-slate-800 to-slate-900", iconColor: "text-amber-400" },
+  { key: "app_control_tower",  title: "Painel Administrativo",desc: "Acesso irrestrito às configurações do ERP",              icon: ShieldAlert,  gradient: "from-slate-800 to-slate-900", iconColor: "text-rose-400" },
+  { key: "app_gestao_usuarios",title: "Usuários",             desc: "Permissões, layouts e acessos Odoo-style",               icon: Users,        gradient: "from-slate-800 to-slate-900", iconColor: "text-purple-400" },
 ];
 
 // ----------------------------------------------------
@@ -234,6 +242,22 @@ export const REGRAS_CATEGORIZADAS = [
       { key: "gerenciar_usuarios_sistema", label: "Acessar Gestão de Usuários", desc: "Conceder acesso à tela de permissões e cadastro de funcionários.", icon: Users },
       { key: "ver_log_auditoria", label: "Visualizar Logs e Trilha de Auditoria", desc: "Consultar histórico de ações, edições e acessos efetuados no ERP.", icon: Activity },
     ]
+  },
+  {
+    categoriaId: "expedicao",
+    categoriaNome: "7. Expedição & Recebimento",
+    icon: PackageCheck,
+    cor: "text-teal-500",
+    regras: [
+      { key: "receber_material_expedicao",   label: "Receber Material (Entrada NF)",      desc: "Lançar entradas de material no setor Expedição com NF e balança.",                 icon: PackageCheck },
+      { key: "aprovar_divergencia_peso_exp", label: "Aprovar Divergência de Peso",         desc: "Validar entradas com divergência >3% entre NF e balança sem chamar supervisão.",  icon: AlertTriangle },
+      { key: "pular_foto_balanca_exp",       label: "Pular Foto da Balança (Expedição)",  desc: "Finalizar recebimento sem foto obrigatória da balança física.",                   icon: Camera },
+      { key: "editar_entrada_finalizada",    label: "Editar Entrada Já Finalizada",        desc: "Corrigir dados de uma entrada de material após ela ser conferida.",               icon: Settings },
+      { key: "dar_baixa_estoque_exp",        label: "Dar Baixa no Estoque Expedição",      desc: "Registrar saídas e consumo do estoque de material acabado na expedição.",         icon: ArrowLeftRight },
+      { key: "operar_frisada",              label: "Operar Máquina Frisada",              desc: "Registrar produção e consumo de bobinas na máquina de frisada.",                  icon: Layers },
+      { key: "configurar_mapa_armazenagem", label: "Configurar Mapa de Armazenagem",      desc: "Criar, editar e reorganizar posições e ruas no mapa visual do barracão.",         icon: MapPin },
+      { key: "ver_relatorio_expedicao",     label: "Ver Relatórios de Expedição",         desc: "Acessar histórico e relatórios de recebimentos e movimentações.",                 icon: FileText },
+    ]
   }
 ];
 
@@ -254,6 +278,8 @@ export function getDefaultPermissionsForRole(role) {
   if (role === "encarregado") {
     perms.app_fabrica_telhas = true;
     perms.app_corte_dobra = true;
+    perms.app_expedicao = true;
+    perms.app_hora_extra = true;
     perms.app_logistica = true;
     perms.app_consulta_estoque = true;
     perms.app_dashboard_ajl = true;
@@ -269,18 +295,32 @@ export function getDefaultPermissionsForRole(role) {
     perms.reaproveitar_retalho_critico = true;
     perms.override_perda_sucata = true;
     perms.layout_compacto = true;
+    // Expedição
+    perms.receber_material_expedicao = true;
+    perms.aprovar_divergencia_peso_exp = true;
+    perms.pular_foto_balanca_exp = true;
+    perms.dar_baixa_estoque_exp = true;
+    perms.operar_frisada = true;
+    perms.configurar_mapa_armazenagem = true;
+    perms.ver_relatorio_expedicao = true;
     return perms;
   }
 
   if (role === "operador") {
     perms.app_fabrica_telhas = true;
     perms.app_corte_dobra = true;
+    perms.app_expedicao = true;
     perms.ignorar_bloqueio_op = true;
     perms.finalizar_op_parcial = true;
     perms.imprimir_etiqueta_avulsa = true;
     perms.remover_sobra_bobina = true;
     perms.alterar_velocidade_linha = true;
     perms.layout_compacto = true;
+    // Expedição — operador pode receber e operar frisada, mas não aprovar divergência
+    perms.receber_material_expedicao = true;
+    perms.operar_frisada = true;
+    perms.dar_baixa_estoque_exp = true;
+    perms.ver_relatorio_expedicao = true;
     return perms;
   }
 
