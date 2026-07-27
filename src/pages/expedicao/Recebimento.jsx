@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Camera, Upload, CheckCircle2, AlertTriangle, Scale, Package,
-  ChevronRight, ChevronLeft, Loader2, FileText, MapPin, Zap, Plus, Trash2, Layers, ShieldCheck
+  ChevronRight, ChevronLeft, Loader2, FileText, MapPin, Zap, Plus, Trash2, Layers, ShieldCheck, Scan, Sparkles
 } from "lucide-react";
+import ScannerCameraModal from "@/components/expedicao/ScannerCameraModal";
 
 // ─── Tabela de Peso Teórico (kg/m) — barras 6m padrão ─────────────────────
 const PESOS_POR_METRO = {
@@ -98,6 +99,7 @@ export default function RecebimentoExpedicao() {
   // Lista de itens da NF (múltiplos produtos por nota!)
   const [itens, setItens] = useState([createNewItem()]);
 
+  const [scannerModalOpen, setScannerModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [uploadingItemKey, setUploadingItemKey] = useState(null);
@@ -370,13 +372,13 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
               </div>
             ) : (
               <div className="flex gap-2 justify-center flex-wrap">
-                <Button type="button" variant="outline" size="sm" className="gap-1.5 border-teal-400 text-teal-700 hover:bg-teal-50"
-                  onClick={() => nfCamRef.current?.click()}>
-                  <Camera className="w-4 h-4" /> Câmera
+                <Button type="button" className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold shadow-md"
+                  onClick={() => setScannerModalOpen(true)}>
+                  <Scan className="w-4 h-4" /> Scanner IA (Câmera ao Vivo) <Sparkles className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
                 </Button>
                 <Button type="button" variant="outline" size="sm" className="gap-1.5 border-teal-400 text-teal-700 hover:bg-teal-50"
                   onClick={() => nfFileRef.current?.click()}>
-                  <Upload className="w-4 h-4" /> Galeria / PDF
+                  <Upload className="w-4 h-4" /> Arquivo / PDF
                 </Button>
                 
                 <input ref={nfCamRef} type="file" accept="image/*" capture="environment" className="hidden"
@@ -839,6 +841,13 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
           </div>
         </div>
       )}
+
+      {/* Modal do Scanner da Câmera ao Vivo com IA */}
+      <ScannerCameraModal
+        open={scannerModalOpen}
+        onOpenChange={setScannerModalOpen}
+        onScanSuccess={handleNfPhoto}
+      />
     </div>
   );
 }
