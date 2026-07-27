@@ -45,6 +45,43 @@ const PESOS_POR_METRO = {
 const COMPRIMENTO_PADRAO_M = 6;
 const TOLERANCIA_DIVERGENCIA = 3; // 3%
 
+// ── Utilitário de compressão ultra-rápida no cliente ─────────────────────
+async function compressImage(file, maxDimension = 1280, quality = 0.75) {
+  if (!file || !file.type.startsWith("image/")) return file;
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) resolve(file);
+          else resolve(new File([blob], file.name || "nf_optimized.jpg", { type: "image/jpeg" }));
+        },
+        "image/jpeg",
+        quality
+      );
+    };
+    img.onerror = () => resolve(file);
+    img.src = url;
+  });
+}
+
 function calcPesoTeoricoItem(produto, qtdBarras) {
   if (!produto || !qtdBarras) return null;
   let kgM = PESOS_POR_METRO[produto];
@@ -143,26 +180,27 @@ export default function RecebimentoExpedicao() {
     }
   };
 
-  // ── OCR da NF com Inteligência para Múltiplos Itens ────────────────────
-  const handleNfPhoto = async (file) => {
-    if (!file) return;
+  // ── OCR da NF com Alta Velocidade ────────────────────
+  const handleNfPhoto = async (rawFile) => {
+    if (!rawFile) return;
     setOcrLoading(true);
     try {
+      // ⚡ Compensa e otimiza a imagem no navegador antes de enviar (5MB -> 120KB em milissegundos)
+      const file = await compressImage(rawFile, 1280, 0.75);
+
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       setHead("foto_nf_url", file_url);
 
       try {
         const json = await base44.integrations.Core.InvokeLLM({
-          prompt: `Você é um leitor especialista em Notas Fiscais brasileiras (NF-e) de empresas de aço e metais. 
-Analise a imagem da Nota Fiscal e retorne um JSON com o cabeçalho e a LISTA DE PRODUTOS/ITENS presentes na nota.
-Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
+          prompt: `Extraia da NF-e: numero_nf (string), fornecedor (string), peso_total_nf_kg (number), itens:[{descricao_produto, quantidade_itens (number), peso_kg_item (number), espessura}]`,
           file_urls: [file_url],
           response_json_schema: {
             type: "object",
             properties: {
-              numero_nf: { type: "string", description: "número da nota" },
-              fornecedor: { type: "string", description: "razão social ou nome do fornecedor" },
-              peso_total_nf_kg: { type: "number", description: "peso bruto ou peso líquido total em kg" },
+              numero_nf: { type: "string" },
+              fornecedor: { type: "string" },
+              peso_total_nf_kg: { type: "number" },
               itens: {
                 type: "array",
                 items: {

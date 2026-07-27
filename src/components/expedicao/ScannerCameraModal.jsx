@@ -67,12 +67,18 @@ export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }
     setScanStatus("Capturando imagem da Nota Fiscal...");
 
     const video = videoRef.current;
-    const canvas = canvasRef.current;
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 720;
+    const MAX_DIM = 1280;
+    let w = video.videoWidth || 1280;
+    let h = video.videoHeight || 720;
+    if (w > MAX_DIM || h > MAX_DIM) {
+      if (w > h) { h = Math.round((h * MAX_DIM) / w); w = MAX_DIM; }
+      else { w = Math.round((w * MAX_DIM) / h); h = MAX_DIM; }
+    }
+    canvas.width = w;
+    canvas.height = h;
 
     const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(video, 0, 0, w, h);
 
     canvas.toBlob(async (blob) => {
       if (!blob) {
@@ -82,7 +88,7 @@ export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }
       }
       const file = new File([blob], `nf_scan_${Date.now()}.jpg`, { type: "image/jpeg" });
       
-      setScanStatus("IA analisando estrutura da NF e produtos...");
+      setScanStatus("IA lendo dados em alta velocidade...");
       try {
         await onScanSuccess(file);
         stopCamera();
@@ -92,7 +98,7 @@ export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }
       } finally {
         setIsScanning(false);
       }
-    }, "image/jpeg", 0.92);
+    }, "image/jpeg", 0.75);
   };
 
   // Fallback upload se a câmera ao vivo não for suportada
