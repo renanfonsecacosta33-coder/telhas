@@ -156,6 +156,9 @@ export default function RecebimentoExpedicao() {
     try {
       const status = temDivergencia ? "divergente" : "conferido";
       const divergencia_percent = divNfBal;
+      const agora = new Date();
+      const data_validade = new Date(agora);
+      data_validade.setMonth(data_validade.getMonth() + 6);
 
       await base44.entities.EntradaMaterialExpedicao?.create?.({
         ...form,
@@ -164,7 +167,10 @@ export default function RecebimentoExpedicao() {
         quantidade_barras: Number(form.quantidade_barras),
         peso_teorico_kg:   pesoTeorico,
         divergencia_percent,
-        data_hora:         new Date().toISOString(),
+        data_hora:         agora.toISOString(),
+        data_validade:     data_validade.toISOString(),
+        quantidade_barras_saldo: Number(form.quantidade_barras), // saldo disponível
+        peso_kg_saldo:           Number(form.peso_kg_balanca),   // saldo em kg
         status,
         setor:             "expedicao",
       });
@@ -172,7 +178,7 @@ export default function RecebimentoExpedicao() {
       if (temDivergencia) {
         toast.warning(`⚠️ Entrada registrada com divergência de ${Math.abs(divNfBal).toFixed(1)}%! Aguardando aprovação do ADM.`);
       } else {
-        toast.success("✅ Entrada registrada com sucesso!");
+        toast.success("✅ Entrada registrada! Validade: " + data_validade.toLocaleDateString("pt-BR"));
       }
       navigate("/expedicao");
     } catch (err) {
@@ -181,6 +187,7 @@ export default function RecebimentoExpedicao() {
       setSaving(false);
     }
   };
+
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">

@@ -78,6 +78,7 @@ import EstoqueExpedicao from '@/pages/expedicao/Estoque';
 import MapaArmazenagem from '@/pages/expedicao/MapaArmazenagem';
 import FrisadaPage from '@/pages/expedicao/Frisada';
 import HistoricoExpedicao from '@/pages/expedicao/Historico';
+import SaidaMaterial from '@/pages/expedicao/SaidaMaterial';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -174,6 +175,7 @@ const AuthenticatedApp = () => {
       <Route element={<AppLayoutExpedicao />}>
         <Route path="/expedicao"             element={<DashboardExpedicao />} />
         <Route path="/expedicao/recebimento" element={<RecebimentoExpedicao />} />
+        <Route path="/expedicao/saida"       element={<SaidaMaterial />} />
         <Route path="/expedicao/estoque"     element={<EstoqueExpedicao />} />
         <Route path="/expedicao/mapa"        element={<MapaArmazenagem />} />
         <Route path="/expedicao/frisada"     element={<FrisadaPage />} />

@@ -4,10 +4,25 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import {
   PackageCheck, AlertTriangle, Package, Wrench, TrendingUp,
-  Plus, Clock, CheckCircle2, XCircle, RefreshCw
+  Plus, Clock, CheckCircle2, XCircle, RefreshCw, ArrowUpRight, Building2, CalendarClock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+
+// ── Utilitários de validade ──────────────────────────────────
+function getDiasRestantes(dataValidade) {
+  if (!dataValidade) return null;
+  return Math.floor((new Date(dataValidade) - new Date()) / 86400000);
+}
+
+function getValidadeInfo(dias) {
+  if (dias === null) return null;
+  if (dias < 0)   return { label: "VENCIDO",          color: "bg-gray-700 text-white",             borderCard: "border-gray-500",   dot: "bg-gray-600" };
+  if (dias < 15)  return { label: `${dias}d — CRÍTICO`, color: "bg-red-100 text-red-700",           borderCard: "border-red-400",     dot: "bg-red-500" };
+  if (dias < 30)  return { label: `${dias}d — URGENTE`, color: "bg-orange-100 text-orange-700",     borderCard: "border-orange-400",  dot: "bg-orange-500" };
+  if (dias < 90)  return { label: `${dias}d — ATENÇÃO`, color: "bg-amber-100 text-amber-700",       borderCard: "border-amber-400",   dot: "bg-amber-400" };
+  return           { label: `${dias}d — OK`,           color: "bg-emerald-100 text-emerald-700",   borderCard: "border-emerald-400", dot: "bg-emerald-500" };
+}
 
 const STATUS_COLORS = {
   recebendo:  { bg: "bg-blue-100 text-blue-700",   icon: Clock,          label: "Recebendo" },
@@ -35,6 +50,12 @@ export default function DashboardExpedicao() {
   const entradasHoje = entradas.filter(e => e.created_date?.startsWith(hoje));
   const divergencias = entradas.filter(e => e.status === "divergente");
   const totalPesoEstoque = estoqueBobinas.reduce((s, b) => s + (b.peso_kg || 0), 0);
+  // Validade — materiais em alerta
+  const emAlerta = entradas.filter(e => {
+    const dias = getDiasRestantes(e.data_validade);
+    return dias !== null && dias < 90 && e.status !== "zerado" && e.status !== "transferido";
+  }).sort((a, b) => getDiasRestantes(a.data_validade) - getDiasRestantes(b.data_validade));
+
   const ultimas = entradas.slice(0, 6);
 
   return (
@@ -48,9 +69,14 @@ export default function DashboardExpedicao() {
           </h1>
           <p className="text-muted-foreground text-sm">Recebimento, estoque e produção de frisada</p>
         </div>
-        <Button onClick={() => navigate("/expedicao/recebimento")} className="bg-teal-600 hover:bg-teal-700 gap-2">
-          <Plus className="w-4 h-4" /> Nova Entrada
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => navigate("/expedicao/saida")} className="gap-2 border-rose-300 text-rose-700 hover:bg-rose-50">
+            <ArrowUpRight className="w-4 h-4" /> Saída / Transferência
+          </Button>
+          <Button onClick={() => navigate("/expedicao/recebimento")} className="bg-teal-600 hover:bg-teal-700 gap-2">
+            <Plus className="w-4 h-4" /> Nova Entrada
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -111,6 +137,50 @@ export default function DashboardExpedicao() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* 🟡 Alertas de Validade / Material Ocioso */}
+      {emAlerta.length > 0 && (
+        <div className="border border-amber-300 bg-amber-50/60 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <CalendarClock className="w-5 h-5 text-amber-600" />
+            <h3 className="font-bold text-amber-700">
+              ⏰ {emAlerta.length} material(is) próximo(s) do vencimento (6 meses)
+            </h3>
+          </div>
+          <div className="space-y-2">
+            {emAlerta.slice(0, 5).map(e => {
+              const dias = getDiasRestantes(e.data_validade);
+              const info = getValidadeInfo(dias);
+              return (
+                <div key={e.id} className={`bg-white border-2 rounded-lg px-3 py-2.5 flex items-center justify-between ${info?.borderCard}`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${info?.dot}`} />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-sm">NF {e.numero_nf}</span>
+                        <span className="text-muted-foreground text-xs">— {e.produto}</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground flex gap-2 mt-0.5">
+                        <span>{e.quantidade_barras_saldo ?? e.quantidade_barras} barras em estoque</span>
+                        {e.local_armazenagem && <span>📍 {e.local_armazenagem}</span>}
+                        {e.data_validade && <span>Vence: {new Date(e.data_validade).toLocaleDateString("pt-BR")}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <Badge className={`text-[10px] border-transparent shrink-0 ${info?.color}`}>
+                    {info?.label}
+                  </Badge>
+                </div>
+              );
+            })}
+          </div>
+          {emAlerta.length > 5 && (
+            <button className="mt-2 text-xs text-amber-600 underline" onClick={() => navigate("/expedicao/historico")}>
+              Ver todos os {emAlerta.length} materiais em alerta →
+            </button>
+          )}
         </div>
       )}
 

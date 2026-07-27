@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, PackageCheck, Package, Map, Wrench, History,
-  ChevronLeft, ChevronRight, ArrowLeftRight, LogOut, Menu, X
+  ChevronLeft, ChevronRight, ArrowLeftRight, LogOut, Menu, X, ArrowUpRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 const NAV = [
   { to: "/expedicao",             label: "Dashboard",         icon: LayoutDashboard, end: true },
   { to: "/expedicao/recebimento", label: "Receber Material",  icon: PackageCheck },
+  { to: "/expedicao/saida",       label: "Saída / Transfer.",  icon: ArrowUpRight },
   { to: "/expedicao/estoque",     label: "Estoque Expedição", icon: Package },
   { to: "/expedicao/mapa",        label: "Mapa Armazenagem",  icon: Map },
   { to: "/expedicao/frisada",     label: "Frisada",           icon: Wrench },
