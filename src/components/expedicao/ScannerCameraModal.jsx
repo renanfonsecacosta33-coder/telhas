@@ -3,7 +3,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
-  Camera, RefreshCw, X, Sparkles, Scan, FileText, CheckCircle2, AlertCircle, Loader2, Upload
+  Camera, RefreshCw, X, Sparkles, Scan, FileText, CheckCircle2, AlertCircle, Loader2, Upload, Focus
 } from "lucide-react";
 
 export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }) {
@@ -17,7 +17,7 @@ export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }
   const [isScanning, setIsScanning] = useState(false);
   const [scanStatus, setScanStatus] = useState("");
 
-  // Iniciar câmera ao abrir modal
+  // Iniciar câmera com Foco Contínuo e Alta Resolução ao abrir modal
   useEffect(() => {
     if (open) {
       startCamera(facingMode);
@@ -33,8 +33,9 @@ export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }
       const constraints = {
         video: {
           facingMode: mode,
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          width: { ideal: 2560, max: 3840 },
+          height: { ideal: 1440, max: 2160 },
+          advanced: [{ focusMode: "continuous" }, { autoFocus: "continuous" }]
         }
       };
       const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -44,8 +45,20 @@ export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }
         videoRef.current.srcObject = mediaStream;
       }
     } catch (err) {
-      console.warn("Câmera ao vivo indisponível ou permissão negada:", err);
-      setHasCamera(false);
+      console.warn("Câmera ao vivo com resolução máxima indisponível, tentando padrão:", err);
+      try {
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: mode }
+        });
+        setStream(fallbackStream);
+        setHasCamera(true);
+        if (videoRef.current) {
+          videoRef.current.srcObject = fallbackStream;
+        }
+      } catch (fallbackErr) {
+        console.error("Permissão de câmera negada:", fallbackErr);
+        setHasCamera(false);
+      }
     }
   };
 
@@ -60,36 +73,36 @@ export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }
     setFacingMode(prev => (prev === "environment" ? "user" : "environment"));
   };
 
-  // Capturar quadro do vídeo e escanear
+  // Capturar quadro em Alta Nitidez (Nativa da Câmera)
   const captureFrame = async () => {
     if (!videoRef.current || !canvasRef.current) return;
     setIsScanning(true);
-    setScanStatus("Capturando imagem da Nota Fiscal...");
+    setScanStatus("Focando e capturando imagem em alta nitidez...");
 
     const video = videoRef.current;
-    const MAX_DIM = 1280;
-    let w = video.videoWidth || 1280;
-    let h = video.videoHeight || 720;
-    if (w > MAX_DIM || h > MAX_DIM) {
-      if (w > h) { h = Math.round((h * MAX_DIM) / w); w = MAX_DIM; }
-      else { w = Math.round((w * MAX_DIM) / h); h = MAX_DIM; }
-    }
     const canvas = canvasRef.current;
+
+    // Resolução nativa completa da câmera para nitidez máxima dos textos impressos da NF
+    const w = video.videoWidth || 1920;
+    const h = video.videoHeight || 1080;
     canvas.width = w;
     canvas.height = h;
 
     const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     ctx.drawImage(video, 0, 0, w, h);
 
+    // Exporta imagem em qualidade máxima (0.95) sem borrado
     canvas.toBlob(async (blob) => {
       if (!blob) {
-        toast.error("Erro ao capturar imagem da câmera.");
+        toast.error("Erro ao capturar imagem nítida da câmera.");
         setIsScanning(false);
         return;
       }
       const file = new File([blob], `nf_scan_${Date.now()}.jpg`, { type: "image/jpeg" });
       
-      setScanStatus("IA lendo dados e produtos da NF...");
+      setScanStatus("IA processando dados e lista de produtos com alta precisão...");
       try {
         await onScanSuccess(file);
         stopCamera();
@@ -99,7 +112,7 @@ export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }
       } finally {
         setIsScanning(false);
       }
-    }, "image/jpeg", 0.75);
+    }, "image/jpeg", 0.95);
   };
 
   // Fallback upload se a câmera ao vivo não for suportada
@@ -119,10 +132,10 @@ export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-screen h-screen max-w-none m-0 p-0 rounded-none bg-black text-white border-0 fixed inset-0 z-50 overflow-hidden flex flex-col justify-between">
+      <DialogContent className="fixed inset-0 top-0 left-0 right-0 bottom-0 z-50 w-screen h-screen max-w-none m-0 p-0 border-0 rounded-none bg-black text-white flex flex-col justify-between overflow-hidden !translate-x-0 !translate-y-0 !top-0 !left-0 [&>button]:hidden">
         
         {/* ── Top Floating Glassmorphic HUD Bar ── */}
-        <div className="absolute top-0 left-0 right-0 z-30 p-4 bg-gradient-to-b from-black/90 via-black/50 to-transparent flex items-center justify-between pointer-events-auto">
+        <div className="absolute top-0 left-0 right-0 z-30 p-4 bg-gradient-to-b from-black/90 via-black/60 to-transparent flex items-center justify-between pointer-events-auto">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-xl bg-teal-500/20 text-teal-400 border border-teal-500/30">
               <Scan className="w-5 h-5 animate-pulse" />
@@ -131,7 +144,7 @@ export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }
               <h3 className="font-extrabold text-base flex items-center gap-1.5 text-white">
                 Scanner IA Nota Fiscal <Sparkles className="w-4 h-4 text-amber-400 fill-amber-400" />
               </h3>
-              <p className="text-xs text-slate-300">Enquadre a Nota Fiscal no centro da tela</p>
+              <p className="text-xs text-slate-300">Aproxime e enquadre a Nota Fiscal no centro</p>
             </div>
           </div>
 
@@ -183,8 +196,8 @@ export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }
 
           {/* ── Moldura de Corte Profissional (Document Scanner Frame) ── */}
           {hasCamera && (
-            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-6 sm:p-12 z-20">
-              <div className="relative w-full max-w-3xl h-[65vh] border-2 border-teal-400/50 rounded-2xl overflow-hidden shadow-[0_0_60px_rgba(20,184,166,0.3)] bg-teal-500/5">
+            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-6 sm:p-10 z-20">
+              <div className="relative w-full max-w-3xl h-[68vh] border-2 border-teal-400/60 rounded-2xl overflow-hidden shadow-[0_0_80px_rgba(20,184,166,0.35)] bg-teal-500/5">
                 {/* HUD Corners */}
                 <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-teal-400 rounded-tl-xl" />
                 <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-teal-400 rounded-tr-xl" />
@@ -194,15 +207,9 @@ export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }
                 {/* Feixe de Laser Verde Animado */}
                 <div className="w-full h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_20px_#34d399] animate-[scan_2.2s_ease-in-out_infinite]" />
 
-                {/* Crosshair Guia */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 opacity-40">
-                  <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-teal-300" />
-                  <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-teal-300" />
-                </div>
-
                 {/* Floating Tooltip */}
                 <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-md px-4 py-1.5 rounded-full text-xs font-bold text-teal-300 border border-teal-500/40 shadow-lg flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-amber-400" /> Enquadre a Nota Fiscal no retângulo
+                  <FileText className="w-4 h-4 text-amber-400" /> Mantenha a NF nítida e iluminada no quadro
                 </div>
               </div>
             </div>
@@ -217,7 +224,7 @@ export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }
               </div>
               <div className="space-y-1">
                 <p className="font-extrabold text-lg text-white">{scanStatus}</p>
-                <p className="text-xs text-teal-300">Identificando CNPJ, Nº da Nota, Pesos e Lista de Produtos...</p>
+                <p className="text-xs text-teal-300">Lendo CNPJ, Nº da Nota, Pesos e Produtos em Alta Nitidez...</p>
               </div>
             </div>
           )}
@@ -250,8 +257,8 @@ export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }
               type="button"
               onClick={captureFrame}
               disabled={isScanning}
-              className="relative group p-1.5 rounded-full border-4 border-white/80 hover:border-teal-400 transition-all hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(20,184,166,0.5)]"
-              title="Escanear Nota Fiscal com IA"
+              className="relative group p-1.5 rounded-full border-4 border-white/90 hover:border-teal-400 transition-all hover:scale-105 active:scale-95 shadow-[0_0_35px_rgba(20,184,166,0.6)]"
+              title="Capturar Foto Nítida com IA"
             >
               <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-teal-500 to-emerald-400 flex items-center justify-center text-slate-950 font-bold shadow-inner">
                 {isScanning ? (

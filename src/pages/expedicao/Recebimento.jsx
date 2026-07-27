@@ -45,8 +45,8 @@ const PESOS_POR_METRO = {
 const COMPRIMENTO_PADRAO_M = 6;
 const TOLERANCIA_DIVERGENCIA = 3; // 3%
 
-// ── Utilitário de compressão ultra-rápida no cliente ─────────────────────
-async function compressImage(file, maxDimension = 1280, quality = 0.75) {
+// ── Utilitário de preservação de nitidez em alta resolução ─────────────────────
+async function compressImage(file, maxDimension = 2048, quality = 0.90) {
   if (!file || !file.type.startsWith("image/")) return file;
   return new Promise((resolve) => {
     const img = new Image();
@@ -185,8 +185,8 @@ export default function RecebimentoExpedicao() {
     if (!rawFile) return;
     setOcrLoading(true);
     try {
-      // ⚡ Compensa e otimiza a imagem no navegador antes de enviar (5MB -> 120KB em milissegundos)
-      const file = await compressImage(rawFile, 1280, 0.75);
+      // ⚡ Otimiza a imagem mantendo altíssima nitidez (2048px @ 0.90) para leitura nítida de textos de NF
+      const file = await compressImage(rawFile, 2048, 0.90);
 
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       setHead("foto_nf_url", file_url);
