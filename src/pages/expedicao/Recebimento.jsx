@@ -100,9 +100,12 @@ export default function RecebimentoExpedicao() {
   const [uploadingBal, setUploadingBal] = useState(false);
   const [uploadingMat, setUploadingMat] = useState(false);
 
-  const nfPhotoRef    = useRef();
-  const balancaRef    = useRef();
-  const materialRef   = useRef();
+  const nfCamRef    = useRef();
+  const nfFileRef   = useRef();
+  const balCamRef   = useRef();
+  const balFileRef  = useRef();
+  const matCamRef   = useRef();
+  const matFileRef  = useRef();
 
   const setHead = (k, v) => setHeader(h => ({ ...h, [k]: v }));
 
@@ -337,16 +340,19 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
               </div>
             ) : (
               <div className="flex gap-2 justify-center flex-wrap">
-                <Button variant="outline" size="sm" className="gap-1.5 border-teal-400 text-teal-700"
-                  onClick={() => { nfPhotoRef.current.setAttribute("accept", "image/*"); nfPhotoRef.current.setAttribute("capture", "environment"); nfPhotoRef.current.click(); }}>
+                <Button type="button" variant="outline" size="sm" className="gap-1.5 border-teal-400 text-teal-700 hover:bg-teal-50"
+                  onClick={() => nfCamRef.current?.click()}>
                   <Camera className="w-4 h-4" /> Câmera
                 </Button>
-                <Button variant="outline" size="sm" className="gap-1.5 border-teal-400 text-teal-700"
-                  onClick={() => { nfPhotoRef.current.setAttribute("accept", "image/*"); nfPhotoRef.current.removeAttribute("capture"); nfPhotoRef.current.click(); }}>
-                  <Upload className="w-4 h-4" /> Galeria
+                <Button type="button" variant="outline" size="sm" className="gap-1.5 border-teal-400 text-teal-700 hover:bg-teal-50"
+                  onClick={() => nfFileRef.current?.click()}>
+                  <Upload className="w-4 h-4" /> Galeria / PDF
                 </Button>
-                <input ref={nfPhotoRef} type="file" accept="image/*" className="sr-only"
-                  onChange={e => { handleNfPhoto(e.target.files?.[0]); e.target.value = ""; }} />
+                
+                <input ref={nfCamRef} type="file" accept="image/*" capture="environment" className="hidden"
+                  onChange={e => handleNfPhoto(e.target.files?.[0])} />
+                <input ref={nfFileRef} type="file" accept="image/*,application/pdf,.pdf" className="hidden"
+                  onChange={e => handleNfPhoto(e.target.files?.[0])} />
               </div>
             )}
             {header.foto_nf_url && (
@@ -507,16 +513,18 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
               </div>
             ) : (
               <div className="flex gap-2 justify-center flex-wrap">
-                <Button variant="outline" size="sm" className="gap-1.5 border-amber-400 text-amber-700"
-                  onClick={() => { balancaRef.current.setAttribute("accept", "image/*"); balancaRef.current.setAttribute("capture", "environment"); balancaRef.current.click(); }}>
+                <Button type="button" variant="outline" size="sm" className="gap-1.5 border-amber-400 text-amber-700 hover:bg-amber-50"
+                  onClick={() => balCamRef.current?.click()}>
                   <Camera className="w-4 h-4" /> Câmera
                 </Button>
-                <Button variant="outline" size="sm" className="gap-1.5 border-amber-400 text-amber-700"
-                  onClick={() => { balancaRef.current.setAttribute("accept", "image/*"); balancaRef.current.removeAttribute("capture"); balancaRef.current.click(); }}>
-                  <Upload className="w-4 h-4" /> Galeria
+                <Button type="button" variant="outline" size="sm" className="gap-1.5 border-amber-400 text-amber-700 hover:bg-amber-50"
+                  onClick={() => balFileRef.current?.click()}>
+                  <Upload className="w-4 h-4" /> Galeria / PDF
                 </Button>
-                <input ref={balancaRef} type="file" accept="image/*" className="sr-only"
-                  onChange={e => { handleBalancaPhoto(e.target.files?.[0]); e.target.value = ""; }} />
+                <input ref={balCamRef} type="file" accept="image/*" capture="environment" className="hidden"
+                  onChange={e => handleBalancaPhoto(e.target.files?.[0])} />
+                <input ref={balFileRef} type="file" accept="image/*,application/pdf,.pdf" className="hidden"
+                  onChange={e => handleBalancaPhoto(e.target.files?.[0])} />
               </div>
             )}
             {header.foto_balanca_url && (
@@ -603,16 +611,18 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
               </div>
             ) : (
               <div className="flex gap-2 justify-center flex-wrap">
-                <Button variant="outline" size="sm" className="gap-1.5 border-teal-400 text-teal-700"
-                  onClick={() => { materialRef.current.setAttribute("accept", "image/*"); materialRef.current.setAttribute("capture", "environment"); materialRef.current.click(); }}>
+                <Button type="button" variant="outline" size="sm" className="gap-1.5 border-teal-400 text-teal-700 hover:bg-teal-50"
+                  onClick={() => matCamRef.current?.click()}>
                   <Camera className="w-4 h-4" /> Câmera
                 </Button>
-                <Button variant="outline" size="sm" className="gap-1.5 border-teal-400 text-teal-700"
-                  onClick={() => { materialRef.current.setAttribute("accept", "image/*"); materialRef.current.removeAttribute("capture"); materialRef.current.click(); }}>
-                  <Upload className="w-4 h-4" /> Galeria
+                <Button type="button" variant="outline" size="sm" className="gap-1.5 border-teal-400 text-teal-700 hover:bg-teal-50"
+                  onClick={() => matFileRef.current?.click()}>
+                  <Upload className="w-4 h-4" /> Galeria / PDF
                 </Button>
-                <input ref={materialRef} type="file" accept="image/*" className="sr-only"
-                  onChange={e => { handleMaterialPhoto(e.target.files?.[0]); e.target.value = ""; }} />
+                <input ref={matCamRef} type="file" accept="image/*" capture="environment" className="hidden"
+                  onChange={e => handleMaterialPhoto(e.target.files?.[0])} />
+                <input ref={matFileRef} type="file" accept="image/*,application/pdf,.pdf" className="hidden"
+                  onChange={e => handleMaterialPhoto(e.target.files?.[0])} />
               </div>
             )}
             {header.foto_material_url && (
