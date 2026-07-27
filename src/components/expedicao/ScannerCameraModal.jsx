@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -74,6 +74,7 @@ export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }
       if (w > h) { h = Math.round((h * MAX_DIM) / w); w = MAX_DIM; }
       else { w = Math.round((w * MAX_DIM) / h); h = MAX_DIM; }
     }
+    const canvas = canvasRef.current;
     canvas.width = w;
     canvas.height = h;
 
@@ -88,7 +89,7 @@ export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }
       }
       const file = new File([blob], `nf_scan_${Date.now()}.jpg`, { type: "image/jpeg" });
       
-      setScanStatus("IA lendo dados em alta velocidade...");
+      setScanStatus("IA lendo dados e produtos da NF...");
       try {
         await onScanSuccess(file);
         stopCamera();
@@ -118,27 +119,45 @@ export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl p-0 overflow-hidden bg-slate-950 text-white border-slate-800">
-        {/* Header do Scanner */}
-        <div className="p-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
+      <DialogContent className="w-screen h-screen max-w-none m-0 p-0 rounded-none bg-black text-white border-0 fixed inset-0 z-50 overflow-hidden flex flex-col justify-between">
+        
+        {/* ── Top Floating Glassmorphic HUD Bar ── */}
+        <div className="absolute top-0 left-0 right-0 z-30 p-4 bg-gradient-to-b from-black/90 via-black/50 to-transparent flex items-center justify-between pointer-events-auto">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-teal-500/20 text-teal-400">
+            <div className="p-2 rounded-xl bg-teal-500/20 text-teal-400 border border-teal-500/30">
               <Scan className="w-5 h-5 animate-pulse" />
             </div>
             <div>
-              <h3 className="font-bold text-sm flex items-center gap-1.5 text-white">
-                Scanner IA de Nota Fiscal <Sparkles className="w-4 h-4 text-amber-400 fill-amber-400" />
+              <h3 className="font-extrabold text-base flex items-center gap-1.5 text-white">
+                Scanner IA Nota Fiscal <Sparkles className="w-4 h-4 text-amber-400 fill-amber-400" />
               </h3>
-              <p className="text-xs text-slate-400">Posicione a NF inteira dentro do quadro demarcado</p>
+              <p className="text-xs text-slate-300">Enquadre a Nota Fiscal no centro da tela</p>
             </div>
           </div>
-          <button onClick={() => onOpenChange(false)} className="text-slate-400 hover:text-white p-1">
-            <X className="w-5 h-5" />
-          </button>
+
+          <div className="flex items-center gap-2">
+            {hasCamera && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="border-white/20 bg-black/40 text-white hover:bg-white/20 backdrop-blur-md rounded-xl gap-1.5"
+                onClick={toggleCameraMode}
+              >
+                <RefreshCw className="w-4 h-4" /> Virar Câmera
+              </Button>
+            )}
+            <button
+              onClick={() => onOpenChange(false)}
+              className="p-2.5 rounded-full bg-black/50 hover:bg-white/20 text-white backdrop-blur-md transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
         </div>
 
-        {/* Viewport da Câmera com Efeitos IA */}
-        <div className="relative aspect-[4/3] bg-black overflow-hidden flex items-center justify-center">
+        {/* ── Main Full-Bleed Camera Viewport ── */}
+        <div className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden">
           {hasCamera ? (
             <video
               ref={videoRef}
@@ -148,14 +167,13 @@ export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="text-center p-6 space-y-3">
-              <AlertCircle className="w-10 h-10 mx-auto text-amber-400" />
-              <p className="text-sm font-semibold">Câmera ao vivo não detectada ou permissão negada</p>
-              <p className="text-xs text-slate-400">Você pode carregar uma foto ou arquivo PDF da NF normalmente:</p>
+            <div className="text-center p-8 space-y-4 max-w-md z-30">
+              <AlertCircle className="w-12 h-12 mx-auto text-amber-400" />
+              <p className="text-base font-bold">Câmera ao vivo não disponível no navegador</p>
+              <p className="text-xs text-slate-400">Você pode carregar uma foto da galeria ou PDF da Nota Fiscal:</p>
               <Button
                 type="button"
-                variant="outline"
-                className="gap-2 border-teal-500 text-teal-400 hover:bg-teal-500/20"
+                className="gap-2 bg-teal-500 hover:bg-teal-600 text-slate-950 font-bold px-6 py-3 rounded-xl"
                 onClick={() => fileInputRef.current?.click()}
               >
                 <Upload className="w-4 h-4" /> Selecionar Foto / PDF da NF
@@ -163,50 +181,44 @@ export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }
             </div>
           )}
 
-          {/* Overlay da Moldura de Escaneamento Inteligente (Estilo Document Scanner) */}
+          {/* ── Moldura de Corte Profissional (Document Scanner Frame) ── */}
           {hasCamera && (
-            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-between p-6">
-              {/* Moldura de corte inteligente */}
-              <div className="relative w-full h-full border-2 border-teal-400/40 rounded-2xl overflow-hidden shadow-[0_0_50px_rgba(20,184,166,0.2)]">
-                {/* Cantoneiras HUD */}
-                <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-teal-400 rounded-tl-lg" />
-                <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-teal-400 rounded-tr-lg" />
-                <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-teal-400 rounded-bl-lg" />
-                <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-teal-400 rounded-br-lg" />
+            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-6 sm:p-12 z-20">
+              <div className="relative w-full max-w-3xl h-[65vh] border-2 border-teal-400/50 rounded-2xl overflow-hidden shadow-[0_0_60px_rgba(20,184,166,0.3)] bg-teal-500/5">
+                {/* HUD Corners */}
+                <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-teal-400 rounded-tl-xl" />
+                <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-teal-400 rounded-tr-xl" />
+                <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-teal-400 rounded-bl-xl" />
+                <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-teal-400 rounded-br-xl" />
 
-                {/* Laser de Leitura Animado */}
-                <div className="w-full h-1 bg-gradient-to-r from-transparent via-teal-400 to-transparent shadow-[0_0_15px_#2dd4bf] animate-[scan_2.5s_ease-in-out_infinite]" />
+                {/* Feixe de Laser Verde Animado */}
+                <div className="w-full h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_20px_#34d399] animate-[scan_2.2s_ease-in-out_infinite]" />
 
-                {/* Grid Guia */}
-                <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-20 pointer-events-none">
-                  <div className="border-r border-b border-teal-300" />
-                  <div className="border-r border-b border-teal-300" />
-                  <div className="border-b border-teal-300" />
-                  <div className="border-r border-b border-teal-300" />
-                  <div className="border-r border-b border-teal-300" />
-                  <div className="border-b border-teal-300" />
-                  <div className="border-r border-teal-300" />
-                  <div className="border-r border-teal-300" />
-                  <div />
+                {/* Crosshair Guia */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 opacity-40">
+                  <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-teal-300" />
+                  <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-teal-300" />
                 </div>
 
-                {/* Badge Central Informativo */}
-                <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-semibold text-teal-300 border border-teal-500/30 flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5" /> Enquadre a Nota Fiscal aqui
+                {/* Floating Tooltip */}
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-md px-4 py-1.5 rounded-full text-xs font-bold text-teal-300 border border-teal-500/40 shadow-lg flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-amber-400" /> Enquadre a Nota Fiscal no retângulo
                 </div>
               </div>
             </div>
           )}
 
-          {/* Loader de Processamento IA */}
+          {/* ── Overlay de Processamento da IA ── */}
           {isScanning && (
-            <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex flex-col items-center justify-center text-center p-6 z-20 space-y-3">
+            <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center text-center p-6 z-40 space-y-4">
               <div className="relative">
-                <div className="w-16 h-16 rounded-full border-4 border-teal-500/30 border-t-teal-400 animate-spin" />
-                <Sparkles className="w-6 h-6 text-amber-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                <div className="w-20 h-20 rounded-full border-4 border-teal-500/30 border-t-teal-400 animate-spin" />
+                <Sparkles className="w-8 h-8 text-amber-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
               </div>
-              <p className="font-bold text-base text-white">{scanStatus}</p>
-              <p className="text-xs text-teal-300">Identificando CNPJ, Nº da Nota, Pesos e Lista de Produtos...</p>
+              <div className="space-y-1">
+                <p className="font-extrabold text-lg text-white">{scanStatus}</p>
+                <p className="text-xs text-teal-300">Identificando CNPJ, Nº da Nota, Pesos e Lista de Produtos...</p>
+              </div>
             </div>
           )}
         </div>
@@ -221,46 +233,45 @@ export default function ScannerCameraModal({ open, onOpenChange, onScanSuccess }
           onChange={e => handleFileUpload(e.target.files?.[0])}
         />
 
-        {/* Rodapé de Controles da Câmera */}
-        <div className="p-4 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-3">
+        {/* ── Bottom Floating Shutter Deck (Estilo CamScanner/iPhone) ── */}
+        <div className="absolute bottom-0 left-0 right-0 z-30 p-6 bg-gradient-to-t from-black/95 via-black/70 to-transparent flex items-center justify-between max-w-xl mx-auto pointer-events-auto">
           <Button
             type="button"
             variant="ghost"
-            size="sm"
-            className="text-slate-300 hover:text-white hover:bg-slate-800 gap-1.5"
+            className="text-slate-300 hover:text-white hover:bg-white/10 rounded-xl gap-2 text-xs font-semibold"
             onClick={() => fileInputRef.current?.click()}
           >
-            <Upload className="w-4 h-4" /> Arquivo / PDF
+            <Upload className="w-5 h-5 text-teal-400" /> Galeria / PDF
           </Button>
 
+          {/* Botão de Disparo / Shutter Circular Estilo Câmera Profissional */}
           {hasCamera && (
-            <Button
+            <button
               type="button"
               onClick={captureFrame}
               disabled={isScanning}
-              className="bg-teal-500 hover:bg-teal-600 text-slate-950 font-extrabold px-6 py-5 rounded-xl shadow-lg shadow-teal-500/25 gap-2 text-sm"
+              className="relative group p-1.5 rounded-full border-4 border-white/80 hover:border-teal-400 transition-all hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(20,184,166,0.5)]"
+              title="Escanear Nota Fiscal com IA"
             >
-              {isScanning ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <>
-                  <Camera className="w-5 h-5" /> ESCANEAR COM IA
-                </>
-              )}
-            </Button>
+              <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-teal-500 to-emerald-400 flex items-center justify-center text-slate-950 font-bold shadow-inner">
+                {isScanning ? (
+                  <Loader2 className="w-8 h-8 animate-spin text-slate-950" />
+                ) : (
+                  <Camera className="w-8 h-8 text-slate-950 group-hover:rotate-6 transition-transform" />
+                )}
+              </div>
+            </button>
           )}
 
           {hasCamera && (
-            <Button
+            <button
               type="button"
-              variant="outline"
-              size="icon"
-              className="border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800"
               onClick={toggleCameraMode}
-              title="Alternar Câmera"
+              className="p-3 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md transition-colors"
+              title="Virar Câmera"
             >
-              <RefreshCw className="w-4 h-4" />
-            </Button>
+              <RefreshCw className="w-5 h-5" />
+            </button>
           )}
         </div>
       </DialogContent>
