@@ -632,78 +632,17 @@ export default function RecebimentoExpedicao() {
 
           {/* Pesagem e Fotos de Balança INDIVIDUAIS POR ITEM */}
           <div className="space-y-4">
-            {itens.map((item, idx) => {
-              const itemCamRef  = useRef();
-              const itemFileRef = useRef();
-              const isUploading = uploadingItemKey === `${item.tempId}_foto_balanca_url`;
-
-              return (
-                <div key={item.tempId} className={`border-2 rounded-xl p-4 bg-card space-y-3 ${
-                  item.foto_balanca_url || header.foto_balanca_url ? "border-emerald-300 bg-emerald-50/20" : "border-amber-300"
-                }`}>
-                  <div className="flex items-center justify-between border-b pb-2">
-                    <div>
-                      <span className="font-bold text-sm text-foreground">
-                        Item #{idx + 1}: {item.produto || "Produto"}
-                      </span>
-                      <p className="text-xs text-muted-foreground">
-                        Qtd: <strong>{item.quantidade_barras} barras</strong> · Peso NF: <strong>{item.peso_kg_nf} kg</strong>
-                      </p>
-                    </div>
-                    {item.foto_balanca_url ? (
-                      <Badge className="bg-emerald-600 text-white border-transparent">
-                        <CheckCircle2 className="w-3 h-3 mr-1" /> Foto Ok
-                      </Badge>
-                    ) : (
-                      <Badge className="bg-amber-500 text-white border-transparent">
-                        Aguardando Foto
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold">Peso deste Item na Balança (kg) *</Label>
-                      <Input
-                        type="number"
-                        value={item.peso_kg_balanca}
-                        onChange={e => updateItem(item.tempId, "peso_kg_balanca", e.target.value)}
-                        placeholder="Ex: 324"
-                        className="font-bold"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold">Foto da Balança para este Item *</Label>
-                      {isUploading ? (
-                        <div className="flex items-center gap-2 text-xs text-teal-600 py-1">
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Enviando foto...
-                        </div>
-                      ) : (
-                        <div className="flex gap-2">
-                          <Button type="button" variant="outline" size="sm" className="gap-1 text-xs border-amber-400 text-amber-700 flex-1"
-                            onClick={() => itemCamRef.current?.click()}>
-                            <Camera className="w-3.5 h-3.5" /> Câmera
-                          </Button>
-                          <Button type="button" variant="outline" size="sm" className="gap-1 text-xs border-amber-400 text-amber-700 flex-1"
-                            onClick={() => itemFileRef.current?.click()}>
-                            <Upload className="w-3.5 h-3.5" /> Galeria / PDF
-                          </Button>
-
-                          <input ref={itemCamRef} type="file" accept="image/*" capture="environment" className="hidden"
-                            onChange={e => handleItemFileUpload(item.tempId, "foto_balanca_url", e.target.files?.[0])} />
-                          <input ref={itemFileRef} type="file" accept="image/*,application/pdf,.pdf" className="hidden"
-                            onChange={e => handleItemFileUpload(item.tempId, "foto_balanca_url", e.target.files?.[0])} />
-                        </div>
-                      )}
-                      {item.foto_balanca_url && (
-                        <img src={item.foto_balanca_url} alt="Balança Item" className="mt-2 max-h-20 rounded border object-cover" />
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {itens.map((item, idx) => (
+              <ItemPesagemCard
+                key={item.tempId}
+                item={item}
+                idx={idx}
+                header={header}
+                uploadingItemKey={uploadingItemKey}
+                updateItem={updateItem}
+                handleItemFileUpload={handleItemFileUpload}
+              />
+            ))}
           </div>
 
           {/* Comparativo de Pesos Balança vs NF */}
@@ -763,79 +702,16 @@ export default function RecebimentoExpedicao() {
 
           {/* Fotos e Posições de Armazenagem INDIVIDUAIS POR ITEM */}
           <div className="space-y-4">
-            {itens.map((item, idx) => {
-              const matCamRef  = useRef();
-              const matFileRef = useRef();
-              const isUploading = uploadingItemKey === `${item.tempId}_foto_material_url`;
-
-              return (
-                <div key={item.tempId} className={`border-2 rounded-xl p-4 bg-card space-y-3 ${
-                  item.foto_material_url && item.local_armazenagem ? "border-emerald-400 bg-emerald-50/20" : "border-slate-300"
-                }`}>
-                  <div className="flex items-center justify-between border-b pb-2">
-                    <div>
-                      <span className="font-bold text-sm text-teal-700">
-                        Item #{idx + 1}: {item.produto || "Produto"}
-                      </span>
-                      <p className="text-xs text-muted-foreground">
-                        {item.quantidade_barras} barras {item.espessura ? `(${item.espessura})` : ""} · {item.peso_kg_balanca} kg
-                      </p>
-                    </div>
-                    {item.foto_material_url && item.local_armazenagem ? (
-                      <Badge className="bg-emerald-600 text-white border-transparent">
-                        <CheckCircle2 className="w-3 h-3 mr-1" /> Pronto
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-slate-600">
-                        Pendente
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5 text-teal-600" /> Local de Armazenagem *
-                      </Label>
-                      <Input
-                        value={item.local_armazenagem}
-                        onChange={e => updateItem(item.tempId, "local_armazenagem", e.target.value.toUpperCase())}
-                        placeholder="Ex: A1, B3, PATIO..."
-                        className="font-bold text-xs uppercase"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold">Foto do Material Descarregado *</Label>
-                      {isUploading ? (
-                        <div className="flex items-center gap-2 text-xs text-teal-600 py-1">
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Enviando foto...
-                        </div>
-                      ) : (
-                        <div className="flex gap-2">
-                          <Button type="button" variant="outline" size="sm" className="gap-1 text-xs border-teal-400 text-teal-700 flex-1"
-                            onClick={() => matCamRef.current?.click()}>
-                            <Camera className="w-3.5 h-3.5" /> Câmera
-                          </Button>
-                          <Button type="button" variant="outline" size="sm" className="gap-1 text-xs border-teal-400 text-teal-700 flex-1"
-                            onClick={() => matFileRef.current?.click()}>
-                            <Upload className="w-3.5 h-3.5" /> Galeria / PDF
-                          </Button>
-
-                          <input ref={matCamRef} type="file" accept="image/*" capture="environment" className="hidden"
-                            onChange={e => handleItemFileUpload(item.tempId, "foto_material_url", e.target.files?.[0])} />
-                          <input ref={matFileRef} type="file" accept="image/*,application/pdf,.pdf" className="hidden"
-                            onChange={e => handleItemFileUpload(item.tempId, "foto_material_url", e.target.files?.[0])} />
-                        </div>
-                      )}
-                      {item.foto_material_url && (
-                        <img src={item.foto_material_url} alt="Material Item" className="mt-2 max-h-20 rounded border object-cover" />
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {itens.map((item, idx) => (
+              <ItemDescargaCard
+                key={item.tempId}
+                item={item}
+                idx={idx}
+                uploadingItemKey={uploadingItemKey}
+                updateItem={updateItem}
+                handleItemFileUpload={handleItemFileUpload}
+              />
+            ))}
           </div>
 
           <div className="space-y-1">
@@ -886,6 +762,154 @@ export default function RecebimentoExpedicao() {
         onOpenChange={setScannerModalOpen}
         onScanSuccess={handleNfPhoto}
       />
+    </div>
+  );
+}
+
+// ── Componentes auxiliares de Item para evitar erro de Hooks em loops ──────
+function ItemPesagemCard({ item, idx, header, uploadingItemKey, updateItem, handleItemFileUpload }) {
+  const itemCamRef = useRef(null);
+  const itemFileRef = useRef(null);
+  const isUploading = uploadingItemKey === `${item.tempId}_foto_balanca_url`;
+
+  return (
+    <div className={`border-2 rounded-xl p-4 bg-card space-y-3 ${
+      item.foto_balanca_url || header.foto_balanca_url ? "border-emerald-300 bg-emerald-50/20" : "border-amber-300"
+    }`}>
+      <div className="flex items-center justify-between border-b pb-2">
+        <div>
+          <span className="font-bold text-sm text-foreground">
+            Item #{idx + 1}: {item.produto || "Produto"}
+          </span>
+          <p className="text-xs text-muted-foreground">
+            Qtd: <strong>{item.quantidade_barras} barras</strong> · Peso NF: <strong>{item.peso_kg_nf} kg</strong>
+          </p>
+        </div>
+        {item.foto_balanca_url ? (
+          <Badge className="bg-emerald-600 text-white border-transparent">
+            <CheckCircle2 className="w-3 h-3 mr-1" /> Foto Ok
+          </Badge>
+        ) : (
+          <Badge className="bg-amber-500 text-white border-transparent">
+            Aguardando Foto
+          </Badge>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+        <div className="space-y-1">
+          <Label className="text-xs font-semibold">Peso deste Item na Balança (kg) *</Label>
+          <Input
+            type="number"
+            value={item.peso_kg_balanca}
+            onChange={e => updateItem(item.tempId, "peso_kg_balanca", e.target.value)}
+            placeholder="Ex: 324"
+            className="font-bold"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs font-semibold">Foto da Balança para este Item *</Label>
+          {isUploading ? (
+            <div className="flex items-center gap-2 text-xs text-teal-600 py-1">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Enviando foto...
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="sm" className="gap-1 text-xs border-amber-400 text-amber-700 flex-1"
+                onClick={() => itemCamRef.current?.click()}>
+                <Camera className="w-3.5 h-3.5" /> Câmera
+              </Button>
+              <Button type="button" variant="outline" size="sm" className="gap-1 text-xs border-amber-400 text-amber-700 flex-1"
+                onClick={() => itemFileRef.current?.click()}>
+                <Upload className="w-3.5 h-3.5" /> Galeria / PDF
+              </Button>
+
+              <input ref={itemCamRef} type="file" accept="image/*" capture="environment" className="hidden"
+                onChange={e => handleItemFileUpload(item.tempId, "foto_balanca_url", e.target.files?.[0])} />
+              <input ref={itemFileRef} type="file" accept="image/*,application/pdf,.pdf" className="hidden"
+                onChange={e => handleItemFileUpload(item.tempId, "foto_balanca_url", e.target.files?.[0])} />
+            </div>
+          )}
+          {item.foto_balanca_url && (
+            <img src={item.foto_balanca_url} alt="Balança Item" className="mt-2 max-h-20 rounded border object-cover" />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ItemDescargaCard({ item, idx, uploadingItemKey, updateItem, handleItemFileUpload }) {
+  const matCamRef = useRef(null);
+  const matFileRef = useRef(null);
+  const isUploading = uploadingItemKey === `${item.tempId}_foto_material_url`;
+
+  return (
+    <div className={`border-2 rounded-xl p-4 bg-card space-y-3 ${
+      item.foto_material_url && item.local_armazenagem ? "border-emerald-400 bg-emerald-50/20" : "border-slate-300"
+    }`}>
+      <div className="flex items-center justify-between border-b pb-2">
+        <div>
+          <span className="font-bold text-sm text-teal-700">
+            Item #{idx + 1}: {item.produto || "Produto"}
+          </span>
+          <p className="text-xs text-muted-foreground">
+            {item.quantidade_barras} barras {item.espessura ? `(${item.espessura})` : ""} · {item.peso_kg_balanca} kg
+          </p>
+        </div>
+        {item.foto_material_url && item.local_armazenagem ? (
+          <Badge className="bg-emerald-600 text-white border-transparent">
+            <CheckCircle2 className="w-3 h-3 mr-1" /> Pronto
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="text-slate-600">
+            Pendente
+          </Badge>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+        <div className="space-y-1">
+          <Label className="text-xs font-semibold flex items-center gap-1">
+            <MapPin className="w-3.5 h-3.5 text-teal-600" /> Local de Armazenagem *
+          </Label>
+          <Input
+            value={item.local_armazenagem}
+            onChange={e => updateItem(item.tempId, "local_armazenagem", e.target.value.toUpperCase())}
+            placeholder="Ex: A1, B3, PATIO..."
+            className="font-bold text-xs uppercase"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs font-semibold">Foto do Material Descarregado *</Label>
+          {isUploading ? (
+            <div className="flex items-center gap-2 text-xs text-teal-600 py-1">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Enviando foto...
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="sm" className="gap-1 text-xs border-teal-400 text-teal-700 flex-1"
+                onClick={() => matCamRef.current?.click()}>
+                <Camera className="w-3.5 h-3.5" /> Câmera
+              </Button>
+              <Button type="button" variant="outline" size="sm" className="gap-1 text-xs border-teal-400 text-teal-700 flex-1"
+                onClick={() => matFileRef.current?.click()}>
+                <Upload className="w-3.5 h-3.5" /> Galeria / PDF
+              </Button>
+
+              <input ref={matCamRef} type="file" accept="image/*" capture="environment" className="hidden"
+                onChange={e => handleItemFileUpload(item.tempId, "foto_material_url", e.target.files?.[0])} />
+              <input ref={matFileRef} type="file" accept="image/*,application/pdf,.pdf" className="hidden"
+                onChange={e => handleItemFileUpload(item.tempId, "foto_material_url", e.target.files?.[0])} />
+            </div>
+          )}
+          {item.foto_material_url && (
+            <img src={item.foto_material_url} alt="Material Item" className="mt-2 max-h-20 rounded border object-cover" />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
