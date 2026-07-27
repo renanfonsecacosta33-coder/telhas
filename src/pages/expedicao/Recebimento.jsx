@@ -82,8 +82,12 @@ async function compressImage(file, maxDimension = 2048, quality = 0.90) {
   });
 }
 
-function calcPesoTeoricoItem(produto, qtdBarras) {
+function calcPesoTeoricoItem(produto, qtdBarras, espessuraStr = "") {
   if (!produto || !qtdBarras) return null;
+  const qtd = Number(qtdBarras);
+  if (isNaN(qtd) || qtd <= 0) return null;
+
+  // 1. Busca na tabela pré-definida
   let kgM = PESOS_POR_METRO[produto];
   if (!kgM) {
     const matchKey = Object.keys(PESOS_POR_METRO).find(k =>
@@ -94,8 +98,42 @@ function calcPesoTeoricoItem(produto, qtdBarras) {
     );
     if (matchKey) kgM = PESOS_POR_METRO[matchKey];
   }
-  if (!kgM) return null;
-  return kgM * COMPRIMENTO_PADRAO_M * Number(qtdBarras);
+
+  // 2. Cálculo dinâmico para Tubos / Perfis (Redondo, Retangular, Quadrado)
+  if (!kgM) {
+    const prodUpper = produto.toUpperCase();
+    let espessura = parseFloat(espessuraStr?.replace(",", "."));
+    if (isNaN(espessura)) {
+      const matchEsp = prodUpper.match(/CH\s*([\d,\.]+)|(\d+[\,\.]\d+)\s*MM/);
+      if (matchEsp) espessura = parseFloat((matchEsp[1] || matchEsp[2]).replace(",", "."));
+    }
+    if (isNaN(espessura)) espessura = 1.25; // Espessura padrão se não especificada
+
+    if (prodUpper.includes("RED") || prodUpper.includes("TUBO RED")) {
+      let od = 31.75;
+      if (prodUpper.includes("1.1/2") || prodUpper.includes("1 1/2")) od = 38.1;
+      else if (prodUpper.includes("2\"") || prodUpper.includes("2 ")) od = 50.8;
+      else if (prodUpper.includes("1\"") || prodUpper.includes("1 ")) od = 25.4;
+      else if (prodUpper.includes("3/4")) od = 19.05;
+      else if (prodUpper.includes("5/8")) od = 15.88;
+      else if (prodUpper.includes("1/2")) od = 12.7;
+
+      kgM = (od - espessura) * espessura * 0.02466;
+    } else if (prodUpper.includes("RET") || prodUpper.includes("QUAD") || prodUpper.includes("TUBO") || prodUpper.includes("PERFIL")) {
+      const matchDim = prodUpper.match(/(\d+)\s*X\s*(\d+)/);
+      let a = 20, b = 30;
+      if (matchDim) {
+        a = parseFloat(matchDim[1]);
+        b = parseFloat(matchDim[2]);
+      }
+      const perimetro = 2 * (a + b);
+      const diamEquiv = perimetro / Math.PI;
+      kgM = (diamEquiv - espessura) * espessura * 0.02466;
+    }
+  }
+
+  if (!kgM || isNaN(kgM)) return null;
+  return kgM * COMPRIMENTO_PADRAO_M * qtd;
 }
 
 function calcDivergencia(nf, balanca) {
@@ -193,7 +231,17 @@ export default function RecebimentoExpedicao() {
 
       try {
         const json = await base44.integrations.Core.InvokeLLM({
-          prompt: `Extraia da NF-e: numero_nf (string), fornecedor (string), peso_total_nf_kg (number), itens:[{descricao_produto, quantidade_itens (number), peso_kg_item (number), espessura}]`,
+          prompt: `Você é um leitor especialista em Notas Fiscais (NF-e) de aço e tubos. 
+Extraia da imagem da NF-e:
+- numero_nf (string)
+- fornecedor (string)
+- peso_total_nf_kg (number): Peso Bruto total declarado na NF em kg.
+- itens: Lista de produtos presentes na nota. Para cada item:
+  * descricao_produto (string)
+  * quantidade_itens (number): Quantidade de BARRAS / PEÇAS (ex: 324)
+  * peso_kg_item (number ou null): Peso total DESSAS PEÇAS em KG. ATENÇÃO: NÃO COPIE A QUANTIDADE DE PEÇAS PARA O PESO! Se o peso em kg deste item específico não constar na linha, deixe peso_kg_item como NULL.
+  * espessura (string): espessura em mm ou chapa (ex: 1,25)
+`,
           file_urls: [file_url],
           response_json_schema: {
             type: "object",
@@ -230,14 +278,27 @@ export default function RecebimentoExpedicao() {
                 k.toLowerCase().includes(rawDesc.toLowerCase().slice(0, 8))
               )
             );
-            const pesoItem = it.peso_kg_item ? String(it.peso_kg_item) : "";
+            const qtdBarras = it.quantidade_itens ? Number(it.quantidade_itens) : 0;
+            let pesoItemNum = it.peso_kg_item ? Number(it.peso_kg_item) : null;
+
+            // Se o LLM equivocadamente igualou o peso em kg ao número de barras (ex: 324kg para 324 barras)
+            if (pesoItemNum !== null && pesoItemNum === qtdBarras && qtdBarras > 0) {
+              pesoItemNum = null;
+            }
+
+            // Calcula o peso teórico real se o peso unitário da linha não estava discriminado em KG na NF
+            const pTeorico = calcPesoTeoricoItem(match || rawDesc, qtdBarras, it.espessura);
+            const finalPesoItem = pesoItemNum !== null 
+              ? String(pesoItemNum) 
+              : (pTeorico ? String(Math.round(pTeorico)) : "");
+
             return {
               tempId: Date.now() + idx + Math.random(),
               produto: match || rawDesc,
-              quantidade_barras: it.quantidade_itens ? String(it.quantidade_itens) : "",
-              peso_kg_nf: pesoItem,
+              quantidade_barras: qtdBarras ? String(qtdBarras) : "",
+              peso_kg_nf: finalPesoItem,
               espessura: it.espessura ? String(it.espessura) : "",
-              peso_kg_balanca: pesoItem, // pré-preenche pesagem inicial
+              peso_kg_balanca: finalPesoItem, // pré-preenche pesagem inicial
               foto_balanca_url: "",
               foto_material_url: "",
               local_armazenagem: "",
