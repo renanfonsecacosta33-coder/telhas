@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Camera, Upload, CheckCircle2, AlertTriangle, Scale, Package,
-  ChevronRight, ChevronLeft, Loader2, FileText, MapPin, Zap, Plus, Trash2, Layers
+  ChevronRight, ChevronLeft, Loader2, FileText, MapPin, Zap, Plus, Trash2, Layers, ShieldCheck
 } from "lucide-react";
 
 // ─── Tabela de Peso Teórico (kg/m) — barras 6m padrão ─────────────────────
@@ -72,6 +72,9 @@ function createNewItem(id = 1) {
     quantidade_barras: "",
     peso_kg_nf: "",
     espessura: "",
+    peso_kg_balanca: "",
+    foto_balanca_url: "",
+    foto_material_url: "",
     local_armazenagem: "",
   };
 }
@@ -85,7 +88,7 @@ export default function RecebimentoExpedicao() {
     numero_nf: "",
     fornecedor: "",
     peso_kg_nf_total: "",
-    peso_kg_balanca: "",
+    peso_kg_balanca_total: "",
     foto_nf_url: "",
     foto_balanca_url: "",
     foto_material_url: "",
@@ -97,8 +100,7 @@ export default function RecebimentoExpedicao() {
 
   const [saving, setSaving] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
-  const [uploadingBal, setUploadingBal] = useState(false);
-  const [uploadingMat, setUploadingMat] = useState(false);
+  const [uploadingItemKey, setUploadingItemKey] = useState(null);
 
   const nfCamRef    = useRef();
   const nfFileRef   = useRef();
@@ -121,6 +123,22 @@ export default function RecebimentoExpedicao() {
   const removeItem = (tempId) => {
     if (itens.length <= 1) return;
     setItens(list => list.filter(item => item.tempId !== tempId));
+  };
+
+  // ── Upload de arquivo por item ──────────────────────────────────────────
+  const handleItemFileUpload = async (tempId, field, file) => {
+    if (!file) return;
+    const key = `${tempId}_${field}`;
+    setUploadingItemKey(key);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      updateItem(tempId, field, file_url);
+      toast.success(`📸 Arquivo enviado para o item!`);
+    } catch {
+      toast.error("Erro ao fazer upload do arquivo.");
+    } finally {
+      setUploadingItemKey(null);
+    }
   };
 
   // ── OCR da NF com Inteligência para Múltiplos Itens ────────────────────
@@ -172,12 +190,16 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
                 k.toLowerCase().includes(rawDesc.toLowerCase().slice(0, 8))
               )
             );
+            const pesoItem = it.peso_kg_item ? String(it.peso_kg_item) : "";
             return {
               tempId: Date.now() + idx + Math.random(),
               produto: match || rawDesc,
               quantidade_barras: it.quantidade_itens ? String(it.quantidade_itens) : "",
-              peso_kg_nf: it.peso_kg_item ? String(it.peso_kg_item) : "",
+              peso_kg_nf: pesoItem,
               espessura: it.espessura ? String(it.espessura) : "",
+              peso_kg_balanca: pesoItem, // pré-preenche pesagem inicial
+              foto_balanca_url: "",
+              foto_material_url: "",
               local_armazenagem: "",
             };
           });
@@ -197,44 +219,56 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
     }
   };
 
-  // ── Upload foto da balança (obrigatória) ──────────────────
-  const handleBalancaPhoto = async (file) => {
+  // ── Upload foto da balança geral ──────────────────
+  const handleBalancaPhotoGeral = async (file) => {
     if (!file) return;
-    setUploadingBal(true);
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       setHead("foto_balanca_url", file_url);
-      toast.success("📸 Foto da balança registrada!");
+      toast.success("📸 Foto da balança geral registrada!");
     } catch { toast.error("Erro ao enviar foto da balança."); }
-    finally { setUploadingBal(false); }
   };
 
-  // ── Upload foto do material descarregado ──────────────────
-  const handleMaterialPhoto = async (file) => {
+  // ── Upload foto do material geral ──────────────────
+  const handleMaterialPhotoGeral = async (file) => {
     if (!file) return;
-    setUploadingMat(true);
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       setHead("foto_material_url", file_url);
-      toast.success("📸 Foto do material registrada!");
+      toast.success("📸 Foto do material geral registrada!");
     } catch { toast.error("Erro ao enviar foto do material."); }
-    finally { setUploadingMat(false); }
   };
 
-  // ── Totais e Cálculos ──────────────────────────────────────
+  // ── Totais e Cálculos de Validação ──────────────────────────────────────
   const somaQtdBarrasTotal = itens.reduce((s, i) => s + (Number(i.quantidade_barras) || 0), 0);
   const somaPesoNfItens   = itens.reduce((s, i) => s + (Number(i.peso_kg_nf) || 0), 0);
-  const pesoNfComparar    = Number(header.peso_kg_nf_total) || somaPesoNfItens;
+  const pesoNfDeclarado   = Number(header.peso_kg_nf_total) || 0;
   const pesoTeoricoTotal  = itens.reduce((s, i) => s + (calcPesoTeoricoItem(i.produto, i.quantidade_barras) || 0), 0);
 
-  const divNfBal = calcDivergencia(pesoNfComparar, Number(header.peso_kg_balanca));
+  // Soma dos pesos na balança aferidos por item (ou geral)
+  const somaPesoBalancaItens = itens.reduce((s, i) => s + (Number(i.peso_kg_balanca) || 0), 0);
+  const pesoBalancaComparar  = Number(header.peso_kg_balanca_total) || somaPesoBalancaItens;
+  const pesoNfComparar       = pesoNfDeclarado || somaPesoNfItens;
+
+  // Divergências
+  const diffPesoNfItensVsBruto = pesoNfDeclarado > 0 ? Math.abs(somaPesoNfItens - pesoNfDeclarado) : 0;
+  const bateramPesosItens      = pesoNfDeclarado === 0 || diffPesoNfItensVsBruto === 0;
+
+  const divNfBal = calcDivergencia(pesoNfComparar, pesoBalancaComparar);
   const temDivergencia = Math.abs(divNfBal || 0) > TOLERANCIA_DIVERGENCIA;
 
-  // ── Validações de Avanço ──────────────────────────────────
-  const itensValidos = itens.every(i => i.produto && i.quantidade_barras);
-  const canAdvance1 = header.numero_nf && header.fornecedor && itens.length > 0 && itensValidos;
-  const canAdvance2 = header.peso_kg_balanca && header.foto_balanca_url;
-  const canAdvance3 = header.foto_material_url && itens.every(i => i.local_armazenagem);
+  // ── Validações de Avanço por Etapa ──────────────────────────────────
+  const itensValidosEtapa1 = itens.length > 0 && itens.every(i => i.produto && Number(i.quantidade_barras) > 0 && Number(i.peso_kg_nf) > 0);
+  const canAdvance1 = header.numero_nf && header.fornecedor && itensValidosEtapa1;
+
+  // Para Etapa 2: Exige que cada item tenha seu peso balança informado OU peso total geral + pelo menos uma foto de balança enviada
+  const fotosBalancaCompletas = header.foto_balanca_url || itens.every(i => i.foto_balanca_url);
+  const canAdvance2 = (header.peso_kg_balanca_total || somaPesoBalancaItens > 0) && fotosBalancaCompletas;
+
+  // Para Etapa 3: Exige que CADA item tenha sua foto de descarga enviada E local de armazenagem definido
+  const fotosMaterialCompletas = header.foto_material_url || itens.every(i => i.foto_material_url);
+  const locaisCompletos = itens.every(i => i.local_armazenagem && i.local_armazenagem.trim() !== "");
+  const canAdvance3 = fotosMaterialCompletas && locaisCompletos;
 
   // ── Salvar Todos os Itens no Banco ────────────────────────
   const handleSave = async () => {
@@ -246,14 +280,10 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
       const data_validade = new Date(agora);
       data_validade.setMonth(data_validade.getMonth() + 6);
 
-      const pesoBalancaTotal = Number(header.peso_kg_balanca);
-
       // Salva uma entrada no banco de dados para CADA item da Nota Fiscal!
       for (const item of itens) {
         const itemPesoNf = Number(item.peso_kg_nf) || (somaPesoNfItens > 0 ? (Number(item.quantidade_barras) / somaQtdBarrasTotal) * pesoNfComparar : 0);
-        // Rateio proporcional do peso aferido na balança
-        const proporcao = somaPesoNfItens > 0 ? itemPesoNf / somaPesoNfItens : (Number(item.quantidade_barras) / somaQtdBarrasTotal);
-        const itemPesoBalanca = pesoBalancaTotal ? Number((proporcao * pesoBalancaTotal).toFixed(1)) : itemPesoNf;
+        const itemPesoBalanca = Number(item.peso_kg_balanca) || itemPesoNf;
         const itemPesoTeorico = calcPesoTeoricoItem(item.produto, item.quantidade_barras);
 
         await base44.entities.EntradaMaterialExpedicao?.create?.({
@@ -267,10 +297,10 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
           peso_kg_balanca:           itemPesoBalanca,
           peso_kg_saldo:             itemPesoBalanca,
           peso_teorico_kg:           itemPesoTeorico,
-          local_armazenagem:         item.local_armazenagem,
+          local_armazenagem:         item.local_armazenagem.toUpperCase(),
           foto_nf_url:               header.foto_nf_url,
-          foto_balanca_url:          header.foto_balanca_url,
-          foto_material_url:         header.foto_material_url,
+          foto_balanca_url:          item.foto_balanca_url || header.foto_balanca_url,
+          foto_material_url:         item.foto_material_url || header.foto_material_url,
           observacoes:               header.observacoes,
           divergencia_percent,
           data_hora:                 agora.toISOString(),
@@ -303,7 +333,7 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
         <h1 className="text-xl font-bold flex items-center gap-2">
           <Package className="w-6 h-6 text-teal-600" /> Receber Material (Nota Fiscal Multi-Item)
         </h1>
-        <p className="text-sm text-muted-foreground">Registre entradas de notas fiscais com um ou múltiplos produtos</p>
+        <p className="text-sm text-muted-foreground">Registre entradas de notas fiscais conferindo barras, pesagem e foto por produto</p>
       </div>
 
       {/* Steps indicator */}
@@ -316,7 +346,7 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
                            "bg-muted text-muted-foreground"
             }`}>
               {step > s ? <CheckCircle2 className="w-3 h-3" /> : s}
-              {s === 1 && " Dados NF & Produtos"}
+              {s === 1 && " Dados NF & Validação"}
               {s === 2 && " Pesagem Balança"}
               {s === 3 && " Descarga & Armazenagem"}
             </div>
@@ -325,7 +355,7 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
         ))}
       </div>
 
-      {/* ─── ETAPA 1: Cabeçalho NF + Múltiplos Produtos ─── */}
+      {/* ─── ETAPA 1: Cabeçalho NF + Múltiplos Produtos + Validação ─── */}
       {step === 1 && (
         <div className="space-y-5">
           {/* OCR Scanner da NF */}
@@ -370,7 +400,7 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs font-semibold">Nº da NF *</Label>
-                <Input value={header.numero_nf} onChange={e => setHead("numero_nf", e.target.value)} placeholder="Ex: 12345" />
+                <Input value={header.numero_nf} onChange={e => setHead("numero_nf", e.target.value)} placeholder="Ex: 0180517" />
               </div>
               <div className="space-y-1 sm:col-span-2">
                 <Label className="text-xs font-semibold">Fornecedor *</Label>
@@ -378,8 +408,8 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
               </div>
             </div>
             <div className="space-y-1 max-w-xs">
-              <Label className="text-xs font-semibold">Peso Bruto Total NF (kg)</Label>
-              <Input type="number" value={header.peso_kg_nf_total} onChange={e => setHead("peso_kg_nf_total", e.target.value)} placeholder="Ex: 2500" />
+              <Label className="text-xs font-semibold">Peso Bruto Total NF (kg) *</Label>
+              <Input type="number" value={header.peso_kg_nf_total} onChange={e => setHead("peso_kg_nf_total", e.target.value)} placeholder="Ex: 1269" />
             </div>
           </div>
 
@@ -422,7 +452,7 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
                       list="produtos-list-options"
                       value={item.produto}
                       onChange={e => updateItem(item.tempId, "produto", e.target.value)}
-                      placeholder="Digite ou escolha da lista (ex: Barra Chata 3/8)..."
+                      placeholder="Digite ou escolha da lista (ex: TUBO RED 1 1/4)..."
                       className="bg-background"
                     />
                   </div>
@@ -434,16 +464,21 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
                         type="number"
                         value={item.quantidade_barras}
                         onChange={e => updateItem(item.tempId, "quantidade_barras", e.target.value)}
-                        placeholder="Ex: 50"
+                        placeholder="Ex: 324"
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs font-semibold">Peso NF (kg)</Label>
+                      <Label className="text-xs font-semibold">Peso NF (kg) *</Label>
                       <Input
                         type="number"
                         value={item.peso_kg_nf}
-                        onChange={e => updateItem(item.tempId, "peso_kg_nf", e.target.value)}
-                        placeholder="Ex: 600"
+                        onChange={e => {
+                          const v = e.target.value;
+                          updateItem(item.tempId, "peso_kg_nf", v);
+                          // Atualiza também pesagem inicial por padrão
+                          if (!item.peso_kg_balanca) updateItem(item.tempId, "peso_kg_balanca", v);
+                        }}
+                        placeholder="Ex: 324"
                       />
                     </div>
                     <div className="space-y-1">
@@ -451,7 +486,7 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
                       <Input
                         value={item.espessura}
                         onChange={e => updateItem(item.tempId, "espessura", e.target.value)}
-                        placeholder="Ex: 3/8"
+                        placeholder="Ex: 1,25"
                       />
                     </div>
                   </div>
@@ -467,21 +502,46 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
             })}
           </div>
 
-          {/* Resumo da Etapa 1 */}
-          <div className="bg-slate-100 dark:bg-slate-900 border rounded-xl p-3 text-xs flex justify-between items-center flex-wrap gap-2">
-            <div>
-              <span className="text-muted-foreground">Total de Peças: </span>
-              <strong className="text-foreground font-bold">{somaQtdBarrasTotal} barras</strong>
+          {/* 🔍 PAINEL DE VALIDAÇÃO GERAL DE PESOS E BARRAS (FOTO 1 REQUIREMENT) */}
+          <div className={`border-2 rounded-xl p-4 space-y-3 ${
+            bateramPesosItens ? "border-emerald-400 bg-emerald-50/50" : "border-amber-400 bg-amber-50/50"
+          }`}>
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold text-sm flex items-center gap-2">
+                <ShieldCheck className={`w-5 h-5 ${bateramPesosItens ? "text-emerald-600" : "text-amber-600"}`} />
+                Validação de Conferência (Soma dos Itens vs Nota Fiscal)
+              </h4>
+              <Badge className={`text-[10px] ${bateramPesosItens ? "bg-emerald-600" : "bg-amber-600"} text-white border-transparent`}>
+                {bateramPesosItens ? "Pesos Conferem" : "Atenção a Pesos"}
+              </Badge>
             </div>
-            <div>
-              <span className="text-muted-foreground">Soma Pesos NF: </span>
-              <strong className="text-foreground font-bold">{somaPesoNfItens.toLocaleString("pt-BR")} kg</strong>
-            </div>
-            {pesoTeoricoTotal > 0 && (
-              <div>
-                <span className="text-muted-foreground">Teórico Somado: </span>
-                <strong className="text-blue-600 font-bold">{pesoTeoricoTotal.toFixed(0)} kg</strong>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+              <div className="bg-white rounded-lg p-2 border">
+                <p className="text-muted-foreground">Total de Peças</p>
+                <p className="font-bold text-sm text-foreground">{somaQtdBarrasTotal} barras</p>
+                <p className="text-[10px] text-muted-foreground">({itens.length} produto(s))</p>
               </div>
+              <div className="bg-white rounded-lg p-2 border">
+                <p className="text-muted-foreground">Soma Pesos Itens</p>
+                <p className="font-bold text-sm text-foreground">{somaPesoNfItens.toLocaleString("pt-BR")} kg</p>
+              </div>
+              <div className="bg-white rounded-lg p-2 border">
+                <p className="text-muted-foreground">Peso Bruto NF</p>
+                <p className="font-bold text-sm text-foreground">{pesoNfDeclarado ? `${pesoNfDeclarado.toLocaleString("pt-BR")} kg` : "Não informado"}</p>
+              </div>
+              <div className={`rounded-lg p-2 border ${bateramPesosItens ? "bg-emerald-100 border-emerald-300" : "bg-amber-100 border-amber-300"}`}>
+                <p className="text-muted-foreground">Diferença Soma vs NF</p>
+                <p className={`font-bold text-sm ${bateramPesosItens ? "text-emerald-700" : "text-amber-700"}`}>
+                  {diffPesoNfItensVsBruto === 0 ? "0 kg (Bateu!)" : `${diffPesoNfItensVsBruto.toLocaleString("pt-BR")} kg`}
+                </p>
+              </div>
+            </div>
+
+            {!bateramPesosItens && pesoNfDeclarado > 0 && (
+              <p className="text-xs text-amber-700 bg-white/80 p-2 rounded border border-amber-200">
+                ⚠️ <strong>Atenção:</strong> A soma dos pesos dos produtos ({somaPesoNfItens} kg) difere do Peso Bruto Total declarado na NF ({pesoNfDeclarado} kg) por {diffPesoNfItensVsBruto} kg. Verifique os valores dos itens.
+              </p>
             )}
           </div>
 
@@ -495,90 +555,145 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
         </div>
       )}
 
-      {/* ─── ETAPA 2: Pesagem & Conferência ─── */}
+      {/* ─── ETAPA 2: Pesagem Balança POR ITEM + Foto da Balança por Item (FOTO 2 REQUIREMENT) ─── */}
       {step === 2 && (
-        <div className="space-y-4">
-          {/* Foto da balança — OBRIGATÓRIA */}
-          <div className={`border-2 rounded-xl p-4 text-center ${header.foto_balanca_url ? "border-emerald-400 bg-emerald-50/40" : "border-dashed border-amber-400 bg-amber-50/40"}`}>
-            <Scale className={`w-8 h-8 mx-auto mb-2 ${header.foto_balanca_url ? "text-emerald-500" : "text-amber-500"}`} />
-            <p className="text-sm font-bold mb-1">
-              {header.foto_balanca_url ? "✅ Foto da Balança Registrada" : "📸 Foto da Balança Geral — OBRIGATÓRIA"}
+        <div className="space-y-5">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800 space-y-1">
+            <p className="font-bold text-sm flex items-center gap-1.5">
+              <Scale className="w-4 h-4 text-amber-600" />
+              Pesagem da Balança por Produto ({itens.length} itens)
             </p>
-            <p className="text-xs text-muted-foreground mb-3">
-              {header.foto_balanca_url ? "Foto da pesagem física enviada" : "Tire uma foto do display da balança com a pesagem total do caminhão/material"}
-            </p>
-            {uploadingBal ? (
-              <div className="flex items-center justify-center gap-2 text-amber-600 text-sm">
-                <Loader2 className="w-4 h-4 animate-spin" /> Enviando...
-              </div>
-            ) : (
-              <div className="flex gap-2 justify-center flex-wrap">
-                <Button type="button" variant="outline" size="sm" className="gap-1.5 border-amber-400 text-amber-700 hover:bg-amber-50"
-                  onClick={() => balCamRef.current?.click()}>
-                  <Camera className="w-4 h-4" /> Câmera
-                </Button>
-                <Button type="button" variant="outline" size="sm" className="gap-1.5 border-amber-400 text-amber-700 hover:bg-amber-50"
-                  onClick={() => balFileRef.current?.click()}>
-                  <Upload className="w-4 h-4" /> Galeria / PDF
-                </Button>
-                <input ref={balCamRef} type="file" accept="image/*" capture="environment" className="hidden"
-                  onChange={e => handleBalancaPhoto(e.target.files?.[0])} />
-                <input ref={balFileRef} type="file" accept="image/*,application/pdf,.pdf" className="hidden"
-                  onChange={e => handleBalancaPhoto(e.target.files?.[0])} />
-              </div>
-            )}
+            <p>Envie a foto da pesagem da balança física para cada um dos produtos da NF (ou envie a foto da balança geral).</p>
+          </div>
+
+          {/* Foto da Balança Geral (Opcional se enviar por item) */}
+          <div className="bg-card border rounded-xl p-4 text-center">
+            <p className="text-xs font-bold text-muted-foreground uppercase mb-2">Opção: Foto da Pesagem Geral da Balança (Caminhão/Lote)</p>
+            <div className="flex gap-2 justify-center flex-wrap">
+              <Button type="button" variant="outline" size="sm" className="gap-1 text-xs border-amber-400 text-amber-700 hover:bg-amber-50"
+                onClick={() => balCamRef.current?.click()}>
+                <Camera className="w-3.5 h-3.5" /> Câmera Geral
+              </Button>
+              <Button type="button" variant="outline" size="sm" className="gap-1 text-xs border-amber-400 text-amber-700 hover:bg-amber-50"
+                onClick={() => balFileRef.current?.click()}>
+                <Upload className="w-3.5 h-3.5" /> Galeria / PDF
+              </Button>
+              <input ref={balCamRef} type="file" accept="image/*" capture="environment" className="hidden"
+                onChange={e => handleBalancaPhotoGeral(e.target.files?.[0])} />
+              <input ref={balFileRef} type="file" accept="image/*,application/pdf,.pdf" className="hidden"
+                onChange={e => handleBalancaPhotoGeral(e.target.files?.[0])} />
+            </div>
             {header.foto_balanca_url && (
-              <img src={header.foto_balanca_url} alt="Balança" className="mt-3 max-h-32 mx-auto rounded-lg object-cover border" />
+              <div className="mt-2 text-xs text-emerald-600 font-bold flex items-center justify-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Foto Geral da Balança Registrada
+              </div>
             )}
           </div>
 
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold">Peso Total Aferido na Balança (kg) *</Label>
-            <Input
-              type="number"
-              value={header.peso_kg_balanca}
-              onChange={e => setHead("peso_kg_balanca", e.target.value)}
-              placeholder="Digite o peso total aferido na balança física"
-              className="text-lg font-bold"
-            />
+          {/* Pesagem e Fotos de Balança INDIVIDUAIS POR ITEM */}
+          <div className="space-y-4">
+            {itens.map((item, idx) => {
+              const itemCamRef  = useRef();
+              const itemFileRef = useRef();
+              const isUploading = uploadingItemKey === `${item.tempId}_foto_balanca_url`;
+
+              return (
+                <div key={item.tempId} className={`border-2 rounded-xl p-4 bg-card space-y-3 ${
+                  item.foto_balanca_url || header.foto_balanca_url ? "border-emerald-300 bg-emerald-50/20" : "border-amber-300"
+                }`}>
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <div>
+                      <span className="font-bold text-sm text-foreground">
+                        Item #{idx + 1}: {item.produto || "Produto"}
+                      </span>
+                      <p className="text-xs text-muted-foreground">
+                        Qtd: <strong>{item.quantidade_barras} barras</strong> · Peso NF: <strong>{item.peso_kg_nf} kg</strong>
+                      </p>
+                    </div>
+                    {item.foto_balanca_url ? (
+                      <Badge className="bg-emerald-600 text-white border-transparent">
+                        <CheckCircle2 className="w-3 h-3 mr-1" /> Foto Ok
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-amber-500 text-white border-transparent">
+                        Aguardando Foto
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Peso deste Item na Balança (kg) *</Label>
+                      <Input
+                        type="number"
+                        value={item.peso_kg_balanca}
+                        onChange={e => updateItem(item.tempId, "peso_kg_balanca", e.target.value)}
+                        placeholder="Ex: 324"
+                        className="font-bold"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Foto da Balança para este Item *</Label>
+                      {isUploading ? (
+                        <div className="flex items-center gap-2 text-xs text-teal-600 py-1">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Enviando foto...
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Button type="button" variant="outline" size="sm" className="gap-1 text-xs border-amber-400 text-amber-700 flex-1"
+                            onClick={() => itemCamRef.current?.click()}>
+                            <Camera className="w-3.5 h-3.5" /> Câmera
+                          </Button>
+                          <Button type="button" variant="outline" size="sm" className="gap-1 text-xs border-amber-400 text-amber-700 flex-1"
+                            onClick={() => itemFileRef.current?.click()}>
+                            <Upload className="w-3.5 h-3.5" /> Galeria / PDF
+                          </Button>
+
+                          <input ref={itemCamRef} type="file" accept="image/*" capture="environment" className="hidden"
+                            onChange={e => handleItemFileUpload(item.tempId, "foto_balanca_url", e.target.files?.[0])} />
+                          <input ref={itemFileRef} type="file" accept="image/*,application/pdf,.pdf" className="hidden"
+                            onChange={e => handleItemFileUpload(item.tempId, "foto_balanca_url", e.target.files?.[0])} />
+                        </div>
+                      )}
+                      {item.foto_balanca_url && (
+                        <img src={item.foto_balanca_url} alt="Balança Item" className="mt-2 max-h-20 rounded border object-cover" />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
-          {/* Comparativo de pesos */}
-          {header.peso_kg_balanca && pesoNfComparar > 0 && (
-            <div className={`rounded-xl border-2 p-4 space-y-2 ${temDivergencia ? "border-red-400 bg-red-50" : "border-emerald-400 bg-emerald-50"}`}>
-              <p className="font-bold text-sm flex items-center gap-2">
-                {temDivergencia
-                  ? <><AlertTriangle className="w-4 h-4 text-red-600" /><span className="text-red-700">⚠️ Divergência de Peso Detectada!</span></>
-                  : <><CheckCircle2 className="w-4 h-4 text-emerald-600" /><span className="text-emerald-700">✅ Pesagem Dentro da Tolerância</span></>
-                }
-              </p>
-              <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                <div className="bg-white rounded-lg p-2 border">
-                  <p className="text-muted-foreground">NF Total</p>
-                  <p className="font-bold text-base">{pesoNfComparar.toLocaleString("pt-BR")} kg</p>
-                </div>
-                <div className={`rounded-lg p-2 border ${temDivergencia ? "bg-red-100 border-red-300" : "bg-emerald-100 border-emerald-300"}`}>
-                  <p className="text-muted-foreground">Balança Física</p>
-                  <p className="font-bold text-base">{Number(header.peso_kg_balanca).toLocaleString("pt-BR")} kg</p>
-                  <p className={`text-[10px] font-bold ${temDivergencia ? "text-red-600" : "text-emerald-600"}`}>
-                    {divNfBal >= 0 ? "+" : ""}{divNfBal?.toFixed(1)}%
-                  </p>
-                </div>
-                {pesoTeoricoTotal > 0 && (
-                  <div className="bg-blue-50 rounded-lg p-2 border border-blue-200">
-                    <p className="text-muted-foreground">Teórico Somado</p>
-                    <p className="font-bold text-base">{pesoTeoricoTotal.toFixed(0)} kg</p>
-                  </div>
-                )}
+          {/* Comparativo de Pesos Balança vs NF */}
+          <div className={`rounded-xl border-2 p-4 space-y-2 ${temDivergencia ? "border-red-400 bg-red-50" : "border-emerald-400 bg-emerald-50"}`}>
+            <p className="font-bold text-sm flex items-center gap-2">
+              {temDivergencia
+                ? <><AlertTriangle className="w-4 h-4 text-red-600" /><span className="text-red-700">⚠️ Divergência Detectada entre Balança e Nota Fiscal!</span></>
+                : <><CheckCircle2 className="w-4 h-4 text-emerald-600" /><span className="text-emerald-700">✅ Pesagem na Balança Conferida com a NF</span></>
+              }
+            </p>
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="bg-white rounded-lg p-2 border">
+                <p className="text-muted-foreground">Soma NF</p>
+                <p className="font-bold text-base">{pesoNfComparar.toLocaleString("pt-BR")} kg</p>
               </div>
-              {temDivergencia && (
-                <p className="text-xs text-red-600 font-medium text-center">
-                  A diferença de {Math.abs(divNfBal).toFixed(1)}% supera o limite de {TOLERANCIA_DIVERGENCIA}%.
-                  O ADM será notificado para aprovação.
+              <div className={`rounded-lg p-2 border ${temDivergencia ? "bg-red-100 border-red-300" : "bg-emerald-100 border-emerald-300"}`}>
+                <p className="text-muted-foreground">Soma Balança</p>
+                <p className="font-bold text-base">{pesoBalancaComparar.toLocaleString("pt-BR")} kg</p>
+                <p className={`text-[10px] font-bold ${temDivergencia ? "text-red-600" : "text-emerald-600"}`}>
+                  {divNfBal >= 0 ? "+" : ""}{divNfBal?.toFixed(1)}%
                 </p>
+              </div>
+              {pesoTeoricoTotal > 0 && (
+                <div className="bg-blue-50 rounded-lg p-2 border border-blue-200">
+                  <p className="text-muted-foreground">Teórico Somado</p>
+                  <p className="font-bold text-base">{pesoTeoricoTotal.toFixed(0)} kg</p>
+                </div>
               )}
             </div>
-          )}
+          </div>
 
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setStep(1)} className="gap-1">
@@ -595,62 +710,92 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
         </div>
       )}
 
-      {/* ─── ETAPA 3: Descarga & Locais de Armazenagem ─── */}
+      {/* ─── ETAPA 3: Descarga & Armazenagem POR ITEM + Foto por Produto (FOTO 2 REQUIREMENT) ─── */}
       {step === 3 && (
-        <div className="space-y-4">
-          {/* Foto do material descarregado */}
-          <div className={`border-2 rounded-xl p-4 text-center ${header.foto_material_url ? "border-emerald-400 bg-emerald-50/40" : "border-dashed border-teal-400 bg-teal-50/40"}`}>
-            <Camera className={`w-8 h-8 mx-auto mb-2 ${header.foto_material_url ? "text-emerald-500" : "text-teal-500"}`} />
-            <p className="text-sm font-bold mb-1">
-              {header.foto_material_url ? "✅ Foto do Material Registrada" : "📸 Foto do Material Descarregado — OBRIGATÓRIA"}
+        <div className="space-y-5">
+          <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 text-xs text-teal-800 space-y-1">
+            <p className="font-bold text-sm flex items-center gap-1.5">
+              <Package className="w-4 h-4 text-teal-600" />
+              Fotos da Descarga e Locais de Armazenagem ({itens.length} itens)
             </p>
-            <p className="text-xs text-muted-foreground mb-3">Registre foto dos materiais organizados no barracão</p>
-            {uploadingMat ? (
-              <div className="flex items-center justify-center gap-2 text-teal-600 text-sm">
-                <Loader2 className="w-4 h-4 animate-spin" /> Enviando...
-              </div>
-            ) : (
-              <div className="flex gap-2 justify-center flex-wrap">
-                <Button type="button" variant="outline" size="sm" className="gap-1.5 border-teal-400 text-teal-700 hover:bg-teal-50"
-                  onClick={() => matCamRef.current?.click()}>
-                  <Camera className="w-4 h-4" /> Câmera
-                </Button>
-                <Button type="button" variant="outline" size="sm" className="gap-1.5 border-teal-400 text-teal-700 hover:bg-teal-50"
-                  onClick={() => matFileRef.current?.click()}>
-                  <Upload className="w-4 h-4" /> Galeria / PDF
-                </Button>
-                <input ref={matCamRef} type="file" accept="image/*" capture="environment" className="hidden"
-                  onChange={e => handleMaterialPhoto(e.target.files?.[0])} />
-                <input ref={matFileRef} type="file" accept="image/*,application/pdf,.pdf" className="hidden"
-                  onChange={e => handleMaterialPhoto(e.target.files?.[0])} />
-              </div>
-            )}
-            {header.foto_material_url && (
-              <img src={header.foto_material_url} alt="Material" className="mt-3 max-h-32 mx-auto rounded-lg object-cover border" />
-            )}
+            <p>Tire a foto de cada material descarregado no barracão e defina sua posição de armazenagem no mapa.</p>
           </div>
 
-          {/* Definir Local de Armazenagem para CADA item */}
-          <div className="space-y-3">
-            <h3 className="font-bold text-sm flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-teal-600" /> Locais de Armazenagem por Produto
-            </h3>
-            {itens.map((item, idx) => (
-              <div key={item.tempId} className="bg-card border rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                  <p className="font-bold text-xs text-teal-700">Item #{idx + 1}: {item.produto || "Sem nome"}</p>
-                  <p className="text-xs text-muted-foreground">{item.quantidade_barras} barras {item.espessura ? `(${item.espessura})` : ""}</p>
+          {/* Fotos e Posições de Armazenagem INDIVIDUAIS POR ITEM */}
+          <div className="space-y-4">
+            {itens.map((item, idx) => {
+              const matCamRef  = useRef();
+              const matFileRef = useRef();
+              const isUploading = uploadingItemKey === `${item.tempId}_foto_material_url`;
+
+              return (
+                <div key={item.tempId} className={`border-2 rounded-xl p-4 bg-card space-y-3 ${
+                  item.foto_material_url && item.local_armazenagem ? "border-emerald-400 bg-emerald-50/20" : "border-slate-300"
+                }`}>
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <div>
+                      <span className="font-bold text-sm text-teal-700">
+                        Item #{idx + 1}: {item.produto || "Produto"}
+                      </span>
+                      <p className="text-xs text-muted-foreground">
+                        {item.quantidade_barras} barras {item.espessura ? `(${item.espessura})` : ""} · {item.peso_kg_balanca} kg
+                      </p>
+                    </div>
+                    {item.foto_material_url && item.local_armazenagem ? (
+                      <Badge className="bg-emerald-600 text-white border-transparent">
+                        <CheckCircle2 className="w-3 h-3 mr-1" /> Pronto
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-slate-600">
+                        Pendente
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-teal-600" /> Local de Armazenagem *
+                      </Label>
+                      <Input
+                        value={item.local_armazenagem}
+                        onChange={e => updateItem(item.tempId, "local_armazenagem", e.target.value.toUpperCase())}
+                        placeholder="Ex: A1, B3, PATIO..."
+                        className="font-bold text-xs uppercase"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Foto do Material Descarregado *</Label>
+                      {isUploading ? (
+                        <div className="flex items-center gap-2 text-xs text-teal-600 py-1">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Enviando foto...
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Button type="button" variant="outline" size="sm" className="gap-1 text-xs border-teal-400 text-teal-700 flex-1"
+                            onClick={() => matCamRef.current?.click()}>
+                            <Camera className="w-3.5 h-3.5" /> Câmera
+                          </Button>
+                          <Button type="button" variant="outline" size="sm" className="gap-1 text-xs border-teal-400 text-teal-700 flex-1"
+                            onClick={() => matFileRef.current?.click()}>
+                            <Upload className="w-3.5 h-3.5" /> Galeria / PDF
+                          </Button>
+
+                          <input ref={matCamRef} type="file" accept="image/*" capture="environment" className="hidden"
+                            onChange={e => handleItemFileUpload(item.tempId, "foto_material_url", e.target.files?.[0])} />
+                          <input ref={matFileRef} type="file" accept="image/*,application/pdf,.pdf" className="hidden"
+                            onChange={e => handleItemFileUpload(item.tempId, "foto_material_url", e.target.files?.[0])} />
+                        </div>
+                      )}
+                      {item.foto_material_url && (
+                        <img src={item.foto_material_url} alt="Material Item" className="mt-2 max-h-20 rounded border object-cover" />
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="w-full sm:w-48">
-                  <Input
-                    value={item.local_armazenagem}
-                    onChange={e => updateItem(item.tempId, "local_armazenagem", e.target.value.toUpperCase())}
-                    placeholder="Ex: A1, B3, PATIO..."
-                    className="font-bold text-xs uppercase"
-                  />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="space-y-1">
@@ -664,14 +809,15 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
           </div>
 
           {/* Resumo Final */}
-          <div className="bg-muted/30 border rounded-xl p-4 space-y-2 text-sm">
+          <div className="bg-card border rounded-xl p-4 space-y-2 text-sm">
             <p className="font-bold text-xs uppercase text-muted-foreground mb-2">Resumo Geral da Entrada</p>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
               <span className="text-muted-foreground">NF:</span><span className="font-bold">{header.numero_nf}</span>
               <span className="text-muted-foreground">Fornecedor:</span><span className="font-bold truncate">{header.fornecedor}</span>
-              <span className="text-muted-foreground">Nº de Produtos:</span><span className="font-bold text-teal-700">{itens.length} produto(s)</span>
+              <span className="text-muted-foreground">Produtos:</span><span className="font-bold text-teal-700">{itens.length} item(is)</span>
               <span className="text-muted-foreground">Total Peças:</span><span className="font-bold">{somaQtdBarrasTotal} barras</span>
-              <span className="text-muted-foreground">Peso Balança:</span><span className="font-bold">{Number(header.peso_kg_balanca).toLocaleString("pt-BR")} kg</span>
+              <span className="text-muted-foreground">Soma Pesos NF:</span><span className="font-bold">{somaPesoNfItens.toLocaleString("pt-BR")} kg</span>
+              <span className="text-muted-foreground">Soma Pesos Balança:</span><span className="font-bold">{somaPesoBalancaItens.toLocaleString("pt-BR")} kg</span>
               <span className="text-muted-foreground">Divergência:</span>
               <span className={`font-bold ${temDivergencia ? "text-red-600" : "text-emerald-600"}`}>
                 {divNfBal !== null ? `${divNfBal.toFixed(1)}%` : "—"} {temDivergencia && " ⚠️"}
@@ -688,7 +834,7 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
               disabled={!canAdvance3 || saving}
               onClick={handleSave}
             >
-              {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Salvando {itens.length} item(is)...</> : `✅ Finalizar Entrada (${itens.length} produtos)`}
+              {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Salvando {itens.length} produto(s)...</> : `✅ Finalizar Entrada (${itens.length} produtos)`}
             </Button>
           </div>
         </div>
