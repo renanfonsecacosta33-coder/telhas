@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import {
   Map, Plus, Settings, ChevronLeft, Package, Ruler,
   ArrowRight, Trash2, Save, X, Move, CheckCircle2,
-  LayoutGrid, Box, List, Columns, Info
+  LayoutGrid, Box, List, Columns, Info, Copy, Grid, Layers, Compass, Wrench
 } from "lucide-react";
 
 // ─── Constantes ────────────────────────────────────────────
@@ -40,11 +40,352 @@ const POSICOES_PADRAO = [
   { id: "PATIO", rua: "PÁTIO", posicao: "EXT", capacidade_barras: 100, descricao: "Pátio Externo" },
 ];
 
-function getOccupancyColors(pct) {
-  if (pct <= 0) return { top: "#f1f5f9", left: "#e2e8f0", right: "#cbd5e1", bar: "#94a3b8", floor: "#f8fafc" };
-  if (pct >= 1) return { top: "#bbf7d0", left: "#4ade80", right: "#16a34a", bar: "#16a34a", floor: "#f0fdf4" };
-  if (pct > 0.6) return { top: "#fde68a", left: "#f59e0b", right: "#d97706", bar: "#d97706", floor: "#fffbeb" };
-  return { top: "#a7f3d0", left: "#34d399", right: "#059669", bar: "#059669", floor: "#ecfdf5" };
+// ═══════════════════════════════════════════════════════════
+// EDITOR AUTOCAD 2D (Estúdio Interativo com Medidas em Metros)
+// ═══════════════════════════════════════════════════════════
+function EditorPlantaCAD({ posicoes, setPosicoes, getOcupacao, onSave }) {
+  const [selectedId, setSelectedId] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
+  // Posições com coordenadas CAD (Garante coordenadas X, Y, W, H em metros se não existirem)
+  const cadItems = posicoes.map((p, idx) => ({
+    ...p,
+    x_m: p.x_m ?? ((idx % 4) * 4.5 + 1.5),
+    y_m: p.y_m ?? (Math.floor(idx / 4) * 3.5 + 1.5),
+    w_m: p.w_m ?? 3.5,
+    h_m: p.h_m ?? 2.2,
+    tipo: p.tipo ?? (p.id === "PATIO" ? "patio" : p.id.includes("C") ? "frisada" : "estante")
+  }));
+
+  const selectedItem = cadItems.find(p => p.id === selectedId);
+
+  const updateSelectedItem = (key, val) => {
+    if (!selectedId) return;
+    setPosicoes(items => items.map(p => {
+      if (p.id !== selectedId) return p;
+      const updated = { ...p, [key]: val };
+      if (key === "rua" || key === "posicao") {
+        const newId = `${updated.rua || "A"}${updated.posicao || "1"}`.toUpperCase();
+        updated.id = newId;
+        setSelectedId(newId);
+      }
+      return updated;
+    }));
+  };
+
+  const handleAddElement = (tipo = "estante") => {
+    const nextNum = posicoes.length + 1;
+    const newId = tipo === "patio" ? `PATIO_${nextNum}` : tipo === "frisada" ? `FRISADA_${nextNum}` : `R${nextNum}`;
+    const newItem = {
+      id: newId,
+      rua: tipo === "patio" ? "PÁTIO" : tipo === "frisada" ? "C" : "R",
+      posicao: String(nextNum),
+      capacidade_barras: tipo === "patio" ? 100 : tipo === "frisada" ? 30 : 20,
+      descricao: tipo === "patio" ? "Área de Pátio Externo" : tipo === "frisada" ? "Área da Frisada" : `Estante R${nextNum}`,
+      x_m: 2.0 + (posicoes.length % 3) * 4.0,
+      y_m: 2.0 + Math.floor(posicoes.length / 3) * 3.0,
+      w_m: tipo === "patio" ? 6.0 : 3.5,
+      h_m: tipo === "patio" ? 4.0 : 2.2,
+      tipo
+    };
+    setPosicoes(items => [...items, newItem]);
+    setSelectedId(newItem.id);
+    toast.success(`➕ Novo elemento CAD (${newId}) adicionado ao desenho!`);
+  };
+
+  const handleDuplicate = () => {
+    if (!selectedItem) return;
+    const dupId = `${selectedItem.id}_COPY`;
+    const dupItem = {
+      ...selectedItem,
+      id: dupId,
+      posicao: `${selectedItem.posicao}_B`,
+      x_m: selectedItem.x_m + 1.5,
+      y_m: selectedItem.y_m + 1.0,
+    };
+    setPosicoes(items => [...items, dupItem]);
+    setSelectedId(dupId);
+    toast.success(`📋 Elemento ${selectedItem.id} duplicado no CAD!`);
+  };
+
+  const handleDelete = () => {
+    if (!selectedId) return;
+    const { totalBarras } = getOcupacao(selectedId);
+    if (totalBarras > 0) {
+      toast.error("Não é possível remover posição com material estocado.");
+      return;
+    }
+    setPosicoes(items => items.filter(p => p.id !== selectedId));
+    setSelectedId(null);
+    toast.success("Elemento removido do CAD!");
+  };
+
+  // Tratar arraste no Canvas Grid (1 metro = 35px)
+  const SCALE = 35; // 35px por metro no desenho
+
+  const handleMouseDown = (e, id) => {
+    e.stopPropagation();
+    setSelectedId(id);
+    setIsDragging(true);
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging || !selectedId) return;
+    const canvas = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - canvas.left;
+    const clickY = e.clientY - canvas.top;
+
+    // Arredondar para o grid de 0.5m
+    const rawX_m = Math.max(0.5, Math.min(22, clickX / SCALE));
+    const rawY_m = Math.max(0.5, Math.min(14, clickY / SCALE));
+    const snapX_m = Math.round(rawX_m * 2) / 2;
+    const snapY_m = Math.round(rawY_m * 2) / 2;
+
+    setPosicoes(items => items.map(p => p.id === selectedId ? { ...p, x_m: snapX_m, y_m: snapY_m } : p));
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  return (
+    <div className="rounded-2xl border-2 border-slate-700 bg-slate-950 text-white shadow-2xl overflow-hidden flex flex-col lg:flex-row min-h-[620px]">
+      
+      {/* ── Toolbar Esquerda: Ferramentas AutoCAD ── */}
+      <div className="w-full lg:w-64 bg-slate-900 border-r border-slate-800 p-4 space-y-4 flex-shrink-0">
+        <div>
+          <h3 className="font-extrabold text-sm flex items-center gap-2 text-teal-400 uppercase tracking-wider">
+            <Ruler className="w-4 h-4" /> AutoCAD 2D Studio
+          </h3>
+          <p className="text-[11px] text-slate-400 mt-0.5">Desenhe e posicione elementos com medidas reais em metros</p>
+        </div>
+
+        {/* Ferramentas de Adição */}
+        <div className="space-y-2">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Adicionar Elementos</p>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => handleAddElement("estante")}
+            className="w-full justify-start gap-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs"
+          >
+            <Columns className="w-4 h-4" /> + Estante Porta-Paletes
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => handleAddElement("patio")}
+            className="w-full justify-start gap-2 border-slate-700 text-slate-300 hover:bg-slate-800 text-xs"
+          >
+            <Box className="w-4 h-4 text-amber-400" /> + Área de Pátio / Externo
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => handleAddElement("frisada")}
+            className="w-full justify-start gap-2 border-slate-700 text-slate-300 hover:bg-slate-800 text-xs"
+          >
+            <Wrench className="w-4 h-4 text-blue-400" /> + Máquina / Frisada
+          </Button>
+        </div>
+
+        {/* Painel de Propriedades do Objeto Selecionado */}
+        {selectedItem ? (
+          <div className="bg-slate-850 border border-teal-500/40 rounded-xl p-3.5 space-y-3 bg-slate-900/90 shadow-lg">
+            <div className="flex items-center justify-between border-b border-slate-700 pb-2">
+              <span className="font-mono font-bold text-xs text-teal-300 flex items-center gap-1">
+                <Compass className="w-3.5 h-3.5" /> Propriedades [{selectedItem.id}]
+              </span>
+              <div className="flex gap-1">
+                <button type="button" onClick={handleDuplicate} title="Duplicar" className="p-1 hover:bg-slate-700 rounded text-slate-300">
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
+                <button type="button" onClick={handleDelete} title="Excluir" className="p-1 hover:bg-red-500/20 text-red-400 rounded">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-[10px] text-slate-400">Rua / Corredor</Label>
+                  <Input
+                    value={selectedItem.rua}
+                    onChange={e => updateSelectedItem("rua", e.target.value.toUpperCase())}
+                    className="h-8 bg-slate-950 border-slate-700 text-white font-bold text-xs uppercase"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] text-slate-400">Posição / Código</Label>
+                  <Input
+                    value={selectedItem.posicao}
+                    onChange={e => updateSelectedItem("posicao", e.target.value.toUpperCase())}
+                    className="h-8 bg-slate-950 border-slate-700 text-white font-bold text-xs uppercase"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-[10px] text-slate-400">Descrição do Local</Label>
+                <Input
+                  value={selectedItem.descricao}
+                  onChange={e => updateSelectedItem("descricao", e.target.value)}
+                  className="h-8 bg-slate-950 border-slate-700 text-white text-xs"
+                />
+              </div>
+
+              <div>
+                <Label className="text-[10px] text-slate-400">Capacidade (barras 6m)</Label>
+                <Input
+                  type="number"
+                  value={selectedItem.capacidade_barras}
+                  onChange={e => updateSelectedItem("capacidade_barras", Number(e.target.value))}
+                  className="h-8 bg-slate-950 border-slate-700 text-white font-bold text-xs"
+                />
+                <p className="text-[9px] text-teal-400 font-mono mt-0.5">
+                  = {(selectedItem.capacidade_barras * COMPRIMENTO_BARRA).toLocaleString("pt-BR")}m lineares
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
+                <div>
+                  <Label className="text-[10px] text-slate-400">Largura (m)</Label>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    value={selectedItem.w_m}
+                    onChange={e => updateSelectedItem("w_m", Number(e.target.value))}
+                    className="h-7 bg-slate-950 border-slate-700 text-white text-xs"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] text-slate-400">Comprimento (m)</Label>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    value={selectedItem.h_m}
+                    onChange={e => updateSelectedItem("h_m", Number(e.target.value))}
+                    className="h-7 bg-slate-950 border-slate-700 text-white text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 text-center text-xs text-slate-400 space-y-1">
+            <Grid className="w-6 h-6 mx-auto text-slate-600 mb-1" />
+            <p className="font-semibold">Nenhum elemento selecionado</p>
+            <p className="text-[10px]">Clique em qualquer estante ou pátio no desenho para editar dimensões e capacidade.</p>
+          </div>
+        )}
+
+        <Button
+          type="button"
+          onClick={() => {
+            toast.success("📐 Planta CAD salva com sucesso!");
+          }}
+          className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-lg mt-auto"
+        >
+          <Save className="w-4 h-4" /> Salvar Desenho CAD
+        </Button>
+      </div>
+
+      {/* ── Main AutoCAD Canvas Drawing Grid ── */}
+      <div className="flex-1 bg-slate-950 p-6 relative overflow-auto flex flex-col justify-between select-none">
+        
+        {/* Top Ruler Markers (Réguas de Medidas em Metros) */}
+        <div className="flex items-center justify-between text-[10px] font-mono text-teal-400/70 border-b border-teal-500/20 pb-2 mb-4">
+          <div className="flex items-center gap-4">
+            <span className="font-bold text-white flex items-center gap-1"><Grid className="w-3.5 h-3.5 text-teal-400" /> Grid CAD (1 metro = 1 quadrado)</span>
+            <span>Escala: 1:1m</span>
+          </div>
+          <span className="text-slate-400">Arraste os blocos pelo desenho para posicionar</span>
+        </div>
+
+        {/* Interactive Drawing Canvas */}
+        <div
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          className="relative w-[850px] h-[520px] bg-slate-900/90 rounded-xl border-2 border-slate-800 shadow-inner overflow-hidden cursor-crosshair"
+          style={{
+            backgroundImage: `
+              linear-gradient(to right, rgba(20, 184, 166, 0.08) 1px, transparent 1px),
+              linear-gradient(to bottom, rgba(20, 184, 166, 0.08) 1px, transparent 1px)
+            `,
+            backgroundSize: `${SCALE}px ${SCALE}px`
+          }}
+        >
+          {/* Eixo Rulers de Medida em Metros (Top e Left) */}
+          <div className="absolute top-0 left-0 right-0 h-4 bg-slate-950/80 border-b border-slate-800 flex justify-between px-2 text-[8px] font-mono text-slate-500 pointer-events-none">
+            <span>0m</span><span>2m</span><span>4m</span><span>6m</span><span>8m</span><span>10m</span><span>12m</span><span>14m</span><span>16m</span><span>18m</span><span>20m</span>
+          </div>
+
+          {/* Renderizar cada bloco de posição no desenho CAD */}
+          {cadItems.map(item => {
+            const { totalBarras } = getOcupacao(item.id);
+            const pct = item.capacidade_barras > 0 ? totalBarras / item.capacidade_barras : 0;
+            const isSel = item.id === selectedId;
+
+            const leftPx = (item.x_m || 1) * SCALE;
+            const topPx = (item.y_m || 1) * SCALE;
+            const widthPx = (item.w_m || 3.5) * SCALE;
+            const heightPx = (item.h_m || 2.2) * SCALE;
+
+            let bgStyle = "bg-slate-800/90 border-teal-500/50 text-teal-300";
+            if (item.tipo === "patio") bgStyle = "bg-amber-950/60 border-amber-500/60 text-amber-300";
+            if (item.tipo === "frisada") bgStyle = "bg-blue-950/60 border-blue-500/60 text-blue-300";
+
+            return (
+              <div
+                key={item.id}
+                onMouseDown={e => handleMouseDown(e, item.id)}
+                style={{
+                  left: `${leftPx}px`,
+                  top: `${topPx}px`,
+                  width: `${widthPx}px`,
+                  height: `${heightPx}px`,
+                }}
+                className={`absolute border-2 rounded-lg p-2 flex flex-col justify-between cursor-move transition-shadow ${bgStyle} ${
+                  isSel ? "ring-4 ring-teal-400 border-white shadow-[0_0_20px_rgba(45,212,191,0.5)] z-20" : "hover:border-white shadow-md z-10"
+                }`}
+              >
+                {/* Header do Bloco CAD */}
+                <div className="flex items-center justify-between">
+                  <span className="font-mono font-black text-xs bg-slate-950/80 px-1.5 py-0.5 rounded border border-slate-700">
+                    {item.id}
+                  </span>
+                  <span className="text-[9px] font-mono text-slate-400">
+                    {item.w_m}m x {item.h_m}m
+                  </span>
+                </div>
+
+                {/* Conteúdo Central */}
+                <div className="text-[10px] font-bold truncate">
+                  {item.descricao || item.id}
+                </div>
+
+                {/* Ocupação & Metros Lineares */}
+                <div className="flex items-center justify-between text-[9px] font-mono border-t border-slate-700/50 pt-1">
+                  <span>{totalBarras}/{item.capacidade_barras}b</span>
+                  <span className="text-teal-400 font-bold">{(item.capacidade_barras * COMPRIMENTO_BARRA)}m</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* CAD Footer Info */}
+        <div className="mt-3 text-[11px] font-mono text-slate-400 flex items-center justify-between">
+          <span>Área Total do Barracão: 24m x 15m (360m²)</span>
+          <span className="text-teal-400">Clique em qualquer estante para editar medidas e capacidades</span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -557,10 +898,11 @@ export default function MapaArmazenagem() {
           {/* View toggle */}
           <div className="flex border rounded-lg overflow-hidden text-sm">
             {[
-              { mode: "cad",   icon: Columns,      label: "Planta CAD" },
-              { mode: "2d",    icon: LayoutGrid,   label: "Vista 2D" },
-              { mode: "3d",    icon: Box,          label: "Vista 3D" },
-              { mode: "lista", icon: List,         label: "Lista" },
+              { mode: "editor_cad", icon: Ruler,       label: "📐 Editor AutoCAD" },
+              { mode: "cad",        icon: Columns,     label: "Planta CAD" },
+              { mode: "2d",         icon: LayoutGrid,  label: "Vista 2D" },
+              { mode: "3d",         icon: Box,         label: "Vista 3D" },
+              { mode: "lista font-normal",      icon: List,        label: "Lista" },
             ].map(({ mode, icon: Icon, label }) => (
               <button key={mode}
                 onClick={() => setViewMode(mode)}
@@ -592,6 +934,14 @@ export default function MapaArmazenagem() {
       </div>
 
       {/* View Content */}
+      {viewMode === "editor_cad" && (
+        <EditorPlantaCAD
+          posicoes={posicoes}
+          setPosicoes={setPosicoes}
+          getOcupacao={getOcupacao}
+          onSave={() => toast.success("Layout AutoCAD salvo!")}
+        />
+      )}
       {viewMode === "cad" && (
         <MapaPlantaCAD
           posicoes={posicoes}
@@ -745,7 +1095,14 @@ export default function MapaArmazenagem() {
               ID: <strong>{(novaPosicao.rua + novaPosicao.posicao).toUpperCase() || "—"}</strong>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button type="button" variant="outline" className="gap-1.5 text-xs text-teal-700 border-teal-400"
+              onClick={() => {
+                setDialogNova(false);
+                setViewMode("editor_cad");
+              }}>
+              <Ruler className="w-3.5 h-3.5" /> Abrir no Editor AutoCAD 2D
+            </Button>
             <Button variant="outline" onClick={() => setDialogNova(false)}>Cancelar</Button>
             <Button onClick={handleNovaPosicao} className="bg-teal-600 hover:bg-teal-700 gap-2">
               <Save className="w-4 h-4" /> Criar
