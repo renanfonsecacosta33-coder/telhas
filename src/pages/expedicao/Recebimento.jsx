@@ -414,6 +414,10 @@ export default function RecebimentoExpedicao() {
                   onClick={() => setScannerModalOpen(true)}>
                   <Scan className="w-4 h-4" /> Scanner IA (Câmera ao Vivo) <Sparkles className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
                 </Button>
+                <Button type="button" variant="outline" className="gap-1.5 border-teal-500 text-teal-700 hover:bg-teal-50 font-bold"
+                  onClick={() => nfCamRef.current?.click()}>
+                  <Camera className="w-4 h-4 text-teal-600" /> Câmera HD Nativa (4K)
+                </Button>
                 <Button type="button" variant="outline" size="sm" className="gap-1.5 border-teal-400 text-teal-700 hover:bg-teal-50"
                   onClick={() => nfFileRef.current?.click()}>
                   <Upload className="w-4 h-4" /> Arquivo / PDF
