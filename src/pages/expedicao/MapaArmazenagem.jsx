@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import {
   Map, Plus, Settings, ChevronLeft, Package, Ruler,
   ArrowRight, Trash2, Save, X, Move, CheckCircle2,
-  LayoutGrid, Box, List
+  LayoutGrid, Box, List, Columns, Info
 } from "lucide-react";
 
 // ─── Constantes ────────────────────────────────────────────
@@ -33,15 +33,213 @@ const POSICOES_PADRAO = [
   { id: "B4", rua: "B", posicao: "4", capacidade_barras: 15, descricao: "Rua B — Posição 4" },
   { id: "C1", rua: "C", posicao: "1", capacidade_barras: 30, descricao: "Rua C — Frisada/Bobinas" },
   { id: "C2", rua: "C", posicao: "2", capacidade_barras: 30, descricao: "Rua C — Posição 2" },
+  { id: "D1", rua: "D", posicao: "1", capacidade_barras: 25, descricao: "Rua D — Posição 1" },
+  { id: "D2", rua: "D", posicao: "2", capacidade_barras: 25, descricao: "Rua D — Posição 2" },
+  { id: "E1", rua: "E", posicao: "1", capacidade_barras: 20, descricao: "Rua E — Posição 1" },
+  { id: "E2", rua: "E", posicao: "2", capacidade_barras: 20, descricao: "Rua E — Posição 2" },
   { id: "PATIO", rua: "PÁTIO", posicao: "EXT", capacidade_barras: 100, descricao: "Pátio Externo" },
 ];
 
-// ─── Helpers ──────────────────────────────────────────────
 function getOccupancyColors(pct) {
   if (pct <= 0) return { top: "#f1f5f9", left: "#e2e8f0", right: "#cbd5e1", bar: "#94a3b8", floor: "#f8fafc" };
   if (pct >= 1) return { top: "#bbf7d0", left: "#4ade80", right: "#16a34a", bar: "#16a34a", floor: "#f0fdf4" };
   if (pct > 0.6) return { top: "#fde68a", left: "#f59e0b", right: "#d97706", bar: "#d97706", floor: "#fffbeb" };
   return { top: "#a7f3d0", left: "#34d399", right: "#059669", bar: "#059669", floor: "#ecfdf5" };
+}
+
+// ═══════════════════════════════════════════════════════════
+// PLANTA INDUSTRIAL CAD (Estilo Porta-Paletes Vertical com Abas)
+// ═══════════════════════════════════════════════════════════
+function MapaPlantaCAD({ posicoes, getOcupacao, posicaoSel, onSelect }) {
+  const [activeTab, setActiveTab] = useState("indice"); // "indice" | "nomenclatura" | ruaId
+
+  // Agrupar posições por pares de estantes duplas (ex: A | B, C | D, E | F...)
+  const todasRuas = [...new Set(posicoes.map(p => p.rua))];
+
+  // Criar pares de estantes verticais
+  const paresEstantes = [];
+  for (let i = 0; i < todasRuas.length; i += 2) {
+    if (i + 1 < todasRuas.length) {
+      paresEstantes.push({ label: `${todasRuas[i]} ${todasRuas[i+1]}`, ruas: [todasRuas[i], todasRuas[i+1]] });
+    } else {
+      paresEstantes.push({ label: todasRuas[i], ruas: [todasRuas[i]] });
+    }
+  }
+
+  // Filtrar posições conforme a aba selecionada
+  const posicoesExibidas = activeTab === "indice" || activeTab === "nomenclatura"
+    ? posicoes
+    : posicoes.filter(p => p.rua === activeTab);
+
+  return (
+    <div className="rounded-2xl border-2 border-slate-700 bg-white dark:bg-slate-950 shadow-2xl overflow-hidden">
+      {/* Top Banner CAD Header */}
+      <div className="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between border-b border-slate-800">
+        <div className="flex items-center gap-2">
+          <Columns className="w-5 h-5 text-teal-400" />
+          <span className="font-bold text-sm tracking-wider uppercase">Planta de Porta-Paletes — Barracão de Armazenagem</span>
+        </div>
+        <div className="flex items-center gap-3 text-xs">
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-600 inline-block" /> Livre</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-500 inline-block" /> Parcial</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-600 inline-block" /> Lotado</span>
+        </div>
+      </div>
+
+      {/* Main CAD Canvas Area */}
+      <div className="p-6 bg-slate-50 dark:bg-slate-900 overflow-x-auto min-h-[480px]">
+        {activeTab === "nomenclatura" ? (
+          /* Aba Nomenclatura / Regras de Endereçamento */
+          <div className="max-w-2xl mx-auto space-y-4 py-4 text-slate-800 dark:text-slate-200">
+            <h3 className="font-bold text-lg text-teal-600 flex items-center gap-2">
+              <Info className="w-5 h-5" /> Nomenclatura de Endereçamento da Expedição
+            </h3>
+            <div className="bg-card border p-4 rounded-xl space-y-2 text-sm">
+              <p>O barracão é organizado em <strong>Estantes Duplas Verticais (Racks)</strong> identificadas por letras (Rua A, B, C...):</p>
+              <ul className="list-disc pl-5 space-y-1 text-xs text-muted-foreground">
+                <li><strong>Letra da Rua:</strong> Identifica o corredor/estante (ex: A, B, C, D).</li>
+                <li><strong>Número da Posição:</strong> Identifica o módulo da estante (ex: 1, 2, 3...).</li>
+                <li><strong>ID Completo:</strong> Combina Rua + Posição (ex: <code>A1</code> = Rua A, Posição 1).</li>
+                <li><strong>Barras Padrão:</strong> Capacidade calculada para barras de 6 metros.</li>
+              </ul>
+            </div>
+          </div>
+        ) : (
+          /* Vista Principal da Planta — Estantes Verticais Duplas */
+          <div className="flex gap-8 justify-start sm:justify-center items-start min-w-max pb-4">
+            {paresEstantes.map((par, pIdx) => {
+              // Verifica se deve exibir esse par (se a aba for a rua ou índice geral)
+              const estaVisivel = activeTab === "indice" || par.ruas.includes(activeTab);
+              if (!estaVisivel) return null;
+
+              return (
+                <div key={pIdx} className="flex flex-col items-center group">
+                  {/* Top Badge com o Nome das Ruas em Par (ex: I J, K L, M N...) */}
+                  <div className="bg-slate-900 border-2 border-slate-700 text-white font-extrabold text-base px-5 py-1.5 rounded-lg shadow-md mb-3 tracking-widest flex items-center gap-2">
+                    {par.label}
+                  </div>
+
+                  {/* Conjunto da Estante Dupla Vertical */}
+                  <div className="flex gap-1.5 p-2 bg-slate-200 dark:bg-slate-800/80 rounded-xl border-2 border-slate-400 dark:border-slate-700 shadow-inner">
+                    {par.ruas.map((ruaId) => {
+                      const posicoesRua = posicoes.filter(p => p.rua === ruaId);
+
+                      return (
+                        <div key={ruaId} className="flex flex-col gap-2 w-28">
+                          <div className="text-[11px] font-bold text-center text-slate-700 dark:text-slate-300 border-b border-slate-400 pb-1">
+                            RUA {ruaId}
+                          </div>
+
+                          {posicoesRua.length === 0 ? (
+                            <div className="text-[10px] text-muted-foreground text-center py-6">Vazio</div>
+                          ) : (
+                            posicoesRua.map(pos => {
+                              const { totalBarras, totalKg } = getOcupacao(pos.id);
+                              const pct = Math.min(1, (totalBarras || 0) / pos.capacidade_barras);
+                              const isSelected = posicaoSel?.id === pos.id;
+
+                              // Estilo das células conforme ocupação (Vermelho/Amarelo/Azul/Livre estilo CAD)
+                              let borderClass = "border-blue-600 bg-blue-50 text-blue-900";
+                              let barClass    = "bg-blue-500";
+                              let badgeColor  = "bg-blue-600 text-white";
+
+                              if (pct >= 0.9) {
+                                borderClass = "border-red-600 bg-red-50 text-red-900";
+                                barClass    = "bg-red-600";
+                                badgeColor  = "bg-red-600 text-white";
+                              } else if (pct > 0.3) {
+                                borderClass = "border-amber-500 bg-amber-50 text-amber-900";
+                                barClass    = "bg-amber-500";
+                                badgeColor  = "bg-amber-600 text-white";
+                              }
+
+                              return (
+                                <button
+                                  key={pos.id}
+                                  onClick={() => onSelect(pos)}
+                                  className={`relative border-2 rounded-lg p-2.5 text-left transition-all hover:scale-105 hover:z-10 shadow-sm ${borderClass} ${
+                                    isSelected ? "ring-4 ring-teal-500 border-teal-600 shadow-lg scale-105" : ""
+                                  }`}
+                                >
+                                  {/* ID Badge do Slot */}
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className={`font-mono font-extrabold text-xs px-1.5 py-0.5 rounded ${badgeColor}`}>
+                                      {pos.id}
+                                    </span>
+                                    <span className="text-[9px] font-bold text-slate-500">
+                                      {pos.capacidade_barras}b
+                                    </span>
+                                  </div>
+
+                                  {/* Indicador Numérico de Ocupação */}
+                                  <div className="text-[11px] font-bold mt-1">
+                                    {totalBarras} barras
+                                  </div>
+                                  <div className="text-[9px] opacity-75 truncate">
+                                    {(totalBarras * COMPRIMENTO_BARRA)}m lineares
+                                  </div>
+
+                                  {/* Progress bar visual do nicho */}
+                                  <div className="w-full bg-slate-300 dark:bg-slate-700 rounded-full h-1.5 mt-1.5 overflow-hidden">
+                                    <div className={`h-full ${barClass}`} style={{ width: `${pct * 100}%` }} />
+                                  </div>
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* CAD Bottom Navigation Tabs (Estilo Planilha/CAD com Abas no Rodapé) */}
+      <div className="bg-slate-200 dark:bg-slate-900 border-t-2 border-slate-700 px-3 py-1.5 flex items-center gap-1 overflow-x-auto">
+        <button
+          onClick={() => setActiveTab("indice")}
+          className={`px-3 py-1.5 rounded-t-md text-xs font-bold transition-all ${
+            activeTab === "indice"
+              ? "bg-white dark:bg-slate-950 text-teal-600 border-t-2 border-x-2 border-teal-500 shadow-md"
+              : "bg-slate-300 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-400"
+          }`}
+        >
+          📋 ÍNDICE GERAL
+        </button>
+
+        <button
+          onClick={() => setActiveTab("nomenclatura")}
+          className={`px-3 py-1.5 rounded-t-md text-xs font-bold transition-all ${
+            activeTab === "nomenclatura"
+              ? "bg-white dark:bg-slate-950 text-teal-600 border-t-2 border-x-2 border-teal-500 shadow-md"
+              : "bg-slate-300 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-400"
+          }`}
+        >
+          📘 NOMENCLATURA
+        </button>
+
+        <div className="h-4 w-px bg-slate-400 mx-1" />
+
+        {todasRuas.map(ruaId => (
+          <button
+            key={ruaId}
+            onClick={() => setActiveTab(ruaId)}
+            className={`px-3 py-1.5 rounded-t-md text-xs font-bold transition-all ${
+              activeTab === ruaId
+                ? "bg-white dark:bg-slate-950 text-teal-600 border-t-2 border-x-2 border-teal-500 shadow-md"
+                : "bg-slate-300 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-400"
+            }`}
+          >
+            RUA {ruaId}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -73,7 +271,6 @@ function Mapa2D({ posicoes, getOcupacao, posicaoSel, onSelect }) {
           </filter>
         </defs>
 
-        {/* Warehouse outer wall */}
         <rect x={PAD_X / 2} y={PAD_Y / 2} width={svgW - PAD_X} height={svgH - PAD_Y}
           fill="white" stroke="#64748b" strokeWidth={2.5} rx={8} />
         <rect x={PAD_X / 2} y={PAD_Y / 2} width={svgW - PAD_X} height={20}
@@ -81,7 +278,6 @@ function Mapa2D({ posicoes, getOcupacao, posicaoSel, onSelect }) {
         <text x={svgW / 2} y={PAD_Y / 2 + 14} textAnchor="middle" fontSize={10}
           fontWeight="bold" fill="white" letterSpacing="2">BARRACÃO — EXPEDIÇÃO</text>
 
-        {/* Entrance arrow */}
         <text x={svgW / 2} y={svgH - 8} textAnchor="middle" fontSize={10} fill="#94a3b8"
           fontWeight="bold">↕ ENTRADA / SAÍDA</text>
 
@@ -91,13 +287,11 @@ function Mapa2D({ posicoes, getOcupacao, posicaoSel, onSelect }) {
 
           return (
             <g key={rua}>
-              {/* Aisle label on left */}
               <rect x={PAD_X / 2 + 4} y={rowY + CELL_H / 2 - 10} width={44} height={20}
                 fill="#0f172a" rx={4} />
               <text x={PAD_X / 2 + 26} y={rowY + CELL_H / 2 + 5} textAnchor="middle"
                 fontSize={9} fontWeight="bold" fill="white">Rua {rua}</text>
 
-              {/* Corridor band (between rows) */}
               {ruaIdx < ruas.length - 1 && (
                 <g>
                   <rect x={PAD_X / 2 + 4} y={rowY + CELL_H} width={svgW - PAD_X - 8} height={CORRIDOR}
@@ -109,7 +303,6 @@ function Mapa2D({ posicoes, getOcupacao, posicaoSel, onSelect }) {
                 </g>
               )}
 
-              {/* Position cells */}
               {ruaPosicoes.map((pos, colIdx) => {
                 const x = PAD_X + colIdx * (CELL_W + GAP_X);
                 const { totalBarras, totalKg } = getOcupacao(pos.id);
@@ -119,49 +312,27 @@ function Mapa2D({ posicoes, getOcupacao, posicaoSel, onSelect }) {
 
                 return (
                   <g key={pos.id} onClick={() => onSelect(pos)} style={{ cursor: "pointer" }}>
-                    {/* Cell shadow */}
                     <rect x={x + 3} y={rowY + 3} width={CELL_W} height={CELL_H}
                       fill="rgba(0,0,0,0.08)" rx={6} />
-
-                    {/* Cell background */}
                     <rect x={x} y={rowY} width={CELL_W} height={CELL_H}
                       fill={colors.floor}
                       stroke={isSelected ? "#0d9488" : "#e2e8f0"}
                       strokeWidth={isSelected ? 2.5 : 1.5} rx={6}
                       filter="url(#shadow)" />
-
-                    {/* Occupancy bar at bottom */}
                     <rect x={x + 6} y={rowY + CELL_H - 10} width={CELL_W - 12} height={6}
                       fill="#e2e8f0" rx={3} />
                     {pct > 0 && (
                       <rect x={x + 6} y={rowY + CELL_H - 10} width={(CELL_W - 12) * pct} height={6}
                         fill={colors.bar} rx={3} />
                     )}
-
-                    {/* Position ID */}
                     <text x={x + CELL_W / 2} y={rowY + 24} textAnchor="middle"
                       fontSize={16} fontWeight="bold" fill={isSelected ? "#0d9488" : "#1e293b"}>
                       {pos.id}
                     </text>
-
-                    {/* Barras count */}
                     <text x={x + CELL_W / 2} y={rowY + 41} textAnchor="middle"
                       fontSize={11} fill="#475569">
                       {totalBarras}/{pos.capacidade_barras} barras
                     </text>
-
-                    {/* Meters */}
-                    <text x={x + CELL_W / 2} y={rowY + 54} textAnchor="middle"
-                      fontSize={9} fill="#94a3b8">
-                      {(pos.capacidade_barras * COMPRIMENTO_BARRA).toLocaleString("pt-BR")}m lineares
-                    </text>
-
-                    {/* Selected highlight ring */}
-                    {isSelected && (
-                      <rect x={x} y={rowY} width={CELL_W} height={CELL_H}
-                        fill="rgba(13,148,136,0.06)"
-                        stroke="#0d9488" strokeWidth={2.5} rx={6} />
-                    )}
                   </g>
                 );
               })}
@@ -180,9 +351,9 @@ function Mapa3D({ posicoes, getOcupacao, posicaoSel, onSelect }) {
   const TILE_W = 90;
   const TILE_H = 45;
   const MAX_BOX_H = 70;
-  const FLOOR_H = 8; // floor slab thickness
-  const PADDING_COL = 1.2; // gap between cols
-  const PADDING_ROW = 1.3; // gap between rows (corridors)
+  const FLOOR_H = 8;
+  const PADDING_COL = 1.2;
+  const PADDING_ROW = 1.3;
 
   const ruas = [...new Set(posicoes.map(p => p.rua))];
 
@@ -203,14 +374,12 @@ function Mapa3D({ posicoes, getOcupacao, posicaoSel, onSelect }) {
     };
   }
 
-  // Painter's algorithm: draw back-to-front
   const sorted = [...posicoes].sort((a, b) => {
     const ga = getGridPos(a);
     const gb = getGridPos(b);
     return (gb.row + gb.col) - (ga.row + ga.col);
   });
 
-  // Compute SVG bounds
   const allPts = posicoes.flatMap(pos => {
     const { row, col } = getGridPos(pos);
     return [
@@ -220,9 +389,8 @@ function Mapa3D({ posicoes, getOcupacao, posicaoSel, onSelect }) {
       iso(col + 1, row + 1),
     ];
   });
-  const minX = Math.min(...allPts.map(p => p.x)) - 80;
   const maxX = Math.max(...allPts.map(p => p.x)) + 80;
-  const svgW = Math.max(700, maxX - minX + 160);
+  const svgW = Math.max(700, maxX + 160);
 
   return (
     <div className="overflow-auto rounded-2xl bg-gradient-to-b from-slate-800 to-slate-900 p-4 border border-slate-700 shadow-2xl">
@@ -230,14 +398,6 @@ function Mapa3D({ posicoes, getOcupacao, posicaoSel, onSelect }) {
         Vista 3D Isométrica — Barracão Expedição
       </div>
       <svg width={svgW} height={520} xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <radialGradient id="floorGrad" cx="50%" cy="50%">
-            <stop offset="0%" stopColor="#1e293b" />
-            <stop offset="100%" stopColor="#0f172a" />
-          </radialGradient>
-        </defs>
-
-        {/* Floor tiles for all positions */}
         {posicoes.map(pos => {
           const { row, col } = getGridPos(pos);
           const tl = iso(col, row);
@@ -252,214 +412,62 @@ function Mapa3D({ posicoes, getOcupacao, posicaoSel, onSelect }) {
           );
         })}
 
-        {/* Grid lines on floor */}
-        {posicoes.map(pos => {
-          const { row, col } = getGridPos(pos);
-          const tl = iso(col, row);
-          const tr = iso(col + 1, row);
-          const br = iso(col + 1, row + 1);
-          const bl = iso(col, row + 1);
-          // Center cross
-          const center = iso(col + 0.5, row + 0.5);
-          return (
-            <g key={`grid-${pos.id}`}>
-              <line x1={tl.x} y1={tl.y} x2={br.x} y2={br.y} stroke="#334155" strokeWidth={0.5} />
-              <line x1={tr.x} y1={tr.y} x2={bl.x} y2={bl.y} stroke="#334155" strokeWidth={0.5} />
-            </g>
-          );
-        })}
-
-        {/* Boxes — back to front (painter's algorithm) */}
         {sorted.map(pos => {
-          const { totalBarras, totalKg } = getOcupacao(pos.id);
+          const { totalBarras } = getOcupacao(pos.id);
           const pct = Math.min(1, (totalBarras || 0) / pos.capacidade_barras);
           const { row, col } = getGridPos(pos);
           const boxH = pct > 0 ? Math.max(12, pct * MAX_BOX_H) : 0;
           const isSelected = posicaoSel?.id === pos.id;
           const colors = getOccupancyColors(pct);
 
-          // Inset slightly so gaps show between boxes
           const inset = 0.06;
           const c0 = col + inset, c1 = col + 1 - inset;
           const r0 = row + inset, r1 = row + 1 - inset;
 
-          // Floor slab (always shown)
-          const ftl = iso(c0, r0, 0);
-          const ftr = iso(c1, r0, 0);
-          const fbr = iso(c1, r1, 0);
           const fbl = iso(c0, r1, 0);
-          const ftl_top = iso(c0, r0, FLOOR_H);
-          const ftr_top = iso(c1, r0, FLOOR_H);
+          const fbr = iso(c1, r1, 0);
           const fbr_top = iso(c1, r1, FLOOR_H);
           const fbl_top = iso(c0, r1, FLOOR_H);
+          const ftr = iso(c1, r0, 0);
+          const ftr_top = iso(c1, r0, FLOOR_H);
 
-          // Box vertices (on top of floor)
-          const btl = iso(c0, r0, FLOOR_H);
-          const btr = iso(c1, r0, FLOOR_H);
-          const bbr = iso(c1, r1, FLOOR_H);
           const bbl = iso(c0, r1, FLOOR_H);
+          const bbr = iso(c1, r1, FLOOR_H);
+          const btr = iso(c1, r0, FLOOR_H);
           const btl_top = iso(c0, r0, FLOOR_H + boxH);
           const btr_top = iso(c1, r0, FLOOR_H + boxH);
           const bbr_top = iso(c1, r1, FLOOR_H + boxH);
           const bbl_top = iso(c0, r1, FLOOR_H + boxH);
 
           const center = iso(col + 0.5, row + 0.5, FLOOR_H + boxH + 8);
-
-          // Selection glow color
           const selColor = isSelected ? "#0d9488" : null;
 
           return (
             <g key={pos.id} onClick={() => onSelect(pos)} style={{ cursor: "pointer" }}>
-              {/* Floor slab — front left face */}
-              <polygon
-                points={`${fbl.x},${fbl.y} ${fbr.x},${fbr.y} ${fbr_top.x},${fbr_top.y} ${fbl_top.x},${fbl_top.y}`}
+              <polygon points={`${fbl.x},${fbl.y} ${fbr.x},${fbr.y} ${fbr_top.x},${fbr_top.y} ${fbl_top.x},${fbl_top.y}`}
                 fill={isSelected ? "#134e4a" : "#1e3a4a"} stroke={selColor || "#0f2336"} strokeWidth={0.5} />
-              {/* Floor slab — right face */}
-              <polygon
-                points={`${ftr.x},${ftr.y} ${fbr.x},${fbr.y} ${fbr_top.x},${fbr_top.y} ${ftr_top.x},${ftr_top.y}`}
+              <polygon points={`${ftr.x},${ftr.y} ${fbr.x},${fbr.y} ${fbr_top.x},${fbr_top.y} ${ftr_top.x},${ftr_top.y}`}
                 fill={isSelected ? "#115e59" : "#152d3a"} stroke={selColor || "#0f2336"} strokeWidth={0.5} />
-              {/* Floor slab — top */}
-              <polygon
-                points={`${ftl_top.x},${ftl_top.y} ${ftr_top.x},${ftr_top.y} ${fbr_top.x},${fbr_top.y} ${fbl_top.x},${fbl_top.y}`}
-                fill={isSelected ? "#0d9488" : "#1e4a5a"} stroke={selColor || "#0f2336"} strokeWidth={0.5} />
 
-              {/* Box content (only if has items) */}
               {boxH > 0 && (
                 <>
-                  {/* Left face */}
-                  <polygon
-                    points={`${bbl.x},${bbl.y} ${bbr.x},${bbr.y} ${bbr_top.x},${bbr_top.y} ${bbl_top.x},${bbl_top.y}`}
-                    fill={isSelected ? "#0f766e" : colors.left}
-                    stroke={selColor || "rgba(0,0,0,0.2)"} strokeWidth={0.8} />
-                  {/* Right face */}
-                  <polygon
-                    points={`${btr.x},${btr.y} ${bbr.x},${bbr.y} ${bbr_top.x},${bbr_top.y} ${btr_top.x},${btr_top.y}`}
-                    fill={isSelected ? "#134e4a" : colors.right}
-                    stroke={selColor || "rgba(0,0,0,0.2)"} strokeWidth={0.8} />
-                  {/* Top face */}
-                  <polygon
-                    points={`${btl_top.x},${btl_top.y} ${btr_top.x},${btr_top.y} ${bbr_top.x},${bbr_top.y} ${bbl_top.x},${bbl_top.y}`}
-                    fill={isSelected ? "#2dd4bf" : colors.top}
-                    stroke={selColor || "rgba(0,0,0,0.1)"} strokeWidth={0.8} />
-
-                  {/* Pct fill bar on left face */}
-                  <polygon
-                    points={`${bbl.x},${bbl.y} ${bbr.x},${bbr.y} ${bbr.x},${bbr.y - 3} ${bbl.x},${bbl.y - 3}`}
-                    fill="rgba(255,255,255,0.15)" />
+                  <polygon points={`${bbl.x},${bbl.y} ${bbr.x},${bbr.y} ${bbr_top.x},${bbr_top.y} ${bbl_top.x},${bbl_top.y}`}
+                    fill={isSelected ? "#0f766e" : colors.left} stroke={selColor || "rgba(0,0,0,0.2)"} strokeWidth={0.8} />
+                  <polygon points={`${btr.x},${btr.y} ${bbr.x},${bbr.y} ${bbr_top.x},${bbr_top.y} ${btr_top.x},${btr_top.y}`}
+                    fill={isSelected ? "#134e4a" : colors.right} stroke={selColor || "rgba(0,0,0,0.2)"} strokeWidth={0.8} />
+                  <polygon points={`${btl_top.x},${btl_top.y} ${btr_top.x},${btr_top.y} ${bbr_top.x},${bbr_top.y} ${bbl_top.x},${bbl_top.y}`}
+                    fill={isSelected ? "#2dd4bf" : colors.top} stroke={selColor || "rgba(0,0,0,0.1)"} strokeWidth={0.8} />
                 </>
               )}
 
-              {/* Position ID label */}
-              <text x={center.x} y={center.y} textAnchor="middle"
-                fontSize={11} fontWeight="bold"
-                fill={isSelected ? "#99f6e4" : pct > 0 ? "#f8fafc" : "#64748b"}
-                style={{ pointerEvents: "none", textShadow: "0 1px 3px rgba(0,0,0,0.8)" }}>
+              <text x={center.x} y={center.y} textAnchor="middle" fontSize={11} fontWeight="bold"
+                fill={isSelected ? "#99f6e4" : pct > 0 ? "#f8fafc" : "#64748b"}>
                 {pos.id}
               </text>
-
-              {/* Quantity label below id */}
-              {totalBarras > 0 && (
-                <text x={center.x} y={center.y + 13} textAnchor="middle"
-                  fontSize={9} fill={isSelected ? "#5eead4" : "#94a3b8"}
-                  style={{ pointerEvents: "none" }}>
-                  {totalBarras}b
-                </text>
-              )}
-
-              {/* Selection ring on top face */}
-              {isSelected && boxH > 0 && (
-                <polygon
-                  points={`${btl_top.x},${btl_top.y} ${btr_top.x},${btr_top.y} ${bbr_top.x},${bbr_top.y} ${bbl_top.x},${bbl_top.y}`}
-                  fill="none" stroke="#2dd4bf" strokeWidth={2} />
-              )}
             </g>
           );
         })}
-
-        {/* Rua labels floating in the air */}
-        {ruas.map((rua, ruaIdx) => {
-          const ruaPosicoes = posicoes.filter(p => p.rua === rua);
-          const row = ruaIdx * PADDING_ROW;
-          const col = -0.5;
-          const pt = iso(col, row + 0.5, FLOOR_H + 20);
-          return (
-            <g key={`lbl-${rua}`}>
-              <rect x={pt.x - 22} y={pt.y - 10} width={44} height={16} fill="#0f172a" rx={4} opacity={0.85} />
-              <text x={pt.x} y={pt.y + 2} textAnchor="middle" fontSize={9}
-                fontWeight="bold" fill="#38bdf8">Rua {rua}</text>
-            </g>
-          );
-        })}
-
-        {/* Legend */}
-        {[
-          { color: "#f1f5f9", label: "Vazio" },
-          { color: "#a7f3d0", label: "Ocupado" },
-          { color: "#fde68a", label: "Quase cheio" },
-          { color: "#bbf7d0", label: "Cheio" },
-          { color: "#2dd4bf", label: "Selecionado" },
-        ].map(({ color, label }, i) => (
-          <g key={label}>
-            <rect x={12} y={12 + i * 20} width={14} height={14} fill={color} rx={3} />
-            <text x={32} y={23 + i * 20} fontSize={10} fill="#94a3b8">{label}</text>
-          </g>
-        ))}
       </svg>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════
-// LIST VIEW (existing cards view)
-// ═══════════════════════════════════════════════════════════
-function MapaLista({ posicoes, getOcupacao, posicaoSel, onSelect, modoAdmin, onRemover }) {
-  const ruas = [...new Set(posicoes.map(p => p.rua))];
-
-  return (
-    <div className="space-y-4">
-      {ruas.map(rua => {
-        const posicoesRua = posicoes.filter(p => p.rua === rua);
-        return (
-          <div key={rua} className="border rounded-xl overflow-hidden">
-            <div className="bg-slate-800 text-white px-4 py-2 flex items-center gap-2">
-              <Ruler className="w-4 h-4 text-teal-400" />
-              <span className="font-bold text-sm">Rua {rua}</span>
-              <span className="text-slate-400 text-xs ml-1">— {posicoesRua.length} posição(ões)</span>
-            </div>
-            <div className="p-3 flex gap-3 flex-wrap">
-              {posicoesRua.map(pos => {
-                const { totalBarras, totalKg } = getOcupacao(pos.id);
-                const pct = Math.min(1, (totalBarras || 0) / pos.capacidade_barras) * 100;
-                const estado = totalBarras === 0 ? "vazio" : totalBarras >= pos.capacidade_barras ? "cheio" : "parcial";
-                const colors = COR_OCUPACAO[estado];
-                return (
-                  <button
-                    key={pos.id}
-                    onClick={() => onSelect(pos)}
-                    className={`border-2 rounded-xl p-3 text-left transition-all hover:shadow-md min-w-36 ${colors} ${posicaoSel?.id === pos.id ? "ring-2 ring-teal-500" : ""}`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-bold text-sm">{pos.id}</span>
-                      {modoAdmin && (
-                        <button onClick={e => { e.stopPropagation(); onRemover(pos.id); }} className="text-red-400 hover:text-red-600 p-0.5">
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-muted-foreground mb-2 truncate">{pos.descricao}</p>
-                    <div className="w-full bg-white/50 rounded-full h-1.5 mb-1.5">
-                      <div className={`h-1.5 rounded-full ${pct > 80 ? "bg-red-500" : pct > 40 ? "bg-amber-500" : "bg-emerald-500"}`}
-                        style={{ width: `${pct}%` }} />
-                    </div>
-                    <div className="text-[10px] font-semibold">{totalBarras}/{pos.capacidade_barras} barras</div>
-                    {totalKg > 0 && <div className="text-[10px] text-muted-foreground">{totalKg.toLocaleString("pt-BR")} kg</div>}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }
@@ -471,7 +479,7 @@ export default function MapaArmazenagem() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [viewMode, setViewMode] = useState("3d"); // "lista" | "2d" | "3d"
+  const [viewMode, setViewMode] = useState("cad"); // "cad" | "2d" | "3d" | "lista"
   const [modoAdmin, setModoAdmin] = useState(false);
   const [posicoes, setPosicoes] = useState(POSICOES_PADRAO);
   const [posicaoSel, setPosicaoSel] = useState(null);
@@ -539,7 +547,7 @@ export default function MapaArmazenagem() {
             <ChevronLeft className="w-4 h-4" /> Voltar
           </button>
           <h1 className="text-xl font-bold flex items-center gap-2">
-            <Map className="w-6 h-6 text-teal-600" /> Mapa de Armazenagem
+            <Map className="w-6 h-6 text-teal-600" /> Mapa de Armazenagem (Porta-Paletes)
           </h1>
           <p className="text-sm text-muted-foreground">
             Barras padrão: {COMPRIMENTO_BARRA}m · Ocupação: {pctGeral}% ({totalBarras}/{totalCapacidade} barras)
@@ -549,9 +557,10 @@ export default function MapaArmazenagem() {
           {/* View toggle */}
           <div className="flex border rounded-lg overflow-hidden text-sm">
             {[
-              { mode: "lista", icon: List,        label: "Lista" },
-              { mode: "2d",   icon: LayoutGrid,   label: "2D" },
-              { mode: "3d",   icon: Box,          label: "3D" },
+              { mode: "cad",   icon: Columns,      label: "Planta CAD" },
+              { mode: "2d",    icon: LayoutGrid,   label: "Vista 2D" },
+              { mode: "3d",    icon: Box,          label: "Vista 3D" },
+              { mode: "lista", icon: List,         label: "Lista" },
             ].map(({ mode, icon: Icon, label }) => (
               <button key={mode}
                 onClick={() => setViewMode(mode)}
@@ -582,33 +591,13 @@ export default function MapaArmazenagem() {
         </div>
       </div>
 
-      {/* Legenda */}
-      <div className="flex gap-4 flex-wrap text-xs">
-        {[
-          { label: "Vazio",         bg: "bg-slate-100 border-slate-300" },
-          { label: "Ocupado",       bg: "bg-emerald-50 border-emerald-300" },
-          { label: "Quase cheio",   bg: "bg-amber-50 border-amber-300" },
-          { label: "Cheio",         bg: "bg-emerald-100 border-emerald-500" },
-        ].map(({ label, bg }) => (
-          <div key={label} className="flex items-center gap-1.5">
-            <div className={`w-3.5 h-3.5 rounded border ${bg}`} />
-            <span className="text-muted-foreground">{label}</span>
-          </div>
-        ))}
-        <span className="ml-auto text-muted-foreground text-[11px]">
-          Clique em uma posição para ver detalhes
-        </span>
-      </div>
-
-      {/* View content */}
-      {viewMode === "lista" && (
-        <MapaLista
+      {/* View Content */}
+      {viewMode === "cad" && (
+        <MapaPlantaCAD
           posicoes={posicoes}
           getOcupacao={getOcupacao}
           posicaoSel={posicaoSel}
           onSelect={setPosicaoSel}
-          modoAdmin={modoAdmin}
-          onRemover={handleRemoverPosicao}
         />
       )}
       {viewMode === "2d" && (
