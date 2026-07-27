@@ -129,27 +129,32 @@ export default function RecebimentoExpedicao() {
       setHead("foto_nf_url", file_url);
 
       try {
-        const result = await base44.integrations.Core.RunGeminiAI({
+        const json = await base44.integrations.Core.InvokeLLM({
           prompt: `Você é um leitor especialista em Notas Fiscais brasileiras (NF-e) de empresas de aço e metais. 
-Leia a imagem da Nota Fiscal e retorne SOMENTE um JSON válido com o cabeçalho e a LISTA DE PRODUTOS/ITENS presentes na nota:
-{
-  "numero_nf": "string (número da nota)",
-  "fornecedor": "string (razão social ou nome do fornecedor)",
-  "peso_total_nf_kg": 1500 (número do peso bruto ou peso líquido total em kg),
-  "itens": [
-    {
-      "descricao_produto": "Barra Chata 3/8",
-      "quantidade_itens": 50,
-      "peso_kg_item": 500,
-      "espessura": "3/8"
-    }
-  ]
-}
-Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens". Retorne apenas o JSON, sem markdown.`,
-          imageUrl: file_url,
+Analise a imagem da Nota Fiscal e retorne um JSON com o cabeçalho e a LISTA DE PRODUTOS/ITENS presentes na nota.
+Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens".`,
+          file_urls: [file_url],
+          response_json_schema: {
+            type: "object",
+            properties: {
+              numero_nf: { type: "string", description: "número da nota" },
+              fornecedor: { type: "string", description: "razão social ou nome do fornecedor" },
+              peso_total_nf_kg: { type: "number", description: "peso bruto ou peso líquido total em kg" },
+              itens: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    descricao_produto: { type: "string" },
+                    quantidade_itens: { type: "number" },
+                    peso_kg_item: { type: "number" },
+                    espessura: { type: "string" }
+                  }
+                }
+              }
+            }
+          },
         });
-
-        const json = JSON.parse(result.replace(/```json|```/g, "").trim());
 
         if (json.numero_nf) setHead("numero_nf", String(json.numero_nf));
         if (json.fornecedor) setHead("fornecedor", String(json.fornecedor));
@@ -333,15 +338,15 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens". Ret
             ) : (
               <div className="flex gap-2 justify-center flex-wrap">
                 <Button variant="outline" size="sm" className="gap-1.5 border-teal-400 text-teal-700"
-                  onClick={() => { nfPhotoRef.current.accept = "image/*"; nfPhotoRef.current.capture = "environment"; nfPhotoRef.current.click(); }}>
+                  onClick={() => { nfPhotoRef.current.setAttribute("accept", "image/*"); nfPhotoRef.current.setAttribute("capture", "environment"); nfPhotoRef.current.click(); }}>
                   <Camera className="w-4 h-4" /> Câmera
                 </Button>
                 <Button variant="outline" size="sm" className="gap-1.5 border-teal-400 text-teal-700"
-                  onClick={() => { nfPhotoRef.current.accept = "image/*"; nfPhotoRef.current.removeAttribute("capture"); nfPhotoRef.current.click(); }}>
+                  onClick={() => { nfPhotoRef.current.setAttribute("accept", "image/*"); nfPhotoRef.current.removeAttribute("capture"); nfPhotoRef.current.click(); }}>
                   <Upload className="w-4 h-4" /> Galeria
                 </Button>
-                <input ref={nfPhotoRef} type="file" accept="image/*" className="hidden"
-                  onChange={e => handleNfPhoto(e.target.files?.[0])} />
+                <input ref={nfPhotoRef} type="file" accept="image/*" className="sr-only"
+                  onChange={e => { handleNfPhoto(e.target.files?.[0]); e.target.value = ""; }} />
               </div>
             )}
             {header.foto_nf_url && (
@@ -503,15 +508,15 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens". Ret
             ) : (
               <div className="flex gap-2 justify-center flex-wrap">
                 <Button variant="outline" size="sm" className="gap-1.5 border-amber-400 text-amber-700"
-                  onClick={() => { balancaRef.current.capture = "environment"; balancaRef.current.click(); }}>
+                  onClick={() => { balancaRef.current.setAttribute("accept", "image/*"); balancaRef.current.setAttribute("capture", "environment"); balancaRef.current.click(); }}>
                   <Camera className="w-4 h-4" /> Câmera
                 </Button>
                 <Button variant="outline" size="sm" className="gap-1.5 border-amber-400 text-amber-700"
-                  onClick={() => { balancaRef.current.removeAttribute("capture"); balancaRef.current.click(); }}>
+                  onClick={() => { balancaRef.current.setAttribute("accept", "image/*"); balancaRef.current.removeAttribute("capture"); balancaRef.current.click(); }}>
                   <Upload className="w-4 h-4" /> Galeria
                 </Button>
-                <input ref={balancaRef} type="file" accept="image/*" className="hidden"
-                  onChange={e => handleBalancaPhoto(e.target.files?.[0])} />
+                <input ref={balancaRef} type="file" accept="image/*" className="sr-only"
+                  onChange={e => { handleBalancaPhoto(e.target.files?.[0]); e.target.value = ""; }} />
               </div>
             )}
             {header.foto_balanca_url && (
@@ -599,15 +604,15 @@ Se houver múltiplos produtos na nota fiscal, inclua TODOS na lista "itens". Ret
             ) : (
               <div className="flex gap-2 justify-center flex-wrap">
                 <Button variant="outline" size="sm" className="gap-1.5 border-teal-400 text-teal-700"
-                  onClick={() => { materialRef.current.capture = "environment"; materialRef.current.click(); }}>
+                  onClick={() => { materialRef.current.setAttribute("accept", "image/*"); materialRef.current.setAttribute("capture", "environment"); materialRef.current.click(); }}>
                   <Camera className="w-4 h-4" /> Câmera
                 </Button>
                 <Button variant="outline" size="sm" className="gap-1.5 border-teal-400 text-teal-700"
-                  onClick={() => { materialRef.current.removeAttribute("capture"); materialRef.current.click(); }}>
+                  onClick={() => { materialRef.current.setAttribute("accept", "image/*"); materialRef.current.removeAttribute("capture"); materialRef.current.click(); }}>
                   <Upload className="w-4 h-4" /> Galeria
                 </Button>
-                <input ref={materialRef} type="file" accept="image/*" className="hidden"
-                  onChange={e => handleMaterialPhoto(e.target.files?.[0])} />
+                <input ref={materialRef} type="file" accept="image/*" className="sr-only"
+                  onChange={e => { handleMaterialPhoto(e.target.files?.[0]); e.target.value = ""; }} />
               </div>
             )}
             {header.foto_material_url && (
