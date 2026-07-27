@@ -190,13 +190,10 @@ export default function SeletorSetor() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const selecionarSetor = async (setor) => {
+  const selecionarSetor = (setor) => {
     if (navegando) return;
     setNavegando(true);
-    try {
-      await base44.auth.updateMe({ setor });
-    } catch (e) {}
-    if (setor === "telhas")      navigate("/");
+    if (setor === "telhas")           navigate("/");
     else if (setor === "corte_dobra") navigate("/corte-dobra");
     else if (setor === "expedicao")   navigate("/expedicao");
     else navigate("/");
