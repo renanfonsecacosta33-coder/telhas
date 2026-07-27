@@ -45,6 +45,25 @@ const PESOS_POR_METRO = {
 const COMPRIMENTO_PADRAO_M = 6;
 const TOLERANCIA_DIVERGENCIA = 3; // 3%
 
+// ── Locais de Armazenagem Cadastrados no Sistema ───────────────────────────
+const LOCAIS_ARMAZENAGEM_CADASTRADOS = [
+  { id: "A1", label: "A1 — Rua A (Posição 1)" },
+  { id: "A2", label: "A2 — Rua A (Posição 2)" },
+  { id: "A3", label: "A3 — Rua A (Posição 3)" },
+  { id: "B1", label: "B1 — Rua B (Posição 1)" },
+  { id: "B2", label: "B2 — Rua B (Posição 2)" },
+  { id: "B3", label: "B3 — Rua B (Posição 3)" },
+  { id: "B4", label: "B4 — Rua B (Posição 4)" },
+  { id: "C1", label: "C1 — Rua C (Frisada / Bobinas)" },
+  { id: "C2", label: "C2 — Rua C (Posição 2)" },
+  { id: "D1", label: "D1 — Rua D (Posição 1)" },
+  { id: "D2", label: "D2 — Rua D (Posição 2)" },
+  { id: "E1", label: "E1 — Rua E (Posição 1)" },
+  { id: "E2", label: "E2 — Rua E (Posição 2)" },
+  { id: "PATIO", label: "PATIO — Pátio Externo" },
+  { id: "BOBINAS", label: "BOBINAS — Área de Bobinas" },
+];
+
 // ── Utilitário de preservação de nitidez em alta resolução ─────────────────────
 async function compressImage(file, maxDimension = 2048, quality = 0.90) {
   if (!file || !file.type.startsWith("image/")) return file;
@@ -925,39 +944,70 @@ function ItemDescargaCard({ item, idx, uploadingItemKey, updateItem, handleItemF
         </div>
         {item.foto_material_url && item.local_armazenagem ? (
           <Badge className="bg-emerald-600 text-white border-transparent">
-            <CheckCircle2 className="w-3 h-3 mr-1" /> Pronto
+            <CheckCircle2 className="w-3 h-3 mr-1" /> Foto Pintado Ok
           </Badge>
         ) : (
-          <Badge variant="outline" className="text-slate-600">
-            Pendente
+          <Badge variant="outline" className="text-amber-700 bg-amber-50 border-amber-300">
+            Aguardando Foto Pintado
           </Badge>
         )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+        {/* Local de Armazenagem Selecionável */}
         <div className="space-y-1">
           <Label className="text-xs font-semibold flex items-center gap-1">
-            <MapPin className="w-3.5 h-3.5 text-teal-600" /> Local de Armazenagem *
+            <MapPin className="w-3.5 h-3.5 text-teal-600" /> Local de Armazenagem Cadastrado *
           </Label>
-          <Input
-            value={item.local_armazenagem}
-            onChange={e => updateItem(item.tempId, "local_armazenagem", e.target.value.toUpperCase())}
-            placeholder="Ex: A1, B3, PATIO..."
-            className="font-bold text-xs uppercase"
-          />
+          <div className="space-y-1.5">
+            <Select 
+              value={LOCAIS_ARMAZENAGEM_CADASTRADOS.some(l => l.id === item.local_armazenagem) ? item.local_armazenagem : (item.local_armazenagem ? "outro" : "")} 
+              onValueChange={v => {
+                if (v !== "outro") updateItem(item.tempId, "local_armazenagem", v);
+              }}
+            >
+              <SelectTrigger className="h-9 text-xs font-bold uppercase">
+                <SelectValue placeholder="Selecione o Local Cadastrado..." />
+              </SelectTrigger>
+              <SelectContent>
+                {LOCAIS_ARMAZENAGEM_CADASTRADOS.map(loc => (
+                  <SelectItem key={loc.id} value={loc.id} className="text-xs font-semibold">
+                    📍 {loc.label}
+                  </SelectItem>
+                ))}
+                <SelectItem value="outro" className="text-xs italic text-muted-foreground">
+                  ✍️ Outra posição (digitar manualmente)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Input para digitação manual se preferir */}
+            <Input
+              value={item.local_armazenagem}
+              onChange={e => updateItem(item.tempId, "local_armazenagem", e.target.value.toUpperCase())}
+              placeholder="Digite o código da posição (ex: A1, B3, PATIO)..."
+              className="font-bold text-xs uppercase h-8"
+            />
+          </div>
         </div>
 
+        {/* Foto do Material Pintado / Identificado */}
         <div className="space-y-1">
-          <Label className="text-xs font-semibold">Foto do Material Descarregado *</Label>
+          <Label className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+            Foto do Material Pintado / Identificado *
+          </Label>
+          <p className="text-[11px] text-muted-foreground mb-1">
+            🎨 Tire a foto da ponta pintada / cor de identificação do material
+          </p>
           {isUploading ? (
             <div className="flex items-center gap-2 text-xs text-teal-600 py-1">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Enviando foto...
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Enviando foto do material pintado...
             </div>
           ) : (
             <div className="flex gap-2">
-              <Button type="button" variant="outline" size="sm" className="gap-1 text-xs border-teal-400 text-teal-700 flex-1"
+              <Button type="button" variant="outline" size="sm" className="gap-1 text-xs border-teal-500 text-teal-700 flex-1 font-semibold hover:bg-teal-50"
                 onClick={() => matCamRef.current?.click()}>
-                <Camera className="w-3.5 h-3.5" /> Câmera
+                <Camera className="w-3.5 h-3.5 text-teal-600" /> Câmera Pintado
               </Button>
               <Button type="button" variant="outline" size="sm" className="gap-1 text-xs border-teal-400 text-teal-700 flex-1"
                 onClick={() => matFileRef.current?.click()}>
@@ -971,7 +1021,12 @@ function ItemDescargaCard({ item, idx, uploadingItemKey, updateItem, handleItemF
             </div>
           )}
           {item.foto_material_url && (
-            <img src={item.foto_material_url} alt="Material Item" className="mt-2 max-h-20 rounded border object-cover" />
+            <div className="mt-2 flex items-center gap-2">
+              <img src={item.foto_material_url} alt="Material Pintado" className="max-h-20 rounded border-2 border-emerald-400 object-cover shadow-sm" />
+              <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Foto da ponta pintada enviada
+              </span>
+            </div>
           )}
         </div>
       </div>
