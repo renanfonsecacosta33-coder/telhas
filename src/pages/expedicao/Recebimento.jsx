@@ -53,7 +53,17 @@ const BLANK = {
 
 function calcPesoTeorico(produto, qtdBarras) {
   if (!produto || !qtdBarras) return null;
-  const kgM = PESOS_POR_METRO[produto];
+  let kgM = PESOS_POR_METRO[produto];
+  if (!kgM) {
+    // Busca por inclusão parcial caso o usuário tenha digitado texto customizado
+    const matchKey = Object.keys(PESOS_POR_METRO).find(k =>
+      k !== "Bobina / Chapa (peso direto)" && (
+        produto.toLowerCase().includes(k.toLowerCase().slice(0, 8)) ||
+        k.toLowerCase().includes(produto.toLowerCase().slice(0, 8))
+      )
+    );
+    if (matchKey) kgM = PESOS_POR_METRO[matchKey];
+  }
   if (!kgM) return null;
   return kgM * COMPRIMENTO_PADRAO_M * Number(qtdBarras);
 }
@@ -89,24 +99,39 @@ export default function RecebimentoExpedicao() {
       // Tenta OCR via Gemini Vision
       try {
         const result = await base44.integrations.Core.RunGeminiAI({
-          prompt: `Você é um leitor de Notas Fiscais brasileiras. Leia a imagem e retorne SOMENTE um JSON válido com os campos: numero_nf (string), fornecedor (string), peso_total_kg (number ou null), quantidade_itens (number ou null), descricao_produto (string). Retorne apenas o JSON, sem markdown.`,
+          prompt: `Você é um leitor de Notas Fiscais brasileiras de aço e metais. Leia a imagem e retorne SOMENTE um JSON válido com os campos: 
+numero_nf (string), fornecedor (string), peso_total_kg (number ou null), quantidade_itens (number ou null), descricao_produto (string com nome do produto), espessura (string se houver). Retorne apenas o JSON, sem markdown.`,
           imageUrl: file_url,
         });
         const json = JSON.parse(result.replace(/```json|```/g, "").trim());
-        if (json.numero_nf)     set("numero_nf", json.numero_nf);
-        if (json.fornecedor)    set("fornecedor", json.fornecedor);
-        if (json.peso_total_kg) set("peso_kg_nf", String(json.peso_total_kg));
-        if (json.quantidade_itens) set("quantidade_barras", String(json.quantidade_itens));
-        if (json.descricao_produto) {
-          // Tenta mapear produto
-          const match = Object.keys(PESOS_POR_METRO).find(k =>
-            k.toLowerCase().includes((json.descricao_produto || "").toLowerCase().slice(0, 10))
-          );
-          if (match) set("produto", match);
-        }
-        toast.success("📄 NF lida pela IA! Confira e corrija se necessário.");
-      } catch {
-        toast.info("Foto da NF salva. Preencha os dados manualmente.");
+
+        setForm(prev => {
+          const next = { ...prev };
+          if (json.numero_nf)        next.numero_nf = String(json.numero_nf);
+          if (json.fornecedor)       next.fornecedor = String(json.fornecedor);
+          if (json.peso_total_kg)    next.peso_kg_nf = String(json.peso_total_kg);
+          if (json.quantidade_itens) next.quantidade_barras = String(json.quantidade_itens);
+          if (json.espessura)       next.espessura = String(json.espessura);
+
+          if (json.descricao_produto) {
+            const rawDesc = String(json.descricao_produto).trim();
+            // Tenta encontrar correspondência na lista padrão
+            const match = Object.keys(PESOS_POR_METRO).find(k =>
+              k !== "Bobina / Chapa (peso direto)" && (
+                rawDesc.toLowerCase().includes(k.toLowerCase().slice(0, 8)) ||
+                k.toLowerCase().includes(rawDesc.toLowerCase().slice(0, 8))
+              )
+            );
+            // Se achou correspondência usa o padrão, senão usa o texto exato lido pela IA
+            next.produto = match || rawDesc;
+          }
+          return next;
+        });
+
+        toast.success("📄 NF lida pela IA! Todos os dados e produto preenchidos automaticamente.");
+      } catch (err) {
+        console.error(err);
+        toast.info("Foto da NF salva. Preencha ou ajuste os dados se necessário.");
       }
     } catch {
       toast.error("Erro ao fazer upload da foto da NF.");
@@ -269,16 +294,23 @@ export default function RecebimentoExpedicao() {
 
           <div className="space-y-1">
             <Label className="text-xs font-semibold">Produto / Material *</Label>
-            <select
-              className="w-full border rounded-md px-3 py-2 text-sm bg-background"
-              value={form.produto}
-              onChange={e => set("produto", e.target.value)}
-            >
-              <option value="">Selecione o produto...</option>
-              {Object.keys(PESOS_POR_METRO).map(p => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <Input
+                list="produtos-list-options"
+                value={form.produto}
+                onChange={e => set("produto", e.target.value)}
+                placeholder="Digite ou selecione da lista (ex: Barra Chata 3/8)..."
+                className="w-full bg-background pr-8"
+              />
+              <datalist id="produtos-list-options">
+                {Object.keys(PESOS_POR_METRO).map(p => (
+                  <option key={p} value={p} />
+                ))}
+              </datalist>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              ✨ Ao tirar/enviar a foto da NF, a IA preenche este campo e os demais automaticamente! Você também pode escolher da lista ou digitar livremente.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
