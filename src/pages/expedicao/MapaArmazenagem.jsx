@@ -48,6 +48,9 @@ function EditorPlantaCAD({ posicoes, setPosicoes, getOcupacao, onSave }) {
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
+  // Configurações de Dimensões Globais do Barracão (em Metros)
+  const [dimBarracao, setDimBarracao] = useState({ largura_m: 24, comprimento_m: 15 });
+
   // Posições com coordenadas CAD (Garante coordenadas X, Y, W, H em metros se não existirem)
   const cadItems = posicoes.map((p, idx) => ({
     ...p,
@@ -136,9 +139,9 @@ function EditorPlantaCAD({ posicoes, setPosicoes, getOcupacao, onSave }) {
     const clickX = e.clientX - canvas.left;
     const clickY = e.clientY - canvas.top;
 
-    // Arredondar para o grid de 0.5m
-    const rawX_m = Math.max(0.5, Math.min(22, clickX / SCALE));
-    const rawY_m = Math.max(0.5, Math.min(14, clickY / SCALE));
+    // Arredondar para o grid de 0.5m respeitando as dimensões totais do galpão
+    const rawX_m = Math.max(0.5, Math.min(dimBarracao.largura_m - 1, clickX / SCALE));
+    const rawY_m = Math.max(0.5, Math.min(dimBarracao.comprimento_m - 1, clickY / SCALE));
     const snapX_m = Math.round(rawX_m * 2) / 2;
     const snapY_m = Math.round(rawY_m * 2) / 2;
 
@@ -190,6 +193,40 @@ function EditorPlantaCAD({ posicoes, setPosicoes, getOcupacao, onSave }) {
           >
             <Wrench className="w-4 h-4 text-blue-400" /> + Máquina / Frisada
           </Button>
+        </div>
+
+        {/* Configurações Globais da Área do Barracão */}
+        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 space-y-2">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-teal-400 flex items-center gap-1">
+            <Ruler className="w-3 h-3" /> Dimensões do Galpão
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-[10px] text-slate-400">Largura (m)</Label>
+              <Input
+                type="number"
+                min="10"
+                max="100"
+                value={dimBarracao.largura_m}
+                onChange={e => setDimBarracao(d => ({ ...d, largura_m: Math.max(10, Number(e.target.value)) }))}
+                className="h-7 bg-slate-900 border-slate-700 text-white font-bold text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] text-slate-400">Comprimento (m)</Label>
+              <Input
+                type="number"
+                min="10"
+                max="100"
+                value={dimBarracao.comprimento_m}
+                onChange={e => setDimBarracao(d => ({ ...d, comprimento_m: Math.max(10, Number(e.target.value)) }))}
+                className="h-7 bg-slate-900 border-slate-700 text-white font-bold text-xs"
+              />
+            </div>
+          </div>
+          <div className="text-[10px] text-slate-400 font-mono text-center pt-1 border-t border-slate-800">
+            Área Total: <strong className="text-teal-300">{dimBarracao.largura_m}m x {dimBarracao.comprimento_m}m ({dimBarracao.largura_m * dimBarracao.comprimento_m}m²)</strong>
+          </div>
         </div>
 
         {/* Painel de Propriedades do Objeto Selecionado */}
@@ -306,12 +343,14 @@ function EditorPlantaCAD({ posicoes, setPosicoes, getOcupacao, onSave }) {
           <span className="text-slate-400">Arraste os blocos pelo desenho para posicionar</span>
         </div>
 
-        {/* Interactive Drawing Canvas */}
+        {/* Dynamic Canvas Container */}
         <div
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
-          className="relative w-[850px] h-[520px] bg-slate-900/90 rounded-xl border-2 border-slate-800 shadow-inner overflow-hidden cursor-crosshair"
+          className="relative bg-slate-900/90 rounded-xl border-2 border-slate-800 shadow-inner overflow-hidden cursor-crosshair transition-all"
           style={{
+            width: `${Math.max(850, dimBarracao.largura_m * SCALE)}px`,
+            height: `${Math.max(520, dimBarracao.comprimento_m * SCALE)}px`,
             backgroundImage: `
               linear-gradient(to right, rgba(20, 184, 166, 0.08) 1px, transparent 1px),
               linear-gradient(to bottom, rgba(20, 184, 166, 0.08) 1px, transparent 1px)
@@ -319,9 +358,11 @@ function EditorPlantaCAD({ posicoes, setPosicoes, getOcupacao, onSave }) {
             backgroundSize: `${SCALE}px ${SCALE}px`
           }}
         >
-          {/* Eixo Rulers de Medida em Metros (Top e Left) */}
-          <div className="absolute top-0 left-0 right-0 h-4 bg-slate-950/80 border-b border-slate-800 flex justify-between px-2 text-[8px] font-mono text-slate-500 pointer-events-none">
-            <span>0m</span><span>2m</span><span>4m</span><span>6m</span><span>8m</span><span>10m</span><span>12m</span><span>14m</span><span>16m</span><span>18m</span><span>20m</span>
+          {/* Eixo Rulers Dinâmico de Medida em Metros (Top) */}
+          <div className="absolute top-0 left-0 right-0 h-4 bg-slate-950/90 border-b border-slate-800 flex justify-between px-2 text-[8px] font-mono text-teal-400/80 pointer-events-none z-30">
+            {Array.from({ length: Math.floor(dimBarracao.largura_m / 2) + 1 }).map((_, idx) => (
+              <span key={idx}>{idx * 2}m</span>
+            ))}
           </div>
 
           {/* Renderizar cada bloco de posição no desenho CAD */}
@@ -380,7 +421,7 @@ function EditorPlantaCAD({ posicoes, setPosicoes, getOcupacao, onSave }) {
 
         {/* CAD Footer Info */}
         <div className="mt-3 text-[11px] font-mono text-slate-400 flex items-center justify-between">
-          <span>Área Total do Barracão: 24m x 15m (360m²)</span>
+          <span>Área Total do Barracão: <strong className="text-white">{dimBarracao.largura_m}m x {dimBarracao.comprimento_m}m ({dimBarracao.largura_m * dimBarracao.comprimento_m}m²)</strong></span>
           <span className="text-teal-400">Clique em qualquer estante para editar medidas e capacidades</span>
         </div>
       </div>
@@ -584,231 +625,175 @@ function MapaPlantaCAD({ posicoes, getOcupacao, posicaoSel, onSelect }) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// 2D FLOOR PLAN (SVG Top-Down)
+// 2D FLOOR PLAN (SVG Top-Down Otimizada pelo AutoCAD CAD Studio)
 // ═══════════════════════════════════════════════════════════
 function Mapa2D({ posicoes, getOcupacao, posicaoSel, onSelect }) {
-  const CELL_W = 110;
-  const CELL_H = 75;
-  const GAP_X = 10;
-  const CORRIDOR = 44;
-  const PAD_X = 70;
-  const PAD_Y = 40;
-
-  const ruas = [...new Set(posicoes.map(p => p.rua))];
-  const maxCols = Math.max(...ruas.map(rua => posicoes.filter(p => p.rua === rua).length));
-
-  const svgW = PAD_X * 2 + maxCols * (CELL_W + GAP_X) + 20;
-  const svgH = PAD_Y * 2 + ruas.length * (CELL_H + CORRIDOR) - CORRIDOR + 30;
+  const SCALE = 35; // 35px por metro
+  const svgW = 900;
+  const svgH = 550;
 
   return (
-    <div className="overflow-auto rounded-2xl bg-slate-100 p-4 border border-slate-200 shadow-inner">
-      <div className="text-xs text-muted-foreground mb-2 text-center font-semibold tracking-wide uppercase">
-        Vista Superior — Planta Baixa
+    <div className="overflow-auto rounded-2xl bg-slate-900 p-4 border-2 border-slate-700 shadow-2xl">
+      <div className="text-xs text-teal-400 mb-2 text-center font-bold tracking-widest uppercase flex items-center justify-center gap-2">
+        <LayoutGrid className="w-4 h-4" /> Vista 2D Planta Baixa Top-Down (Mesmo Layout Unificado)
       </div>
-      <svg width={svgW} height={svgH} xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
-            <feDropShadow dx="2" dy="3" stdDeviation="3" floodOpacity="0.12" />
-          </filter>
-        </defs>
+      
+      <div className="flex justify-center overflow-x-auto p-2">
+        <svg width={svgW} height={svgH} className="bg-slate-950 rounded-xl border border-slate-800 shadow-inner">
+          <defs>
+            <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+              <feDropShadow dx="2" dy="3" stdDeviation="3" floodOpacity="0.3" />
+            </filter>
+          </defs>
 
-        <rect x={PAD_X / 2} y={PAD_Y / 2} width={svgW - PAD_X} height={svgH - PAD_Y}
-          fill="white" stroke="#64748b" strokeWidth={2.5} rx={8} />
-        <rect x={PAD_X / 2} y={PAD_Y / 2} width={svgW - PAD_X} height={20}
-          fill="#1e293b" rx={8} />
-        <text x={svgW / 2} y={PAD_Y / 2 + 14} textAnchor="middle" fontSize={10}
-          fontWeight="bold" fill="white" letterSpacing="2">BARRACÃO — EXPEDIÇÃO</text>
+          {/* Fundo do Barracão e Eixos */}
+          <rect x={15} y={15} width={svgW - 30} height={svgH - 30}
+            fill="#090d16" stroke="#334155" strokeWidth={2} rx={10} />
+          <rect x={15} y={15} width={svgW - 30} height={24}
+            fill="#1e293b" rx={10} />
+          <text x={svgW / 2} y={32} textAnchor="middle" fontSize={11}
+            fontWeight="bold" fill="#38bdf8" letterSpacing="2">BARRACÃO EXPEDIÇÃO — PLANTA BAIXA 2D</text>
 
-        <text x={svgW / 2} y={svgH - 8} textAnchor="middle" fontSize={10} fill="#94a3b8"
-          fontWeight="bold">↕ ENTRADA / SAÍDA</text>
+          <text x={svgW / 2} y={svgH - 10} textAnchor="middle" fontSize={10} fill="#64748b"
+            fontWeight="bold">↕ PORTÃO DE CARGA E DESCARGA</text>
 
-        {ruas.map((rua, ruaIdx) => {
-          const ruaPosicoes = posicoes.filter(p => p.rua === rua);
-          const rowY = PAD_Y + ruaIdx * (CELL_H + CORRIDOR);
+          {/* Renderizar cada bloco exatamente na sua coordenada X/Y em metros */}
+          {posicoes.map((pos, idx) => {
+            const x_m = pos.x_m ?? ((idx % 4) * 4.5 + 1.5);
+            const y_m = pos.y_m ?? (Math.floor(idx / 4) * 3.5 + 1.5);
+            const w_m = pos.w_m ?? 3.5;
+            const h_m = pos.h_m ?? 2.2;
 
-          return (
-            <g key={rua}>
-              <rect x={PAD_X / 2 + 4} y={rowY + CELL_H / 2 - 10} width={44} height={20}
-                fill="#0f172a" rx={4} />
-              <text x={PAD_X / 2 + 26} y={rowY + CELL_H / 2 + 5} textAnchor="middle"
-                fontSize={9} fontWeight="bold" fill="white">Rua {rua}</text>
+            const x = x_m * SCALE;
+            const y = y_m * SCALE + 30; // offset do cabeçalho
+            const width = w_m * SCALE;
+            const height = h_m * SCALE;
 
-              {ruaIdx < ruas.length - 1 && (
-                <g>
-                  <rect x={PAD_X / 2 + 4} y={rowY + CELL_H} width={svgW - PAD_X - 8} height={CORRIDOR}
-                    fill="#f8fafc" stroke="#e2e8f0" strokeWidth={0.5} />
-                  <text x={svgW / 2} y={rowY + CELL_H + CORRIDOR / 2 + 4}
-                    textAnchor="middle" fontSize={9} fill="#cbd5e1" fontStyle="italic">
-                    ← corredor →
-                  </text>
-                </g>
-              )}
+            const { totalBarras } = getOcupacao(pos.id);
+            const pct = Math.min(1, (totalBarras || 0) / pos.capacidade_barras);
+            const isSelected = posicaoSel?.id === pos.id;
 
-              {ruaPosicoes.map((pos, colIdx) => {
-                const x = PAD_X + colIdx * (CELL_W + GAP_X);
-                const { totalBarras, totalKg } = getOcupacao(pos.id);
-                const pct = Math.min(1, (totalBarras || 0) / pos.capacidade_barras);
-                const colors = getOccupancyColors(pct);
-                const isSelected = posicaoSel?.id === pos.id;
+            let fillColor = "#1e293b";
+            let strokeColor = "#3b82f6";
+            let barColor = "#3b82f6";
 
-                return (
-                  <g key={pos.id} onClick={() => onSelect(pos)} style={{ cursor: "pointer" }}>
-                    <rect x={x + 3} y={rowY + 3} width={CELL_W} height={CELL_H}
-                      fill="rgba(0,0,0,0.08)" rx={6} />
-                    <rect x={x} y={rowY} width={CELL_W} height={CELL_H}
-                      fill={colors.floor}
-                      stroke={isSelected ? "#0d9488" : "#e2e8f0"}
-                      strokeWidth={isSelected ? 2.5 : 1.5} rx={6}
-                      filter="url(#shadow)" />
-                    <rect x={x + 6} y={rowY + CELL_H - 10} width={CELL_W - 12} height={6}
-                      fill="#e2e8f0" rx={3} />
-                    {pct > 0 && (
-                      <rect x={x + 6} y={rowY + CELL_H - 10} width={(CELL_W - 12) * pct} height={6}
-                        fill={colors.bar} rx={3} />
-                    )}
-                    <text x={x + CELL_W / 2} y={rowY + 24} textAnchor="middle"
-                      fontSize={16} fontWeight="bold" fill={isSelected ? "#0d9488" : "#1e293b"}>
-                      {pos.id}
-                    </text>
-                    <text x={x + CELL_W / 2} y={rowY + 41} textAnchor="middle"
-                      fontSize={11} fill="#475569">
-                      {totalBarras}/{pos.capacidade_barras} barras
-                    </text>
-                  </g>
-                );
-              })}
-            </g>
-          );
-        })}
-      </svg>
+            if (pct >= 0.9) { fillColor = "#450a0a"; strokeColor = "#ef4444"; barColor = "#ef4444"; }
+            else if (pct > 0.3) { fillColor = "#451a03"; strokeColor = "#f59e0b"; barColor = "#f59e0b"; }
+
+            return (
+              <g key={pos.id} onClick={() => onSelect(pos)} style={{ cursor: "pointer" }}>
+                {/* Sombra */}
+                <rect x={x + 3} y={y + 3} width={width} height={height} fill="rgba(0,0,0,0.4)" rx={6} />
+                
+                {/* Bloco da Posição */}
+                <rect x={x} y={y} width={width} height={height}
+                  fill={fillColor}
+                  stroke={isSelected ? "#2dd4bf" : strokeColor}
+                  strokeWidth={isSelected ? 3 : 1.5} rx={6}
+                  filter="url(#shadow)" />
+                
+                {/* Barra de Progresso no Rodapé do Bloco */}
+                <rect x={x + 6} y={y + height - 8} width={Math.max(0, width - 12)} height={4}
+                  fill="#334155" rx={2} />
+                {pct > 0 && (
+                  <rect x={x + 6} y={y + height - 8} width={Math.max(0, (width - 12) * pct)} height={4}
+                    fill={barColor} rx={2} />
+                )}
+
+                {/* Texto do ID da Posição */}
+                <text x={x + width / 2} y={y + height / 2 - 2} textAnchor="middle"
+                  fontSize={14} fontWeight="bold" fill={isSelected ? "#2dd4bf" : "white"}>
+                  {pos.id}
+                </text>
+                <text x={x + width / 2} y={y + height / 2 + 12} textAnchor="middle"
+                  fontSize={9} fill="#94a3b8">
+                  {totalBarras}/{pos.capacidade_barras}b
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════
-// 3D ISOMETRIC VIEW (SVG Isometric projection)
+// 3D ISOMETRIC VIEW (SVG Isometric projection Unificada)
 // ═══════════════════════════════════════════════════════════
 function Mapa3D({ posicoes, getOcupacao, posicaoSel, onSelect }) {
-  const TILE_W = 90;
-  const TILE_H = 45;
-  const MAX_BOX_H = 70;
-  const FLOOR_H = 8;
-  const PADDING_COL = 1.2;
-  const PADDING_ROW = 1.3;
-
-  const ruas = [...new Set(posicoes.map(p => p.rua))];
+  const TILE_W = 85;
+  const TILE_H = 42;
 
   function iso(col, row, z = 0) {
     return {
-      x: 500 + (col - row) * (TILE_W / 2),
-      y: 200 + (col + row) * (TILE_H / 2) - z,
+      x: 450 + (col - row) * (TILE_W / 2),
+      y: 180 + (col + row) * (TILE_H / 2) - z,
     };
   }
-
-  function getGridPos(pos) {
-    const ruaIdx = ruas.indexOf(pos.rua);
-    const ruaPosicoes = posicoes.filter(p => p.rua === pos.rua);
-    const colIdx = ruaPosicoes.findIndex(p => p.id === pos.id);
-    return {
-      row: ruaIdx * PADDING_ROW,
-      col: colIdx * PADDING_COL,
-    };
-  }
-
-  const sorted = [...posicoes].sort((a, b) => {
-    const ga = getGridPos(a);
-    const gb = getGridPos(b);
-    return (gb.row + gb.col) - (ga.row + ga.col);
-  });
-
-  const allPts = posicoes.flatMap(pos => {
-    const { row, col } = getGridPos(pos);
-    return [
-      iso(col, row),
-      iso(col + 1, row),
-      iso(col, row + 1),
-      iso(col + 1, row + 1),
-    ];
-  });
-  const maxX = Math.max(...allPts.map(p => p.x)) + 80;
-  const svgW = Math.max(700, maxX + 160);
 
   return (
-    <div className="overflow-auto rounded-2xl bg-gradient-to-b from-slate-800 to-slate-900 p-4 border border-slate-700 shadow-2xl">
-      <div className="text-xs text-teal-400 mb-2 text-center font-bold tracking-widest uppercase">
-        Vista 3D Isométrica — Barracão Expedição
+    <div className="overflow-auto rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 p-4 border-2 border-slate-700 shadow-2xl">
+      <div className="text-xs text-teal-400 mb-2 text-center font-bold tracking-widest uppercase flex items-center justify-center gap-2">
+        <Box className="w-4 h-4" /> Vista 3D Isométrica (Mesmo Layout Unificado do AutoCAD)
       </div>
-      <svg width={svgW} height={520} xmlns="http://www.w3.org/2000/svg">
-        {posicoes.map(pos => {
-          const { row, col } = getGridPos(pos);
-          const tl = iso(col, row);
-          const tr = iso(col + 1, row);
-          const br = iso(col + 1, row + 1);
-          const bl = iso(col, row + 1);
+      <div className="flex justify-center overflow-x-auto p-2">
+        <svg width={850} height={520} xmlns="http://www.w3.org/2000/svg">
+          {posicoes.map((pos, idx) => {
+            const col = pos.x_m ? (pos.x_m / 2) : (idx % 4) * 1.8;
+            const row = pos.y_m ? (pos.y_m / 2) : Math.floor(idx / 4) * 1.8;
 
-          return (
-            <polygon key={`f-${pos.id}`}
-              points={`${tl.x},${tl.y} ${tr.x},${tr.y} ${br.x},${br.y} ${bl.x},${bl.y}`}
-              fill="#1e293b" stroke="#334155" strokeWidth={1} />
-          );
-        })}
+            const { totalBarras } = getOcupacao(pos.id);
+            const pct = Math.min(1, (totalBarras || 0) / pos.capacidade_barras);
+            const boxH = 15 + pct * 45;
 
-        {sorted.map(pos => {
-          const { totalBarras } = getOcupacao(pos.id);
-          const pct = Math.min(1, (totalBarras || 0) / pos.capacidade_barras);
-          const { row, col } = getGridPos(pos);
-          const boxH = pct > 0 ? Math.max(12, pct * MAX_BOX_H) : 0;
-          const isSelected = posicaoSel?.id === pos.id;
-          const colors = getOccupancyColors(pct);
+            const tl = iso(col, row);
+            const tr = iso(col + 1.2, row);
+            const br = iso(col + 1.2, row + 1.2);
+            const bl = iso(col, row + 1.2);
 
-          const inset = 0.06;
-          const c0 = col + inset, c1 = col + 1 - inset;
-          const r0 = row + inset, r1 = row + 1 - inset;
+            const tlZ = iso(col, row, boxH);
+            const trZ = iso(col + 1.2, row, boxH);
+            const brZ = iso(col + 1.2, row + 1.2, boxH);
+            const blZ = iso(col, row + 1.2, boxH);
 
-          const fbl = iso(c0, r1, 0);
-          const fbr = iso(c1, r1, 0);
-          const fbr_top = iso(c1, r1, FLOOR_H);
-          const fbl_top = iso(c0, r1, FLOOR_H);
-          const ftr = iso(c1, r0, 0);
-          const ftr_top = iso(c1, r0, FLOOR_H);
+            const isSelected = posicaoSel?.id === pos.id;
 
-          const bbl = iso(c0, r1, FLOOR_H);
-          const bbr = iso(c1, r1, FLOOR_H);
-          const btr = iso(c1, r0, FLOOR_H);
-          const btl_top = iso(c0, r0, FLOOR_H + boxH);
-          const btr_top = iso(c1, r0, FLOOR_H + boxH);
-          const bbr_top = iso(c1, r1, FLOOR_H + boxH);
-          const bbl_top = iso(c0, r1, FLOOR_H + boxH);
+            let topColor = "#1e293b";
+            let leftColor = "#0f172a";
+            let rightColor = "#334155";
 
-          const center = iso(col + 0.5, row + 0.5, FLOOR_H + boxH + 8);
-          const selColor = isSelected ? "#0d9488" : null;
+            if (pct >= 0.9) { topColor = "#ef4444"; leftColor = "#991b1b"; rightColor = "#dc2626"; }
+            else if (pct > 0.3) { topColor = "#f59e0b"; leftColor = "#78350f"; rightColor = "#d97706"; }
+            else if (pct > 0) { topColor = "#3b82f6"; leftColor = "#1e3a8a"; rightColor = "#2563eb"; }
 
-          return (
-            <g key={pos.id} onClick={() => onSelect(pos)} style={{ cursor: "pointer" }}>
-              <polygon points={`${fbl.x},${fbl.y} ${fbr.x},${fbr.y} ${fbr_top.x},${fbr_top.y} ${fbl_top.x},${fbl_top.y}`}
-                fill={isSelected ? "#134e4a" : "#1e3a4a"} stroke={selColor || "#0f2336"} strokeWidth={0.5} />
-              <polygon points={`${ftr.x},${ftr.y} ${fbr.x},${fbr.y} ${fbr_top.x},${fbr_top.y} ${ftr_top.x},${ftr_top.y}`}
-                fill={isSelected ? "#115e59" : "#152d3a"} stroke={selColor || "#0f2336"} strokeWidth={0.5} />
-
-              {boxH > 0 && (
-                <>
-                  <polygon points={`${bbl.x},${bbl.y} ${bbr.x},${bbr.y} ${bbr_top.x},${bbr_top.y} ${bbl_top.x},${bbl_top.y}`}
-                    fill={isSelected ? "#0f766e" : colors.left} stroke={selColor || "rgba(0,0,0,0.2)"} strokeWidth={0.8} />
-                  <polygon points={`${btr.x},${btr.y} ${bbr.x},${bbr.y} ${bbr_top.x},${bbr_top.y} ${btr_top.x},${btr_top.y}`}
-                    fill={isSelected ? "#134e4a" : colors.right} stroke={selColor || "rgba(0,0,0,0.2)"} strokeWidth={0.8} />
-                  <polygon points={`${btl_top.x},${btl_top.y} ${btr_top.x},${btr_top.y} ${bbr_top.x},${bbr_top.y} ${bbl_top.x},${bbl_top.y}`}
-                    fill={isSelected ? "#2dd4bf" : colors.top} stroke={selColor || "rgba(0,0,0,0.1)"} strokeWidth={0.8} />
-                </>
-              )}
-
-              <text x={center.x} y={center.y} textAnchor="middle" fontSize={11} fontWeight="bold"
-                fill={isSelected ? "#99f6e4" : pct > 0 ? "#f8fafc" : "#64748b"}>
-                {pos.id}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
+            return (
+              <g key={pos.id} onClick={() => onSelect(pos)} style={{ cursor: "pointer" }}>
+                {/* Face Esquerda */}
+                <polygon
+                  points={`${bl.x},${bl.y} ${br.x},${br.y} ${brZ.x},${brZ.y} ${blZ.x},${blZ.y}`}
+                  fill={leftColor} stroke="#475569" strokeWidth={0.5}
+                />
+                {/* Face Direita */}
+                <polygon
+                  points={`${tr.x},${tr.y} ${br.x},${br.y} ${brZ.x},${brZ.y} ${trZ.x},${trZ.y}`}
+                  fill={rightColor} stroke="#475569" strokeWidth={0.5}
+                />
+                {/* Face Superior */}
+                <polygon
+                  points={`${tlZ.x},${tlZ.y} ${trZ.x},${trZ.y} ${brZ.x},${brZ.y} ${blZ.x},${blZ.y}`}
+                  fill={topColor} stroke={isSelected ? "#2dd4bf" : "#64748b"} strokeWidth={isSelected ? 2.5 : 0.8}
+                />
+                {/* ID Label no Topo 3D */}
+                <text x={(tlZ.x + brZ.x) / 2} y={(tlZ.y + brZ.y) / 2 + 4} textAnchor="middle"
+                  fontSize={11} fontWeight="bold" fill="white">
+                  {pos.id}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
     </div>
   );
 }
