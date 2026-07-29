@@ -190,24 +190,24 @@ export default function BobinasCD() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white border border-border rounded-xl p-4 text-center">
+        <div className="bg-card border border-border rounded-xl p-4 text-center">
           <Package className="w-5 h-5 text-blue-500 mx-auto mb-1" />
           <p className="text-2xl font-bold">{ativas.length}</p>
           <p className="text-xs text-muted-foreground">Em Estoque</p>
           <p className="text-sm font-semibold text-muted-foreground mt-1">{totalPeso.toLocaleString("pt-BR")} kg</p>
         </div>
-        <div className="bg-white border border-border rounded-xl p-4 text-center">
+        <div className="bg-card border border-border rounded-xl p-4 text-center">
           <Weight className="w-5 h-5 text-green-500 mx-auto mb-1" />
           <p className="text-2xl font-bold">{totalPeso.toLocaleString("pt-BR")}</p>
           <p className="text-xs text-muted-foreground">kg disponíveis</p>
-          <p className="text-xs text-blue-600 font-medium mt-0.5">Pré-baixa: {totalPreBaixaKg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg</p>
+          <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-0.5">Pré-baixa: {totalPreBaixaKg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg</p>
         </div>
-        <div className={`border rounded-xl p-4 text-center ${emAlerta.length > 0 ? "bg-red-50 border-red-300" : "bg-white border-border"}`}>
+        <div className={`border rounded-xl p-4 text-center ${emAlerta.length > 0 ? "bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-800" : "bg-card border-border"}`}>
           <AlertTriangle className={`w-5 h-5 mx-auto mb-1 ${emAlerta.length > 0 ? "text-red-500" : "text-gray-400"}`} />
-          <p className={`text-2xl font-bold ${emAlerta.length > 0 ? "text-red-700" : ""}`}>{emAlerta.length}</p>
+          <p className={`text-2xl font-bold ${emAlerta.length > 0 ? "text-red-700 dark:text-red-400" : ""}`}>{emAlerta.length}</p>
           <p className="text-xs text-muted-foreground">Em alerta</p>
         </div>
-        <div className="bg-white border border-border rounded-xl p-4 text-center">
+        <div className="bg-card border border-border rounded-xl p-4 text-center">
           <Archive className="w-5 h-5 text-orange-400 mx-auto mb-1" />
           <p className="text-2xl font-bold">{arquivadas.length}</p>
           <p className="text-xs text-muted-foreground">Arquivadas</p>

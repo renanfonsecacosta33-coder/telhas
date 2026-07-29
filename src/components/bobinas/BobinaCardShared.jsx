@@ -94,10 +94,10 @@ export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statu
     : null;
 
   return (
-    <div className={`bg-white rounded-xl border-2 shadow-sm hover:shadow-md transition-all ${
-      bobina.reservada ? "border-purple-400" :
-      alerta === "critico" ? "border-red-300" :
-      alerta === "atencao" ? "border-amber-300" : "border-border"
+    <div className={`bg-card rounded-xl border-2 shadow-sm hover:shadow-md transition-all ${
+      bobina.reservada ? "border-purple-500/80 dark:border-purple-500/70" :
+      alerta === "critico" ? "border-red-400 dark:border-red-600" :
+      alerta === "atencao" ? "border-amber-400 dark:border-amber-600" : "border-border"
     }`}>
 
       {/* Banner reserva */}
