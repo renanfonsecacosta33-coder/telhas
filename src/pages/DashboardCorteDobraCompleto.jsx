@@ -210,8 +210,9 @@ export default function DashboardCorteDobraCompleto() {
     let reservadasCount = 0;
     let criticasCount = 0;
 
-    bobinas.forEach(b => {
-      const peso = parseFloat(b.peso_kg || 0);
+    (bobinas || []).forEach(b => {
+      if (!b) return;
+      const peso = parseFloat(b.peso_kg || 0) || 0;
       const qual = b.qualidade || "Outros";
       const chapa = b.chapa ? `${b.chapa}mm` : "Outras";
       const forn = b.fornecedor || "Não informado";
@@ -229,7 +230,7 @@ export default function DashboardCorteDobraCompleto() {
       fornecedorMap[forn].qtd += 1;
 
       if (b.reservada) {
-        reservadoKg += b.reserva_kg || peso;
+        reservadoKg += parseFloat(b.reserva_kg || peso) || 0;
         reservadasCount += 1;
       }
       if (peso < 100) {
@@ -252,12 +253,12 @@ export default function DashboardCorteDobraCompleto() {
     }));
 
     const dadosEspessura = Object.values(espessuraMap).sort((a, b) => {
-      const na = parseFloat(a.espessura.replace(",", "."));
-      const nb = parseFloat(b.espessura.replace(",", "."));
+      const na = parseFloat(String(a?.espessura || "0").replace("mm", "").replace(",", ".")) || 0;
+      const nb = parseFloat(String(b?.espessura || "0").replace("mm", "").replace(",", ".")) || 0;
       return na - nb;
     });
 
-    const dadosFornecedor = Object.values(fornecedorMap).sort((a, b) => b.peso - a.peso).slice(0, 6);
+    const dadosFornecedor = Object.values(fornecedorMap).sort((a, b) => (b.peso || 0) - (a.peso || 0)).slice(0, 6);
 
     return {
       dadosQualidade,
