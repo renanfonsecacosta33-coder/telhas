@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import {
-  LayoutDashboard, Circle, Snowflake, Package, Menu, X, ChevronRight,
+  LayoutDashboard, Circle, Snowflake, Package, Menu, X, ChevronRight, ChevronLeft,
   Factory, Settings, Droplets, Wrench, Layers, Box, ShoppingCart,
   Truck, BarChart2, FileText, Tag, Archive, Zap, Users, LogOut, Cog, FlaskConical, ArrowLeftRight, Map, BookmarkPlus, Scissors, Home
 } from "lucide-react";
@@ -125,6 +125,13 @@ export default function Sidebar({ isOpen, onToggle }) {
               </div>
             )}
           </div>
+          <button
+            onClick={onToggle}
+            className="p-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors touch-manipulation min-h-[44px] min-w-[44px] flex items-center justify-center"
+            title={isOpen ? "Recolher Menu" : "Expandir Menu"}
+          >
+            {isOpen ? <ChevronLeft className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
         </div>
 
         {/* Navigation */}

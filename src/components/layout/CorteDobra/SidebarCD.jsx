@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import {
-  LayoutDashboard, Circle, Factory, Users, Menu, X, ChevronRight, ChevronDown,
+  LayoutDashboard, Circle, Factory, Users, Menu, X, ChevronRight, ChevronDown, ChevronLeft,
   LogOut, Layers, ShieldCheck, ArrowLeftRight, Calculator, BookOpen, Scissors,
   FlaskConical, Wrench, Map, BookmarkPlus, Truck, Bell
 } from "lucide-react";
@@ -121,6 +121,13 @@ export default function SidebarCD({ isOpen, onToggle }) {
               </div>
             )}
           </div>
+          <button
+            onClick={onToggle}
+            className="p-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors touch-manipulation min-h-[44px] min-w-[44px] flex items-center justify-center"
+            title={isOpen ? "Recolher Menu" : "Expandir Menu"}
+          >
+            {isOpen ? <ChevronLeft className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
         </div>
 
         {/* Navigation */}
