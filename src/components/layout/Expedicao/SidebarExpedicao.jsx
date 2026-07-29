@@ -1,11 +1,10 @@
-import React, { useState } from "react";
+import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, PackageCheck, Package, Map, Wrench, History, RotateCcw,
-  ChevronLeft, ChevronRight, ArrowLeftRight, LogOut, Menu, X, ArrowUpRight
+  ChevronLeft, ArrowLeftRight, Menu, ArrowUpRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 
 const NAV = [
   { to: "/expedicao",             label: "Dashboard",         icon: LayoutDashboard, end: true },
@@ -25,69 +24,71 @@ export default function SidebarExpedicao({ isOpen, onToggle, user }) {
     <>
       {/* Mobile overlay */}
       {isOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={onToggle} />
+        <div className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-sm" onClick={onToggle} />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar Tablet Dock */}
       <aside className={cn(
-        "fixed top-0 left-0 h-full bg-slate-900 text-white z-50 flex flex-col transition-all duration-300",
-        isOpen ? "w-64" : "w-16",
-        "shadow-2xl"
+        "fixed top-0 left-0 h-full bg-slate-950 text-white z-50 flex flex-col transition-all duration-300 border-r border-slate-800 shadow-2xl",
+        isOpen ? "w-64" : "w-16"
       )}>
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-4 border-b border-slate-700/50">
+        <div className="flex items-center justify-between px-3.5 py-3.5 border-b border-slate-800">
           {isOpen && (
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-teal-500/20 flex items-center justify-center">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-teal-500/20 border border-teal-500/30 flex items-center justify-center">
                 <PackageCheck className="w-4 h-4 text-teal-400" />
               </div>
               <div>
-                <p className="text-xs font-bold text-white leading-none">EXPEDIÇÃO</p>
-                <p className="text-[10px] text-slate-400">AJL Ferro & Aço</p>
+                <p className="text-xs font-black text-white leading-none tracking-wider">EXPEDIÇÃO</p>
+                <p className="text-[10px] text-slate-400 font-medium">AJL Ferro & Aço</p>
               </div>
             </div>
           )}
           <button
             onClick={onToggle}
-            className="p-1.5 rounded-lg hover:bg-slate-700/60 text-slate-400 hover:text-white transition-colors"
+            className="p-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors touch-manipulation min-h-[44px] min-w-[44px] flex items-center justify-center"
+            title={isOpen ? "Recolher Menu" : "Expandir Menu"}
           >
-            {isOpen ? <ChevronLeft className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            {isOpen ? <ChevronLeft className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 py-3 space-y-0.5 px-2 overflow-y-auto">
+        {/* Nav Items Otimizados para Tablet (Touch Targets de 48px) */}
+        <nav className="flex-1 py-3 space-y-1 px-2 overflow-y-auto">
           {NAV.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
               end={end}
+              title={!isOpen ? label : undefined}
               className={({ isActive }) => cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
+                "flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold transition-all touch-manipulation min-h-[48px]",
                 isActive
-                  ? "bg-teal-500/20 text-teal-300 border border-teal-500/30"
-                  : "text-slate-400 hover:bg-slate-700/50 hover:text-white"
+                  ? "bg-teal-500/20 text-teal-300 border border-teal-500/40 shadow-sm"
+                  : "text-slate-400 hover:bg-slate-800/80 hover:text-white"
               )}
             >
-              <Icon className="w-4 h-4 flex-shrink-0" />
+              <Icon className="w-5 h-5 flex-shrink-0" />
               {isOpen && <span className="truncate">{label}</span>}
             </NavLink>
           ))}
         </nav>
 
         {/* Footer */}
-        <div className="p-3 border-t border-slate-700/50 space-y-1">
+        <div className="p-3 border-t border-slate-800 space-y-1">
           {isOpen && user && (
-            <div className="px-3 py-2 mb-1">
-              <p className="text-xs text-slate-400 truncate">{user.full_name || user.email}</p>
-              <p className="text-[10px] text-teal-400 font-medium">Expedição</p>
+            <div className="px-3 py-2 mb-1 bg-slate-900/60 rounded-xl border border-slate-800">
+              <p className="text-xs font-bold text-slate-200 truncate">{user.full_name || user.email}</p>
+              <p className="text-[10px] text-teal-400 font-semibold">Operador de Expedição</p>
             </div>
           )}
           <button
             onClick={() => navigate("/setor")}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-700/50 hover:text-white text-sm transition-colors"
+            className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white text-sm font-semibold transition-colors touch-manipulation min-h-[48px]"
+            title={!isOpen ? "Trocar Setor" : undefined}
           >
-            <ArrowLeftRight className="w-4 h-4 flex-shrink-0" />
+            <ArrowLeftRight className="w-5 h-5 flex-shrink-0" />
             {isOpen && <span>Trocar Setor</span>}
           </button>
         </div>

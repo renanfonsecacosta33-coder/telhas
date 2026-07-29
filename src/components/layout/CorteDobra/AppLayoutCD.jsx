@@ -3,6 +3,7 @@ import { Outlet, Navigate, useNavigate } from "react-router-dom";
 import SidebarCD from "./SidebarCD";
 import FilialSwitcher from "@/components/FilialSwitcher";
 import UserAvatarButton from "@/components/UserAvatarButton";
+import EcosystemHeaderBar from "@/components/layout/EcosystemHeaderBar";
 import AlertBellCD from "@/components/corte-dobra/AlertBellCD";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftRight, MessageCircle } from "lucide-react";
@@ -79,24 +80,17 @@ export default function AppLayoutCD() {
     <div className="min-h-screen bg-background">
       <SidebarCD isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
       <main className="lg:ml-64 min-h-screen">
-        <div className="sticky top-0 z-30 bg-background/80 backdrop-blur border-b border-border px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-end gap-2 lg:hidden">
+        <EcosystemHeaderBar
+          user={user}
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        >
           <AlertBellCD user={user} />
-          <button onClick={() => setCentralDiretoOpen(true)} className="relative p-2 rounded-lg border border-border bg-card hover:bg-muted transition-colors cursor-pointer" title="Mensagens Diretas">
+          <button onClick={() => setCentralDiretoOpen(true)} className="relative p-2 rounded-xl border border-border bg-card hover:bg-muted transition-colors cursor-pointer" title="Mensagens Diretas">
             <MessageCircle className={`w-4 h-4 ${unreadDirect > 0 ? "text-blue-500" : "text-muted-foreground"}`} />
             {unreadDirect > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">{unreadDirect}</span>}
           </button>
-          <FilialSwitcher />
-          <UserAvatarButton size="sm" />
-        </div>
-        <div className="hidden lg:flex sticky top-0 z-30 bg-background/80 backdrop-blur border-b border-border px-8 py-2 items-center justify-end gap-2">
-          <AlertBellCD user={user} />
-          <button onClick={() => setCentralDiretoOpen(true)} className="relative p-2 rounded-lg border border-border bg-card hover:bg-muted transition-colors cursor-pointer" title="Mensagens Diretas">
-            <MessageCircle className={`w-4 h-4 ${unreadDirect > 0 ? "text-blue-500" : "text-muted-foreground"}`} />
-            {unreadDirect > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">{unreadDirect}</span>}
-          </button>
-          <FilialSwitcher />
-          <UserAvatarButton size="sm" />
-        </div>
+        </EcosystemHeaderBar>
         <div className="p-4 sm:p-6 lg:p-8">
           <Outlet />
         </div>
