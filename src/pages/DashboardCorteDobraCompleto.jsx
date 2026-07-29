@@ -18,7 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useFilial } from "@/contexts/FilialContext";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend, PieChart, Pie
 } from "recharts";
 
 const MAQUINAS_CD = [
@@ -197,9 +197,77 @@ export default function DashboardCorteDobraCompleto() {
   }, [ordensPeriodo, bobinas]);
 
   // Estoque bobinas
-  const totalPeso = bobinas.reduce((s, b) => s + (b.peso_kg || 0), 0);
   const bobinasCriticas = bobinas.filter(b => (b.peso_kg || 0) < 100);
-  const bobinasAlerta = bobinas.filter(b => b.estoque_minimo_kg && (b.peso_kg || 0) <= b.estoque_minimo_kg * 1.2 && (b.peso_kg || 0) > (b.peso_kg < 100 ? -1 : b.estoque_minimo_kg));
+  const totalEstoqueKg = bobinas.reduce((s, b) => s + (b.peso_kg || 0), 0);
+
+  // 📊 Analytics de Estoque para a aba "estoque"
+  const analyticsEstoque = useMemo(() => {
+    const qualidadeMap = {};
+    const espessuraMap = {};
+    const fornecedorMap = {};
+
+    let reservadoKg = 0;
+    let reservadasCount = 0;
+    let criticasCount = 0;
+
+    bobinas.forEach(b => {
+      const peso = parseFloat(b.peso_kg || 0);
+      const qual = b.qualidade || "Outros";
+      const chapa = b.chapa ? `${b.chapa}mm` : "Outras";
+      const forn = b.fornecedor || "Não informado";
+
+      if (!qualidadeMap[qual]) qualidadeMap[qual] = { nome: qual, peso: 0, qtd: 0 };
+      qualidadeMap[qual].peso += peso;
+      qualidadeMap[qual].qtd += 1;
+
+      if (!espessuraMap[chapa]) espessuraMap[chapa] = { espessura: chapa, peso: 0, qtd: 0 };
+      espessuraMap[chapa].peso += peso;
+      espessuraMap[chapa].qtd += 1;
+
+      if (!fornecedorMap[forn]) fornecedorMap[forn] = { fornecedor: forn, peso: 0, qtd: 0 };
+      fornecedorMap[forn].peso += peso;
+      fornecedorMap[forn].qtd += 1;
+
+      if (b.reservada) {
+        reservadoKg += b.reserva_kg || peso;
+        reservadasCount += 1;
+      }
+      if (peso < 100) {
+        criticasCount += 1;
+      }
+    });
+
+    const CORES_QUALIDADE = {
+      "GV": "#06b6d4",
+      "PP": "#ec4899",
+      "FF": "#64748b",
+      "FQ": "#10b981",
+      "GL (IMP)": "#f59e0b",
+      "Outros": "#8b5cf6"
+    };
+
+    const dadosQualidade = Object.values(qualidadeMap).map(q => ({
+      ...q,
+      fill: CORES_QUALIDADE[q.nome] || "#a855f7"
+    }));
+
+    const dadosEspessura = Object.values(espessuraMap).sort((a, b) => {
+      const na = parseFloat(a.espessura.replace(",", "."));
+      const nb = parseFloat(b.espessura.replace(",", "."));
+      return na - nb;
+    });
+
+    const dadosFornecedor = Object.values(fornecedorMap).sort((a, b) => b.peso - a.peso).slice(0, 6);
+
+    return {
+      dadosQualidade,
+      dadosEspessura,
+      dadosFornecedor,
+      reservadoKg,
+      reservadasCount,
+      criticasCount
+    };
+  }, [bobinas]);
 
   const ordensAtivas = useMemo(() => ordensPeriodo.filter(o => o.status === "em_producao" || o.status === "pausado"), [ordensPeriodo]);
   const ordensPausadas = useMemo(() => ordensPeriodo.filter(o => o.status === "pausado"), [ordensPeriodo]);
@@ -573,88 +641,260 @@ export default function DashboardCorteDobraCompleto() {
 
       {/* ══════════════ ABA ESTOQUE ══════════════ */}
       {aba === "estoque" && (
-        <>
-          {/* KPIs estoque */}
+        <div className="space-y-5">
+          {/* KPIs Estoque Executivos */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: "Bobinas Ativas", value: bobinas.length, sub: "CD", icon: Circle, color: "text-orange-600", bg: "bg-orange-50" },
-              { label: "Total em KG", value: `${totalPeso.toLocaleString("pt-BR")}kg`, sub: "nas bobinas", icon: Weight, color: "text-slate-700", bg: "bg-slate-100" },
-              { label: "Bobinas Críticas", value: bobinasCriticas.length || "✓", sub: bobinasCriticas.length > 0 ? "< 100kg" : "Tudo ok", icon: AlertTriangle, color: bobinasCriticas.length > 0 ? "text-red-600" : "text-green-600", bg: bobinasCriticas.length > 0 ? "bg-red-50" : "bg-green-50" },
-              { label: "Reservadas", value: bobinas.filter(b => b.reservada).length || "—", sub: "com reserva ativa", icon: Layers, color: "text-purple-600", bg: "bg-purple-50" },
+              { label: "Bobinas no Estoque", value: bobinas.length, sub: "Bobinas ativas CD", icon: Package, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10 border-blue-500/30" },
+              { label: "Peso Físico Total", value: `${totalEstoqueKg.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} kg`, sub: `~${(totalEstoqueKg / 1000).toFixed(1)} toneladas`, icon: Weight, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/30" },
+              { label: "Reservado p/ Vendas", value: `${analyticsEstoque.reservadoKg.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} kg`, sub: `${analyticsEstoque.reservadasCount} bobinas reservadas`, icon: Layers, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-500/10 border-purple-500/30" },
+              { label: "Bobinas Críticas", value: analyticsEstoque.criticasCount || "✓", sub: analyticsEstoque.criticasCount > 0 ? "< 100 kg restantes" : "Estoque saudável", icon: AlertTriangle, color: analyticsEstoque.criticasCount > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400", bg: analyticsEstoque.criticasCount > 0 ? "bg-red-500/10 border-red-500/30" : "bg-emerald-500/10 border-emerald-500/30" },
             ].map(k => (
-              <div key={k.label} className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${k.bg}`}>
+              <div key={k.label} className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3.5 shadow-sm">
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center border ${k.bg}`}>
                   <k.icon className={`w-5 h-5 ${k.color}`} />
                 </div>
                 <div>
                   <p className={`text-2xl font-black ${k.color}`}>{k.value}</p>
-                  <p className="text-xs text-muted-foreground leading-tight">{k.label}</p>
-                  <p className="text-xs text-muted-foreground/60">{k.sub}</p>
+                  <p className="text-xs font-bold text-foreground leading-tight">{k.label}</p>
+                  <p className="text-xs text-muted-foreground">{k.sub}</p>
                 </div>
               </div>
             ))}
           </div>
 
-          {/* Bobinas em estoque */}
-          <div className="bg-card border border-border rounded-xl p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-sm flex items-center gap-2">
-                <Package className="w-4 h-4 text-orange-500" /> Bobinas Corte e Dobra ({bobinas.length})
-              </h2>
-              <Link to="/corte-dobra/bobinas"><span className="text-xs text-primary hover:underline cursor-pointer">Ver todas →</span></Link>
+          {/* PAINEL DE GRÁFICOS RECHARTS */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Gráfico 1: Distribuição por Qualidade do Aço (Donut PieChart) */}
+            <div className="bg-card border border-border rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-extrabold text-sm flex items-center gap-2">
+                  <BarChart2 className="w-4 h-4 text-teal-500" />
+                  Distribuição por Qualidade de Aço
+                </h3>
+                <Badge variant="outline" className="text-[10px] bg-teal-500/10 text-teal-600 border-teal-500/30 font-bold">
+                  Volume em Kg
+                </Badge>
+              </div>
+
+              {analyticsEstoque.dadosQualidade.length === 0 ? (
+                <div className="py-12 text-center text-xs text-muted-foreground">Sem dados de estoque</div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 items-center gap-4 py-2">
+                  <div className="h-48 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={analyticsEstoque.dadosQualidade}
+                          dataKey="peso"
+                          nameKey="nome"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={45}
+                          outerRadius={75}
+                          paddingAngle={4}
+                        >
+                          {analyticsEstoque.dadosQualidade.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value) => [`${Number(value).toLocaleString("pt-BR")} kg`, "Peso Total"]}
+                          contentStyle={{ borderRadius: "12px", fontSize: "12px" }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Legenda Lateral */}
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {analyticsEstoque.dadosQualidade.map(q => (
+                      <div key={q.nome} className="flex items-center justify-between text-xs p-1.5 rounded-lg bg-muted/40 border border-border">
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: q.fill }} />
+                          <span className="font-bold text-foreground">{q.nome}</span>
+                          <span className="text-[10px] text-muted-foreground">({q.qtd} bobinas)</span>
+                        </div>
+                        <span className="font-black text-foreground">{q.peso.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} kg</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Gráfico 2: Peso por Espessura de Chapa (BarChart) */}
+            <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-extrabold text-sm flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-orange-500" />
+                  Estoque por Espessura da Chapa (mm)
+                </h3>
+                <Badge variant="outline" className="text-[10px] bg-orange-500/10 text-orange-600 border-orange-500/30 font-bold">
+                  Kg por Bitola
+                </Badge>
+              </div>
+
+              {analyticsEstoque.dadosEspessura.length === 0 ? (
+                <div className="py-12 text-center text-xs text-muted-foreground">Sem dados de espessura</div>
+              ) : (
+                <div className="h-56 w-full pt-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={analyticsEstoque.dadosEspessura} barCategoryGap="25%">
+                      <XAxis dataKey="espessura" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={45} formatter={(v) => `${(v/1000).toFixed(0)}t`} />
+                      <Tooltip
+                        formatter={(value) => [`${Number(value).toLocaleString("pt-BR")} kg`, "Peso em Estoque"]}
+                        contentStyle={{ borderRadius: "12px", fontSize: "12px" }}
+                      />
+                      <Bar dataKey="peso" name="Peso (kg)" radius={[8, 8, 0, 0]}>
+                        {analyticsEstoque.dadosEspessura.map((_, i) => (
+                          <Cell key={i} fill={i % 2 === 0 ? "#f97316" : "#3b82f6"} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* LINHA 2: Top Fornecedores e Trava de Dispoibilidde */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Top Fornecedores */}
+            <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-extrabold text-sm flex items-center gap-2">
+                  <Factory className="w-4 h-4 text-purple-500" />
+                  Participação por Fornecedor (Siderúrgicas)
+                </h3>
+              </div>
+
+              <div className="h-44 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={analyticsEstoque.dadosFornecedor} layout="vertical" barCategoryGap="20%">
+                    <XAxis type="number" hide />
+                    <YAxis dataKey="fornecedor" type="category" tick={{ fontSize: 11 }} width={110} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      formatter={(value) => [`${Number(value).toLocaleString("pt-BR")} kg`, "Estoque Total"]}
+                      contentStyle={{ borderRadius: "12px", fontSize: "12px" }}
+                    />
+                    <Bar dataKey="peso" fill="#8b5cf6" radius={[0, 8, 8, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Painel de Reserva x Livre */}
+            <div className="bg-card border border-border rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+              <div>
+                <h3 className="font-extrabold text-sm flex items-center gap-2 mb-3">
+                  <Zap className="w-4 h-4 text-amber-500" />
+                  Disponibilidade de Venda Real
+                </h3>
+
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex justify-between text-xs font-bold mb-1">
+                      <span className="text-muted-foreground">Material Livre p/ Venda:</span>
+                      <span className="text-emerald-600 dark:text-emerald-400">
+                        {Math.max(0, totalEstoqueKg - analyticsEstoque.reservadoKg).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} kg
+                      </span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
+                      <div
+                        className="bg-emerald-500 h-full rounded-full transition-all"
+                        style={{ width: `${totalEstoqueKg > 0 ? Math.min(100, Math.max(0, ((totalEstoqueKg - analyticsEstoque.reservadoKg) / totalEstoqueKg) * 100)) : 0}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs font-bold mb-1">
+                      <span className="text-muted-foreground">Material Compromissado (Reservas):</span>
+                      <span className="text-purple-600 dark:text-purple-400">
+                        {analyticsEstoque.reservadoKg.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} kg
+                      </span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
+                      <div
+                        className="bg-purple-500 h-full rounded-full transition-all"
+                        style={{ width: `${totalEstoqueKg > 0 ? Math.min(100, (analyticsEstoque.reservadoKg / totalEstoqueKg) * 100) : 0}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-border flex items-center justify-between">
+                <span className="text-xs text-muted-foreground font-semibold">Gerenciar no Módulo:</span>
+                <Link to="/corte-dobra/bobinas">
+                  <Button size="sm" variant="outline" className="h-8 text-xs font-bold rounded-xl gap-1">
+                    Ver Bobinas →
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabela de Bobinas no Estoque */}
+          <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-extrabold text-sm flex items-center gap-2">
+                <Package className="w-4 h-4 text-orange-500" />
+                Catálogo de Bobinas em Estoque ({bobinas.length})
+              </h3>
+              <Link to="/corte-dobra/bobinas">
+                <span className="text-xs text-primary hover:underline font-bold">Ver todas no Módulo de Bobinas →</span>
+              </Link>
+            </div>
+
             {bobinas.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-8">Nenhuma bobina no estoque CD</p>
+              <p className="text-xs text-muted-foreground text-center py-8">Nenhuma bobina cadastrada no estoque Corte e Dobra</p>
             ) : (
-              <div className="space-y-2 max-h-80 overflow-y-auto">
+              <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                 {[...bobinas].sort((a, b) => (a.peso_kg || 0) - (b.peso_kg || 0)).map(b => {
                   const pct = b.peso_inicial > 0 ? Math.round((b.peso_kg / b.peso_inicial) * 100) : null;
                   const critica = (b.peso_kg || 0) < 100;
+
                   return (
-                    <div key={b.id} className={`flex items-center gap-3 rounded-lg px-3 py-2 border text-xs ${critica ? "bg-red-50 border-red-200" : "bg-muted/30 border-border"}`}>
+                    <div key={b.id} className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 border text-xs transition-all ${critica ? "bg-red-500/10 border-red-500/30" : "bg-muted/40 border-border hover:bg-muted/70"}`}>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono font-bold text-orange-600">{b.codigo || "—"}</span>
-                          <span className="text-slate-600">{b.chapa}</span>
-                          {b.cor && <span className="text-blue-600">{b.cor}</span>}
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="font-mono font-black text-orange-600 dark:text-orange-400 text-sm">{b.codigo || "—"}</span>
+                          <Badge variant="outline" className="font-bold text-[10px] bg-background">{b.chapa}mm</Badge>
+                          {b.cor && <span className="text-blue-600 dark:text-blue-400 font-bold">{b.cor}</span>}
                           {b.qualidade && <span className="text-muted-foreground">({b.qualidade})</span>}
-                          {critica && <Badge className="bg-red-100 text-red-700 border-red-300 text-xs">⚠ Crítico</Badge>}
-                          {b.reservada && <Badge className="bg-purple-100 text-purple-700 border-purple-300 text-xs">Reservada</Badge>}
+                          {critica && <Badge className="bg-red-500 text-white text-[10px]">⚠ Est. Crítico</Badge>}
+                          {b.reservada && <Badge className="bg-purple-600 text-white text-[10px]">🔒 Reservada</Badge>}
                         </div>
+
                         {pct !== null && (
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="flex items-center gap-2">
                             <div className="flex-1 bg-muted rounded-full h-1.5 overflow-hidden">
-                              <div className={`h-full rounded-full ${pct > 40 ? "bg-green-500" : pct > 20 ? "bg-amber-500" : "bg-red-500"}`} style={{ width: `${pct}%` }} />
+                              <div
+                                className={`h-full rounded-full ${pct > 40 ? "bg-emerald-500" : pct > 20 ? "bg-amber-500" : "bg-red-500"}`}
+                                style={{ width: `${pct}%` }}
+                              />
                             </div>
-                            <span className="text-muted-foreground w-8 text-right">{pct}%</span>
+                            <span className="text-muted-foreground w-9 text-right font-mono text-[11px]">{pct}%</span>
                           </div>
                         )}
                       </div>
+
                       <div className="text-right flex-shrink-0">
-                        <p className={`font-bold ${critica ? "text-red-600" : "text-slate-700"}`}>{b.peso_kg || 0}kg</p>
-                        {b.fornecedor && <p className="text-muted-foreground">{b.fornecedor}</p>}
+                        <p className={`font-black text-sm ${critica ? "text-red-500" : "text-foreground"}`}>
+                          {(b.peso_kg || 0).toLocaleString("pt-BR")} kg
+                        </p>
+                        {b.fornecedor && <p className="text-[10px] text-muted-foreground truncate max-w-[120px]">{b.fornecedor}</p>}
                       </div>
                     </div>
                   );
                 })}
               </div>
             )}
-            <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-border">
-              <div className="text-center">
-                <p className="text-xl font-black text-orange-600">{bobinas.length}</p>
-                <p className="text-xs text-muted-foreground">Bobinas ativas</p>
-              </div>
-              <div className="text-center">
-                <p className="text-xl font-black text-green-600">{totalPeso.toFixed(0)}kg</p>
-                <p className="text-xs text-muted-foreground">Total estoque</p>
-              </div>
-              <div className="text-center">
-                <p className={`text-xl font-black ${bobinasCriticas.length > 0 ? "text-red-600" : "text-green-600"}`}>{bobinasCriticas.length}</p>
-                <p className="text-xs text-muted-foreground">⚠ Críticas</p>
-              </div>
-            </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* Sheet - Ordens Ativas */}
