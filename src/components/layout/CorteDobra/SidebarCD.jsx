@@ -131,12 +131,14 @@ export default function SidebarCD({ isOpen, onToggle }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto no-scrollbar">
+        <nav className="flex-1 p-2 space-y-1 overflow-y-auto no-scrollbar">
           {isOperador ? (
             <>
-              <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mb-3">
-                Minha Máquina
-              </p>
+              {isOpen && (
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 my-2">
+                  Minha Máquina
+                </p>
+              )}
               {parseMaquinas(user?.maquina).map(m => {
                 const route = MAQUINA_CD_ROUTE_MAP[m];
                 if (!route) return null;
@@ -146,23 +148,30 @@ export default function SidebarCD({ isOpen, onToggle }) {
             </>
           ) : (
             <>
-              <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mb-3">
-                Principal
-              </p>
+              {isOpen && (
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 my-2">
+                  Principal
+                </p>
+              )}
               {NAV.map(renderLink)}
 
               {/* Máquinas individuais */}
               <div>
                 <button
                   onClick={() => setMaquinasOpen(o => !o)}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all cursor-pointer"
+                  title={!isOpen ? "Máquinas" : undefined}
+                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:bg-slate-800/80 hover:text-white transition-all cursor-pointer touch-manipulation min-h-[48px]"
                 >
-                  <Wrench className="w-4 h-4 flex-shrink-0" />
-                  <span className="flex-1 text-left">Máquinas</span>
-                  {maquinasOpen ? <ChevronDown className="w-4 h-4 opacity-60" /> : <ChevronRight className="w-4 h-4 opacity-60" />}
+                  <Wrench className="w-5 h-5 flex-shrink-0" />
+                  {isOpen && (
+                    <>
+                      <span className="flex-1 text-left truncate">Máquinas</span>
+                      {maquinasOpen ? <ChevronDown className="w-4 h-4 opacity-60" /> : <ChevronRight className="w-4 h-4 opacity-60" />}
+                    </>
+                  )}
                 </button>
-                {maquinasOpen && (
-                  <div className="ml-4 mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
+                {isOpen && maquinasOpen && (
+                  <div className="ml-4 mt-1 space-y-0.5 border-l border-slate-800 pl-3">
                     {MAQUINAS_NAV.map(item => {
                       const isActive = location.pathname === item.path;
                       return (
@@ -171,10 +180,10 @@ export default function SidebarCD({ isOpen, onToggle }) {
                           to={item.path}
                           onClick={() => window.innerWidth < 1024 && onToggle()}
                           className={cn(
-                            "flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-medium transition-all",
+                            "flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-medium transition-all",
                             isActive
-                              ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                              : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                              ? "bg-orange-500/20 text-orange-300 font-semibold border border-orange-500/30"
+                              : "text-slate-400 hover:bg-slate-800 hover:text-white"
                           )}
                         >
                           <span>{item.label}</span>
@@ -187,18 +196,22 @@ export default function SidebarCD({ isOpen, onToggle }) {
 
               {isSuperAdmin && (
                 <>
-                  <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mt-5 mb-3">
-                    Administração
-                  </p>
+                  {isOpen && (
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 mt-4 mb-2">
+                      Administração
+                    </p>
+                  )}
                   {ADMIN_NAV.map(renderLink)}
                 </>
               )}
 
               {(isSuperAdmin || user?.permitido_central_alertas === true) && (
                 <>
-                  <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mt-4 mb-3">
-                    Configurações
-                  </p>
+                  {isOpen && (
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 mt-4 mb-2">
+                      Configurações
+                    </p>
+                  )}
                   {renderLink({ path: "/corte-dobra/alertas", label: "Central de Alertas", icon: Bell })}
                 </>
               )}

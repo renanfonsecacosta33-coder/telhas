@@ -135,12 +135,14 @@ export default function Sidebar({ isOpen, onToggle }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto no-scrollbar">
+        <nav className="flex-1 p-2 space-y-1 overflow-y-auto no-scrollbar">
           {isOperador ? (
             <>
-              <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mb-3">
-                Minha Máquina
-              </p>
+              {isOpen && (
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 my-2">
+                  Minha Máquina
+                </p>
+              )}
               {parseMaquinas(user?.maquina)
                 .filter(m => MAQUINA_ROUTE_MAP[m])
                 .map(m => renderLink({
@@ -152,25 +154,31 @@ export default function Sidebar({ isOpen, onToggle }) {
             </>
           ) : (
             <>
-              <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mb-3">
-                Principal
-              </p>
+              {isOpen && (
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 my-2">
+                  Principal
+                </p>
+              )}
               {FIXED_NAV.map(renderLink)}
 
               {dynamicItems.length > 0 && (
                 <>
-                  <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mt-5 mb-3">
-                    Categorias
-                  </p>
+                  {isOpen && (
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 mt-4 mb-2">
+                      Categorias
+                    </p>
+                  )}
                   {dynamicItems.map(renderLink)}
                 </>
               )}
 
               {isSuperAdmin && (
                 <>
-                  <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mt-5 mb-3">
-                    Administração
-                  </p>
+                  {isOpen && (
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 mt-4 mb-2">
+                      Administração
+                    </p>
+                  )}
                   {renderLink({ path: "/usuarios", label: "Usuários", icon: Users })}
                 </>
               )}

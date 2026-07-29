@@ -46,16 +46,8 @@ export default function EcosystemHeaderBar({ user, sidebarOpen, onToggleSidebar,
 
   return (
     <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2 shadow-sm">
-      {/* Esquerda: Botão Menu Sidebar + Seletor de Ecossistema */}
+      {/* Esquerda: Seletor de Ecossistema */}
       <div className="flex items-center gap-2">
-        <button
-          onClick={onToggleSidebar}
-          className="p-2 rounded-xl hover:bg-muted text-foreground transition-colors touch-manipulation min-h-[44px] min-w-[44px] flex items-center justify-center lg:hidden"
-          title="Alternar Menu"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
-
         {/* Dropdown de Troca Rápida de Ecossistema (Expedição / CD / Telhas) */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
