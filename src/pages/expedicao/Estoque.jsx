@@ -60,7 +60,7 @@ export default function EstoqueExpedicao() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <button onClick={() => navigate("/expedicao")} className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-1">
             <ChevronLeft className="w-4 h-4" /> Voltar
@@ -68,11 +68,15 @@ export default function EstoqueExpedicao() {
           <h1 className="text-xl font-bold flex items-center gap-2">
             <Package className="w-6 h-6 text-blue-600" /> Estoque de Bobinas — Expedição
           </h1>
-          <p className="text-sm text-muted-foreground">Bobinas disponíveis para a máquina de Frisada</p>
         </div>
-        <Button onClick={() => { setEditItem(null); setDialogOpen(true); }} className="gap-2 bg-blue-600 hover:bg-blue-700">
-          <Plus className="w-4 h-4" /> Nova Bobina
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => navigate("/expedicao/reservas")} variant="outline" className="gap-2 border-teal-500/40 text-teal-600 dark:text-teal-400 font-bold">
+            🔒 Gerenciar Reservas
+          </Button>
+          <Button onClick={() => { setEditItem(null); setDialogOpen(true); }} className="gap-2">
+            <Plus className="w-4 h-4" /> Nova Bobina
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}

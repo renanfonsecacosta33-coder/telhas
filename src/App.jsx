@@ -80,6 +80,7 @@ import FrisadaPage from '@/pages/expedicao/Frisada';
 import HistoricoExpedicao from '@/pages/expedicao/Historico';
 import SaidaMaterial from '@/pages/expedicao/SaidaMaterial';
 import DevolucoesExpedicao from '@/pages/expedicao/Devolucoes';
+import ReservasExpedicao from '@/pages/expedicao/Reservas';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -180,6 +181,7 @@ const AuthenticatedApp = () => {
         <Route path="/expedicao"             element={<DashboardExpedicao />} />
         <Route path="/expedicao/recebimento" element={<RecebimentoExpedicao />} />
         <Route path="/expedicao/saida"       element={<SaidaMaterial />} />
+        <Route path="/expedicao/reservas"    element={<ReservasExpedicao />} />
         <Route path="/expedicao/devolucoes"   element={<DevolucoesExpedicao />} />
         <Route path="/expedicao/estoque"     element={<EstoqueExpedicao />} />
         <Route path="/expedicao/mapa"        element={<MapaArmazenagem />} />

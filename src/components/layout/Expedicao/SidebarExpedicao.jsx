@@ -2,19 +2,20 @@ import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, PackageCheck, Package, Map, Wrench, History, RotateCcw,
-  ChevronLeft, ArrowLeftRight, Menu, ArrowUpRight
+  ChevronLeft, ArrowLeftRight, Menu, ArrowUpRight, BookmarkCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { to: "/expedicao",             label: "Dashboard",         icon: LayoutDashboard, end: true },
-  { to: "/expedicao/recebimento", label: "Receber Material",  icon: PackageCheck },
-  { to: "/expedicao/saida",       label: "Saída / Transfer.",  icon: ArrowUpRight },
-  { to: "/expedicao/devolucoes",   label: "Devoluções",        icon: RotateCcw },
-  { to: "/expedicao/estoque",     label: "Estoque Expedição", icon: Package },
-  { to: "/expedicao/mapa",        label: "Mapa Armazenagem",  icon: Map },
-  { to: "/expedicao/frisada",     label: "Frisada",           icon: Wrench },
-  { to: "/expedicao/historico",   label: "Histórico",         icon: History },
+  { to: "/expedicao",             label: "Dashboard",          icon: LayoutDashboard, end: true },
+  { to: "/expedicao/recebimento", label: "Receber Material",   icon: PackageCheck },
+  { to: "/expedicao/saida",       label: "Saída / Transfer.",   icon: ArrowUpRight },
+  { to: "/expedicao/reservas",    label: "Reservas de Vendas", icon: BookmarkCheck },
+  { to: "/expedicao/devolucoes",   label: "Devoluções",         icon: RotateCcw },
+  { to: "/expedicao/estoque",     label: "Estoque Expedição",  icon: Package },
+  { to: "/expedicao/mapa",        label: "Mapa Armazenagem",   icon: Map },
+  { to: "/expedicao/frisada",     label: "Frisada",            icon: Wrench },
+  { to: "/expedicao/historico",   label: "Histórico",          icon: History },
 ];
 
 export default function SidebarExpedicao({ isOpen, onToggle, user }) {
