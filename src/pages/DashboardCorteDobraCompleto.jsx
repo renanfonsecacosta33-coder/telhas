@@ -16,6 +16,7 @@ import {
   Calendar, Target, Activity, Scissors, Layers, Timer, Coffee, Square, RefreshCw, DollarSign
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useFilial } from "@/contexts/FilialContext";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend, PieChart, Pie
