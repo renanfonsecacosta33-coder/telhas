@@ -122,17 +122,6 @@ export default function SidebarCD({ isOpen, onToggle }) {
             )}
           </div>
         </div>
-          {user && (
-            <div className="mt-3 px-1">
-              <p className="text-xs font-semibold text-sidebar-foreground/80 truncate">{user.full_name || user.email}</p>
-              <div className="flex items-center gap-1 mt-0.5">
-                <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-white/10 text-sidebar-foreground/70 border border-white/10">
-                  {user.role || "user"}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
 
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
