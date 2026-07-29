@@ -55,7 +55,7 @@ export default function SidebarExpedicao({ isOpen, onToggle, user }) {
         </div>
 
         {/* Nav Items Otimizados para Tablet (Touch Targets de 48px) */}
-        <nav className="flex-1 py-3 space-y-1 px-2 overflow-y-auto">
+        <nav className="flex-1 py-3 space-y-1 px-2 overflow-y-auto no-scrollbar">
           {NAV.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}

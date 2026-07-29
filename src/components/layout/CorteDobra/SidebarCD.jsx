@@ -124,7 +124,7 @@ export default function SidebarCD({ isOpen, onToggle }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto no-scrollbar">
           {isOperador ? (
             <>
               <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mb-3">
