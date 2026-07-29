@@ -5,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, Circle, Snowflake, Package, Menu, X, ChevronRight,
   Factory, Settings, Droplets, Wrench, Layers, Box, ShoppingCart,
-  Truck, BarChart2, FileText, Tag, Archive, Zap, Users, LogOut, Cog, FlaskConical, ArrowLeftRight, Map, BookmarkPlus, Scissors
+  Truck, BarChart2, FileText, Tag, Archive, Zap, Users, LogOut, Cog, FlaskConical, ArrowLeftRight, Map, BookmarkPlus, Scissors, Home
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
