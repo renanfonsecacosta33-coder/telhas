@@ -4,6 +4,7 @@ import Sidebar from "./Sidebar";
 import FilialSwitcher from "@/components/FilialSwitcher";
 import UserAvatarButton from "@/components/UserAvatarButton";
 import EcosystemHeaderBar from "@/components/layout/EcosystemHeaderBar";
+import PageTransition from "@/components/layout/PageTransition";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftRight, MessageCircle } from "lucide-react";
 import { base44 } from "@/api/base44Client";
@@ -110,7 +111,9 @@ export default function AppLayout() {
           )}
         </EcosystemHeaderBar>
         <div className="p-4 sm:p-6 lg:p-8">
-          <Outlet />
+          <PageTransition>
+            <Outlet />
+          </PageTransition>
         </div>
       </main>
 

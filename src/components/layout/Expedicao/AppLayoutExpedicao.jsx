@@ -3,6 +3,7 @@ import { Outlet, Navigate, useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import SidebarExpedicao from "./SidebarExpedicao";
 import EcosystemHeaderBar from "@/components/layout/EcosystemHeaderBar";
+import PageTransition from "@/components/layout/PageTransition";
 
 export default function AppLayoutExpedicao() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -47,7 +48,9 @@ export default function AppLayoutExpedicao() {
         />
 
         <main className="flex-1 p-3 sm:p-5 md:p-6 overflow-auto">
-          <Outlet context={{ user, isAdmin }} />
+          <PageTransition>
+            <Outlet context={{ user, isAdmin }} />
+          </PageTransition>
         </main>
       </div>
     </div>

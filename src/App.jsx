@@ -86,12 +86,15 @@ const AuthenticatedApp = () => {
 
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-xl">A</span>
+      <div className="fixed inset-0 flex items-center justify-center bg-slate-950 text-white">
+        <div className="flex flex-col items-center gap-5">
+          <div className="w-14 h-14 rounded-2xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center shadow-xl shadow-teal-500/10 animate-pulse">
+            <span className="text-teal-400 font-black text-xl tracking-wider">AJL</span>
           </div>
-          <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
+          <div className="w-44 h-1.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+            <div className="w-full h-full bg-gradient-to-r from-teal-500 via-orange-500 to-blue-500 animate-pulse" />
+          </div>
+          <p className="text-xs font-semibold text-slate-400 tracking-wide">Carregando Ecossistema AJL...</p>
         </div>
       </div>
     );
