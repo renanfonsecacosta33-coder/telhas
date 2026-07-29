@@ -84,16 +84,16 @@ export default function SidebarCD({ isOpen, onToggle }) {
         key={item.path}
         to={item.path}
         onClick={() => window.innerWidth < 1024 && onToggle()}
+        title={!isOpen ? item.label : undefined}
         className={cn(
-          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+          "flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold transition-all touch-manipulation min-h-[48px]",
           isActive
-            ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-sidebar-primary/25"
-            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            ? "bg-orange-500/20 text-orange-300 border border-orange-500/40 shadow-sm"
+            : "text-slate-400 hover:bg-slate-800/80 hover:text-white"
         )}
       >
-        <Icon className="w-4 h-4 flex-shrink-0" />
-        <span className="flex-1">{item.label}</span>
-        {isActive && <ChevronRight className="w-4 h-4 opacity-60" />}
+        <Icon className="w-5 h-5 flex-shrink-0" />
+        {isOpen && <span className="flex-1 truncate">{item.label}</span>}
       </Link>
     );
   };
@@ -101,33 +101,27 @@ export default function SidebarCD({ isOpen, onToggle }) {
   return (
     <>
       {isOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={onToggle} />
+        <div className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-sm" onClick={onToggle} />
       )}
-      <button
-        onClick={onToggle}
-        className="fixed top-4 left-4 z-50 lg:hidden bg-card border border-border rounded-lg p-2 shadow-lg"
-      >
-        {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-      </button>
 
       <aside className={cn(
-        "fixed top-0 left-0 h-full z-40 bg-sidebar text-sidebar-foreground transition-transform duration-300 ease-in-out",
-        "w-64 flex flex-col",
-        isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        "fixed top-0 left-0 h-full z-50 bg-slate-950 text-white transition-all duration-300 border-r border-slate-800 shadow-2xl flex flex-col",
+        isOpen ? "w-64" : "w-16"
       )}>
         {/* Logo */}
-        <div className="p-5 border-b border-sidebar-border">
-          <div className="flex items-center gap-3">
-            <img
-              src="https://media.base44.com/images/public/6a0467e5d5ff5dda4351d2c3/9bae84333_LOGO_AJL_.png"
-              alt="AJL Logo"
-              className="h-10 w-auto object-contain brightness-0 invert"
-            />
-            <div>
-              <h1 className="font-bold text-base tracking-widest text-sidebar-foreground uppercase">Ferro e Aço</h1>
-              <p className="text-xs text-sidebar-foreground/50 tracking-wider uppercase">Corte e Dobra</p>
+        <div className="p-3.5 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <div className="w-8 h-8 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center flex-shrink-0">
+              <Factory className="w-4 h-4 text-orange-400" />
             </div>
+            {isOpen && (
+              <div>
+                <h1 className="font-black text-xs tracking-wider text-white uppercase leading-none">AJL FERRO & AÇO</h1>
+                <p className="text-[10px] text-slate-400 font-medium mt-0.5">Corte & Dobra</p>
+              </div>
+            )}
           </div>
+        </div>
           {user && (
             <div className="mt-3 px-1">
               <p className="text-xs font-semibold text-sidebar-foreground/80 truncate">{user.full_name || user.email}</p>
@@ -217,35 +211,36 @@ export default function SidebarCD({ isOpen, onToggle }) {
         </nav>
 
         {/* Bottom */}
-        <div className="p-4 border-t border-sidebar-border space-y-1">
+        <div className="p-3 border-t border-slate-800 space-y-1">
           {isGerencia && (
             <a
               href="https://gerencial-fabricas.base44.app"
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-amber-400 hover:bg-sidebar-accent hover:text-amber-300 transition-all"
+              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold text-amber-400 hover:bg-slate-800 transition-all touch-manipulation min-h-[48px]"
             >
-              <Factory className="w-4 h-4" />
-              <span>Gerência Fábricas</span>
+              <Factory className="w-5 h-5 flex-shrink-0" />
+              {isOpen && <span>Gerência Fábricas</span>}
             </a>
           )}
           {user && !isOperador && (
             <button
               onClick={() => navigate("/setor")}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all cursor-pointer"
+              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:bg-slate-800 hover:text-white transition-all touch-manipulation min-h-[48px]"
+              title={!isOpen ? "Trocar Setor" : undefined}
             >
-              <ArrowLeftRight className="w-4 h-4" />
-              <span>Trocar Setor</span>
+              <ArrowLeftRight className="w-5 h-5 flex-shrink-0" />
+              {isOpen && <span>Trocar Setor</span>}
             </button>
           )}
           <button
             onClick={() => base44.auth.logout()}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all cursor-pointer"
+            className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:bg-slate-800 hover:text-white transition-all touch-manipulation min-h-[48px]"
+            title={!isOpen ? "Sair" : undefined}
           >
-            <LogOut className="w-4 h-4" />
-            <span>Sair</span>
+            <LogOut className="w-5 h-5 flex-shrink-0" />
+            {isOpen && <span>Sair</span>}
           </button>
-          <p className="text-xs text-sidebar-foreground/30 text-center mt-1">AJL ERP v2.0</p>
         </div>
       </aside>
     </>
