@@ -79,7 +79,7 @@ export default function AppLayoutCD() {
   return (
     <div className="min-h-screen bg-background">
       <SidebarCD isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
-      <main className="lg:ml-64 min-h-screen">
+      <main className={`min-h-screen transition-all duration-300 ${sidebarOpen ? "ml-64" : "ml-16"}`}>
         <EcosystemHeaderBar
           user={user}
           sidebarOpen={sidebarOpen}
