@@ -12,6 +12,7 @@ import ReservaPanel from "@/components/bobinas/ReservaPanel";
 import UploadButton from "@/components/ui/UploadButton";
 import ImageViewer from "@/components/ui/ImageViewer";
 import { useQueryClient } from "@tanstack/react-query";
+import { useFilial } from "@/contexts/FilialContext";
 
 const STATUS_OPTIONS = [
   "Aberta", "Fechada", "Finalizada", "Na TP40", "Na BOBININHA",
@@ -22,6 +23,7 @@ const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "GL (IMP)"];
 
 export default function BobinaFormDialog({ open, onClose, editItem }) {
   const queryClient = useQueryClient();
+  const { filialAtiva } = useFilial();
   const [form, setForm] = useState({
     cor: "", chapa: "", qualidade: "", sub_cod: "", largura_mm: "", peso_kg: "", peso_inicial: "",
     metragem: "", codigo: "", nf: "", custo: "", status: "", fornecedor: "",
@@ -163,6 +165,9 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
     const p = {
       ...form,
       setor: "telhas",
+      // 🔒 Garante que a unidade seja sempre salva com a filial ativa
+      // (preserva a unidade original ao editar, evitando bobinas "sumirem" da filial)
+      unidade: editItem?.unidade || filialAtiva,
       reservada: form.reservada || false,
     };
 

@@ -31,8 +31,12 @@ export default function EtiquetaBTW({ bobina, onClose }) {
   const chapaUtilizada = bobina.espessura_utilizada || bobina.chapa || "—";
 
   const handlePrint = () => {
-    const conteudo = printRef.current.innerHTML;
+    const conteudo = printRef.current?.innerHTML;
     const janela = window.open("", "_blank", "width=700,height=500");
+    if (!janela) {
+      alert("O bloqueador de pop-ups impediu a abertura da etiqueta. Permita pop-ups para este site e tente novamente.");
+      return;
+    }
     janela.document.write(`
       <!DOCTYPE html>
       <html>

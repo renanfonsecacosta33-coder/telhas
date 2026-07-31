@@ -45,7 +45,10 @@ export default function EtiquetaIndustrialModal({ open, onOpenChange, data }) {
 
   const handlePrint = () => {
     const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
+    if (!printWindow) {
+      toast.error("O bloqueador de pop-ups impediu a impressão. Permita pop-ups para este site e tente novamente.");
+      return;
+    }
 
     printWindow.document.write(`
       <html>
