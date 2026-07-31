@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { RotateCw, Download, X, ZoomIn, ZoomOut, Loader2 } from "lucide-react";
 
 /**
@@ -53,7 +54,7 @@ export default function ImageViewer({ url, name, open, onClose }) {
 
   const isLandscape = rotacao === 90 || rotacao === 270;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 select-none">
       {/* Toolbar */}
       <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 bg-black/60 backdrop-blur-sm">
@@ -123,6 +124,7 @@ export default function ImageViewer({ url, name, open, onClose }) {
           />
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
