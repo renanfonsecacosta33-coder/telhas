@@ -1,4 +1,5 @@
 import React, { useRef } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Printer, X } from "lucide-react";
 import { format } from "date-fns";
@@ -105,8 +106,8 @@ export default function EtiquetaBTW({ bobina, onClose }) {
     janela.document.close();
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-5">
         <div className="flex items-center justify-between">
           <div>
@@ -215,6 +216,7 @@ export default function EtiquetaBTW({ bobina, onClose }) {
           Tamanho de impressão: 101,6 × 76,2 mm (4" × 3")
         </p>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
