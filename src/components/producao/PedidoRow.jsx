@@ -15,6 +15,7 @@ import { playFinishSound, speakOpFinalizada, playAlertSound } from "@/lib/sounds
 import { useFilial } from "@/contexts/FilialContext";
 import { useQuery } from "@tanstack/react-query";
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
+import { toast } from "sonner";
 
 const PRODUTO_BG = {
   "TELHA":               "border-l-blue-400",
@@ -174,6 +175,28 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
     refetchInterval: 5000,
   });
   const aguardandoAprovacao = solicitacoesPendentes.length > 0;
+
+  const cancelarSolicitacaoPendente = async () => {
+    if (!solicitacoesPendentes.length) return;
+    const ok = confirm(
+      "Esta OP está aguardando aprovação do encarregado para iniciar (há outra OP rodando).\n\n" +
+      "Deseja CANCELAR esta solicitação pendente e tentar iniciar novamente?"
+    );
+    if (!ok) return;
+    try {
+      for (const s of solicitacoesPendentes) {
+        await base44.entities.SolicitacaoProducao.update(s.id, {
+          status: "recusada",
+          resposta_admin: "Cancelada pelo próprio operador",
+          admin_nome: user?.full_name || user?.email || "—",
+          data_avaliacao: new Date().toISOString(),
+        });
+      }
+      toast.success("Solicitação cancelada. Tente iniciar novamente.");
+    } catch (err) {
+      alert("Erro ao cancelar solicitação: " + (err.message || ""));
+    }
+  };
 
   const handleUploadFotoColagemEps = async (e) => {
     const file = e.target.files?.[0];
@@ -899,11 +922,11 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
           {p.status === "pendente" && (
             <Button
               size="sm"
-              className={`gap-1 border-0 ${aguardandoAprovacao ? "bg-slate-300 text-slate-500 cursor-not-allowed" : p.rota ? "bg-red-500 hover:bg-red-600 text-white" : "bg-amber-500 hover:bg-amber-600 text-white"}`}
-              onClick={handleIniciar}
-              disabled={aguardandoAprovacao}
+              className={`gap-1 border-0 ${aguardandoAprovacao ? "bg-orange-400 hover:bg-orange-500 text-white" : p.rota ? "bg-red-500 hover:bg-red-600 text-white" : "bg-amber-500 hover:bg-amber-600 text-white"}`}
+              onClick={aguardandoAprovacao ? cancelarSolicitacaoPendente : handleIniciar}
+              title={aguardandoAprovacao ? "Aguardando aprovação do encarregado. Clique para cancelar a solicitação." : ""}
             >
-              <Play className="w-3 h-3" /> {aguardandoAprovacao ? "Aguardando..." : p.maquina === "COLAGEM" ? "Iniciar Colagem" : "Iniciar"}
+              <Play className="w-3 h-3" /> {aguardandoAprovacao ? "Aguardando... (cancelar)" : p.maquina === "COLAGEM" ? "Iniciar Colagem" : "Iniciar"}
             </Button>
           )}
 
