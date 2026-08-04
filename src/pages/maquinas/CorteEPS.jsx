@@ -693,7 +693,7 @@ export default function CorteEPS() {
             return (
               <div 
                 key={p.id} 
-                className={`bg-white border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between ${
+                className={`bg-white border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col h-full ${
                   st === "em_corte" 
                     ? "border-blue-400 bg-blue-50/20" 
                     : st === "pausado"
@@ -705,7 +705,7 @@ export default function CorteEPS() {
                     : "border-slate-200"
                 }`}
               >
-                <div className="space-y-3">
+                <div className="space-y-3 flex-1">
                   {/* Header do Card */}
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -834,7 +834,7 @@ export default function CorteEPS() {
                 </div>
 
                 {/* Footer do Card - Botões de Ação */}
-                <div className="pt-4 mt-3 border-t border-slate-200 flex items-center justify-between gap-2">
+                <div className="pt-4 mt-auto border-t border-slate-200 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1">
                     {p.foto_pedido_url && (
                       <ImageLink url={p.foto_pedido_url} name="Desenho / Foto da OP">
