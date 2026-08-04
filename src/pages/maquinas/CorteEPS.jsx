@@ -509,6 +509,41 @@ export default function CorteEPS() {
     toast.info("Status de EPS reaberto para Pendente.");
   };
 
+  const handleResetarInicio = (p) => {
+    if (!p?.id) return;
+    if (!window.confirm(`Resetar o Pedido #${p.numero_pedido || p.id.slice(-4)} para o início (Pendente)?\n\nIsso vai zerar o cronômetro, limpar a foto e apagar o histórico de observações de corte.`)) return;
+    updateEpsMutation.mutate({
+      id: p.id,
+      updates: {
+        eps_status: "pendente",
+        eps_tempo_corte_seg: 0,
+        eps_tempo_pausa_seg: 0,
+        eps_inicio_corte_ts: null,
+        eps_inicio_pausa_ts: null,
+        eps_motivo_pausa: null,
+        foto_eps_url: null,
+        eps_observacoes: null,
+        alerta_email_eps_enviado: false,
+      }
+    });
+    toast.success("Pedido resetado para o início (Pendente).");
+  };
+
+  const handleExcluirPedido = async (p) => {
+    if (!p?.id) return;
+    if (!window.confirm(`⚠️ EXCLUIR o Pedido #${p.numero_pedido || p.id.slice(-4)}?\n\nEsta ação é permanente e não pode ser desfeita.`)) return;
+    try {
+      await base44.entities.Pedido.delete(p.id);
+      queryClient.invalidateQueries({ queryKey: ["pedidos-corte-eps"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-maquina"] });
+      toast.success("Pedido excluído com sucesso.");
+    } catch (err) {
+      toast.error("Erro ao excluir: " + err.message);
+    }
+  };
+
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
+
   return (
     <div className="p-4 sm:p-6 bg-slate-50 min-h-screen space-y-6">
       {/* Header Banner */}
@@ -835,7 +870,7 @@ export default function CorteEPS() {
 
                 {/* Footer do Card - Botões de Ação */}
                 <div className="pt-4 mt-auto border-t border-slate-200 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 flex-wrap">
                     {p.foto_pedido_url && (
                       <ImageLink url={p.foto_pedido_url} name="Desenho / Foto da OP">
                         <Button variant="outline" size="sm" className="h-8 text-xs gap-1 border-blue-200 text-blue-800 bg-blue-50" title="Ver foto/desenho da OP">
@@ -848,6 +883,28 @@ export default function CorteEPS() {
                       canal_label={`EPS #${p.numero_pedido || (p.id ? p.id.slice(-4) : "")}`} 
                       currentUser={user} 
                     />
+                    {isAdmin && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleResetarInicio(p)}
+                          title="Resetar para o início (admin)"
+                          className="h-8 text-xs gap-1 border-amber-300 text-amber-800 hover:bg-amber-50"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" /> Resetar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleExcluirPedido(p)}
+                          title="Excluir pedido (admin)"
+                          className="h-8 text-xs gap-1 border-red-300 text-red-700 hover:bg-red-50"
+                        >
+                          <AlertCircle className="w-3.5 h-3.5" /> Excluir
+                        </Button>
+                      </>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-1.5">
