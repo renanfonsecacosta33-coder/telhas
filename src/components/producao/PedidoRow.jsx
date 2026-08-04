@@ -281,9 +281,25 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
       setValidacaoEtiquetaOpen(true);
       return;
     }
+    // COLAGEM: trava — só pode iniciar se o corte do EPS foi finalizado (eps_status pronto)
+    if (p.maquina === "COLAGEM" && PRODUTOS_COM_EPS.includes(p.produto) && p.eps_status !== "pronto") {
+      playAlertSound();
+      alert(
+        "⚠️ O corte do EPS ainda não foi finalizado!\n\n" +
+        "A colagem só pode ser iniciada após o operador de Corte de EPS finalizar o processo (status: EPS Pronto).\n\n" +
+        "Status atual: " + (p.eps_status === "em_corte" ? "EPS em Corte" : "EPS Pendente Corte")
+      );
+      return;
+    }
     // Se já existe OP rodando nesta máquina, mostra confirmação
     if (opRodando && opRodando.id !== p.id && opRodando.status === "em_producao") {
       setConfirmarInicioOpen(true);
+      return;
+    }
+    // COLAGEM: abre validação do EPS (foto de conferência) antes de iniciar de fato
+    if (p.maquina === "COLAGEM") {
+      setFotoColagemEpsUrl("");
+      setValidarEpsColagemOpen(true);
       return;
     }
     const updates = {
