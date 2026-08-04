@@ -340,9 +340,12 @@ export default function CorteEPS() {
     const disponivel = getEstoqueModel(p.eps);
 
     if (disponivel < placasEstimatativas) {
-      if (!window.confirm(`⚠️ O estoque de EPS (${disponivel} un) é menor que o necessário (${placasEstimatativas} un) para este pedido. Deseja iniciar mesmo assim?`)) {
-        return;
-      }
+      playAlertSound();
+      toast.error(
+        `⛔ Estoque insuficiente de EPS! Disponível: ${disponivel} un · Necessário: ${placasEstimatativas} un. Abasteça o estoque antes de iniciar o corte.`,
+        { duration: 5000 }
+      );
+      return;
     }
 
     updateEpsMutation.mutate({
@@ -909,12 +912,14 @@ export default function CorteEPS() {
 
                   <div className="flex items-center gap-1.5">
                     {st === "pendente" && (
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         onClick={() => handleIniciarCorte(p)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 gap-1.5 shadow-sm"
+                        disabled={semEstoque}
+                        title={semEstoque ? "Estoque de EPS insuficiente — abasteça antes de iniciar" : "Iniciar corte do EPS"}
+                        className={`text-xs h-8 gap-1.5 shadow-sm ${semEstoque ? "bg-slate-300 text-slate-500 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 text-white"}`}
                       >
-                        <Play className="w-3.5 h-3.5" /> Iniciar Corte
+                        <Play className="w-3.5 h-3.5" /> {semEstoque ? "Sem Estoque" : "Iniciar Corte"}
                       </Button>
                     )}
 
