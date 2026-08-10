@@ -4,7 +4,7 @@
   "properties": {
     "nome": {
       "type": "string",
-      "description": "Nome identificador do alerta (ex: Estoque Crítico de Bobina)"
+      "description": "Nome identificador do alerta (ex: Estoque Cr\u00edtico de Bobina)"
     },
     "evento": {
       "type": "string",
@@ -28,11 +28,11 @@
     },
     "destinatarios_email": {
       "type": "string",
-      "description": "E-mails separados por vírgula para notificação"
+      "description": "E-mails separados por v\u00edrgula para notifica\u00e7\u00e3o"
     },
     "destinatarios_whatsapp": {
       "type": "string",
-      "description": "Números de WhatsApp (DDI+DDD+número) separados por vírgula"
+      "description": "N\u00fameros de WhatsApp (DDI+DDD+n\u00famero) separados por v\u00edrgula"
     },
     "som": {
       "type": "string",
@@ -46,16 +46,76 @@
         "sucesso.mp3"
       ],
       "default": "nenhum",
-      "description": "Som a ser reproduzido nas interfaces do galpão/escritório"
+      "description": "Som a ser reproduzido nas interfaces do galp\u00e3o/escrit\u00f3rio"
     },
     "ativo": {
       "type": "boolean",
       "default": true,
-      "description": "Indica se esta regra de alerta está ativa"
+      "description": "Indica se esta regra de alerta est\u00e1 ativa"
     }
   },
   "required": [
     "nome",
     "evento"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "gestor"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "gestor"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "gestor"
+          }
+        }
+      ]
+    }
+  }
 }

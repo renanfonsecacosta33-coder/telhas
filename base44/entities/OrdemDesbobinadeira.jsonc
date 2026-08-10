@@ -168,7 +168,7 @@
     },
     "peso_real_balanca_kg": {
       "type": "number",
-      "description": "Peso real do fardo aferido na balança física (kg)"
+      "description": "Peso real do fardo aferido na balan\u00e7a f\u00edsica (kg)"
     },
     "data_finalizacao": {
       "type": "string",
@@ -268,7 +268,33 @@
     }
   ],
   "rls": {
-    "create": true,
+    "create": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "gestor"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "vendedor"
+          }
+        }
+      ]
+    },
     "read": {
       "$or": [
         {
@@ -292,7 +318,9 @@
           }
         },
         {
-          "data.vendedor": "{{user.full_name}}"
+          "user_condition": {
+            "role": "vendedor"
+          }
         }
       ]
     },
@@ -319,10 +347,30 @@
           }
         },
         {
-          "data.vendedor": "{{user.full_name}}"
+          "user_condition": {
+            "role": "vendedor"
+          }
         }
       ]
     },
-    "delete": true
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "gestor"
+          }
+        }
+      ]
+    }
   }
 }

@@ -87,16 +87,16 @@
         "pronto"
       ],
       "default": "pendente",
-      "description": "Status de preparação/corte do EPS"
+      "description": "Status de prepara\u00e7\u00e3o/corte do EPS"
     },
     "eps_observacoes": {
       "type": "string",
-      "description": "Observações para o operador de corte de EPS"
+      "description": "Observa\u00e7\u00f5es para o operador de corte de EPS"
     },
     "alerta_email_eps_enviado": {
       "type": "boolean",
       "default": false,
-      "description": "Indica se o e-mail automático de falta de EPS já foi disparado para esta OP"
+      "description": "Indica se o e-mail autom\u00e1tico de falta de EPS j\u00e1 foi disparado para esta OP"
     },
     "foto_eps_url": {
       "type": "string",
@@ -116,11 +116,11 @@
     },
     "eps_inicio_corte_ts": {
       "type": "string",
-      "description": "Timestamp ISO de início da sessão de corte de EPS"
+      "description": "Timestamp ISO de in\u00edcio da sess\u00e3o de corte de EPS"
     },
     "eps_inicio_pausa_ts": {
       "type": "string",
-      "description": "Timestamp ISO de início da pausa no corte de EPS"
+      "description": "Timestamp ISO de in\u00edcio da pausa no corte de EPS"
     },
     "eps_motivo_pausa": {
       "type": "string",
@@ -368,12 +368,43 @@
     "produto"
   ],
   "rls": {
-    "create": true,
+    "create": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "gestor"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "vendedor"
+          }
+        }
+      ]
+    },
     "read": {
       "$or": [
         {
           "user_condition": {
             "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "super_admin"
           }
         },
         {
@@ -388,11 +419,8 @@
         },
         {
           "user_condition": {
-            "role": "super_admin"
+            "role": "vendedor"
           }
-        },
-        {
-          "data.vendedor": "{{user.full_name}}"
         }
       ]
     },
@@ -405,6 +433,11 @@
         },
         {
           "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
             "role": "gestor"
           }
         },
@@ -415,14 +448,29 @@
         },
         {
           "user_condition": {
+            "role": "vendedor"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
             "role": "super_admin"
           }
         },
         {
-          "data.vendedor": "{{user.full_name}}"
+          "user_condition": {
+            "role": "gestor"
+          }
         }
       ]
-    },
-    "delete": true
+    }
   }
 }

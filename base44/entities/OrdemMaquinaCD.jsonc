@@ -291,7 +291,33 @@
     }
   ],
   "rls": {
-    "create": true,
+    "create": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "gestor"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "vendedor"
+          }
+        }
+      ]
+    },
     "read": {
       "$or": [
         {
@@ -315,7 +341,9 @@
           }
         },
         {
-          "data.vendedor": "{{user.full_name}}"
+          "user_condition": {
+            "role": "vendedor"
+          }
         }
       ]
     },
@@ -342,10 +370,30 @@
           }
         },
         {
-          "data.vendedor": "{{user.full_name}}"
+          "user_condition": {
+            "role": "vendedor"
+          }
         }
       ]
     },
-    "delete": true
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "super_admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "gestor"
+          }
+        }
+      ]
+    }
   }
 }
