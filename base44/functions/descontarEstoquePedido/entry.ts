@@ -9,6 +9,16 @@ Deno.serve(async (req) => {
     const pedido = body.data || body.pedido;
     const pedidoId = body.event?.entity_id || body.pedido_id;
 
+    // Chamadas de automação (evento de entidade) não possuem usuário autenticado;
+    // chamadas HTTP diretas exigem autenticação.
+    const isAutomationCall = !!(body.event && body.event.entity_id);
+    if (!isAutomationCall) {
+      const user = await base44.auth.me().catch(() => null);
+      if (!user) {
+        return Response.json({ error: 'Não autenticado' }, { status: 401 });
+      }
+    }
+
     if (!pedido && !pedidoId) {
       return Response.json({ error: 'Pedido não fornecido' }, { status: 400 });
     }

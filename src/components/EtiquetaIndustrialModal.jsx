@@ -11,6 +11,14 @@ export default function EtiquetaIndustrialModal({ open, onOpenChange, data }) {
 
   if (!data) return null;
 
+  // Sanitização para evitar injeção de HTML/XSS na janela de impressão
+  const escapeHtml = (str) => String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
   // Tipos de etiqueta: "amarrado_telha", "bobina_master", "fita_slitter", "retalho_cd"
   const tipo = data.tipo || "amarrado_telha";
   const cliente = data.cliente || "CLIENTE PADRÃO";
@@ -50,10 +58,22 @@ export default function EtiquetaIndustrialModal({ open, onOpenChange, data }) {
       return;
     }
 
+    const esc = {
+      codigo: escapeHtml(codigoEtiqueta),
+      cliente: escapeHtml(cliente),
+      opNumero: escapeHtml(opNumero),
+      modelo: escapeHtml(modelo),
+      dimensao: escapeHtml(dimensao),
+      quantidade: escapeHtml(quantidade),
+      pesoTotal: escapeHtml(pesoTotal),
+      usina: escapeHtml(usina),
+      dataEmissao: escapeHtml(dataEmissao),
+    };
+
     printWindow.document.write(`
       <html>
         <head>
-          <title>Impressão de Etiqueta Industrial AJL - ${codigoEtiqueta}</title>
+          <title>Impressão de Etiqueta Industrial AJL - ${esc.codigo}</title>
           <style>
             body { font-family: 'Arial', sans-serif; margin: 0; padding: 20px; background: white; color: black; }
             .label-box { width: 100mm; height: 75mm; border: 3px solid black; padding: 12px; box-sizing: border-box; position: relative; border-radius: 6px; }
@@ -68,49 +88,49 @@ export default function EtiquetaIndustrialModal({ open, onOpenChange, data }) {
         </head>
         <body>
           <div class="label-box">
-            <div class="header">AJL FERRO & AÇO — RASTREABILIDADE</div>
-            <div class="qr-placeholder">QR CODE<br/>${codigoEtiqueta}</div>
+            <div class="header">AJL FERRO &amp; AÇO — RASTREABILIDADE</div>
+            <div class="qr-placeholder">QR CODE<br/>${esc.codigo}</div>
             
             <div class="field">
               <div class="field-title">Cliente / Destinatário</div>
-              <div class="field-value">${cliente}</div>
+              <div class="field-value">${esc.cliente}</div>
             </div>
 
             <div class="grid-2">
               <div class="field">
                 <div class="field-title">Nº OP / Lote</div>
-                <div class="field-value">${opNumero}</div>
+                <div class="field-value">${esc.opNumero}</div>
               </div>
               <div class="field">
                 <div class="field-title">Cód. Etiqueta</div>
-                <div class="field-value">${codigoEtiqueta}</div>
+                <div class="field-value">${esc.codigo}</div>
               </div>
             </div>
 
             <div class="field">
               <div class="field-title">Especificação do Produto</div>
-              <div class="field-value">${modelo}</div>
+              <div class="field-value">${esc.modelo}</div>
             </div>
 
             <div class="grid-2">
               <div class="field">
                 <div class="field-title">Medida / Dimensão</div>
-                <div class="field-value">${dimensao}</div>
+                <div class="field-value">${esc.dimensao}</div>
               </div>
               <div class="field">
                 <div class="field-title">Quantidade</div>
-                <div class="field-value">${quantidade}</div>
+                <div class="field-value">${esc.quantidade}</div>
               </div>
             </div>
 
             <div class="field" style="margin-top: 4px;">
               <div class="field-title">Peso Bruto Verificado em Balança</div>
-              <div class="field-value" style="font-size: 16px; color: #000;">${pesoTotal}</div>
+              <div class="field-value" style="font-size: 16px; color: #000;">${esc.pesoTotal}</div>
             </div>
 
             <div class="footer">
-              <span>Usina: ${usina}</span>
-              <span>Emissão: ${dataEmissao}</span>
+              <span>Usina: ${esc.usina}</span>
+              <span>Emissão: ${esc.dataEmissao}</span>
             </div>
           </div>
           <script>
