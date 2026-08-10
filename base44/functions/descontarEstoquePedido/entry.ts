@@ -3,21 +3,15 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
+    const user = await base44.auth.me().catch(() => null);
+    if (!user) {
+      return Response.json({ error: 'Não autenticado' }, { status: 401 });
+    }
     const body = await req.json();
 
-    // Suporta chamada direta (via automation) ou manual
-    const pedido = body.data || body.pedido;
-    const pedidoId = body.event?.entity_id || body.pedido_id;
-
-    // Chamadas de automação (evento de entidade) não possuem usuário autenticado;
-    // chamadas HTTP diretas exigem autenticação.
-    const isAutomationCall = !!(body.event && body.event.entity_id);
-    if (!isAutomationCall) {
-      const user = await base44.auth.me().catch(() => null);
-      if (!user) {
-        return Response.json({ error: 'Não autenticado' }, { status: 401 });
-      }
-    }
+    // Suporta chamada manual direta (pedido inteiro ou apenas id)
+    const pedido = body.pedido;
+    const pedidoId = body.pedido_id;
 
     if (!pedido && !pedidoId) {
       return Response.json({ error: 'Pedido não fornecido' }, { status: 400 });

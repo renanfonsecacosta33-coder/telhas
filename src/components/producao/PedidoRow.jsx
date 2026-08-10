@@ -483,6 +483,25 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
           await base44.entities.Isopor.update(isoporItem.id, { quantidade: novaQtd });
         }
       }
+      // Desconta Manta (somente TELHA + EPS + MANTA)
+      if (p.produto === "TELHA + EPS + MANTA" && Number(p.metros) > 0) {
+        const mantas = await base44.entities.Produto.filter({ categoria: "Consumivel", nome: "Manta" }).catch(() => []);
+        if (mantas && mantas.length > 0) {
+          const manta = mantas[0];
+          const novaQtd = Math.max(0, (manta.quantidade || 0) - Number(p.metros));
+          await base44.entities.Produto.update(manta.id, { quantidade: +novaQtd.toFixed(1) });
+        }
+      }
+      // Desconta Cola (~0,05 kg por metro de telha EPS)
+      if (Number(p.metros) > 0) {
+        const colas = await base44.entities.Produto.filter({ categoria: "Cola" }).catch(() => []);
+        if (colas && colas.length > 0) {
+          const cola = colas[0];
+          const kgCola = +(Number(p.metros) * 0.05).toFixed(2);
+          const novaQtd = Math.max(0, (cola.quantidade || 0) - kgCola);
+          await base44.entities.Produto.update(cola.id, { quantidade: +novaQtd.toFixed(2) });
+        }
+      }
       playFinishSound();
       speakOpFinalizada(p.maquina, p.numero_pedido);
       onStatusChange(p, "finalizado", {
