@@ -78,7 +78,23 @@ export function getBobinaStatus(bobina, ordensAtivas = [], statusMap = {}) {
     };
   }
 
-  // 4. Bobina livre no pátio da fábrica
+  // 4. Bobina livre no pátio — diferencia Fechada / Aberta / Disponível
+  const statusSalvo = (bobina.status || "").trim().toLowerCase();
+  const pesoAtual = bobina.peso_kg || 0;
+  const pesoInicial = bobina.peso_inicial || 0;
+  const ehFechada = statusSalvo === "fechada" || statusSalvo === "fechado" || statusSalvo === "encerrada" || statusSalvo === "encerrado"
+    || (pesoInicial > 0 && pesoAtual >= pesoInicial - 1);
+
+  if (ehFechada) {
+    return {
+      label: "🔒 Fechada no Pátio",
+      shortLabel: "🔒 Fechada",
+      bgClass: "bg-slate-400/20 text-slate-700 dark:text-slate-300 border-slate-400/40",
+      dotColor: "bg-slate-500",
+      badgeType: "fechada"
+    };
+  }
+
   return {
     label: "🟢 Disponível no Pátio",
     shortLabel: "🟢 Disponível",
