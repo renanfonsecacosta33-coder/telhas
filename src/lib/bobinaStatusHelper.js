@@ -78,16 +78,13 @@ export function getBobinaStatus(bobina, ordensAtivas = [], statusMap = {}) {
     };
   }
 
-  // 4. Bobina livre no pátio — diferencia Fechada / Aberta / Disponível
+  // 4. Bobina livre no pátio — diferencia Fechada / Aberta conforme cadastro
   const statusSalvo = (bobina.status || "").trim().toLowerCase();
-  const pesoAtual = bobina.peso_kg || 0;
-  const pesoInicial = bobina.peso_inicial || 0;
-  const ehFechada = statusSalvo === "fechada" || statusSalvo === "fechado" || statusSalvo === "encerrada" || statusSalvo === "encerrado"
-    || (pesoInicial > 0 && pesoAtual >= pesoInicial - 1);
+  const ehFechada = statusSalvo === "fechada" || statusSalvo === "fechado" || statusSalvo === "encerrada" || statusSalvo === "encerrado";
 
   if (ehFechada) {
     return {
-      label: "🔒 Fechada no Pátio",
+      label: "🔒 Fechada",
       shortLabel: "🔒 Fechada",
       bgClass: "bg-slate-400/20 text-slate-700 dark:text-slate-300 border-slate-400/40",
       dotColor: "bg-slate-500",
@@ -96,8 +93,8 @@ export function getBobinaStatus(bobina, ordensAtivas = [], statusMap = {}) {
   }
 
   return {
-    label: "🟢 Disponível no Pátio",
-    shortLabel: "🟢 Disponível",
+    label: "🟢 Aberta",
+    shortLabel: "🟢 Aberta",
     bgClass: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40",
     dotColor: "bg-emerald-500",
     badgeType: "disponivel"
