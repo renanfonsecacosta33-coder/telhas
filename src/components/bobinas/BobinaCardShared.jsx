@@ -60,6 +60,20 @@ export function getStatusBadge(statusInfo, bobina) {
   }
   const pesoAtual = bobina.peso_kg || 0;
   const pesoInicial = bobina.peso_inicial || 0;
+  // 1. Honra o status salvo manualmente no cadastro (ex: "Fechada", "Aberta")
+  const statusSalvo = (bobina.status || "").trim();
+  if (statusSalvo) {
+    const s = statusSalvo.toLowerCase();
+    if (s === "fechada" || s === "fechado" || s === "encerrada" || s === "encerrado") {
+      return { label: "Fechada", cls: "bg-slate-100 text-slate-600 border border-slate-200 font-bold" };
+    }
+    if (s === "aberta" || s === "aberto") {
+      return { label: "Aberta", cls: "bg-orange-100 text-orange-800 border border-orange-200 font-bold" };
+    }
+    // Outro valor customizado — exibe como está, estilo "Aberta"
+    return { label: statusSalvo, cls: "bg-orange-100 text-orange-800 border border-orange-200 font-bold" };
+  }
+  // 2. Sem status explícito: deriva pelo peso (fallback automático)
   if (pesoInicial > 0 && pesoAtual >= pesoInicial - 1) {
     return { label: "Fechada", cls: "bg-slate-100 text-slate-600 border border-slate-200 font-bold" };
   }
