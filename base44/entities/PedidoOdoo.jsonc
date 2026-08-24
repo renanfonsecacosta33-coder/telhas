@@ -1,0 +1,99 @@
+{
+  "name": "PedidoOdoo",
+  "type": "object",
+  "properties": {
+    "odoo_id": {
+      "type": "string",
+      "description": "ID externo no Odoo (sale.order id)"
+    },
+    "numero_pedido": {
+      "type": "string",
+      "description": "N\u00famero do pedido Odoo (ex: SO-2026-283427)"
+    },
+    "cliente_nome": {
+      "type": "string",
+      "description": "Nome do cliente"
+    },
+    "vendedor_nome": {
+      "type": "string",
+      "description": "Nome do vendedor respons\u00e1vel"
+    },
+    "data_entrega": {
+      "type": "string",
+      "format": "date",
+      "description": "Data prometida de produ\u00e7\u00e3o/entrega calculada via SLA"
+    },
+    "data_recebimento": {
+      "type": "string",
+      "description": "Timestamp ISO de recebimento do pedido (webhook Odoo)"
+    },
+    "unidade": {
+      "type": "string",
+      "enum": [
+        "Matriz AJL",
+        "Pinhais",
+        "Ivaipor\u00e3",
+        "Ponta Grossa"
+      ],
+      "default": "Matriz AJL",
+      "description": "Unidade/filial"
+    },
+    "status_pcp": {
+      "type": "string",
+      "enum": [
+        "pendente_distribuicao",
+        "distribuido",
+        "em_producao",
+        "concluido"
+      ],
+      "default": "pendente_distribuicao",
+      "description": "Status do pedido na central PCP"
+    },
+    "percentual_concluido": {
+      "type": "number",
+      "default": 0,
+      "description": "Percentual de conclus\u00e3o (0-100)"
+    },
+    "total_itens": {
+      "type": "number",
+      "default": 0,
+      "description": "Total de itens de fabrica\u00e7\u00e3o"
+    },
+    "itens_telha_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Quantidade de itens da categoria Telhas"
+    },
+    "itens_cd_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Quantidade de itens de Corte e Dobra / Perfis / Chapas"
+    },
+    "itens_frisada_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Quantidade de itens Frisadas (direcionados \u00e0 Expedi\u00e7\u00e3o)"
+    },
+    "espessuras_tags": {
+      "type": "string",
+      "description": "JSON text com lista de espessuras de chapa distintas [{espessura}]"
+    },
+    "itens_json": {
+      "type": "string",
+      "description": "JSON text com itens detalhados [{categoria, produto, medida, espessura, quantidade}]"
+    },
+    "historico_log": {
+      "type": "string",
+      "description": "JSON text com log de auditoria [{data, usuario, acao, detalhes}]"
+    }
+  },
+  "required": [
+    "numero_pedido"
+  ],
+  "rls": {
+    "create": {},
+    "read": {},
+    "update": {},
+    "delete": {}
+  }
+}

@@ -69,6 +69,7 @@ import BobinaQR from '@/pages/BobinaQR';
 import Logistica from '@/pages/corte-dobra/Logistica';
 import LogisticaStandalone from '@/pages/Logistica';
 import CentralAlertas from '@/pages/corte-dobra/CentralAlertas';
+import CentralPCP from '@/pages/CentralPCP';
 
 // Expedição
 import AppLayoutExpedicao from '@/components/layout/Expedicao/AppLayoutExpedicao';
@@ -152,6 +153,7 @@ const AuthenticatedApp = () => {
       <Route path="/admin/usuarios" element={<GerenciarUsuarios />} />
       <Route path="/corte-dobra/usuarios" element={<GerenciarUsuarios />} />
       <Route path="/logistica" element={<LogisticaStandalone />} />
+      <Route path="/pcp" element={<CentralPCP />} />
       <Route path="/setor" element={<SeletorSetor />} />
       <Route path="/bobina-qr/:id" element={<BobinaQR />} />
       <Route element={<AppLayoutCD />}>

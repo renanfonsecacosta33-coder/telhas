@@ -15,7 +15,8 @@ import {
   GripVertical,
   Search,
   Clock,
-  PackageCheck
+  PackageCheck,
+  Inbox
 } from "lucide-react";
 import UserAvatarButton from "@/components/UserAvatarButton";
 import GlobalCommandPalette from "@/components/GlobalCommandPalette";
@@ -77,6 +78,17 @@ const ALL_MODULES = [
     iconBg: "bg-emerald-500/10 shadow-emerald-900/20",
     type: "route",
     routeTarget: "/logistica"
+  },
+  {
+    key: "app_central_pcp",
+    title: "Central PCP",
+    description: "Aba Mãe · Fila FIFO de pedidos Odoo e distribuição",
+    icon: <Inbox className="w-6 h-6 sm:w-7 sm:h-7 text-orange-400" />,
+    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
+    borderColor: "border-slate-700/50 hover:border-orange-500/50",
+    iconBg: "bg-orange-500/10 shadow-orange-900/20",
+    type: "route",
+    routeTarget: "/pcp"
   },
   {
     key: "app_consulta_estoque",
@@ -220,7 +232,7 @@ export default function SeletorSetor() {
     if (role === "super_admin" || role === "admin") return true;
 
     if (role === "encarregado") {
-      return ["app_fabrica_telhas", "app_corte_dobra", "app_expedicao", "app_hora_extra", "app_logistica", "app_consulta_estoque", "app_dashboard_ajl"].includes(appKey);
+      return ["app_fabrica_telhas", "app_corte_dobra", "app_expedicao", "app_hora_extra", "app_logistica", "app_consulta_estoque", "app_dashboard_ajl", "app_central_pcp"].includes(appKey);
     }
 
     if (role === "vendedor") {
