@@ -5,14 +5,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { Play, CheckCircle2, Inbox, Factory, Calendar, User, Loader2 } from "lucide-react";
+import { Play, CheckCircle2, Inbox, Factory, Calendar, User, Loader2, Plus } from "lucide-react";
 import {
   getItens, itensPorGrupo, computePercentual, computePercentualGrupo,
   buildItensJson, statusPcpPorPercentual, STATUS_ITEM
 } from "@/lib/pedidoOdooHelper";
 import { formatDataBR, slaDiasPorCategoria, diasUteisRestantes } from "@/lib/sla";
 
-export default function FilaPCPTelhas() {
+export default function FilaPCPTelhas({ onNovaOrdem }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [atualizando, setAtualizando] = useState(null);
@@ -74,8 +74,8 @@ export default function FilaPCPTelhas() {
         <div className="flex items-center gap-2">
           <Factory className="w-4 h-4 text-orange-500" />
           <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">Fila PCP — Aguardando Produção (Telhas)</h2>
+          <Badge className="bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/30">{fila.length} pedido(s)</Badge>
         </div>
-        <Badge className="bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/30">{fila.length} pedido(s)</Badge>
       </div>
 
       <div className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -142,15 +142,13 @@ export default function FilaPCPTelhas() {
                       <Badge className={`shrink-0 border text-[10px] ${st.cls}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${st.dot} mr-1`} />{st.label}
                       </Badge>
-                      {item.status === "pendente" && (
+                      {item.status === "pendente" && onNovaOrdem && (
                         <Button
                           size="sm"
-                          onClick={() => handleAtualizar(pedido, idx, { status: "em_producao" })}
-                          disabled={atualizando === key}
-                          className="bg-orange-500 hover:bg-orange-600 text-white h-8 px-3"
+                          onClick={() => onNovaOrdem(pedido, item)}
+                          className="bg-orange-500 hover:bg-orange-600 text-white h-8 px-3 gap-1"
                         >
-                          {atualizando === key ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-                          Iniciar na Perfiladeira
+                          <Plus className="w-3 h-3" /> Nova Ordem
                         </Button>
                       )}
                     </div>

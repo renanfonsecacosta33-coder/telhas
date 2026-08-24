@@ -244,7 +244,16 @@ export default function ProducaoAdmin() {
 
       {activeTab === "expedicao" && <ExpedicaoTab tipo="telhas" filialAtiva={filialAtiva} />}
 
-      {activeTab === "fila_pcp" && <FilaPCPTelhas />}
+      {activeTab === "fila_pcp" && <FilaPCPTelhas onNovaOrdem={(pedido, item) => {
+        setEditItem({
+          data: selectedDay,
+          numero_pedido: pedido.numero_pedido || "",
+          cliente: pedido.cliente_nome || "",
+          vendedor: pedido.vendedor_nome || "",
+          unidade: filialAtiva,
+        });
+        setDialogOpen(true);
+      }} />}
 
       {activeTab === "colagem" && (
         <div className="space-y-4">

@@ -134,6 +134,22 @@ export default function ProducaoCD() {
     setEditMaq(date ? { _presets: { data: date } } : null);
     setDialogMaq(true);
   };
+
+  // Abrir formulário completo de Nova Ordem a partir de um item da Fila PCP
+  const openNewFromFila = (pedido, item) => {
+    setMaquinaAtiva(null);
+    setEditMaq({
+      data: selectedDay,
+      numero_pedido: pedido.numero_pedido || "",
+      cliente: pedido.cliente_nome || "",
+      vendedor: pedido.vendedor_nome || "",
+      tipo_peca: item.produto || "",
+      dimensoes_livres: item.medida || "",
+      quantidade: item.quantidade || "",
+      material_espessura: item.espessura ? String(item.espessura) : "",
+    });
+    setDialogMaq(true);
+  };
   const openEditMaq = (item) => { setMaquinaAtiva(item.maquina); setEditMaq(item); setDialogMaq(true); };
   const handleSaveMaq = (data) => {
     if (editMaq && !editMaq._presets && editMaq.id) { updateMaq.mutate({ id: editMaq.id, data }); setDialogMaq(false); }
@@ -372,7 +388,7 @@ export default function ProducaoCD() {
       ) : viewMode === "expedicao" ? (
         <ExpedicaoTab tipo="cd" filialAtiva={filialAtiva} />
       ) : viewMode === "fila_pcp" ? (
-        <FilaPCPCorteDobra onNovaOrdem={() => openNewDesb(selectedDay)} />
+        <FilaPCPCorteDobra onNovaOrdem={(pedido, item) => openNewFromFila(pedido, item)} />
       ) : (
         // ── VISÃO DIA ──
         <div className="space-y-4">

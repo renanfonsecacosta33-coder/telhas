@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -14,8 +14,10 @@ import { Button } from "@/components/ui/button";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
 } from "recharts";
+import { toast } from "sonner";
 import { useFilial } from "@/contexts/FilialContext";
 import FilaPCPTelhas from "@/components/pcp/FilaPCPTelhas";
+import PedidoFormDialog from "@/components/producao/PedidoFormDialog";
 
 const MAQUINAS_TELHAS = [
   { id: "TP - 40",      label: "TP-40",        color: "bg-blue-500",   hex: "#3b82f6", path: "/maquina/tp40" },
@@ -51,6 +53,9 @@ function formatTempo(seg) {
 export default function DashboardTelhas() {
   const { filialAtiva } = useFilial();
   const [aba, setAba] = useState("producao");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editPreset, setEditPreset] = useState(null);
+  const queryClient = useQueryClient();
   const hoje = format(new Date(), "yyyy-MM-dd");
   const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
   const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -76,6 +81,16 @@ export default function DashboardTelhas() {
   const { data: produtos = [] } = useQuery({
     queryKey: ["produtos-dash"],
     queryFn: () => base44.entities.Produto.list(),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data) => base44.entities.Pedido.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pedidos-dash-telhas"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      setDialogOpen(false);
+      toast.success("Pedido criado!");
+    },
   });
 
   const pedidosHoje = useMemo(() => pedidos.filter(p => p.data === hoje), [pedidos, hoje]);
@@ -373,7 +388,16 @@ export default function DashboardTelhas() {
       )}
 
       {/* ══════════════ ABA FILA PCP ══════════════ */}
-      {aba === "fila_pcp" && <FilaPCPTelhas />}
+      {aba === "fila_pcp" && <FilaPCPTelhas onNovaOrdem={(pedido, item) => {
+        setEditPreset({
+          data: hoje,
+          numero_pedido: pedido.numero_pedido || "",
+          cliente: pedido.cliente_nome || "",
+          vendedor: pedido.vendedor_nome || "",
+          unidade: filialAtiva,
+        });
+        setDialogOpen(true);
+      }} />}
 
       {/* ══════════════ ABA ESTOQUE ══════════════ */}
       {aba === "estoque" && (
@@ -517,7 +541,15 @@ export default function DashboardTelhas() {
             </div>
           </div>
         </>
-      )}
-    </div>
-  );
-}
+        )}
+
+        <PedidoFormDialog
+          open={dialogOpen}
+          onClose={() => { setDialogOpen(false); setEditPreset(null); }}
+          onSave={(data) => createMutation.mutate({ ...data, unidade: filialAtiva })}
+          editItem={editPreset}
+          defaultDate={hoje}
+        />
+        </div>
+        );
+        }

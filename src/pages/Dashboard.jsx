@@ -1,19 +1,34 @@
 import React, { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate } from "react-router-dom";
 import { Circle, Snowflake, Package, ArrowRight, Ruler, Factory, Clock, CheckCircle2, TrendingUp, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import StatsCard from "@/components/stock/StatsCard";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import { useFilial } from "@/contexts/FilialContext";
 import FilaPCPTelhas from "@/components/pcp/FilaPCPTelhas";
+import PedidoFormDialog from "@/components/producao/PedidoFormDialog";
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editPreset, setEditPreset] = useState(null);
+  const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
   useEffect(() => { base44.auth.me().then(setUser).catch(() => {}); }, []);
+
+  const createMutation = useMutation({
+    mutationFn: (data) => base44.entities.Pedido.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pedidos-dash"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      setDialogOpen(false);
+      toast.success("Pedido criado!");
+    },
+  });
 
   const { data: bobinas = [] } = useQuery({
     queryKey: ["bobinas", filialAtiva],
@@ -159,7 +174,16 @@ export default function Dashboard() {
       </div>
 
       {/* Fila PCP — Pedidos a Produzir */}
-      <FilaPCPTelhas />
+      <FilaPCPTelhas onNovaOrdem={(pedido, item) => {
+        setEditPreset({
+          data: format(new Date(), "yyyy-MM-dd"),
+          numero_pedido: pedido.numero_pedido || "",
+          cliente: pedido.cliente_nome || "",
+          vendedor: pedido.vendedor_nome || "",
+          unidade: filialAtiva,
+        });
+        setDialogOpen(true);
+      }} />
 
       {/* Stats estoque */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -222,7 +246,15 @@ export default function Dashboard() {
             </div>
           </div>
         ))}
-      </div>
-    </div>
-  );
-}
+        </div>
+
+        <PedidoFormDialog
+          open={dialogOpen}
+          onClose={() => { setDialogOpen(false); setEditPreset(null); }}
+          onSave={(data) => createMutation.mutate({ ...data, unidade: filialAtiva })}
+          editItem={editPreset}
+          defaultDate={format(new Date(), "yyyy-MM-dd")}
+        />
+        </div>
+        );
+        }

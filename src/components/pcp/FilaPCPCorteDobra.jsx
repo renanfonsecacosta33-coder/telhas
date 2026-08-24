@@ -94,11 +94,6 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
           <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">Fila PCP — Aguardando Produção (Corte & Dobra)</h2>
           <Badge className="bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30">{gruposEspessura.length} bitola(s)</Badge>
         </div>
-        {onNovaOrdem && (
-          <Button onClick={onNovaOrdem} size="sm" className="bg-orange-500 hover:bg-orange-600 text-white gap-1">
-            <Plus className="w-3.5 h-3.5" /> Nova Ordem
-          </Button>
-        )}
       </div>
 
       <div className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -186,15 +181,13 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                             className="h-8 w-28 text-xs"
                             disabled={item.status === "concluido"}
                           />
-                          {item.status === "pendente" && (
+                          {item.status === "pendente" && onNovaOrdem && (
                             <Button
                               size="sm"
-                              onClick={() => handleAtualizar(pedido, idx, { status: "em_producao" })}
-                              disabled={atualizando === key || !item.maquina}
-                              className="bg-sky-500 hover:bg-sky-600 text-white h-8 px-3"
+                              onClick={() => onNovaOrdem(pedido, item)}
+                              className="bg-orange-500 hover:bg-orange-600 text-white h-8 px-3 gap-1"
                             >
-                              {atualizando === key ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-                              Iniciar Produção
+                              <Plus className="w-3 h-3" /> Nova Ordem
                             </Button>
                           )}
                         </div>
