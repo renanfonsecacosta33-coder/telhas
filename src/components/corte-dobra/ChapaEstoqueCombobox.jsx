@@ -51,7 +51,7 @@ export default function ChapaEstoqueCombobox({
           role="combobox"
           disabled={disabled}
           aria-expanded={open}
-          className="w-full justify-between font-normal h-9"
+          className="w-full justify-between font-normal h-11 text-base"
         >
           {chapaSelecionada ? (
             <span className="flex items-center gap-2 min-w-0 truncate">
@@ -71,7 +71,7 @@ export default function ChapaEstoqueCombobox({
       </PopoverTrigger>
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] min-w-[320px] p-0" align="start">
         <Command shouldFilter={false}>
-          <CommandInput placeholder="Pesquisar por código, bobina, pedido, cliente..." value={query} onValueChange={setQuery} />
+          <CommandInput placeholder="Pesquisar por código, bobina, pedido, cliente..." value={query} onValueChange={setQuery} className="h-11 text-base" />
           <CommandList>
             <CommandEmpty>
               {chapas.length === 0 ? "Nenhuma chapa no estoque." : "Nenhuma chapa encontrada."}
@@ -84,9 +84,8 @@ export default function ChapaEstoqueCombobox({
                   <CommandItem
                     key={c.id}
                     value={c.id}
-                    disabled={isReservadaOutro}
                     onSelect={() => { onChange(c.id); setOpen(false); setQuery(""); }}
-                    className={cn("flex items-center gap-2 py-2", isReservadaOutro && "opacity-50 cursor-not-allowed")}
+                    className="flex items-center gap-2 py-3 min-h-11"
                   >
                     <Check className={cn("h-4 w-4 shrink-0", value === c.id ? "opacity-100" : "opacity-0")} />
                     <div className="flex flex-1 items-center gap-2 min-w-0 flex-wrap">
@@ -101,8 +100,8 @@ export default function ChapaEstoqueCombobox({
                       </span>
                     )}
                     {isReservadaOutro && (
-                      <span className="text-red-500 text-xs font-bold flex items-center gap-0.5 shrink-0">
-                        <Ban className="h-3 w-3" /> {c.numero_pedido || ""}
+                      <span className="text-amber-600 text-xs font-bold flex items-center gap-1 shrink-0 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5">
+                        <Lock className="h-3 w-3" /> Requer Ped. {c.numero_pedido || ""}
                       </span>
                     )}
                   </CommandItem>

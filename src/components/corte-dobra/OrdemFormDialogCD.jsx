@@ -183,6 +183,8 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   const bobinaObj = bobinas.find(b => b.id === form.bobina_id);
   const chapaObj = chapasDisponiveis.find(c => c.id === form.chapa_cd_id);
   const chapasFiltradas = chapasDisponiveis.filter(c => c.status === "disponivel" || c.status === "parcial");
+  // Chapa reservada para um pedido específico — exige o número do pedido para avançar
+  const chapaReservadaPedido = chapaObj?.destino === "pedido_direto" && !!chapaObj?.numero_pedido;
   const maxChapas = calcMaxChapas(bobinaObj, form.comprimento_mm);
   const metrosRestantes = calcMetragem(bobinaObj);
   const kgEstimado = calcKgEstimado(bobinaObj, form.comprimento_mm, form.quantidade);
@@ -201,6 +203,13 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   const pesoBobina = bobinaObj?.peso_kg || 0;
   const pesoDisponivel = Math.max(0, pesoBobina - preReservadoKg);
   const excedePeso = kgEstimado !== null && kgEstimado > pesoDisponivel;
+
+  // Chapa reservada para um pedido: força destino "pedido_direto" para liberar o campo de nº do pedido
+  useEffect(() => {
+    if (chapaReservadaPedido && form.destino !== "pedido_direto") {
+      set("destino", "pedido_direto");
+    }
+  }, [chapaReservadaPedido]);
 
   const handleUploadFoto = async (file) => {
     if (!file) return;
@@ -259,6 +268,16 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
       if (!form.bobina_id) { alert("Selecione a bobina."); return; }
     } else {
       if (!form.chapa_cd_id) { alert("Selecione a chapa do estoque."); return; }
+      if (chapaReservadaPedido) {
+        if (!form.numero_pedido) {
+          alert(`🔒 Esta chapa é do pedido ${chapaObj.numero_pedido}.\n\nInforme o número do pedido no campo "Nº do Pedido" (destino: Pedido Direto) para continuar.`);
+          return;
+        }
+        if (String(form.numero_pedido) !== String(chapaObj.numero_pedido)) {
+          alert(`O número do pedido informado (${form.numero_pedido}) não corresponde ao pedido desta chapa (${chapaObj.numero_pedido}).\n\nUse o pedido correto para liberar a OP.`);
+          return;
+        }
+      }
       if (!form.tipo_peca) { alert("Informe o tipo de peça."); return; }
     }
     if (isDesbobinadeira && (!form.comprimento_mm || Number(form.comprimento_mm) <= 0)) { alert("Informe o comprimento de corte em mm."); return; }
@@ -536,6 +555,15 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                   <span>Bobina: <strong>{chapaObj.bobina_descricao}</strong></span>
                   <span>Corte: <strong>{chapaObj.comprimento_mm}mm</strong></span>
                   <span>Disponível: <strong>{chapaObj.quantidade_disponivel} pç</strong></span>
+                </div>
+              )}
+              {chapaReservadaPedido && (
+                <div className="bg-amber-50 border-2 border-amber-400 rounded-lg px-4 py-3 flex items-start gap-2">
+                  <ShieldAlert className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-xs text-amber-800">
+                    <p className="font-bold">🔒 Chapa reservada para o pedido {chapaObj.numero_pedido}</p>
+                    <p className="mt-0.5">Para lançar esta OP, informe o número <strong>{chapaObj.numero_pedido}</strong> no campo "Nº do Pedido" (destino: Pedido Direto).</p>
+                  </div>
                 </div>
               )}
               <div className="space-y-1">
