@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Factory, Calendar, Wrench, Download, ZoomIn, ZoomOut, Maximize2, Search, AlertTriangle, X, PackageX, Truck } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Factory, Calendar, Wrench, Download, ZoomIn, ZoomOut, Maximize2, Search, AlertTriangle, X, PackageX, Truck, Inbox } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -16,6 +16,7 @@ import RetrabalhoDialog from "@/components/corte-dobra/RetrabalhoDialog";
 import OPSemMaterialTab from "@/components/corte-dobra/OPSemMaterialTab";
 import { useFilial } from "@/contexts/FilialContext";
 import ExpedicaoTab from "@/components/logistica/ExpedicaoTab";
+import FilaPCPCorteDobra from "@/components/pcp/FilaPCPCorteDobra";
 
 const MAQUINAS_OUTRAS = [
   { id: "CORTE 3M",       label: "Guilhotina 3m",       cor: "bg-purple-100 text-purple-800 border-purple-200" },
@@ -327,6 +328,10 @@ export default function ProducaoCD() {
             className={`gap-1 ${viewMode === "expedicao" ? "bg-blue-500 hover:bg-blue-600 border-0 text-white" : ""}`}>
             <Truck className="w-3 h-3" /> Expedição
           </Button>
+          <Button variant={viewMode === "fila_pcp" ? "default" : "outline"} size="sm" onClick={() => setViewMode("fila_pcp")}
+            className={`gap-1 ${viewMode === "fila_pcp" ? "bg-orange-500 hover:bg-orange-600 border-0 text-white" : ""}`}>
+            <Inbox className="w-3 h-3" /> Fila PCP
+          </Button>
           <Button variant="outline" size="sm" onClick={() => { setSelectedDay(format(new Date(), "yyyy-MM-dd")); setCurrentWeek(new Date()); setViewMode("dia"); }} className="gap-1">
             <Calendar className="w-3 h-3" /> Hoje
           </Button>
@@ -366,6 +371,8 @@ export default function ProducaoCD() {
         <OPSemMaterialTab />
       ) : viewMode === "expedicao" ? (
         <ExpedicaoTab tipo="cd" filialAtiva={filialAtiva} />
+      ) : viewMode === "fila_pcp" ? (
+        <FilaPCPCorteDobra />
       ) : (
         // ── VISÃO DIA ──
         <div className="space-y-4">
