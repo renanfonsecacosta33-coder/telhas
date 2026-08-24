@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import StatsCard from "@/components/stock/StatsCard";
 import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
+import FilaPCPTelhas from "@/components/pcp/FilaPCPTelhas";
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
@@ -156,6 +157,9 @@ export default function Dashboard() {
           </Link>
         ))}
       </div>
+
+      {/* Fila PCP — Pedidos a Produzir */}
+      <FilaPCPTelhas />
 
       {/* Stats estoque */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

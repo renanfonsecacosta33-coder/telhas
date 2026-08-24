@@ -51,6 +51,20 @@ export default function PedidoOdooCard({ pedido, onClick }) {
         <span className="truncate">{pedido.vendedor_nome || "—"}</span>
       </div>
 
+      {(pedido.percentual_concluido > 0 || pedido.status_pcp === "em_producao") && (
+        <div className="flex items-center gap-2">
+          <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${pedido.percentual_concluido >= 100 ? "bg-emerald-500" : "bg-orange-500"}`}
+              style={{ width: `${pedido.percentual_concluido || 0}%` }}
+            />
+          </div>
+          <span className={`text-[11px] font-bold ${pedido.percentual_concluido >= 100 ? "text-emerald-600" : "text-orange-600"}`}>
+            {pedido.percentual_concluido || 0}%
+          </span>
+        </div>
+      )}
+
       <div className="flex items-center gap-3 text-xs">
         <div className={`flex items-center gap-1.5 font-semibold ${atrasado ? "text-red-600 dark:text-red-400" : "text-slate-700 dark:text-slate-200"}`}>
           <Calendar className="w-3.5 h-3.5" />

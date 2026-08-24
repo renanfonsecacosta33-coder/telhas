@@ -13,6 +13,7 @@ import {
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend
 } from "recharts";
+import FilaPCPCorteDobra from "@/components/pcp/FilaPCPCorteDobra";
 
 // Máquinas do CD
 const MAQUINAS_CD = [
@@ -169,6 +170,9 @@ export default function DashboardCD() {
           </div>
         ))}
       </div>
+
+      {/* Fila PCP — Pedidos a Produzir (agrupados por bitola) */}
+      <FilaPCPCorteDobra />
 
       {/* Cards de Máquinas — fila superior igual às Telhas */}
       <div>

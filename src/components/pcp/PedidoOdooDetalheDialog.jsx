@@ -2,7 +2,7 @@ import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Zap, Factory, Scissors, Wind, Tag, Ruler, Package } from "lucide-react";
+import { Zap, Factory, Scissors, Wind, Tag, Ruler, Package, CheckCircle2 } from "lucide-react";
 import { formatDataBR, slaDiasPorCategoria } from "@/lib/sla";
 
 export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, onDistribuir, distribuindo }) {
@@ -68,6 +68,27 @@ export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, on
             <p className="text-[10px] text-slate-400 uppercase font-semibold">SLA</p>
             <p className="font-medium text-orange-600 dark:text-orange-400">{sla} dias úteis</p>
           </div>
+        </div>
+
+        {/* Barra de progresso geral */}
+        <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">Progresso Geral da Produção</span>
+            <span className={`text-sm font-bold ${(pedido.percentual_concluido || 0) >= 100 ? "text-emerald-600" : "text-orange-600"}`}>
+              {pedido.percentual_concluido || 0}%
+            </span>
+          </div>
+          <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${(pedido.percentual_concluido || 0) >= 100 ? "bg-emerald-500" : "bg-gradient-to-r from-orange-500 to-amber-500"}`}
+              style={{ width: `${pedido.percentual_concluido || 0}%` }}
+            />
+          </div>
+          {(pedido.percentual_concluido || 0) >= 100 && (
+            <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1.5 flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" /> 100% concluído — pronto para enviar evento de conclusão ao Odoo ERP.
+            </p>
+          )}
         </div>
 
         {espessuras.length > 0 && (

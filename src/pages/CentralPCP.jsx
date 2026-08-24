@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,9 +25,8 @@ const FILTROS = [
 
 export default function CentralPCP() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [pedidos, setPedidos] = useState([]);
-  const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState("todos");
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
@@ -34,19 +34,19 @@ export default function CentralPCP() {
   const [webhookOpen, setWebhookOpen] = useState(false);
   const [distribuindo, setDistribuindo] = useState(false);
 
-  const carregarPedidos = useCallback(async () => {
-    setCarregando(true);
-    try {
-      const lista = await base44.entities.PedidoOdoo.list("-data_recebimento", 200);
-      setPedidos(lista || []);
-    } catch (e) {
-      toast({ title: "Erro ao carregar pedidos", description: e.message, variant: "destructive" });
-    } finally {
-      setCarregando(false);
-    }
-  }, [toast]);
+  const { data: pedidos = [], isLoading: carregando, refetch } = useQuery({
+    queryKey: ["pedidos-odoo-pcp"],
+    queryFn: () => base44.entities.PedidoOdoo.list("-data_recebimento", 200),
+    refetchInterval: 20000
+  });
 
-  useEffect(() => { carregarPedidos(); }, [carregarPedidos]);
+  // Subscription: atualiza percentual/status em tempo real quando os galpões concluem itens
+  useEffect(() => {
+    const unsubscribe = base44.entities.PedidoOdoo.subscribe(() => {
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+    });
+    return unsubscribe;
+  }, [queryClient]);
 
   const handleReceberWebhook = async (pedidosParsed) => {
     const novos = pedidosParsed.map((p) => {
@@ -87,8 +87,8 @@ export default function CentralPCP() {
     });
 
     try {
-      const criados = await base44.entities.PedidoOdoo.bulkCreate(novos);
-      setPedidos(prev => [...criados, ...prev]);
+      await base44.entities.PedidoOdoo.bulkCreate(novos);
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
       toast({
         title: `${novos.length} pedido(s) recebido(s)`,
         description: "Pedidos Odoo adicionados à fila PCP em ordem de chegada.",
@@ -114,7 +114,7 @@ export default function CentralPCP() {
         percentual_concluido: 5,
         historico_log: JSON.stringify(novoLog)
       });
-      setPedidos(prev => prev.map(p => p.id === pedido.id ? { ...p, ...atualizado } : p));
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
       setPedidoSelecionado({ ...pedido, ...atualizado });
       toast({
         title: "Pedido distribuído!",
@@ -172,7 +172,7 @@ export default function CentralPCP() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Button variant="ghost" size="icon" onClick={carregarPedidos} disabled={carregando}>
+            <Button variant="ghost" size="icon" onClick={() => refetch()} disabled={carregando}>
               <RefreshCw className={`w-4 h-4 ${carregando ? "animate-spin" : ""}`} />
             </Button>
             <Button

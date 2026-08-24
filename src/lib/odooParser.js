@@ -6,6 +6,8 @@ const CATEGORIA_MAP = {
   // Telhas
   "telhas": { grupo: "telha", sla: 7 },
   "telha": { grupo: "telha", sla: 7 },
+  "bandeja": { grupo: "telha", sla: 7 },
+  "bobininha": { grupo: "telha", sla: 7 },
   // Corte e Dobra
   "corte e dobra": { grupo: "cd", sla: 5 },
   "corte_dobra": { grupo: "cd", sla: 5 },
