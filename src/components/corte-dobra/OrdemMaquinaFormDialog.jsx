@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
 import { Layers, Package, Camera, DollarSign, PackageX } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
+import ChapaEstoqueCombobox from "@/components/corte-dobra/ChapaEstoqueCombobox";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 import { getBobinaStatus } from "@/lib/bobinaStatusHelper";
 import { Scissors } from "lucide-react";
@@ -498,30 +499,14 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
           {!form.material_em_falta && (form.chapa_origem === "chaparia" || isDobra) && !isPerfiladeira && (
             <div className="space-y-1">
               <Label>{isDobra ? "Chapa do Estoque *" : "Chapa do Estoque (Chaparia)"}</Label>
-              <Select value={form.chapa_cd_id} onValueChange={v => set("chapa_cd_id", v)}>
-                <SelectTrigger><SelectValue placeholder="Selecione a chapa..." /></SelectTrigger>
-                <SelectContent>
-                  {chapas.filter(c => c.comprimento_mm <= maxComprimento).length === 0 && <SelectItem value="_empty" disabled>Nenhuma chapa disponível (max {maxComprimento}mm)</SelectItem>}
-                  {chapas.filter(c => c.comprimento_mm <= maxComprimento).map(c => {
-                    const reservada = c.destino === "pedido_direto";
-                    const reservadaParaOutro = reservada && c.numero_pedido && c.numero_pedido !== form.numero_pedido;
-                    return (
-                      <SelectItem key={c.id} value={c.id} disabled={reservadaParaOutro}>
-                        <span className="font-mono font-bold text-sm">{c.codigo || "—"}</span>
-                        <span className="text-muted-foreground ml-2">{c.bobina_descricao || "—"}</span>
-                        <span className="text-muted-foreground ml-2">{c.comprimento_mm}mm</span>
-                        <span className="text-green-600 ml-2">{c.quantidade_disponivel}pç</span>
-                        {reservada && !reservadaParaOutro && (
-                          <span className="text-amber-600 ml-2 text-xs font-bold">🔒 Ped. {c.numero_pedido}</span>
-                        )}
-                        {reservadaParaOutro && (
-                          <span className="text-red-500 ml-2 text-xs font-bold">🚫 Reservada — Ped. {c.numero_pedido}</span>
-                        )}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+              <ChapaEstoqueCombobox
+                chapas={chapas}
+                value={form.chapa_cd_id}
+                onChange={v => set("chapa_cd_id", v)}
+                maxComprimento={maxComprimento}
+                numeroPedido={form.numero_pedido}
+                placeholder="Pesquisar e selecionar chapa..."
+              />
               {chapaObj && (
                 <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs flex flex-wrap gap-3 text-orange-800">
                   <span>Bobina: <strong>{chapaObj.bobina_descricao}</strong></span>
