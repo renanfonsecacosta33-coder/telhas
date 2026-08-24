@@ -7,7 +7,7 @@ import { ptBR } from "date-fns/locale";
 import {
   TrendingUp, CheckCircle2, Clock, AlertTriangle, Package, Snowflake,
   Factory, BarChart2, Layers, Weight, Zap, Pause, Circle, ArrowRight,
-  ChevronRight, Calendar, Target, Activity
+  ChevronRight, Calendar, Target, Activity, Inbox
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
 } from "recharts";
 import { useFilial } from "@/contexts/FilialContext";
+import FilaPCPTelhas from "@/components/pcp/FilaPCPTelhas";
 
 const MAQUINAS_TELHAS = [
   { id: "TP - 40",      label: "TP-40",        color: "bg-blue-500",   hex: "#3b82f6", path: "/maquina/tp40" },
@@ -154,6 +155,10 @@ export default function DashboardTelhas() {
           <button onClick={() => setAba("estoque")}
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${aba === "estoque" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
             <Package className="w-3.5 h-3.5 inline mr-1.5" />Estoque
+          </button>
+          <button onClick={() => setAba("fila_pcp")}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${aba === "fila_pcp" ? "bg-white shadow text-orange-600" : "text-muted-foreground hover:text-foreground"}`}>
+            <Inbox className="w-3.5 h-3.5 inline mr-1.5" />Fila PCP
           </button>
         </div>
       </div>
@@ -366,6 +371,9 @@ export default function DashboardTelhas() {
           </div>
         </>
       )}
+
+      {/* ══════════════ ABA FILA PCP ══════════════ */}
+      {aba === "fila_pcp" && <FilaPCPTelhas />}
 
       {/* ══════════════ ABA ESTOQUE ══════════════ */}
       {aba === "estoque" && (

@@ -13,11 +13,12 @@ import { ptBR } from "date-fns/locale";
 import {
   TrendingUp, CheckCircle2, Clock, AlertTriangle, Package, Factory,
   BarChart2, Weight, Zap, Pause, Circle, ArrowRight, ChevronRight,
-  Calendar, Target, Activity, Scissors, Layers, Timer, Coffee, Square, RefreshCw, DollarSign
+  Calendar, Target, Activity, Scissors, Layers, Timer, Coffee, Square, RefreshCw, DollarSign, Inbox
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useFilial } from "@/contexts/FilialContext";
+import FilaPCPCorteDobra from "@/components/pcp/FilaPCPCorteDobra";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend, PieChart, Pie
 } from "recharts";
@@ -301,6 +302,10 @@ export default function DashboardCorteDobraCompleto() {
           <button onClick={() => setAba("estoque")}
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer ${aba === "estoque" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
             <Package className="w-3.5 h-3.5 inline mr-1.5" />Estoque
+          </button>
+          <button onClick={() => setAba("fila_pcp")}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer ${aba === "fila_pcp" ? "bg-white shadow text-orange-600" : "text-muted-foreground hover:text-foreground"}`}>
+            <Inbox className="w-3.5 h-3.5 inline mr-1.5" />Fila PCP
           </button>
         </div>
       </div>
@@ -640,6 +645,9 @@ export default function DashboardCorteDobraCompleto() {
           <HistoricoBobinas historico={historicoBobinas} />
         </>
       )}
+
+      {/* ══════════════ ABA FILA PCP ══════════════ */}
+      {aba === "fila_pcp" && <FilaPCPCorteDobra />}
 
       {/* ══════════════ ABA ESTOQUE ══════════════ */}
       {aba === "estoque" && (
