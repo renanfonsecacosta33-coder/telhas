@@ -372,7 +372,7 @@ export default function ProducaoCD() {
       ) : viewMode === "expedicao" ? (
         <ExpedicaoTab tipo="cd" filialAtiva={filialAtiva} />
       ) : viewMode === "fila_pcp" ? (
-        <FilaPCPCorteDobra />
+        <FilaPCPCorteDobra onNovaOrdem={() => openNewDesb(selectedDay)} />
       ) : (
         // ── VISÃO DIA ──
         <div className="space-y-4">

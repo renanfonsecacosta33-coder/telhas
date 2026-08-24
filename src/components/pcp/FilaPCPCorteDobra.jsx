@@ -7,14 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { Play, CheckCircle2, Inbox, Scissors, Calendar, User, Loader2, Layers } from "lucide-react";
+import { Play, CheckCircle2, Inbox, Scissors, Calendar, User, Loader2, Layers, Plus } from "lucide-react";
 import {
   getItens, classGrupo, computePercentual, buildItensJson,
   statusPcpPorPercentual, STATUS_ITEM, MAQUINAS_CD
 } from "@/lib/pedidoOdooHelper";
 import { formatDataBR, diasUteisRestantes } from "@/lib/sla";
 
-export default function FilaPCPCorteDobra() {
+export default function FilaPCPCorteDobra({ onNovaOrdem }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [atualizando, setAtualizando] = useState(null);
@@ -92,8 +92,13 @@ export default function FilaPCPCorteDobra() {
         <div className="flex items-center gap-2">
           <Scissors className="w-4 h-4 text-orange-500" />
           <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">Fila PCP — Aguardando Produção (Corte & Dobra)</h2>
+          <Badge className="bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30">{gruposEspessura.length} bitola(s)</Badge>
         </div>
-        <Badge className="bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30">{gruposEspessura.length} bitola(s)</Badge>
+        {onNovaOrdem && (
+          <Button onClick={onNovaOrdem} size="sm" className="bg-orange-500 hover:bg-orange-600 text-white gap-1">
+            <Plus className="w-3.5 h-3.5" /> Nova Ordem
+          </Button>
+        )}
       </div>
 
       <div className="divide-y divide-slate-100 dark:divide-slate-800">
