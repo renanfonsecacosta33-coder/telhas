@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
 import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X, DollarSign, Star, PackageX, Wrench } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
+import ChapaEstoqueCombobox from "@/components/corte-dobra/ChapaEstoqueCombobox";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 import { getBobinaStatus, calcMetrosDisponiveis } from "@/lib/bobinaStatusHelper";
 
@@ -523,24 +524,13 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
               <Label className="flex items-center gap-1">
                 <Layers className="w-4 h-4 text-orange-500" /> Chapa do Estoque (Chaparia) *
               </Label>
-              <Select value={form.chapa_cd_id} onValueChange={v => set("chapa_cd_id", v)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecione a chapa..." />
-                </SelectTrigger>
-                <SelectContent className="max-h-56">
-                  {chapasFiltradas.length === 0 && (
-                    <div className="px-3 py-4 text-sm text-muted-foreground text-center">Nenhuma chapa disponível</div>
-                  )}
-                  {chapasFiltradas.map(c => (
-                    <SelectItem key={c.id} value={c.id}>
-                      <span className="font-mono font-bold text-sm">{c.codigo || "—"}</span>
-                      <span className="text-muted-foreground ml-2 text-xs">{c.bobina_descricao || "—"}</span>
-                      <span className="text-muted-foreground ml-2 text-xs">{c.comprimento_mm}mm</span>
-                      <span className="text-green-600 ml-2 text-xs">{c.quantidade_disponivel}pç</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ChapaEstoqueCombobox
+                chapas={chapasFiltradas}
+                value={form.chapa_cd_id}
+                onChange={v => set("chapa_cd_id", v)}
+                numeroPedido={form.numero_pedido}
+                placeholder="Pesquisar e selecionar chapa..."
+              />
               {chapaObj && (
                 <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs flex flex-wrap gap-3 text-orange-800">
                   <span>Bobina: <strong>{chapaObj.bobina_descricao}</strong></span>
