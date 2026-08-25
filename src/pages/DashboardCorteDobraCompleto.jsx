@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useFilial } from "@/contexts/FilialContext";
 import FilaPCPCorteDobra from "@/components/pcp/FilaPCPCorteDobra";
+import RotasEntregaSection from "@/components/logistica/RotasEntregaSection";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend, PieChart, Pie
 } from "recharts";
@@ -376,6 +377,7 @@ export default function DashboardCorteDobraCompleto() {
       {/* ══════════════ ABA PRODUÇÃO ══════════════ */}
       {aba === "producao" && (
         <>
+          <RotasEntregaSection departamento="corte_dobra" filialAtiva={filialAtiva} title="Rotas de Entrega — IA" compact />
           {/* KPIs principais */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[

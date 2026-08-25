@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { useFilial } from "@/contexts/FilialContext";
 import FilaPCPTelhas from "@/components/pcp/FilaPCPTelhas";
+import RotasEntregaSection from "@/components/logistica/RotasEntregaSection";
 import PedidoFormDialog from "@/components/producao/PedidoFormDialog";
 
 const MAQUINAS_TELHAS = [
@@ -205,6 +206,7 @@ export default function DashboardTelhas() {
       {/* ══════════════ ABA PRODUÇÃO ══════════════ */}
       {aba === "producao" && (
         <>
+          <RotasEntregaSection departamento="telhas" filialAtiva={filialAtiva} title="Rotas de Entrega — IA" compact />
           {/* KPIs principais */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[

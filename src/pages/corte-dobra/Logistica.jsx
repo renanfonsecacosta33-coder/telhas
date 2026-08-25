@@ -7,7 +7,8 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Truck, Plus, Package, Search, X, Loader2, Factory, Layers, CheckCircle, Calendar, Filter, ChevronDown, ChevronRight, PackageCheck } from "lucide-react";
 import { useFilial } from "@/contexts/FilialContext";
-import CargaFormDialog from "@/components/logistica/CargaFormDialog";
+import NovaCargaDialog from "@/components/logistica/NovaCargaDialog";
+import RotasEntregaSection from "@/components/logistica/RotasEntregaSection";
 import CargaCard from "@/components/logistica/CargaCard";
 import AuditSidebar from "@/components/logistica/AuditSidebar";
 
@@ -322,6 +323,13 @@ export default function Logistica({ mode = "montagem" }) {
         </div>
       )}
 
+      {/* Rotas de Entrega distribuídas pela IA — visão completa da expedição */}
+      <RotasEntregaSection
+        departamento={null}
+        filialAtiva={filialAtiva}
+        title="Rotas de Entrega — IA"
+      />
+
       {/* Pedidos agrupados */}
       <div className="space-y-3">
         <div className="space-y-3">
@@ -421,7 +429,7 @@ export default function Logistica({ mode = "montagem" }) {
         )}
         </div>
 
-        <CargaFormDialog open={dialogCarga} onClose={() => setDialogCarga(false)} filialAtiva={filialAtiva} />
+        <NovaCargaDialog open={dialogCarga} onClose={() => setDialogCarga(false)} filialAtiva={filialAtiva} />
       <AuditSidebar open={!!selectedItem} onClose={() => setSelectedItem(null)} item={selectedItem} tipo={selectedTipo} />
     </div>
   );
