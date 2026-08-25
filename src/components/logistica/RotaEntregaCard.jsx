@@ -1,9 +1,13 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
+import { base44 } from "@/api/base44Client";
+import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { Truck, Eye, Factory, Layers, PackageCheck, DollarSign, StickyNote } from "lucide-react";
+import { Truck, Eye, Factory, Layers, PackageCheck, DollarSign, StickyNote, RefreshCw, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import ImageViewer from "@/components/ui/ImageViewer";
 import RotaCarregamentoSlot from "@/components/logistica/RotaCarregamentoSlot";
+import { parseRotaImage } from "@/lib/rotaParser";
 
 const DEP_LABEL = { telhas: "Telhas", corte_dobra: "Corte e Dobra", expedicao: "Expedição" };
 const DEP_COLOR = {
@@ -15,6 +19,36 @@ const DEP_COLOR = {
 export default function RotaEntregaCard({ rota, departamento }) {
   const [viewerUrl, setViewerUrl] = useState(null);
   const [viewerName, setViewerName] = useState("");
+  const [replacingRota, setReplacingRota] = useState(false);
+  const editRotaRef = useRef(null);
+  const queryClient = useQueryClient();
+
+  const handleReplaceRota = async (file) => {
+    if (!file) return;
+    setReplacingRota(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const parsed = await parseRotaImage(file_url);
+      await base44.entities.RotaEntrega.update(rota.id, {
+        rota_imagem_url: file_url,
+        rota_imagem_nome: file.name,
+        titulo: parsed.titulo || rota.titulo,
+        entrega_date: parsed.entrega_date || "",
+        embarque_date: parsed.embarque_date || "",
+        total_valor: parsed.total_valor || "",
+        nota_geral: parsed.nota_geral || "",
+        itens_json: JSON.stringify(parsed.itens || []),
+        motorista_nome: parsed.motorista_nome || rota.motorista_nome,
+        placa: (parsed.placa || rota.placa || "").toUpperCase(),
+      });
+      queryClient.invalidateQueries({ queryKey: ["rotas-entrega"] });
+      toast.success("Rota atualizada! IA releu todos os dados.");
+    } catch (e) {
+      toast.error("Erro ao atualizar rota: " + (e?.message || ""));
+    } finally {
+      setReplacingRota(false);
+    }
+  };
 
   const itens = useMemo(() => {
     try { return JSON.parse(rota.itens_json || "[]"); } catch { return []; }
@@ -60,17 +94,28 @@ export default function RotaEntregaCard({ rota, departamento }) {
       {/* Imagem da rota + carregamento por barracão */}
       <div className="flex gap-2">
         {rota.rota_imagem_url && (
-          <button
-            onClick={() => { setViewerUrl(rota.rota_imagem_url); setViewerName(rota.rota_imagem_nome); }}
-            className="relative h-20 w-28 rounded-lg border border-border overflow-hidden bg-muted group shrink-0"
-            title="Ver rota"
-          >
-            <img src={rota.rota_imagem_url} alt="rota" className="h-full w-full object-cover" />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-              <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-            <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[9px] text-center py-0.5">Rota</span>
-          </button>
+          <div className="relative h-20 w-28 shrink-0">
+            <button
+              onClick={() => { setViewerUrl(rota.rota_imagem_url); setViewerName(rota.rota_imagem_nome); }}
+              className="relative h-full w-full rounded-lg border border-border overflow-hidden bg-muted group"
+              title="Ver rota"
+            >
+              <img src={rota.rota_imagem_url} alt="rota" className="h-full w-full object-cover" />
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+              <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[9px] text-center py-0.5">Rota</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => editRotaRef.current?.click()}
+              disabled={replacingRota}
+              className="absolute top-1 right-1 h-6 w-6 rounded-md bg-background/90 border border-border shadow-sm flex items-center justify-center hover:bg-background disabled:opacity-60"
+              title="Editar foto da rota (reler tudo com IA)"
+            >
+              {replacingRota ? <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" /> : <RefreshCw className="w-3.5 h-3.5 text-primary" />}
+            </button>
+          </div>
         )}
         <div className={`grid gap-2 flex-1 ${departamentosAtivos.length === 1 ? "grid-cols-1" : "grid-cols-3"}`}>
           {departamentosAtivos.map((dep) => {
@@ -145,6 +190,8 @@ export default function RotaEntregaCard({ rota, departamento }) {
         </div>
       )}
 
+      <input ref={editRotaRef} type="file" accept="image/*" className="hidden"
+        onChange={(e) => handleReplaceRota(e.target.files?.[0])} />
       <ImageViewer url={viewerUrl} name={viewerName} open={!!viewerUrl} onClose={() => setViewerUrl(null)} />
     </div>
   );
