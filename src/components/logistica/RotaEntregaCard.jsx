@@ -1,16 +1,9 @@
-import React, { useState, useRef, useMemo } from "react";
-import { base44 } from "@/api/base44Client";
-import { useQueryClient } from "@tanstack/react-query";
+import React, { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
-import {
-  Truck, Eye, Camera, Loader2, Factory, Layers, PackageCheck,
-  MapPin, User, DollarSign, StickyNote, Image as ImageIcon,
-} from "lucide-react";
-import { toast } from "sonner";
-import UploadButton from "@/components/ui/UploadButton";
+import { Truck, Eye, Factory, Layers, PackageCheck, DollarSign, StickyNote } from "lucide-react";
 import ImageViewer from "@/components/ui/ImageViewer";
+import RotaCarregamentoSlot from "@/components/logistica/RotaCarregamentoSlot";
 
 const DEP_LABEL = { telhas: "Telhas", corte_dobra: "Corte e Dobra", expedicao: "Expedição" };
 const DEP_COLOR = {
@@ -22,10 +15,6 @@ const DEP_COLOR = {
 export default function RotaEntregaCard({ rota, departamento }) {
   const [viewerUrl, setViewerUrl] = useState(null);
   const [viewerName, setViewerName] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const queryClient = useQueryClient();
-  const cameraRef = useRef(null);
-  const fileRef = useRef(null);
 
   const itens = useMemo(() => {
     try { return JSON.parse(rota.itens_json || "[]"); } catch { return []; }
@@ -36,23 +25,17 @@ export default function RotaEntregaCard({ rota, departamento }) {
     return itens.filter((i) => (i.departamentos || []).includes(departamento));
   }, [itens, departamento]);
 
-  const handleCarregamento = async (file) => {
-    if (!file) return;
-    setUploading(true);
-    try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      await base44.entities.RotaEntrega.update(rota.id, {
-        imagem_carregamento_url: file_url,
-        imagem_carregamento_nome: file.name,
-      });
-      queryClient.invalidateQueries({ queryKey: ["rotas-entrega"] });
-      toast.success("Imagem de carregamento anexada!");
-    } catch (e) {
-      toast.error("Erro: " + (e?.message || ""));
-    } finally {
-      setUploading(false);
-    }
-  };
+  const departamentosAtivos = useMemo(() => {
+    if (departamento) return [departamento];
+    const set = new Set();
+    itens.forEach((i) => (i.departamentos || []).forEach((d) => set.add(d)));
+    return ["telhas", "corte_dobra", "expedicao"].filter((d) => set.has(d));
+  }, [itens, departamento]);
+
+  const carregamentoField = (dep) => ({
+    url: rota[`imagem_carregamento_${dep}_url`],
+    nome: rota[`imagem_carregamento_${dep}_nome`],
+  });
 
   const totalFmt = rota.total_valor || "";
   const dataCriacao = rota.data_criacao ? format(new Date(rota.data_criacao + "T12:00:00"), "dd/MM") : "";
@@ -74,12 +57,12 @@ export default function RotaEntregaCard({ rota, departamento }) {
         </Badge>
       </div>
 
-      {/* Imagem da rota + carregamento */}
+      {/* Imagem da rota + carregamento por barracão */}
       <div className="flex gap-2">
         {rota.rota_imagem_url && (
           <button
             onClick={() => { setViewerUrl(rota.rota_imagem_url); setViewerName(rota.rota_imagem_nome); }}
-            className="relative h-20 w-28 rounded-lg border border-border overflow-hidden bg-muted group"
+            className="relative h-20 w-28 rounded-lg border border-border overflow-hidden bg-muted group shrink-0"
             title="Ver rota"
           >
             <img src={rota.rota_imagem_url} alt="rota" className="h-full w-full object-cover" />
@@ -89,29 +72,14 @@ export default function RotaEntregaCard({ rota, departamento }) {
             <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[9px] text-center py-0.5">Rota</span>
           </button>
         )}
-        {rota.imagem_carregamento_url ? (
-          <button
-            onClick={() => { setViewerUrl(rota.imagem_carregamento_url); setViewerName(rota.imagem_carregamento_nome); }}
-            className="relative h-20 w-28 rounded-lg border border-emerald-300 overflow-hidden bg-muted group"
-            title="Ver carregamento"
-          >
-            <img src={rota.imagem_carregamento_url} alt="carregamento" className="h-full w-full object-cover" />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-              <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-            <span className="absolute bottom-0 inset-x-0 bg-emerald-700/80 text-white text-[9px] text-center py-0.5">Carregado ✓</span>
-          </button>
-        ) : (
-          <div className="h-20 flex-1 rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 p-1">
-            <UploadButton
-              label="Anexar foto de carregamento"
-              cameraRef={cameraRef}
-              fileRef={fileRef}
-              uploading={uploading}
-              className="h-auto py-1.5"
-            />
-          </div>
-        )}
+        <div className={`grid gap-2 flex-1 ${departamentosAtivos.length === 1 ? "grid-cols-1" : "grid-cols-3"}`}>
+          {departamentosAtivos.map((dep) => {
+            const f = carregamentoField(dep);
+            return (
+              <RotaCarregamentoSlot key={dep} rotaId={rota.id} dep={dep} url={f.url} nome={f.nome} />
+            );
+          })}
+        </div>
       </div>
 
       {/* Itens filtrados por departamento */}
@@ -177,10 +145,6 @@ export default function RotaEntregaCard({ rota, departamento }) {
         </div>
       )}
 
-      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
-        onChange={(e) => handleCarregamento(e.target.files?.[0])} />
-      <input ref={fileRef} type="file" accept="image/*" className="hidden"
-        onChange={(e) => handleCarregamento(e.target.files?.[0])} />
       <ImageViewer url={viewerUrl} name={viewerName} open={!!viewerUrl} onClose={() => setViewerUrl(null)} />
     </div>
   );

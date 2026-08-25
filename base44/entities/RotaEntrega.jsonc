@@ -51,11 +51,35 @@
     },
     "imagem_carregamento_url": {
       "type": "string",
-      "description": "URL da foto de carregamento do caminh\u00e3o (anexada ap\u00f3s carregar)"
+      "description": "URL da foto de carregamento do caminh\u00e3o (legado \u2014 uso \u00fanico antigo)"
     },
     "imagem_carregamento_nome": {
       "type": "string",
-      "description": "Nome do arquivo da imagem de carregamento"
+      "description": "Nome do arquivo da imagem de carregamento (legado)"
+    },
+    "imagem_carregamento_telhas_url": {
+      "type": "string",
+      "description": "URL da foto de carregamento do barrac\u00e3o de Telhas"
+    },
+    "imagem_carregamento_telhas_nome": {
+      "type": "string",
+      "description": "Nome do arquivo da foto de carregamento \u2014 Telhas"
+    },
+    "imagem_carregamento_corte_dobra_url": {
+      "type": "string",
+      "description": "URL da foto de carregamento do barrac\u00e3o de Corte e Dobra"
+    },
+    "imagem_carregamento_corte_dobra_nome": {
+      "type": "string",
+      "description": "Nome do arquivo da foto de carregamento \u2014 Corte e Dobra"
+    },
+    "imagem_carregamento_expedicao_url": {
+      "type": "string",
+      "description": "URL da foto de carregamento do barrac\u00e3o de Expedi\u00e7\u00e3o"
+    },
+    "imagem_carregamento_expedicao_nome": {
+      "type": "string",
+      "description": "Nome do arquivo da foto de carregamento \u2014 Expedi\u00e7\u00e3o"
     },
     "motorista_nome": {
       "type": "string",
