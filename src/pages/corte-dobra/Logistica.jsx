@@ -19,7 +19,7 @@ export default function Logistica({ mode = "montagem" }) {
   const [dialogCarga, setDialogCarga] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedTipo, setSelectedTipo] = useState(null);
-  const [tab, setTab] = useState("telhas");
+  const [tab, setTab] = useState(isDespacho ? "cd" : "telhas");
   const [filtroData, setFiltroData] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [mostrarEntregues, setMostrarEntregues] = useState(false);
@@ -265,7 +265,8 @@ export default function Logistica({ mode = "montagem" }) {
         )}
       </div>
 
-      {/* Tabs Barracões */}
+      {/* Tabs Barracões — oculto no modo despacho (barracão Corte e Dobra: travado em Corte e Dobra) */}
+      {!isDespacho && (
       <div className="flex items-center gap-2 border-b border-border">
         <button
           onClick={() => setTab("telhas")}
@@ -280,6 +281,7 @@ export default function Logistica({ mode = "montagem" }) {
           <Layers className="w-4 h-4" /> Corte e Dobra
         </button>
       </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
