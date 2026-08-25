@@ -2,7 +2,7 @@ import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, PackageCheck, Package, Map, Wrench, History, RotateCcw,
-  ChevronLeft, ArrowLeftRight, Menu, ArrowUpRight, BookmarkCheck
+  ChevronLeft, ArrowLeftRight, Menu, ArrowUpRight, BookmarkCheck, Truck, Archive
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +15,9 @@ const NAV = [
   { to: "/expedicao/estoque",     label: "Estoque Expedição",  icon: Package },
   { to: "/expedicao/mapa",        label: "Mapa Armazenagem",   icon: Map },
   { to: "/expedicao/frisada",     label: "Frisada",            icon: Wrench },
+  { to: "/expedicao/logistica",   label: "Logística",          icon: Truck },
   { to: "/expedicao/historico",   label: "Histórico",          icon: History },
+  { to: "/arquivo-rotas",         label: "Arquivo de Rotas",   icon: Archive },
 ];
 
 export default function SidebarExpedicao({ isOpen, onToggle, user }) {

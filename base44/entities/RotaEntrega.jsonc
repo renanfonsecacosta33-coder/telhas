@@ -103,12 +103,16 @@
         "cancelado"
       ],
       "default": "distribuido",
-      "description": "Status da rota de entrega"
+      "description": "Status da rota de entrega (expedido = arquivada/finalizada)"
     },
     "data_criacao": {
       "type": "string",
       "format": "date",
       "description": "Data de cria\u00e7\u00e3o da rota"
+    },
+    "data_finalizacao": {
+      "type": "string",
+      "description": "Timestamp ISO de quando a rota foi arquivada/finalizada"
     },
     "criado_por": {
       "type": "string",

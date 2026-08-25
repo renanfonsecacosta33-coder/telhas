@@ -82,6 +82,8 @@ import HistoricoExpedicao from '@/pages/expedicao/Historico';
 import SaidaMaterial from '@/pages/expedicao/SaidaMaterial';
 import DevolucoesExpedicao from '@/pages/expedicao/Devolucoes';
 import ReservasExpedicao from '@/pages/expedicao/Reservas';
+import LogisticaExpedicao from '@/pages/expedicao/Logistica';
+import ArquivoRotas from '@/pages/ArquivoRotas';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -189,7 +191,9 @@ const AuthenticatedApp = () => {
         <Route path="/expedicao/mapa"        element={<MapaArmazenagem />} />
         <Route path="/expedicao/frisada"     element={<FrisadaPage />} />
         <Route path="/expedicao/historico"   element={<HistoricoExpedicao />} />
+        <Route path="/expedicao/logistica"   element={<LogisticaExpedicao />} />
       </Route>
+      <Route path="/arquivo-rotas" element={<ArquivoRotas />} />
     </Routes>
     </FilialProvider>
   );

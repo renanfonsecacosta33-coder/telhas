@@ -1,7 +1,8 @@
 import React, { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
-import { Truck, Loader2 } from "lucide-react";
+import { Truck, Loader2, Archive } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import RotaEntregaCard from "@/components/logistica/RotaEntregaCard";
 
@@ -28,7 +29,7 @@ export default function RotasEntregaSection({ departamento, filialAtiva, title, 
   });
 
   const rotasFiltradas = useMemo(() => {
-    let result = rotas.filter((r) => {
+    let result = rotas.filter((r) => r.status !== "expedido").filter((r) => {
       if (!departamento) return true;
       try {
         const itens = JSON.parse(r.itens_json || "[]");
@@ -57,6 +58,9 @@ export default function RotasEntregaSection({ departamento, filialAtiva, title, 
         <Truck className="w-5 h-5 text-primary" />
         <h2 className="text-lg font-bold">{title || "Rotas de Entrega"}</h2>
         <Badge className="bg-primary/10 text-primary border-primary/20">{rotasFiltradas.length}</Badge>
+        <Link to="/arquivo-rotas" className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-2.5 py-1">
+          <Archive className="w-3.5 h-3.5" /> Ver Arquivo
+        </Link>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
         {rotasFiltradas.map((r) => (

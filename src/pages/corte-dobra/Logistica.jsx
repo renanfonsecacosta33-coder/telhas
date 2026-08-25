@@ -325,7 +325,7 @@ export default function Logistica({ mode = "montagem" }) {
 
       {/* Rotas de Entrega distribuídas pela IA — visão completa da expedição */}
       <RotasEntregaSection
-        departamento={null}
+        departamento={tab === "telhas" ? "telhas" : "corte_dobra"}
         filialAtiva={filialAtiva}
         title="Rotas de Entrega — IA"
       />
