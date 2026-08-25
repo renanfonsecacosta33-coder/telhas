@@ -79,8 +79,12 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
   }, [itens, departamento]);
 
   const carregamentoField = (dep) => ({
-    url: rota[`imagem_carregamento_${dep}_url`],
-    nome: rota[`imagem_carregamento_${dep}_nome`],
+    fotosJson: rota[`fotos_${dep}_json`] || "",
+    videoUrl: rota[`video_${dep}_url`] || "",
+    videoNome: rota[`video_${dep}_nome`] || "",
+    // compat legado: se não houver fotos novas mas houver foto única legada, reutiliza
+    legadoUrl: rota[`imagem_carregamento_${dep}_url`],
+    legadoNome: rota[`imagem_carregamento_${dep}_nome`],
   });
 
   const totalFmt = rota.total_valor || "";
@@ -132,8 +136,20 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
         <div className={`grid gap-2 flex-1 ${departamentosAtivos.length === 1 ? "grid-cols-1" : "grid-cols-3"}`}>
           {departamentosAtivos.map((dep) => {
             const f = carregamentoField(dep);
+            // Se houver foto legada única e nenhuma foto nova, converte para o novo formato
+            const fotosArr = (() => { try { return JSON.parse(f.fotosJson || "[]"); } catch { return []; } })();
+            const fotosJsonFinal = fotosArr.length > 0
+              ? f.fotosJson
+              : (f.legadoUrl ? JSON.stringify([{ url: f.legadoUrl, nome: f.legadoNome || "foto" }]) : "[]");
             return (
-              <RotaCarregamentoSlot key={dep} rotaId={rota.id} dep={dep} url={f.url} nome={f.nome} />
+              <RotaCarregamentoSlot
+                key={dep}
+                rotaId={rota.id}
+                dep={dep}
+                fotosJson={fotosJsonFinal}
+                videoUrl={f.videoUrl}
+                videoNome={f.videoNome}
+              />
             );
           })}
         </div>

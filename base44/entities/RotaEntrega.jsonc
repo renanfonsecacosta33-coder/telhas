@@ -59,27 +59,63 @@
     },
     "imagem_carregamento_telhas_url": {
       "type": "string",
-      "description": "URL da foto de carregamento do barrac\u00e3o de Telhas"
+      "description": "URL da foto de carregamento do barrac\u00e3o de Telhas (legado \u2014 foto \u00fanica)"
     },
     "imagem_carregamento_telhas_nome": {
       "type": "string",
-      "description": "Nome do arquivo da foto de carregamento \u2014 Telhas"
+      "description": "Nome do arquivo da foto de carregamento \u2014 Telhas (legado)"
     },
     "imagem_carregamento_corte_dobra_url": {
       "type": "string",
-      "description": "URL da foto de carregamento do barrac\u00e3o de Corte e Dobra"
+      "description": "URL da foto de carregamento do barrac\u00e3o de Corte e Dobra (legado)"
     },
     "imagem_carregamento_corte_dobra_nome": {
       "type": "string",
-      "description": "Nome do arquivo da foto de carregamento \u2014 Corte e Dobra"
+      "description": "Nome do arquivo da foto de carregamento \u2014 Corte e Dobra (legado)"
     },
     "imagem_carregamento_expedicao_url": {
       "type": "string",
-      "description": "URL da foto de carregamento do barrac\u00e3o de Expedi\u00e7\u00e3o"
+      "description": "URL da foto de carregamento do barrac\u00e3o de Expedi\u00e7\u00e3o (legado)"
     },
     "imagem_carregamento_expedicao_nome": {
       "type": "string",
-      "description": "Nome do arquivo da foto de carregamento \u2014 Expedi\u00e7\u00e3o"
+      "description": "Nome do arquivo da foto de carregamento \u2014 Expedi\u00e7\u00e3o (legado)"
+    },
+    "fotos_telhas_json": {
+      "type": "string",
+      "description": "JSON com at\u00e9 3 fotos de carregamento do barrac\u00e3o de Telhas [{url, nome}]"
+    },
+    "video_telhas_url": {
+      "type": "string",
+      "description": "URL do v\u00eddeo de carregamento do barrac\u00e3o de Telhas (m\u00e1x 1)"
+    },
+    "video_telhas_nome": {
+      "type": "string",
+      "description": "Nome do arquivo de v\u00eddeo \u2014 Telhas"
+    },
+    "fotos_corte_dobra_json": {
+      "type": "string",
+      "description": "JSON com at\u00e9 3 fotos de carregamento do barrac\u00e3o de Corte e Dobra [{url, nome}]"
+    },
+    "video_corte_dobra_url": {
+      "type": "string",
+      "description": "URL do v\u00eddeo de carregamento do barrac\u00e3o de Corte e Dobra (m\u00e1x 1)"
+    },
+    "video_corte_dobra_nome": {
+      "type": "string",
+      "description": "Nome do arquivo de v\u00eddeo \u2014 Corte e Dobra"
+    },
+    "fotos_expedicao_json": {
+      "type": "string",
+      "description": "JSON com at\u00e9 3 fotos de carregamento do barrac\u00e3o de Expedi\u00e7\u00e3o [{url, nome}]"
+    },
+    "video_expedicao_url": {
+      "type": "string",
+      "description": "URL do v\u00eddeo de carregamento do barrac\u00e3o de Expedi\u00e7\u00e3o (m\u00e1x 1)"
+    },
+    "video_expedicao_nome": {
+      "type": "string",
+      "description": "Nome do arquivo de v\u00eddeo \u2014 Expedi\u00e7\u00e3o"
     },
     "motorista_nome": {
       "type": "string",

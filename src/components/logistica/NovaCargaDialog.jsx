@@ -107,6 +107,15 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
       });
       queryClient.invalidateQueries({ queryKey: ["rotas-entrega"] });
       toast.success("Rota distribuída para todos os barracões!");
+      // Alerta os encarregados / admins sobre a nova rota
+      base44.functions.invoke("notificarNovaRota", {
+        titulo: parsed.titulo || "Rota de Entrega",
+        unidade,
+        motorista: motorista,
+        placa: placa,
+        itens_count: parsed.itens?.length || 0,
+        entrega_date: parsed.entrega_date || ""
+      }).catch(() => {});
       onClose();
     } catch (e) {
       toast.error("Erro ao salvar: " + (e?.message || ""));
