@@ -13,7 +13,7 @@ export default function LogisticaExpedicao() {
         </h1>
         <p className="text-sm text-muted-foreground">Foto de carregamento do barracão de Expedição</p>
       </div>
-      <RotasEntregaSection departamento="expedicao" filialAtiva={filialAtiva} title="Rotas de Entrega — Expedição" />
+      <RotasEntregaSection departamento="expedicao" filialAtiva={filialAtiva} title="Rotas de Entrega — Expedição" allowDelete />
     </div>
   );
 }

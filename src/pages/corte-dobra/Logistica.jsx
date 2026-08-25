@@ -328,6 +328,7 @@ export default function Logistica({ mode = "montagem" }) {
         departamento={tab === "telhas" ? "telhas" : "corte_dobra"}
         filialAtiva={filialAtiva}
         title="Rotas de Entrega — IA"
+        allowDelete
       />
 
       {/* Pedidos agrupados */}

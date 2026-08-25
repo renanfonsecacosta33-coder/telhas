@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { Truck, Eye, Factory, Layers, PackageCheck, DollarSign, StickyNote, RefreshCw, Loader2, Archive, CheckCircle2 } from "lucide-react";
+import { Truck, Eye, Factory, Layers, PackageCheck, DollarSign, StickyNote, RefreshCw, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import ImageViewer from "@/components/ui/ImageViewer";
 import RotaCarregamentoSlot from "@/components/logistica/RotaCarregamentoSlot";
@@ -16,11 +16,10 @@ const DEP_COLOR = {
   expedicao: "bg-purple-100 text-purple-700 border-purple-200",
 };
 
-export default function RotaEntregaCard({ rota, departamento }) {
+export default function RotaEntregaCard({ rota, departamento, allowDelete = false }) {
   const [viewerUrl, setViewerUrl] = useState(null);
   const [viewerName, setViewerName] = useState("");
   const [replacingRota, setReplacingRota] = useState(false);
-  const [archiving, setArchiving] = useState(false);
   const editRotaRef = useRef(null);
   const queryClient = useQueryClient();
 
@@ -51,19 +50,15 @@ export default function RotaEntregaCard({ rota, departamento }) {
     }
   };
 
-  const handleArchive = async () => {
-    setArchiving(true);
+  const handleDelete = async () => {
+    if (!window.confirm("Excluir esta rota de entrega? Esta ação não pode ser desfeita.")) return;
     try {
-      await base44.entities.RotaEntrega.update(rota.id, {
-        status: "expedido",
-        data_finalizacao: new Date().toISOString(),
-      });
+      await base44.entities.RotaEntrega.delete(rota.id);
       queryClient.invalidateQueries({ queryKey: ["rotas-entrega"] });
-      toast.success("Rota arquivada!");
+      queryClient.invalidateQueries({ queryKey: ["rotas-arquivadas"] });
+      toast.success("Rota excluída.");
     } catch (e) {
       toast.error("Erro: " + (e?.message || ""));
-    } finally {
-      setArchiving(false);
     }
   };
 
@@ -207,13 +202,9 @@ export default function RotaEntregaCard({ rota, departamento }) {
         </div>
       )}
 
-      {rota.status === "expedido" ? (
-        <div className="flex items-center justify-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md py-2">
-          <CheckCircle2 className="w-3.5 h-3.5" /> Arquivada{rota.data_finalizacao ? ` em ${format(new Date(rota.data_finalizacao), "dd/MM/yyyy 'às' HH:mm")}` : ""}
-        </div>
-      ) : (
-        <button onClick={handleArchive} disabled={archiving} className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md py-2 disabled:opacity-60 transition-colors">
-          {archiving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Archive className="w-3.5 h-3.5" />} Arquivar Rota
+      {allowDelete && (
+        <button onClick={handleDelete} className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-md py-2 transition-colors">
+          <Trash2 className="w-3.5 h-3.5" /> Excluir Rota
         </button>
       )}
 
