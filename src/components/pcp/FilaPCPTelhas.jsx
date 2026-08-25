@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Play, CheckCircle2, Inbox, Factory, Calendar, User, Loader2, Plus } from "lucide-react";
+import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import {
   getItens, itensPorGrupo, computePercentual, computePercentualGrupo,
   buildItensJson, statusPcpPorPercentual, STATUS_ITEM
@@ -126,7 +127,9 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                   const idx = item._idx;
                   const key = `${pedido.id}-${idx}`;
                   return (
-                    <div key={idx} className="flex items-center gap-3 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950/40">
+                    <div key={idx} className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950/40 space-y-2">
+                      <InstrucaoVendedorCard descricao={item.descricao || item.produto} quantidadeOdoo={item.quantidade} espessura={item.espessura} unidade="MT" />
+                      <div className="flex items-center gap-3">
                       <Checkbox
                         checked={item.status === "concluido"}
                         disabled={item.status === "pendente" || atualizando === key}
@@ -151,6 +154,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                           <Plus className="w-3 h-3" /> Nova Ordem
                         </Button>
                       )}
+                      </div>
                     </div>
                   );
                 })}

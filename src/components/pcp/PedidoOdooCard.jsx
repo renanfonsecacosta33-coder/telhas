@@ -6,6 +6,7 @@ import {
   diasUteisRestantes,
   slaDiasPorCategoria
 } from "@/lib/sla";
+import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 
 const STATUS_PCP = {
   pendente_distribuicao: { label: "Pendente", cls: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40" },
@@ -50,6 +51,22 @@ export default function PedidoOdooCard({ pedido, onClick }) {
         <User className="w-3 h-3" />
         <span className="truncate">{pedido.vendedor_nome || "—"}</span>
       </div>
+
+      {(() => {
+        let its = [];
+        try { its = JSON.parse(pedido.itens_json || "[]"); } catch { its = []; }
+        const prim = its.find((i) => i.descricao || i.produto);
+        if (!prim) return null;
+        return (
+          <InstrucaoVendedorCard
+            descricao={prim.descricao || prim.produto}
+            quantidadeOdoo={prim.quantidade}
+            espessura={prim.espessura}
+            unidade="MT"
+            compact
+          />
+        );
+      })()}
 
       {(pedido.percentual_concluido > 0 || pedido.status_pcp === "em_producao") && (
         <div className="flex items-center gap-2">

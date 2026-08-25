@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Zap, Factory, Scissors, Wind, Tag, Ruler, Package, CheckCircle2 } from "lucide-react";
 import { formatDataBR, slaDiasPorCategoria } from "@/lib/sla";
+import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 
 export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, onDistribuir, distribuindo }) {
   if (!pedido) return null;
@@ -114,7 +115,9 @@ export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, on
               itens.map((it, idx) => {
                 const g = classGrupo(it.categoria);
                 return (
-                  <div key={idx} className="flex items-center gap-3 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                  <div key={idx} className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-2">
+                    <InstrucaoVendedorCard descricao={it.descricao || it.produto} quantidadeOdoo={it.quantidade} espessura={it.espessura} unidade={g === "telha" ? "MT" : "un"} />
+                    <div className="flex items-center gap-3">
                     <Badge className={`shrink-0 border ${grupoColor[g]}`}>{grupoIcon[g]}</Badge>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{it.produto || "—"}</p>
@@ -127,6 +130,7 @@ export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, on
                       <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{it.espessura}mm</span>
                     )}
                     <span className="text-sm font-bold text-slate-800 dark:text-slate-100 w-12 text-right">{it.quantidade}x</span>
+                    </div>
                   </div>
                 );
               })

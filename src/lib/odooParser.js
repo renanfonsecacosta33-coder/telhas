@@ -58,13 +58,24 @@ export function parseWebhookPayload(rawJson) {
 
     // Filtra apenas categorias industriais válidas
     const itens = itensRaw
-      .map((it) => ({
-        categoria: it.categoria || it.category || it.product_category || "",
-        produto: it.produto || it.product_name || it.name || it.product || "",
-        medida: it.medida || it.dimension || it.dimensao || "",
-        espessura: it.espessura || it.thickness || "",
-        quantidade: Number(it.quantidade || it.qty || it.quantity || it.product_uom_qty || 0)
-      }))
+      .map((it) => {
+        const produto = it.produto || it.product_name || it.product || "";
+        // A descrição da linha (campo 'observacao'/'name') é a instrução de corte do vendedor
+        const descricao = it.observacao || it.description || it.note || it.customer_note || it.name || "";
+        let espessura = it.espessura || it.thickness || "";
+        if (!espessura) {
+          const em = String(produto).match(/\((\d+[.,]\d+)\s*\)/);
+          if (em) espessura = em[1].replace(",", ".");
+        }
+        return {
+          categoria: it.categoria || it.category || it.product_category || "",
+          produto,
+          descricao,
+          medida: it.medida || it.dimension || it.dimensao || "",
+          espessura,
+          quantidade: Number(it.quantidade || it.qty || it.quantity || it.product_uom_qty || 0)
+        };
+      })
       .filter((it) => isCategoriaValida(it.categoria));
 
     const telhaCount = itens.filter((i) => classificarCategoria(i.categoria)?.grupo === "telha").length;
