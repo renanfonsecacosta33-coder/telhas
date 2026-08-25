@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Truck, Loader2, ScanLine, Eye, AlertCircle, Factory, Layers, PackageCheck, Camera, Save } from "lucide-react";
+import { Truck, Loader2, ScanLine, Eye, Factory, Layers, PackageCheck, Save } from "lucide-react";
 import { toast } from "sonner";
 import UploadButton from "@/components/ui/UploadButton";
 import ImageViewer from "@/components/ui/ImageViewer";
@@ -30,11 +30,6 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
   const [obs, setObs] = useState("");
   const [motorista, setMotorista] = useState("");
   const [placa, setPlaca] = useState("");
-  const [transportadora, setTransportadora] = useState("");
-
-  const [carregamentoUrl, setCarregamentoUrl] = useState("");
-  const [carregamentoNome, setCarregamentoNome] = useState("");
-  const [uploadingCarregamento, setUploadingCarregamento] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [viewerUrl, setViewerUrl] = useState(null);
@@ -42,8 +37,6 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
 
   const cameraRotaRef = useRef(null);
   const fileRotaRef = useRef(null);
-  const cameraCarregRef = useRef(null);
-  const fileCarregRef = useRef(null);
 
   const queryClient = useQueryClient();
 
@@ -51,8 +44,7 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
     if (!open) {
       const t = setTimeout(() => {
         setRotaImagemUrl(""); setRotaImagemNome(""); setParsed(null); setObs("");
-        setMotorista(""); setPlaca(""); setTransportadora("");
-        setCarregamentoUrl(""); setCarregamentoNome("");
+        setMotorista(""); setPlaca("");
       }, 200);
       return () => clearTimeout(t);
     }
@@ -85,6 +77,8 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
           embarque_date: { type: "string" },
           total_valor: { type: "string" },
           nota_geral: { type: "string" },
+          motorista_nome: { type: "string" },
+          placa: { type: "string" },
           itens: {
             type: "array",
             items: {
@@ -108,6 +102,8 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
 - Data de entrega (campo ENTREGA)
 - Data de embarque (campo EMBARQUE)
 - Valor total (campo TOTAL)
+- Nome do motorista (campo MOTORISTA, se houver)
+- Placa do caminhão (campo PLACA, se houver)
 - Lista completa de pedidos na tabela. Para cada pedido: ordem de entrega, número do pedido, cliente, vendedor, bairro, forma de pagamento, valor do pedido e observação (se houver).
 - Qualquer nota/observação geral no rodapé da imagem.
 Seja preciso com os números de pedido. Se um campo não estiver visível, use string vazia.`;
@@ -145,25 +141,13 @@ Seja preciso com os números de pedido. Se um campo não estiver visível, use s
         itens = itens.map((item) => ({ ...item, departamentos: ["telhas", "corte_dobra", "expedicao"] }));
       }
       setParsed({ ...res, itens });
+      if (res.motorista_nome) setMotorista(res.motorista_nome);
+      if (res.placa) setPlaca(res.placa.toUpperCase());
       toast.success(`${itens.length} pedidos lidos da imagem pela IA!`);
     } catch (e) {
       toast.error("Erro ao ler imagem com IA: " + (e?.message || ""));
     } finally {
       setParsing(false);
-    }
-  };
-
-  const handleCarregamentoFile = async (file) => {
-    if (!file) return;
-    setUploadingCarregamento(true);
-    try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      setCarregamentoUrl(file_url);
-      setCarregamentoNome(file.name);
-    } catch (e) {
-      toast.error("Erro ao enviar imagem: " + (e?.message || ""));
-    } finally {
-      setUploadingCarregamento(false);
     }
   };
 
@@ -184,11 +168,8 @@ Seja preciso com os números de pedido. Se um campo não estiver visível, use s
         nota_geral: parsed.nota_geral || "",
         itens_json: JSON.stringify(parsed.itens || []),
         observacao: obs,
-        imagem_carregamento_url: carregamentoUrl,
-        imagem_carregamento_nome: carregamentoNome,
         motorista_nome: motorista,
         placa: placa,
-        transportadora: transportadora,
         status: "distribuido",
         unidade,
         data_criacao: format(new Date(), "yyyy-MM-dd"),
@@ -331,48 +312,18 @@ Seja preciso com os números de pedido. Se um campo não estiver visível, use s
             />
           </div>
 
-          {/* Motorista / Placa / Transportadora */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Motorista / Placa */}
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs">Motorista</Label>
+              <Label className="text-xs">Motorista <span className="text-muted-foreground font-normal">(auto da imagem)</span></Label>
               <Input placeholder="Nome" value={motorista} onChange={(e) => setMotorista(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Placa</Label>
+              <Label className="text-xs">Placa <span className="text-muted-foreground font-normal">(auto da imagem)</span></Label>
               <Input placeholder="ABC-1234" value={placa} onChange={(e) => setPlaca(e.target.value.toUpperCase())} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Transportadora</Label>
-              <Input placeholder="Transportadora" value={transportadora} onChange={(e) => setTransportadora(e.target.value)} />
             </div>
           </div>
 
-          {/* Imagem de carregamento */}
-          <div className="space-y-2">
-            <Label className="text-sm font-semibold flex items-center gap-1.5">
-              <Camera className="w-4 h-4 text-primary" /> 2. Anexar imagem de carregamento (opcional)
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Foto do caminhão carregado. Pode ser anexada agora ou depois, direto no barracão.
-            </p>
-            <div className="flex gap-2 items-center">
-              <UploadButton
-                label={carregamentoUrl ? "Trocar foto" : "Anexar imagem de carregamento"}
-                cameraRef={cameraCarregRef}
-                fileRef={fileCarregRef}
-                uploading={uploadingCarregamento}
-              />
-              {carregamentoUrl && (
-                <button
-                  type="button"
-                  onClick={() => { setViewerUrl(carregamentoUrl); setViewerName(carregamentoNome); }}
-                  className="h-10 w-10 rounded-md border border-input overflow-hidden flex items-center justify-center bg-muted"
-                >
-                  <img src={carregamentoUrl} alt="carregamento" className="h-full w-full object-cover" />
-                </button>
-              )}
-            </div>
-          </div>
         </div>
 
         <DialogFooter>
@@ -388,10 +339,6 @@ Seja preciso com os números de pedido. Se um campo não estiver visível, use s
         onChange={(e) => handleRotaFile(e.target.files?.[0])} />
       <input ref={fileRotaRef} type="file" accept="image/*" className="hidden"
         onChange={(e) => handleRotaFile(e.target.files?.[0])} />
-      <input ref={cameraCarregRef} type="file" accept="image/*" capture="environment" className="hidden"
-        onChange={(e) => handleCarregamentoFile(e.target.files?.[0])} />
-      <input ref={fileCarregRef} type="file" accept="image/*" className="hidden"
-        onChange={(e) => handleCarregamentoFile(e.target.files?.[0])} />
       <ImageViewer url={viewerUrl} name={viewerName} open={!!viewerUrl} onClose={() => setViewerUrl(null)} />
     </Dialog>
   );
