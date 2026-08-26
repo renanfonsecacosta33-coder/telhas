@@ -9,7 +9,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
-import { Layers, Package, Camera, DollarSign, PackageX } from "lucide-react";
+import { Layers, Package, Camera, PackageX } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import ChapaEstoqueCombobox from "@/components/corte-dobra/ChapaEstoqueCombobox";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
@@ -682,13 +682,6 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
             ) : (
               <UploadButton label="Anexar Foto do Pedido" icon={Camera} cameraRef={fotoPedidoRef} fileRef={fotoPedidoScanRef} uploading={uploadingFoto} size="default" variant="outline" />
             )}
-          </div>
-
-          <div className="space-y-1">
-            <Label className="flex items-center gap-1">
-              <DollarSign className="w-4 h-4 text-green-600" /> Valor Pago pelo Cliente
-            </Label>
-            <Input type="number" step="0.01" placeholder="0,00" value={form.valor_pago_cliente} onChange={e => set("valor_pago_cliente", e.target.value)} />
           </div>
 
           <div className="space-y-1">

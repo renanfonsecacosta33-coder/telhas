@@ -15,6 +15,7 @@ import { playAlertSound } from "@/lib/sounds";
 import FiltroChapa from "@/components/corte-dobra/FiltroChapa";
 import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
+import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 
 export default function Desbobinadeira() {
   const { filialAtiva } = useFilial();
@@ -356,6 +357,9 @@ export default function Desbobinadeira() {
         )}
         <FiltroChapa chapas={chapasDisponiveis} value={filtroChapa} onChange={setFiltroChapa} />
       </div>
+
+      {/* IA Capacidade Diária (Regra 5) */}
+      <CapacidadeDiariaIA ordens={ordens} dataISO={selectedDay} />
 
       {isLoading ? (
         <div className="flex justify-center py-12">

@@ -4,24 +4,27 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Zap, Factory, Scissors, Wind, Tag, Ruler, Package, CheckCircle2, Trash2, ImageIcon, ExternalLink } from "lucide-react";
+import { Zap, Factory, Scissors, Wind, Tag, Ruler, Package, CheckCircle2, Trash2, ImageIcon, ExternalLink, Star, ShieldAlert } from "lucide-react";
 import { formatDataBR, slaDiasPorCategoria } from "@/lib/sla";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
+import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
+import PedidoItemChecklist from "@/components/pcp/PedidoItemChecklist";
+import { parseItensPedido, roteamentoMaterial, progressoChecklist } from "@/lib/regrasFabrica";
 
-export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, onDistribuir, distribuindo, onExcluirOS }) {
+export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, onDistribuir, distribuindo, onExcluirOS, onTogglePrioridade, onToggleItem }) {
   const [confirmaExcluir, setConfirmaExcluir] = useState(false);
   const [motivo, setMotivo] = useState("");
   const [excluindo, setExcluindo] = useState(false);
 
   if (!pedido) return null;
 
-  const itens = (() => {
-    try { return JSON.parse(pedido.itens_json || "[]"); } catch { return []; }
-  })();
+  const itens = parseItensPedido(pedido.itens_json);
   const espessuras = (() => {
     try { return JSON.parse(pedido.espessuras_tags || "[]"); } catch { return []; }
   })();
   const sla = slaDiasPorCategoria(pedido);
+  const chk = progressoChecklist(pedido.itens_json);
+  const isPrioritario = !!pedido.prioridade;
 
   const grupoIcon = {
     telha: <Factory className="w-3.5 h-3.5" />,
@@ -43,6 +46,12 @@ export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, on
 
   const jaDistribuido = pedido.status_pcp !== "pendente_distribuicao";
 
+  const handleToggleItemLocal = (idx) => {
+    if (onToggleItem) {
+      onToggleItem(pedido, idx);
+    }
+  };
+
   const confirmarExclusao = async () => {
     setExcluindo(true);
     try {
@@ -59,7 +68,12 @@ export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, on
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2 flex-wrap">
+              {isPrioritario && (
+                <Badge className="bg-amber-500 text-white border-amber-600 animate-pulse gap-0.5">
+                  <Star className="w-3 h-3 fill-white" /> URGENTE
+                </Badge>
+              )}
               <span>Pedido #{pedido.numero_pedido}</span>
               {pedido.odoo_id && (
                 <span className="text-xs font-mono text-slate-400">Odoo:{pedido.odoo_id}</span>
@@ -87,6 +101,22 @@ export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, on
               <p className="text-[10px] text-slate-400 uppercase font-semibold">SLA</p>
               <p className="font-medium text-orange-600 dark:text-orange-400">{sla} dias úteis</p>
             </div>
+          </div>
+
+          {/* SLA Countdown (Regra 6) */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <SlaCountdownBadge dataPrometida={pedido.data_entrega} />
+            {onTogglePrioridade && (
+              <Button
+                size="sm"
+                variant={isPrioritario ? "default" : "outline"}
+                onClick={() => onTogglePrioridade(pedido)}
+                className={`ml-auto gap-1.5 ${isPrioritario ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-600" : "border-amber-400 text-amber-600 hover:bg-amber-50"}`}
+              >
+                {isPrioritario ? <Star className="w-4 h-4 fill-white" /> : <ShieldAlert className="w-4 h-4" />}
+                {isPrioritario ? "Prioridade Ativa" : "Prioridade Alta (PIN)"}
+              </Button>
+            )}
           </div>
 
           {/* Foto do Pedido (Odoo → Encarregado) */}
@@ -139,38 +169,45 @@ export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, on
             </div>
           )}
 
+          {/* Checklist de Itens Agrupados (Regra 4) + Roteamento (Regra 3) */}
           <div>
-            <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-2 flex items-center gap-1.5">
-              <Package className="w-4 h-4" /> Peças e Medidas ({itens.length})
-            </h4>
-            <div className="space-y-2">
-              {itens.length === 0 ? (
-                <p className="text-xs text-slate-400 italic">Nenhum item detalhado.</p>
-              ) : (
-                itens.map((it, idx) => {
-                  const g = classGrupo(it.categoria);
-                  return (
-                    <div key={idx} className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-2">
-                      <InstrucaoVendedorCard descricao={it.descricao || it.produto} quantidadeOdoo={it.quantidade} espessura={it.espessura} unidade={g === "telha" ? "MT" : "un"} />
-                      <div className="flex items-center gap-3">
-                      <Badge className={`shrink-0 border ${grupoColor[g]}`}>{grupoIcon[g]}</Badge>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{it.produto || "—"}</p>
-                        <p className="text-[11px] text-slate-400">{it.categoria}</p>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-slate-500">
-                        <Ruler className="w-3 h-3" />{it.medida || "—"}
-                      </div>
-                      {it.espessura && (
-                        <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{it.espessura}mm</span>
-                      )}
-                      <span className="text-sm font-bold text-slate-800 dark:text-slate-100 w-12 text-right">{it.quantidade}x</span>
-                      </div>
-                    </div>
-                  );
-                })
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                <Package className="w-4 h-4" /> Itens Agrupados ({itens.length})
+              </h4>
+              {chk.total > 1 && (
+                <span className="text-[11px] font-bold text-slate-500">
+                  Checklist: {chk.concluidos}/{chk.total} ({chk.percentual}%)
+                </span>
               )}
             </div>
+            {itens.length === 0 ? (
+              <p className="text-xs text-slate-400 italic">Nenhum item detalhado.</p>
+            ) : (
+              <PedidoItemChecklist
+                itensJson={pedido.itens_json}
+                onToggleItem={handleToggleItemLocal}
+                compact
+              />
+            )}
+
+            {/* Roteamento de matéria-prima (Regra 3) */}
+            {itens.length > 0 && (
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {itens.map((it, idx) => {
+                  const rt = roteamentoMaterial(it.categoria);
+                  return (
+                    <div key={idx} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-2.5 py-1.5">
+                      <Badge className={`shrink-0 border ${grupoColor[classGrupo(it.categoria)]}`}>{grupoIcon[classGrupo(it.categoria)]}</Badge>
+                      <span className="text-[11px] font-medium text-slate-700 dark:text-slate-200 truncate flex-1">{it.produto || "—"}</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${rt.consome === "bobina" ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300" : "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300"}`}>
+                        {rt.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">

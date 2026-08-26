@@ -8,12 +8,15 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import {
   Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap,
-  Factory, Scissors, Wind, Layers, AlertTriangle, CheckCircle2
+  Factory, Scissors, Wind, Layers, AlertTriangle, CheckCircle2, Star
 } from "lucide-react";
 import PedidoOdooCard from "@/components/pcp/PedidoOdooCard";
 import PedidoOdooDetalheDialog from "@/components/pcp/PedidoOdooDetalheDialog";
 import WebhookSimulatorDialog from "@/components/pcp/WebhookSimulatorDialog";
+import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
+import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import { calcularDataPrometidaSLA, toISODate, slaDiasPorCategoria, diasUteisRestantes } from "@/lib/sla";
+import { parseItensPedido } from "@/lib/regrasFabrica";
 
 const FILTROS = [
   { id: "todos", label: "Todos" },
@@ -33,6 +36,8 @@ export default function CentralPCP() {
   const [detalheOpen, setDetalheOpen] = useState(false);
   const [webhookOpen, setWebhookOpen] = useState(false);
   const [distribuindo, setDistribuindo] = useState(false);
+  const [senhaGestorOpen, setSenhaGestorOpen] = useState(false);
+  const [pedidoPrioridadePendente, setPedidoPrioridadePendente] = useState(null);
 
   const { data: pedidos = [], isLoading: carregando, refetch } = useQuery({
     queryKey: ["pedidos-odoo-pcp"],
@@ -132,6 +137,58 @@ export default function CentralPCP() {
       });
     } catch (e) {
       toast({ title: "Erro ao excluir OS", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const handleToggleItem = async (pedido, idx) => {
+    try {
+      const itens = parseItensPedido(pedido.itens_json);
+      if (!itens[idx]) return;
+      itens[idx] = { ...itens[idx], concluido: !itens[idx].concluido };
+      const concluidos = itens.filter((i) => i.concluido).length;
+      const percentual = itens.length > 0 ? Math.round((concluidos / itens.length) * 100) : 0;
+      const atualizado = await base44.entities.PedidoOdoo.update(pedido.id, {
+        itens_json: JSON.stringify(itens),
+        percentual_concluido: percentual,
+      });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      setPedidoSelecionado((prev) => prev ? { ...prev, ...atualizado } : prev);
+    } catch (e) {
+      toast({ title: "Erro ao atualizar item", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const handleTogglePrioridade = (pedido) => {
+    // Regra 1: ativar prioridade exige PIN do gestor; desativar é livre.
+    if (!pedido.prioridade) {
+      setPedidoPrioridadePendente(pedido);
+      setSenhaGestorOpen(true);
+    } else {
+      confirmarPrioridade(pedido, false);
+    }
+  };
+
+  const confirmarPrioridade = async (pedido, novoValor) => {
+    try {
+      const logExistente = (() => { try { return JSON.parse(pedido.historico_log || "[]"); } catch { return []; } })();
+      const novoLog = [...logExistente, {
+        data: new Date().toISOString(),
+        usuario: "PCP",
+        acao: novoValor ? "prioridade_ativada" : "prioridade_removida",
+        detalhes: novoValor ? "Pedido marcado como Prioridade Alta / Urgente (autorizado via PIN do gestor)." : "Prioridade removida."
+      }];
+      await base44.entities.PedidoOdoo.update(pedido.id, {
+        prioridade: novoValor,
+        historico_log: JSON.stringify(novoLog)
+      });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      toast({
+        title: novoValor ? "Prioridade ativada" : "Prioridade removida",
+        description: `#${pedido.numero_pedido} ${novoValor ? "marcado como URGENTE" : "voltou para fila normal"}.`,
+        className: novoValor ? "border-amber-500/40" : "border-slate-400/40"
+      });
+    } catch (e) {
+      toast({ title: "Erro ao alterar prioridade", description: e.message, variant: "destructive" });
     }
   };
 
@@ -291,6 +348,7 @@ export default function CentralPCP() {
                   pedido={p}
                   onClick={() => { setPedidoSelecionado(p); setDetalheOpen(true); }}
                   onDelete={handleExcluir}
+                  onTogglePrioridade={handleTogglePrioridade}
                 />
               ))}
             </div>
@@ -305,6 +363,20 @@ export default function CentralPCP() {
         onDistribuir={handleDistribuir}
         distribuindo={distribuindo}
         onExcluirOS={handleExcluirOS}
+        onTogglePrioridade={handleTogglePrioridade}
+        onToggleItem={handleToggleItem}
+      />
+      <SenhaGestorDialog
+        open={senhaGestorOpen}
+        onOpenChange={setSenhaGestorOpen}
+        titulo="Autorizar Prioridade Alta"
+        descricao="Para marcar este pedido como Prioridade Alta / Urgente, digite o PIN de liberação do PCP/Gestor."
+        onAutorizado={() => {
+          if (pedidoPrioridadePendente) {
+            confirmarPrioridade(pedidoPrioridadePendente, true);
+            setPedidoPrioridadePendente(null);
+          }
+        }}
       />
       <WebhookSimulatorDialog
         open={webhookOpen}

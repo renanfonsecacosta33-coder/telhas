@@ -14,6 +14,8 @@ import { useFilial } from "@/contexts/FilialContext";
 import FiltroChapa from "@/components/corte-dobra/FiltroChapa";
 import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
+import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
+import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 
 export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const { filialAtiva } = useFilial();
@@ -28,6 +30,8 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const [filtroChapa, setFiltroChapa] = useState("todas");
   const [dialogRetrabalho, setDialogRetrabalho] = useState(false);
   const [ordemRetrabalho, setOrdemRetrabalho] = useState(null);
+  const [senhaGestorOpen, setSenhaGestorOpen] = useState(false);
+  const [prioridadePendente, setPrioridadePendente] = useState(null);
 
   const queryClient = useQueryClient();
 
@@ -140,6 +144,16 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     mutationFn: (data) => base44.entities.OrdemMaquinaCD.create(data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] }); },
   });
+
+  // Regra 1: prioridade exige PIN do gestor (ativar); desativar é livre.
+  const handleTogglePrioridade = (o) => {
+    if (!o.prioridade) {
+      setPrioridadePendente(o);
+      setSenhaGestorOpen(true);
+    } else {
+      updateMaq.mutate({ id: o.id, data: { prioridade: false } });
+    }
+  };
 
   const handleSave = async (data) => {
     if (editItem && !editItem._presets && editItem.id) {
@@ -360,6 +374,9 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
         <FiltroChapa chapas={chapasDisponiveis} value={filtroChapa} onChange={setFiltroChapa} />
       </div>
 
+      {/* IA Capacidade Diária (Regra 5) */}
+      <CapacidadeDiariaIA ordens={ordensDaMaquina} dataISO={selectedDay} />
+
       {isLoading ? (
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
@@ -463,7 +480,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
                   {isGestor && (
                     <div className="flex justify-end mt-1 gap-1">
                       {o.status !== "finalizado" && o.status !== "cancelado" && (
-                        <Button size="sm" variant="ghost" className={`text-xs h-6 px-2 ${o.prioridade ? "text-amber-600 font-bold" : "text-muted-foreground"}`} onClick={() => updateMaq.mutate({ id: o.id, data: { prioridade: !o.prioridade } })}>
+                        <Button size="sm" variant="ghost" className={`text-xs h-6 px-2 ${o.prioridade ? "text-amber-600 font-bold" : "text-muted-foreground"}`} onClick={() => handleTogglePrioridade(o)}>
                           <Star className={`w-3 h-3 mr-1 ${o.prioridade ? "fill-amber-500 text-amber-500" : ""}`} /> {o.prioridade ? "Prioritária" : "Prioridade"}
                         </Button>
                       )}
@@ -526,6 +543,19 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
       />
 
       <ChatFloatingButton canal_id={maquinaId} canal_label={maquinaLabel} currentUser={user} />
+
+      <SenhaGestorDialog
+        open={senhaGestorOpen}
+        onOpenChange={setSenhaGestorOpen}
+        titulo="Autorizar Prioridade Alta"
+        descricao="Para marcar esta OP como Prioridade Alta / Urgente, digite o PIN de liberação do PCP/Gestor."
+        onAutorizado={() => {
+          if (prioridadePendente) {
+            updateMaq.mutate({ id: prioridadePendente.id, data: { prioridade: true } });
+            setPrioridadePendente(null);
+          }
+        }}
+      />
     </div>
   );
 }

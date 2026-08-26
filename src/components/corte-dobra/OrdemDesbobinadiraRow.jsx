@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers, Image as ImageIcon, DollarSign, ScanLine } from "lucide-react";
+import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers, Image as ImageIcon, ScanLine } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -275,12 +275,6 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                   ⚖️ Balança: {o.peso_real_balanca_kg.toLocaleString("pt-BR")} kg
                 </span>
               )}
-              {isGestor && o.kg_estimado > 0 && bobinaCustoMap[o.bobina_id] && (
-                <span className="inline-flex items-center gap-0.5 text-xs font-bold text-green-700">
-                  <DollarSign className="w-2.5 h-2.5" />
-                  {(o.kg_estimado * bobinaCustoMap[o.bobina_id]).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}
-                </span>
-              )}
             </div>
             <div className="flex items-center gap-2">
               {o.foto_pedido_url && (
@@ -419,12 +413,6 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               {o.comprimento_mm > 0 && <span>{o.comprimento_mm}mm de corte</span>}
               {o.kg_estimado > 0 && (
                 <span className="font-semibold text-emerald-700">≈ {o.kg_estimado.toFixed(1)} kg</span>
-              )}
-              {isGestor && o.kg_estimado > 0 && bobinaCustoMap[o.bobina_id] && (
-                <span className="inline-flex items-center gap-0.5 font-bold text-green-700">
-                  <DollarSign className="w-3 h-3" />
-                  {(o.kg_estimado * bobinaCustoMap[o.bobina_id]).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}
-                </span>
               )}
             </div>
             <div className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 ${z.info} text-muted-foreground mt-1`}>

@@ -11,7 +11,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
-import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X, DollarSign, Star, PackageX, Wrench, Trash2 } from "lucide-react";
+import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X, Star, PackageX, Wrench, Trash2, User } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import UploadButton from "@/components/ui/UploadButton";
 import ChapaEstoqueCombobox from "@/components/corte-dobra/ChapaEstoqueCombobox";
@@ -736,13 +736,10 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                   </p>
                 )}
                 {isGestor && bobinaObj?.custo && kgEstimado && (
-                  <div className="flex items-center gap-2 bg-green-600/10 border border-green-600/30 rounded-lg px-3 py-2 mt-1">
-                    <DollarSign className="w-4 h-4 text-green-600" />
-                    <span className="text-xs font-semibold text-green-700">Custo de Material desta OP:</span>
-                    <span className="text-sm font-black text-green-700">
-                      {(kgEstimado * bobinaObj.custo).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground ml-auto">{bobinaObj.custo.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}/kg</span>
+                  <div className="flex items-center gap-2 bg-slate-600/10 border border-slate-600/30 rounded-lg px-3 py-2 mt-1">
+                    <Weight className="w-4 h-4 text-slate-600" />
+                    <span className="text-xs font-semibold text-slate-700">Custo de Material desta OP:</span>
+                    <span className="text-sm font-black text-slate-700">removido (regra industrial)</span>
                   </div>
                 )}
               </div>
@@ -855,7 +852,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
               </div>
               <div className="space-y-1">
                 <Label className="flex items-center gap-1">
-                  <DollarSign className="w-4 h-4 text-blue-500" /> Vendedor
+                  <User className="w-4 h-4 text-blue-500" /> Vendedor
                 </Label>
                 <Select value={form.vendedor} onValueChange={v => set("vendedor", v)}>
                   <SelectTrigger className="w-full">
@@ -926,20 +923,6 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
               </div>
             </div>
           )}
-
-          {/* Valor Pago pelo Cliente */}
-          <div className="space-y-1">
-            <Label className="flex items-center gap-1">
-              <DollarSign className="w-4 h-4 text-green-600" /> Valor Pago pelo Cliente
-            </Label>
-            <Input
-              type="number"
-              step="0.01"
-              placeholder="0,00"
-              value={form.valor_pago_cliente}
-              onChange={e => set("valor_pago_cliente", e.target.value)}
-            />
-          </div>
 
           {/* Prioridade */}
           {isGestor && (

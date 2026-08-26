@@ -53,6 +53,11 @@
       "default": "pendente_distribuicao",
       "description": "Status do pedido na central PCP"
     },
+    "prioridade": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pedido priorit\u00e1rio/urgente \u2014 exige Senha de Gestor (PIN 0000) para ativar. Fixado no topo da fila e bloqueia in\u00edcio de OPs normais nas m\u00e1quinas."
+    },
     "percentual_concluido": {
       "type": "number",
       "default": 0,
@@ -84,7 +89,7 @@
     },
     "itens_json": {
       "type": "string",
-      "description": "JSON text com itens detalhados [{categoria, produto, medida, espessura, quantidade}]"
+      "description": "JSON text com itens detalhados [{categoria, produto, medida, espessura, quantidade, concluido}] \u2014 checklist individual por item (Rule 4)"
     },
     "historico_log": {
       "type": "string",
