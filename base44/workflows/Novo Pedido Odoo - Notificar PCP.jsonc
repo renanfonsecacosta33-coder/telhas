@@ -1,0 +1,40 @@
+{
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "entity",
+      "events": [
+        "create"
+      ],
+      "entity_name": "PedidoOdoo"
+    }
+  },
+  "description": "Quando um novo PedidoOdoo \u00e9 criado (webhook Odoo), notifica a equipe de PCP in-app no canal da Central PCP.",
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "novo_pedido_odoo_notificar_pcp",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "notificar_pcp": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "notificarNovoPedidoOdoo",
+            "args": {
+              "pedido_id": "${ .trigger.entity_id }"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Notificar PCP do novo pedido",
+            "description": "Cria mensagem in-app no canal Central PCP"
+          }
+        }
+      }
+    ]
+  },
+  "name": "Novo Pedido Odoo \u2014 Notificar PCP"
+}
