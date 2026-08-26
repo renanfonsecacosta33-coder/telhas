@@ -1,6 +1,6 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, User, Tag, Layers, Factory, Scissors, Wind } from "lucide-react";
+import { Calendar, User, Tag, Layers, Factory, Scissors, Wind, Trash2 } from "lucide-react";
 import {
   formatDataBR,
   diasUteisRestantes,
@@ -15,7 +15,7 @@ const STATUS_PCP = {
   concluido: { label: "Concluído", cls: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40" }
 };
 
-export default function PedidoOdooCard({ pedido, onClick }) {
+export default function PedidoOdooCard({ pedido, onClick, onDelete }) {
   const st = STATUS_PCP[pedido.status_pcp] || STATUS_PCP.pendente_distribuicao;
   const sla = slaDiasPorCategoria(pedido);
   const restantes = diasUteisRestantes(pedido.data_entrega);
@@ -44,7 +44,19 @@ export default function PedidoOdooCard({ pedido, onClick }) {
             {pedido.cliente_nome || "Cliente não informado"}
           </p>
         </div>
-        <Badge className={`shrink-0 border ${st.cls}`}>{st.label}</Badge>
+        <div className="flex items-center gap-2 shrink-0">
+          {onDelete && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDelete(pedido); }}
+              title="Excluir pedido"
+              className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-500/10 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <Badge className={`border ${st.cls}`}>{st.label}</Badge>
+        </div>
       </div>
 
       <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">

@@ -99,6 +99,21 @@ export default function CentralPCP() {
     }
   };
 
+  const handleExcluir = async (pedido) => {
+    if (!window.confirm(`Excluir o pedido #${pedido.numero_pedido} da Central PCP?`)) return;
+    try {
+      await base44.entities.PedidoOdoo.delete(pedido.id);
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      toast({
+        title: "Pedido excluído",
+        description: `#${pedido.numero_pedido} removido da fila.`,
+        className: "border-red-500/40"
+      });
+    } catch (e) {
+      toast({ title: "Erro ao excluir", description: e.message, variant: "destructive" });
+    }
+  };
+
   const handleDistribuir = async (pedido) => {
     setDistribuindo(true);
     try {
@@ -254,6 +269,7 @@ export default function CentralPCP() {
                   key={p.id}
                   pedido={p}
                   onClick={() => { setPedidoSelecionado(p); setDetalheOpen(true); }}
+                  onDelete={handleExcluir}
                 />
               ))}
             </div>
