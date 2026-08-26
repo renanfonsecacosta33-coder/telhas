@@ -122,21 +122,32 @@ export default function CentralPCP() {
 
   const handleExcluirOS = async (pedido, motivo) => {
     try {
-      await base44.functions.invoke("cancelarOrdemServicoOdoo", {
+      const res = await base44.functions.invoke("cancelarOrdemServicoOdoo", {
         numero_pedido: pedido.numero_pedido,
         odoo_id: pedido.odoo_id,
         motivo,
       });
+      // Odoo não confirmou → nada foi excluído no App
+      if (res?.status && res.status !== "ok") {
+        toast({
+          title: "Odoo não confirmou o cancelamento",
+          description: res?.odoo_erro || res?.message || "Nenhum registro foi excluído no App.",
+          variant: "destructive",
+        });
+        return;
+      }
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
       setDetalheOpen(false);
       setPedidoSelecionado(null);
       toast({
-        title: "OS cancelada e excluída",
-        description: `#${pedido.numero_pedido} removida da fábrica${pedido.odoo_id ? " e notificada ao Odoo" : ""}.`,
-        className: "border-red-500/40"
+        title: "Ordem de Serviço excluída no App e cancelada no Odoo com sucesso!",
+        description: `#${pedido.numero_pedido} — Odoo ID ${res?.odoo_id || pedido.odoo_id}.`,
+        className: "border-emerald-500/40"
       });
     } catch (e) {
-      toast({ title: "Erro ao excluir OS", description: e.message, variant: "destructive" });
+      let desc = e.message;
+      try { const j = JSON.parse(e.message || "{}"); if (j.odoo_erro) desc = j.odoo_erro; } catch {}
+      toast({ title: "Erro ao excluir OS", description: desc, variant: "destructive" });
     }
   };
 

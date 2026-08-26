@@ -270,20 +270,30 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   const handleExcluirOS = async () => {
     setExcluindoOS(true);
     try {
-      await base44.functions.invoke("cancelarOrdemServicoOdoo", {
+      const res = await base44.functions.invoke("cancelarOrdemServicoOdoo", {
         numero_pedido: form.numero_pedido,
         odoo_id: editItem?.odoo_id || pedidoOdooVinculado?.[0]?.odoo_id || null,
         motivo: "Exclusão via modal Editar Ordem (Galpão de Produção)",
       });
+      if (res?.status && res.status !== "ok") {
+        toast({
+          title: "Odoo não confirmou o cancelamento",
+          description: res?.odoo_erro || res?.message || "Nenhum registro foi excluído no App.",
+          variant: "destructive",
+        });
+        return;
+      }
       toast({
-        title: "OS cancelada e excluída",
-        description: `#${form.numero_pedido} removida da fábrica e notificada ao Odoo.`,
-        className: "border-red-500/40"
+        title: "Ordem de Serviço excluída no App e cancelada no Odoo com sucesso!",
+        description: `#${form.numero_pedido} — Odoo ID ${res?.odoo_id || ""}.`,
+        className: "border-emerald-500/40"
       });
       setConfirmExcluirOS(false);
       onClose();
     } catch (e) {
-      toast({ title: "Erro ao excluir OS", description: e.message, variant: "destructive" });
+      let desc = e.message;
+      try { const j = JSON.parse(e.message || "{}"); if (j.odoo_erro) desc = j.odoo_erro; } catch {}
+      toast({ title: "Erro ao excluir OS", description: desc, variant: "destructive" });
     } finally {
       setExcluindoOS(false);
     }
