@@ -8,6 +8,7 @@ import { ThemeProvider } from '@/lib/ThemeContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
 import { FilialProvider } from '@/contexts/FilialContext';
+import SupabaseRealtimeSync from '@/components/SupabaseRealtimeSync';
 import AppLayout from '@/components/layout/AppLayout';
 import Dashboard from '@/pages/Dashboard';
 import DashboardTelhas from '@/pages/DashboardTelhas';
@@ -115,6 +116,7 @@ const AuthenticatedApp = () => {
 
   return (
     <FilialProvider>
+    <SupabaseRealtimeSync />
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
