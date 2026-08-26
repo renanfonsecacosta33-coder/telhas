@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Settings, GripVertical, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
+import { Plus, Settings, GripVertical, Pencil, Trash2, Eye, EyeOff, Ruler } from "lucide-react";
 import { toast } from "sonner";
+import ToleranciaEspessuraManager from "@/components/admin/ToleranciaEspessuraManager";
 
 const ICONES_DISPONIVEIS = [
   "Package", "Droplets", "Wrench", "Layers", "Box", "ShoppingCart",
@@ -112,6 +113,14 @@ export default function Configuracoes() {
             ))}
           </div>
         )}
+      </div>
+
+      <div className="bg-card border border-border rounded-xl p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Ruler className="w-4 h-4 text-primary" />
+          <p className="text-sm font-semibold">Trava de Segurança Odoo — Tolerâncias de Espessura</p>
+        </div>
+        <ToleranciaEspessuraManager />
       </div>
 
       <div className="bg-card border border-border rounded-xl p-4">

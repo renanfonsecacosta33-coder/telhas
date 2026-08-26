@@ -41,6 +41,15 @@
       ],
       "description": "Qualidade (GV, FF, PP, FQ, GL IMP)"
     },
+    "origem": {
+      "type": "string",
+      "enum": [
+        "Nacional",
+        "Importado"
+      ],
+      "default": "Nacional",
+      "description": "Origem do a\u00e7o: Nacional ou Importado (usado na trava de seguran\u00e7a Odoo)"
+    },
     "chapa": {
       "type": "string",
       "description": "Espessura da chapa (ex: 0,43)"

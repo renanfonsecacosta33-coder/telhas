@@ -6,14 +6,18 @@ import UploadButton from "@/components/ui/UploadButton";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import ImageLink from "@/components/ui/ImageLink";
+import { useTolerancias } from "@/hooks/useTolerancias";
+import { validarBobina } from "@/lib/bobinaValidation";
 
 export default function ValidacaoEtiquetaTelhasDialog({ open, onClose, pedido, onAprovado }) {
   const [fotoUrl, setFotoUrl] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [validando, setValidando] = useState(false);
   const [resultado, setResultado] = useState(null);
+  const [violacao, setViolacao] = useState(null);
   const fotoInputRef = useRef();
   const fotoScanRef = useRef();
+  const { data: tolerancias = [] } = useTolerancias();
 
   useEffect(() => {
     if (open) {
@@ -21,8 +25,20 @@ export default function ValidacaoEtiquetaTelhasDialog({ open, onClose, pedido, o
       setResultado(null);
       setValidando(false);
       setUploading(false);
+      setViolacao(null);
+      // Trava de segurança Odoo — valida bobina vinculada vs espessura/origem exigida
+      const req = { espessuraExigida: pedido?.espessura_exigida, origemExigida: pedido?.origem_exigida, tolerancias };
+      const temReq = req.espessuraExigida || (req.origemExigida && req.origemExigida !== "ambas");
+      if (temReq && pedido?.bobina_superior_id) {
+        base44.entities.Bobina.get(pedido.bobina_superior_id)
+          .then((b) => {
+            const res = validarBobina(b, req);
+            setViolacao(res.ok ? null : res.detail);
+          })
+          .catch(() => setViolacao(null));
+      }
     }
-  }, [open, pedido?.id]);
+  }, [open, pedido?.id, tolerancias]);
 
   const bobinaInfo = pedido
     ? `Produto: ${pedido.produto || "—"}\nModelo: ${pedido.modelo || "—"}\nBobina superior: ${pedido.bobina_superior || "—"}\nCor/RVM superior: ${pedido.rvm_superior || "—"}\n${pedido.bobina_inferior ? `Bobina inferior: ${pedido.bobina_inferior}\nCor/RVM inferior: ${pedido.rvm_inferior || "—"}\n` : ""}Cliente: ${pedido.cliente || "—"}\nNúmero do pedido: ${pedido.numero_pedido || "—"}`
@@ -45,6 +61,13 @@ export default function ValidacaoEtiquetaTelhasDialog({ open, onClose, pedido, o
 
   const validarEtiqueta = async (url) => {
     setValidando(true);
+    // Bloqueio estrito Odoo — não permite iniciar produção com bobina incompatível
+    if (violacao) {
+      setValidando(false);
+      setResultado({ valido: false, motivo: "OPERAÇÃO BLOQUEADA: " + violacao });
+      toast.error("❌ OPERAÇÃO BLOQUEADA: Espessura/origem da bobina incompatível com o pedido Odoo!", { duration: 10000 });
+      return;
+    }
     try {
       const prompt = `Você é um validador de etiquetas de bobinas de aço em uma fábrica de telhas.
 Analise a foto enviada da etiqueta/QR code da bobina e verifique se ela corresponde à bobina esperada para este pedido de produção.
@@ -117,6 +140,18 @@ Responda em JSON com:
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {/* Bloqueio Odoo — bobina vinculada incompatível */}
+          {violacao && (
+            <div className="bg-red-50 border-2 border-red-400 rounded-lg p-3 flex items-start gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <p className="font-bold text-red-700">❌ OPERAÇÃO BLOQUEADA</p>
+                <p className="text-red-600 mt-0.5">{violacao}</p>
+                <p className="text-red-600 mt-1">A produção não pode ser iniciada. Troque a bobina na máquina por uma compatível com o pedido Odoo.</p>
+              </div>
+            </div>
+          )}
+
           {/* Info da bobina esperada */}
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-xs space-y-0.5">
             <p className="font-bold text-orange-800 mb-1">Bobina esperada:</p>

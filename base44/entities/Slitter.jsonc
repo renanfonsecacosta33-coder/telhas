@@ -45,6 +45,15 @@
       ],
       "description": "Qualidade da bobina"
     },
+    "origem": {
+      "type": "string",
+      "enum": [
+        "Nacional",
+        "Importado"
+      ],
+      "default": "Nacional",
+      "description": "Origem do a\u00e7o: Nacional ou Importado (usado na trava de seguran\u00e7a Odoo)"
+    },
     "espessura_mm": {
       "type": "number",
       "description": "Espessura em mm"

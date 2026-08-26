@@ -35,6 +35,20 @@
       "type": "string",
       "description": "Espessura utilizada da bobina (snapshot)"
     },
+    "espessura_exigida": {
+      "type": "string",
+      "description": "Espessura exigida pelo pedido Odoo (trava de seguran\u00e7a) \u2014 ex: 1,30"
+    },
+    "origem_exigida": {
+      "type": "string",
+      "enum": [
+        "ambas",
+        "Nacional",
+        "Importado"
+      ],
+      "default": "ambas",
+      "description": "Origem do a\u00e7o exigida pelo pedido Odoo (trava Nacional/Importado)"
+    },
     "comprimento_mm": {
       "type": "number",
       "description": "Comprimento de corte em mm"

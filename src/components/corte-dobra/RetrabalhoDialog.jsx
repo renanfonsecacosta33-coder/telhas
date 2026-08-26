@@ -10,6 +10,9 @@ import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import ImageLink from "@/components/ui/ImageLink";
+import { useTolerancias } from "@/hooks/useTolerancias";
+import { validarBobina } from "@/lib/bobinaValidation";
+import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
 
 const ETAPA_CORES = [
   { border: "border-l-red-500", bg: "bg-red-50/40", badge: "bg-red-500", text: "text-red-700", label: "Etapa 1" },
@@ -35,6 +38,8 @@ export default function RetrabalhoDialog({ open, onClose, ordemOrigem, onCreate 
   const [bobinaSubSel, setBobinaSubSel] = useState("");
   const [bobinasDisponiveis, setBobinasDisponiveis] = useState([]);
   const [loadingBobinas, setLoadingBobinas] = useState(false);
+  const [bloqueio, setBloqueio] = useState({ open: false, motivos: [], titulo: "" });
+  const { data: tolerancias = [] } = useTolerancias();
 
   const quantMax = ordemOrigem?.quantidade || 0;
   const bobinaZerada = bobinaOriginal && (bobinaOriginal.peso_kg || 0) <= 0;
@@ -63,6 +68,19 @@ export default function RetrabalhoDialog({ open, onClose, ordemOrigem, onCreate 
       }
     }
   }, [open, ordemOrigem]);
+
+  const handleBobinaSubChange = (id) => {
+    const b = bobinasDisponiveis.find((x) => x.id === id);
+    if (b) {
+      const req = { espessuraExigida: ordemOrigem?.espessura_exigida, origemExigida: ordemOrigem?.origem_exigida, tolerancias };
+      const res = validarBobina(b, req);
+      if (!res.ok) {
+        setBloqueio({ open: true, titulo: "Espessura da bobina incompatível com o pedido Odoo!", motivos: [res.detail] });
+        return;
+      }
+    }
+    setBobinaSubSel(id);
+  };
 
   const loadBobinasDisponiveis = async () => {
     if (!ordemOrigem) return;
@@ -176,6 +194,8 @@ export default function RetrabalhoDialog({ open, onClose, ordemOrigem, onCreate 
         quantidade: quantidadeRetrabalho,
         observacoes: `RETRABALHO (Etapa ${etapaAtual}) — Motivo: ${motivo.trim()}`,
         unidade: ordemOrigem.unidade,
+        espessura_exigida: ordemOrigem.espessura_exigida || "",
+        origem_exigida: ordemOrigem.origem_exigida || "ambas",
       };
 
       if (bobinaSubDesc) {
@@ -314,7 +334,7 @@ export default function RetrabalhoDialog({ open, onClose, ordemOrigem, onCreate 
               ) : bobinasDisponiveis.length === 0 ? (
                 <p className="text-xs text-red-600">Nenhuma bobina disponível em estoque.</p>
               ) : (
-                <Select value={bobinaSubSel} onValueChange={setBobinaSubSel}>
+                <Select value={bobinaSubSel} onValueChange={handleBobinaSubChange}>
                   <SelectTrigger className="border-red-200">
                     <SelectValue placeholder="Selecione a bobina substituta..." />
                   </SelectTrigger>
@@ -407,6 +427,13 @@ export default function RetrabalhoDialog({ open, onClose, ordemOrigem, onCreate 
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <BloqueioBobinaDialog
+        open={bloqueio.open}
+        onOpenChange={(v) => setBloqueio((b) => ({ ...b, open: v }))}
+        titulo={bloqueio.titulo}
+        motivos={bloqueio.motivos}
+      />
     </Dialog>
   );
 }

@@ -75,6 +75,20 @@
       "type": "string",
       "description": "RVM / Cor inferior"
     },
+    "espessura_exigida": {
+      "type": "string",
+      "description": "Espessura exigida pelo pedido Odoo (trava de seguran\u00e7a) \u2014 ex: 0,43 / 1,30"
+    },
+    "origem_exigida": {
+      "type": "string",
+      "enum": [
+        "ambas",
+        "Nacional",
+        "Importado"
+      ],
+      "default": "ambas",
+      "description": "Origem do a\u00e7o exigida pelo pedido Odoo (trava de seguran\u00e7a Nacional/Importado)"
+    },
     "eps": {
       "type": "string",
       "description": "Tipo de EPS (se aplic\u00e1vel)"

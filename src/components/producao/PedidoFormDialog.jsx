@@ -12,8 +12,11 @@ import { useQuery } from "@tanstack/react-query";
 import UploadButton from "@/components/ui/UploadButton";
 import ImageLink from "@/components/ui/ImageLink";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
+import { useTolerancias } from "@/hooks/useTolerancias";
 import { getBobinaStatus, calcMetrosDisponiveis } from "@/lib/bobinaStatusHelper";
-import { Building2, X, Loader2, FileText, Plus, Trash2, Camera } from "lucide-react";
+import { validarBobina, filtrarBobinasCompativeis } from "@/lib/bobinaValidation";
+import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
+import { Building2, X, Loader2, FileText, Plus, Trash2, Camera, ShieldAlert } from "lucide-react";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 const PRODUTOS = ["TELHA", "TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA", "BOBININHA", "CUMEEIRA", "PAINEL"];
@@ -68,6 +71,8 @@ const emptyForm = {
   observacoes: "",
   foto_pedido_url: "",
   variacoes_telhas: "",
+  espessura_exigida: "",
+  origem_exigida: "ambas",
   rota: false,
   prioridade: false
 };
@@ -112,6 +117,10 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   });
 
   const { preBaixaMap, statusMap } = usePreBaixaBobinas("telhas");
+  const { data: tolerancias = [] } = useTolerancias();
+  const [bloqueio, setBloqueio] = useState({ open: false, motivos: [], titulo: "" });
+  const reqValidacao = { espessuraExigida: form.espessura_exigida, origemExigida: form.origem_exigida, tolerancias };
+  const temReqOdoo = !!(form.espessura_exigida || (form.origem_exigida && form.origem_exigida !== "ambas"));
 
   const { data: modelosCad = [] } = useQuery({
     queryKey: ["modelos-produto"],
@@ -190,6 +199,8 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           observacoes: editItem.observacoes || "",
           foto_pedido_url: editItem.foto_pedido_url || "",
           variacoes_telhas: editItem.variacoes_telhas || "",
+          espessura_exigida: editItem.espessura_exigida || "",
+          origem_exigida: editItem.origem_exigida || "ambas",
           rota: editItem.rota || false,
           prioridade: editItem.prioridade || false
         });
@@ -198,7 +209,13 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
         setForm({
           ...emptyForm,
           data: presets.data || defaultDate || format(new Date(), "yyyy-MM-dd"),
-          maquina: presets.maquina || ""
+          maquina: presets.maquina || "",
+          espessura_exigida: presets.espessura_exigida || "",
+          origem_exigida: presets.origem_exigida || "ambas",
+          cliente: presets.cliente || "",
+          numero_pedido: presets.numero_pedido || "",
+          vendedor: presets.vendedor || "",
+          produto: presets.produto || "",
         });
       }
     }
@@ -306,6 +323,17 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   };
 
   const updateVariacao = (idx, field, val) => {
+    // Trava de segurança Odoo — bloqueia bobina incompatível na variação
+    if (field === "bobina_id" || field === "bobina_inf_id") {
+      const b = bobinas.find((x) => x.id === val);
+      if (b) {
+        const res = validarBobina(b, reqValidacao);
+        if (!res.ok) {
+          setBloqueio({ open: true, titulo: "Espessura da bobina incompatível com o pedido Odoo!", motivos: [res.detail] });
+          return;
+        }
+      }
+    }
     const atual = variacoes || [{ qty: "", mm: "", obs: "", bobina_id: "", bobina_inf_id: "" }];
     const novo = atual.map((v, i) => {
       if (i !== idx) return v;
@@ -391,6 +419,13 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   // Quando selecionar bobina superior, preenche RVM/Cor automaticamente
   const handleBobinaSupChange = (bobinaId) => {
     const b = bobinas.find((x) => x.id === bobinaId);
+    if (b) {
+      const res = validarBobina(b, reqValidacao);
+      if (!res.ok) {
+        setBloqueio({ open: true, titulo: "Espessura da bobina incompatível com o pedido Odoo!", motivos: [res.detail] });
+        return;
+      }
+    }
     const novoForm = { ...form, bobina_superior: bobinaId };
     if (b) {
       novoForm.rvm_superior = b.cor || "";
@@ -406,6 +441,13 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
 
   const handleBobinaInfChange = (bobinaId) => {
     const b = bobinas.find((x) => x.id === bobinaId);
+    if (b) {
+      const res = validarBobina(b, reqValidacao);
+      if (!res.ok) {
+        setBloqueio({ open: true, titulo: "Espessura da bobina incompatível com o pedido Odoo!", motivos: [res.detail] });
+        return;
+      }
+    }
     const novoForm = { ...form, bobina_inferior: bobinaId };
     if (b) {
       novoForm.rvm_inferior = b.cor || "";
@@ -606,8 +648,9 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   const precisaBobinaInferior = ["TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(form.produto);
   const isEditing = editItem && !editItem._presets;
 
-  // Bobinas ativas ordenadas por chapa
-  const bobinasList = [...bobinas].sort((a, b) => {
+  // Bobinas ativas ordenadas por chapa — filtradas pela exigência Odoo (espessura + origem)
+  const bobinasFiltradas = filtrarBobinasCompativeis(bobinas, reqValidacao);
+  const bobinasList = [...bobinasFiltradas].sort((a, b) => {
     const ca = `${a.chapa}${a.qualidade}${a.cor}`.toLowerCase();
     const cb = `${b.chapa}${b.qualidade}${b.cor}`.toLowerCase();
     return ca.localeCompare(cb);
@@ -669,6 +712,40 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
               <Label>Nº Pedido</Label>
               <Input placeholder="283427" value={form.numero_pedido} onChange={(e) => set("numero_pedido", e.target.value)} />
             </div>
+          </div>
+
+          {/* Requisitos do Pedido Odoo — trava de espessura + origem */}
+          <div className={`rounded-lg border-2 p-3 space-y-2 ${temReqOdoo ? "border-red-400 bg-red-50" : "border-border bg-muted/30"}`}>
+            <div className="flex items-center gap-2">
+              <ShieldAlert className={`w-4 h-4 ${temReqOdoo ? "text-red-600" : "text-muted-foreground"}`} />
+              <p className="text-sm font-bold">Requisitos do Pedido (Odoo) — Trava de Segurança</p>
+              {temReqOdoo && <span className="text-[10px] bg-red-600 text-white rounded-full px-2 py-0.5 font-bold ml-auto">FILTRO ATIVO</span>}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Espessura Exigida</Label>
+                <Input placeholder="ex: 0,43 / 1,30" value={form.espessura_exigida} onChange={(e) => set("espessura_exigida", e.target.value)} />
+                <p className="text-[10px] text-muted-foreground">Apenas bobinas nesta espessura (ou faixa) serão listadas.</p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Origem do Aço Exigida</Label>
+                <Select value={form.origem_exigida} onValueChange={(v) => set("origem_exigida", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ambas">Ambas (sem restrição)</SelectItem>
+                    <SelectItem value="Nacional">Nacional</SelectItem>
+                    <SelectItem value="Importado">Importado</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground">Bloqueia bobinas de origem incompatível.</p>
+              </div>
+            </div>
+            {temReqOdoo && bobinasFiltradas.length === 0 && (
+              <p className="text-xs text-red-600 font-semibold">⚠ Nenhuma bobina compatível em estoque — OP deve ir para "OP sem Material".</p>
+            )}
+            {temReqOdoo && bobinasFiltradas.length > 0 && (
+              <p className="text-xs text-emerald-700 font-semibold">✓ {bobinasFiltradas.length} bobina(s) compatível(eis) disponível(eis).</p>
+            )}
           </div>
 
           {/* Bobinas - do estoque real (apenas modo legado, sem variações) */}
@@ -1172,6 +1249,13 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <BloqueioBobinaDialog
+        open={bloqueio.open}
+        onOpenChange={(v) => setBloqueio((b) => ({ ...b, open: v }))}
+        titulo={bloqueio.titulo}
+        motivos={bloqueio.motivos}
+      />
     </Dialog>);
 
 }

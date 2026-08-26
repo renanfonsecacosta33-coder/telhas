@@ -113,6 +113,8 @@ export default function RetrabalhoTelhasDialog({ open, onClose, pedidoOrigem, on
         bobina_inferior: pedidoOrigem.bobina_inferior || "",
         rvm_superior: pedidoOrigem.rvm_superior || "",
         rvm_inferior: pedidoOrigem.rvm_inferior || "",
+        espessura_exigida: pedidoOrigem.espessura_exigida || "",
+        origem_exigida: pedidoOrigem.origem_exigida || "ambas",
         eps: pedidoOrigem.eps || "",
         maquinario_superior: pedidoOrigem.maquinario_superior || "",
         maquinario_inferior: pedidoOrigem.maquinario_inferior || "",

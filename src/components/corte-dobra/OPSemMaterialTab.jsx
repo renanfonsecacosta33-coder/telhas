@@ -8,6 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { useFilial } from "@/contexts/FilialContext";
 import { playMaterialDisponivelSound, speakMaterialDisponivel } from "@/lib/sounds";
+import { useTolerancias } from "@/hooks/useTolerancias";
+import { validarBobina } from "@/lib/bobinaValidation";
+import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
 
 function normalizeEspessura(val) {
   if (!val) return "";
@@ -19,6 +22,8 @@ export default function OPSemMaterialTab() {
   const queryClient = useQueryClient();
   const [busca, setBusca] = useState("");
   const [vinculando, setVinculando] = useState(null); // { tipo: 'desb'|'maq', id, entidade }
+  const [bloqueio, setBloqueio] = useState({ open: false, motivos: [], titulo: "" });
+  const { data: tolerancias = [] } = useTolerancias();
 
   // OPs aguardando material — Desbobinadeira
   const { data: opsDesb = [], isLoading: loadingDesb } = useQuery({
@@ -345,7 +350,11 @@ export default function OPSemMaterialTab() {
         {listaUnificada.map(op => {
           const isDesb = op._tipo === "desb";
           const materiaisCompativeis = checkDisponibilidade(op, isDesb);
-          const temMaterial = materiaisCompativeis.length > 0;
+          // Trava Odoo — filtra bobinas por espessura/origem exigidas (apenas Desbobinadeira)
+          const reqOdoo = isDesb ? { espessuraExigida: op.espessura_exigida, origemExigida: op.origem_exigida, tolerancias } : null;
+          const temReqOdoo = reqOdoo && (reqOdoo.espessuraExigida || (reqOdoo.origemExigida && reqOdoo.origemExigida !== "ambas"));
+          const materiaisFiltrados = temReqOdoo ? materiaisCompativeis.filter(b => validarBobina(b, reqOdoo).ok) : materiaisCompativeis;
+          const temMaterial = materiaisFiltrados.length > 0;
           const isVinculando = vinculando?.id === op.id;
           const desbLink = desbobinadeiraLinkPara(op);
           const desbEmProd = desbLink?.emProd?.length > 0;
@@ -414,7 +423,7 @@ export default function OPSemMaterialTab() {
                 <div className="flex flex-col items-end gap-2">
                   {temMaterial ? (
                     <Badge className="bg-green-100 text-green-700 border-green-300 gap-1">
-                      <CheckCircle2 className="w-3 h-3" /> Disponível ({materiaisCompativeis.length})
+                      <CheckCircle2 className="w-3 h-3" /> Disponível ({materiaisFiltrados.length})
                     </Badge>
                   ) : (
                     <Badge className="bg-amber-100 text-amber-700 border-amber-300 gap-1">
@@ -491,8 +500,16 @@ export default function OPSemMaterialTab() {
                 <div className="mt-3 border-t border-border pt-3 space-y-2">
                   <p className="text-xs font-semibold text-muted-foreground uppercase">Selecionar material disponível:</p>
                   <Select onValueChange={matId => {
-                    const mat = materiaisCompativeis.find(m => m.id === matId);
+                    const mat = materiaisFiltrados.find(m => m.id === matId);
                     if (!mat) return;
+                    // Trava de segurança Odoo — bloqueia bobina incompatível
+                    if (isDesb) {
+                      const res = validarBobina(mat, { espessuraExigida: op.espessura_exigida, origemExigida: op.origem_exigida, tolerancias });
+                      if (!res.ok) {
+                        setBloqueio({ open: true, titulo: "Espessura da bobina incompatível com o pedido Odoo!", motivos: [res.detail] });
+                        return;
+                      }
+                    }
                     const desc = isDesb
                       ? `[${mat.codigo || "—"}] ${mat.chapa || mat.espessura_utilizada || ""} — ${mat.cor || ""}`
                       : `[${mat.codigo || "—"}] ${mat.bobina_descricao || ""} — ${mat.comprimento_mm || ""}mm`;
@@ -506,7 +523,7 @@ export default function OPSemMaterialTab() {
                   }}>
                     <SelectTrigger><SelectValue placeholder={`Selecione ${op._entidade === "chapa" ? "a chapa" : "a bobina"}...`} /></SelectTrigger>
                     <SelectContent className="max-h-56">
-                      {materiaisCompativeis.map(m => (
+                      {materiaisFiltrados.map(m => (
                         <SelectItem key={m.id} value={m.id}>
                           {isDesb ? (
                             <>
@@ -541,6 +558,13 @@ export default function OPSemMaterialTab() {
           );
         })}
       </div>
+
+      <BloqueioBobinaDialog
+        open={bloqueio.open}
+        onOpenChange={(v) => setBloqueio((b) => ({ ...b, open: v }))}
+        titulo={bloqueio.titulo}
+        motivos={bloqueio.motivos}
+      />
     </div>
   );
 }

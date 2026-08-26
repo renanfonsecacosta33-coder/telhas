@@ -17,6 +17,7 @@ export default function SlitterFormDialog({ open, onClose, onSave, editItem, pro
   const [nf, setNf] = useState(editItem?.nf || "");
   const [larguraMm, setLarguraMm] = useState(editItem?.largura_mm || "");
   const [qualidade, setQualidade] = useState(editItem?.qualidade || "GV");
+  const [origem, setOrigem] = useState(editItem?.origem || "Nacional");
   const [espessuraMm, setEspessuraMm] = useState(editItem?.espessura_mm || "");
   const [materiais, setMateriais] = useState(editItem?.materiais_producao || "");
   const [status, setStatus] = useState(editItem?.status || "Disponível");
@@ -42,6 +43,7 @@ export default function SlitterFormDialog({ open, onClose, onSave, editItem, pro
       nf: nf || null,
       largura_mm: Number(larguraMm),
       qualidade,
+      origem,
       espessura_mm: Number(espessuraMm),
       materiais_producao: materiais || null,
       status,
@@ -108,6 +110,17 @@ export default function SlitterFormDialog({ open, onClose, onSave, editItem, pro
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label>Origem do Aço (Trava Odoo)</Label>
+            <Select value={origem} onValueChange={setOrigem}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Nacional">Nacional</SelectItem>
+                <SelectItem value="Importado">Importado</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-1">

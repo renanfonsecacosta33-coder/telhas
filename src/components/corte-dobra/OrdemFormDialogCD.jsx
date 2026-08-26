@@ -15,7 +15,10 @@ import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCi
 import UploadButton from "@/components/ui/UploadButton";
 import ChapaEstoqueCombobox from "@/components/corte-dobra/ChapaEstoqueCombobox";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
+import { useTolerancias } from "@/hooks/useTolerancias";
 import { getBobinaStatus, calcMetrosDisponiveis } from "@/lib/bobinaStatusHelper";
+import { validarBobina, filtrarBobinasCompativeis } from "@/lib/bobinaValidation";
+import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
 
 const MAQUINAS_INICIAIS = [
   { id: "DESBOBINADEIRA", label: "Desbobinadeira", icon: Layers },
@@ -88,8 +91,11 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     material_em_falta: false,
     material_espessura: "",
     material_cor: "",
+    espessura_exigida: "",
+    origem_exigida: "ambas",
   });
   const [confirmReserva, setConfirmReserva] = useState(false);
+  const [bloqueio, setBloqueio] = useState({ open: false, motivos: [], titulo: "" });
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const fotoInputRef = useRef();
   const fotoScanRef = useRef();
@@ -104,6 +110,22 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
 
   const filiaisHook = filialAtiva === "todas" ? null : [filialAtiva];
   const { preBaixaMap, statusMap } = usePreBaixaBobinas("corte_dobra", filiaisHook);
+  const { data: tolerancias = [] } = useTolerancias();
+  const reqValidacao = { espessuraExigida: form.espessura_exigida, origemExigida: form.origem_exigida, tolerancias };
+  const temReqOdoo = !!(form.espessura_exigida || (form.origem_exigida && form.origem_exigida !== "ambas"));
+  const bobinasCompativeis = filtrarBobinasCompativeis(bobinas, reqValidacao);
+
+  const handleBobinaChange = (bobinaId) => {
+    const b = bobinas.find(x => x.id === bobinaId);
+    if (b) {
+      const res = validarBobina(b, reqValidacao);
+      if (!res.ok) {
+        setBloqueio({ open: true, titulo: "Espessura da bobina incompatível com o pedido Odoo!", motivos: [res.detail] });
+        return;
+      }
+    }
+    set("bobina_id", bobinaId);
+  };
 
   const { data: chapasDisponiveis = [] } = useQuery({
     queryKey: ["chapas-cd-form-dinamico", filialAtiva],
@@ -148,6 +170,8 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         material_em_falta: editItem.material_em_falta || false,
         material_espessura: editItem.material_espessura || "",
         material_cor: editItem.material_cor || "",
+        espessura_exigida: editItem.espessura_exigida || "",
+        origem_exigida: editItem.origem_exigida || "ambas",
         vendedor: editItem.vendedor || "",
       });
     } else {
@@ -173,6 +197,8 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         material_em_falta: false,
         material_espessura: "",
         material_cor: "",
+        espessura_exigida: "",
+        origem_exigida: "ambas",
         vendedor: "",
       });
     }
@@ -366,6 +392,37 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
             </Select>
           </div>
 
+          {/* Requisitos do Pedido Odoo — trava de espessura + origem */}
+          <div className={`rounded-lg border-2 p-3 space-y-2 ${temReqOdoo ? "border-red-400 bg-red-50" : "border-border bg-muted/30"}`}>
+            <div className="flex items-center gap-2">
+              <ShieldAlert className={`w-4 h-4 ${temReqOdoo ? "text-red-600" : "text-muted-foreground"}`} />
+              <p className="text-sm font-bold">Requisitos do Pedido (Odoo) — Trava de Segurança</p>
+              {temReqOdoo && <span className="text-[10px] bg-red-600 text-white rounded-full px-2 py-0.5 font-bold ml-auto">FILTRO ATIVO</span>}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Espessura Exigida</Label>
+                <Input placeholder="ex: 1,30" value={form.espessura_exigida} onChange={e => set("espessura_exigida", e.target.value)} />
+                <p className="text-[10px] text-muted-foreground">Apenas bobinas nesta espessura (ou faixa) serão listadas.</p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Origem do Aço Exigida</Label>
+                <Select value={form.origem_exigida} onValueChange={v => set("origem_exigida", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ambas">Ambas (sem restrição)</SelectItem>
+                    <SelectItem value="Nacional">Nacional</SelectItem>
+                    <SelectItem value="Importado">Importado</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground">Bloqueia bobinas de origem incompatível.</p>
+              </div>
+            </div>
+            {temReqOdoo && isDesbobinadeira && bobinasCompativeis.length === 0 && (
+              <p className="text-xs text-red-600 font-semibold">⚠ Nenhuma bobina compatível em estoque — marque "Material em falta".</p>
+            )}
+          </div>
+
           {/* Material em falta / A chegar */}
           <div className="flex items-center gap-2">
             <button
@@ -394,15 +451,17 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
             <Label className="flex items-center gap-1">
               <Package className="w-4 h-4 text-blue-500" /> Bobina do Estoque *
             </Label>
-            <Select value={form.bobina_id} onValueChange={v => set("bobina_id", v)}>
+            <Select value={form.bobina_id} onValueChange={handleBobinaChange}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Selecione a bobina..." />
               </SelectTrigger>
               <SelectContent className="max-h-56">
-                {bobinas.length === 0 && (
-                  <div className="px-3 py-4 text-sm text-muted-foreground text-center">Nenhuma bobina ativa</div>
+                {bobinasCompativeis.length === 0 && (
+                  <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+                    {temReqOdoo ? "Nenhuma bobina compatível com o pedido Odoo" : "Nenhuma bobina ativa"}
+                  </div>
                 )}
-                {bobinas.map(b => {
+                {bobinasCompativeis.map(b => {
                     const pb = preBaixaMap[b.id] || 0;
                     const pesoBruto = b.peso_kg || 0;
                     const dispLivre = Math.max(0, pesoBruto - pb);
@@ -479,6 +538,10 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                   <div>
                     <p className="text-muted-foreground uppercase tracking-wide text-[10px] mb-0.5">Qualidade</p>
                     <p className="font-bold text-foreground">{bobinaObj.qualidade || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground uppercase tracking-wide text-[10px] mb-0.5">Origem do Aço</p>
+                    <p className={`font-bold ${bobinaObj.origem === "Importado" ? "text-orange-600" : "text-emerald-600"}`}>{bobinaObj.origem || "Nacional"}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground uppercase tracking-wide text-[10px] mb-0.5">Peso Atual</p>
@@ -905,6 +968,13 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <BloqueioBobinaDialog
+        open={bloqueio.open}
+        onOpenChange={(v) => setBloqueio((b) => ({ ...b, open: v }))}
+        titulo={bloqueio.titulo}
+        motivos={bloqueio.motivos}
+      />
     </Dialog>
   );
 }
