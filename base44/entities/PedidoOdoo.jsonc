@@ -18,6 +18,10 @@
       "type": "string",
       "description": "Nome do vendedor respons\u00e1vel"
     },
+    "foto_pedido_url": {
+      "type": "string",
+      "description": "URL da foto/croqui do pedido enviado pelo Odoo (anexo_1_url) \u2014 v\u00ednculo autom\u00e1tico com a 'Foto do Pedido (Encarregado)' nos galp\u00f5es"
+    },
     "data_entrega": {
       "type": "string",
       "format": "date",

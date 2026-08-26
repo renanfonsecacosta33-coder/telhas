@@ -88,11 +88,15 @@ export function parseWebhookPayload(rawJson) {
     const numero = p.numero_pedido || p.numero || p.name || p.order_name || p.number || "";
     if (!numero) continue;
 
+    // Foto/croqui do pedido enviado pelo Odoo (anexo principal)
+    const foto_pedido_url = p.foto_pedido_url || p.anexo_1_url || p.anexo_url || p.attachment_url || p.foto_url || "";
+
     result.push({
       odoo_id: String(p.odoo_id || p.id || ""),
       numero_pedido: String(numero),
       cliente_nome: p.cliente_nome || p.cliente || p.partner_name || p.partner_id?.[1] || "",
       vendedor_nome: p.vendedor_nome || p.vendedor || p.user_id?.[1] || p.salesman || "",
+      foto_pedido_url,
       data_recebimento: p.data_recebimento || p.date_order || new Date().toISOString(),
       unidade: p.unidade || "Matriz AJL",
       itens,

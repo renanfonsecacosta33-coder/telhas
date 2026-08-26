@@ -71,6 +71,7 @@ export default function CentralPCP() {
         numero_pedido: p.numero_pedido,
         cliente_nome: p.cliente_nome,
         vendedor_nome: p.vendedor_nome,
+        foto_pedido_url: p.foto_pedido_url || null,
         data_recebimento: p.data_recebimento,
         data_entrega: toISODate(dataPrometida),
         unidade: p.unidade,
