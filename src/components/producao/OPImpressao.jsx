@@ -5,6 +5,14 @@ import { Printer, QrCode } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import QRCode from "qrcode";
+import ApontamentosEtapaPanel from "@/components/producao/ApontamentosEtapaPanel";
+
+function detectTipo(p) {
+  if (!p) return "telhas";
+  if (p.produto || p.metragem_mm) return "telhas";
+  if (p.comprimento_mm && p.bobina_id) return "desbobinadeira";
+  return "maquina_cd";
+}
 
 export default function OPImpressao({ open, onClose, pedido }) {
   const canvasRef = useRef(null);
@@ -26,11 +34,11 @@ export default function OPImpressao({ open, onClose, pedido }) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <QrCode className="w-5 h-5" />
-            Ordem de Produção
+            Ordem de Produção — Documento Vivo
           </DialogTitle>
         </DialogHeader>
 
@@ -85,27 +93,12 @@ export default function OPImpressao({ open, onClose, pedido }) {
             </div>
           )}
 
-          {/* Área de controle do operador */}
-          <div className="border border-dashed border-slate-300 rounded-lg p-3 space-y-2">
-            <p className="text-xs font-bold text-slate-600 uppercase tracking-wide">Preenchimento do Operador</p>
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <p className="text-slate-500 mb-1">Metragem Real (m):</p>
-                <div className="h-7 border-b border-slate-400" />
-              </div>
-              <div>
-                <p className="text-slate-500 mb-1">Hora de Início:</p>
-                <div className="h-7 border-b border-slate-400" />
-              </div>
-              <div>
-                <p className="text-slate-500 mb-1">Hora de Término:</p>
-                <div className="h-7 border-b border-slate-400" />
-              </div>
-              <div>
-                <p className="text-slate-500 mb-1">Operador:</p>
-                <div className="h-7 border-b border-slate-400" />
-              </div>
-            </div>
+          {/* Apontamento Dinâmico por Etapas + Assinaturas Digitais (Documento Vivo) */}
+          <div className="border border-slate-300 rounded-lg p-3 space-y-2">
+            <p className="text-xs font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
+              ✍️ Apontamento de Chão de Fábrica — Assinaturas Digitais
+            </p>
+            <ApontamentosEtapaPanel ordem={pedido} ordem_tipo={detectTipo(pedido)} compact />
           </div>
 
           {/* QR Code */}

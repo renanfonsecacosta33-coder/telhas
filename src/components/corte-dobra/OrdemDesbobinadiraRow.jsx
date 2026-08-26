@@ -18,6 +18,7 @@ import CorChapaDot from "@/components/corte-dobra/CorChapaDot";
 import ValidacaoEtiquetaDialog from "@/components/corte-dobra/ValidacaoEtiquetaDialog";
 import DualPhotoGallery from "@/components/corte-dobra/DualPhotoGallery";
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
+import ApontamentoOpButton from "@/components/producao/ApontamentoOpButton";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -307,6 +308,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                 </ImageLink>
               )}
               {o.numero_pedido && <HistoricoPedidoButton numeroPedido={o.numero_pedido} size="sm" />}
+              <ApontamentoOpButton ordem={o} ordem_tipo="desbobinadeira" label="Assinar" className="h-6 px-2 text-[10px] gap-1 text-orange-600 border-orange-300 hover:bg-orange-50" />
               <ChatPedidoButton canal_id={o.id} canal_label={`OP DESB ${o.numero_pedido || o.id.slice(-6).toUpperCase()}`} currentUser={user} />
               {isGestor && (
                 <div className="flex gap-1">
@@ -454,6 +456,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                 </span>
               )}
               {o.numero_pedido && <HistoricoPedidoButton numeroPedido={o.numero_pedido} />}
+              <ApontamentoOpButton ordem={o} ordem_tipo="desbobinadeira" label="Assinar" className="text-orange-600 border-orange-300 hover:bg-orange-50" />
               <ChatPedidoButton canal_id={o.id} canal_label={`OP DESB ${o.numero_pedido || o.id.slice(-6).toUpperCase()}`} currentUser={user} />
               </div>
               </div>

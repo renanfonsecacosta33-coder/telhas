@@ -21,6 +21,7 @@ import DualPhotoGallery from "@/components/corte-dobra/DualPhotoGallery";
 import CorChapaDot, { extractEspessuraFromDesc } from "@/components/corte-dobra/CorChapaDot";
 import AproveitamentoDialog from "@/components/corte-dobra/AproveitamentoDialog";
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
+import ApontamentoOpButton from "@/components/producao/ApontamentoOpButton";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -303,6 +304,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
             </div>
             <div className="flex items-center gap-2">
               {o.numero_pedido && <HistoricoPedidoButton numeroPedido={o.numero_pedido} size="sm" />}
+              <ApontamentoOpButton ordem={o} ordem_tipo="maquina_cd" label="Assinar" className="h-6 px-2 text-[10px] gap-1 text-orange-600 border-orange-300 hover:bg-orange-50" />
               {isGestor && (
                 <div className="flex gap-1">
                   <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] gap-1 text-amber-600 border-amber-300 hover:bg-amber-50"
@@ -451,6 +453,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               </Badge>
             )}
             {o.numero_pedido && <HistoricoPedidoButton numeroPedido={o.numero_pedido} />}
+            <ApontamentoOpButton ordem={o} ordem_tipo="maquina_cd" label="Assinar" className="text-orange-600 border-orange-300 hover:bg-orange-50" />
             <ChatPedidoButton canal_id={o.id} canal_label={`OP ${o.maquina || "CD"} ${o.numero_pedido || o.id.slice(-6).toUpperCase()}`} currentUser={user} />
           </div>
         </div>
