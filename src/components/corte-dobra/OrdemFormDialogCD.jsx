@@ -11,7 +11,8 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
-import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X, DollarSign, Star, PackageX, Wrench } from "lucide-react";
+import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X, DollarSign, Star, PackageX, Wrench, Trash2 } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 import UploadButton from "@/components/ui/UploadButton";
 import ChapaEstoqueCombobox from "@/components/corte-dobra/ChapaEstoqueCombobox";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
@@ -95,12 +96,15 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     origem_exigida: "ambas",
   });
   const [confirmReserva, setConfirmReserva] = useState(false);
+  const [confirmExcluirOS, setConfirmExcluirOS] = useState(false);
+  const [excluindoOS, setExcluindoOS] = useState(false);
   const [bloqueio, setBloqueio] = useState({ open: false, motivos: [], titulo: "" });
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const fotoInputRef = useRef();
   const fotoScanRef = useRef();
 
   const { filialAtiva } = useFilial();
+  const { toast } = useToast();
 
   const { data: bobinas = [] } = useQuery({
     queryKey: ["bobinas-cd-ativas", filialAtiva],
@@ -144,6 +148,20 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     queryFn: () => base44.entities.User.filter({ role: "vendedor" }),
     enabled: open,
   });
+
+  // Vínculo automático: foto do pedido vinda do Odoo (PedidoOdoo.foto_pedido_url)
+  const { data: pedidoOdooVinculado } = useQuery({
+    queryKey: ["pedido-odoo-vinculo", form.numero_pedido],
+    queryFn: () => base44.entities.PedidoOdoo.filter({ numero_pedido: String(form.numero_pedido).trim() }, "-data_recebimento", 5),
+    enabled: open && !!form.numero_pedido && String(form.numero_pedido).trim().length > 0,
+  });
+
+  useEffect(() => {
+    const fotoOdoo = pedidoOdooVinculado?.[0]?.foto_pedido_url;
+    if (fotoOdoo && !form.foto_pedido_url) {
+      set("foto_pedido_url", fotoOdoo);
+    }
+  }, [pedidoOdooVinculado]);
 
   useEffect(() => {
     if (!open) return;
@@ -247,6 +265,28 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
       alert("Erro ao enviar foto: " + (e.message || e));
     }
     setUploadingFoto(false);
+  };
+
+  const handleExcluirOS = async () => {
+    setExcluindoOS(true);
+    try {
+      await base44.functions.invoke("cancelarOrdemServicoOdoo", {
+        numero_pedido: form.numero_pedido,
+        odoo_id: editItem?.odoo_id || pedidoOdooVinculado?.[0]?.odoo_id || null,
+        motivo: "Exclusão via modal Editar Ordem (Galpão de Produção)",
+      });
+      toast({
+        title: "OS cancelada e excluída",
+        description: `#${form.numero_pedido} removida da fábrica e notificada ao Odoo.`,
+        className: "border-red-500/40"
+      });
+      setConfirmExcluirOS(false);
+      onClose();
+    } catch (e) {
+      toast({ title: "Erro ao excluir OS", description: e.message, variant: "destructive" });
+    } finally {
+      setExcluindoOS(false);
+    }
   };
 
   const doSave = () => {
@@ -931,6 +971,11 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          {editItem && form.numero_pedido && (
+            <Button variant="destructive" onClick={() => setConfirmExcluirOS(true)} disabled={excluindoOS}>
+              <Trash2 className="w-4 h-4" /> Excluir OS
+            </Button>
+          )}
           <Button onClick={handleSave} className="bg-orange-500 hover:bg-orange-600">
             {editItem ? "Salvar Alterações" : "Criar Ordem"}
           </Button>
@@ -975,6 +1020,37 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         titulo={bloqueio.titulo}
         motivos={bloqueio.motivos}
       />
+
+      <AlertDialog open={confirmExcluirOS} onOpenChange={setConfirmExcluirOS}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-700">
+              <Trash2 className="w-5 h-5" /> Excluir Ordem de Serviço (OS)
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p className="text-foreground font-semibold">
+                  Tem certeza que deseja cancelar e excluir esta Ordem de Serviço da fábrica e do Odoo?
+                </p>
+                <p className="text-muted-foreground">
+                  Pedido <strong>#{form.numero_pedido}</strong>. Será disparado o webhook de retorno ao Odoo (status: cancelado),
+                  a OS será removida da Central PCP e as Ordens de Produção vinculadas serão arquivadas (canceladas).
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={excluindoOS}>Manter OS</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={excluindoOS}
+              onClick={handleExcluirOS}
+            >
+              {excluindoOS ? "Cancelando..." : "Sim, excluir OS"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

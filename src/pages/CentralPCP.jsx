@@ -115,6 +115,26 @@ export default function CentralPCP() {
     }
   };
 
+  const handleExcluirOS = async (pedido, motivo) => {
+    try {
+      await base44.functions.invoke("cancelarOrdemServicoOdoo", {
+        numero_pedido: pedido.numero_pedido,
+        odoo_id: pedido.odoo_id,
+        motivo,
+      });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      setDetalheOpen(false);
+      setPedidoSelecionado(null);
+      toast({
+        title: "OS cancelada e excluída",
+        description: `#${pedido.numero_pedido} removida da fábrica${pedido.odoo_id ? " e notificada ao Odoo" : ""}.`,
+        className: "border-red-500/40"
+      });
+    } catch (e) {
+      toast({ title: "Erro ao excluir OS", description: e.message, variant: "destructive" });
+    }
+  };
+
   const handleDistribuir = async (pedido) => {
     setDistribuindo(true);
     try {
@@ -284,6 +304,7 @@ export default function CentralPCP() {
         onOpenChange={setDetalheOpen}
         onDistribuir={handleDistribuir}
         distribuindo={distribuindo}
+        onExcluirOS={handleExcluirOS}
       />
       <WebhookSimulatorDialog
         open={webhookOpen}
