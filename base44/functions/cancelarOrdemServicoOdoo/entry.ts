@@ -32,23 +32,39 @@ Deno.serve(async (req) => {
 
     const numeroStr = numero_pedido ? String(numero_pedido) : null;
 
-    // ── 1) Resolve o odoo_id (do corpo ou buscando o PedidoOdoo) ──
-    let odoo_id = odoo_id_in || null;
+    // ── 1) Resolve o odoo_id numérico (do corpo ou buscando o PedidoOdoo) ──
+    // Extrai o ID numérico puro do Odoo, removendo prefixos como 'S', 'SO', 'SO-' etc.
+    // Ex: 'S00549' → 549, '549' → 549, 'SO-2026-283427' (fallback) → 2026283427.
+    const extrairIdNumerico = (raw) => {
+      if (raw === null || raw === undefined) return null;
+      const str = String(raw).trim();
+      if (!str) return null;
+      const digitos = str.replace(/\D/g, '');
+      if (!digitos) return null;
+      const n = Number(digitos);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    let odoo_id_raw = odoo_id_in || null;
     let pedidoOdooId = null;
     if (numeroStr) {
       const pedidos = await base44.asServiceRole.entities.PedidoOdoo
         .filter({ numero_pedido: numeroStr }, '-data_recebimento', 50)
         .catch(() => []);
       if (pedidos.length > 0) {
-        if (!odoo_id) odoo_id = pedidos[0].odoo_id || null;
+        if (!odoo_id_raw) odoo_id_raw = pedidos[0].odoo_id || null;
         pedidoOdooId = pedidos[0].id;
       }
     }
 
-    if (!odoo_id) {
+    // Tenta extrair do odoo_id; se não houver, extrai do numero_pedido.
+    const odooIdNumerico = extrairIdNumerico(odoo_id_raw) ?? extrairIdNumerico(numeroStr);
+
+    if (!odooIdNumerico) {
       return Response.json({
-        error: 'odoo_id não encontrado para este pedido. Não é possível cancelar no Odoo.',
+        error: 'Não foi possível extrair o ID numérico do Odoo para este pedido. Não é possível cancelar no Odoo.',
         numero_pedido: numeroStr,
+        odoo_id_raw,
       }, { status: 422 });
     }
 
