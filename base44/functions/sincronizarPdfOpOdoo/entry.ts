@@ -33,18 +33,12 @@ Deno.serve(async (req) => {
     }
 
     // ── Sincronização do link do PDF no Pedido de Vendas do Odoo ──
-    // Observação: o Odoo não possui conector OAuth nativo na plataforma Base44.
-    // A sincronização real requer a API do Odoo (XML-RPC/REST) configurada via
-    // backend function com credenciais (url/database/api_key). Quando o endpoint
-    // do Odoo estiver disponível, substituir o bloco abaixo pelo PUT/POST no
-    // sale.order correspondente (external_id = numero_pedido), anexando pdf_url
-    // como anexo ou campo customizado.
-    const odoo_sync = {
-      status: "pendente_configuracao_conector_odoo",
-      numero_pedido: numero_pedido || null,
-      pdf_url,
-      mensagem: "PDF final gerado. Sincronização com Odoo aguarda configuração da API/credenciais do Odoo.",
-    };
+    // Ponto liberado para implementação manual: faça aqui o PUT/POST na API do Odoo
+    // (XML-RPC/REST) no sale.order correspondente (external_id = numero_pedido),
+    // anexando a variável `pdf_url` como anexo ou campo customizado.
+    // Exemplo:
+    //   await fetch(`${ODOO_URL}/api/sale.order`, { method: "POST", ... body: { numero_pedido, pdf_url } })
+    // `numero_pedido` e `pdf_url` já estão disponíveis neste escopo.
 
     return Response.json({
       status: "ok",
@@ -54,7 +48,6 @@ Deno.serve(async (req) => {
       etapas_concluidas: etapasConcluidas,
       pdf_final_gerado: !!etapaFinal,
       pdf_url,
-      odoo_sync,
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
