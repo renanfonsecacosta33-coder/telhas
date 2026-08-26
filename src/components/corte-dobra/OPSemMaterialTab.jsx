@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Package, Layers, CheckCircle2, AlertTriangle, Link2, Play, DollarSign, Search, X, BellRing, Trash2, Loader2 } from "lucide-react";
+import { Package, Layers, CheckCircle2, AlertTriangle, Link2, Play, DollarSign, Search, X, BellRing, Trash2, Loader2, RefreshCw, Camera, ArrowRight } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useFilial } from "@/contexts/FilialContext";
@@ -53,6 +53,43 @@ export default function OPSemMaterialTab() {
     queryFn: () => base44.entities.ChapaCD.filter({ unidade: filialAtiva }),
     refetchInterval: 30000,
   });
+
+  // OPs da Desbobinadeira que produzem chapas para ESTOQUE — para linkar com OPs de Guilhotina/Dobradeira sem material
+  const { data: opsDesbEstoque = [] } = useQuery({
+    queryKey: ["ops-desbobinadeira-estoque-link", filialAtiva],
+    queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva, destino: "estoque" }, "-data", 200),
+    refetchInterval: 15000,
+  });
+
+  // Normaliza espessura de uma OP da Desbobinadeira (espessura_utilizada > material_espessura > parse da descrição)
+  function espessuraDesb(d) {
+    let esp = normalizeEspessura(d.espessura_utilizada) || normalizeEspessura(d.material_espessura);
+    if (!esp && d.bobina_descricao) {
+      const m = d.bobina_descricao.match(/(\d+[.,]?\d*)\s*mm/i);
+      if (m) esp = normalizeEspessura(m[1]);
+    }
+    return esp;
+  }
+
+  const desbEmProducao = useMemo(
+    () => opsDesbEstoque.filter(d => ["pendente", "em_producao", "pausado"].includes(d.status)),
+    [opsDesbEstoque]
+  );
+  const desbFinalizadas = useMemo(
+    () => opsDesbEstoque.filter(d => d.status === "finalizado"),
+    [opsDesbEstoque]
+  );
+
+  // Retorna { emProd, prontas } — OPs da Desbobinadeira que estão produzindo / produziram a chapa que esta OP de Guilhotina/Dobradeira precisa
+  const desbobinadeiraLinkPara = (op) => {
+    if (op._tipo !== "maq") return null;
+    const esp = normalizeEspessura(op.material_espessura);
+    if (!esp) return null;
+    return {
+      emProd: desbEmProducao.filter(d => espessuraDesb(d) === esp),
+      prontas: desbFinalizadas.filter(d => espessuraDesb(d) === esp && d.foto_finalizacao_url),
+    };
+  };
 
   // Verifica compatibilidade de material
   const checkDisponibilidade = (op, isDesb) => {
@@ -158,6 +195,32 @@ export default function OPSemMaterialTab() {
     prevDisponiveisRef.current = currentDisponiveis;
   }, [opsComMaterial]);
 
+  // Detecta quando uma Desbobinadeira FINALIZA a chapa que uma OP de Guilhotina/Dobradeira está esperando → notifica com foto
+  const prevFinalizadasRef = useRef(null);
+  useEffect(() => {
+    // Só notifica se houver OPs de Guilhotina/Dobradeira aguardando material (que precisam de chapa)
+    if (opsMaq.length === 0) {
+      prevFinalizadasRef.current = new Set(desbFinalizadas.map(d => d.id));
+      return;
+    }
+    const espEsperadas = new Set(opsMaq.map(o => normalizeEspessura(o.material_espessura)).filter(Boolean));
+    const finalizadasRelevantes = desbFinalizadas.filter(d => espEsperadas.has(espessuraDesb(d)));
+    const currentIds = new Set(finalizadasRelevantes.map(d => d.id));
+    if (prevFinalizadasRef.current !== null) {
+      const novos = [...currentIds].filter(id => !prevFinalizadasRef.current.has(id));
+      if (novos.length > 0) {
+        const nova = finalizadasRelevantes.find(d => d.id === novos[0]);
+        playMaterialDisponivelSound();
+        speakMaterialDisponivel("Desbobinadeira");
+        toast.success("✅ CHAPA DESBOBINADA E DISPONÍVEL!", {
+          description: `A chapa ${espessuraDesb(nova) || ""}mm foi produzida na Desbobinadeira e já está no estoque da Chaparia. Libere a OP!`,
+          duration: 12000,
+        });
+      }
+    }
+    prevFinalizadasRef.current = currentIds;
+  }, [desbFinalizadas, opsMaq]);
+
   // Excluir OP
   const excluirMutation = useMutation({
     mutationFn: async ({ tipo, id }) => {
@@ -224,6 +287,34 @@ export default function OPSemMaterialTab() {
         </div>
       )}
 
+      {/* Banner — Chapa em produção na Desbobinadeira */}
+      {(() => {
+        const aguardandoDesb = listaUnificada.filter(op => desbobinadeiraLinkPara(op)?.emProd?.length > 0);
+        if (aguardandoDesb.length === 0) return null;
+        return (
+          <div className="relative overflow-hidden rounded-xl border-2 border-blue-400 bg-gradient-to-r from-blue-500 to-indigo-600 p-4 text-white shadow-lg">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <RefreshCw className="w-6 h-6 animate-spin" style={{ animationDuration: "2.5s" }} />
+                <span className="font-bold text-lg">CHAPA EM PRODUÇÃO NA DESBOBINADEIRA *</span>
+              </div>
+              <span className="text-sm bg-white/20 rounded-full px-3 py-0.5 font-semibold">
+                {aguardandoDesb.length} OP(s) aguardando chapa
+              </span>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {aguardandoDesb.map(op => (
+                <span key={op.id} className="text-xs bg-white/25 rounded-lg px-2 py-1 font-medium flex items-center gap-1">
+                  {op.maquina} {op.numero_pedido ? `#${op.numero_pedido}` : ""} — {op.material_espessura || "?"}mm
+                  <ArrowRight className="w-3 h-3" />
+                  <span className="font-mono">{desbobinadeiraLinkPara(op).emProd.length} OP(s) Desb.</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-bold flex items-center gap-2">
@@ -256,6 +347,9 @@ export default function OPSemMaterialTab() {
           const materiaisCompativeis = checkDisponibilidade(op, isDesb);
           const temMaterial = materiaisCompativeis.length > 0;
           const isVinculando = vinculando?.id === op.id;
+          const desbLink = desbobinadeiraLinkPara(op);
+          const desbEmProd = desbLink?.emProd?.length > 0;
+          const desbPronta = desbLink?.prontas?.length > 0;
 
           return (
             <div key={op.id} className={`bg-card border-2 rounded-xl p-4 ${temMaterial ? "border-green-400" : "border-amber-300"}`}>
@@ -266,6 +360,16 @@ export default function OPSemMaterialTab() {
                     <Badge className={isDesb ? "bg-orange-100 text-orange-700 border-orange-200" : "bg-purple-100 text-purple-700 border-purple-200"}>
                       {isDesb ? "Desbobinadeira" : op.maquina}
                     </Badge>
+                    {desbEmProd && (
+                      <Badge className="bg-blue-100 text-blue-700 border-blue-300 gap-1 animate-pulse" title="Há uma Desbobinadeira produzindo esta chapa para o estoque">
+                        <RefreshCw className="w-3 h-3" /> Chapa em produção *
+                      </Badge>
+                    )}
+                    {desbPronta && !temMaterial && (
+                      <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300 gap-1" title="Chapa desbobinada e disponível na Chaparia">
+                        <CheckCircle2 className="w-3 h-3" /> Chapa pronta *
+                      </Badge>
+                    )}
                     {op.destino === "pedido_direto" && (
                       <Badge className="bg-blue-100 text-blue-700 border-blue-200">Pedido Direto</Badge>
                     )}
@@ -344,6 +448,43 @@ export default function OPSemMaterialTab() {
                   </div>
                 </div>
               </div>
+
+              {/* Link com a Desbobinadeira — chapa em produção / pronta */}
+              {desbLink && (desbEmProd || desbPronta) && (
+                <div className="mt-3 border-t border-border pt-3 space-y-2">
+                  {desbLink.emProd.map(d => (
+                    <div key={d.id} className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                      <RefreshCw className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5 animate-spin" style={{ animationDuration: "2.5s" }} />
+                      <div className="text-xs text-blue-800 flex-1">
+                        <p className="font-bold flex items-center gap-1">
+                          Chapa {espessuraDesb(d) || ""}mm sendo desbobinada
+                          <span className="text-blue-500 font-mono">· OP {d.id?.slice(-5)}</span>
+                        </p>
+                        <p className="text-blue-700">
+                          Status: <strong>{d.status === "em_producao" ? "Em produção" : d.status === "pendente" ? "Aguardando início" : "Pausada"}</strong>
+                          {d.quantidade ? ` · ${d.quantidade} chapas` : ""}
+                          {d.bobina_descricao ? ` · ${d.bobina_descricao}` : ""}
+                        </p>
+                        <p className="text-blue-500 mt-0.5">Quando finalizar, a chapa entra automaticamente no estoque da Chaparia e esta OP será liberada.</p>
+                      </div>
+                    </div>
+                  ))}
+                  {desbLink.prontas.map(d => (
+                    <div key={d.id} className="flex items-start gap-2 bg-emerald-50 border border-emerald-300 rounded-lg px-3 py-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <div className="text-xs text-emerald-800 flex-1">
+                        <p className="font-bold">Chapa {espessuraDesb(d) || ""}mm desbobinada e disponível na Chaparia!</p>
+                        <p className="text-emerald-700">Produzida pela OP {d.id?.slice(-5)} · {d.quantidade || 0} chapas cortadas.</p>
+                      </div>
+                      {d.foto_finalizacao_url && (
+                        <a href={d.foto_finalizacao_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+                          <img src={d.foto_finalizacao_url} alt="Chapa desbobinada" className="w-16 h-16 object-cover rounded-md border-2 border-emerald-400 hover:scale-105 transition-transform" />
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Painel de vinculação */}
               {isVinculando && (
