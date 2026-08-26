@@ -11,8 +11,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
  *  - Sucesso (2xx): "OS cancelada no Odoo com sucesso"
  *  - Erro: detalhe do status/resposta para auditoria no painel.
  */
-const ODOO_CANCEL_WEBHOOK_URL = 'https://ajlferroeaco.odoo.com/web/hook/97a79bb4-0850-4b49-b9a3-89894d0b0517';
-const ODOO_CANCEL_API_KEY = 'AJL_BASE44_DELETE_OF_2026_8fk92xLm';
+const ODOO_CANCEL_WEBHOOK_URL = process.env.ODOO_WEBHOOK_URL || 'https://ajlferroeaco.odoo.com/web/hook/97a79bb4-0850-4b49-b9a3-89894d0b0517';
+const ODOO_CANCEL_API_KEY = process.env.ODOO_API_KEY || 'AJL_BASE44_DELETE_OF_2026_8fk92xLm';
 
 Deno.serve(async (req) => {
   try {

@@ -12,8 +12,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
  *       - Arquiva (status = cancelado) as Ordens de Produção vinculadas.
  *  4) Retorna sucesso para o frontend exibir o aviso final.
  */
-const ODOO_CANCEL_WEBHOOK_URL = 'https://ajlferroeaco.odoo.com/web/hook/97a79bb4-0850-4b49-b9a3-89894d0b0517';
-const ODOO_CANCEL_API_KEY = 'AJL_BASE44_DELETE_OF_2026_8fk92xLm';
+const ODOO_CANCEL_WEBHOOK_URL = process.env.ODOO_WEBHOOK_URL || 'https://ajlferroeaco.odoo.com/web/hook/97a79bb4-0850-4b49-b9a3-89894d0b0517';
+const ODOO_CANCEL_API_KEY = process.env.ODOO_API_KEY || 'AJL_BASE44_DELETE_OF_2026_8fk92xLm';
 
 Deno.serve(async (req) => {
   try {
