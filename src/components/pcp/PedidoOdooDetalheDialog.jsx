@@ -9,6 +9,7 @@ import { formatDataBR, slaDiasPorCategoria } from "@/lib/sla";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import PedidoItemChecklist from "@/components/pcp/PedidoItemChecklist";
+import CroquiImage from "@/components/pcp/CroquiImage";
 import { parseItensPedido, roteamentoMaterial, progressoChecklist } from "@/lib/regrasFabrica";
 
 export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, onDistribuir, distribuindo, onExcluirOS, onTogglePrioridade, onToggleItem }) {
@@ -119,19 +120,19 @@ export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, on
             )}
           </div>
 
-          {/* Foto do Pedido (Odoo → Encarregado) */}
+          {/* Foto do Pedido (Odoo → Encarregado) — clica para expandir */}
           {pedido.foto_pedido_url && (
             <div className="rounded-xl border-2 border-blue-300 dark:border-blue-800 overflow-hidden">
               <div className="bg-blue-50 dark:bg-blue-950/40 px-3 py-2 flex items-center gap-2">
                 <ImageIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 <span className="text-xs font-bold text-blue-700 dark:text-blue-300">Foto do Pedido (Odoo) — Croqui/Vendedor</span>
-                <a href={pedido.foto_pedido_url} target="_blank" rel="noopener noreferrer"
-                  className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:underline">
-                  <ExternalLink className="w-3 h-3" /> Abrir original
-                </a>
+                <span className="ml-auto text-[11px] font-medium text-blue-500 dark:text-blue-400">Clique na imagem para expandir</span>
               </div>
               <div className="bg-white dark:bg-slate-900 p-2">
-                <img src={pedido.foto_pedido_url} alt="Foto do pedido (Odoo)" className="w-full max-h-72 object-contain rounded-lg" />
+                <CroquiImage
+                  url={pedido.foto_pedido_url}
+                  alt={`Croqui do pedido #${pedido.numero_pedido}`}
+                />
               </div>
             </div>
           )}

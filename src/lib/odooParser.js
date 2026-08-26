@@ -2,6 +2,8 @@
 // Filtra apenas categorias industriais: Telhas, Corte e Dobra, Perfis, Frisadas, Chapas
 // (descarta revendas e outros)
 
+import { normalizarImagemBase64 } from "@/lib/imagemBase64";
+
 const CATEGORIA_MAP = {
   // Telhas
   "telhas": { grupo: "telha", sla: 7 },
@@ -88,8 +90,11 @@ export function parseWebhookPayload(rawJson) {
     const numero = p.numero_pedido || p.numero || p.name || p.order_name || p.number || "";
     if (!numero) continue;
 
-    // Foto/croqui do pedido enviado pelo Odoo (anexo principal)
-    const foto_pedido_url = p.foto_pedido_url || p.anexo_1_url || p.anexo_url || p.attachment_url || p.foto_url || "";
+    // Foto/croqui do pedido enviado pelo Odoo (anexo principal).
+    // Normaliza strings Base64 puras adicionando o prefixo data:image/png;base64,
+    // quando o Odoo envia a imagem sem o prefixo.
+    const fotoRaw = p.foto_pedido_url || p.anexo_1_url || p.anexo_2_url || p.anexo_url || p.attachment_url || p.foto_url || "";
+    const foto_pedido_url = normalizarImagemBase64(fotoRaw);
 
     result.push({
       odoo_id: String(p.odoo_id || p.id || ""),

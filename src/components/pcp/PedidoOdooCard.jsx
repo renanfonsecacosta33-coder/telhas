@@ -9,6 +9,7 @@ import {
 import { slaCountdown, slaCountdownCls, progressoChecklist } from "@/lib/regrasFabrica";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
+import CroquiImage from "@/components/pcp/CroquiImage";
 
 const STATUS_PCP = {
   pendente_distribuicao: { label: "Pendente", cls: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40" },
@@ -84,6 +85,15 @@ export default function PedidoOdooCard({ pedido, onClick, onDelete, onTogglePrio
         <User className="w-3 h-3" />
         <span className="truncate">{pedido.vendedor_nome || "—"}</span>
       </div>
+
+      {/* Croqui/Foto do pedido (Odoo) — clica para expandir */}
+      {pedido.foto_pedido_url && (
+        <CroquiImage
+          url={pedido.foto_pedido_url}
+          alt={`Croqui do pedido #${pedido.numero_pedido}`}
+          imgClassName="w-full max-h-40 object-cover rounded-lg border border-slate-200 dark:border-slate-800 hover:opacity-90 transition-opacity"
+        />
+      )}
 
       {/* SLA Countdown (Regra 6) */}
       <SlaCountdownBadge dataPrometida={pedido.data_entrega} />

@@ -14,6 +14,7 @@ import { useFilial } from "@/contexts/FilialContext";
 import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X, Star, PackageX, Wrench, Trash2, User } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import UploadButton from "@/components/ui/UploadButton";
+import CroquiImage from "@/components/pcp/CroquiImage";
 import ChapaEstoqueCombobox from "@/components/corte-dobra/ChapaEstoqueCombobox";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 import { useTolerancias } from "@/hooks/useTolerancias";
@@ -827,15 +828,11 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                   onChange={e => handleUploadFoto(e.target.files[0])} />
                 {form.foto_pedido_url ? (
                   <div className="relative rounded-lg overflow-hidden border-2 border-orange-300">
-                    <img src={form.foto_pedido_url} alt="Foto anexa" className="w-full max-h-48 object-cover" />
-                    <button type="button" onClick={() => set("foto_pedido_url", "")}
-                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors">
+                    <CroquiImage url={form.foto_pedido_url} alt="Foto anexa" imgClassName="w-full max-h-48 object-cover" />
+                    <button type="button" onClick={(e) => { e.stopPropagation(); set("foto_pedido_url", ""); }}
+                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors z-10">
                       <X className="w-4 h-4" />
                     </button>
-                    <a href={form.foto_pedido_url} target="_blank" rel="noopener noreferrer"
-                      className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded hover:bg-black/80 transition-colors">
-                      Abrir
-                    </a>
                   </div>
                 ) : (
                   <div className="space-y-1">
@@ -914,15 +911,11 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                   onChange={e => handleUploadFoto(e.target.files[0])} />
                 {form.foto_pedido_url ? (
                   <div className="relative rounded-lg overflow-hidden border-2 border-blue-300">
-                    <img src={form.foto_pedido_url} alt="Foto do pedido" className="w-full max-h-48 object-cover" />
-                    <button type="button" onClick={() => set("foto_pedido_url", "")}
-                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors">
+                    <CroquiImage url={form.foto_pedido_url} alt="Foto do pedido" imgClassName="w-full max-h-48 object-cover" />
+                    <button type="button" onClick={(e) => { e.stopPropagation(); set("foto_pedido_url", ""); }}
+                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors z-10">
                       <X className="w-4 h-4" />
                     </button>
-                    <a href={form.foto_pedido_url} target="_blank" rel="noopener noreferrer"
-                      className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded hover:bg-black/80 transition-colors">
-                      Abrir
-                    </a>
                   </div>
                 ) : (
                   <div className="space-y-1">
