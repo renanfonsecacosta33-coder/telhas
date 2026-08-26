@@ -276,11 +276,13 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         odoo_id: editItem?.odoo_id || pedidoOdooVinculado?.[0]?.odoo_id || null,
         motivo: "Exclusão via modal Editar Ordem (Galpão de Produção)",
       });
+      // Trava atômica: Odoo não confirmou (status ≠ 200/201) → nada foi excluído no App.
       if (res?.status && res.status !== "ok") {
         toast({
-          title: "Odoo não confirmou o cancelamento",
-          description: res?.odoo_erro || res?.message || "Nenhum registro foi excluído no App.",
+          title: "❌ FALHA NO CANCELAMENTO ODOO",
+          description: "O Odoo não confirmou o cancelamento da ordem de fabricação. A OS foi mantida na fábrica!",
           variant: "destructive",
+          duration: 9000,
         });
         return;
       }
@@ -292,9 +294,13 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
       setConfirmExcluirOS(false);
       onClose();
     } catch (e) {
-      let desc = e.message;
-      try { const j = JSON.parse(e.message || "{}"); if (j.odoo_erro) desc = j.odoo_erro; } catch {}
-      toast({ title: "Erro ao excluir OS", description: desc, variant: "destructive" });
+      // Erro de rede/execução → nada foi excluído no App.
+      toast({
+        title: "❌ FALHA NO CANCELAMENTO ODOO",
+        description: "O Odoo não confirmou o cancelamento da ordem de fabricação. A OS foi mantida na fábrica!",
+        variant: "destructive",
+        duration: 9000,
+      });
     } finally {
       setExcluindoOS(false);
     }

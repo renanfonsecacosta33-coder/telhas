@@ -83,8 +83,9 @@ Deno.serve(async (req) => {
         }),
       });
       odoo_status = resp.status;
-      odoo_notificado = resp.ok;
-      if (!resp.ok) {
+      // Trava atômica: sucesso SOMENTE com HTTP 200 ou 201.
+      odoo_notificado = resp.status === 200 || resp.status === 201;
+      if (!odoo_notificado) {
         const txt = await resp.text().catch(() => '');
         odoo_erro = `Odoo respondeu ${resp.status}${txt ? `: ${txt.slice(0, 200)}` : ''}`;
       }
