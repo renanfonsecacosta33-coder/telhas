@@ -140,8 +140,8 @@ export default function CentralPCP() {
       setDetalheOpen(false);
       setPedidoSelecionado(null);
       toast({
-        title: "Ordem de Serviço excluída no App e cancelada no Odoo com sucesso!",
-        description: `#${pedido.numero_pedido} — Odoo ID ${res?.odoo_id || pedido.odoo_id}.`,
+        title: res?.message || "Ordem de Serviço cancelada no Odoo e removida do App!",
+        description: `Odoo ID ${res?.odoo_id || pedido.odoo_id}.`,
         className: "border-emerald-500/40"
       });
     } catch (e) {

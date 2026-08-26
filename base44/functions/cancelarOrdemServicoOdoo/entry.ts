@@ -69,6 +69,7 @@ Deno.serve(async (req) => {
     }
 
     // ── 2) POST para o Webhook de Cancelamento do Odoo ──
+    // Payload estrito: { "api_key": "...", "odoo_id": <Number> }
     let odoo_notificado = false;
     let odoo_erro = null;
     let odoo_status = 0;
@@ -78,7 +79,7 @@ Deno.serve(async (req) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           api_key: ODOO_CANCEL_API_KEY,
-          odoo_id: odoo_id,
+          odoo_id: odooIdNumerico,
         }),
       });
       odoo_status = resp.status;
@@ -96,7 +97,7 @@ Deno.serve(async (req) => {
       return Response.json({
         status: 'erro_odoo',
         numero_pedido: numeroStr,
-        odoo_id,
+        odoo_id: odooIdNumerico,
         odoo_notificado: false,
         odoo_status,
         odoo_erro,
@@ -164,12 +165,12 @@ Deno.serve(async (req) => {
     return Response.json({
       status: 'ok',
       numero_pedido: numeroStr,
-      odoo_id,
+      odoo_id: odooIdNumerico,
       odoo_notificado: true,
       odoo_status,
       pedido_odoo_removido: pedidoOdooRemovido,
       ordens_canceladas,
-      message: 'Ordem de Serviço excluída no App e cancelada no Odoo com sucesso!',
+      message: `🟢 Ordem de Serviço ${numeroStr || `#${odooIdNumerico}`} cancelada com sucesso no Odoo e removida do App!`,
       cancelado_por: user.full_name || user.email || user.id,
       data: new Date().toISOString(),
     });
