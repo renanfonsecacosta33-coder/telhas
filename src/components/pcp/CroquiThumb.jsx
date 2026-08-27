@@ -1,20 +1,26 @@
 import React from "react";
 import ImageLink from "@/components/ui/ImageLink";
-import { extrairCroquiPedido } from "@/lib/croquiExtractor";
+import { extrairCroquiPedidoInfo } from "@/lib/croquiExtractor";
 
 /**
  * Miniatura (thumbnail) de 120px do croqui/desenho técnico do pedido,
- * exibida DIRETO NA FRENTE do card. Clicável para expandir (ImageViewer).
+ * exibida DIRETO NO TOPO do card. Clicável para expandir (ImageViewer).
+ *
+ * Lê TODAS as variações de campos de anexo/foto (anexo_1, anexo_2, anexo1,
+ * anexo2, anexo_1_url, anexo_2_url, foto_pedido_url, foto_pedido, imagens_anexos)
+ * e exibe o selo da origem ("📷 Desenho Técnico / Anexo 1", etc.).
  *
  * Props:
- *  - pedido: objeto PedidoOdoo (procura em foto_pedido_url, anexo_1_url,
- *            anexo_2_url, Base64 ou anexos dos itens)
+ *  - pedido: objeto PedidoOdoo
  *  - alt: rótulo acessível
  *  - className: classes extras do wrapper
  */
 export default function CroquiThumb({ pedido, alt, className = "" }) {
-  const src = extrairCroquiPedido(pedido);
+  const { src, origem } = extrairCroquiPedidoInfo(pedido);
   if (!src) return null;
+
+  const selo = origem ? `📷 Desenho Técnico / ${origem}` : "📷 Desenho Técnico";
+
   return (
     <div className={`relative shrink-0 ${className}`}>
       <ImageLink
@@ -29,7 +35,7 @@ export default function CroquiThumb({ pedido, alt, className = "" }) {
         />
       </ImageLink>
       <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] font-bold bg-slate-900/90 text-white px-1.5 py-0.5 rounded-full shadow flex items-center gap-0.5">
-        📷 Desenho Técnico
+        {selo}
       </span>
     </div>
   );
