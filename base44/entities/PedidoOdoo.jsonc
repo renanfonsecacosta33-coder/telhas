@@ -22,6 +22,14 @@
       "type": "string",
       "description": "URL da foto/croqui do pedido enviado pelo Odoo (anexo_1_url) \u2014 v\u00ednculo autom\u00e1tico com a 'Foto do Pedido (Encarregado)' nos galp\u00f5es"
     },
+    "anexo_1_url": {
+      "type": "string",
+      "description": "Anexo 1 do pedido Odoo (URL ou Base64 do croqui/desenho t\u00e9cnico)"
+    },
+    "anexo_2_url": {
+      "type": "string",
+      "description": "Anexo 2 do pedido Odoo (URL ou Base64 do croqui/desenho t\u00e9cnico)"
+    },
     "data_entrega": {
       "type": "string",
       "format": "date",
@@ -100,7 +108,7 @@
     "numero_pedido"
   ],
   "rls": {
-    "create": {},
+    "create": true,
     "read": {},
     "update": {},
     "delete": {}
