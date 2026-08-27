@@ -105,10 +105,17 @@ export default function CentralPCP() {
     }
   };
 
+  const isPedidoTeste = (pedido) => {
+    const num = String(pedido?.numero_pedido || "").toUpperCase();
+    return num.includes("TESTE") || num.includes("SO-TESTE") || pedido?.numero_pedido === "283427" || !pedido?.odoo_id;
+  };
+
   const handleExcluirCard = async (pedido) => {
-    if (!window.confirm(
-      `🗑️ EXCLUSÃO GLOBAL DE OS\n\nExcluir a OS #${pedido.numero_pedido} de TODAS as telas (Central PCP, Galpão Telhas, Galpão Corte & Dobra e Expedição)?\n\nO App enviará o cancelamento ao Odoo primeiro. Somente se o Odoo confirmar (200 OK) a OS será removida globalmente.`
-    )) return;
+    const teste = isPedidoTeste(pedido);
+    const msg = teste
+      ? `🧪 EXCLUSÃO DE PEDIDO DE TESTE\n\nExcluir o pedido de teste #${pedido.numero_pedido} diretamente do App?\n\nPedidos de teste/simulação são removidos imediatamente, sem chamar o Odoo.`
+      : `🗑️ EXCLUSÃO GLOBAL DE OS\n\nExcluir a OS #${pedido.numero_pedido} de TODAS as telas (Central PCP, Galpão Telhas, Galpão Corte & Dobra e Expedição)?\n\nO App enviará o cancelamento ao Odoo primeiro. Somente se o Odoo confirmar (200 OK) a OS será removida globalmente.`;
+    if (!window.confirm(msg)) return;
     await handleExcluirOS(pedido, "");
   };
 

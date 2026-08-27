@@ -60,6 +60,83 @@ Deno.serve(async (req) => {
     // Tenta extrair do odoo_id; se não houver, extrai do numero_pedido.
     const odooIdNumerico = extrairIdNumerico(odoo_id_raw) ?? extrairIdNumerico(numeroStr);
 
+    // ── Detecção de Pedidos de Teste/Simulação ──
+    // Pedidos criados pelo simulador do PCP ou de teste NÃO existem no Odoo,
+    // então devem ser excluídos DIRETAMENTE do App sem chamar o webhook Odoo.
+    // Critérios: numero_pedido contém 'TESTE'/'SO-TESTE', é o número padrão do
+    // simulador ('283427'), ou não há odoo_id válido (campo vazio/não numérico).
+    const numUpper = (numeroStr || '').toUpperCase();
+    const isPedidoTeste =
+      numUpper.includes('TESTE') ||
+      numUpper.includes('SO-TESTE') ||
+      numeroStr === '283427' ||
+      !odoo_id_raw ||
+      !extrairIdNumerico(odoo_id_raw);
+
+    if (isPedidoTeste) {
+      // Exclusão direta e imediata — sem chamar o Odoo.
+      let pedidoOdooRemovido = false;
+      if (pedidoOdooId) {
+        await base44.asServiceRole.entities.PedidoOdoo.delete(pedidoOdooId).catch(() => {});
+        pedidoOdooRemovido = true;
+      } else if (numeroStr) {
+        const pedidos = await base44.asServiceRole.entities.PedidoOdoo
+          .filter({ numero_pedido: numeroStr }, '-data_recebimento', 50)
+          .catch(() => []);
+        for (const p of pedidos) {
+          await base44.asServiceRole.entities.PedidoOdoo.delete(p.id).catch(() => {});
+        }
+        pedidoOdooRemovido = pedidos.length > 0;
+      }
+
+      const ordens_canceladas = { ordem_maquina_cd: 0, ordem_desbobinadeira: 0, pedido: 0 };
+      if (numeroStr) {
+        const todayIso = new Date().toISOString().slice(0, 10);
+        try {
+          await base44.asServiceRole.entities.OrdemMaquinaCD.updateMany(
+            { numero_pedido: numeroStr, status: { $ne: 'cancelado' } },
+            { $set: { status: 'cancelado', data_finalizacao: todayIso } }
+          );
+          const cds = await base44.asServiceRole.entities.OrdemMaquinaCD
+            .filter({ numero_pedido: numeroStr, status: 'cancelado' }, '-data', 500)
+            .catch(() => []);
+          ordens_canceladas.ordem_maquina_cd = cds.length;
+        } catch {}
+        try {
+          await base44.asServiceRole.entities.OrdemDesbobinadeira.updateMany(
+            { numero_pedido: numeroStr, status: { $ne: 'cancelado' } },
+            { $set: { status: 'cancelado', data_finalizacao: todayIso } }
+          );
+          const dbs = await base44.asServiceRole.entities.OrdemDesbobinadeira
+            .filter({ numero_pedido: numeroStr, status: 'cancelado' }, '-data', 500)
+            .catch(() => []);
+          ordens_canceladas.ordem_desbobinadeira = dbs.length;
+        } catch {}
+        try {
+          await base44.asServiceRole.entities.Pedido.updateMany(
+            { numero_pedido: numeroStr, status: { $ne: 'cancelado' } },
+            { $set: { status: 'cancelado', data_finalizacao: todayIso } }
+          );
+          const peds = await base44.asServiceRole.entities.Pedido
+            .filter({ numero_pedido: numeroStr, status: 'cancelado' }, '-data', 500)
+            .catch(() => []);
+          ordens_canceladas.pedido = peds.length;
+        } catch {}
+      }
+
+      return Response.json({
+        status: 'ok',
+        is_teste: true,
+        numero_pedido: numeroStr,
+        odoo_notificado: false,
+        pedido_odoo_removido: pedidoOdooRemovido,
+        ordens_canceladas,
+        message: `🧪 Pedido de teste/simulação ${numeroStr || ''} excluído diretamente do App (sem chamar o Odoo).`,
+        cancelado_por: user.full_name || user.email || user.id,
+        data: new Date().toISOString(),
+      });
+    }
+
     if (!odooIdNumerico) {
       return Response.json({
         error: 'Não foi possível extrair o ID numérico do Odoo para este pedido. Não é possível cancelar no Odoo.',
