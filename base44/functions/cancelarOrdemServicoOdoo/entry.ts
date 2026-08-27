@@ -83,8 +83,9 @@ Deno.serve(async (req) => {
         }),
       });
       odoo_status = resp.status;
-      // Trava atômica: sucesso SOMENTE com HTTP 200 ou 201.
-      odoo_notificado = resp.status === 200 || resp.status === 201;
+      // Trava atômica: sucesso com qualquer HTTP 2xx (200-299).
+      // Odoo pode responder 200, 201, 202 (Accepted) ou 204 (No Content).
+      odoo_notificado = resp.status >= 200 && resp.status < 300;
       if (!odoo_notificado) {
         const txt = await resp.text().catch(() => '');
         odoo_erro = `Odoo respondeu ${resp.status}${txt ? `: ${txt.slice(0, 200)}` : ''}`;
