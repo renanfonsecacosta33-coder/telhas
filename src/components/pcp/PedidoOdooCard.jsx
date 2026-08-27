@@ -39,8 +39,8 @@ export default function PedidoOdooCard({ pedido, onClick, onDelete, onRetirarFil
           : "border-slate-200 dark:border-slate-800 hover:border-orange-400/50"
       }`}
     >
+      <CroquiThumb pedido={pedido} alt={`Croqui do pedido #${pedido.numero_pedido}`} className="w-full mb-1" />
       <div className="flex items-start gap-3">
-        <CroquiThumb pedido={pedido} alt={`Croqui do pedido #${pedido.numero_pedido}`} />
         <div className="flex items-start justify-between gap-2 flex-1 min-w-0">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">

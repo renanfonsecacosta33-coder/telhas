@@ -11,6 +11,8 @@ const EXEMPLO = JSON.stringify({
   cliente_nome: "Perfilaço Indústria",
   vendedor_nome: "João Souza",
   data_recebimento: new Date().toISOString(),
+  anexo_1_url: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600&q=80",
+  foto_pedido_url: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600&q=80",
   itens: [
     { categoria: "Telhas", produto: "Telha TP-40 Galvalume", medida: "5000mm", espessura: "0,43", quantidade: 50 },
     { categoria: "Corte e Dobra", produto: "Perfil U 100x40", medida: "3000mm", espessura: "2,00", quantidade: 20 },
