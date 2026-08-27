@@ -1,5 +1,4 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.44';
-import { secrets } from 'base44:runtime';
 
 /**
  * Webhook público (POST /functions/odooWebhook) para o Odoo criar/atualizar
@@ -17,15 +16,7 @@ import { secrets } from 'base44:runtime';
  */
 export default async function(req: Request): Promise<Response> {
   try {
-    // ── 1. Validar API key ──
-    const expectedKey = secrets.get("ODOO_API_KEY");
-    if (!expectedKey) {
-      return Response.json({ error: "Servidor sem API key configurada" }, { status: 500 });
-    }
-    const headerKey = req.headers.get("x-api-key") || req.headers.get("api-key") || "";
-    const authHeader = req.headers.get("authorization") || "";
-    const bearerKey = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-
+    // ── 1. Ler corpo da requisição (POST direto do Odoo, sem validação de chave) ──
     let body: any = {};
     let rawBody = "";
     try {
@@ -33,12 +24,6 @@ export default async function(req: Request): Promise<Response> {
       if (rawBody) body = JSON.parse(rawBody);
     } catch {
       // corpo não-JSON: ignora
-    }
-    const bodyKey = body?.api_key || body?.apikey || "";
-    const providedKey = headerKey || bearerKey || bodyKey;
-
-    if (!providedKey || providedKey !== expectedKey) {
-      return Response.json({ error: "API key inválida ou ausente" }, { status: 401 });
     }
 
     // ── 2. Validar payload mínimo ──
@@ -120,7 +105,7 @@ export default async function(req: Request): Promise<Response> {
       action: existingRec ? "updated" : "created",
       numero_pedido: numeroPedido,
       id: result?.id || existingRec?.id,
-    }, { status: 200 });
+    }, { status: 201 });
   } catch (error) {
     return Response.json({ error: error.message || "Erro interno no webhook" }, { status: 500 });
   }
