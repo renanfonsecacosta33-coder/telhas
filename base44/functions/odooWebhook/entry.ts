@@ -7,16 +7,90 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.44';
  * Autenticação: header `x-api-key` (ou `authorization: Bearer <key>`,
  * ou body `api_key`) validado contra o secret ODOO_API_KEY.
  *
- * Payload JSON esperado (cam principais):
+ * Payload JSON esperado (campos principais):
  *  - numero_pedido (obrigatório)
  *  - cliente_nome, vendedor_nome
- *  - foto_pedido_url, anexo_1_url, anexo_2_url
+ *  - foto_pedido_url, anexo_1_url, anexo_2_url (URL pública OU Base64 da imagem)
  *  - itens_json (string JSON ou array de itens)
  *  - data_entrega, unidade, odoo_id, prioridade
  */
+
+// ── Helpers de Base64 ──────────────────────────────────────────────
+// Detecta se uma string é uma imagem em Base64 (data URI ou Base64 puro),
+// em vez de uma URL pública já pronta.
+const DATA_URI_RE = /^data:([\w./+-]+);base64,(.+)$/i;
+const URL_RE = /^(https?:|blob:|file:|\/)/i;
+// Base64 puro: sem prefixo, sem espaços, tamanho razoável, apenas chars base64
+const B64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
+
+function isBase64Image(value: any): boolean {
+  if (typeof value !== "string" || value.length < 64) return false;
+  if (URL_RE.test(value)) return false;
+  // data URI
+  if (DATA_URI_RE.test(value)) return true;
+  // base64 puro (sem prefixo) — evita confundir com texto/URL curto
+  return B64_RE.test(value.trim()) && value.length > 256;
+}
+
+// Decodifica Base64 → Blob, extraindo o MIME quando possível.
+function base64ToBlob(value: string): Blob {
+  const m = value.match(DATA_URI_RE);
+  if (m) {
+    const mime = m[1] || "image/png";
+    const bin = atob(m[2]);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
+  }
+  // base64 puro → assume PNG
+  const bin = atob(value.trim());
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: "image/png" });
+}
+
+function extFromMime(mime: string): string {
+  if (!mime) return "png";
+  const map: Record<string, string> = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "application/pdf": "pdf",
+  };
+  return map[mime] || "png";
+}
+
+// Faz upload de uma imagem Base64 via integração nativa e retorna a file_url pública.
+// Retorna a string original se não for Base64 (URL já pronta) ou "" se vazia.
+async function resolveImageField(
+  value: any,
+  field: string,
+  integrations: any
+): Promise<string> {
+  const v = typeof value === "string" ? value.trim() : "";
+  if (!v) return "";
+  if (!isBase64Image(v)) return v; // já é URL pública — mantém
+
+  try {
+    const blob = base64ToBlob(v);
+    const ext = extFromMime(blob.type);
+    const fileName = `odoo_${field}_${Date.now()}.${ext}`;
+    const fileObj = new File([blob], fileName, { type: blob.type });
+    const res = await integrations.Core.UploadFile({ file: fileObj as any });
+    if (res?.file_url) return res.file_url;
+    throw new Error("UploadFile não retornou file_url");
+  } catch (e) {
+    // Se o upload falhar, descarta o Base64 para não estourar o tamanho do campo
+    console.error(`[odooWebhook] Falha no upload de ${field}:`, e?.message || e);
+    return "";
+  }
+}
+
 export default async function(req: Request): Promise<Response> {
   try {
-    // ── 1. Ler corpo da requisição (POST direto do Odoo, sem validação de chave) ──
+    // ── 1. Ler corpo da requisição (POST direto do Odoo) ──
     let body: any = {};
     let rawBody = "";
     try {
@@ -60,12 +134,19 @@ export default async function(req: Request): Promise<Response> {
     });
     const espessurasTags = espSet.size ? JSON.stringify(Array.from(espSet).map(e => ({ espessura: e }))) : "";
 
-    // ── 4. Montar registro (upsert por numero_pedido) ──
+    // ── 4. Montar cliente + resolver imagens Base64 ──
     const base44 = createClientFromRequest(req);
     const db = base44.asServiceRole;
 
     const existing = await db.entities.PedidoOdoo.filter({ numero_pedido: numeroPedido });
     const existingRec = existing && existing.length ? existing[0] : null;
+
+    // Resolve campos de imagem: se vierem em Base64, faz upload e grava a URL leve.
+    const [fotoUrl, anexo1Url, anexo2Url] = await Promise.all([
+      resolveImageField(body?.foto_pedido_url ?? body?.anexo_1_url, "foto_pedido", base44.integrations),
+      resolveImageField(body?.anexo_1_url, "anexo_1", base44.integrations),
+      resolveImageField(body?.anexo_2_url, "anexo_2", base44.integrations),
+    ]);
 
     const nowIso = new Date().toISOString();
 
@@ -73,9 +154,9 @@ export default async function(req: Request): Promise<Response> {
       numero_pedido: numeroPedido,
       cliente_nome: body?.cliente_nome ?? existingRec?.cliente_nome ?? "",
       vendedor_nome: body?.vendedor_nome ?? existingRec?.vendedor_nome ?? "",
-      foto_pedido_url: body?.foto_pedido_url ?? body?.anexo_1_url ?? existingRec?.foto_pedido_url ?? "",
-      anexo_1_url: body?.anexo_1_url ?? existingRec?.anexo_1_url ?? "",
-      anexo_2_url: body?.anexo_2_url ?? existingRec?.anexo_2_url ?? "",
+      foto_pedido_url: (fotoUrl || existingRec?.foto_pedido_url) ?? "",
+      anexo_1_url: (anexo1Url || existingRec?.anexo_1_url) ?? "",
+      anexo_2_url: (anexo2Url || existingRec?.anexo_2_url) ?? "",
       data_entrega: body?.data_entrega ?? existingRec?.data_entrega ?? "",
       unidade: body?.unidade ?? existingRec?.unidade ?? "Matriz AJL",
       prioridade: body?.prioridade ?? existingRec?.prioridade ?? false,
