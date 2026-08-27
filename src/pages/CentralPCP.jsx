@@ -105,18 +105,55 @@ export default function CentralPCP() {
     }
   };
 
-  const handleExcluir = async (pedido) => {
-    if (!window.confirm(`Excluir o pedido #${pedido.numero_pedido} da Central PCP?`)) return;
+  const handleExcluirCard = async (pedido) => {
+    if (!window.confirm(
+      `🗑️ EXCLUSÃO GLOBAL DE OS\n\nExcluir a OS #${pedido.numero_pedido} de TODAS as telas (Central PCP, Galpão Telhas, Galpão Corte & Dobra e Expedição)?\n\nO App enviará o cancelamento ao Odoo primeiro. Somente se o Odoo confirmar (200 OK) a OS será removida globalmente.`
+    )) return;
+    await handleExcluirOS(pedido, "");
+  };
+
+  const handleRetirarFila = async (pedido) => {
+    if (!window.confirm(
+      `↩️ RETIRAR DA FILA\n\nRetirar a OS #${pedido.numero_pedido} da fila dos galpões (Telhas / Corte & Dobra) e devolvê-la para a Central PCP?`
+    )) return;
     try {
-      await base44.entities.PedidoOdoo.delete(pedido.id);
+      const todayIso = new Date().toISOString().slice(0, 10);
+      // Cancela as Ordens de Produção vinculadas nos galpões
+      await base44.entities.OrdemMaquinaCD.updateMany(
+        { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
+        { $set: { status: "cancelado", data_finalizacao: todayIso } }
+      );
+      await base44.entities.OrdemDesbobinadeira.updateMany(
+        { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
+        { $set: { status: "cancelado", data_finalizacao: todayIso } }
+      );
+      await base44.entities.Pedido.updateMany(
+        { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
+        { $set: { status: "cancelado", data_finalizacao: todayIso } }
+      );
+      // Devolve o pedido para a Central PCP
+      const logExistente = (() => { try { return JSON.parse(pedido.historico_log || "[]"); } catch { return []; } })();
+      const novoLog = [...logExistente, {
+        data: new Date().toISOString(),
+        usuario: "PCP",
+        acao: "retirada_fila_galpao",
+        detalhes: "Pedido retirado da fila dos galpões e devolvido para a Central PCP."
+      }];
+      await base44.entities.PedidoOdoo.update(pedido.id, {
+        status_pcp: "pendente_distribuicao",
+        percentual_concluido: 0,
+        historico_log: JSON.stringify(novoLog)
+      });
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      setDetalheOpen(false);
+      setPedidoSelecionado(null);
       toast({
-        title: "Pedido excluído",
-        description: `#${pedido.numero_pedido} removido da fila.`,
-        className: "border-red-500/40"
+        title: "↩️ OS retirada da fila",
+        description: `#${pedido.numero_pedido} devolvida para a Central PCP.`,
+        className: "border-amber-500/40"
       });
     } catch (e) {
-      toast({ title: "Erro ao excluir", description: e.message, variant: "destructive" });
+      toast({ title: "Erro ao retirar da fila", description: e.message, variant: "destructive" });
     }
   };
 
@@ -363,7 +400,8 @@ export default function CentralPCP() {
                   key={p.id}
                   pedido={p}
                   onClick={() => { setPedidoSelecionado(p); setDetalheOpen(true); }}
-                  onDelete={handleExcluir}
+                  onDelete={handleExcluirCard}
+                  onRetirarFila={handleRetirarFila}
                   onTogglePrioridade={handleTogglePrioridade}
                 />
               ))}
@@ -379,6 +417,7 @@ export default function CentralPCP() {
         onDistribuir={handleDistribuir}
         distribuindo={distribuindo}
         onExcluirOS={handleExcluirOS}
+        onRetirarFila={handleRetirarFila}
         onTogglePrioridade={handleTogglePrioridade}
         onToggleItem={handleToggleItem}
       />

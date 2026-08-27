@@ -4,7 +4,7 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Zap, Factory, Scissors, Wind, Tag, Ruler, Package, CheckCircle2, Trash2, ImageIcon, ExternalLink, Star, ShieldAlert } from "lucide-react";
+import { Zap, Factory, Scissors, Wind, Tag, Ruler, Package, CheckCircle2, Trash2, ImageIcon, ExternalLink, Star, ShieldAlert, Undo2 } from "lucide-react";
 import { formatDataBR, slaDiasPorCategoria } from "@/lib/sla";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
@@ -12,7 +12,7 @@ import PedidoItemChecklist from "@/components/pcp/PedidoItemChecklist";
 import CroquiImage from "@/components/pcp/CroquiImage";
 import { parseItensPedido, roteamentoMaterial, progressoChecklist } from "@/lib/regrasFabrica";
 
-export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, onDistribuir, distribuindo, onExcluirOS, onTogglePrioridade, onToggleItem }) {
+export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, onDistribuir, distribuindo, onExcluirOS, onRetirarFila, onTogglePrioridade, onToggleItem }) {
   const [confirmaExcluir, setConfirmaExcluir] = useState(false);
   const [motivo, setMotivo] = useState("");
   const [excluindo, setExcluindo] = useState(false);
@@ -218,8 +218,17 @@ export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, on
               className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white flex-1"
             >
               <Zap className="w-4 h-4" />
-              {jaDistribuido ? "Já Distribuído" : distribuindo ? "Distribuindo..." : "Distribuir Automaticamente para os Galpões"}
+              {jaDistribuido ? "Já Distribuído" : distribuindo ? "Distribuindo..." : "Distribuir para os Galpões"}
             </Button>
+            {jaDistribuido && onRetirarFila && (
+              <Button
+                variant="outline"
+                onClick={() => onRetirarFila(pedido)}
+                className="sm:w-auto border-amber-400 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+              >
+                <Undo2 className="w-4 h-4" /> Retirar da Fila
+              </Button>
+            )}
             {onExcluirOS && (
               <Button
                 variant="destructive"
@@ -242,15 +251,16 @@ export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, on
             <AlertDialogDescription asChild>
               <div className="space-y-3 text-sm">
                 <p className="text-foreground font-semibold">
-                  Tem certeza que deseja cancelar e excluir esta Ordem de Serviço da fábrica e do Odoo?
+                  🗑️ EXCLUSÃO GLOBAL — remove a OS de TODAS as telas simultaneamente.
                 </p>
                 <p>
                   Pedido <strong>#{pedido.numero_pedido}</strong>{pedido.odoo_id ? ` · Odoo: ${pedido.odoo_id}` : ""}. Esta ação:
                 </p>
                 <ul className="list-disc pl-5 space-y-0.5 text-muted-foreground">
-                  <li>Dispara o webhook de retorno ao Odoo notificando o cancelamento (status: cancelado).</li>
-                  <li>Remove a OS da Central PCP.</li>
-                  <li>Arquiva (cancela) as Ordens de Produção vinculadas nos galpões.</li>
+                  <li>Envia o cancelamento ao Webhook do Odoo (com api_key + odoo_id numérico).</li>
+                  <li>Se o Odoo responder <strong>200 OK</strong> → remove a OS globalmente:</li>
+                  <li className="ml-4">• Central PCP · Galpão Telhas · Galpão Corte & Dobra · Expedição</li>
+                  <li>Se o Odoo <strong>falhar</strong> → a exclusão é bloqueada e a OS permanece na tela com alerta de erro.</li>
                 </ul>
                 <Textarea
                   placeholder="Motivo do cancelamento (opcional)..."

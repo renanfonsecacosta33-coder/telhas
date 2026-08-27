@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, User, Tag, Layers, Factory, Scissors, Wind, Trash2, Star, ShieldAlert } from "lucide-react";
+import { Calendar, User, Tag, Layers, Factory, Scissors, Wind, Trash2, Star, ShieldAlert, Undo2 } from "lucide-react";
 import {
   formatDataBR,
   slaDiasPorCategoria
@@ -18,7 +18,7 @@ const STATUS_PCP = {
   concluido: { label: "Concluído", cls: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40" }
 };
 
-export default function PedidoOdooCard({ pedido, onClick, onDelete, onTogglePrioridade }) {
+export default function PedidoOdooCard({ pedido, onClick, onDelete, onRetirarFila, onTogglePrioridade }) {
   const [hover, setHover] = useState(false);
   const st = STATUS_PCP[pedido.status_pcp] || STATUS_PCP.pendente_distribuicao;
   const sla = slaDiasPorCategoria(pedido);
@@ -27,6 +27,7 @@ export default function PedidoOdooCard({ pedido, onClick, onDelete, onTogglePrio
     try { return JSON.parse(pedido.espessuras_tags || "[]"); } catch { return []; }
   })();
   const isPrioritario = !!pedido.prioridade;
+  const podeRetirarFila = pedido.status_pcp === "distribuido" || pedido.status_pcp === "em_producao";
 
   return (
     <div
@@ -182,6 +183,17 @@ export default function PedidoOdooCard({ pedido, onClick, onDelete, onTogglePrio
             </span>
           ))}
         </div>
+      )}
+
+      {podeRetirarFila && onRetirarFila && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onRetirarFila(pedido); }}
+          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/20 transition-colors"
+        >
+          <Undo2 className="w-3.5 h-3.5" />
+          Retirar da Fila do Galpão
+        </button>
       )}
     </div>
   );
