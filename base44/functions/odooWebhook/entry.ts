@@ -138,8 +138,24 @@ export default async function(req: Request): Promise<Response> {
     const base44 = createClientFromRequest(req);
     const db = base44.asServiceRole;
 
+    // TRAVA ESTRITA DE ANTIDUPLICIDADE — numero_pedido é chave única.
+    // Consulta por match EXATO antes de qualquer create/update.
     const existing = await db.entities.PedidoOdoo.filter({ numero_pedido: numeroPedido });
     const existingRec = existing && existing.length ? existing[0] : null;
+
+    // Higiene: se já existirem duplicatas históricas do mesmo numero_pedido,
+    // mantém apenas a mais antiga (existingRec) e remove as demais para garantir
+    // unicidade absoluta na fila de produção (nunca duas OPs para o mesmo pedido).
+    if (existing && existing.length > 1) {
+      const idsParaRemover = existing.slice(1).map((r: any) => r.id);
+      try {
+        for (const id of idsParaRemover) {
+          await db.entities.PedidoOdoo.delete(id);
+        }
+      } catch {
+        // tolerante: não aborta o upsert se a limpeza falhar
+      }
+    }
 
     // Resolve campos de imagem: se vierem em Base64, faz upload e grava a URL leve.
     const [fotoUrl, anexo1Url, anexo2Url] = await Promise.all([
@@ -174,6 +190,7 @@ export default async function(req: Request): Promise<Response> {
     // Limpa campos undefined
     Object.keys(record).forEach(k => { if (record[k] === undefined) delete record[k]; });
 
+    // Upsert: NUNCA cria duplicata — se existingRec existe, atualiza; senão, cria.
     let result;
     if (existingRec) {
       result = await db.entities.PedidoOdoo.update(existingRec.id, record);
