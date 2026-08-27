@@ -74,8 +74,28 @@ export function extrairCroquiPedidoInfo(pedido) {
 }
 
 /**
- *Compatibilidade: retorna apenas a string src (sem info de origem).
+ * Compatibilidade: retorna apenas a string src (sem info de origem).
  */
 export function extrairCroquiPedido(pedido) {
   return extrairCroquiPedidoInfo(pedido).src;
+}
+
+// Campos que podem conter um Base64 puro para fallback de onError.
+const CAMPOS_BASE64 = ["anexo_1_base64", "anexo_2_base64", "anexo_1", "anexo_2"];
+
+/**
+ * Retorna um Data URI pronto para <img> construído a partir de qualquer
+ * campo Base64 bruto presente no pedido (anexo_1_base64, anexo_2_base64...).
+ * Usado como fallback quando a URL externa do Odoo falha ao carregar.
+ */
+export function extrairBase64Fallback(pedido) {
+  if (!pedido) return "";
+  for (const key of CAMPOS_BASE64) {
+    const raw = pedido[key];
+    if (typeof raw === "string" && raw.trim()) {
+      const src = normalizarImagemBase64(raw);
+      if (src.startsWith("data:image/")) return src;
+    }
+  }
+  return "";
 }
