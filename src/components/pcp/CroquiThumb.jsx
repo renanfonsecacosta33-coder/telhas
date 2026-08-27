@@ -31,6 +31,7 @@ export default function CroquiThumb({ pedido, alt, className = "" }) {
         <img
           src={src}
           alt={alt || "Desenho Técnico / Croqui"}
+          style={{ width: "100%", height: "100px", objectFit: "cover" }}
           className="w-[120px] h-[120px] object-cover rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm group-hover:opacity-90 transition-opacity"
         />
       </ImageLink>

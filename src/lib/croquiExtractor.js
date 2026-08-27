@@ -3,9 +3,11 @@ import { normalizarImagemBase64 } from "@/lib/imagemBase64";
 // Mapeamento amplo de variações de nomes de campos de imagem/anexo enviados
 // pelo Odoo. Ordem de prioridade: Anexo 1 primeiro, depois Anexo 2, depois foto.
 const CAMPOS_IMAGEM_TOP = [
+  { key: "anexo_1_base64", label: "Anexo 1" },
   { key: "anexo_1_url", label: "Anexo 1" },
   { key: "anexo_1", label: "Anexo 1" },
   { key: "anexo1", label: "Anexo 1" },
+  { key: "anexo_2_base64", label: "Anexo 2" },
   { key: "anexo_2_url", label: "Anexo 2" },
   { key: "anexo_2", label: "Anexo 2" },
   { key: "anexo2", label: "Anexo 2" },
@@ -16,7 +18,7 @@ const CAMPOS_IMAGEM_TOP = [
 ];
 
 // Campos dentro de cada item do itens_json
-const CAMPOS_IMAGEM_ITEM = ["anexo_1_url", "anexo_1", "anexo1", "anexo_2_url", "anexo_2", "anexo2", "foto_url", "croqui_url", "foto_pedido_url"];
+const CAMPOS_IMAGEM_ITEM = ["anexo_1_base64", "anexo_1_url", "anexo_1", "anexo1", "anexo_2_base64", "anexo_2_url", "anexo_2", "anexo2", "foto_url", "croqui_url", "foto_pedido_url"];
 
 /**
  * Extrai a primeira imagem válida (URL ou Base64) de um pedido Odoo.
