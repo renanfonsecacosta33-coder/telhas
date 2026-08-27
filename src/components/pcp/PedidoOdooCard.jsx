@@ -10,6 +10,7 @@ import { slaCountdown, slaCountdownCls, progressoChecklist } from "@/lib/regrasF
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
+import PedidoItensLista from "@/components/pcp/PedidoItensLista";
 
 const STATUS_PCP = {
   pendente_distribuicao: { label: "Pendente", cls: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40" },
@@ -93,21 +94,7 @@ export default function PedidoOdooCard({ pedido, onClick, onDelete, onRetirarFil
       {/* SLA Countdown (Regra 6) */}
       <SlaCountdownBadge dataPrometida={pedido.data_entrega} />
 
-      {(() => {
-        let its = [];
-        try { its = JSON.parse(pedido.itens_json || "[]"); } catch { its = []; }
-        const prim = its.find((i) => i.descricao || i.produto);
-        if (!prim) return null;
-        return (
-          <InstrucaoVendedorCard
-            descricao={prim.descricao || prim.produto}
-            quantidadeOdoo={prim.quantidade}
-            espessura={prim.espessura}
-            unidade="MT"
-            compact
-          />
-        );
-      })()}
+      <PedidoItensLista itensJson={pedido.itens_json} />
 
       {/* Checklist progress (Regra 4) */}
       {chk.total > 1 && (
