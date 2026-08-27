@@ -9,7 +9,7 @@ import {
 import { slaCountdown, slaCountdownCls, progressoChecklist } from "@/lib/regrasFabrica";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
-import CroquiImage from "@/components/pcp/CroquiImage";
+import CroquiThumb from "@/components/pcp/CroquiThumb";
 
 const STATUS_PCP = {
   pendente_distribuicao: { label: "Pendente", cls: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40" },
@@ -38,47 +38,50 @@ export default function PedidoOdooCard({ pedido, onClick, onDelete, onRetirarFil
           : "border-slate-200 dark:border-slate-800 hover:border-orange-400/50"
       }`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            {isPrioritario && (
-              <Badge className="bg-amber-500 text-white border-amber-600 animate-pulse text-[10px] gap-0.5">
-                <Star className="w-3 h-3 fill-white" /> URGENTE
-              </Badge>
-            )}
-            <span className="text-sm font-bold text-slate-900 dark:text-white truncate">
-              #{pedido.numero_pedido}
-            </span>
-            {pedido.odoo_id && (
-              <span className="text-[10px] text-slate-400 font-mono">Odoo:{pedido.odoo_id}</span>
-            )}
+      <div className="flex items-start gap-3">
+        <CroquiThumb pedido={pedido} alt={`Croqui do pedido #${pedido.numero_pedido}`} />
+        <div className="flex items-start justify-between gap-2 flex-1 min-w-0">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              {isPrioritario && (
+                <Badge className="bg-amber-500 text-white border-amber-600 animate-pulse text-[10px] gap-0.5">
+                  <Star className="w-3 h-3 fill-white" /> URGENTE
+                </Badge>
+              )}
+              <span className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                #{pedido.numero_pedido}
+              </span>
+              {pedido.odoo_id && (
+                <span className="text-[10px] text-slate-400 font-mono">Odoo:{pedido.odoo_id}</span>
+              )}
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400 font-medium truncate mt-0.5">
+              {pedido.cliente_nome || "Cliente não informado"}
+            </p>
           </div>
-          <p className="text-xs text-slate-600 dark:text-slate-400 font-medium truncate mt-0.5">
-            {pedido.cliente_nome || "Cliente não informado"}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {onTogglePrioridade && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onTogglePrioridade(pedido); }}
-              title={isPrioritario ? "Remover prioridade" : "Marcar como Prioridade Alta (requer PIN do gestor)"}
-              className={`p-1 rounded-md transition-colors ${isPrioritario ? "text-amber-500 bg-amber-500/10" : "text-slate-300 hover:text-amber-500 hover:bg-amber-500/10"}`}
-            >
-              <Star className={`w-4 h-4 ${isPrioritario ? "fill-amber-500" : ""}`} />
-            </button>
-          )}
-          {onDelete && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onDelete(pedido); }}
-              title="Excluir pedido"
-              className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-500/10 transition-colors"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          )}
-          <Badge className={`border ${st.cls}`}>{st.label}</Badge>
+          <div className="flex items-center gap-2 shrink-0">
+            {onTogglePrioridade && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onTogglePrioridade(pedido); }}
+                title={isPrioritario ? "Remover prioridade" : "Marcar como Prioridade Alta (requer PIN do gestor)"}
+                className={`p-1 rounded-md transition-colors ${isPrioritario ? "text-amber-500 bg-amber-500/10" : "text-slate-300 hover:text-amber-500 hover:bg-amber-500/10"}`}
+              >
+                <Star className={`w-4 h-4 ${isPrioritario ? "fill-amber-500" : ""}`} />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onDelete(pedido); }}
+                title="Excluir pedido"
+                className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-500/10 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <Badge className={`border ${st.cls}`}>{st.label}</Badge>
+          </div>
         </div>
       </div>
 
@@ -86,15 +89,6 @@ export default function PedidoOdooCard({ pedido, onClick, onDelete, onRetirarFil
         <User className="w-3 h-3" />
         <span className="truncate">{pedido.vendedor_nome || "—"}</span>
       </div>
-
-      {/* Croqui/Foto do pedido (Odoo) — clica para expandir */}
-      {pedido.foto_pedido_url && (
-        <CroquiImage
-          url={pedido.foto_pedido_url}
-          alt={`Croqui do pedido #${pedido.numero_pedido}`}
-          imgClassName="w-full max-h-40 object-cover rounded-lg border border-slate-200 dark:border-slate-800 hover:opacity-90 transition-opacity"
-        />
-      )}
 
       {/* SLA Countdown (Regra 6) */}
       <SlaCountdownBadge dataPrometida={pedido.data_entrega} />

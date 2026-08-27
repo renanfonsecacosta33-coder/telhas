@@ -9,6 +9,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { useToast } from "@/components/ui/use-toast";
 import { Play, CheckCircle2, Inbox, Scissors, Calendar, User, Loader2, Layers, Plus } from "lucide-react";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
+import CroquiThumb from "@/components/pcp/CroquiThumb";
 import {
   getItens, classGrupo, computePercentual, buildItensJson,
   statusPcpPorPercentual, STATUS_ITEM, MAQUINAS_CD
@@ -114,6 +115,9 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                 const restantes = diasUteisRestantes(pedido.data_entrega);
                 return (
                   <div key={key} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950/40 p-3 space-y-2">
+                    <div className="flex items-start gap-3">
+                    <CroquiThumb pedido={pedido} alt={`Croqui do pedido #${pedido.numero_pedido}`} />
+                    <div className="flex-1 min-w-0 space-y-2">
                     <InstrucaoVendedorCard descricao={item.descricao || item.produto} quantidadeOdoo={item.quantidade} espessura={item.espessura} unidade="un" />
                     <div className="flex items-start gap-3">
                       <Checkbox
@@ -194,6 +198,8 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                           )}
                         </div>
                       </div>
+                    </div>
+                    </div>
                     </div>
                   </div>
                 );

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Play, CheckCircle2, Inbox, Factory, Calendar, User, Loader2, Plus } from "lucide-react";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
+import CroquiThumb from "@/components/pcp/CroquiThumb";
 import {
   getItens, itensPorGrupo, computePercentual, computePercentualGrupo,
   buildItensJson, statusPcpPorPercentual, STATUS_ITEM
@@ -92,7 +93,8 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
           return (
             <div key={pedido.id} className={`p-4 ${pacoteConcluido ? "bg-emerald-50/40 dark:bg-emerald-950/10" : ""}`}>
               <div className="flex items-start justify-between gap-3 mb-3">
-                <div className="min-w-0">
+                <CroquiThumb pedido={pedido} alt={`Croqui do pedido #${pedido.numero_pedido}`} className="mt-1" />
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-bold text-slate-900 dark:text-white">#{pedido.numero_pedido}</span>
                     {pacoteConcluido && (
