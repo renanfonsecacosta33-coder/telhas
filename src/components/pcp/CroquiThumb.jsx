@@ -41,7 +41,7 @@ export default function CroquiThumb({ pedido, alt, className = "" }) {
         >
           <img
             src={srcUnico}
-            alt={alt || "Desenho Técnico / Croqui"}
+            alt=""
             style={{ width: "100%", height: "120px", objectFit: "cover" }}
             className="w-full h-[120px] object-cover rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm group-hover:opacity-90 transition-opacity"
             {...odooImgProps(srcUnico)}
@@ -97,7 +97,7 @@ function CroquiThumbItem({ anexo, alt, height }) {
       >
         <img
           src={srcAtual}
-          alt={`${alt} — ${anexo.label}`}
+          alt=""
           onError={handleError}
           style={{ width: "100%", height: `${height}px`, objectFit: "cover" }}
           className="w-full object-cover rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm group-hover:opacity-90 transition-opacity"
