@@ -167,22 +167,25 @@ export default async function(req: Request): Promise<Response> {
       }
     }
 
-    // anexo_1 / anexo_2: se o campo *_base64 ou *_url contiver Base64 (string longa
-    // ou iniciada por data:image/ /9j/ / iVBORw0KGgo / R0lGOD / UklGR), faz upload
-    // via Core.UploadFile e grava a file_url curta pública — evita estourar o limite
-    // do campo. Prioriza o campo *_base64; se não houver, usa *_url como está.
-    const anexo1Input = body?.anexo_1_base64 ?? body?.anexo_1_url;
-    const anexo2Input = body?.anexo_2_base64 ?? body?.anexo_2_url;
-    const [anexo1Url, anexo2Url] = await Promise.all([
-      resolveImageField(anexo1Input, "anexo_1", base44.integrations),
-      resolveImageField(anexo2Input, "anexo_2", base44.integrations),
-    ]);
-    // foto_pedido_url: se vier em Base64, faz upload e grava a URL pública leve.
-    // Quando anexo_1_base64 está presente, espelha a mesma file_url em foto_pedido_url
-    // (vínculo automático com a 'Foto do Pedido (Encarregado)' nos galpões).
+    // ── Converte Base64 puro em Data URI pronta para <img> (sem UploadFile) ──
+    // Prioriza o campo *_base64 (>100 chars); se não houver, mantém *_url como está.
+    const toDataUri = (raw: any): string => {
+      if (typeof raw !== "string") return "";
+      const s = raw.trim();
+      if (s.length <= 100) return "";
+      if (s.startsWith("data:")) return s;
+      if (s.startsWith("/9j/")) return `data:image/jpeg;base64,${s}`;
+      if (s.startsWith("iVBORw0KGgo")) return `data:image/png;base64,${s}`;
+      if (s.startsWith("R0lGOD")) return `data:image/gif;base64,${s}`;
+      if (s.startsWith("UklGR")) return `data:image/webp;base64,${s}`;
+      return "";
+    };
+    const anexo1Url = body?.anexo_1_base64 ? toDataUri(body.anexo_1_base64) : (body?.anexo_1_url || "");
+    const anexo2Url = body?.anexo_2_base64 ? toDataUri(body.anexo_2_base64) : (body?.anexo_2_url || "");
+    // foto_pedido_url: espelha o Data URI do anexo_1 quando anexo_1_base64 presente.
     let fotoUrl = "";
     if (body?.foto_pedido_url) {
-      fotoUrl = await resolveImageField(body?.foto_pedido_url, "foto_pedido", base44.integrations);
+      fotoUrl = body.foto_pedido_url;
     } else if (body?.anexo_1_base64 && anexo1Url) {
       fotoUrl = anexo1Url;
     }
