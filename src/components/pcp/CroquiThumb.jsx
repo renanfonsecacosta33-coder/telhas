@@ -2,6 +2,15 @@ import React, { useState } from "react";
 import ImageLink from "@/components/ui/ImageLink";
 import { extrairAnexosLista, extrairCroquiPedidoInfo, extrairBase64Fallback } from "@/lib/croquiExtractor";
 
+// URLs do Odoo exigem sessão autenticada. Estes atributos contornam o
+// bloqueio cross-domain para o domínio ajlferroeaco.odoo.com.
+const isOdooDomain = (src) =>
+  typeof src === "string" && src.includes("ajlferroeaco.odoo.com");
+const odooImgProps = (src) =>
+  isOdooDomain(src)
+    ? { referrerPolicy: "no-referrer", crossOrigin: "anonymous" }
+    : {};
+
 /**
  * Miniatura (thumbnail) do croqui/desenho técnico do pedido, exibida NO TOPO
  * do card. Suporta GALERIA de múltiplos anexos (Anexo 1 + Anexo 2 lado a lado).
@@ -35,6 +44,7 @@ export default function CroquiThumb({ pedido, alt, className = "" }) {
             alt={alt || "Desenho Técnico / Croqui"}
             style={{ width: "100%", height: "120px", objectFit: "cover" }}
             className="w-full h-[120px] object-cover rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm group-hover:opacity-90 transition-opacity"
+            {...odooImgProps(srcUnico)}
           />
         </ImageLink>
         <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] font-bold bg-slate-900/90 text-white px-1.5 py-0.5 rounded-full shadow">
@@ -91,6 +101,7 @@ function CroquiThumbItem({ anexo, alt, height }) {
           onError={handleError}
           style={{ width: "100%", height: `${height}px`, objectFit: "cover" }}
           className="w-full object-cover rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm group-hover:opacity-90 transition-opacity"
+          {...odooImgProps(srcAtual)}
         />
       </ImageLink>
       <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] font-bold bg-slate-900/90 text-white px-1.5 py-0.5 rounded-full shadow flex items-center gap-0.5">
