@@ -62,6 +62,43 @@ function extFromMime(mime: string): string {
   return map[mime] || "png";
 }
 
+// Identifica o formato da imagem pelo magic number (primeiros chars do Base64)
+// e monta um Data URI pronto para <img>: data:image/<mime>;base64,<string>.
+// Se a string já for um Data URI, mantém. Retorna "" se não houver Base64 válido.
+function formatBase64DataUri(value: any): string {
+  if (typeof value !== "string") return "";
+  let s = value.trim();
+  if (!s) return "";
+  // Já é Data URI de imagem — mantém original
+  if (s.startsWith("data:image")) return s;
+  // Remove prefixo data: genérico se existir
+  const m = s.match(/^data:[\w./+-]+;base64,(.+)$/i);
+  if (m) s = m[1];
+  // Limpa whitespaces/newlines que quebram o Base64
+  s = s.replace(/\s+/g, "");
+  if (!s || s.length < 64) return "";
+  if (!B64_RE.test(s)) return "";
+  // Identifica o MIME pelo magic number
+  let mime = "image/png";
+  if (s.startsWith("/9j/")) mime = "image/jpeg";
+  else if (s.startsWith("iVBORw0KGgo")) mime = "image/png";
+  else if (s.startsWith("R0lGOD")) mime = "image/gif";
+  else if (s.startsWith("UklGR")) mime = "image/webp";
+  return `data:${mime};base64,${s}`;
+}
+
+// Resolve um campo de ANEXO (anexo_1/anexo_2): prioriza o campo *_base64,
+// formatando-o como Data URI (sem upload — abre direto sem sessão Odoo).
+// Se não houver base64, usa a URL pública como está.
+function resolveAnexoField(base64Val: any, urlVal: any): string {
+  const fromBase64 = formatBase64DataUri(base64Val);
+  if (fromBase64) return fromBase64;
+  const fromUrl = formatBase64DataUri(urlVal);
+  if (fromUrl) return fromUrl;
+  if (typeof urlVal === "string" && urlVal.trim()) return urlVal.trim();
+  return "";
+}
+
 // Faz upload de uma imagem Base64 via integração nativa e retorna a file_url pública.
 // Retorna a string original se não for Base64 (URL já pronta) ou "" se vazia.
 async function resolveImageField(
@@ -157,12 +194,13 @@ export default async function(req: Request): Promise<Response> {
       }
     }
 
-    // Resolve campos de imagem: se vierem em Base64, faz upload e grava a URL leve.
-    const [fotoUrl, anexo1Url, anexo2Url] = await Promise.all([
-      resolveImageField(body?.foto_pedido_url ?? body?.anexo_1_url, "foto_pedido", base44.integrations),
-      resolveImageField(body?.anexo_1_url, "anexo_1", base44.integrations),
-      resolveImageField(body?.anexo_2_url, "anexo_2", base44.integrations),
-    ]);
+    // foto_pedido_url: se vier em Base64, faz upload e grava a URL pública leve.
+    const fotoUrl = await resolveImageField(body?.foto_pedido_url ?? body?.anexo_1_url, "foto_pedido", base44.integrations);
+    // anexo_1 / anexo_2: prioriza campos *_base64, formatando como Data URI
+    // (data:image/<mime>;base64,...) pelo magic number. Salva a string Data URI
+    // diretamente em anexo_1_url/anexo_2_url — abre sem exigir sessão Odoo.
+    const anexo1Url = resolveAnexoField(body?.anexo_1_base64, body?.anexo_1_url);
+    const anexo2Url = resolveAnexoField(body?.anexo_2_base64, body?.anexo_2_url);
 
     const nowIso = new Date().toISOString();
 
