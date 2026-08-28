@@ -146,31 +146,23 @@ export default async function(req: Request): Promise<Response> {
       }
     }
 
-    // ── MERGE de itens: append preservando itens já gravados ──
-    // Quando o Odoo envia múltiplos webhooks do mesmo pedido (um por produto),
-    // cada webhook traz 1 item. Fazemos append ao array existente para que
-    // o card final tenha TODOS os itens agrupados. Dedup por conteúdo (JSON)
-    // evita duplicar re-envios idênticos do mesmo item.
-    let existingItems: any[] = [];
-    if (existingRec?.itens_json) {
-      try { existingItems = JSON.parse(existingRec.itens_json); } catch { existingItems = []; }
-    }
-    // Merge por 'produto': se já existe um item com o mesmo produto, SUBSTITUI
-    // pelos dados mais recentes (quantidade, observacao, espessura...). Produto
-    // novo = adiciona ao final. Evita somar/duplicar quantidades erradas.
-    const mergedItems: any[] = [...existingItems];
-    const produtoIdx = new Map<string, number>();
-    mergedItems.forEach((it: any, i: number) => {
-      const k = String(it?.produto || "").trim();
-      if (k && !produtoIdx.has(k)) produtoIdx.set(k, i);
-    });
-    for (const item of newItems) {
-      const k = String(item?.produto || "").trim();
-      if (k && produtoIdx.has(k)) {
-        mergedItems[produtoIdx.get(k)!] = item;
+    // ── MERGE de itens por 'produto' (SUBSTITUI, nunca soma) ──
+    // Cada webhook do Odoo traz 1 item. Se o produto já existe no registro,
+    // SUBSTITUIMOS o item pelos dados mais recentes (quantidade, observacao,
+    // espessura...). Só adicionamos ao final se for um produto NOVO.
+    const itensExistentes: any[] = existingRec?.itens_json
+      ? ((() => { try { return JSON.parse(existingRec.itens_json); } catch { return []; } })() as any[])
+      : [];
+    const mergedItems: any[] = [...itensExistentes];
+    for (const novoItem of newItems) {
+      const produto = String(novoItem?.produto || "").trim();
+      const idx = mergedItems.findIndex(i => String(i?.produto || "").trim() === produto);
+      if (idx >= 0) {
+        // SUBSTITUI o item existente — NÃO SOMA
+        mergedItems[idx] = novoItem;
       } else {
-        mergedItems.push(item);
-        if (k) produtoIdx.set(k, mergedItems.length - 1);
+        // Só adiciona se for produto NOVO
+        mergedItems.push(novoItem);
       }
     }
     const itensJsonStr = JSON.stringify(mergedItems);
