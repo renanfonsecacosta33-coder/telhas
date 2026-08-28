@@ -167,8 +167,6 @@ export default async function(req: Request): Promise<Response> {
       }
     }
 
-    // foto_pedido_url: se vier em Base64, faz upload e grava a URL pública leve.
-    const fotoUrl = await resolveImageField(body?.foto_pedido_url, "foto_pedido", base44.integrations);
     // anexo_1 / anexo_2: se o campo *_base64 ou *_url contiver Base64 (string longa
     // ou iniciada por data:image/ /9j/ / iVBORw0KGgo / R0lGOD / UklGR), faz upload
     // via Core.UploadFile e grava a file_url curta pública — evita estourar o limite
@@ -179,6 +177,15 @@ export default async function(req: Request): Promise<Response> {
       resolveImageField(anexo1Input, "anexo_1", base44.integrations),
       resolveImageField(anexo2Input, "anexo_2", base44.integrations),
     ]);
+    // foto_pedido_url: se vier em Base64, faz upload e grava a URL pública leve.
+    // Quando anexo_1_base64 está presente, espelha a mesma file_url em foto_pedido_url
+    // (vínculo automático com a 'Foto do Pedido (Encarregado)' nos galpões).
+    let fotoUrl = "";
+    if (body?.foto_pedido_url) {
+      fotoUrl = await resolveImageField(body?.foto_pedido_url, "foto_pedido", base44.integrations);
+    } else if (body?.anexo_1_base64 && anexo1Url) {
+      fotoUrl = anexo1Url;
+    }
 
     const nowIso = new Date().toISOString();
 
