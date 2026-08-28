@@ -2,15 +2,6 @@ import React, { useState } from "react";
 import ImageLink from "@/components/ui/ImageLink";
 import { extrairAnexosLista, extrairCroquiPedidoInfo, extrairBase64Fallback } from "@/lib/croquiExtractor";
 
-// URLs do Odoo exigem sessão autenticada. Estes atributos contornam o
-// bloqueio cross-domain para o domínio ajlferroeaco.odoo.com.
-const isOdooDomain = (src) =>
-  typeof src === "string" && src.includes("ajlferroeaco.odoo.com");
-const odooImgProps = (src) =>
-  isOdooDomain(src)
-    ? { referrerPolicy: "no-referrer", crossOrigin: "anonymous" }
-    : {};
-
 /**
  * Miniatura (thumbnail) do croqui/desenho técnico do pedido, exibida NO TOPO
  * do card. Suporta GALERIA de múltiplos anexos (Anexo 1 + Anexo 2 lado a lado).
@@ -33,20 +24,19 @@ export default function CroquiThumb({ pedido, alt, className = "" }) {
     const fallbackUnico = extrairBase64Fallback(pedido);
     if (!srcUnico) return null;
     return (
-      <div className={`relative shrink-0 ${className}`}>
+      <div className={`relative shrink-0 ${className}`} style={{ height: "120px" }}>
         <ImageLink
           url={srcUnico}
           name={alt || `Croqui #${pedido?.numero_pedido || ""}`}
-          className="block group"
+          className="block group w-full h-full"
         >
           <img
             src={srcUnico}
             referrerPolicy="no-referrer"
-            crossOrigin="anonymous"
+            crossOrigin="use-credentials"
             alt=""
-            style={{ width: "100%", height: "120px", objectFit: "cover" }}
-            className="w-full h-[120px] object-cover rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm group-hover:opacity-90 transition-opacity"
-            {...odooImgProps(srcUnico)}
+            style={{ objectFit: "cover", width: "100%", height: "100%" }}
+            className="w-full h-full object-cover rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm group-hover:opacity-90 transition-opacity"
           />
         </ImageLink>
         <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] font-bold bg-slate-900/90 text-white px-1.5 py-0.5 rounded-full shadow">
@@ -91,21 +81,20 @@ function CroquiThumbItem({ anexo, alt, height }) {
   };
 
   return (
-    <div className="relative">
+    <div className="relative" style={{ height: `${height}px` }}>
       <ImageLink
         url={srcAtual}
         name={`${alt} — ${anexo.label}`}
-        className="block group"
+        className="block group w-full h-full"
       >
         <img
           src={srcAtual}
           referrerPolicy="no-referrer"
-          crossOrigin="anonymous"
+          crossOrigin="use-credentials"
           alt=""
           onError={handleError}
-          style={{ width: "100%", height: `${height}px`, objectFit: "cover" }}
-          className="w-full object-cover rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm group-hover:opacity-90 transition-opacity"
-          {...odooImgProps(srcAtual)}
+          style={{ objectFit: "cover", width: "100%", height: "100%" }}
+          className="w-full h-full object-cover rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm group-hover:opacity-90 transition-opacity"
         />
       </ImageLink>
       <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] font-bold bg-slate-900/90 text-white px-1.5 py-0.5 rounded-full shadow flex items-center gap-0.5">

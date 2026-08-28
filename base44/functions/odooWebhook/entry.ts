@@ -155,13 +155,22 @@ export default async function(req: Request): Promise<Response> {
     if (existingRec?.itens_json) {
       try { existingItems = JSON.parse(existingRec.itens_json); } catch { existingItems = []; }
     }
+    // Merge por 'produto': se já existe um item com o mesmo produto, SUBSTITUI
+    // pelos dados mais recentes (quantidade, observacao, espessura...). Produto
+    // novo = adiciona ao final. Evita somar/duplicar quantidades erradas.
     const mergedItems: any[] = [...existingItems];
-    const seenKeys = new Set(existingItems.map((i: any) => JSON.stringify(i)));
+    const produtoIdx = new Map<string, number>();
+    mergedItems.forEach((it: any, i: number) => {
+      const k = String(it?.produto || "").trim();
+      if (k && !produtoIdx.has(k)) produtoIdx.set(k, i);
+    });
     for (const item of newItems) {
-      const key = JSON.stringify(item);
-      if (!seenKeys.has(key)) {
+      const k = String(item?.produto || "").trim();
+      if (k && produtoIdx.has(k)) {
+        mergedItems[produtoIdx.get(k)!] = item;
+      } else {
         mergedItems.push(item);
-        seenKeys.add(key);
+        if (k) produtoIdx.set(k, mergedItems.length - 1);
       }
     }
     const itensJsonStr = JSON.stringify(mergedItems);
