@@ -171,7 +171,8 @@ export default async function(req: Request): Promise<Response> {
     // Prioriza o campo *_base64 (>100 chars); se não houver, mantém *_url como está.
     const toDataUri = (raw: any): string => {
       if (typeof raw !== "string") return "";
-      const s = raw.trim();
+      // Odoo envia Base64 com quebras de linha (MIME) — remove TODOS os espaços/whitespaces.
+      const s = raw.replace(/\s+/g, "");
       if (s.length <= 100) return "";
       if (s.startsWith("data:")) return s;
       if (s.startsWith("/9j/")) return `data:image/jpeg;base64,${s}`;
