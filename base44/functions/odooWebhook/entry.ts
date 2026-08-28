@@ -154,9 +154,11 @@ export default async function(req: Request): Promise<Response> {
       ? ((() => { try { return JSON.parse(existingRec.itens_json); } catch { return []; } })() as any[])
       : [];
     const mergedItems: any[] = [...itensExistentes];
+    // Normaliza espaços (simples vs duplo) e caixa para evitar duplicatas
+    // do mesmo produto: "[1] 1  Chapa" === "[1] 1 Chapa".
+    const normalizar = (s: any) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
     for (const novoItem of newItems) {
-      const produto = String(novoItem?.produto || "").trim();
-      const idx = mergedItems.findIndex(i => String(i?.produto || "").trim() === produto);
+      const idx = mergedItems.findIndex(i => normalizar(i?.produto) === normalizar(novoItem?.produto));
       if (idx >= 0) {
         // SUBSTITUI o item existente — NÃO SOMA
         mergedItems[idx] = novoItem;
