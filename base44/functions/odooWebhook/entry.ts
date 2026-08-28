@@ -221,7 +221,7 @@ export default async function(req: Request): Promise<Response> {
       data_entrega: body?.data_entrega ?? existingRec?.data_entrega ?? "",
       unidade: body?.unidade ?? existingRec?.unidade ?? "Matriz AJL",
       prioridade: body?.prioridade ?? existingRec?.prioridade ?? false,
-      odoo_id: body?.odoo_id != null ? String(body.odoo_id) : (existingRec?.odoo_id ?? ""),
+      odoo_id: (body?.odoo_id != null && String(body.odoo_id).trim() !== "") ? String(body.odoo_id) : (existingRec?.odoo_id ?? ""),
       itens_json: itensJsonStr,
       total_itens: mergedItems.length,
       itens_telha_count: itensTelha,

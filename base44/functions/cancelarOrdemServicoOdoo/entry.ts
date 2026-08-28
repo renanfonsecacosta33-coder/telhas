@@ -32,9 +32,10 @@ Deno.serve(async (req) => {
 
     const numeroStr = numero_pedido ? String(numero_pedido) : null;
 
-    // ── 1) Resolve o odoo_id numérico (do corpo ou buscando o PedidoOdoo) ──
-    // Extrai o ID numérico puro do Odoo, removendo prefixos como 'S', 'SO', 'SO-' etc.
-    // Ex: 'S00549' → 549, '549' → 549, 'SO-2026-283427' (fallback) → 2026283427.
+    // ── 1) Resolve o odoo_id (ID da mrp.production/OF) salvo no registro ──
+    // Fonte de verdade: campo 'odoo_id' do PedidoOdoo, que o Odoo agora envia
+    // como ID interno da Ordem de Fabricação (mrp.production). Sem fallback
+    // para numero_pedido — o ID da OF é o único valor válido para cancelar.
     const extrairIdNumerico = (raw) => {
       if (raw === null || raw === undefined) return null;
       const str = String(raw).trim();
@@ -45,20 +46,20 @@ Deno.serve(async (req) => {
       return Number.isFinite(n) ? n : null;
     };
 
-    let odoo_id_raw = odoo_id_in || null;
     let pedidoOdooId = null;
+    let odoo_id_salvo = null;
     if (numeroStr) {
       const pedidos = await base44.asServiceRole.entities.PedidoOdoo
         .filter({ numero_pedido: numeroStr }, '-data_recebimento', 50)
         .catch(() => []);
       if (pedidos.length > 0) {
-        if (!odoo_id_raw) odoo_id_raw = pedidos[0].odoo_id || null;
         pedidoOdooId = pedidos[0].id;
+        odoo_id_salvo = pedidos[0].odoo_id || null;
       }
     }
-
-    // Tenta extrair do odoo_id; se não houver, extrai do numero_pedido.
-    const odooIdNumerico = extrairIdNumerico(odoo_id_raw) ?? extrairIdNumerico(numeroStr);
+    // Prioriza o odoo_id salvo no registro; fallback para o valor do frontend.
+    const odoo_id_raw = odoo_id_salvo || odoo_id_in || null;
+    const odooIdNumerico = extrairIdNumerico(odoo_id_raw);
 
     // ── Detecção de Pedidos de Teste/Simulação ──
     // Pedidos criados pelo simulador do PCP ou de teste NÃO existem no Odoo,
