@@ -61,6 +61,7 @@ export default function PedidoItensLista({ itensJson }) {
           const { Icon: BIcon } = cfg;
           const desc = stripHtml(it.descricao || it.produto || "Item sem descrição");
           const produtoLimpo = stripHtml(it.produto);
+          const obs = stripHtml(it.observacao || "");
           const qtd = it.quantidade;
           const esp = it.espessura || it.chapa;
 
@@ -80,6 +81,16 @@ export default function PedidoItensLista({ itensJson }) {
                     {cfg.label}
                   </span>
                 </div>
+
+                {/* Observação do item (itálico azul) — só se diferente do produto */}
+                {obs && obs !== produtoLimpo && (
+                  <div className="flex items-start gap-1 mt-1">
+                    <ClipboardList className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400 shrink-0 mt-0.5" />
+                    <p className="text-xs italic text-sky-700 dark:text-sky-300 leading-snug break-words">
+                      {obs}
+                    </p>
+                  </div>
+                )}
 
                 {/* Linha 2: Instrução/Descrição do vendedor (itálico azul) */}
                 {desc && desc !== produtoLimpo && (

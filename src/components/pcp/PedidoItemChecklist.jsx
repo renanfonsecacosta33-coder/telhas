@@ -21,6 +21,8 @@ export default function PedidoItemChecklist({ itensJson, onToggleItem, readOnly 
         const done = !!it.concluido;
         const chapa = isItemChapa(it.categoria);
         const descricao = stripHtml(it.descricao || it.produto || "");
+        const produtoLimpo = stripHtml(it.produto);
+        const obs = stripHtml(it.observacao || "");
         const qtd = it.quantidade;
 
         return (
@@ -57,6 +59,16 @@ export default function PedidoItemChecklist({ itensJson, onToggleItem, readOnly 
                   </span>
                 )}
               </div>
+
+              {/* Observação do item (itálico azul) — só se diferente do produto */}
+              {obs && obs !== produtoLimpo && (
+                <div className="flex items-start gap-1 mt-1">
+                  <ClipboardList className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400 shrink-0 mt-0.5" />
+                  <p className="text-xs italic text-sky-700 dark:text-sky-300 leading-snug break-words">
+                    {obs}
+                  </p>
+                </div>
+              )}
 
               {/* Linha 2: Instrução/Descrição do vendedor (itálico azul) */}
               {descricao && descricao !== stripHtml(it.produto) && (
