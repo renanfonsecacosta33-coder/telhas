@@ -80,6 +80,29 @@ export function extrairCroquiPedido(pedido) {
   return extrairCroquiPedidoInfo(pedido).src;
 }
 
+/**
+ * Força a construção de um Data URI (`data:image/png;base64,...`) a partir de
+ * qualquer string Base64 bruta enviada pelo Odoo. Remove prefixos `data:`
+ * existentes, quebras de linha e espaços que inviabilizam a renderização no
+ * <img>. Retorna "" se a string não contiver Base64 utilizável.
+ */
+function forcarDataUriBase64(raw) {
+  if (!raw || typeof raw !== "string") return "";
+  let s = raw.trim();
+  if (!s) return "";
+  // Remove prefixo data:image/...;base64, se já existir
+  if (s.startsWith("data:")) {
+    const idx = s.indexOf("base64,");
+    if (idx >= 0) s = s.slice(idx + 7).trim();
+  }
+  // Remove quebras de linha e espaços internos que quebram o Base64
+  s = s.replace(/\s+/g, "");
+  if (!s || s.length < 64) return "";
+  // Valida caracteres Base64
+  if (!/^[A-Za-z0-9+/=]+$/.test(s)) return "";
+  return `data:image/png;base64,${s}`;
+}
+
 // Verifica se uma string é uma URL interna do Odoo (relativa /web/content, /web/image...)
 // que exigiria sessão logada no Odoo para carregar.
 function ehUrlOdooInterna(str) {
@@ -110,24 +133,25 @@ export function extrairAnexosLista(pedido) {
   ];
   const anexos = [];
   for (const g of grupos) {
-    const base64Src = normalizarImagemBase64(g.base64Keys.map((k) => pedido[k]).find((v) => v));
+    const base64Raw = g.base64Keys.map((k) => pedido[k]).find((v) => v);
+    // FORÇA Base64: se o campo existir, monta o Data URI direto, removendo
+    // qualquer prefixo data: existente e limpando whitespaces/newlines que
+    // quebram a renderização. Garante exibição sem exigir sessão no Odoo.
+    const base64Forcado = forcarDataUriBase64(base64Raw);
     const urlRaw = g.urlKeys.map((k) => pedido[k]).find((v) => v);
     const urlSrc = normalizarImagemBase64(urlRaw);
 
     let src = "";
     let fallback = "";
-    if (base64Src) {
-      // Base64 sempre tem prioridade — abre sem login no Odoo.
-      src = base64Src;
+    if (base64Forcado) {
+      // Base64 sempre tem prioridade — abre direto, sem login no Odoo.
+      src = base64Forcado;
     } else if (urlSrc && !ehUrlOdooInterna(urlSrc)) {
-      // URL externa http — usa direto; fallback Base64 se existir (aqui vazio).
+      // URL externa http — usa direto; fallback Base64 se existir.
       src = urlSrc;
-    } else if (urlSrc && ehUrlOdooInterna(urlSrc) && base64Src) {
-      // URL interna do Odoo: só abre via Base64.
-      src = base64Src;
     }
-    // fallback para onError: Base64 bruto do próprio anexo (se src não for já Base64)
-    if (base64Src && src !== base64Src) fallback = base64Src;
+    // fallback para onError: Base64 bruto do próprio anexo (se src não for Base64)
+    if (base64Forcado && src !== base64Forcado) fallback = base64Forcado;
 
     if (src) anexos.push({ src, fallback, label: g.label });
   }
