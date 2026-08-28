@@ -116,35 +116,15 @@ export default async function(req: Request): Promise<Response> {
       return Response.json({ error: "Campo obrigatório 'numero_pedido' ausente" }, { status: 400 });
     }
 
-    // ── 3. Normalizar itens_json ──
-    let itensArray: any[] = [];
+    // ── 3. Normalizar itens_json do payload ATUAL (novo lote recebido) ──
+    let newItems: any[] = [];
     if (Array.isArray(body?.itens_json)) {
-      itensArray = body.itens_json;
+      newItems = body.itens_json;
     } else if (typeof body?.itens_json === "string" && body.itens_json.trim()) {
-      try { itensArray = JSON.parse(body.itens_json); } catch { itensArray = []; }
+      try { newItems = JSON.parse(body.itens_json); } catch { newItems = []; }
     }
-    const itensJsonStr = itensArray.length ? JSON.stringify(itensArray) : (body?.itens_json || "[]");
 
-    // Contagem por categoria (Rule 4 — checklist agrupado)
-    const cat = (s: string) => (s || "").toLowerCase();
-    const isTelha = (i: any) => {
-      const t = cat(i?.categoria) + " " + cat(i?.produto) + " " + cat(i?.descricao);
-      return /telha|tp[- ]?\d|ondulada|colonial|bandeja|cumeeira|painel|bobinin/.test(t);
-    };
-    const isFrisada = (i: any) => /frisad/.test(cat(i?.categoria) + " " + cat(i?.produto) + " " + cat(i?.descricao));
-    const itensTelha = itensArray.filter(isTelha).length;
-    const itensFrisada = itensArray.filter(isFrisada).length;
-    const itensCd = itensArray.length - itensTelha - itensFrisada;
-
-    // Espessuras distintas
-    const espSet = new Set<string>();
-    itensArray.forEach((i: any) => {
-      const e = i?.espessura || i?.chapa;
-      if (e != null && e !== "") espSet.add(String(e));
-    });
-    const espessurasTags = espSet.size ? JSON.stringify(Array.from(espSet).map(e => ({ espessura: e }))) : "";
-
-    // ── 4. Montar cliente + resolver imagens Base64 ──
+    // ── 4. Montar cliente + buscar registro existente ──
     const base44 = createClientFromRequest(req);
     const db = base44.asServiceRole;
 
@@ -154,8 +134,7 @@ export default async function(req: Request): Promise<Response> {
     const existingRec = existing && existing.length ? existing[0] : null;
 
     // Higiene: se já existirem duplicatas históricas do mesmo numero_pedido,
-    // mantém apenas a mais antiga (existingRec) e remove as demais para garantir
-    // unicidade absoluta na fila de produção (nunca duas OPs para o mesmo pedido).
+    // mantém apenas a mais antiga (existingRec) e remove as demais.
     if (existing && existing.length > 1) {
       const idsParaRemover = existing.slice(1).map((r: any) => r.id);
       try {
@@ -166,6 +145,45 @@ export default async function(req: Request): Promise<Response> {
         // tolerante: não aborta o upsert se a limpeza falhar
       }
     }
+
+    // ── MERGE de itens: append preservando itens já gravados ──
+    // Quando o Odoo envia múltiplos webhooks do mesmo pedido (um por produto),
+    // cada webhook traz 1 item. Fazemos append ao array existente para que
+    // o card final tenha TODOS os itens agrupados. Dedup por conteúdo (JSON)
+    // evita duplicar re-envios idênticos do mesmo item.
+    let existingItems: any[] = [];
+    if (existingRec?.itens_json) {
+      try { existingItems = JSON.parse(existingRec.itens_json); } catch { existingItems = []; }
+    }
+    const mergedItems: any[] = [...existingItems];
+    const seenKeys = new Set(existingItems.map((i: any) => JSON.stringify(i)));
+    for (const item of newItems) {
+      const key = JSON.stringify(item);
+      if (!seenKeys.has(key)) {
+        mergedItems.push(item);
+        seenKeys.add(key);
+      }
+    }
+    const itensJsonStr = JSON.stringify(mergedItems);
+
+    // Contagem por categoria (recalculada sobre o array MERGED — Rule 4)
+    const cat = (s: string) => (s || "").toLowerCase();
+    const isTelha = (i: any) => {
+      const t = cat(i?.categoria) + " " + cat(i?.produto) + " " + cat(i?.descricao);
+      return /telha|tp[- ]?\d|ondulada|colonial|bandeja|cumeeira|painel|bobinin/.test(t);
+    };
+    const isFrisada = (i: any) => /frisad/.test(cat(i?.categoria) + " " + cat(i?.produto) + " " + cat(i?.descricao));
+    const itensTelha = mergedItems.filter(isTelha).length;
+    const itensFrisada = mergedItems.filter(isFrisada).length;
+    const itensCd = mergedItems.length - itensTelha - itensFrisada;
+
+    // Espessuras distintas (sobre o array MERGED)
+    const espSet = new Set<string>();
+    mergedItems.forEach((i: any) => {
+      const e = i?.espessura || i?.chapa;
+      if (e != null && e !== "") espSet.add(String(e));
+    });
+    const espessurasTags = espSet.size ? JSON.stringify(Array.from(espSet).map(e => ({ espessura: e }))) : "";
 
     // ── Converte Base64 puro em Data URI pronta para <img> (sem UploadFile) ──
     // Prioriza o campo *_base64 (>100 chars); se não houver, mantém *_url como está.
@@ -205,11 +223,11 @@ export default async function(req: Request): Promise<Response> {
       prioridade: body?.prioridade ?? existingRec?.prioridade ?? false,
       odoo_id: body?.odoo_id != null ? String(body.odoo_id) : (existingRec?.odoo_id ?? ""),
       itens_json: itensJsonStr,
-      total_itens: itensArray.length || existingRec?.total_itens || 0,
-      itens_telha_count: itensTelha || existingRec?.itens_telha_count || 0,
-      itens_cd_count: Math.max(itensCd, 0) || existingRec?.itens_cd_count || 0,
-      itens_frisada_count: itensFrisada || existingRec?.itens_frisada_count || 0,
-      espessuras_tags: espessurasTags || existingRec?.espessuras_tags || "",
+      total_itens: mergedItems.length,
+      itens_telha_count: itensTelha,
+      itens_cd_count: Math.max(itensCd, 0),
+      itens_frisada_count: itensFrisada,
+      espessuras_tags: espessurasTags,
       data_recebimento: nowIso,
       percentual_concluido: existingRec?.percentual_concluido ?? 0,
       status_pcp: existingRec?.status_pcp ?? "pendente_distribuicao",
