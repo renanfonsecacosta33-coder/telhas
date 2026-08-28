@@ -80,6 +80,60 @@ export function extrairCroquiPedido(pedido) {
   return extrairCroquiPedidoInfo(pedido).src;
 }
 
+// Verifica se uma string é uma URL interna do Odoo (relativa /web/content, /web/image...)
+// que exigiria sessão logada no Odoo para carregar.
+function ehUrlOdooInterna(str) {
+  if (typeof str !== "string") return false;
+  const s = str.trim();
+  if (!s) return false;
+  // Já é data: URI ou URL http(s) absoluta → não é interna
+  if (s.startsWith("data:")) return false;
+  if (/^https?:\/\//i.test(s)) return false;
+  // Caminhos relativos do Odoo: /web/content/... /web/image/...
+  return s.startsWith("/web/") || s.startsWith("web/");
+}
+
+/**
+ * Extrai a lista de anexos de croqui do pedido (Anexo 1 e Anexo 2).
+ * Cada item: { src, fallback, label }.
+ *
+ * Prioriza o Base64 (anexo_x_base64) — renderiza imediatamente sem exigir
+ * login no Odoo. Se só houver URL externa http, usa-a (com fallback Base64 no
+ * onError). URLs internas do Odoo (/web/content/...) são ignoradas quando não
+ * há Base64 correspondente, pois exigiriam sessão logada.
+ */
+export function extrairAnexosLista(pedido) {
+  if (!pedido) return [];
+  const grupos = [
+    { label: "Anexo 1", base64Keys: ["anexo_1_base64", "anexo_1"], urlKeys: ["anexo_1_url", "anexo_1"] },
+    { label: "Anexo 2", base64Keys: ["anexo_2_base64", "anexo_2"], urlKeys: ["anexo_2_url", "anexo_2"] },
+  ];
+  const anexos = [];
+  for (const g of grupos) {
+    const base64Src = normalizarImagemBase64(g.base64Keys.map((k) => pedido[k]).find((v) => v));
+    const urlRaw = g.urlKeys.map((k) => pedido[k]).find((v) => v);
+    const urlSrc = normalizarImagemBase64(urlRaw);
+
+    let src = "";
+    let fallback = "";
+    if (base64Src) {
+      // Base64 sempre tem prioridade — abre sem login no Odoo.
+      src = base64Src;
+    } else if (urlSrc && !ehUrlOdooInterna(urlSrc)) {
+      // URL externa http — usa direto; fallback Base64 se existir (aqui vazio).
+      src = urlSrc;
+    } else if (urlSrc && ehUrlOdooInterna(urlSrc) && base64Src) {
+      // URL interna do Odoo: só abre via Base64.
+      src = base64Src;
+    }
+    // fallback para onError: Base64 bruto do próprio anexo (se src não for já Base64)
+    if (base64Src && src !== base64Src) fallback = base64Src;
+
+    if (src) anexos.push({ src, fallback, label: g.label });
+  }
+  return anexos;
+}
+
 // Campos que podem conter um Base64 puro para fallback de onError.
 const CAMPOS_BASE64 = ["anexo_1_base64", "anexo_2_base64", "anexo_1", "anexo_2"];
 
