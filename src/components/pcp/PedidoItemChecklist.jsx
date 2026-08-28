@@ -1,6 +1,7 @@
 import React from "react";
 import { CheckCircle2, Circle, Layers, Ruler, ClipboardList } from "lucide-react";
 import { parseItensPedido, isItemChapa } from "@/lib/regrasFabrica";
+import { stripHtml } from "@/lib/stripHtml";
 
 // Checklist individual por item de um pedido Odoo (Rule 4 — Agrupamento).
 // Exibe todos os itens agrupados no mesmo Card Mãe, cada um com checkbox de conclusão.
@@ -19,7 +20,7 @@ export default function PedidoItemChecklist({ itensJson, onToggleItem, readOnly 
       {itens.map((it, idx) => {
         const done = !!it.concluido;
         const chapa = isItemChapa(it.categoria);
-        const descricao = it.descricao || it.produto || "";
+        const descricao = stripHtml(it.descricao || it.produto || "");
         const qtd = it.quantidade;
 
         return (
@@ -43,7 +44,7 @@ export default function PedidoItemChecklist({ itensJson, onToggleItem, readOnly 
               {/* Linha 1: Produto (negrito) + badges de roteamento */}
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className={`text-sm font-extrabold leading-tight ${done ? "line-through text-slate-400" : "text-slate-900 dark:text-white"}`}>
-                  {it.produto || it.descricao || `Item ${idx + 1}`}
+                  {stripHtml(it.produto) || descricao || `Item ${idx + 1}`}
                 </span>
                 {chapa && (
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700">
@@ -58,7 +59,7 @@ export default function PedidoItemChecklist({ itensJson, onToggleItem, readOnly 
               </div>
 
               {/* Linha 2: Instrução/Descrição do vendedor (itálico azul) */}
-              {descricao && descricao !== it.produto && (
+              {descricao && descricao !== stripHtml(it.produto) && (
                 <div className="flex items-start gap-1 mt-1">
                   <ClipboardList className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400 shrink-0 mt-0.5" />
                   <p className="text-xs italic text-sky-700 dark:text-sky-300 leading-snug break-words">

@@ -1,11 +1,12 @@
 import React from "react";
 import { Scissors, Ruler, Palette, Layers, Package, Gauge } from "lucide-react";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
+import { stripHtml } from "@/lib/stripHtml";
 
 // Destaque GIGANTE da instrução de corte do vendedor (descrição da linha Odoo)
 // + especificação extraída (qtd, comprimento, cor, espessura, metragem).
 export default function InstrucaoVendedorCard({ descricao, quantidadeOdoo, espessura, unidade = "MT", compact = false }) {
-  const desc = descricao || "";
+  const desc = stripHtml(descricao || "");
   const esp = extrairEspecificacao(desc);
 
   return (
