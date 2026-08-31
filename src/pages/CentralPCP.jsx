@@ -119,6 +119,50 @@ export default function CentralPCP() {
     await handleExcluirOS(pedido, "");
   };
 
+  const handleDevolverPCP = async (pedido) => {
+    try {
+      const me = await base44.auth.me().catch(() => null);
+      const usuario = me?.email || "Gestor";
+      const todayIso = new Date().toISOString().slice(0, 10);
+      // Cancela as Ordens de Produção vinculadas nos galpões
+      await base44.entities.OrdemMaquinaCD.updateMany(
+        { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
+        { $set: { status: "cancelado", data_finalizacao: todayIso } }
+      );
+      await base44.entities.OrdemDesbobinadeira.updateMany(
+        { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
+        { $set: { status: "cancelado", data_finalizacao: todayIso } }
+      );
+      await base44.entities.Pedido.updateMany(
+        { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
+        { $set: { status: "cancelado", data_finalizacao: todayIso } }
+      );
+      const logExistente = (() => { try { return JSON.parse(pedido.historico_log || "[]"); } catch { return []; } })();
+      const novoLog = [...logExistente, {
+        data: new Date().toISOString(),
+        usuario,
+        acao: "Devolvido ao PCP",
+        detalhes: "Retirado da fila do galpão pelo gestor"
+      }];
+      const updateData = {
+        status_pcp: "pendente_distribuicao",
+        historico_log: JSON.stringify(novoLog)
+      };
+      if (pedido.galpao_responsavel !== undefined) updateData.galpao_responsavel = "";
+      await base44.entities.PedidoOdoo.update(pedido.id, updateData);
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      setDetalheOpen(false);
+      setPedidoSelecionado(null);
+      toast({
+        title: "↩️ Pedido devolvido ao PCP!",
+        description: `#${pedido.numero_pedido} voltou para a Central PCP.`,
+        className: "border-amber-500/40"
+      });
+    } catch (e) {
+      toast({ title: "Erro ao devolver ao PCP", description: e.message, variant: "destructive" });
+    }
+  };
+
   const handleRetirarFila = async (pedido) => {
     if (!window.confirm(
       `↩️ RETIRAR DA FILA\n\nRetirar a OS #${pedido.numero_pedido} da fila dos galpões (Telhas / Corte & Dobra) e devolvê-la para a Central PCP?`
@@ -425,6 +469,7 @@ export default function CentralPCP() {
         distribuindo={distribuindo}
         onExcluirOS={handleExcluirOS}
         onRetirarFila={handleRetirarFila}
+        onDevolverPCP={handleDevolverPCP}
         onTogglePrioridade={handleTogglePrioridade}
         onToggleItem={handleToggleItem}
       />

@@ -4,16 +4,18 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Zap, Factory, Scissors, Wind, Tag, Ruler, Package, CheckCircle2, Trash2, ImageIcon, ExternalLink, Star, ShieldAlert, Undo2 } from "lucide-react";
+import { Zap, Factory, Scissors, Wind, Tag, Ruler, Package, CheckCircle2, Trash2, ImageIcon, ExternalLink, Star, ShieldAlert, Undo2, RotateCcw } from "lucide-react";
 import { formatDataBR, slaDiasPorCategoria } from "@/lib/sla";
+import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import PedidoItemChecklist from "@/components/pcp/PedidoItemChecklist";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
 import { parseItensPedido, roteamentoMaterial, progressoChecklist } from "@/lib/regrasFabrica";
 
-export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, onDistribuir, distribuindo, onExcluirOS, onRetirarFila, onTogglePrioridade, onToggleItem }) {
+export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, onDistribuir, distribuindo, onExcluirOS, onRetirarFila, onTogglePrioridade, onToggleItem, onDevolverPCP }) {
   const [confirmaExcluir, setConfirmaExcluir] = useState(false);
+  const [senhaDevolverOpen, setSenhaDevolverOpen] = useState(false);
   const [motivo, setMotivo] = useState("");
   const [excluindo, setExcluindo] = useState(false);
 
@@ -229,6 +231,15 @@ export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, on
                 <Undo2 className="w-4 h-4" /> Retirar da Fila
               </Button>
             )}
+            {onDevolverPCP && (pedido.status_pcp === "distribuido" || pedido.status_pcp === "em_producao") && (
+              <Button
+                variant="outline"
+                onClick={() => setSenhaDevolverOpen(true)}
+                className="sm:w-auto border-amber-400 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+              >
+                <RotateCcw className="w-4 h-4" /> Devolver ao PCP
+              </Button>
+            )}
             {onExcluirOS && (
               <Button
                 variant="destructive"
@@ -283,6 +294,14 @@ export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, on
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <SenhaGestorDialog
+        open={senhaDevolverOpen}
+        onOpenChange={setSenhaDevolverOpen}
+        titulo="Devolver ao PCP"
+        descricao="Para devolver este pedido à Central PCP, digite o PIN de liberação do Gestor."
+        onAutorizado={() => onDevolverPCP?.(pedido)}
+      />
     </>
   );
 }
