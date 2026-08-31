@@ -11,8 +11,7 @@ import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
 import PedidoItensLista from "@/components/pcp/PedidoItensLista";
-import MaquinaSequenceCD from "@/components/pcp/MaquinaSequenceCD";
-import EtapasTelhaSequence from "@/components/pcp/EtapasTelhaSequence";
+
 
 const STATUS_PCP = {
   pendente_distribuicao: { label: "Pendente", cls: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40" },
@@ -21,9 +20,8 @@ const STATUS_PCP = {
   concluido: { label: "Concluído", cls: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40" }
 };
 
-export default function PedidoOdooCard({ pedido, onClick, onDelete, onRetirarFila, onTogglePrioridade, operadorNome, onAtualizado }) {
+export default function PedidoOdooCard({ pedido, onClick, onDelete, onRetirarFila, onTogglePrioridade }) {
   const [hover, setHover] = useState(false);
-  const emGalpao = pedido.status_pcp === "distribuido" || pedido.status_pcp === "em_producao";
   const st = STATUS_PCP[pedido.status_pcp] || STATUS_PCP.pendente_distribuicao;
   const sla = slaDiasPorCategoria(pedido);
   const chk = progressoChecklist(pedido.itens_json);
@@ -166,18 +164,6 @@ export default function PedidoOdooCard({ pedido, onClick, onDelete, onRetirarFil
               {e.espessura}mm
             </span>
           ))}
-        </div>
-      )}
-
-      {emGalpao && pedido.itens_cd_count > 0 && (
-        <div onClick={(e) => e.stopPropagation()}>
-          <MaquinaSequenceCD pedido={pedido} operadorNome={operadorNome} onAtualizado={onAtualizado} />
-        </div>
-      )}
-
-      {emGalpao && pedido.itens_telha_count > 0 && (
-        <div onClick={(e) => e.stopPropagation()}>
-          <EtapasTelhaSequence pedido={pedido} operadorNome={operadorNome} onAtualizado={onAtualizado} />
         </div>
       )}
 

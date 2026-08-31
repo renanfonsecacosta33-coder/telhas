@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { base44 } from "@/api/base44Client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
@@ -11,13 +12,24 @@ import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import PedidoItemChecklist from "@/components/pcp/PedidoItemChecklist";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
+import MaquinaSequenceCD from "@/components/pcp/MaquinaSequenceCD";
+import EtapasTelhaSequence from "@/components/pcp/EtapasTelhaSequence";
 import { parseItensPedido, roteamentoMaterial, progressoChecklist } from "@/lib/regrasFabrica";
 
-export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, onDistribuir, distribuindo, onExcluirOS, onRetirarFila, onTogglePrioridade, onToggleItem, onDevolverPCP }) {
+export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, onDistribuir, distribuindo, onExcluirOS, onRetirarFila, onTogglePrioridade, onToggleItem, onDevolverPCP, showTracking = false, onAtualizado }) {
   const [confirmaExcluir, setConfirmaExcluir] = useState(false);
   const [senhaDevolverOpen, setSenhaDevolverOpen] = useState(false);
   const [motivo, setMotivo] = useState("");
   const [excluindo, setExcluindo] = useState(false);
+  const [operadorNome, setOperadorNome] = useState("");
+
+  // Rastreamento (Mini BI) só na visão do operador (galpão). Busca o nome do operador logado.
+  useEffect(() => {
+    if (!showTracking) return;
+    base44.auth.me()
+      .then((u) => setOperadorNome(u?.full_name || u?.email || ""))
+      .catch(() => {});
+  }, [showTracking]);
 
   if (!pedido) return null;
 
@@ -212,6 +224,24 @@ export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, on
               </div>
             )}
           </div>
+
+          {/* Rastreamento por máquina (Mini BI) — APENAS na visão do galpão (operador), após aceitar o pedido */}
+          {showTracking && (pedido.status_pcp === "distribuido" || pedido.status_pcp === "em_producao") && (
+            <div className="space-y-3 rounded-xl border-2 border-orange-200 dark:border-orange-900/50 bg-orange-50/40 dark:bg-orange-950/10 p-3">
+              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                <Factory className="w-4 h-4 text-orange-500" /> Rastreamento de Produção (Mini BI)
+              </h4>
+              {pedido.itens_cd_count > 0 && (
+                <MaquinaSequenceCD pedido={pedido} operadorNome={operadorNome} onAtualizado={onAtualizado} />
+              )}
+              {pedido.itens_telha_count > 0 && (
+                <EtapasTelhaSequence pedido={pedido} operadorNome={operadorNome} onAtualizado={onAtualizado} />
+              )}
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">
+                Cada ação dispara automaticamente o webhook do Mini BI para o Odoo.
+              </p>
+            </div>
+          )}
 
           <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
             <Button
