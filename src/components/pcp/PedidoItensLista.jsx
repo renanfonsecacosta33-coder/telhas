@@ -63,6 +63,7 @@ export default function PedidoItensLista({ itensJson }) {
           const produtoLimpo = stripHtml(it.produto);
           const obs = stripHtml(it.observacao || "");
           const qtd = it.quantidade;
+          const unidade = (it.unidade || "").trim() || "peças";
           const esp = it.espessura || it.chapa;
 
           return (
@@ -126,7 +127,7 @@ export default function PedidoItensLista({ itensJson }) {
                     {qtd}
                   </span>
                   <span className="text-[9px] font-bold uppercase tracking-wide text-orange-600 dark:text-amber-500">
-                    peças
+                    {unidade}
                   </span>
                 </div>
               )}

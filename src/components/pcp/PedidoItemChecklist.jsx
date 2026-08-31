@@ -24,6 +24,7 @@ export default function PedidoItemChecklist({ itensJson, onToggleItem, readOnly 
         const produtoLimpo = stripHtml(it.produto);
         const obs = stripHtml(it.observacao || "");
         const qtd = it.quantidade;
+        const unidade = (it.unidade || "").trim() || "peças";
 
         return (
           <div
@@ -104,7 +105,7 @@ export default function PedidoItemChecklist({ itensJson, onToggleItem, readOnly 
                   {qtd}
                 </span>
                 <span className={`text-[9px] font-bold uppercase tracking-wide ${done ? "text-slate-400" : "text-orange-600 dark:text-amber-500"}`}>
-                  peças
+                  {unidade}
                 </span>
               </div>
             )}
