@@ -53,21 +53,9 @@ export async function persistirEtapasTelha(pedido, etapas) {
   return atualizado;
 }
 
-// Constrói os snapshots de itens para o BI: cada item C&D/Telha recebe
-// o array maquinas[] (estado atual de máquinas/etapas do pedido).
-function buildItensCdJson(pedido, maquinas) {
-  const itens = getItens(pedido).filter((i) => classGrupo(i.categoria) === "cd")
-    .map(({ _idx, ...rest }) => ({ ...rest, maquinas }));
-  return JSON.stringify(itens);
-}
-function buildItensTelhaJson(pedido, etapas) {
-  const itens = getItens(pedido).filter((i) => classGrupo(i.categoria) === "telha")
-    .map(({ _idx, ...rest }) => ({ ...rest, maquinas: etapas }));
-  return JSON.stringify(itens);
-}
-
 /**
  * Dispara a notificação BI para o Odoo via função notificarStatusOdoo.
+ * O payload EXATO (filtro por produto, _model, etc.) é montado no backend.
  * Tolerante a falhas: nunca quebra o fluxo principal.
  */
 export async function notificarStatus(pedido, evento, extra = {}) {
@@ -79,9 +67,9 @@ export async function notificarStatus(pedido, evento, extra = {}) {
   const itens = getItens(pedido);
   let itemNomeDefault = "";
   if (evento.startsWith("etapa_")) {
-    itemNomeDefault = itens.find((i) => classGrupo(i.categoria) === "telha")?.produto || "";
+    itemNomeDefault = itens.find((i) => classGrupo(i) === "telha")?.produto || "";
   } else if (evento.startsWith("maquina_")) {
-    itemNomeDefault = itens.find((i) => classGrupo(i.categoria) === "cd")?.produto || "";
+    itemNomeDefault = itens.find((i) => classGrupo(i) === "cd")?.produto || "";
   }
 
   try {
@@ -90,17 +78,18 @@ export async function notificarStatus(pedido, evento, extra = {}) {
       odoo_id: pedido.odoo_id || "",
       evento,
       status_novo: extra.status_novo || pedido.status_pcp || "",
-      operador: extra.operador || "",
-      galpao: extra.galpao || pedido.unidade || "",
-      percentual_concluido: pedido.percentual_concluido ?? 0,
-      itens_cd_json: buildItensCdJson(pedido, maquinas),
-      itens_telha_json: buildItensTelhaJson(pedido, etapas),
-      maquina_atual: extra.maquina_atual || atual?.nome || "",
-      maquina_anterior: extra.maquina_anterior || "",
       item_nome: extra.item_nome || itemNomeDefault,
+      galpao: pedido.galpao_responsavel || pedido.unidade || "",
+      maquina_atual: extra.maquina_atual || atual?.nome || "",
+      inicio_fmt: extra.inicio_fmt || atual?.inicio_ts || "",
+      fim_fmt: extra.fim_fmt || atual?.fim_ts || "",
       duracao_min: extra.duracao_min != null ? extra.duracao_min : null,
       hora_corte: extra.hora_corte || "",
-      hora_colagem: extra.hora_colagem || ""
+      hora_colagem: extra.hora_colagem || "",
+      percentual_concluido: pedido.percentual_concluido ?? 0,
+      itens_json: pedido.itens_json || "[]",
+      maquinas,
+      etapas
     });
   } catch (e) {
     console.error("[biNotificador] falha notificarStatus:", e?.message || e);

@@ -25,24 +25,59 @@ export default async function(req: Request): Promise<Response> {
     let body: any = {};
     try { body = await req.json(); } catch { body = {}; }
 
+    // Payload EXATO confirmado pelo Odoo (Mini BI Industrial)
+    let itensParsed: any[] = [];
+    try {
+      const raw = JSON.parse(body.itens_json || "[]");
+      itensParsed = Array.isArray(raw) ? raw : [];
+    } catch { itensParsed = []; }
+    const maquinas: any[] = Array.isArray(body.maquinas) ? body.maquinas : [];
+    const etapas: any[] = Array.isArray(body.etapas) ? body.etapas : [];
+
+    const itens_cd_json = JSON.stringify(
+      itensParsed
+        .filter((i) => /(chapa|perfil|barra|tubo|zincado|serralheiro)/i.test(String(i.produto || "")))
+        .map((i) => ({
+          produto: i.produto,
+          quantidade: i.quantidade,
+          unidade: i.unidade || "UN",
+          observacao: i.observacao || "",
+          status: i.status || "aguardando",
+          maquinas: i.maquinas || maquinas
+        }))
+    );
+    const itens_telha_json = JSON.stringify(
+      itensParsed
+        .filter((i) => /(telha|TP|EPS|manta)/i.test(String(i.produto || "")))
+        .map((i) => ({
+          produto: i.produto,
+          quantidade: i.quantidade,
+          unidade: i.unidade || "MT",
+          observacao: i.observacao || "",
+          status: i.status || "aguardando",
+          maquinas: i.maquinas || etapas
+        }))
+    );
+
     const payload = {
+      _model: "sale.order",
+      _id: body.odoo_id || "",
       api_key: ODOO_BI_KEY,
       numero_pedido: body.numero_pedido || "",
-      odoo_id: body.odoo_id || "",
       evento: body.evento || "",
-      status_novo: body.status_novo || "",
-      timestamp: new Date().toISOString(),
-      galpao: body.galpao || "",
-      percentual_concluido: typeof body.percentual_concluido === "number" ? body.percentual_concluido : 0,
-      itens_cd_json: body.itens_cd_json || "[]",
-      itens_telha_json: body.itens_telha_json || "[]",
-      operador: body.operador || user.email || "",
-      maquina_atual: body.maquina_atual || "",
-      maquina_anterior: body.maquina_anterior || "",
+      timestamp: new Date().toISOString().slice(0, 19),
       item_nome: body.item_nome || "",
+      galpao: body.galpao || "",
+      maquina_atual: body.maquina_atual || "",
+      inicio_fmt: body.inicio_fmt || "",
+      fim_fmt: body.fim_fmt || "",
       duracao_min: body.duracao_min != null ? body.duracao_min : null,
       hora_corte: body.hora_corte || "",
-      hora_colagem: body.hora_colagem || ""
+      hora_colagem: body.hora_colagem || "",
+      percentual_concluido: body.percentual_concluido || 0,
+      status_novo: body.status_novo || "",
+      itens_cd_json,
+      itens_telha_json
     };
 
     const res = await fetch(ODOO_BI_URL, {
@@ -60,6 +95,7 @@ export default async function(req: Request): Promise<Response> {
       http_status: res.status,
       evento: payload.evento,
       numero_pedido: payload.numero_pedido,
+      payload_enviado: payload,
       odoo_response: odooResp
     }, { status: res.ok ? 200 : 502 });
   } catch (error) {
