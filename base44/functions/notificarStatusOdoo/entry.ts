@@ -60,8 +60,6 @@ export default async function(req: Request): Promise<Response> {
     );
 
     const payload = {
-      _model: "sale.order",
-      _id: body.odoo_id || "",
       api_key: ODOO_BI_KEY,
       numero_pedido: body.numero_pedido || "",
       evento: body.evento || "",
