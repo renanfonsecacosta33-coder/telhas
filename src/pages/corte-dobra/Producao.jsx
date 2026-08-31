@@ -17,6 +17,8 @@ import OPSemMaterialTab from "@/components/corte-dobra/OPSemMaterialTab";
 import { useFilial } from "@/contexts/FilialContext";
 import ExpedicaoTab from "@/components/logistica/ExpedicaoTab";
 import FilaPCPCorteDobra from "@/components/pcp/FilaPCPCorteDobra";
+import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson } from "@/lib/pedidoOdooHelper";
+import { notificarStatus } from "@/lib/biNotificador";
 
 const MAQUINAS_OUTRAS = [
   { id: "CORTE 3M",       label: "Guilhotina 3m",       cor: "bg-purple-100 text-purple-800 border-purple-200" },
@@ -45,6 +47,8 @@ export default function ProducaoCD() {
   const [dialogMaq, setDialogMaq] = useState(false);
   const [editMaq, setEditMaq] = useState(null);
   const [maquinaAtiva, setMaquinaAtiva] = useState(null);
+  // Contexto da Fila PCP — rastreia de qual item a OP foi criada para atualizar status + webhook
+  const [filaContext, setFilaContext] = useState(null);
 
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
@@ -138,6 +142,7 @@ export default function ProducaoCD() {
   // Abrir formulário completo de Nova Ordem a partir de um item da Fila PCP
   const openNewFromFila = (pedido, item) => {
     setMaquinaAtiva(null);
+    setFilaContext({ pedidoId: pedido.id, itemIdx: item._idx, pedido });
     setEditMaq({
       data: selectedDay,
       numero_pedido: pedido.numero_pedido || "",
@@ -152,8 +157,47 @@ export default function ProducaoCD() {
   };
   const openEditMaq = (item) => { setMaquinaAtiva(item.maquina); setEditMaq(item); setDialogMaq(true); };
   const handleSaveMaq = (data) => {
-    if (editMaq && !editMaq._presets && editMaq.id) { updateMaq.mutate({ id: editMaq.id, data }); setDialogMaq(false); }
-    else createMaq.mutate(data);
+    if (editMaq && !editMaq._presets && editMaq.id) {
+      updateMaq.mutate({ id: editMaq.id, data });
+      setDialogMaq(false);
+    } else {
+      createMaq.mutate(data, {
+        onSuccess: async () => {
+          const ctx = filaContext;
+          setFilaContext(null);
+          if (!ctx) return;
+          try {
+            // Atualiza o status do item no itens_json para "em_producao" + máquina
+            const itens = getItens(ctx.pedido);
+            if (itens[ctx.itemIdx]) {
+              itens[ctx.itemIdx] = {
+                ...itens[ctx.itemIdx],
+                status: "em_producao",
+                maquina: data.maquina || "",
+              };
+              const percentual = computePercentual(itens);
+              const status_pcp = statusPcpPorPercentual(percentual, ctx.pedido.status_pcp);
+              const updated = await base44.entities.PedidoOdoo.update(ctx.pedidoId, {
+                itens_json: buildItensJson(itens),
+                percentual_concluido: percentual,
+                status_pcp,
+              });
+              queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-cd"] });
+              queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+              // Dispara webhook Mini BI — evento maquina_inicio
+              await notificarStatus(updated, "maquina_inicio", {
+                maquina_atual: data.maquina || "",
+                item_nome: itens[ctx.itemIdx]?.produto || "",
+                inicio_fmt: new Date().toISOString(),
+                status_novo: status_pcp,
+              });
+            }
+          } catch (e) {
+            console.error("[Fila PCP] erro ao atualizar item/webhook:", e?.message || e);
+          }
+        },
+      });
+    }
   };
 
   // Dados semana (Desbobinadeira)
@@ -474,7 +518,7 @@ export default function ProducaoCD() {
 
       <OrdemMaquinaFormDialog
         open={dialogMaq}
-        onClose={() => { setDialogMaq(false); setEditMaq(null); }}
+        onClose={() => { setDialogMaq(false); setEditMaq(null); setFilaContext(null); }}
         onSave={handleSaveMaq}
         editItem={editMaq && !editMaq._presets ? editMaq : null}
         defaultDate={editMaq?._presets?.data || selectedDay}

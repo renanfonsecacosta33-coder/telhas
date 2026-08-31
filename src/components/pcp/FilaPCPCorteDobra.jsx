@@ -196,6 +196,11 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                               <Plus className="w-3 h-3" /> Nova Ordem
                             </Button>
                           )}
+                          {item.status === "em_producao" && (
+                            <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300 h-8 px-3 gap-1 text-[11px] font-bold inline-flex items-center whitespace-nowrap">
+                              <CheckCircle2 className="w-3 h-3" /> Em Produção — {item.maquina || "—"}
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     </div>
