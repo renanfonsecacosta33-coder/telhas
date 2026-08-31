@@ -142,7 +142,7 @@ export default function ProducaoCD() {
   // Abrir formulário completo de Nova Ordem a partir de um item da Fila PCP
   const openNewFromFila = (pedido, item) => {
     setMaquinaAtiva(null);
-    setFilaContext({ pedidoId: pedido.id, itemIdx: item._idx, pedido });
+    setFilaContext({ pedidoId: pedido.id, itemIdx: item._idx, pedido, produtoFixo: item.produto || "" });
     setEditMaq({
       data: selectedDay,
       numero_pedido: pedido.numero_pedido || "",
@@ -523,6 +523,7 @@ export default function ProducaoCD() {
         editItem={editMaq && !editMaq._presets ? editMaq : null}
         defaultDate={editMaq?._presets?.data || selectedDay}
         maquina={maquinaAtiva}
+        produtoFixo={filaContext?.produtoFixo}
       />
 
       <RetrabalhoDialog

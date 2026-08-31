@@ -14,7 +14,7 @@ import UploadButton from "@/components/ui/UploadButton";
 import ChapaEstoqueCombobox from "@/components/corte-dobra/ChapaEstoqueCombobox";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 import { getBobinaStatus } from "@/lib/bobinaStatusHelper";
-import { Scissors } from "lucide-react";
+import { Scissors, Lock } from "lucide-react";
 
 // etapa: "corte" | "dobra" | "ambas" | "perfiladeira"
 const TIPOS_PECA = [
@@ -51,7 +51,7 @@ const ETAPA_LABELS = {
   perfiladeira: "⚙️ Perfiladeira",
 };
 
-export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem, defaultDate, maquina: maquinaProp }) {
+export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem, defaultDate, maquina: maquinaProp, produtoFixo }) {
   const [form, setForm] = useState({
     data: format(new Date(), "yyyy-MM-dd"),
     maquina: maquinaProp || "",
@@ -369,9 +369,22 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{editItem ? "Editar Ordem" : `Nova Ordem${form.maquina ? ` — ${form.maquina}` : ""}`}</DialogTitle>
+          <DialogTitle>{editItem && !produtoFixo ? "Editar Ordem" : `Nova Ordem${form.maquina ? ` — ${form.maquina}` : ""}`}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
+
+          {produtoFixo && (
+            <div className="space-y-1">
+              <Label className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+                <Lock className="w-3 h-3" /> Produto (bloqueado — origem Fila PCP)
+              </Label>
+              <Input
+                value={produtoFixo}
+                readOnly
+                className="bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700 font-bold text-amber-900 dark:text-amber-200"
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -587,6 +600,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
             </div>
           )}
 
+          {!produtoFixo && (
           <div className="space-y-1">
             <Label>Tipo de Peça *</Label>
             {isPerfiladeira ? (
@@ -622,6 +636,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
               </div>
             )}
           </div>
+          )}
 
           <div className="space-y-1">
             <Label>Dimensões / Especificações</Label>
@@ -692,7 +707,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave} className="bg-orange-500 hover:bg-orange-600">{editItem ? "Salvar" : "Criar Ordem"}</Button>
+          <Button onClick={handleSave} className="bg-orange-500 hover:bg-orange-600">{editItem && !produtoFixo ? "Salvar" : "Criar Ordem"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
