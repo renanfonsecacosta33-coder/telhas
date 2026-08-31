@@ -64,7 +64,15 @@ export default function MaquinaSequenceCD({ pedido, operadorNome = "", onAtualiz
       );
       const upd = await persistirMaquinas(pedido, novoArr);
       onAtualizado?.(upd);
-      await notificarStatus(upd, "maquina_fim", { operador: atual.operador, maquina_atual: atual.nome });
+      // duracao_min = (fim - inicio) da máquina concluída
+      const duracaoMin = atual.inicio_ts
+        ? Math.round((Date.parse(now) - Date.parse(atual.inicio_ts)) / 60000)
+        : 0;
+      await notificarStatus(upd, "maquina_fim", {
+        operador: atual.operador,
+        maquina_atual: atual.nome,
+        duracao_min: duracaoMin
+      });
 
       // Se todas concluídas → evento concluido + status_pcp
       if (novoArr.every((m) => m.status === "concluido")) {
