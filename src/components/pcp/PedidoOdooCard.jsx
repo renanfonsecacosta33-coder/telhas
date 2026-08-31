@@ -139,12 +139,12 @@ export default function PedidoOdooCard({ pedido, onClick, onDelete, onRetirarFil
 
       <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-slate-100 dark:border-slate-800">
         {pedido.itens_telha_count > 0 && (
-          <Badge className="bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/30 text-[10px]">
+          <Badge className="bg-[#FFD700] text-black border-[#FFD700] text-[10px]">
             <Factory className="w-3 h-3 mr-0.5" />{pedido.itens_telha_count} Telha
           </Badge>
         )}
         {pedido.itens_cd_count > 0 && (
-          <Badge className="bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30 text-[10px]">
+          <Badge className="bg-[#FF6B00] text-white border-[#FF6B00] text-[10px]">
             <Scissors className="w-3 h-3 mr-0.5" />{pedido.itens_cd_count} C&D
           </Badge>
         )}
