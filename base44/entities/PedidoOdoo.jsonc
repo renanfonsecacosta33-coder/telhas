@@ -99,6 +99,14 @@
       "type": "string",
       "description": "JSON text com itens detalhados [{categoria, produto, medida, espessura, quantidade, concluido}] \u2014 checklist individual por item (Rule 4)"
     },
+    "maquinas_json": {
+      "type": "string",
+      "description": "JSON array do estado de cada m\u00e1quina C&D [{nome, status (pendente|em_andamento|concluido), operador, inicio_ts, fim_ts}] \u2014 rastreamento por m\u00e1quina (Mini BI)"
+    },
+    "etapas_telha_json": {
+      "type": "string",
+      "description": "JSON array das etapas das Telhas [{nome, status (pendente|concluido), hora_ts}] \u2014 rastreamento de corte/colagem (Mini BI)"
+    },
     "historico_log": {
       "type": "string",
       "description": "JSON text com log de auditoria [{data, usuario, acao, detalhes}]"

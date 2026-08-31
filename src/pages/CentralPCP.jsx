@@ -17,6 +17,7 @@ import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import { calcularDataPrometidaSLA, toISODate, slaDiasPorCategoria, diasUteisRestantes } from "@/lib/sla";
 import { parseItensPedido } from "@/lib/regrasFabrica";
+import { notificarStatus } from "@/lib/biNotificador";
 
 const FILTROS = [
   { id: "todos", label: "Todos" },
@@ -151,6 +152,8 @@ export default function CentralPCP() {
       if (pedido.galpao_responsavel !== undefined) updateData.galpao_responsavel = "";
       await base44.entities.PedidoOdoo.update(pedido.id, updateData);
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      // Mini BI — evento devolvido_pcp
+      await notificarStatus({ ...pedido, ...updateData }, "devolvido_pcp", { status_novo: "pendente_distribuicao", operador: usuario });
       setDetalheOpen(false);
       setPedidoSelecionado(null);
       toast({
@@ -313,6 +316,8 @@ export default function CentralPCP() {
       });
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
       setPedidoSelecionado({ ...pedido, ...atualizado });
+      // Mini BI — evento distribuido
+      await notificarStatus(atualizado, "distribuido", { status_novo: "distribuido" });
       toast({
         title: "Pedido distribuído!",
         description: `#${pedido.numero_pedido} enviado para os galpões.`,
