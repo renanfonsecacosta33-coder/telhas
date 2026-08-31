@@ -13,7 +13,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.44';
  *  maquina_atual, maquina_anterior, item_nome, duracao_min, hora_corte, hora_colagem, operador
  */
 
-const ODOO_BI_URL = "https://ajlferroeaco.odoo.com/web/hook/bi-fabricas";
+const ODOO_BI_URL = "https://ajlferroeaco.odoo.com/web/hook/56a16770-c0d5-49ab-a711-0fcefc90d210";
 const ODOO_BI_KEY = "AJL_BASE44_DELETE_OF_2026_8fk92xLm";
 
 export default async function(req: Request): Promise<Response> {
