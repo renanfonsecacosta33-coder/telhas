@@ -30,7 +30,7 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
   // Pedidos distribuídos/em produção com itens de CD
   const fila = pedidos
     .filter(p => ["distribuido", "em_producao"].includes(p.status_pcp))
-    .filter(p => getItens(p).some(i => classGrupo(i.categoria) === "cd"));
+    .filter(p => getItens(p).some(i => classGrupo(i) === "cd"));
 
   // Agrupar itens de CD por espessura (bitola) para otimizar setup de bobina
   const gruposEspessura = useMemo(() => {
@@ -38,7 +38,7 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
     fila.forEach(pedido => {
       const itens = getItens(pedido);
       itens.forEach(item => {
-        if (classGrupo(item.categoria) !== "cd") return;
+        if (classGrupo(item) !== "cd") return;
         const esp = item.espessura || "—";
         if (!mapa.has(esp)) mapa.set(esp, []);
         mapa.get(esp).push({ pedido, item, idx: item._idx });

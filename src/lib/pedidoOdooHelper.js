@@ -14,15 +14,25 @@ export function getItens(pedido) {
   return arr.map((it, idx) => ({ ...STATUS_DEFAULTS, ...it, _idx: idx }));
 }
 
-export function classGrupo(catRaw) {
-  const cat = String(catRaw || "").trim().toLowerCase();
+// Aceita item completo (obj) ou só a categoria (string, compat legacy).
+// Importante: checa também produto/descrição, senão telhas com categoria
+// "TP"/vazia caem no fallback "cd" e vazam para o galpão de Corte & Dobra.
+export function classGrupo(itemOrCat) {
+  const item = (typeof itemOrCat === "object" && itemOrCat !== null) ? itemOrCat : { categoria: itemOrCat };
+  const cat = String(item.categoria || "").trim().toLowerCase();
   if (["telhas", "telha", "bandeja", "bobininha"].includes(cat)) return "telha";
   if (["frisadas", "frisada"].includes(cat)) return "frisada";
-  return "cd"; // corte e dobra, perfis, chapas
+  if (["chapa", "perfil", "barra", "tubo", "zincado", "corte e dobra", "corte_dobra"].some((k) => cat.includes(k))) return "cd";
+
+  // Fallback por nome do produto/descrição (igual ao detectarCategoria da lista de itens)
+  const nome = String(item.produto || item.descricao || "").toLowerCase();
+  if (["telha", "tp-", "tp ", "eps", "manta"].some((k) => nome.includes(k))) return "telha";
+  if (["chapa", "perfil", "barra", "tubo", "zincado"].some((k) => nome.includes(k))) return "cd";
+  return "cd"; // corte e dobra, perfis, chapas (fallback seguro p/ produção C&D)
 }
 
 export function itensPorGrupo(itens, grupo) {
-  return itens.filter((i) => classGrupo(i.categoria) === grupo);
+  return itens.filter((i) => classGrupo(i) === grupo);
 }
 
 // Percentual global baseado em TODOS os itens do pedido
