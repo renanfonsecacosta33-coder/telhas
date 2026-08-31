@@ -1,19 +1,11 @@
 import React, { useState } from "react";
 import ImageLink from "@/components/ui/ImageLink";
+import { Camera, Image as ImageIcon } from "lucide-react";
 import { extrairAnexosLista, extrairCroquiPedidoInfo, extrairBase64Fallback } from "@/lib/croquiExtractor";
 
 /**
  * Miniatura (thumbnail) do croqui/desenho técnico do pedido, exibida NO TOPO
  * do card. Suporta GALERIA de múltiplos anexos (Anexo 1 + Anexo 2 lado a lado).
- *
- * - Se o pedido tiver Anexo 1 E Anexo 2: exibe 2 thumbnails de 100px lado a
- *   lado, cada um clicável para zoom em tela cheia, com tags "Anexo 1"/"Anexo 2".
- * - Se houver apenas um anexo: exibe miniatura única (120px).
- *
- * Decodificação universal:
- *  - Base64 puro → prefixa `data:image/png;base64,` para renderização imediata.
- *  - URL interna do Odoo (/web/content/...) → usa Base64 do anexo para abrir
- *    sem exigir login de sessão no Odoo.
  */
 export default function CroquiThumb({ pedido, alt, className = "" }) {
   const anexos = extrairAnexosLista(pedido);
@@ -21,7 +13,6 @@ export default function CroquiThumb({ pedido, alt, className = "" }) {
   // Fallback único (compat) quando não há anexos estruturados mas há foto/croqui genérico
   if (anexos.length === 0) {
     const { src: srcUnico } = extrairCroquiPedidoInfo(pedido);
-    const fallbackUnico = extrairBase64Fallback(pedido);
     if (!srcUnico) return null;
     return (
       <div className={`relative shrink-0 ${className}`} style={{ height: "120px" }}>
@@ -32,11 +23,11 @@ export default function CroquiThumb({ pedido, alt, className = "" }) {
         >
           <img
             src={srcUnico}
-            referrerPolicy="no-referrer"
-            crossOrigin="use-credentials"
             alt=""
-            style={{ objectFit: "cover", width: "100%", height: "100%" }}
-            className="w-full h-full object-cover rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm group-hover:opacity-90 transition-opacity"
+            referrerPolicy="no-referrer"
+            crossOrigin="anonymous"
+            style={{ width: "100%", height: "120px", objectFit: "cover" }}
+            className="w-full h-[120px] object-cover rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm group-hover:opacity-90 transition-opacity"
           />
         </ImageLink>
         <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] font-bold bg-slate-900/90 text-white px-1.5 py-0.5 rounded-full shadow">
@@ -72,11 +63,14 @@ export default function CroquiThumb({ pedido, alt, className = "" }) {
 function CroquiThumbItem({ anexo, alt, height }) {
   const [srcAtual, setSrcAtual] = useState(anexo.src);
   const [tentouFallback, setTentouFallback] = useState(false);
+  const [falhouTotal, setFalhouTotal] = useState(false);
 
   const handleError = () => {
     if (!tentouFallback && anexo.fallback && anexo.fallback !== srcAtual) {
       setTentouFallback(true);
       setSrcAtual(anexo.fallback);
+    } else {
+      setFalhouTotal(true);
     }
   };
 
@@ -87,15 +81,25 @@ function CroquiThumbItem({ anexo, alt, height }) {
         name={`${alt} — ${anexo.label}`}
         className="block group w-full h-full"
       >
-        <img
-          src={srcAtual}
-          referrerPolicy="no-referrer"
-          crossOrigin="use-credentials"
-          alt=""
-          onError={handleError}
-          style={{ objectFit: "cover", width: "100%", height: "100%" }}
-          className="w-full h-full object-cover rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm group-hover:opacity-90 transition-opacity"
-        />
+        {falhouTotal ? (
+          <div
+            style={{ height: `${height}px` }}
+            className="w-full flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800/60 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors p-2 text-center"
+          >
+            <Camera className="w-5 h-5 mb-1 opacity-70 text-orange-500" />
+            <span className="text-[10px] font-medium leading-tight">Ver Foto (Clique)</span>
+          </div>
+        ) : (
+          <img
+            src={srcAtual}
+            alt=""
+            referrerPolicy="no-referrer"
+            crossOrigin="anonymous"
+            onError={handleError}
+            style={{ width: "100%", height: `${height}px`, objectFit: "cover" }}
+            className="w-full object-cover rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm group-hover:opacity-90 transition-opacity"
+          />
+        )}
       </ImageLink>
       <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] font-bold bg-slate-900/90 text-white px-1.5 py-0.5 rounded-full shadow flex items-center gap-0.5">
         📷 {anexo.label}

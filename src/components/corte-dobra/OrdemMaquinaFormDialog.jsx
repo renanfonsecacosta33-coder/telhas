@@ -626,6 +626,9 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
                   {TIPOS_PECA.filter(t => t.etapa === "perfiladeira").map(t => <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>)}
                   <SelectItem value="_ambas" disabled className="text-xs font-bold text-muted-foreground uppercase">✂️📐 Corte + Dobra</SelectItem>
                   {TIPOS_PECA.filter(t => t.etapa === "ambas").map(t => <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>)}
+                  {!TIPOS_PECA.some(t => t.label === form.tipo_peca) && form.tipo_peca && (
+                    <SelectItem value={form.tipo_peca}>📌 {form.tipo_peca}</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             )}

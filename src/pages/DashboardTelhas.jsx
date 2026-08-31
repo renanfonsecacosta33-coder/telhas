@@ -391,12 +391,38 @@ export default function DashboardTelhas() {
 
       {/* ══════════════ ABA FILA PCP ══════════════ */}
       {aba === "fila_pcp" && <FilaPCPTelhas onNovaOrdem={(pedido, item) => {
+        const prodNome = (item.produto || "").toUpperCase();
+        let prodTipo = "TELHA";
+        if (prodNome.includes("MANTA") || prodNome.includes("EPS+MANTA") || prodNome.includes("EPS + MANTA")) prodTipo = "TELHA + EPS + MANTA";
+        else if (prodNome.includes("EPS+TELHA") || prodNome.includes("EPS + TELHA")) prodTipo = "TELHA + EPS + TELHA";
+        else if (prodNome.includes("BANDEJA")) prodTipo = "TELHA BANDEJA";
+        else if (prodNome.includes("EPS")) prodTipo = "TELHA + EPS";
+        else if (prodNome.includes("BOBININHA")) prodTipo = "BOBININHA";
+        else if (prodNome.includes("CUMEEIRA")) prodTipo = "CUMEEIRA";
+        else if (prodNome.includes("PAINEL")) prodTipo = "PAINEL";
+
+        let maq = "";
+        if (prodNome.includes("TP 25") || prodNome.includes("TP-25") || prodNome.includes("TP25")) maq = "TP - 25";
+        else if (prodNome.includes("TP 40") || prodNome.includes("TP-40") || prodNome.includes("TP40")) maq = "TP - 40";
+        else if (prodNome.includes("ONDULAD")) maq = "ONDULADA";
+        else if (prodNome.includes("COLONIAL")) maq = "COLONIAL";
+        else if (prodNome.includes("BANDEJA")) maq = "BANDEJA";
+
         setEditPreset({
-          data: hoje,
-          numero_pedido: pedido.numero_pedido || "",
-          cliente: pedido.cliente_nome || "",
-          vendedor: pedido.vendedor_nome || "",
-          unidade: filialAtiva,
+          _presets: {
+            data: hoje,
+            numero_pedido: pedido.numero_pedido || "",
+            cliente: pedido.cliente_nome || "",
+            vendedor: pedido.vendedor_nome || "",
+            unidade: filialAtiva,
+            produto: prodTipo,
+            produto_rotulo_pcp: item.produto || "",
+            maquina: maq,
+            espessura_exigida: item.espessura ? String(item.espessura) : "",
+            quantidade_telhas: item.quantidade || "",
+            metros: item.quantidade || "",
+            trava_produto_pcp: true,
+          }
         });
         setDialogOpen(true);
       }} />}

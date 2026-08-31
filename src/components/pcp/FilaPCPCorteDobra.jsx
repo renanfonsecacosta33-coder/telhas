@@ -187,14 +187,23 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                             className="h-8 w-28 text-xs"
                             disabled={item.status === "concluido"}
                           />
-                          {item.status === "pendente" && onNovaOrdem && (
-                            <Button
-                              size="sm"
-                              onClick={() => onNovaOrdem(pedido, item)}
-                              className="bg-orange-500 hover:bg-orange-600 text-white h-8 px-3 gap-1"
-                            >
-                              <Plus className="w-3 h-3" /> Nova Ordem
-                            </Button>
+                          {item.status === "pendente" ? (
+                            onNovaOrdem && (
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  handleAtualizar(pedido, idx, { status: "em_producao" });
+                                  onNovaOrdem(pedido, item);
+                                }}
+                                className="bg-orange-500 hover:bg-orange-600 text-white h-8 px-3 gap-1"
+                              >
+                                <Plus className="w-3 h-3" /> Nova Ordem
+                              </Button>
+                            )
+                          ) : (
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-md text-xs font-semibold">
+                              <span>⚙️ {item.maquina ? `Em: ${item.maquina}` : "Em Produção"}</span>
+                            </div>
                           )}
                           {item.status === "em_producao" && (
                             <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300 h-8 px-3 gap-1 text-[11px] font-bold inline-flex items-center whitespace-nowrap">

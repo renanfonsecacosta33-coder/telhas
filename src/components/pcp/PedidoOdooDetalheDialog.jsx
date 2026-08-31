@@ -52,9 +52,10 @@ export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, on
     frisada: "bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/30"
   };
 
-  const classGrupo = (catRaw) => {
+  const classGrupo = (catRaw, produtoNome = "") => {
     const cat = String(catRaw || "").trim().toLowerCase();
-    if (["telhas", "telha"].includes(cat)) return "telha";
+    const prod = String(produtoNome || "").trim().toLowerCase();
+    if (["telhas", "telha"].includes(cat) || /(telha|tp\s*25|tp\s*40|eps|manta|cumeeira|ondulada|colonial)/i.test(prod)) return "telha";
     if (["frisadas", "frisada"].includes(cat)) return "frisada";
     return "cd";
   };
@@ -213,7 +214,7 @@ export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, on
                   const rt = roteamentoMaterial(it.categoria);
                   return (
                     <div key={idx} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-2.5 py-1.5">
-                      <Badge className={`shrink-0 border ${grupoColor[classGrupo(it.categoria)]}`}>{grupoIcon[classGrupo(it.categoria)]}</Badge>
+                      <Badge className={`shrink-0 border ${grupoColor[classGrupo(it.categoria, it.produto)]}`}>{grupoIcon[classGrupo(it.categoria, it.produto)]}</Badge>
                       <span className="text-[11px] font-medium text-slate-700 dark:text-slate-200 truncate flex-1">{it.produto || "—"}</span>
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${rt.consome === "bobina" ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300" : "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300"}`}>
                         {rt.label}

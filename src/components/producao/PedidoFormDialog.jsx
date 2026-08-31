@@ -216,6 +216,10 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           numero_pedido: presets.numero_pedido || "",
           vendedor: presets.vendedor || "",
           produto: presets.produto || "",
+          produto_rotulo_pcp: presets.produto_rotulo_pcp || "",
+          trava_produto_pcp: presets.trava_produto_pcp || false,
+          metros: presets.metros || "",
+          quantidade_telhas: presets.quantidade_telhas || "",
         });
       }
     }
@@ -672,10 +676,26 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
             </div>
             <div className="space-y-1">
               <Label>Produto *</Label>
-              <Select value={form.produto} onValueChange={(v) => {set("produto", v);set("modelo", "");set("maquina", "");}}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>{PRODUTOS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
-              </Select>
+              {form.trava_produto_pcp ? (
+                <div className="flex flex-col justify-center border border-border rounded-md px-3 py-1.5 bg-muted/50 min-h-[38px]">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-xs text-orange-600 dark:text-orange-400">{form.produto}</span>
+                    <Badge variant="outline" className="text-[10px] bg-orange-500/10 text-orange-700 border-orange-300">
+                      Fixo do Pedido
+                    </Badge>
+                  </div>
+                  {form.produto_rotulo_pcp && (
+                    <span className="text-[10px] text-muted-foreground truncate" title={form.produto_rotulo_pcp}>
+                      {form.produto_rotulo_pcp}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <Select value={form.produto} onValueChange={(v) => {set("produto", v);set("modelo", "");set("maquina", "");}}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>{PRODUTOS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+                </Select>
+              )}
             </div>
           </div>
 
