@@ -147,7 +147,9 @@ Deno.serve(async (req) => {
     }
 
     // ── 2) POST para o Webhook de Cancelamento do Odoo ──
-    // Payload estrito: { "api_key": "...", "odoo_id": <Number> }
+    // Payload: { "api_key": "...", "odoo_id": <Number>, "numero_pedido": <String> }
+    // Inclui numero_pedido para que o Odoo cancele TODAS as fabricações do
+    // pedido (mrp.production filhas), não apenas a OF principal.
     let odoo_notificado = false;
     let odoo_erro = null;
     let odoo_status = 0;
@@ -158,6 +160,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           api_key: ODOO_CANCEL_API_KEY,
           odoo_id: odooIdNumerico,
+          numero_pedido: numeroStr || undefined,
         }),
       });
       odoo_status = resp.status;
