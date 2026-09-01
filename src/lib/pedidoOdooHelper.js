@@ -140,6 +140,8 @@ export function detectarOrigemAco(produtoTexto = "") {
   return "ambas";
 }
 
+import { calcularDataPrometidaSLA, toISODate } from "@/lib/sla";
+
 // Monta o preset completo de Nova Ordem para Telhas
 export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
   const produtoNome = item?.produto || item?.descricao || "";
@@ -148,9 +150,16 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
   const esp = item?.espessura ? String(item.espessura) : detectarEspessura(produtoNome);
   const origem = item?.origem || detectarOrigemAco(produtoNome);
 
+  const dataReceb = pedido?.data_recebimento ? String(pedido.data_recebimento).slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const dataPrevista = pedido?.data_entrega
+    ? String(pedido.data_entrega).slice(0, 10)
+    : toISODate(calcularDataPrometidaSLA(dataReceb, 7));
+
   return {
     _presets: {
-      data: new Date().toISOString().slice(0, 10),
+      data: dataReceb,
+      data_pedido: dataReceb,
+      data_prevista: dataPrevista,
       numero_pedido: pedido?.numero_pedido || "",
       cliente: pedido?.cliente_nome || "",
       vendedor: pedido?.vendedor_nome || "",
@@ -162,6 +171,8 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
       origem_exigida: origem,
       quantidade_telhas: item?.quantidade || "",
       metros: item?.quantidade || "",
+      observacoes_odoo: item?.descricao || item?.observacao || pedido?.observacoes || "",
+      observacoes_encarregado: "",
       trava_produto_pcp: true,
     }
   };

@@ -18,6 +18,7 @@ import { validarBobina, filtrarBobinasCompativeis } from "@/lib/bobinaValidation
 import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
 import { Building2, X, Loader2, FileText, Plus, Trash2, Camera, ShieldAlert } from "lucide-react";
 import { detectarTipoProdutoTelha, detectarMaquinaTelha, detectarEspessura, detectarOrigemAco } from "@/lib/pedidoOdooHelper";
+import { calcularDataPrometidaSLA, toISODate } from "@/lib/sla";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 const PRODUTOS = ["TELHA", "TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA", "BOBININHA", "CUMEEIRA", "PAINEL"];
@@ -69,6 +70,7 @@ const emptyForm = {
   status: "pendente",
   data_pedido: "",
   data_prevista: "",
+  observacoes_odoo: "",
   observacoes: "",
   foto_pedido_url: "",
   variacoes_telhas: "",
@@ -217,9 +219,14 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           ? presets.origem_exigida
           : detectarOrigemAco(rawProd);
 
+        const dataPed = presets.data_pedido || presets.data || defaultDate || format(new Date(), "yyyy-MM-dd");
+        const dataPrev = presets.data_prevista || toISODate(calcularDataPrometidaSLA(dataPed, 7));
+
         setForm({
           ...emptyForm,
           data: presets.data || defaultDate || format(new Date(), "yyyy-MM-dd"),
+          data_pedido: dataPed,
+          data_prevista: dataPrev,
           maquina: maq || "",
           espessura_exigida: esp || "",
           origem_exigida: origem || "ambas",
@@ -228,9 +235,12 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           vendedor: presets.vendedor || "",
           produto: prodTipo || "TELHA",
           produto_rotulo_pcp: rawProd,
+          observacoes_odoo: presets.observacoes_odoo || (presets.trava_produto_pcp ? presets.observacoes : "") || "",
+          observacoes: presets.trava_produto_pcp ? (presets.observacoes_encarregado || "") : (presets.observacoes || ""),
           trava_produto_pcp: Boolean(presets.trava_produto_pcp || presets.numero_pedido || rawProd),
           metros: presets.metros || "",
           quantidade_telhas: presets.quantidade_telhas || presets.quantidade || "",
+          status: "pendente",
         });
       }
     }
@@ -1258,29 +1268,71 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Data do Pedido</Label>
-              <Input type="date" value={form.data_pedido} onChange={(e) => set("data_pedido", e.target.value)} />
+              <Input
+                type="date"
+                value={form.data_pedido}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setForm(f => ({
+                    ...f,
+                    data_pedido: val,
+                    data_prevista: val ? toISODate(calcularDataPrometidaSLA(val, 7)) : f.data_prevista
+                  }));
+                }}
+              />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Data Prevista</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Data Prevista (SLA)</Label>
+                <span className="text-[10px] text-muted-foreground font-medium">7 dias úteis</span>
+              </div>
               <Input type="date" value={form.data_prevista} onChange={(e) => set("data_prevista", e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Status</Label>
-              <Select value={form.status} onValueChange={(v) => set("status", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pendente">Pendente</SelectItem>
-                  <SelectItem value="em_producao">Em Produção</SelectItem>
-                  <SelectItem value="finalizado">Finalizado</SelectItem>
-                  <SelectItem value="cancelado">Cancelado</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label className="text-xs">Status (Automático)</Label>
+              {form.trava_produto_pcp ? (
+                <div className="flex items-center justify-between border border-border rounded-md px-3 py-2 bg-muted/60 min-h-[38px] text-xs font-semibold text-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                    {form.status === "finalizado" ? "Finalizado" : form.status === "em_producao" ? "Em Produção" : "Pendente (Fila)"}
+                  </span>
+                  <Badge variant="secondary" className="text-[9px]">Auto</Badge>
+                </div>
+              ) : (
+                <Select value={form.status} onValueChange={(v) => set("status", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pendente">Pendente</SelectItem>
+                    <SelectItem value="em_producao">Em Produção</SelectItem>
+                    <SelectItem value="finalizado">Finalizado</SelectItem>
+                    <SelectItem value="cancelado">Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
 
+          {/* Observação / Instrução do Pedido (Odoo) */}
+          {form.observacoes_odoo && (
+            <div className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50/60 dark:bg-amber-950/20 p-3 space-y-1">
+              <p className="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                📝 Observação do Pedido (Odoo / Vendedor)
+              </p>
+              <p className="text-xs text-amber-900 dark:text-amber-200 whitespace-pre-wrap font-medium">
+                {form.observacoes_odoo}
+              </p>
+            </div>
+          )}
+
+          {/* Observações do Encarregado */}
           <div className="space-y-1">
-            <Label>Observações</Label>
-            <Textarea placeholder="Anotações, instruções especiais..." value={form.observacoes} onChange={(e) => set("observacoes", e.target.value)} className="h-16" />
+            <Label className="text-xs font-semibold">Observações do Encarregado (Fábrica)</Label>
+            <Textarea
+              placeholder="Anotações internas do encarregado, orientações para operador, etc..."
+              value={form.observacoes}
+              onChange={(e) => set("observacoes", e.target.value)}
+              className="h-16 text-xs"
+            />
           </div>
 
           {/* Foto da OP física */}
