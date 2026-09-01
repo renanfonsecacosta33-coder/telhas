@@ -17,6 +17,7 @@ import { getBobinaStatus, calcMetrosDisponiveis } from "@/lib/bobinaStatusHelper
 import { validarBobina, filtrarBobinasCompativeis } from "@/lib/bobinaValidation";
 import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
 import { Building2, X, Loader2, FileText, Plus, Trash2, Camera, ShieldAlert } from "lucide-react";
+import { detectarTipoProdutoTelha, detectarMaquinaTelha, detectarEspessura } from "@/lib/pedidoOdooHelper";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 const PRODUTOS = ["TELHA", "TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA", "BOBININHA", "CUMEEIRA", "PAINEL"];
@@ -169,12 +170,12 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
 
   useEffect(() => {
     if (open) {
-      if (editItem && !editItem._presets) {
+      if (editItem && !editItem._presets && editItem.id) {
         setForm({
           data: editItem.data || format(new Date(), "yyyy-MM-dd"),
           unidade: editItem.unidade || "Matriz AJL",
           maquina: editItem.maquina || "",
-          produto: editItem.produto || "",
+          produto: PRODUTOS.includes(editItem.produto) ? editItem.produto : detectarTipoProdutoTelha(editItem.produto),
           modelo: editItem.modelo || "",
           cliente: editItem.cliente || "",
           vendedor: editItem.vendedor || "",
@@ -205,21 +206,28 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           prioridade: editItem.prioridade || false
         });
       } else {
-        const presets = editItem?._presets || {};
+        const presets = editItem?._presets || editItem || {};
+        const rawProd = presets.produto_rotulo_pcp || presets.produto || "";
+        const prodTipo = PRODUTOS.includes(presets.produto)
+          ? presets.produto
+          : detectarTipoProdutoTelha(rawProd);
+        const maq = presets.maquina || detectarMaquinaTelha(rawProd);
+        const esp = presets.espessura_exigida || detectarEspessura(rawProd);
+
         setForm({
           ...emptyForm,
           data: presets.data || defaultDate || format(new Date(), "yyyy-MM-dd"),
-          maquina: presets.maquina || "",
-          espessura_exigida: presets.espessura_exigida || "",
+          maquina: maq || "",
+          espessura_exigida: esp || "",
           origem_exigida: presets.origem_exigida || "ambas",
           cliente: presets.cliente || "",
           numero_pedido: presets.numero_pedido || "",
           vendedor: presets.vendedor || "",
-          produto: presets.produto || "",
-          produto_rotulo_pcp: presets.produto_rotulo_pcp || "",
-          trava_produto_pcp: presets.trava_produto_pcp || false,
+          produto: prodTipo || "TELHA",
+          produto_rotulo_pcp: rawProd,
+          trava_produto_pcp: Boolean(presets.trava_produto_pcp || presets.numero_pedido || rawProd),
           metros: presets.metros || "",
-          quantidade_telhas: presets.quantidade_telhas || "",
+          quantidade_telhas: presets.quantidade_telhas || presets.quantidade || "",
         });
       }
     }

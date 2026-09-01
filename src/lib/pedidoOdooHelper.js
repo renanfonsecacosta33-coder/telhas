@@ -82,3 +82,75 @@ export const MAQUINAS_CD = [
   "Guilhotina 6m",
   "Perfiladeira"
 ];
+
+// Detecta o tipo exato de produto para Telhas (compatível com PRODUTOS do formulário)
+export function detectarTipoProdutoTelha(produtoTexto = "") {
+  const p = String(produtoTexto || "").toUpperCase();
+  if (p.includes("MANTA") || p.includes("EPS50+MANTA") || p.includes("EPS+MANTA") || p.includes("EPS + MANTA")) {
+    return "TELHA + EPS + MANTA";
+  }
+  if (p.includes("EPS+TELHA") || p.includes("EPS + TELHA") || p.includes("TELHA+EPS+TELHA") || p.includes("TELHA + EPS + TELHA")) {
+    return "TELHA + EPS + TELHA";
+  }
+  if (p.includes("BANDEJA")) {
+    return "TELHA BANDEJA";
+  }
+  if (p.includes("EPS")) {
+    return "TELHA + EPS";
+  }
+  if (p.includes("BOBININHA")) {
+    return "BOBININHA";
+  }
+  if (p.includes("CUMEEIRA")) {
+    return "CUMEEIRA";
+  }
+  if (p.includes("PAINEL")) {
+    return "PAINEL";
+  }
+  return "TELHA";
+}
+
+// Detecta a máquina sugerida para Telhas
+export function detectarMaquinaTelha(produtoTexto = "") {
+  const p = String(produtoTexto || "").toUpperCase();
+  if (p.includes("TP 25") || p.includes("TP-25") || p.includes("TP25")) return "TP - 25";
+  if (p.includes("TP 40") || p.includes("TP-40") || p.includes("TP40")) return "TP - 40";
+  if (p.includes("ONDULAD")) return "ONDULADA";
+  if (p.includes("COLONIAL")) return "COLONIAL";
+  if (p.includes("BANDEJA")) return "BANDEJA";
+  if (p.includes("DESBOBINADOR") || p.includes("BOBININHA")) return "DESBOBINADOR";
+  if (p.includes("CUMEEIRA")) return "CUMEEIRA";
+  return "";
+}
+
+// Detecta a espessura no texto (ex: "0,43" ou "1,25")
+export function detectarEspessura(produtoTexto = "") {
+  const p = String(produtoTexto || "");
+  const match = p.match(/(0[,.]\d{2}|1[,.]\d{2})/);
+  return match ? match[1].replace(".", ",") : "";
+}
+
+// Monta o preset completo de Nova Ordem para Telhas
+export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
+  const produtoNome = item?.produto || item?.descricao || "";
+  const prodTipo = detectarTipoProdutoTelha(produtoNome);
+  const maq = detectarMaquinaTelha(produtoNome);
+  const esp = item?.espessura ? String(item.espessura) : detectarEspessura(produtoNome);
+
+  return {
+    _presets: {
+      data: new Date().toISOString().slice(0, 10),
+      numero_pedido: pedido?.numero_pedido || "",
+      cliente: pedido?.cliente_nome || "",
+      vendedor: pedido?.vendedor_nome || "",
+      unidade: filialAtiva || pedido?.unidade || "Matriz AJL",
+      produto: prodTipo,
+      produto_rotulo_pcp: produtoNome,
+      maquina: maq,
+      espessura_exigida: esp,
+      quantidade_telhas: item?.quantidade || "",
+      metros: item?.quantidade || "",
+      trava_produto_pcp: true,
+    }
+  };
+}

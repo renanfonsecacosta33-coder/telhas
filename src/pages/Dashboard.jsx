@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useFilial } from "@/contexts/FilialContext";
 import FilaPCPTelhas from "@/components/pcp/FilaPCPTelhas";
 import PedidoFormDialog from "@/components/producao/PedidoFormDialog";
+import { prepararPresetNovaOrdemTelhas } from "@/lib/pedidoOdooHelper";
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
@@ -175,13 +176,7 @@ export default function Dashboard() {
 
       {/* Fila PCP — Pedidos a Produzir */}
       <FilaPCPTelhas onNovaOrdem={(pedido, item) => {
-        setEditPreset({
-          data: format(new Date(), "yyyy-MM-dd"),
-          numero_pedido: pedido.numero_pedido || "",
-          cliente: pedido.cliente_nome || "",
-          vendedor: pedido.vendedor_nome || "",
-          unidade: filialAtiva,
-        });
+        setEditPreset(prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva));
         setDialogOpen(true);
       }} />
 

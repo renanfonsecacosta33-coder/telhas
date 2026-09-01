@@ -18,6 +18,7 @@ import OPImpressao from "@/components/producao/OPImpressao";
 import { useFilial } from "@/contexts/FilialContext";
 import ExpedicaoTab from "@/components/logistica/ExpedicaoTab";
 import FilaPCPTelhas from "@/components/pcp/FilaPCPTelhas";
+import { prepararPresetNovaOrdemTelhas } from "@/lib/pedidoOdooHelper";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 
@@ -245,13 +246,7 @@ export default function ProducaoAdmin() {
       {activeTab === "expedicao" && <ExpedicaoTab tipo="telhas" filialAtiva={filialAtiva} />}
 
       {activeTab === "fila_pcp" && <FilaPCPTelhas onNovaOrdem={(pedido, item) => {
-        setEditItem({
-          data: selectedDay,
-          numero_pedido: pedido.numero_pedido || "",
-          cliente: pedido.cliente_nome || "",
-          vendedor: pedido.vendedor_nome || "",
-          unidade: filialAtiva,
-        });
+        setEditItem(prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva));
         setDialogOpen(true);
       }} />}
 
