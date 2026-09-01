@@ -18,7 +18,7 @@ import { validarBobina, filtrarBobinasCompativeis } from "@/lib/bobinaValidation
 import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
 import { Building2, X, Loader2, FileText, Plus, Trash2, Camera, ShieldAlert } from "lucide-react";
 import { detectarTipoProdutoTelha, detectarMaquinaTelha, detectarEspessura, detectarOrigemAco } from "@/lib/pedidoOdooHelper";
-import { calcularDataPrometidaSLA, toISODate } from "@/lib/sla";
+import { calcularDataPrometidaSLA, toISODate, formatDataBR } from "@/lib/sla";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 const PRODUTOS = ["TELHA", "TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA", "BOBININHA", "CUMEEIRA", "PAINEL"];
@@ -1268,25 +1268,39 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Data do Pedido</Label>
-              <Input
-                type="date"
-                value={form.data_pedido}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setForm(f => ({
-                    ...f,
-                    data_pedido: val,
-                    data_prevista: val ? toISODate(calcularDataPrometidaSLA(val, 7)) : f.data_prevista
-                  }));
-                }}
-              />
+              {form.trava_produto_pcp ? (
+                <div className="flex items-center justify-between border border-border rounded-md px-3 py-2 bg-muted/60 min-h-[38px] text-xs font-semibold text-foreground">
+                  <span>{formatDataBR(form.data_pedido || form.data)}</span>
+                  <Badge variant="secondary" className="text-[9px] ml-1 shrink-0">Fixo</Badge>
+                </div>
+              ) : (
+                <Input
+                  type="date"
+                  value={form.data_pedido}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setForm(f => ({
+                      ...f,
+                      data_pedido: val,
+                      data_prevista: val ? toISODate(calcularDataPrometidaSLA(val, 7)) : f.data_prevista
+                    }));
+                  }}
+                />
+              )}
             </div>
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <Label className="text-xs">Data Prevista (SLA)</Label>
                 <span className="text-[10px] text-muted-foreground font-medium">7 dias úteis</span>
               </div>
-              <Input type="date" value={form.data_prevista} onChange={(e) => set("data_prevista", e.target.value)} />
+              {form.trava_produto_pcp ? (
+                <div className="flex items-center justify-between border border-border rounded-md px-3 py-2 bg-muted/60 min-h-[38px] text-xs font-semibold text-foreground">
+                  <span>{formatDataBR(form.data_prevista)}</span>
+                  <Badge variant="secondary" className="text-[9px] ml-1 shrink-0">PCP</Badge>
+                </div>
+              ) : (
+                <Input type="date" value={form.data_prevista} onChange={(e) => set("data_prevista", e.target.value)} />
+              )}
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Status (Automático)</Label>
