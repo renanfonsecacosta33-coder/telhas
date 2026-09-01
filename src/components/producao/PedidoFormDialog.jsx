@@ -17,7 +17,7 @@ import { getBobinaStatus, calcMetrosDisponiveis } from "@/lib/bobinaStatusHelper
 import { validarBobina, filtrarBobinasCompativeis } from "@/lib/bobinaValidation";
 import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
 import { Building2, X, Loader2, FileText, Plus, Trash2, Camera, ShieldAlert } from "lucide-react";
-import { detectarTipoProdutoTelha, detectarMaquinaTelha, detectarEspessura } from "@/lib/pedidoOdooHelper";
+import { detectarTipoProdutoTelha, detectarMaquinaTelha, detectarEspessura, detectarOrigemAco } from "@/lib/pedidoOdooHelper";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 const PRODUTOS = ["TELHA", "TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA", "BOBININHA", "CUMEEIRA", "PAINEL"];
@@ -213,13 +213,16 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           : detectarTipoProdutoTelha(rawProd);
         const maq = presets.maquina || detectarMaquinaTelha(rawProd);
         const esp = presets.espessura_exigida || detectarEspessura(rawProd);
+        const origem = presets.origem_exigida && presets.origem_exigida !== "ambas"
+          ? presets.origem_exigida
+          : detectarOrigemAco(rawProd);
 
         setForm({
           ...emptyForm,
           data: presets.data || defaultDate || format(new Date(), "yyyy-MM-dd"),
           maquina: maq || "",
           espessura_exigida: esp || "",
-          origem_exigida: presets.origem_exigida || "ambas",
+          origem_exigida: origem || "ambas",
           cliente: presets.cliente || "",
           numero_pedido: presets.numero_pedido || "",
           vendedor: presets.vendedor || "",
@@ -788,19 +791,33 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Espessura Exigida</Label>
-                <Input placeholder="ex: 0,43 / 1,30" value={form.espessura_exigida} onChange={(e) => set("espessura_exigida", e.target.value)} />
+                {form.trava_produto_pcp && form.espessura_exigida ? (
+                  <div className="flex items-center justify-between border border-border rounded-md px-3 py-2 bg-muted/60 min-h-[38px] text-xs font-bold text-foreground">
+                    <span>{form.espessura_exigida} mm</span>
+                    <Badge variant="secondary" className="text-[9px] ml-1 shrink-0">Fixo</Badge>
+                  </div>
+                ) : (
+                  <Input placeholder="ex: 0,43 / 1,30" value={form.espessura_exigida} onChange={(e) => set("espessura_exigida", e.target.value)} />
+                )}
                 <p className="text-[10px] text-muted-foreground">Apenas bobinas nesta espessura (ou faixa) serão listadas.</p>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Origem do Aço Exigida</Label>
-                <Select value={form.origem_exigida} onValueChange={(v) => set("origem_exigida", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ambas">Ambas (sem restrição)</SelectItem>
-                    <SelectItem value="Nacional">Nacional</SelectItem>
-                    <SelectItem value="Importado">Importado</SelectItem>
-                  </SelectContent>
-                </Select>
+                {form.trava_produto_pcp && form.origem_exigida && form.origem_exigida !== "ambas" ? (
+                  <div className="flex items-center justify-between border border-border rounded-md px-3 py-2 bg-muted/60 min-h-[38px] text-xs font-bold text-orange-600 dark:text-orange-400">
+                    <span>{form.origem_exigida}</span>
+                    <Badge variant="secondary" className="text-[9px] ml-1 shrink-0">Fixo</Badge>
+                  </div>
+                ) : (
+                  <Select value={form.origem_exigida} onValueChange={(v) => set("origem_exigida", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ambas">Ambas (sem restrição)</SelectItem>
+                      <SelectItem value="Nacional">Nacional</SelectItem>
+                      <SelectItem value="Importado">Importado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
                 <p className="text-[10px] text-muted-foreground">Bloqueia bobinas de origem incompatível.</p>
               </div>
             </div>

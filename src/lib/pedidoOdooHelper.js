@@ -123,11 +123,12 @@ export function detectarMaquinaTelha(produtoTexto = "") {
   return "";
 }
 
-// Detecta a espessura no texto (ex: "0,43" ou "1,25")
-export function detectarEspessura(produtoTexto = "") {
-  const p = String(produtoTexto || "");
-  const match = p.match(/(0[,.]\d{2}|1[,.]\d{2})/);
-  return match ? match[1].replace(".", ",") : "";
+// Detecta a origem do aço exigida (Nacional / Importado / ambas)
+export function detectarOrigemAco(produtoTexto = "") {
+  const p = String(produtoTexto || "").toLowerCase();
+  if (p.includes("nacional") || p.includes("nac")) return "Nacional";
+  if (p.includes("importad") || p.includes("imp")) return "Importado";
+  return "ambas";
 }
 
 // Monta o preset completo de Nova Ordem para Telhas
@@ -136,6 +137,7 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
   const prodTipo = detectarTipoProdutoTelha(produtoNome);
   const maq = detectarMaquinaTelha(produtoNome);
   const esp = item?.espessura ? String(item.espessura) : detectarEspessura(produtoNome);
+  const origem = item?.origem || detectarOrigemAco(produtoNome);
 
   return {
     _presets: {
@@ -148,6 +150,7 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
       produto_rotulo_pcp: produtoNome,
       maquina: maq,
       espessura_exigida: esp,
+      origem_exigida: origem,
       quantidade_telhas: item?.quantidade || "",
       metros: item?.quantidade || "",
       trava_produto_pcp: true,
