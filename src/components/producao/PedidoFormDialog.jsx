@@ -672,7 +672,22 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Editar Pedido" : "Novo Pedido"}</DialogTitle>
+          <DialogTitle>
+            {form.trava_produto_pcp ? (
+              <div className="flex items-center gap-2">
+                <span>Revisar Ordem de Produção</span>
+                {form.numero_pedido && (
+                  <Badge variant="outline" className="text-xs bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-300">
+                    Pedido #{form.numero_pedido}
+                  </Badge>
+                )}
+              </div>
+            ) : isEditing ? (
+              "Editar Pedido"
+            ) : (
+              "Novo Pedido"
+            )}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
@@ -725,20 +740,41 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label>Vendedor</Label>
-              <Select value={form.vendedor} onValueChange={(v) => set("vendedor", v)}>
-                <SelectTrigger><SelectValue placeholder="Selecione o vendedor" /></SelectTrigger>
-                <SelectContent>
-                  {dadosVendedores.map((d) => <SelectItem key={d.id} value={d.valor}>{d.valor}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              {form.trava_produto_pcp ? (
+                <div className="flex items-center justify-between border border-border rounded-md px-3 py-2 bg-muted/60 min-h-[38px] text-xs font-semibold text-foreground">
+                  <span className="truncate">{form.vendedor || "Não informado"}</span>
+                  <Badge variant="secondary" className="text-[9px] ml-1 shrink-0">Fixo</Badge>
+                </div>
+              ) : (
+                <Select value={form.vendedor} onValueChange={(v) => set("vendedor", v)}>
+                  <SelectTrigger><SelectValue placeholder="Selecione o vendedor" /></SelectTrigger>
+                  <SelectContent>
+                    {dadosVendedores.map((d) => <SelectItem key={d.id} value={d.valor}>{d.valor}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div className="space-y-1">
               <Label>Cliente</Label>
-              <Input placeholder="Nome do cliente" value={form.cliente} onChange={(e) => set("cliente", e.target.value)} />
+              {form.trava_produto_pcp ? (
+                <div className="flex items-center justify-between border border-border rounded-md px-3 py-2 bg-muted/60 min-h-[38px] text-xs font-semibold text-foreground">
+                  <span className="truncate">{form.cliente || "Não informado"}</span>
+                  <Badge variant="secondary" className="text-[9px] ml-1 shrink-0">Fixo</Badge>
+                </div>
+              ) : (
+                <Input placeholder="Nome do cliente" value={form.cliente} onChange={(e) => set("cliente", e.target.value)} />
+              )}
             </div>
             <div className="space-y-1">
               <Label>Nº Pedido</Label>
-              <Input placeholder="283427" value={form.numero_pedido} onChange={(e) => set("numero_pedido", e.target.value)} />
+              {form.trava_produto_pcp ? (
+                <div className="flex items-center justify-between border border-border rounded-md px-3 py-2 bg-muted/60 min-h-[38px] text-xs font-mono font-bold text-foreground">
+                  <span>#{form.numero_pedido}</span>
+                  <Badge variant="secondary" className="text-[9px] ml-1 shrink-0">Fixo</Badge>
+                </div>
+              ) : (
+                <Input placeholder="283427" value={form.numero_pedido} onChange={(e) => set("numero_pedido", e.target.value)} />
+              )}
             </div>
           </div>
 

@@ -658,26 +658,47 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
             </div>
             <div className="space-y-1">
               <Label>Nº Pedido</Label>
-              <Input placeholder="12345" value={form.numero_pedido} onChange={e => set("numero_pedido", e.target.value)} />
+              {produtoFixo ? (
+                <div className="flex items-center justify-between border border-border rounded-md px-3 py-2 bg-muted/60 min-h-[38px] text-xs font-mono font-bold text-foreground">
+                  <span>#{form.numero_pedido}</span>
+                  <Badge variant="secondary" className="text-[9px] ml-1 shrink-0">Fixo</Badge>
+                </div>
+              ) : (
+                <Input placeholder="12345" value={form.numero_pedido} onChange={e => set("numero_pedido", e.target.value)} />
+              )}
             </div>
           </div>
 
           <div className="space-y-1">
             <Label>Cliente</Label>
-            <Input placeholder="Nome do cliente" value={form.cliente} onChange={e => set("cliente", e.target.value)} />
+            {produtoFixo ? (
+              <div className="flex items-center justify-between border border-border rounded-md px-3 py-2 bg-muted/60 min-h-[38px] text-xs font-semibold text-foreground">
+                <span className="truncate">{form.cliente || "Não informado"}</span>
+                <Badge variant="secondary" className="text-[9px] ml-1 shrink-0">Fixo</Badge>
+              </div>
+            ) : (
+              <Input placeholder="Nome do cliente" value={form.cliente} onChange={e => set("cliente", e.target.value)} />
+            )}
           </div>
 
           <div className="space-y-1">
             <Label>Vendedor {form.numero_pedido ? "*" : "(opcional)"}</Label>
-            <Select value={form.vendedor} onValueChange={v => set("vendedor", v)}>
-              <SelectTrigger><SelectValue placeholder="Selecione o vendedor..." /></SelectTrigger>
-              <SelectContent>
-                {vendedores.length === 0 && <SelectItem value="_empty" disabled>Nenhum vendedor cadastrado</SelectItem>}
-                {vendedores.map(v => (
-                  <SelectItem key={v.id} value={v.full_name || ""}>{v.full_name || "—"}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {produtoFixo ? (
+              <div className="flex items-center justify-between border border-border rounded-md px-3 py-2 bg-muted/60 min-h-[38px] text-xs font-semibold text-foreground">
+                <span className="truncate">{form.vendedor || "Não informado"}</span>
+                <Badge variant="secondary" className="text-[9px] ml-1 shrink-0">Fixo</Badge>
+              </div>
+            ) : (
+              <Select value={form.vendedor} onValueChange={v => set("vendedor", v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione o vendedor..." /></SelectTrigger>
+                <SelectContent>
+                  {vendedores.length === 0 && <SelectItem value="_empty" disabled>Nenhum vendedor cadastrado</SelectItem>}
+                  {vendedores.map(v => (
+                    <SelectItem key={v.id} value={v.full_name || ""}>{v.full_name || "—"}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div className="space-y-1">
