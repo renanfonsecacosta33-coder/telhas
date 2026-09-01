@@ -99,14 +99,27 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
             String(op.numero_pedido).trim().toUpperCase() === String(pedido.numero_pedido).trim().toUpperCase()
           );
 
-          // Um pedido/item só está concluído se o operador finalizou a OP na máquina
-          const opsFinalizadas = opsDoPedido.filter(op => op.status === "finalizado");
-          const opsEmProducao = opsDoPedido.filter(op => ["em_producao", "pausado", "aguardando_colagem", "pendente"].includes(op.status));
+          let somaProgresso = 0;
+          telhas.forEach((t, idx) => {
+            const op = opsDoPedido[idx] || opsDoPedido.find(o => String(o.produto).toUpperCase().includes(String(t.produto).toUpperCase())) || opsDoPedido[0];
+            if (op) {
+              if (op.status === "finalizado") somaProgresso += 1.0;
+              else if (op.status === "aguardando_colagem") somaProgresso += 0.75;
+              else if (op.status === "em_producao") somaProgresso += 0.50;
+              else if (op.status === "pausado") somaProgresso += 0.40;
+              else if (op.status === "pendente") somaProgresso += 0.30;
+              else somaProgresso += 0.25;
+            } else if (t.status === "concluido") {
+              somaProgresso += 1.0;
+            } else if (t.status === "em_producao" || t.maquina) {
+              somaProgresso += 0.30;
+            }
+          });
 
-          const pctTelha = telhas.length > 0 && opsFinalizadas.length > 0
-            ? Math.min(100, Math.round((opsFinalizadas.length / telhas.length) * 100))
-            : 0;
-          const pctGeral = pctTelha;
+          const pctTelha = telhas.length > 0
+            ? Math.min(100, Math.round((somaProgresso / telhas.length) * 100))
+            : (pedido.percentual_concluido || 0);
+          const pctGeral = Math.max(pctTelha, computePercentual(itens), pedido.percentual_concluido || 0);
           const sla = slaDiasPorCategoria(pedido);
           const restantes = diasUteisRestantes(pedido.data_entrega);
           const pacoteConcluido = pctTelha === 100;

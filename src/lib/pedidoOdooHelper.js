@@ -41,19 +41,29 @@ export function itensPorGrupo(itens, grupo) {
   return itens.filter((i) => classGrupo(i) === grupo);
 }
 
-// Percentual global baseado em TODOS os itens do pedido
+// Percentual global baseado em TODOS os itens do pedido (considerando etapas reais de produção)
 export function computePercentual(itens) {
   if (!itens || itens.length === 0) return 0;
-  const concluidos = itens.filter((i) => i.status === "concluido").length;
-  return Math.round((concluidos / itens.length) * 100);
+  let totalPontos = 0;
+  for (const it of itens) {
+    if (it.status === "concluido" || it.status === "finalizado") {
+      totalPontos += 1.0;
+    } else if (it.status === "aguardando_colagem") {
+      totalPontos += 0.75;
+    } else if (it.status === "em_producao") {
+      totalPontos += 0.35; // OP criada na máquina / em produção
+    } else if (it.maquina) {
+      totalPontos += 0.25; // Máquina atribuída
+    }
+  }
+  return Math.min(100, Math.round((totalPontos / itens.length) * 100));
 }
 
 // Percentual de um sub-pacote (ex: só telhas)
 export function computePercentualGrupo(itens, grupo) {
   const sub = itensPorGrupo(itens, grupo);
   if (sub.length === 0) return 0;
-  const concluidos = sub.filter((i) => i.status === "concluido").length;
-  return Math.round((concluidos / sub.length) * 100);
+  return computePercentual(sub);
 }
 
 export function buildItensJson(itens) {
