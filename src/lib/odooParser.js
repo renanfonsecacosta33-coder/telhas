@@ -3,6 +3,7 @@
 // (descarta revendas e outros)
 
 import { normalizarImagemBase64 } from "@/lib/imagemBase64";
+import { classGrupo } from "@/lib/pedidoOdooHelper";
 
 const CATEGORIA_MAP = {
   // Telhas
@@ -28,14 +29,18 @@ const CATEGORIA_MAP = {
 
 const CATEGORIAS_VALIDAS = Object.keys(CATEGORIA_MAP);
 
-export function classificarCategoria(catRaw) {
+export function classificarCategoria(catRaw, produtoTexto = "") {
   const cat = String(catRaw || "").trim().toLowerCase();
-  return CATEGORIA_MAP[cat] || null;
+  if (CATEGORIA_MAP[cat]) return CATEGORIA_MAP[cat];
+  const g = classGrupo(catRaw, produtoTexto);
+  if (g === "telha") return { grupo: "telha", sla: 7 };
+  if (g === "frisada") return { grupo: "frisada", sla: 5 };
+  if (g === "cd") return { grupo: "cd", sla: 5 };
+  return null;
 }
 
-export function isCategoriaValida(catRaw) {
-  const cat = String(catRaw || "").trim().toLowerCase();
-  return CATEGORIAS_VALIDAS.includes(cat);
+export function isCategoriaValida(catRaw, produtoTexto = "") {
+  return classificarCategoria(catRaw, produtoTexto) !== null;
 }
 
 // Aceita payload único (objeto) ou array de pedidos.
@@ -58,7 +63,7 @@ export function parseWebhookPayload(rawJson) {
       Array.isArray(p.order_line) ? p.order_line :
       Array.isArray(p.lines) ? p.lines : [];
 
-    // Filtra apenas categorias industriais válidas
+    // Filtra apenas categorias industriais válidas (Telhas, C&D, Perfis, etc.)
     const itens = itensRaw
       .map((it) => {
         const produto = it.produto || it.product_name || it.product || "";
@@ -78,11 +83,11 @@ export function parseWebhookPayload(rawJson) {
           quantidade: Number(it.quantidade || it.qty || it.quantity || it.product_uom_qty || 0)
         };
       })
-      .filter((it) => isCategoriaValida(it.categoria));
+      .filter((it) => isCategoriaValida(it.categoria, it.produto || it.descricao));
 
-    const telhaCount = itens.filter((i) => classificarCategoria(i.categoria)?.grupo === "telha").length;
-    const cdCount = itens.filter((i) => classificarCategoria(i.categoria)?.grupo === "cd").length;
-    const frisadaCount = itens.filter((i) => classificarCategoria(i.categoria)?.grupo === "frisada").length;
+    const telhaCount = itens.filter((i) => classGrupo(i) === "telha").length;
+    const cdCount = itens.filter((i) => classGrupo(i) === "cd").length;
+    const frisadaCount = itens.filter((i) => classGrupo(i) === "frisada").length;
 
     // Espessuras distintas
     const espessuras = [...new Set(itens.map((i) => i.espessura).filter(Boolean))];

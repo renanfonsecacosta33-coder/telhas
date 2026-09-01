@@ -13,6 +13,7 @@ import {
   buildItensJson, statusPcpPorPercentual, STATUS_ITEM
 } from "@/lib/pedidoOdooHelper";
 import { formatDataBR, slaDiasPorCategoria, diasUteisRestantes } from "@/lib/sla";
+import { notificarStatus } from "@/lib/biNotificador";
 
 export default function FilaPCPTelhas({ onNovaOrdem }) {
   const queryClient = useQueryClient();
@@ -188,7 +189,14 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                         {onNovaOrdem && (
                           <Button
                             size="sm"
-                            onClick={() => onNovaOrdem(pedido, { ...item, _idx: idx, maquina: maquinaItem })}
+                            onClick={() => {
+                              notificarStatus(pedido, "revisando_ordem", {
+                                status_novo: "em_revisao",
+                                item_nome: item.produto || item.descricao || "",
+                                maquina_atual: maquinaItem || "PCP / Fábrica"
+                              });
+                              onNovaOrdem(pedido, { ...item, _idx: idx, maquina: maquinaItem });
+                            }}
                             className={
                               concluido
                                 ? "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 h-8 px-3 gap-1.5 text-xs font-semibold"
