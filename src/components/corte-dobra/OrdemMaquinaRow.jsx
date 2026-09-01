@@ -22,6 +22,8 @@ import CorChapaDot, { extractEspessuraFromDesc } from "@/components/corte-dobra/
 import AproveitamentoDialog from "@/components/corte-dobra/AproveitamentoDialog";
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
 import ApontamentoOpButton from "@/components/producao/ApontamentoOpButton";
+import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo } from "@/lib/pedidoOdooHelper";
+import { notificarStatus } from "@/lib/biNotificador";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -127,8 +129,23 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
     return false;
   };
 
-  const doIniciar = () => {
-    onUpdate(o.id, { status: "em_producao", inicio_producao_ts: new Date().toISOString() });
+  const doIniciar = async () => {
+    const inicioTs = new Date().toISOString();
+    onUpdate(o.id, { status: "em_producao", inicio_producao_ts: inicioTs });
+    if (o.numero_pedido) {
+      try {
+        const odooList = await base44.entities.PedidoOdoo.filter({ numero_pedido: o.numero_pedido }, "-created_date", 1);
+        if (odooList && odooList[0]) {
+          await notificarStatus(odooList[0], "maquina_inicio", {
+            maquina_atual: o.maquina || "",
+            item_nome: o.tipo_peca || "",
+            inicio_fmt: inicioTs,
+          });
+        }
+      } catch (e) {
+        console.error("[OrdemMaquinaRow] erro ao notificar inicio:", e?.message || e);
+      }
+    }
   };
 
   const handleIniciar = () => {
@@ -258,6 +275,41 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
     // O desbloqueio da dobra vinculada e repasse de OBD agora rodam na trigger de backend (descontarEstoqueMaquinaCD)
     if (o.ordem_dobra_maquina && modBlankVal && modDescVal.trim()) {
       toast.success("OBD repassada para a dobra!");
+    }
+
+    // Notifica Mini BI do Odoo e atualiza status do item no PedidoOdoo
+    if (o.numero_pedido) {
+      try {
+        const odooList = await base44.entities.PedidoOdoo.filter({ numero_pedido: o.numero_pedido }, "-created_date", 1);
+        if (odooList && odooList[0]) {
+          const pedOdoo = odooList[0];
+          const itens = getItens(pedOdoo);
+          const itemIdx = itens.findIndex(i => (i.produto && o.tipo_peca && (i.produto.includes(o.tipo_peca) || o.tipo_peca.includes(i.produto))) || classGrupo(i) === "cd");
+          if (itemIdx >= 0) {
+            itens[itemIdx] = {
+              ...itens[itemIdx],
+              status: "concluido",
+              quantidade_produzida: o.quantidade || itens[itemIdx].quantidade
+            };
+            const pct = computePercentual(itens);
+            const status_pcp = statusPcpPorPercentual(pct, pedOdoo.status_pcp);
+            const updated = await base44.entities.PedidoOdoo.update(pedOdoo.id, {
+              itens_json: buildItensJson(itens),
+              percentual_concluido: pct,
+              status_pcp
+            });
+            await notificarStatus(updated, "maquina_fim", {
+              maquina_atual: o.maquina || "",
+              item_nome: o.tipo_peca || "",
+              fim_fmt: new Date().toISOString(),
+              duracao_min: Math.round(prodSeg / 60),
+              status_novo: status_pcp
+            });
+          }
+        }
+      } catch (e) {
+        console.error("[OrdemMaquinaRow] erro ao finalizar Mini BI:", e?.message || e);
+      }
     }
   };
 

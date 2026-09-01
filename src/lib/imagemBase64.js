@@ -35,9 +35,16 @@ export function isBase64Image(str) {
  */
 export function normalizarImagemBase64(raw) {
   if (!raw) return "";
-  const str = String(raw).trim();
+  let str = String(raw).trim();
   if (!str) return "";
   if (str.startsWith(DATA_IMAGE_PREFIX)) return str;
   if (isBase64Image(str)) return `data:image/png;base64,${str}`;
+
+  // Se for caminho relativo do Odoo (/web/content, /web/image...), prefixa com o domínio
+  if (str.startsWith("/web/") || str.startsWith("web/")) {
+    const limpo = str.startsWith("/") ? str.slice(1) : str;
+    return `https://ajlferroeaco.odoo.com/${limpo}`;
+  }
+
   return str;
 }

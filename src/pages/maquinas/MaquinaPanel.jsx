@@ -16,6 +16,8 @@ import { HistoricoPedidoTelhasButton } from "@/components/producao/HistoricoPedi
 import PainelSolicitacoesProducao from "@/components/producao/PainelSolicitacoesProducao";
 import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
+import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo } from "@/lib/pedidoOdooHelper";
+import { notificarStatus } from "@/lib/biNotificador";
 
 const STATUS_LABELS_TELHAS = {
   pendente: "Pendente",
@@ -153,6 +155,48 @@ export default function MaquinaPanel({ maquina }) {
       speakOpFinalizada(pedido.maquina, pedido.numero_pedido);
     }
     updateMutation.mutate({ id: pedido.id, data });
+
+    // Sincroniza em tempo real com o PedidoOdoo e notifica o Mini BI
+    if (pedido.numero_pedido) {
+      (async () => {
+        try {
+          const odooList = await base44.entities.PedidoOdoo.filter({ numero_pedido: pedido.numero_pedido }, "-created_date", 1);
+          if (odooList && odooList[0]) {
+            const pedOdoo = odooList[0];
+            const itens = getItens(pedOdoo);
+            const itemIdx = itens.findIndex(i => (i.produto && pedido.produto && (i.produto.includes(pedido.produto) || pedido.produto.includes(i.produto))) || classGrupo(i) === "telha");
+            if (itemIdx >= 0 && novoStatus === "finalizado") {
+              itens[itemIdx] = {
+                ...itens[itemIdx],
+                status: "concluido",
+                quantidade_produzida: pedido.quantidade_telhas || pedido.metros || itens[itemIdx].quantidade
+              };
+              const pct = computePercentual(itens);
+              const status_pcp = statusPcpPorPercentual(pct, pedOdoo.status_pcp);
+              const updated = await base44.entities.PedidoOdoo.update(pedOdoo.id, {
+                itens_json: buildItensJson(itens),
+                percentual_concluido: pct,
+                status_pcp
+              });
+              await notificarStatus(updated, "etapa_concluida", {
+                maquina_atual: pedido.maquina || "",
+                item_nome: pedido.produto || "",
+                fim_fmt: new Date().toISOString(),
+                status_novo: status_pcp
+              });
+            } else if (novoStatus === "em_producao") {
+              await notificarStatus(pedOdoo, "maquina_inicio", {
+                maquina_atual: pedido.maquina || "",
+                item_nome: pedido.produto || "",
+                inicio_fmt: new Date().toISOString(),
+              });
+            }
+          }
+        } catch (e) {
+          console.error("[MaquinaPanel] falha notificar Mini BI:", e?.message || e);
+        }
+      })();
+    }
   };
 
   // Pedidos que "passaram" por esta máquina (foram para outra após aqui)

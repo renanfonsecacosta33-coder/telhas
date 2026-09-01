@@ -19,7 +19,8 @@ import { useFilial } from "@/contexts/FilialContext";
 import FilaPCPTelhas from "@/components/pcp/FilaPCPTelhas";
 import RotasEntregaSection from "@/components/logistica/RotasEntregaSection";
 import PedidoFormDialog from "@/components/producao/PedidoFormDialog";
-import { prepararPresetNovaOrdemTelhas } from "@/lib/pedidoOdooHelper";
+import { prepararPresetNovaOrdemTelhas, getItens, computePercentual, statusPcpPorPercentual, buildItensJson } from "@/lib/pedidoOdooHelper";
+import { notificarStatus } from "@/lib/biNotificador";
 
 const MAQUINAS_TELHAS = [
   { id: "TP - 40",      label: "TP-40",        color: "bg-blue-500",   hex: "#3b82f6", path: "/maquina/tp40" },
@@ -57,6 +58,7 @@ export default function DashboardTelhas() {
   const [aba, setAba] = useState("producao");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editPreset, setEditPreset] = useState(null);
+  const [filaContext, setFilaContext] = useState(null);
   const queryClient = useQueryClient();
   const hoje = format(new Date(), "yyyy-MM-dd");
   const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -87,11 +89,43 @@ export default function DashboardTelhas() {
 
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.Pedido.create(data),
-    onSuccess: () => {
+    onSuccess: async (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["pedidos-dash-telhas"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
       setDialogOpen(false);
       toast.success("Pedido criado!");
+
+      const ctx = filaContext;
+      setFilaContext(null);
+      if (ctx) {
+        try {
+          const itens = getItens(ctx.pedido);
+          if (itens[ctx.itemIdx]) {
+            itens[ctx.itemIdx] = {
+              ...itens[ctx.itemIdx],
+              status: "em_producao",
+              maquina: variables?.maquina || "",
+            };
+            const percentual = computePercentual(itens);
+            const status_pcp = statusPcpPorPercentual(percentual, ctx.pedido.status_pcp);
+            const updated = await base44.entities.PedidoOdoo.update(ctx.pedidoId, {
+              itens_json: buildItensJson(itens),
+              percentual_concluido: percentual,
+              status_pcp,
+            });
+            queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-telhas"] });
+            queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+            await notificarStatus(updated, "maquina_inicio", {
+              maquina_atual: variables?.maquina || "",
+              item_nome: itens[ctx.itemIdx]?.produto || variables?.produto || "",
+              inicio_fmt: new Date().toISOString(),
+              status_novo: status_pcp,
+            });
+          }
+        } catch (e) {
+          console.error("[Dashboard Telhas] erro ao atualizar item/webhook:", e?.message || e);
+        }
+      }
     },
   });
 
@@ -392,6 +426,7 @@ export default function DashboardTelhas() {
 
       {/* ══════════════ ABA FILA PCP ══════════════ */}
       {aba === "fila_pcp" && <FilaPCPTelhas onNovaOrdem={(pedido, item) => {
+        setFilaContext({ pedidoId: pedido.id, itemIdx: item._idx, pedido, produtoFixo: item.produto || "" });
         setEditPreset(prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva));
         setDialogOpen(true);
       }} />}

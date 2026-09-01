@@ -128,15 +128,20 @@ function ehUrlOdooInterna(str) {
 export function extrairAnexosLista(pedido) {
   if (!pedido) return [];
   const grupos = [
-    { label: "Anexo 1", base64Keys: ["anexo_1_base64", "anexo_1"], urlKeys: ["anexo_1_url", "anexo_1"] },
-    { label: "Anexo 2", base64Keys: ["anexo_2_base64", "anexo_2"], urlKeys: ["anexo_2_url", "anexo_2"] },
+    {
+      label: "Anexo 1",
+      base64Keys: ["anexo_1_base64", "anexo1_base64", "anexo_1", "anexo1"],
+      urlKeys: ["anexo_1_url", "anexo1_url", "anexo_1", "anexo1", "foto_pedido_url", "foto_pedido", "croqui_url", "foto_url"]
+    },
+    {
+      label: "Anexo 2",
+      base64Keys: ["anexo_2_base64", "anexo2_base64", "anexo_2", "anexo2"],
+      urlKeys: ["anexo_2_url", "anexo2_url", "anexo_2", "anexo2"]
+    },
   ];
   const anexos = [];
   for (const g of grupos) {
     const base64Raw = g.base64Keys.map((k) => pedido[k]).find((v) => v);
-    // FORÇA Base64: se o campo existir, monta o Data URI direto, removendo
-    // qualquer prefixo data: existente e limpando whitespaces/newlines que
-    // quebram a renderização. Garante exibição sem exigir sessão no Odoo.
     const base64Forcado = forcarDataUriBase64(base64Raw);
     const urlRaw = g.urlKeys.map((k) => pedido[k]).find((v) => v);
     const urlSrc = normalizarImagemBase64(urlRaw);
@@ -144,17 +149,28 @@ export function extrairAnexosLista(pedido) {
     let src = "";
     let fallback = "";
     if (base64Forcado) {
-      // Base64 sempre tem prioridade — abre direto, sem login no Odoo.
       src = base64Forcado;
-    } else if (urlSrc && !ehUrlOdooInterna(urlSrc)) {
-      // URL externa http — usa direto; fallback Base64 se existir.
+    } else if (urlSrc) {
       src = urlSrc;
     }
-    // fallback para onError: Base64 bruto do próprio anexo (se src não for Base64)
     if (base64Forcado && src !== base64Forcado) fallback = base64Forcado;
 
     if (src) anexos.push({ src, fallback, label: g.label });
   }
+
+  // Se ainda não encontrou anexos, tenta buscar dentro de itens_json
+  if (anexos.length === 0) {
+    try {
+      const itens = JSON.parse(pedido.itens_json || "[]");
+      for (const it of itens) {
+        const a1 = normalizarImagemBase64(it.anexo_1_url || it.anexo_1 || it.foto_url || it.croqui_url);
+        const a2 = normalizarImagemBase64(it.anexo_2_url || it.anexo_2);
+        if (a1 && !anexos.some(a => a.src === a1)) anexos.push({ src: a1, fallback: "", label: "Anexo 1" });
+        if (a2 && !anexos.some(a => a.src === a2)) anexos.push({ src: a2, fallback: "", label: "Anexo 2" });
+      }
+    } catch { /* ignore */ }
+  }
+
   return anexos;
 }
 

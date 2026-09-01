@@ -18,7 +18,8 @@ import OPImpressao from "@/components/producao/OPImpressao";
 import { useFilial } from "@/contexts/FilialContext";
 import ExpedicaoTab from "@/components/logistica/ExpedicaoTab";
 import FilaPCPTelhas from "@/components/pcp/FilaPCPTelhas";
-import { prepararPresetNovaOrdemTelhas } from "@/lib/pedidoOdooHelper";
+import { prepararPresetNovaOrdemTelhas, getItens, computePercentual, statusPcpPorPercentual, buildItensJson } from "@/lib/pedidoOdooHelper";
+import { notificarStatus } from "@/lib/biNotificador";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 
@@ -38,6 +39,7 @@ export default function ProducaoAdmin() {
   const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
+  const [filaContext, setFilaContext] = useState(null);
   const [viewMode, setViewMode] = useState("semana"); // "semana" | "dia"
   const [activeTab, setActiveTab] = useState("producao"); // "producao" | "dados"
   const [opOpen, setOpOpen] = useState(false);
@@ -58,7 +60,43 @@ export default function ProducaoAdmin() {
 
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.Pedido.create(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["pedidos"] }); setDialogOpen(false); toast.success("Pedido registrado!"); },
+    onSuccess: async (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      setDialogOpen(false);
+      toast.success("Pedido registrado!");
+
+      const ctx = filaContext;
+      setFilaContext(null);
+      if (ctx) {
+        try {
+          const itens = getItens(ctx.pedido);
+          if (itens[ctx.itemIdx]) {
+            itens[ctx.itemIdx] = {
+              ...itens[ctx.itemIdx],
+              status: "em_producao",
+              maquina: variables?.maquina || "",
+            };
+            const percentual = computePercentual(itens);
+            const status_pcp = statusPcpPorPercentual(percentual, ctx.pedido.status_pcp);
+            const updated = await base44.entities.PedidoOdoo.update(ctx.pedidoId, {
+              itens_json: buildItensJson(itens),
+              percentual_concluido: percentual,
+              status_pcp,
+            });
+            queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-telhas"] });
+            queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+            await notificarStatus(updated, "maquina_inicio", {
+              maquina_atual: variables?.maquina || "",
+              item_nome: itens[ctx.itemIdx]?.produto || variables?.produto || "",
+              inicio_fmt: new Date().toISOString(),
+              status_novo: status_pcp,
+            });
+          }
+        } catch (e) {
+          console.error("[Fila PCP Telhas] erro ao atualizar item/webhook:", e?.message || e);
+        }
+      }
+    },
   });
 
   const updateMutation = useMutation({
@@ -246,6 +284,7 @@ export default function ProducaoAdmin() {
       {activeTab === "expedicao" && <ExpedicaoTab tipo="telhas" filialAtiva={filialAtiva} />}
 
       {activeTab === "fila_pcp" && <FilaPCPTelhas onNovaOrdem={(pedido, item) => {
+        setFilaContext({ pedidoId: pedido.id, itemIdx: item._idx, pedido, produtoFixo: item.produto || "" });
         setEditItem(prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva));
         setDialogOpen(true);
       }} />}
