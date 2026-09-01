@@ -123,16 +123,13 @@ export function detectarMaquinaTelha(produtoTexto = "") {
   return "";
 }
 
-// Detecta a espessura exigida a partir do texto do produto
+// Detecta a espessura no texto (ex: "(0,43)", "0.43", "0,50", "0.65", "1,25", etc.)
 export function detectarEspessura(produtoTexto = "") {
-  const p = String(produtoTexto || "").toLowerCase().replace(",", ".").replace(/\s/g, "");
-  const match = p.match(/(\d{1,2}[.,]?\d{0,2})\s*(mm)?/);
-  if (!match) return "";
-  let esp = match[1].replace(".", ",");
-  // Heurística: valores baixos (ex: 0,43 / 0,50 / 0,65) são espessuras reais
-  const num = parseFloat(match[1]);
-  if (num > 0 && num < 10) return esp;
-  return "";
+  const p = String(produtoTexto || "");
+  const matchPar = p.match(/\((\d+[.,]\d+)\s*\)/);
+  if (matchPar) return matchPar[1].replace(".", ",");
+  const match = p.match(/(0[,.]\d{1,3}|1[,.]\d{1,3}|2[,.]\d{1,3})/);
+  return match ? match[1].replace(".", ",") : "";
 }
 
 // Detecta a origem do aço exigida (Nacional / Importado / ambas)

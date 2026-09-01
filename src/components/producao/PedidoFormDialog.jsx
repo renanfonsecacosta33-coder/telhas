@@ -791,9 +791,9 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Espessura Exigida</Label>
-                {form.trava_produto_pcp && form.espessura_exigida ? (
+                {form.trava_produto_pcp ? (
                   <div className="flex items-center justify-between border border-border rounded-md px-3 py-2 bg-muted/60 min-h-[38px] text-xs font-bold text-foreground">
-                    <span>{form.espessura_exigida} mm</span>
+                    <span>{form.espessura_exigida || detectarEspessura(form.produto_rotulo_pcp) || "0,43"} mm</span>
                     <Badge variant="secondary" className="text-[9px] ml-1 shrink-0">Fixo</Badge>
                   </div>
                 ) : (
@@ -803,9 +803,9 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Origem do Aço Exigida</Label>
-                {form.trava_produto_pcp && form.origem_exigida && form.origem_exigida !== "ambas" ? (
+                {form.trava_produto_pcp ? (
                   <div className="flex items-center justify-between border border-border rounded-md px-3 py-2 bg-muted/60 min-h-[38px] text-xs font-bold text-orange-600 dark:text-orange-400">
-                    <span>{form.origem_exigida}</span>
+                    <span>{form.origem_exigida && form.origem_exigida !== "ambas" ? form.origem_exigida : (detectarOrigemAco(form.produto_rotulo_pcp) !== "ambas" ? detectarOrigemAco(form.produto_rotulo_pcp) : "Nacional")}</span>
                     <Badge variant="secondary" className="text-[9px] ml-1 shrink-0">Fixo</Badge>
                   </div>
                 ) : (
