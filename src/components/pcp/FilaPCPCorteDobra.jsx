@@ -24,7 +24,19 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
   const { data: pedidos = [], isLoading } = useQuery({
     queryKey: ["pedidos-odoo-cd"],
     queryFn: () => base44.entities.PedidoOdoo.list("-data_recebimento", 200),
-    refetchInterval: 15000
+    refetchInterval: 10000
+  });
+
+  const { data: ordensMaquina = [] } = useQuery({
+    queryKey: ["ordens-maquina-cd-todas"],
+    queryFn: () => base44.entities.OrdemMaquinaCD.list("-data", 500),
+    refetchInterval: 10000
+  });
+
+  const { data: ordensDesb = [] } = useQuery({
+    queryKey: ["ordens-desb-todas"],
+    queryFn: () => base44.entities.OrdemDesbobinadeira.list("-data", 500),
+    refetchInterval: 10000
   });
 
   // Pedidos distribuídos/em produção com itens de CD
@@ -110,9 +122,31 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
 
             <div className="space-y-2">
               {grupo.itens.map(({ pedido, item, idx }) => {
-                const st = STATUS_ITEM[item.status] || STATUS_ITEM.pendente;
+                // Determina status real a partir das OPs de corte e dobra
+                const opReal = ordensMaquina.find(o =>
+                  o.numero_pedido && String(o.numero_pedido).trim().toUpperCase() === String(pedido.numero_pedido).trim().toUpperCase()
+                ) || ordensDesb.find(o =>
+                  o.numero_pedido && String(o.numero_pedido).trim().toUpperCase() === String(pedido.numero_pedido).trim().toUpperCase()
+                );
+
+                let statusItem = "pendente";
+                let maquinaItem = item.maquina || "";
+
+                if (opReal) {
+                  maquinaItem = opReal.maquina || maquinaItem;
+                  if (opReal.status === "finalizado") {
+                    statusItem = "concluido";
+                  } else if (["em_producao", "pausado", "aguardando_corte", "pendente"].includes(opReal.status)) {
+                    statusItem = "em_producao";
+                  }
+                }
+
+                const st = STATUS_ITEM[statusItem] || STATUS_ITEM.pendente;
+                const emProd = statusItem === "em_producao";
+                const concluido = statusItem === "concluido";
                 const key = `${pedido.id}-${idx}`;
                 const restantes = diasUteisRestantes(pedido.data_entrega);
+
                 return (
                   <div key={key} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950/40 p-3 space-y-2">
                     <div className="flex items-start gap-3">
@@ -120,12 +154,6 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                     <div className="flex-1 min-w-0 space-y-2">
                     <InstrucaoVendedorCard descricao={item.descricao || item.produto} quantidadeOdoo={item.quantidade} espessura={item.espessura} unidade="un" />
                     <div className="flex items-start gap-3">
-                      <Checkbox
-                        checked={item.status === "concluido"}
-                        disabled={item.status === "pendente" || atualizando === key}
-                        onCheckedChange={(v) => v && handleAtualizar(pedido, idx, { status: "concluido" })}
-                        className="data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500 mt-0.5"
-                      />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{item.produto || "—"}</span>
@@ -147,9 +175,9 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                         {/* Checklist individual: máquina + medição + qtd produzida */}
                         <div className="flex items-center gap-2 mt-2 flex-wrap">
                           <Select
-                            value={item.maquina || ""}
+                            value={maquinaItem || ""}
                             onValueChange={(v) => handleAtualizar(pedido, idx, { maquina: v })}
-                            disabled={item.status === "concluido"}
+                            disabled={concluido}
                           >
                             <SelectTrigger className="h-8 w-[160px] text-xs">
                               <SelectValue placeholder="Selecionar máquina..." />
@@ -169,7 +197,7 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                               }
                             }}
                             className="h-8 w-28 text-xs"
-                            disabled={item.status === "concluido"}
+                            disabled={concluido}
                           />
                           <Input
                             type="number"
@@ -185,29 +213,29 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                             }}
                             defaultValue={item.quantidade_produzida || ""}
                             className="h-8 w-28 text-xs"
-                            disabled={item.status === "concluido"}
+                            disabled={concluido}
                           />
                           {onNovaOrdem && (
                             <Button
                               size="sm"
-                              onClick={() => onNovaOrdem(pedido, item)}
+                              onClick={() => onNovaOrdem(pedido, { ...item, _idx: idx, maquina: maquinaItem })}
                               className={
-                                item.status === "concluido"
+                                concluido
                                   ? "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 h-8 px-3 gap-1.5 text-xs font-semibold"
-                                  : item.status === "em_producao"
+                                  : emProd
                                   ? "bg-amber-500 hover:bg-amber-600 text-white h-8 px-3 gap-1.5 text-xs font-semibold shadow-sm"
                                   : "bg-orange-500 hover:bg-orange-600 text-white h-8 px-3 gap-1.5 text-xs font-semibold shadow-sm"
                               }
                             >
-                              {item.status === "concluido" ? (
+                              {concluido ? (
                                 <>
                                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                                   <span>Ver / Revisar Ordem</span>
                                 </>
-                              ) : item.status === "em_producao" ? (
+                              ) : emProd ? (
                                 <>
                                   <span>⚙️</span>
-                                  <span>Revisar Ordem ({item.maquina || "Em Produção"})</span>
+                                  <span>Revisar Ordem ({maquinaItem || "Em Produção"})</span>
                                 </>
                               ) : (
                                 <>

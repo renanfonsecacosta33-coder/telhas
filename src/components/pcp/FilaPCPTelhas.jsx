@@ -22,7 +22,14 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
   const { data: pedidos = [], isLoading } = useQuery({
     queryKey: ["pedidos-odoo-telhas"],
     queryFn: () => base44.entities.PedidoOdoo.list("-data_recebimento", 200),
-    refetchInterval: 15000
+    refetchInterval: 10000
+  });
+
+  // Consulta as Ordens de Produção reais nas máquinas da fábrica
+  const { data: pedidosProducao = [] } = useQuery({
+    queryKey: ["pedidos-producao-todos"],
+    queryFn: () => base44.entities.Pedido.list("-data", 500),
+    refetchInterval: 10000
   });
 
   // Apenas pedidos distribuídos/em produção com itens de telha
@@ -84,8 +91,21 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
         {fila.map(pedido => {
           const itens = getItens(pedido);
           const telhas = itensPorGrupo(itens, "telha");
-          const pctTelha = computePercentualGrupo(itens, "telha");
-          const pctGeral = pedido.percentual_concluido || computePercentual(itens);
+
+          // Busca se existe Ordem de Produção real criada para este pedido na fábrica
+          const opsDoPedido = pedidosProducao.filter(op =>
+            op.numero_pedido &&
+            String(op.numero_pedido).trim().toUpperCase() === String(pedido.numero_pedido).trim().toUpperCase()
+          );
+
+          // Um pedido/item só está concluído se o operador finalizou a OP na máquina
+          const opsFinalizadas = opsDoPedido.filter(op => op.status === "finalizado");
+          const opsEmProducao = opsDoPedido.filter(op => ["em_producao", "pausado", "aguardando_colagem", "pendente"].includes(op.status));
+
+          const pctTelha = telhas.length > 0 && opsFinalizadas.length > 0
+            ? Math.min(100, Math.round((opsFinalizadas.length / telhas.length) * 100))
+            : 0;
+          const pctGeral = pctTelha;
           const sla = slaDiasPorCategoria(pedido);
           const restantes = diasUteisRestantes(pedido.data_entrega);
           const pacoteConcluido = pctTelha === 100;
@@ -97,9 +117,17 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-bold text-slate-900 dark:text-white">#{pedido.numero_pedido}</span>
-                    {pacoteConcluido && (
+                    {pacoteConcluido ? (
                       <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40 text-[10px]">
                         <CheckCircle2 className="w-3 h-3 mr-0.5" />Pacote Telhas Concluído
+                      </Badge>
+                    ) : opsEmProducao.length > 0 ? (
+                      <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 text-[10px]">
+                        ⚙️ Em Produção na Fábrica
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/40 text-[10px]">
+                        Aguardando Criação de OP
                       </Badge>
                     )}
                   </div>
@@ -124,31 +152,34 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
               </div>
 
               <div className="space-y-2">
-                {telhas.map(item => {
-                  const st = STATUS_ITEM[item.status] || STATUS_ITEM.pendente;
-                  const idx = item._idx;
-                  const key = `${pedido.id}-${idx}`;
-                  const emProd = item.status === "em_producao";
-                  const concluido = item.status === "concluido";
+                {telhas.map((item, idx) => {
+                  // Determina o status real do item com base na OP da máquina
+                  const opDoItem = opsDoPedido[idx] || opsDoPedido[0] || null;
+                  let statusItem = "pendente";
+                  let maquinaItem = item.maquina || "";
+
+                  if (opDoItem) {
+                    maquinaItem = opDoItem.maquina || maquinaItem;
+                    if (opDoItem.status === "finalizado") {
+                      statusItem = "concluido";
+                    } else if (["em_producao", "pausado", "aguardando_colagem", "pendente"].includes(opDoItem.status)) {
+                      statusItem = "em_producao";
+                    }
+                  }
+
+                  const st = STATUS_ITEM[statusItem] || STATUS_ITEM.pendente;
+                  const emProd = statusItem === "em_producao";
+                  const concluido = statusItem === "concluido";
 
                   return (
                     <div key={idx} className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950/40 space-y-2">
                       <InstrucaoVendedorCard descricao={item.descricao || item.produto} quantidadeOdoo={item.quantidade} espessura={item.espessura} unidade="MT" />
                       <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
-                        <Checkbox
-                          checked={concluido}
-                          disabled={atualizando === key}
-                          onCheckedChange={(v) => handleAtualizar(pedido, idx, {
-                            status: v ? "concluido" : (item.maquina ? "em_producao" : "pendente"),
-                            quantidade_produzida: v ? (item.quantidade_produzida || item.quantidade) : 0
-                          })}
-                          className="data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
-                        />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{item.produto || "—"}</p>
                           <p className="text-[11px] text-slate-400">
                             {item.medida || "—"} · {item.quantidade}x{item.espessura ? ` · ${item.espessura}mm` : ""}
-                            {item.maquina ? <strong className="text-orange-600 dark:text-orange-400 ml-1.5">· Máquina: {item.maquina}</strong> : ""}
+                            {maquinaItem ? <strong className="text-orange-600 dark:text-orange-400 ml-1.5">· Máquina: {maquinaItem}</strong> : ""}
                           </p>
                         </div>
                         <Badge className={`shrink-0 border text-[10px] ${st.cls}`}>
@@ -157,7 +188,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                         {onNovaOrdem && (
                           <Button
                             size="sm"
-                            onClick={() => onNovaOrdem(pedido, item)}
+                            onClick={() => onNovaOrdem(pedido, { ...item, _idx: idx, maquina: maquinaItem })}
                             className={
                               concluido
                                 ? "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 h-8 px-3 gap-1.5 text-xs font-semibold"
@@ -174,7 +205,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                             ) : emProd ? (
                               <>
                                 <span>⚙️</span>
-                                <span>Revisar Ordem ({item.maquina || "Em Produção"})</span>
+                                <span>Revisar Ordem ({maquinaItem || "Em Produção"})</span>
                               </>
                             ) : (
                               <>
