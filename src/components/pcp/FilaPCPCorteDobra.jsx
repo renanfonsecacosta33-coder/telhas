@@ -187,28 +187,35 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                             className="h-8 w-28 text-xs"
                             disabled={item.status === "concluido"}
                           />
-                          {item.status === "pendente" ? (
-                            onNovaOrdem && (
-                              <Button
-                                size="sm"
-                                onClick={() => {
-                                  handleAtualizar(pedido, idx, { status: "em_producao" });
-                                  onNovaOrdem(pedido, item);
-                                }}
-                                className="bg-orange-500 hover:bg-orange-600 text-white h-8 px-3 gap-1"
-                              >
-                                <Plus className="w-3 h-3" /> Nova Ordem
-                              </Button>
-                            )
-                          ) : (
-                            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-md text-xs font-semibold">
-                              <span>⚙️ {item.maquina ? `Em: ${item.maquina}` : "Em Produção"}</span>
-                            </div>
-                          )}
-                          {item.status === "em_producao" && (
-                            <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300 h-8 px-3 gap-1 text-[11px] font-bold inline-flex items-center whitespace-nowrap">
-                              <CheckCircle2 className="w-3 h-3" /> Em Produção — {item.maquina || "—"}
-                            </Badge>
+                          {onNovaOrdem && (
+                            <Button
+                              size="sm"
+                              onClick={() => onNovaOrdem(pedido, item)}
+                              className={
+                                item.status === "concluido"
+                                  ? "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 h-8 px-3 gap-1.5 text-xs font-semibold"
+                                  : item.status === "em_producao"
+                                  ? "bg-amber-500 hover:bg-amber-600 text-white h-8 px-3 gap-1.5 text-xs font-semibold shadow-sm"
+                                  : "bg-orange-500 hover:bg-orange-600 text-white h-8 px-3 gap-1.5 text-xs font-semibold shadow-sm"
+                              }
+                            >
+                              {item.status === "concluido" ? (
+                                <>
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>Ver / Revisar Ordem</span>
+                                </>
+                              ) : item.status === "em_producao" ? (
+                                <>
+                                  <span>⚙️</span>
+                                  <span>Revisar Ordem ({item.maquina || "Em Produção"})</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Play className="w-3.5 h-3.5 fill-current" />
+                                  <span>Revisar Ordem</span>
+                                </>
+                              )}
+                            </Button>
                           )}
                         </div>
                       </div>

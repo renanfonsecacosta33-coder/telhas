@@ -128,43 +128,62 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                   const st = STATUS_ITEM[item.status] || STATUS_ITEM.pendente;
                   const idx = item._idx;
                   const key = `${pedido.id}-${idx}`;
+                  const emProd = item.status === "em_producao";
+                  const concluido = item.status === "concluido";
+
                   return (
                     <div key={idx} className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950/40 space-y-2">
                       <InstrucaoVendedorCard descricao={item.descricao || item.produto} quantidadeOdoo={item.quantidade} espessura={item.espessura} unidade="MT" />
-                      <div className="flex items-center gap-3">
-                      <Checkbox
-                        checked={item.status === "concluido"}
-                        disabled={item.status === "pendente" || atualizando === key}
-                        onCheckedChange={(v) => v && handleAtualizar(pedido, idx, { status: "concluido", quantidade_produzida: item.quantidade_produzida || item.quantidade })}
-                        className="data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{item.produto || "—"}</p>
-                        <p className="text-[11px] text-slate-400">
-                          {item.medida || "—"} · {item.quantidade}x{item.espessura ? ` · ${item.espessura}mm` : ""}
-                        </p>
-                      </div>
-                      <Badge className={`shrink-0 border text-[10px] ${st.cls}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${st.dot} mr-1`} />{st.label}
-                      </Badge>
-                      {item.status === "pendente" ? (
-                        onNovaOrdem && (
+                      <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+                        <Checkbox
+                          checked={concluido}
+                          disabled={atualizando === key}
+                          onCheckedChange={(v) => handleAtualizar(pedido, idx, {
+                            status: v ? "concluido" : (item.maquina ? "em_producao" : "pendente"),
+                            quantidade_produzida: v ? (item.quantidade_produzida || item.quantidade) : 0
+                          })}
+                          className="data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{item.produto || "—"}</p>
+                          <p className="text-[11px] text-slate-400">
+                            {item.medida || "—"} · {item.quantidade}x{item.espessura ? ` · ${item.espessura}mm` : ""}
+                            {item.maquina ? <strong className="text-orange-600 dark:text-orange-400 ml-1.5">· Máquina: {item.maquina}</strong> : ""}
+                          </p>
+                        </div>
+                        <Badge className={`shrink-0 border text-[10px] ${st.cls}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${st.dot} mr-1`} />{st.label}
+                        </Badge>
+                        {onNovaOrdem && (
                           <Button
                             size="sm"
-                            onClick={() => {
-                              handleAtualizar(pedido, idx, { status: "em_producao" });
-                              onNovaOrdem(pedido, item);
-                            }}
-                            className="bg-orange-500 hover:bg-orange-600 text-white h-8 px-3 gap-1"
+                            onClick={() => onNovaOrdem(pedido, item)}
+                            className={
+                              concluido
+                                ? "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 h-8 px-3 gap-1.5 text-xs font-semibold"
+                                : emProd
+                                ? "bg-amber-500 hover:bg-amber-600 text-white h-8 px-3 gap-1.5 text-xs font-semibold shadow-sm"
+                                : "bg-orange-500 hover:bg-orange-600 text-white h-8 px-3 gap-1.5 text-xs font-semibold shadow-sm"
+                            }
                           >
-                            <Plus className="w-3 h-3" /> Nova Ordem
+                            {concluido ? (
+                              <>
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Ver / Revisar Ordem</span>
+                              </>
+                            ) : emProd ? (
+                              <>
+                                <span>⚙️</span>
+                                <span>Revisar Ordem ({item.maquina || "Em Produção"})</span>
+                              </>
+                            ) : (
+                              <>
+                                <Play className="w-3.5 h-3.5 fill-current" />
+                                <span>Revisar Ordem</span>
+                              </>
+                            )}
                           </Button>
-                        )
-                      ) : (
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-md text-xs font-semibold">
-                          <span>⚙️ {item.maquina ? `Em: ${item.maquina}` : "Em Produção"}</span>
-                        </div>
-                      )}
+                        )}
                       </div>
                     </div>
                   );
