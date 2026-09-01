@@ -309,13 +309,6 @@ export default function ProducaoAdmin() {
               ))}
             </div>
           )}
-          <PedidoFormDialog
-            open={dialogOpen}
-            onClose={() => { setDialogOpen(false); setEditItem(null); }}
-            onSave={handleSave}
-            editItem={editItem}
-            defaultDate={selectedDay}
-          />
         </div>
       )}
 
@@ -468,6 +461,7 @@ export default function ProducaoAdmin() {
           })}
         </div>
       )}
+      </>)}
 
       <PedidoFormDialog
         open={dialogOpen}
@@ -476,7 +470,6 @@ export default function ProducaoAdmin() {
         editItem={editItem}
         defaultDate={selectedDay}
       />
-      </>)}
 
       <OPImpressao open={opOpen} onClose={() => setOpOpen(false)} pedido={opPedido} />
 
