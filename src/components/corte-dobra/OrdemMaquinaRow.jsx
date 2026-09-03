@@ -136,10 +136,29 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
       try {
         const odooList = await base44.entities.PedidoOdoo.filter({ numero_pedido: o.numero_pedido }, "-created_date", 1);
         if (odooList && odooList[0]) {
-          await notificarStatus(odooList[0], "maquina_inicio", {
+          const pedOdoo = odooList[0];
+          const itens = getItens(pedOdoo);
+          const itemIdx = itens.findIndex(i => (i.produto && o.tipo_peca && (i.produto.includes(o.tipo_peca) || o.tipo_peca.includes(i.produto))) || classGrupo(i) === "cd");
+          if (itemIdx >= 0) {
+            itens[itemIdx] = {
+              ...itens[itemIdx],
+              status: "em_producao",
+              maquina: o.maquina || itens[itemIdx].maquina || ""
+            };
+          }
+          const pct = computePercentual(itens);
+          const status_pcp = statusPcpPorPercentual(pct, "em_producao");
+          const updated = await base44.entities.PedidoOdoo.update(pedOdoo.id, {
+            itens_json: buildItensJson(itens),
+            percentual_concluido: pct,
+            status_pcp
+          });
+          await notificarStatus(updated, "maquina_inicio", {
             maquina_atual: o.maquina || "",
             item_nome: o.tipo_peca || "",
             inicio_fmt: inicioTs,
+            status_novo: status_pcp,
+            percentual_concluido: pct
           });
         }
       } catch (e) {
@@ -303,7 +322,8 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               item_nome: o.tipo_peca || "",
               fim_fmt: new Date().toISOString(),
               duracao_min: Math.round(prodSeg / 60),
-              status_novo: status_pcp
+              status_novo: status_pcp,
+              percentual_concluido: pct
             });
           }
         }

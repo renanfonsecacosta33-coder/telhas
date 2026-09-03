@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
@@ -18,7 +18,7 @@ import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import { calcularDataPrometidaSLA, toISODate, slaDiasPorCategoria, diasUteisRestantes } from "@/lib/sla";
 import { parseItensPedido } from "@/lib/regrasFabrica";
 import { notificarStatus } from "@/lib/biNotificador";
-import { calcularProgressoRealPedido } from "@/lib/pedidoOdooHelper";
+import { calcularProgressoRealPedido, statusPcpPorPercentual } from "@/lib/pedidoOdooHelper";
 
 const FILTROS = [
   { id: "todos", label: "Todos" },
@@ -66,6 +66,44 @@ export default function CentralPCP() {
     });
     return unsubscribe;
   }, [queryClient]);
+
+  // Sincronização 100% Automática em Tempo Real com o Odoo ERP:
+  // Detecta alterações no progresso real das máquinas e sincroniza tanto o banco quanto o Odoo
+  const syncEmAndamentoRef = useRef(new Set());
+
+  useEffect(() => {
+    if (!pedidos.length) return;
+
+    pedidos.forEach(async (p) => {
+      if (!p.id || !p.numero_pedido) return;
+      const progressoReal = calcularProgressoRealPedido(p, pedidosProducao, ordensCD);
+      const statusReal = statusPcpPorPercentual(progressoReal, p.status_pcp);
+
+      // Sincroniza automaticamente se o percentual ou status diferir do gravado
+      const syncKey = `${p.id}_${progressoReal}_${statusReal}`;
+      if (
+        (progressoReal !== p.percentual_concluido || (p.status_pcp !== "concluido" && statusReal === "concluido")) &&
+        !syncEmAndamentoRef.current.has(syncKey)
+      ) {
+        syncEmAndamentoRef.current.add(syncKey);
+        try {
+          const atualizado = await base44.entities.PedidoOdoo.update(p.id, {
+            percentual_concluido: progressoReal,
+            status_pcp: statusReal
+          });
+          // Notifica Mini BI do Odoo automaticamente em tempo real
+          await notificarStatus(atualizado, "progresso_automatico", {
+            percentual_concluido: progressoReal,
+            status_novo: statusReal,
+            item_nome: `Pedido #${p.numero_pedido}`
+          });
+        } catch (err) {
+          console.error("[CentralPCP AutoSync] falha na sincronizacao automatica:", p.numero_pedido, err);
+          syncEmAndamentoRef.current.delete(syncKey);
+        }
+      }
+    });
+  }, [pedidos, pedidosProducao, ordensCD]);
 
   const handleReceberWebhook = async (pedidosParsed) => {
     const novos = pedidosParsed.map((p) => {
