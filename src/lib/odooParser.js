@@ -100,6 +100,8 @@ export function parseWebhookPayload(rawJson) {
     // quando o Odoo envia a imagem sem o prefixo.
     const fotoRaw = p.foto_pedido_url || p.anexo_1_url || p.anexo_2_url || p.anexo_url || p.attachment_url || p.foto_url || "";
     const foto_pedido_url = normalizarImagemBase64(fotoRaw);
+    const anexo_1_url = normalizarImagemBase64(p.anexo_1_url || p.anexo_1 || p.anexo1 || p.foto_pedido_url || "");
+    const anexo_2_url = normalizarImagemBase64(p.anexo_2_url || p.anexo_2 || p.anexo2 || "");
 
     result.push({
       odoo_id: String(p.odoo_id || p.id || ""),
@@ -107,6 +109,8 @@ export function parseWebhookPayload(rawJson) {
       cliente_nome: p.cliente_nome || p.cliente || p.partner_name || p.partner_id?.[1] || "",
       vendedor_nome: p.vendedor_nome || p.vendedor || p.user_id?.[1] || p.salesman || "",
       foto_pedido_url,
+      anexo_1_url,
+      anexo_2_url,
       data_recebimento: p.data_recebimento || p.date_order || new Date().toISOString(),
       unidade: p.unidade || "Matriz AJL",
       itens,

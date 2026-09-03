@@ -200,17 +200,13 @@ export default async function(req: Request): Promise<Response> {
       if (s.startsWith("iVBORw0KGgo")) return `data:image/png;base64,${s}`;
       if (s.startsWith("R0lGOD")) return `data:image/gif;base64,${s}`;
       if (s.startsWith("UklGR")) return `data:image/webp;base64,${s}`;
+      if (/^[A-Za-z0-9+/=]+$/.test(s)) return `data:image/png;base64,${s}`;
       return "";
     };
-    const anexo1Url = body?.anexo_1_base64 ? toDataUri(body.anexo_1_base64) : (body?.anexo_1_url || "");
-    const anexo2Url = body?.anexo_2_base64 ? toDataUri(body.anexo_2_base64) : (body?.anexo_2_url || "");
-    // foto_pedido_url: espelha o Data URI do anexo_1 quando anexo_1_base64 presente.
-    let fotoUrl = "";
-    if (body?.foto_pedido_url) {
-      fotoUrl = body.foto_pedido_url;
-    } else if (body?.anexo_1_base64 && anexo1Url) {
-      fotoUrl = anexo1Url;
-    }
+    const anexo1Url = toDataUri(body?.anexo_1_base64) || toDataUri(body?.anexo_1_url) || (body?.anexo_1_url || "");
+    const anexo2Url = toDataUri(body?.anexo_2_base64) || toDataUri(body?.anexo_2_url) || (body?.anexo_2_url || "");
+    // foto_pedido_url: prioriza o campo específico ou usa anexo1Url como foto principal
+    const fotoUrl = body?.foto_pedido_url || anexo1Url || "";
 
     const nowIso = new Date().toISOString();
 

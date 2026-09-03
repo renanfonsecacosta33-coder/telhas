@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import ImageLink from "@/components/ui/ImageLink";
 import { Camera, Image as ImageIcon } from "lucide-react";
 import { extrairAnexosLista, extrairCroquiPedidoInfo, extrairBase64Fallback } from "@/lib/croquiExtractor";
@@ -64,6 +64,12 @@ function CroquiThumbItem({ anexo, alt, height }) {
   const [srcAtual, setSrcAtual] = useState(anexo.src);
   const [tentouFallback, setTentouFallback] = useState(false);
   const [falhouTotal, setFalhouTotal] = useState(false);
+
+  useEffect(() => {
+    setSrcAtual(anexo.src);
+    setTentouFallback(false);
+    setFalhouTotal(false);
+  }, [anexo.src]);
 
   const handleError = () => {
     if (!tentouFallback && anexo.fallback && anexo.fallback !== srcAtual) {

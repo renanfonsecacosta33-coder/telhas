@@ -15,35 +15,55 @@ export function isBase64Image(str) {
   if (typeof str !== "string" || !str) return false;
   const s = str.trim();
   if (s.startsWith(DATA_IMAGE_PREFIX)) return true;
-  // Heurística simples para Base64 puro de imagem (sem prefixo data:)
-  // - não começa com http/https/ftp (essas são URLs normais)
-  // - não contém espaço
-  // - comprimento razoável (mínimo de um PNG/JPEG pequeno)
   if (/^(https?|ftp):\/\//i.test(s)) return false;
-  if (s.includes(" ")) return false;
-  if (s.length < 64) return false;
-  // Base64 válido contém apenas [A-Za-z0-9+/=]
-  return /^[A-Za-z0-9+/=]+$/.test(s);
+  const clean = s.replace(/\s+/g, "");
+  if (clean.length < 64) return false;
+  return /^[A-Za-z0-9+/=]+$/.test(clean);
 }
 
 /**
  * Normaliza uma string de imagem para uso direto no atributo src do <img>.
- * - Se já começa com "data:image/", retorna como está.
- * - Se é uma string Base64 pura (sem prefixo), adiciona o prefixo PNG.
- * - Se é uma URL normal (http/https), retorna como está.
+ * - Se for URL normal (http/https), retorna como está.
+ * - Se for caminho relativo do Odoo (/web/content, /web/image...), prefixa com o domínio.
+ * - Se começa com "data:image/", limpa quebras e espaços e retorna pronto.
+ * - Se é uma string Base64 pura (sem prefixo), identifica o MIME e monta data URI limpo.
  * - Caso contrário (vazio/nulo), retorna "".
  */
 export function normalizarImagemBase64(raw) {
   if (!raw) return "";
   let str = String(raw).trim();
   if (!str) return "";
-  if (str.startsWith(DATA_IMAGE_PREFIX)) return str;
-  if (isBase64Image(str)) return `data:image/png;base64,${str}`;
 
-  // Se for caminho relativo do Odoo (/web/content, /web/image...), prefixa com o domínio
+  // 1. URL pública HTTP/HTTPS
+  if (/^https?:\/\//i.test(str)) {
+    return str;
+  }
+
+  // 2. Caminho relativo do Odoo
   if (str.startsWith("/web/") || str.startsWith("web/")) {
     const limpo = str.startsWith("/") ? str.slice(1) : str;
     return `https://ajlferroeaco.odoo.com/${limpo}`;
+  }
+
+  // 3. Já tem data:image/... (limpa quebras MIME do Python se houver)
+  if (str.startsWith(DATA_IMAGE_PREFIX)) {
+    const commaIdx = str.indexOf(",");
+    if (commaIdx > 0) {
+      const header = str.slice(0, commaIdx);
+      const b64 = str.slice(commaIdx + 1).replace(/\s+/g, "");
+      return `${header},${b64}`;
+    }
+    return str;
+  }
+
+  // 4. Base64 puro (sem prefixo data:)
+  const clean = str.replace(/\s+/g, "");
+  if (clean.length >= 64 && /^[A-Za-z0-9+/=]+$/.test(clean)) {
+    if (clean.startsWith("/9j/")) return `data:image/jpeg;base64,${clean}`;
+    if (clean.startsWith("iVBORw0KGgo")) return `data:image/png;base64,${clean}`;
+    if (clean.startsWith("R0lGOD")) return `data:image/gif;base64,${clean}`;
+    if (clean.startsWith("UklGR")) return `data:image/webp;base64,${clean}`;
+    return `data:image/png;base64,${clean}`;
   }
 
   return str;
