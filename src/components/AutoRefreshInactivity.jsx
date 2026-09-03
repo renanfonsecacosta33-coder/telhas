@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 const TEMPO_INATIVIDADE_MS = 2 * 60 * 1000; // 2 minutos (120.000 ms)
@@ -21,17 +21,8 @@ export default function AutoRefreshInactivity() {
       if (Date.now() - ultimoRefreshRef.current < 20000) return;
       ultimoRefreshRef.current = Date.now();
 
-      // Invalida cache de dados para atualização imediata
+      // Invalida cache de dados para atualização em segundo plano sem recarregar a janela
       queryClient.invalidateQueries();
-
-      // Verifica se há formulário ou modal sendo ativamente editado
-      const temModalAberto = Boolean(document.querySelector('[role="dialog"], .dialog-open'));
-      const temInputFocado = ["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName);
-
-      if (!temModalAberto && !temInputFocado) {
-        // Recarrega a página de forma suave (F5) para resetar estados e buscar tudo novo do servidor
-        window.location.reload();
-      }
     };
 
     const resetarTimer = () => {

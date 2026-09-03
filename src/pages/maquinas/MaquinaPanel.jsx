@@ -82,16 +82,8 @@ export default function MaquinaPanel({ maquina }) {
   const targetNorm = maquinaNorm(maquina);
 
   const { data: todosPedidos = [], isLoading } = useQuery({
-    queryKey: ["pedidos-maquina-raw", filialAtiva],
-    queryFn: async () => {
-      const lista = filialAtiva 
-        ? await base44.entities.Pedido.filter({ unidade: filialAtiva }, "-data", 500).catch(() => [])
-        : await base44.entities.Pedido.list("-data", 500).catch(() => []);
-      if (!lista || lista.length === 0) {
-        return base44.entities.Pedido.list("-data", 500).catch(() => []);
-      }
-      return lista;
-    },
+    queryKey: ["pedidos", filialAtiva],
+    queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva }, "-data", 500),
     refetchInterval: 10000,
   });
 
@@ -128,7 +120,6 @@ export default function MaquinaPanel({ maquina }) {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Pedido.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pedidos-maquina-raw"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
       toast.success("Status atualizado!");
     },

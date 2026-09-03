@@ -78,19 +78,18 @@ export default function CentralPCP() {
       if (!p.id || !p.numero_pedido) return;
       const progressoReal = calcularProgressoRealPedido(p, pedidosProducao, ordensCD);
       const statusReal = statusPcpPorPercentual(progressoReal, p.status_pcp);
-      const itensEnriquecidos = enriquecerItensComStatusReal(p, pedidosProducao, ordensCD);
-      const itensJsonEnriquecido = JSON.stringify(itensEnriquecidos);
 
-      // Sincroniza automaticamente se o percentual, status ou itens divergirem do gravado
-      const syncKey = `${p.id}_${progressoReal}_${statusReal}_${itensJsonEnriquecido.length}`;
+      // Sincroniza SOMENTE se o percentual ou status realmente mudarem
+      const syncKey = `${p.id}_${progressoReal}_${statusReal}`;
       if (
         (progressoReal !== p.percentual_concluido ||
-         (p.status_pcp !== "concluido" && statusReal === "concluido") ||
-         p.itens_json !== itensJsonEnriquecido) &&
+         (p.status_pcp !== "concluido" && statusReal === "concluido")) &&
         !syncEmAndamentoRef.current.has(syncKey)
       ) {
         syncEmAndamentoRef.current.add(syncKey);
         try {
+          const itensEnriquecidos = enriquecerItensComStatusReal(p, pedidosProducao, ordensCD);
+          const itensJsonEnriquecido = JSON.stringify(itensEnriquecidos);
           const atualizado = await base44.entities.PedidoOdoo.update(p.id, {
             percentual_concluido: progressoReal,
             status_pcp: statusReal,
@@ -104,7 +103,6 @@ export default function CentralPCP() {
           });
         } catch (err) {
           console.error("[CentralPCP AutoSync] falha na sincronizacao automatica:", p.numero_pedido, err);
-          syncEmAndamentoRef.current.delete(syncKey);
         }
       }
     });
