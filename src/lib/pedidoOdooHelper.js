@@ -124,6 +124,9 @@ export function calcularProgressoRealPedido(pedido, pedidosProducao = [], ordens
     }
   }
 
+  return Math.min(100, Math.round(soma / itens.length));
+}
+
 // Retorna status descritivo e claro para cada item (ex: "Aguardando Início (TP - 25)", "Aguardando Revisão (C&D)")
 export function obterStatusDescritivoItem(it, pedido, pedidosProducao = [], ordensCD = []) {
   const g = classGrupo(it);
