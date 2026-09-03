@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, User, Tag, Layers, Factory, Scissors, Wind, Trash2, Star, ShieldAlert, Undo2, RefreshCw } from "lucide-react";
+import { Calendar, User, Tag, Layers, Factory, Scissors, Wind, Trash2, Star, ShieldAlert, Undo2, RefreshCw, Zap } from "lucide-react";
 import {
   formatDataBR,
   slaDiasPorCategoria
@@ -213,6 +213,7 @@ export default function PedidoOdooCard({
             </span>
           ))}
         </div>
+      )}
       {pedido.status_pcp === "pendente_distribuicao" && onDistribuir && (
         <div className="flex items-center gap-1.5 pt-1">
           <button
