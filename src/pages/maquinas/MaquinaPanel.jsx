@@ -183,7 +183,8 @@ export default function MaquinaPanel({ maquina }) {
                 item_nome: pedido.produto || "",
                 fim_fmt: new Date().toISOString(),
                 status_novo: status_pcp,
-                percentual_concluido: pct
+                percentual_concluido: pct,
+                usuario: user?.full_name || user?.email || `Operador ${pedido.maquina || ""}`
               });
             } else if (novoStatus === "aguardando_colagem") {
               if (itemIdx >= 0) {
@@ -201,10 +202,11 @@ export default function MaquinaPanel({ maquina }) {
                 status_pcp
               });
               await notificarStatus(updated, "etapa_concluida", {
-                maquina_atual: pedido.maquina || "",
+                maquina_atual: "COLAGEM",
                 item_nome: pedido.produto || "",
                 status_novo: status_pcp,
-                percentual_concluido: pct
+                percentual_concluido: pct,
+                usuario: user?.full_name || user?.email || `Operador ${pedido.maquina || ""}`
               });
             } else if (novoStatus === "em_producao") {
               if (itemIdx >= 0) {
@@ -227,7 +229,8 @@ export default function MaquinaPanel({ maquina }) {
                 item_nome: pedido.produto || "",
                 inicio_fmt: new Date().toISOString(),
                 status_novo: status_pcp,
-                percentual_concluido: pct
+                percentual_concluido: pct,
+                usuario: user?.full_name || user?.email || `Operador ${pedido.maquina || ""}`
               });
             }
           }

@@ -72,6 +72,16 @@ export async function notificarStatus(pedido, evento, extra = {}) {
     itemNomeDefault = itens.find((i) => classGrupo(i) === "cd")?.produto || "";
   }
 
+  let usuarioNome = extra.usuario || extra.operador || "";
+  if (!usuarioNome) {
+    try {
+      const u = await base44.auth.me();
+      usuarioNome = u?.full_name || u?.email || "Operador Fábrica";
+    } catch {
+      usuarioNome = "Operador Fábrica";
+    }
+  }
+
   try {
     await base44.functions.invoke("notificarStatusOdoo", {
       numero_pedido: pedido.numero_pedido,
@@ -81,6 +91,7 @@ export async function notificarStatus(pedido, evento, extra = {}) {
       item_nome: extra.item_nome || itemNomeDefault,
       galpao: pedido.galpao_responsavel || pedido.unidade || "",
       maquina_atual: extra.maquina_atual || atual?.nome || "",
+      usuario: usuarioNome,
       inicio_fmt: extra.inicio_fmt || atual?.inicio_ts || "",
       fim_fmt: extra.fim_fmt || atual?.fim_ts || "",
       duracao_min: extra.duracao_min != null ? extra.duracao_min : null,

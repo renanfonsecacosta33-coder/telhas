@@ -81,14 +81,17 @@ export default async function(req: Request): Promise<Response> {
     const itens_telha_count = Number(body.itens_telha_count != null ? body.itens_telha_count : itens_telha_arr.length);
     const total_itens = Number(body.total_itens != null ? body.total_itens : (itens_cd_count + itens_telha_count) || itensParsed.length);
 
+    const usuario = String(body.usuario || user?.full_name || user?.email || "Operador Fábrica").trim();
+
     const payload = {
       api_key: ODOO_BI_KEY,
       numero_pedido: body.numero_pedido || "",
       evento: body.evento || "",
-      timestamp: new Date().toISOString().slice(0, 19),
+      timestamp: new Date().toISOString().slice(0, 19).replace("T", " "),
       item_nome: body.item_nome || "",
       galpao: body.galpao || "",
       maquina_atual: body.maquina_atual || "",
+      usuario,
       inicio_fmt: body.inicio_fmt || "",
       fim_fmt: body.fim_fmt || "",
       duracao_min: body.duracao_min != null ? body.duracao_min : null,

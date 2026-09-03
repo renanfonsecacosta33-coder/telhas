@@ -158,7 +158,8 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
             item_nome: o.tipo_peca || "",
             inicio_fmt: inicioTs,
             status_novo: status_pcp,
-            percentual_concluido: pct
+            percentual_concluido: pct,
+            usuario: o.operador || user?.full_name || user?.email || `Operador ${o.maquina || "C&D"}`
           });
         }
       } catch (e) {
@@ -323,7 +324,8 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               fim_fmt: new Date().toISOString(),
               duracao_min: Math.round(prodSeg / 60),
               status_novo: status_pcp,
-              percentual_concluido: pct
+              percentual_concluido: pct,
+              usuario: o.operador || user?.full_name || user?.email || `Operador ${o.maquina || "C&D"}`
             });
           }
         }
