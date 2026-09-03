@@ -235,7 +235,8 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
   }, []);
 
   const borderColor = PRODUTO_BG[p.produto] || "border-l-slate-300";
-  const precisaColagem = PRODUTOS_COM_EPS.includes(p.produto);
+  const temEpsReal = PRODUTOS_COM_EPS.includes(p.produto) || (p.produto && p.produto !== "TELHA" && /(eps|manta|sanduiche|isopor|termoacustica)/i.test(p.produto));
+  const precisaColagem = temEpsReal;
   // TELHA BANDEJA TP-40 tem fluxo especial de 3 etapas
   const isBandejaMultiEtapa = p.produto === "TELHA BANDEJA" && ["TP - 40", "COLONIAL", "BANDEJA", "COLAGEM"].includes(p.maquina);
   const proximaEtapaBandeja = isBandejaMultiEtapa ? proximaMaquinaFluxo(p.produto, p.maquina) : null;
@@ -612,7 +613,7 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
                    "→ Colagem"}
                 </Badge>
               )}
-              {(p.eps || PRODUTOS_COM_EPS.includes(p.produto)) && (
+              {temEpsReal && (
                 <Badge className={`text-xs gap-1 border font-semibold ${
                   p.eps_status === "pronto" 
                     ? "bg-emerald-100 text-emerald-800 border-emerald-300"
@@ -788,7 +789,7 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
               {p.rvm_superior}{p.rvm_inferior ? ` / ${p.rvm_inferior}` : ""}
             </span>
           )}
-          {p.eps && (
+          {temEpsReal && p.eps && (
             <span className="bg-emerald-50 text-emerald-700 text-xs px-2 py-0.5 rounded-full">EPS: {p.eps}</span>
           )}
           {p.kg_total > 0 && (

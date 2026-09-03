@@ -163,20 +163,35 @@ export default function MaquinaPanel({ maquina }) {
           const odooList = await base44.entities.PedidoOdoo.filter({ numero_pedido: pedido.numero_pedido }, "-created_date", 1);
           if (odooList && odooList[0]) {
             const pedOdoo = odooList[0];
-            const itens = getItens(pedOdoo);
-            const itemIdx = itens.findIndex(i => (i.produto && pedido.produto && (i.produto.includes(pedido.produto) || pedido.produto.includes(i.produto))) || classGrupo(i) === "telha");
-            if (itemIdx >= 0 && novoStatus === "finalizado") {
-              itens[itemIdx] = {
-                ...itens[itemIdx],
-                status: "concluido",
-                quantidade_produzida: pedido.quantidade_telhas || pedido.metros || itens[itemIdx].quantidade
-              };
+            const itemIdx = itens.findIndex(i => {
+              const iProd = String(i.produto || "").toLowerCase();
+              const pedProd = String(pedido.produto || "").toLowerCase();
+              return iProd.includes(pedProd) || pedProd.includes(iProd) || classGrupo(i) === "telha";
+            });
+
+            if (novoStatus === "finalizado") {
+              const fotoUrl = extraData.foto_finalizacao_url || "";
+              if (itemIdx >= 0) {
+                itens[itemIdx] = {
+                  ...itens[itemIdx],
+                  status: "concluido",
+                  quantidade_produzida: pedido.quantidade_telhas || pedido.metros || itens[itemIdx].quantidade,
+                  foto_url: fotoUrl || itens[itemIdx].foto_url || ""
+                };
+              } else if (itens.length === 1) {
+                itens[0] = {
+                  ...itens[0],
+                  status: "concluido",
+                  foto_url: fotoUrl || itens[0].foto_url || ""
+                };
+              }
               const pct = computePercentual(itens);
-              const status_pcp = statusPcpPorPercentual(pct, pedOdoo.status_pcp);
+              const status_pcp = statusPcpPorPercentual(pct, "concluido");
               const updated = await base44.entities.PedidoOdoo.update(pedOdoo.id, {
                 itens_json: buildItensJson(itens),
                 percentual_concluido: pct,
-                status_pcp
+                status_pcp,
+                ...(fotoUrl ? { foto_producao_url: fotoUrl } : {})
               });
               await notificarStatus(updated, "etapa_concluida", {
                 maquina_atual: pedido.maquina || "",
@@ -184,6 +199,7 @@ export default function MaquinaPanel({ maquina }) {
                 fim_fmt: new Date().toISOString(),
                 status_novo: status_pcp,
                 percentual_concluido: pct,
+                foto_finalizacao_url: fotoUrl,
                 usuario: user?.full_name || user?.email || `Operador ${pedido.maquina || ""}`
               });
             } else if (novoStatus === "aguardando_colagem") {

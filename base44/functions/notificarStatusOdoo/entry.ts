@@ -45,7 +45,7 @@ export default async function(req: Request): Promise<Response> {
 
     const formatStatusTelha = (st: string, maq: string) => {
       const s = String(st || "").trim().toLowerCase();
-      if (s === "concluido" || s === "finalizado") return "Concluído";
+      if (s === "concluido" || s === "finalizado" || s.includes("conclu") || (Number(body.percentual_concluido) >= 100) || (body.status_novo === "concluido")) return "Concluído";
       if (s.includes("colagem")) return "Aguardando Colagem";
       if (s === "em_producao") return maq ? `Em Produção (${maq})` : "Em Produção (Telhas)";
       if (s.includes("início") || s.includes("inicio")) return st;
@@ -92,6 +92,7 @@ export default async function(req: Request): Promise<Response> {
       galpao: body.galpao || "",
       maquina_atual: body.maquina_atual || "",
       usuario,
+      foto_finalizacao_url: body.foto_finalizacao_url || "",
       inicio_fmt: body.inicio_fmt || "",
       fim_fmt: body.fim_fmt || "",
       duracao_min: body.duracao_min != null ? body.duracao_min : null,
@@ -103,7 +104,6 @@ export default async function(req: Request): Promise<Response> {
       itens_telha_count,
       total_itens,
       itens_cd_json: JSON.stringify(itens_cd_arr),
-      itens_telha_json: JSON.stringify(itens_telha_arr)
     };
 
     const res = await fetch(ODOO_BI_URL, {

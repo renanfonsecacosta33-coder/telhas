@@ -98,6 +98,7 @@ export async function notificarStatus(pedido, evento, extra = {}) {
       hora_corte: extra.hora_corte || "",
       hora_colagem: extra.hora_colagem || "",
       percentual_concluido: extra.percentual_concluido != null ? extra.percentual_concluido : (pedido.percentual_concluido ?? 0),
+      foto_finalizacao_url: extra.foto_finalizacao_url || pedido.foto_producao_url || extra.foto_url || "",
       itens_telha_count: pedido.itens_telha_count || itens.filter((i) => classGrupo(i) === "telha").length,
       itens_cd_count: pedido.itens_cd_count || itens.filter((i) => classGrupo(i) === "cd").length,
       total_itens: pedido.total_itens || itens.length,
