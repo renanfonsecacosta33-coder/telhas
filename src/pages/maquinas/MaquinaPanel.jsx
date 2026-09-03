@@ -121,6 +121,8 @@ export default function MaquinaPanel({ maquina }) {
     mutationFn: ({ id, data }) => base44.entities.Pedido.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      queryClient.invalidateQueries({ queryKey: ["pre-baixa-bobinas-v2"] });
+      queryClient.invalidateQueries({ queryKey: ["bobinas"] });
       toast.success("Status atualizado!");
     },
   });
@@ -138,6 +140,9 @@ export default function MaquinaPanel({ maquina }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pedidos-maquina", maquina] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      queryClient.invalidateQueries({ queryKey: ["pre-baixa-bobinas-v2"] });
+      queryClient.invalidateQueries({ queryKey: ["bobinas"] });
       setNovoPedidoOpen(false);
       toast.success("Pedido criado!");
     },

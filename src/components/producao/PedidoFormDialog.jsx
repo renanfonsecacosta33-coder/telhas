@@ -116,7 +116,14 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
 
   const { data: ordensAtivas = [] } = useQuery({
     queryKey: ["ordens-ativas-telhas"],
-    queryFn: () => base44.entities.OrdemProducao.filter({ arquivada: false }),
+    queryFn: async () => {
+      try {
+        const list = await base44.entities.Pedido.list("-data", 500);
+        return list.filter(p => !["finalizado", "cancelado"].includes(String(p.status || "").toLowerCase()));
+      } catch {
+        return [];
+      }
+    },
     enabled: open
   });
 

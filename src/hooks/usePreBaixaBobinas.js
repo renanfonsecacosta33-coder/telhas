@@ -2,8 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 
 /**
- * Hook que calcula a pré-baixa (reserva virtual) de KG nas bobinas
+ * Hook universal que calcula a pré-baixa (reserva virtual) de KG nas bobinas
  * e o status de programação em tempo real (Em uso vs Programada).
+ * Suporta Telhas e Corte & Dobra com resolução precisa de IDs e KG.
  */
 export function usePreBaixaBobinas(setor, filiais = null) {
   const filialKey = filiais ? filiais.join(",") : "all";
@@ -15,15 +16,16 @@ export function usePreBaixaBobinas(setor, filiais = null) {
       const statusMap = {};
 
       const addKg = (bobinaId, kg) => {
-        if (!bobinaId || !kg || kg <= 0) return;
-        preBaixaMap[bobinaId] = (preBaixaMap[bobinaId] || 0) + kg;
+        if (!bobinaId || !kg || isNaN(kg) || kg <= 0) return;
+        preBaixaMap[bobinaId] = (preBaixaMap[bobinaId] || 0) + Number(kg);
       };
 
       const addStatus = (bobinaId, maquina, status) => {
         if (!bobinaId) return;
         const existing = statusMap[bobinaId];
-        const isProduzindo = ["em_producao", "produzindo", "iniciado"].includes(status?.toLowerCase());
-        const isPausado = status?.toLowerCase() === "pausado";
+        const statusClean = String(status || "").toLowerCase();
+        const isProduzindo = ["em_producao", "produzindo", "iniciado"].includes(statusClean);
+        const isPausado = statusClean === "pausado";
 
         if (existing) {
           if (isProduzindo) {
@@ -38,71 +40,130 @@ export function usePreBaixaBobinas(setor, filiais = null) {
         }
       };
 
-      const filialMatch = (unidade) => !filiais || filiais.includes(unidade);
+      const filialMatch = (unidade) => {
+        if (!filiais || filiais.length === 0) return true;
+        if (!unidade) return true;
+        return filiais.some(f => String(f).trim().toLowerCase() === String(unidade).trim().toLowerCase());
+      };
 
       if (setor === "telhas") {
-        // Busca ordens ativas (OrdemProducao e Pedido) não finalizadas e não canceladas
-        const [pedidos, ordens] = await Promise.all([
-          base44.entities.Pedido.filter({
-            status: { $nin: ["finalizado", "cancelado"] }
-          }, "-created_date", 500).catch(() => []),
-          base44.entities.OrdemProducao.filter({
-            arquivada: false,
-            status: { $nin: ["finalizado", "cancelado"] }
-          }, "-created_date", 500).catch(() => [])
-        ]);
+        // 1. Busca bobinas de telhas para mapear ID, código e espessura/chapa
+        let allBobinas = [];
+        try {
+          allBobinas = await base44.entities.Bobina.list("-created_date", 1000);
+        } catch {
+          try {
+            allBobinas = await base44.entities.Bobina.filter({}, "-created_date", 1000);
+          } catch {
+            allBobinas = [];
+          }
+        }
 
-        // Unifica lista de ordens/pedidos ativos
-        const todosAtivos = [...pedidos, ...ordens];
-
-        // Buscar bobinas para obter espessura/chapa para cálculo de KG se kg_superior for omisso
-        const allBobinas = await base44.entities.Bobina.filter({ setor: "telhas" }, "-created_date", 1000).catch(() => []);
-        const bobinaChapas = {};
-        allBobinas.forEach(b => { 
-          if (b.id) bobinaChapas[b.id] = Number(b.chapa || b.espessura_mm) || 0.43;
+        const bobinaById = {};
+        const bobinaByCodigo = {};
+        allBobinas.forEach(b => {
+          if (b.id) bobinaById[b.id] = b;
+          if (b.codigo) bobinaByCodigo[String(b.codigo).trim().toUpperCase()] = b;
         });
 
-        todosAtivos.forEach(p => {
+        // Helper para resolver ID real da bobina
+        const resolveBobinaId = (idField, textField, fallbackId) => {
+          if (idField && bobinaById[idField]) return idField;
+          if (fallbackId && bobinaById[fallbackId]) return fallbackId;
+          if (idField) return idField;
+          if (fallbackId) return fallbackId;
+          if (textField) {
+            if (bobinaById[textField]) return textField;
+            const clean = String(textField).trim().toUpperCase();
+            if (bobinaByCodigo[clean]) return bobinaByCodigo[clean].id;
+            const found = allBobinas.find(b => b.codigo && clean.includes(String(b.codigo).trim().toUpperCase()));
+            if (found) return found.id;
+          }
+          return null;
+        };
+
+        // 2. Busca ordens de produção de telhas (Pedido)
+        let pedidos = [];
+        try {
+          pedidos = await base44.entities.Pedido.list("-data", 500);
+        } catch {
+          try {
+            pedidos = await base44.entities.Pedido.filter({}, "-data", 500);
+          } catch {
+            pedidos = [];
+          }
+        }
+
+        // Filtra pedidos ativos (não finalizados e não cancelados)
+        const pedidosAtivos = pedidos.filter(p => {
+          const st = String(p.status || "").toLowerCase();
+          return !["finalizado", "cancelado"].includes(st);
+        });
+
+        pedidosAtivos.forEach(p => {
           if (!filialMatch(p.unidade)) return;
 
           let vars = [];
           try { vars = JSON.parse(p.variacoes_telhas || "[]"); } catch {}
-          const hasVarBobinas = Array.isArray(vars) && vars.some(v => v.bobina_id || v.bobina_inf_id);
+          const hasVarBobinas = Array.isArray(vars) && vars.length > 0 && vars.some(v => v.bobina_id || v.bobina_inf_id);
 
           if (hasVarBobinas) {
-            // Modo variações
+            // Pedidos com múltiplas variações de telhas
             vars.forEach(v => {
+              if (v.finalizado) return; // Se a variação já foi finalizada, não conta pré-baixa
+
               const q = Number(v.qty) || 0;
               const mm = Number(v.mm) || 0;
-              const metros = q * mm / 1000;
+              const metros = (q * mm) / 1000;
 
-              if (v.bobina_id) {
-                const chapa = bobinaChapas[v.bobina_id] || 0.43;
-                const kg = metros * chapa;
-                addKg(v.bobina_id, kg);
-                addStatus(v.bobina_id, p.maquina || "Produção", p.status);
+              const bSupId = resolveBobinaId(v.bobina_id, v.bobina_desc);
+              const bInfId = resolveBobinaId(v.bobina_inf_id, v.bobina_inf_desc);
+
+              if (bSupId) {
+                const chapa = Number(bobinaById[bSupId]?.chapa || bobinaById[bSupId]?.espessura_mm) || 0.43;
+                const kg = Number(v.kg) > 0 ? Number(v.kg) : (metros * chapa);
+                addKg(bSupId, kg);
+                addStatus(bSupId, p.maquina || "Produção", p.status);
               }
-              if (v.bobina_inf_id) {
-                const chapa = bobinaChapas[v.bobina_inf_id] || 0.43;
-                const kg = metros * chapa;
-                addKg(v.bobina_inf_id, kg);
-                addStatus(v.bobina_inf_id, p.maquina || "Produção", p.status);
+              if (bInfId) {
+                const chapa = Number(bobinaById[bInfId]?.chapa || bobinaById[bInfId]?.espessura_mm) || 0.43;
+                const kg = Number(v.kg_inf) > 0 ? Number(v.kg_inf) : (metros * chapa);
+                addKg(bInfId, kg);
+                addStatus(bInfId, p.maquina || "Produção", p.status);
               }
             });
           } else {
-            // Modo legado: resolve qualquer variação de propriedade do ID da bobina (superior, inferior ou direta)
-            const bSupId = p.bobina_superior || p.bobina_superior_id || p.bobina_id;
-            const bInfId = p.bobina_inferior || p.bobina_inferior_id;
+            // Pedido padrão (bobina superior e opcionalmente inferior)
+            const bSupId = resolveBobinaId(p.bobina_superior_id, p.bobina_superior, p.bobina_id);
+            const bInfId = resolveBobinaId(p.bobina_inferior_id, p.bobina_inferior);
 
-            const metragemM = (Number(p.metros) || Number(p.quantidade_telhas) || 0) * ((Number(p.metragem_mm) || 1000) / 1000);
+            // Metragem total calculada: quantidade de peças * comprimento
+            const qtdPecas = Number(p.metros) || Number(p.quantidade_telhas) || 1;
+            const compM = (Number(p.metragem_mm) || 1000) / 1000;
+            const metragemM = qtdPecas * compM;
 
             if (bSupId) {
-              const kgSup = Number(p.kg_superior) || (metragemM * (bobinaChapas[bSupId] || 0.43));
+              const chapaSup = Number(bobinaById[bSupId]?.chapa || bobinaById[bSupId]?.espessura_mm) || 0.43;
+              let kgSup = Number(p.kg_superior) || 0;
+              if (!kgSup && Number(p.kg_total) > 0) {
+                kgSup = bInfId ? (Number(p.kg_total) / 2) : Number(p.kg_total);
+              }
+              if (!kgSup) {
+                kgSup = metragemM * chapaSup;
+              }
               addKg(bSupId, kgSup);
               addStatus(bSupId, p.maquina || "Produção", p.status);
             }
+
             if (bInfId) {
-              const kgInf = Number(p.kg_inferior) || (metragemM * (bobinaChapas[bInfId] || 0.43));
+              const chapaInf = Number(bobinaById[bInfId]?.chapa || bobinaById[bInfId]?.espessura_mm) || 0.43;
+              let kgInf = Number(p.kg_inferior) || 0;
+              if (!kgInf && Number(p.kg_total) > 0) {
+                kgInf = Number(p.kg_total) / 2;
+              }
+              if (!kgInf) {
+                kgInf = metragemM * chapaInf;
+              }
               addKg(bInfId, kgInf);
               addStatus(bInfId, p.maquina || "Produção", p.status);
             }
@@ -110,27 +171,45 @@ export function usePreBaixaBobinas(setor, filiais = null) {
         });
       } else {
         // Corte e Dobra — Desbobinadeira
-        const ordens = await base44.entities.OrdemDesbobinadeira.filter({
-          status: { $nin: ["finalizado", "cancelado"] }
-        }, "-created_date", 500).catch(() => []);
+        let ordens = [];
+        try {
+          ordens = await base44.entities.OrdemDesbobinadeira.list("-created_date", 500);
+        } catch {
+          try {
+            ordens = await base44.entities.OrdemDesbobinadeira.filter({}, "-created_date", 500);
+          } catch {
+            ordens = [];
+          }
+        }
 
-        ordens.forEach(o => {
+        const ordensAtivas = ordens.filter(o => !["finalizado", "cancelado"].includes(String(o.status || "").toLowerCase()));
+
+        ordensAtivas.forEach(o => {
           if (!filialMatch(o.unidade)) return;
-          const bId = o.bobina_id || o.bobina_superior || o.bobina_superior_id;
-          addKg(bId, o.kg_estimado || o.peso_kg);
+          const bId = o.bobina_id || o.bobina_superior_id || o.bobina_superior;
+          addKg(bId, Number(o.kg_estimado || o.peso_kg) || 0);
           addStatus(bId, "Desbobinadeira", o.status);
         });
 
         // Ordens de máquina CD com bobina direta (perfiladeira)
-        const ordensMaq = await base44.entities.OrdemMaquinaCD.filter({
-          status: { $nin: ["finalizado", "cancelado"] }
-        }, "-created_date", 500).catch(() => []);
+        let ordensMaq = [];
+        try {
+          ordensMaq = await base44.entities.OrdemMaquinaCD.list("-created_date", 500);
+        } catch {
+          try {
+            ordensMaq = await base44.entities.OrdemMaquinaCD.filter({}, "-created_date", 500);
+          } catch {
+            ordensMaq = [];
+          }
+        }
 
-        ordensMaq.forEach(o => {
+        const ordensMaqAtivas = ordensMaq.filter(o => !["finalizado", "cancelado"].includes(String(o.status || "").toLowerCase()));
+
+        ordensMaqAtivas.forEach(o => {
           if (!filialMatch(o.unidade)) return;
           const bId = o.bobina_id || o.bobina_superior;
           if (bId) {
-            addKg(bId, o.peso_kg || o.kg_estimado);
+            addKg(bId, Number(o.peso_kg || o.kg_estimado) || 0);
             addStatus(bId, o.maquina || "Máquina CD", o.status);
           }
         });

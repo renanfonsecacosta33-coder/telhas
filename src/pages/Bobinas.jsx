@@ -48,7 +48,7 @@ export default function Bobinas() {
   });
 
   const filiaisHook = filialAtiva === "todas" ? null : [filialAtiva];
-  const { preBaixaMap, totalPreBaixaKg } = usePreBaixaBobinas("telhas", filiaisHook);
+  const { preBaixaMap, statusMap, totalPreBaixaKg } = usePreBaixaBobinas("telhas", filiaisHook);
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Bobina.delete(id),
@@ -216,6 +216,7 @@ export default function Bobinas() {
               bobina={bobina}
               statusColors={statusColors}
               preBaixaKg={preBaixaMap[bobina.id] || 0}
+              statusInfo={statusMap[bobina.id]}
               onEdit={(b) => { setEditItem(b); setDialogOpen(true); }}
               onDelete={(b) => setDeleteItem(b)}
               onArquivar={(id, val) => arquivarMutation.mutate({ id, arquivada: val })}

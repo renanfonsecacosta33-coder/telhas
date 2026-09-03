@@ -62,6 +62,8 @@ export default function ProducaoAdmin() {
     mutationFn: (data) => base44.entities.Pedido.create(data),
     onSuccess: async (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      queryClient.invalidateQueries({ queryKey: ["pre-baixa-bobinas-v2"] });
+      queryClient.invalidateQueries({ queryKey: ["bobinas"] });
       setDialogOpen(false);
       toast.success("Pedido registrado!");
 

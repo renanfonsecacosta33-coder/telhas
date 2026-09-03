@@ -92,6 +92,8 @@ export default function DashboardTelhas() {
     onSuccess: async (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["pedidos-dash-telhas"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      queryClient.invalidateQueries({ queryKey: ["pre-baixa-bobinas-v2"] });
+      queryClient.invalidateQueries({ queryKey: ["bobinas"] });
       setDialogOpen(false);
       toast.success("Pedido criado!");
 
