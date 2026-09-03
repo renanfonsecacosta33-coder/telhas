@@ -34,30 +34,31 @@ export default async function(req: Request): Promise<Response> {
     const maquinas: any[] = Array.isArray(body.maquinas) ? body.maquinas : [];
     const etapas: any[] = Array.isArray(body.etapas) ? body.etapas : [];
 
-    const itens_cd_json = JSON.stringify(
-      itensParsed
-        .filter((i) => /(chapa|perfil|barra|tubo|zincado|serralheiro)/i.test(String(i.produto || "")))
-        .map((i) => ({
-          produto: i.produto,
-          quantidade: i.quantidade,
-          unidade: i.unidade || "UN",
-          observacao: i.observacao || "",
-          status: i.status || "aguardando",
-          maquinas: i.maquinas || maquinas
-        }))
-    );
-    const itens_telha_json = JSON.stringify(
-      itensParsed
-        .filter((i) => /(telha|TP|EPS|manta)/i.test(String(i.produto || "")))
-        .map((i) => ({
-          produto: i.produto,
-          quantidade: i.quantidade,
-          unidade: i.unidade || "MT",
-          observacao: i.observacao || "",
-          status: i.status || "aguardando",
-          maquinas: i.maquinas || etapas
-        }))
-    );
+    const itens_cd_arr = itensParsed
+      .filter((i) => /(chapa|perfil|barra|tubo|zincado|serralheiro|corte)/i.test(String(i.produto || i.categoria || "")))
+      .map((i) => ({
+        produto: i.produto,
+        quantidade: i.quantidade,
+        unidade: i.unidade || "UN",
+        observacao: i.observacao || "",
+        status: i.status || "aguardando",
+        maquinas: i.maquinas || maquinas
+      }));
+
+    const itens_telha_arr = itensParsed
+      .filter((i) => /(telha|TP|EPS|manta|cumeeira|ondulada|colonial)/i.test(String(i.produto || i.categoria || "")))
+      .map((i) => ({
+        produto: i.produto,
+        quantidade: i.quantidade,
+        unidade: i.unidade || "MT",
+        observacao: i.observacao || "",
+        status: i.status || "aguardando",
+        maquinas: i.maquinas || etapas
+      }));
+
+    const itens_cd_count = Number(body.itens_cd_count != null ? body.itens_cd_count : itens_cd_arr.length);
+    const itens_telha_count = Number(body.itens_telha_count != null ? body.itens_telha_count : itens_telha_arr.length);
+    const total_itens = Number(body.total_itens != null ? body.total_itens : (itens_cd_count + itens_telha_count) || itensParsed.length);
 
     const payload = {
       api_key: ODOO_BI_KEY,
@@ -74,8 +75,11 @@ export default async function(req: Request): Promise<Response> {
       hora_colagem: body.hora_colagem || "",
       percentual_concluido: body.percentual_concluido || 0,
       status_novo: body.status_novo || "",
-      itens_cd_json,
-      itens_telha_json
+      itens_cd_count,
+      itens_telha_count,
+      total_itens,
+      itens_cd_json: JSON.stringify(itens_cd_arr),
+      itens_telha_json: JSON.stringify(itens_telha_arr)
     };
 
     const res = await fetch(ODOO_BI_URL, {

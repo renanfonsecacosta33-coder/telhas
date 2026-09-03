@@ -86,8 +86,11 @@ export async function notificarStatus(pedido, evento, extra = {}) {
       duracao_min: extra.duracao_min != null ? extra.duracao_min : null,
       hora_corte: extra.hora_corte || "",
       hora_colagem: extra.hora_colagem || "",
-      percentual_concluido: pedido.percentual_concluido ?? 0,
-      itens_json: pedido.itens_json || "[]",
+      percentual_concluido: extra.percentual_concluido != null ? extra.percentual_concluido : (pedido.percentual_concluido ?? 0),
+      itens_telha_count: pedido.itens_telha_count || itens.filter((i) => classGrupo(i) === "telha").length,
+      itens_cd_count: pedido.itens_cd_count || itens.filter((i) => classGrupo(i) === "cd").length,
+      total_itens: pedido.total_itens || itens.length,
+      itens_json: pedido.itens_json || JSON.stringify(itens),
       maquinas,
       etapas
     });

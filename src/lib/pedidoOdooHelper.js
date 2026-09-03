@@ -49,11 +49,13 @@ export function computePercentual(itens) {
     if (it.status === "concluido" || it.status === "finalizado") {
       totalPontos += 1.0;
     } else if (it.status === "aguardando_colagem") {
-      totalPontos += 0.75;
+      totalPontos += 0.85;
     } else if (it.status === "em_producao") {
-      totalPontos += 0.35; // OP criada na máquina / em produção
+      totalPontos += 0.50; // OP criada na máquina / em produção
     } else if (it.maquina) {
-      totalPontos += 0.25; // Máquina atribuída
+      totalPontos += 0.50; // Máquina atribuída
+    } else {
+      totalPontos += 0.15; // Distribuído na fila
     }
   }
   return Math.min(100, Math.round((totalPontos / itens.length) * 100));
@@ -64,6 +66,66 @@ export function computePercentualGrupo(itens, grupo) {
   const sub = itensPorGrupo(itens, grupo);
   if (sub.length === 0) return 0;
   return computePercentual(sub);
+}
+
+// Calcula o progresso real e dinâmico consultando as OPs de produção nas máquinas
+export function calcularProgressoRealPedido(pedido, pedidosProducao = [], ordensCD = []) {
+  if (!pedido) return 0;
+  const itens = getItens(pedido);
+  if (!itens || itens.length === 0) return pedido.percentual_concluido || 0;
+
+  const numPed = String(pedido.numero_pedido || "").trim().toUpperCase();
+
+  const opsTelha = (pedidosProducao || []).filter(op =>
+    op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed
+  );
+
+  const opsCD = (ordensCD || []).filter(op =>
+    op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed
+  );
+
+  let soma = 0;
+  for (const it of itens) {
+    const grupo = classGrupo(it);
+    let opReal = null;
+
+    if (grupo === "telha") {
+      opReal = opsTelha.find(o =>
+        String(o.produto || "").toUpperCase().includes(String(it.produto || "").toUpperCase())
+      ) || opsTelha[0];
+    } else {
+      opReal = opsCD.find(o =>
+        String(o.produto || "").toUpperCase().includes(String(it.produto || "").toUpperCase())
+      ) || opsCD[0];
+    }
+
+    if (opReal) {
+      if (opReal.status === "finalizado") {
+        soma += 100;
+      } else if (opReal.status === "aguardando_colagem") {
+        soma += 85;
+      } else if (opReal.status === "em_producao") {
+        soma += 75; // Operador deu Play / máquina rodando!
+      } else if (opReal.status === "pausado") {
+        soma += 60;
+      } else if (opReal.status === "pendente") {
+        soma += 50; // OP criada na máquina (ex: TP - 25)!
+      } else {
+        soma += 40;
+      }
+    } else if (it.status === "concluido") {
+      soma += 100;
+    } else if (it.status === "em_producao" || it.maquina) {
+      soma += 50;
+    } else if (pedido.status_pcp === "distribuido") {
+      soma += 15; // Distribuído para galpão
+    } else {
+      soma += 0;
+    }
+  }
+
+  const progresso = Math.min(100, Math.round(soma / itens.length));
+  return Math.max(progresso, pedido.percentual_concluido || 0);
 }
 
 export function buildItensJson(itens) {

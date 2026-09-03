@@ -18,6 +18,7 @@ import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import { calcularDataPrometidaSLA, toISODate, slaDiasPorCategoria, diasUteisRestantes } from "@/lib/sla";
 import { parseItensPedido } from "@/lib/regrasFabrica";
 import { notificarStatus } from "@/lib/biNotificador";
+import { calcularProgressoRealPedido } from "@/lib/pedidoOdooHelper";
 
 const FILTROS = [
   { id: "todos", label: "Todos" },
@@ -43,7 +44,19 @@ export default function CentralPCP() {
   const { data: pedidos = [], isLoading: carregando, refetch } = useQuery({
     queryKey: ["pedidos-odoo-pcp"],
     queryFn: () => base44.entities.PedidoOdoo.list("-data_recebimento", 200),
-    refetchInterval: 20000
+    refetchInterval: 10000
+  });
+
+  const { data: pedidosProducao = [] } = useQuery({
+    queryKey: ["pedidos-producao-todos"],
+    queryFn: () => base44.entities.Pedido.list("-data", 500),
+    refetchInterval: 10000
+  });
+
+  const { data: ordensCD = [] } = useQuery({
+    queryKey: ["ordens-cd-todos"],
+    queryFn: () => base44.entities.OrdemMaquinaCD.list("-data", 500),
+    refetchInterval: 10000
   });
 
   // Subscription: atualiza percentual/status em tempo real quando os galpões concluem itens
@@ -311,13 +324,13 @@ export default function CentralPCP() {
       }];
       const atualizado = await base44.entities.PedidoOdoo.update(pedido.id, {
         status_pcp: "distribuido",
-        percentual_concluido: 5,
+        percentual_concluido: 15,
         historico_log: JSON.stringify(novoLog)
       });
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
       setPedidoSelecionado({ ...pedido, ...atualizado });
       // Mini BI — evento distribuido
-      await notificarStatus(atualizado, "distribuido", { status_novo: "distribuido" });
+      await notificarStatus(atualizado, "distribuido", { status_novo: "distribuido", percentual_concluido: 15 });
       toast({
         title: "Pedido distribuído!",
         description: `#${pedido.numero_pedido} enviado para os galpões.`,
@@ -455,6 +468,7 @@ export default function CentralPCP() {
                 <PedidoOdooCard
                   key={p.id}
                   pedido={p}
+                  progressoReal={calcularProgressoRealPedido(p, pedidosProducao, ordensCD)}
                   onClick={() => { setPedidoSelecionado(p); setDetalheOpen(true); }}
                   onDelete={handleExcluirCard}
                   onRetirarFila={handleRetirarFila}
@@ -468,6 +482,7 @@ export default function CentralPCP() {
 
       <PedidoOdooDetalheDialog
         pedido={pedidoSelecionado}
+        progressoReal={pedidoSelecionado ? calcularProgressoRealPedido(pedidoSelecionado, pedidosProducao, ordensCD) : null}
         open={detalheOpen}
         onOpenChange={setDetalheOpen}
         onDistribuir={handleDistribuir}

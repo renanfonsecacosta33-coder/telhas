@@ -182,13 +182,52 @@ export default function MaquinaPanel({ maquina }) {
                 maquina_atual: pedido.maquina || "",
                 item_nome: pedido.produto || "",
                 fim_fmt: new Date().toISOString(),
-                status_novo: status_pcp
+                status_novo: status_pcp,
+                percentual_concluido: pct
+              });
+            } else if (novoStatus === "aguardando_colagem") {
+              if (itemIdx >= 0) {
+                itens[itemIdx] = {
+                  ...itens[itemIdx],
+                  status: "aguardando_colagem",
+                  maquina: "COLAGEM",
+                };
+              }
+              const pct = computePercentual(itens);
+              const status_pcp = statusPcpPorPercentual(pct, "em_producao");
+              const updated = await base44.entities.PedidoOdoo.update(pedOdoo.id, {
+                itens_json: buildItensJson(itens),
+                percentual_concluido: pct,
+                status_pcp
+              });
+              await notificarStatus(updated, "etapa_concluida", {
+                maquina_atual: pedido.maquina || "",
+                item_nome: pedido.produto || "",
+                status_novo: status_pcp,
+                percentual_concluido: pct
               });
             } else if (novoStatus === "em_producao") {
-              await notificarStatus(pedOdoo, "maquina_inicio", {
+              if (itemIdx >= 0) {
+                itens[itemIdx] = {
+                  ...itens[itemIdx],
+                  status: "em_producao",
+                  maquina: pedido.maquina || itens[itemIdx].maquina || "",
+                  iniciada: true
+                };
+              }
+              const pct = computePercentual(itens);
+              const status_pcp = statusPcpPorPercentual(pct, "em_producao");
+              const updated = await base44.entities.PedidoOdoo.update(pedOdoo.id, {
+                itens_json: buildItensJson(itens),
+                percentual_concluido: pct,
+                status_pcp
+              });
+              await notificarStatus(updated, "maquina_inicio", {
                 maquina_atual: pedido.maquina || "",
                 item_nome: pedido.produto || "",
                 inicio_fmt: new Date().toISOString(),
+                status_novo: status_pcp,
+                percentual_concluido: pct
               });
             }
           }

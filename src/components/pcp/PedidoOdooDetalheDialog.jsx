@@ -16,7 +16,7 @@ import MaquinaSequenceCD from "@/components/pcp/MaquinaSequenceCD";
 import EtapasTelhaSequence from "@/components/pcp/EtapasTelhaSequence";
 import { parseItensPedido, roteamentoMaterial, progressoChecklist } from "@/lib/regrasFabrica";
 
-export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, onDistribuir, distribuindo, onExcluirOS, onRetirarFila, onTogglePrioridade, onToggleItem, onDevolverPCP, showTracking = false, onAtualizado }) {
+export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, onDistribuir, distribuindo, onExcluirOS, onRetirarFila, onTogglePrioridade, onToggleItem, onDevolverPCP, showTracking = false, progressoReal, onAtualizado }) {
   const [confirmaExcluir, setConfirmaExcluir] = useState(false);
   const [senhaDevolverOpen, setSenhaDevolverOpen] = useState(false);
   const [motivo, setMotivo] = useState("");
@@ -154,23 +154,30 @@ export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, on
 
           {/* Barra de progresso geral */}
           <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">Progresso Geral da Produção</span>
-              <span className={`text-sm font-bold ${(pedido.percentual_concluido || 0) >= 100 ? "text-emerald-600" : "text-orange-600"}`}>
-                {pedido.percentual_concluido || 0}%
-              </span>
-            </div>
-            <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all ${(pedido.percentual_concluido || 0) >= 100 ? "bg-emerald-500" : "bg-gradient-to-r from-orange-500 to-amber-500"}`}
-                style={{ width: `${pedido.percentual_concluido || 0}%` }}
-              />
-            </div>
-            {(pedido.percentual_concluido || 0) >= 100 && (
-              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1.5 flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> 100% concluído — pronto para enviar evento de conclusão ao Odoo ERP.
-              </p>
-            )}
+            {(() => {
+              const pct = progressoReal != null ? progressoReal : (pedido.percentual_concluido || 0);
+              return (
+                <>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">Progresso Geral da Produção</span>
+                    <span className={`text-sm font-bold ${pct >= 100 ? "text-emerald-600" : "text-orange-600"}`}>
+                      {pct}%
+                    </span>
+                  </div>
+                  <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-emerald-500" : "bg-gradient-to-r from-orange-500 to-amber-500"}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  {pct >= 100 && (
+                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1.5 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> 100% concluído — pronto para enviar evento de conclusão ao Odoo ERP.
+                    </p>
+                  )}
+                </>
+              );
+            })()}
           </div>
 
           {espessuras.length > 0 && (

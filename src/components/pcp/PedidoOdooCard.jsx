@@ -20,7 +20,7 @@ const STATUS_PCP = {
   concluido: { label: "Concluído", cls: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40" }
 };
 
-export default function PedidoOdooCard({ pedido, onClick, onDelete, onRetirarFila, onTogglePrioridade }) {
+export default function PedidoOdooCard({ pedido, onClick, onDelete, onRetirarFila, onTogglePrioridade, progressoReal }) {
   const [hover, setHover] = useState(false);
   const st = STATUS_PCP[pedido.status_pcp] || STATUS_PCP.pendente_distribuicao;
   const sla = slaDiasPorCategoria(pedido);
@@ -112,19 +112,23 @@ export default function PedidoOdooCard({ pedido, onClick, onDelete, onRetirarFil
         </div>
       )}
 
-      {(pedido.percentual_concluido > 0 || pedido.status_pcp === "em_producao") && (
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${pedido.percentual_concluido >= 100 ? "bg-emerald-500" : "bg-orange-500"}`}
-              style={{ width: `${pedido.percentual_concluido || 0}%` }}
-            />
+      {(() => {
+        const pct = progressoReal != null ? progressoReal : (pedido.percentual_concluido || 0);
+        if (pct <= 0 && pedido.status_pcp !== "em_producao") return null;
+        return (
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-emerald-500" : "bg-orange-500"}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <span className={`text-[11px] font-bold ${pct >= 100 ? "text-emerald-600" : "text-orange-600"}`}>
+              {pct}%
+            </span>
           </div>
-          <span className={`text-[11px] font-bold ${pedido.percentual_concluido >= 100 ? "text-emerald-600" : "text-orange-600"}`}>
-            {pedido.percentual_concluido || 0}%
-          </span>
-        </div>
-      )}
+        );
+      })()}
 
       <div className="flex items-center gap-3 text-xs">
         <div className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
