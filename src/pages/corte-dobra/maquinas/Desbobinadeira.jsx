@@ -16,6 +16,7 @@ import FiltroChapa from "@/components/corte-dobra/FiltroChapa";
 import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
+import { getPesoOrdenacaoPrioridade, SeletorPrioridadeDropdown } from "@/lib/prioridadeHelper";
 
 export default function Desbobinadeira() {
   const { filialAtiva } = useFilial();
@@ -121,7 +122,7 @@ export default function Desbobinadeira() {
     const hoje = format(new Date(), "yyyy-MM-dd");
     const isHoje = selectedDay === hoje;
     const doDia = ordens.filter(o => o.data === selectedDay && o.status !== "aguardando_material");
-    const priComp = (a, b) => (b.prioridade ? 1 : 0) - (a.prioridade ? 1 : 0);
+    const priComp = (a, b) => getPesoOrdenacaoPrioridade(a) - getPesoOrdenacaoPrioridade(b);
     if (!isHoje) {
       return doDia.sort((a, b) => {
         const p = priComp(a, b);
@@ -400,9 +401,10 @@ export default function Desbobinadeira() {
                         {isGestor && (
                           <div className="flex justify-end mt-1 gap-1">
                             {o.status !== "finalizado" && o.status !== "cancelado" && (
-                              <Button size="sm" variant="ghost" className={`text-xs h-6 px-2 ${o.prioridade ? "text-amber-600 font-bold" : "text-muted-foreground"}`} onClick={() => updateOrdem.mutate({ id: o.id, data: { prioridade: !o.prioridade } })}>
-                                <Star className={`w-3 h-3 mr-1 ${o.prioridade ? "fill-amber-500 text-amber-500" : ""}`} /> {o.prioridade ? "Prioritária" : "Prioridade"}
-                              </Button>
+                              <SeletorPrioridadeDropdown
+                                pedido={o}
+                                onSelectPrioridade={(nivel) => updateOrdem.mutate({ id: o.id, data: { prioridade: Boolean(nivel), prioridade_nivel: nivel } })}
+                              />
                             )}
                             {o.status !== "cancelado" && (
                               <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
@@ -456,9 +458,10 @@ export default function Desbobinadeira() {
                   {isGestor && (
                     <div className="flex justify-end mt-1 gap-1">
                       {o.status !== "finalizado" && o.status !== "cancelado" && (
-                        <Button size="sm" variant="ghost" className={`text-xs h-6 px-2 ${o.prioridade ? "text-amber-600 font-bold" : "text-muted-foreground"}`} onClick={() => updateOrdem.mutate({ id: o.id, data: { prioridade: !o.prioridade } })}>
-                          <Star className={`w-3 h-3 mr-1 ${o.prioridade ? "fill-amber-500 text-amber-500" : ""}`} /> {o.prioridade ? "Prioritária" : "Prioridade"}
-                        </Button>
+                        <SeletorPrioridadeDropdown
+                          pedido={o}
+                          onSelectPrioridade={(nivel) => updateOrdem.mutate({ id: o.id, data: { prioridade: Boolean(nivel), prioridade_nivel: nivel } })}
+                        />
                       )}
                       {o.status !== "cancelado" && (
                         <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>

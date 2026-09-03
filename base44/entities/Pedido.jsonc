@@ -304,7 +304,13 @@
     "prioridade": {
       "type": "boolean",
       "default": false,
-      "description": "Pedido priorit\u00e1rio \u2014 fixado no topo da fila de produ\u00e7\u00e3o"
+      "description": "Pedido prioritário — fixado no topo da fila de produção"
+    },
+    "prioridade_nivel": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "Nível de prioridade de 1 (mais urgente) a 5 (baixa prioridade)"
     },
     "rota": {
       "type": "boolean",

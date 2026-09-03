@@ -19,6 +19,7 @@ import { calcularDataPrometidaSLA, toISODate, slaDiasPorCategoria, diasUteisRest
 import { parseItensPedido } from "@/lib/regrasFabrica";
 import { notificarStatus } from "@/lib/biNotificador";
 import { calcularProgressoRealPedido, statusPcpPorPercentual, enriquecerItensComStatusReal } from "@/lib/pedidoOdooHelper";
+import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
 
 const FILTROS = [
   { id: "todos", label: "Todos" },
@@ -320,34 +321,45 @@ export default function CentralPCP() {
     }
   };
 
-  const handleTogglePrioridade = (pedido) => {
-    // Regra 1: ativar prioridade exige PIN do gestor; desativar é livre.
-    if (!pedido.prioridade) {
-      setPedidoPrioridadePendente(pedido);
+  const handleSetPrioridade = (pedido, nivel) => {
+    const nivelNum = nivel ? Number(nivel) : null;
+    // Se for P1 ou P2 (alta urgência), exige PIN do gestor caso não seja admin
+    if (nivelNum === 1 || nivelNum === 2) {
+      setPedidoPrioridadePendente({ pedido, nivel: nivelNum });
       setSenhaGestorOpen(true);
     } else {
-      confirmarPrioridade(pedido, false);
+      confirmarPrioridade(pedido, nivelNum);
     }
   };
 
-  const confirmarPrioridade = async (pedido, novoValor) => {
+  const handleTogglePrioridade = (pedido) => {
+    if (!pedido.prioridade) {
+      handleSetPrioridade(pedido, 1);
+    } else {
+      confirmarPrioridade(pedido, null);
+    }
+  };
+
+  const confirmarPrioridade = async (pedido, nivelNum) => {
     try {
+      const ativa = Boolean(nivelNum);
       const logExistente = (() => { try { return JSON.parse(pedido.historico_log || "[]"); } catch { return []; } })();
       const novoLog = [...logExistente, {
         data: new Date().toISOString(),
         usuario: "PCP",
-        acao: novoValor ? "prioridade_ativada" : "prioridade_removida",
-        detalhes: novoValor ? "Pedido marcado como Prioridade Alta / Urgente (autorizado via PIN do gestor)." : "Prioridade removida."
+        acao: ativa ? `prioridade_p${nivelNum}` : "prioridade_removida",
+        detalhes: ativa ? `Pedido marcado como Prioridade P${nivelNum} (1 a 5 - sendo 1 a mais urgente).` : "Prioridade removida."
       }];
       await base44.entities.PedidoOdoo.update(pedido.id, {
-        prioridade: novoValor,
+        prioridade: ativa,
+        prioridade_nivel: nivelNum,
         historico_log: JSON.stringify(novoLog)
       });
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
       toast({
-        title: novoValor ? "Prioridade ativada" : "Prioridade removida",
-        description: `#${pedido.numero_pedido} ${novoValor ? "marcado como URGENTE" : "voltou para fila normal"}.`,
-        className: novoValor ? "border-amber-500/40" : "border-slate-400/40"
+        title: ativa ? `Prioridade P${nivelNum} Definida` : "Prioridade Removida",
+        description: `#${pedido.numero_pedido} ${ativa ? `marcado com Prioridade P${nivelNum} (1 mais urgente)` : "voltou para fila normal"}.`,
+        className: ativa ? "border-amber-500/40" : "border-slate-400/40"
       });
     } catch (e) {
       toast({ title: "Erro ao alterar prioridade", description: e.message, variant: "destructive" });
@@ -553,7 +565,11 @@ export default function CentralPCP() {
       String(p.vendedor_nome || "").toLowerCase().includes(q)
     );
   }).sort((a, b) => {
-    // FIFO por data_recebimento (mais antigo primeiro)
+    // 1º: Prioridade 1 a 5 (P1 é a mais urgente absoluta!)
+    const priDiff = getPesoOrdenacaoPrioridade(a) - getPesoOrdenacaoPrioridade(b);
+    if (priDiff !== 0) return priDiff;
+
+    // 2º: FIFO por data_recebimento (mais antigo primeiro)
     const da = new Date(a.data_recebimento || 0).getTime();
     const db = new Date(b.data_recebimento || 0).getTime();
     return da - db;
@@ -740,6 +756,7 @@ export default function CentralPCP() {
                   onDelete={handleExcluirCard}
                   onRetirarFila={handleRetirarFila}
                   onTogglePrioridade={handleTogglePrioridade}
+                  onSetPrioridade={handleSetPrioridade}
                 />
               ))}
             </div>
@@ -758,6 +775,7 @@ export default function CentralPCP() {
         onRetirarFila={handleRetirarFila}
         onDevolverPCP={handleDevolverPCP}
         onTogglePrioridade={handleTogglePrioridade}
+        onSetPrioridade={handleSetPrioridade}
         onToggleItem={handleToggleItem}
         onProgramarItem={handleProgramarItem}
         onProgramarTodosItens={handleProgramarTodosItens}
@@ -766,10 +784,10 @@ export default function CentralPCP() {
         open={senhaGestorOpen}
         onOpenChange={setSenhaGestorOpen}
         titulo="Autorizar Prioridade Alta"
-        descricao="Para marcar este pedido como Prioridade Alta / Urgente, digite o PIN de liberação do PCP/Gestor."
+        descricao="Para marcar este pedido como Prioridade Alta / Urgente (P1 ou P2), digite o PIN de liberação do PCP/Gestor."
         onAutorizado={() => {
           if (pedidoPrioridadePendente) {
-            confirmarPrioridade(pedidoPrioridadePendente, true);
+            confirmarPrioridade(pedidoPrioridadePendente.pedido, pedidoPrioridadePendente.nivel ?? 1);
             setPedidoPrioridadePendente(null);
           }
         }}

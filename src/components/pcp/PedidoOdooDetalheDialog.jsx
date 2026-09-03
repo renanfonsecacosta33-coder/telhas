@@ -19,10 +19,11 @@ import { parseItensPedido, roteamentoMaterial, progressoChecklist } from "@/lib/
 import { notificarStatus } from "@/lib/biNotificador";
 import { toast } from "sonner";
 import ProgramadorItensSection from "./ProgramadorItensSection";
+import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelper";
 
 export default function PedidoOdooDetalheDialog({
   pedido, open, onOpenChange, onDistribuir, distribuindo,
-  onExcluirOS, onRetirarFila, onTogglePrioridade, onToggleItem,
+  onExcluirOS, onRetirarFila, onTogglePrioridade, onSetPrioridade, onToggleItem,
   onDevolverPCP, showTracking = false, progressoReal, onAtualizado,
   onProgramarItem, onProgramarTodosItens
 }) {
@@ -161,16 +162,17 @@ export default function PedidoOdooDetalheDialog({
                 <RefreshCw className={`w-3.5 h-3.5 ${sincronizando ? "animate-spin" : ""}`} />
                 {sincronizando ? "Sincronizando..." : "Sincronizar com Odoo"}
               </Button>
-              {onTogglePrioridade && (
-                <Button
+              <PrioridadeBadge pedido={pedido} />
+              {(onSetPrioridade || onTogglePrioridade) && (
+                <SeletorPrioridadeDropdown
+                  pedido={pedido}
+                  onSelectPrioridade={(nivel) => {
+                    if (onSetPrioridade) onSetPrioridade(pedido, nivel);
+                    else onTogglePrioridade(pedido);
+                  }}
                   size="sm"
-                  variant={isPrioritario ? "default" : "outline"}
-                  onClick={() => onTogglePrioridade(pedido)}
-                  className={`gap-1.5 ${isPrioritario ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-600" : "border-amber-400 text-amber-600 hover:bg-amber-50"}`}
-                >
-                  {isPrioritario ? <Star className="w-4 h-4 fill-white" /> : <ShieldAlert className="w-4 h-4" />}
-                  {isPrioritario ? "Prioridade Ativa" : "Prioridade Alta (PIN)"}
-                </Button>
+                  variant="outline"
+                />
               )}
             </div>
           </div>

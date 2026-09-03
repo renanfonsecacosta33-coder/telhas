@@ -16,6 +16,7 @@ import { useFilial } from "@/contexts/FilialContext";
 import { useQuery } from "@tanstack/react-query";
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
 import { toast } from "sonner";
+import { PrioridadeBadge } from "@/lib/prioridadeHelper";
 
 const PRODUTO_BG = {
   "TELHA":               "border-l-blue-400",
@@ -311,7 +312,7 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
 
   const handleConfirmarInicio = async (motivo) => {
     setConfirmarInicioOpen(false);
-    const isRotaOuPrioridade = p.rota || p.prioridade;
+    const isRotaOuPrioridade = p.rota || p.prioridade || (Number(p.prioridade_nivel) >= 1 && Number(p.prioridade_nivel) <= 3);
 
     // Se é rota/prioridade: notifica o encarregado e inicia
     if (isRotaOuPrioridade) {
@@ -607,6 +608,7 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="font-bold text-base">{p.produto}</span>
+              <PrioridadeBadge pedido={p} />
               {p.rota && (
                 <Badge className="bg-red-600 text-white border-red-700 text-xs gap-1 animate-pulse">
                   <Route className="w-3 h-3" /> ROTA

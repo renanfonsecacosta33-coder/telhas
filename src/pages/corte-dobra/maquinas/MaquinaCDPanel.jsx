@@ -16,6 +16,7 @@ import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
+import { getPesoOrdenacaoPrioridade, SeletorPrioridadeDropdown } from "@/lib/prioridadeHelper";
 
 export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const { filialAtiva } = useFilial();
@@ -115,7 +116,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     const hoje = format(new Date(), "yyyy-MM-dd");
     const isHoje = selectedDay === hoje;
     const doDia = ordensDaMaquina.filter(o => o.data === selectedDay);
-    const priComp = (a, b) => (b.prioridade ? 1 : 0) - (a.prioridade ? 1 : 0);
+    const priComp = (a, b) => getPesoOrdenacaoPrioridade(a) - getPesoOrdenacaoPrioridade(b);
     if (!isHoje) {
       return doDia.sort((a, b) => {
         const p = priComp(a, b);
@@ -138,20 +139,29 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
 
   const updateMaq = useMutation({
     mutationFn: ({ id, data }) => base44.entities.OrdemMaquinaCD.update(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] }); },
   });
   const createMaq = useMutation({
     mutationFn: (data) => base44.entities.OrdemMaquinaCD.create(data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] }); },
   });
 
-  // Regra 1: prioridade exige PIN do gestor (ativar); desativar é livre.
-  const handleTogglePrioridade = (o) => {
-    if (!o.prioridade) {
-      setPrioridadePendente(o);
+  // Prioridade 1 a 5: P1 e P2 exigem autorização do gestor
+  const handleSetPrioridade = (o, nivel) => {
+    const nivelNum = nivel ? Number(nivel) : null;
+    if (nivelNum === 1 || nivelNum === 2) {
+      setPrioridadePendente({ ordem: o, nivel: nivelNum });
       setSenhaGestorOpen(true);
     } else {
-      updateMaq.mutate({ id: o.id, data: { prioridade: false } });
+      updateMaq.mutate({ id: o.id, data: { prioridade: Boolean(nivelNum), prioridade_nivel: nivelNum } });
+    }
+  };
+
+  const handleTogglePrioridade = (o) => {
+    if (!o.prioridade) {
+      handleSetPrioridade(o, 1);
+    } else {
+      handleSetPrioridade(o, null);
     }
   };
 
@@ -480,9 +490,10 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
                   {isGestor && (
                     <div className="flex justify-end mt-1 gap-1">
                       {o.status !== "finalizado" && o.status !== "cancelado" && (
-                        <Button size="sm" variant="ghost" className={`text-xs h-6 px-2 ${o.prioridade ? "text-amber-600 font-bold" : "text-muted-foreground"}`} onClick={() => handleTogglePrioridade(o)}>
-                          <Star className={`w-3 h-3 mr-1 ${o.prioridade ? "fill-amber-500 text-amber-500" : ""}`} /> {o.prioridade ? "Prioritária" : "Prioridade"}
-                        </Button>
+                        <SeletorPrioridadeDropdown
+                          pedido={o}
+                          onSelectPrioridade={(nivel) => handleSetPrioridade(o, nivel)}
+                        />
                       )}
                       {o.status === "pendente" && (
                         <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
@@ -548,10 +559,12 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
         open={senhaGestorOpen}
         onOpenChange={setSenhaGestorOpen}
         titulo="Autorizar Prioridade Alta"
-        descricao="Para marcar esta OP como Prioridade Alta / Urgente, digite o PIN de liberação do PCP/Gestor."
+        descricao="Para marcar esta OP como Prioridade Alta / Urgente (P1 ou P2), digite o PIN de liberação do PCP/Gestor."
         onAutorizado={() => {
           if (prioridadePendente) {
-            updateMaq.mutate({ id: prioridadePendente.id, data: { prioridade: true } });
+            const id = prioridadePendente.ordem?.id || prioridadePendente.id;
+            const nivel = prioridadePendente.nivel ?? 1;
+            updateMaq.mutate({ id, data: { prioridade: true, prioridade_nivel: nivel } });
             setPrioridadePendente(null);
           }
         }}

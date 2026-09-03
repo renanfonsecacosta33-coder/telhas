@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { AlertTriangle, Route, Star } from "lucide-react";
+import { PrioridadeBadge } from "@/lib/prioridadeHelper";
 
 export default function ConfirmarInicioDialog({
   open,
@@ -51,17 +52,13 @@ export default function ConfirmarInicioDialog({
               {pedido?.numero_pedido ? ` (#${pedido.numero_pedido})` : ""}
             </p>
             <div className="flex gap-2 mt-1">
+              <PrioridadeBadge pedido={pedido} />
               {pedido?.rota && (
                 <span className="inline-flex items-center gap-1 bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full font-bold">
                   <Route className="w-3 h-3" /> Rota
                 </span>
               )}
-              {pedido?.prioridade && (
-                <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded-full font-bold">
-                  <Star className="w-3 h-3" /> Prioridade
-                </span>
-              )}
-              {!pedido?.rota && !pedido?.prioridade && (
+              {!pedido?.rota && !pedido?.prioridade && !pedido?.prioridade_nivel && (
                 <span className="inline-flex items-center gap-1 bg-slate-200 text-slate-600 text-xs px-2 py-0.5 rounded-full font-bold">
                   Sem prioridade / rota
                 </span>

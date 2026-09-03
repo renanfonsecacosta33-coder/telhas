@@ -19,6 +19,7 @@ import ValidacaoEtiquetaDialog from "@/components/corte-dobra/ValidacaoEtiquetaD
 import DualPhotoGallery from "@/components/corte-dobra/DualPhotoGallery";
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
 import ApontamentoOpButton from "@/components/producao/ApontamentoOpButton";
+import { PrioridadeBadge } from "@/lib/prioridadeHelper";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -404,6 +405,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                 </span>
               )}
               <StatusBadge status={o.status} />
+              <PrioridadeBadge pedido={o} />
               {o.data < format(new Date(), "yyyy-MM-dd") && o.status !== "finalizado" && o.status !== "cancelado" && (
                 <Badge className="bg-red-500 text-white border-red-600 animate-pulse text-xs">⚠️ Prioridade (Dia Anterior)</Badge>
               )}

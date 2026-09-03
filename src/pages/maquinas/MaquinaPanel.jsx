@@ -18,6 +18,7 @@ import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
 import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
+import { SeletorPrioridadeDropdown, getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
 
 const STATUS_LABELS_TELHAS = {
   pendente: "Pendente",
@@ -320,11 +321,10 @@ export default function MaquinaPanel({ maquina }) {
     const hoje = format(new Date(), "yyyy-MM-dd");
     const order = { em_producao: 0, pausado: 1, pendente: 2, aguardando_colagem: 3, finalizado: 4, cancelado: 5 };
     return [...pedidosDia].sort((a, b) => {
-      // Rota tem prioridade máxima, depois prioridade normal
-      const rotaDiff = (b.rota ? 1 : 0) - (a.rota ? 1 : 0);
-      if (rotaDiff !== 0) return rotaDiff;
-      const pri = (b.prioridade ? 1 : 0) - (a.prioridade ? 1 : 0);
-      if (pri !== 0) return pri;
+      // Prioridade 1 a 5 (P1 é a mais urgente de todas a fazer!)
+      const priDiff = getPesoOrdenacaoPrioridade(a) - getPesoOrdenacaoPrioridade(b);
+      if (priDiff !== 0) return priDiff;
+
       const aAtrasado = a.data < hoje ? 0 : 1;
       const bAtrasado = b.data < hoje ? 0 : 1;
       if (aAtrasado !== bAtrasado) return aAtrasado - bAtrasado;
@@ -332,10 +332,19 @@ export default function MaquinaPanel({ maquina }) {
     });
   }, [pedidosDia]);
 
-  const togglePrioridade = (pedido) => {
-    const novaPri = !pedido.prioridade;
-    const histData = appendHistorico(pedido, "prioridade", novaPri ? "Marcou Prioridade" : "Removeu Prioridade");
-    updateMutation.mutate({ id: pedido.id, data: { prioridade: novaPri, ...histData } });
+  const handleSetPrioridade = (pedido, nivel) => {
+    const novaPri = Boolean(nivel);
+    const nivelNum = nivel ? Number(nivel) : null;
+    const labelAcao = nivelNum ? `Definiu Prioridade P${nivelNum}` : "Removeu Prioridade";
+    const histData = appendHistorico(pedido, "prioridade", labelAcao, `Prioridade nível ${nivelNum || "nenhum"}`);
+    updateMutation.mutate({
+      id: pedido.id,
+      data: {
+        prioridade: novaPri,
+        prioridade_nivel: nivelNum,
+        ...histData
+      }
+    });
   };
 
   const toggleRota = (pedido) => {
@@ -562,9 +571,10 @@ export default function MaquinaPanel({ maquina }) {
                       <Button size="sm" variant="ghost" className={`text-xs h-6 px-2 ${p.rota ? "text-red-600 font-bold" : "text-muted-foreground"}`} onClick={() => toggleRota(p)}>
                         <Route className={`w-3 h-3 mr-1 ${p.rota ? "fill-red-500 text-red-500" : ""}`} /> {p.rota ? "Rota" : "Rota"}
                       </Button>
-                      <Button size="sm" variant="ghost" className={`text-xs h-6 px-2 ${p.prioridade ? "text-amber-600 font-bold" : "text-muted-foreground"}`} onClick={() => togglePrioridade(p)}>
-                        <Star className={`w-3 h-3 mr-1 ${p.prioridade ? "fill-amber-500 text-amber-500" : ""}`} /> {p.prioridade ? "Prioritário" : "Prioridade"}
-                      </Button>
+                      <SeletorPrioridadeDropdown
+                        pedido={p}
+                        onSelectPrioridade={(nivel) => handleSetPrioridade(p, nivel)}
+                      />
                     </>
                   )}
                   <HistoricoPedidoTelhasButton pedido={p} />

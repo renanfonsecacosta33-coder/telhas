@@ -23,6 +23,7 @@ import AproveitamentoDialog from "@/components/corte-dobra/AproveitamentoDialog"
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
 import ApontamentoOpButton from "@/components/producao/ApontamentoOpButton";
 import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo } from "@/lib/pedidoOdooHelper";
+import { PrioridadeBadge, getPrioridadeNivel } from "@/lib/prioridadeHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 
 function formatTempo(segundos) {
@@ -478,7 +479,8 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
                 <span className={`${z.info} text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded`}>{o.dimensoes_livres}</span>
               )}
               <StatusBadge status={o.status} />
-              {o.prioridade && (
+              <PrioridadeBadge pedido={o} />
+              {!getPrioridadeNivel(o) && o.prioridade && (
                 <Badge className="bg-amber-500 text-white border-amber-600 animate-pulse text-xs">
                   <Star className="w-3 h-3 mr-0.5 fill-white" /> PRIORIDADE
                 </Badge>

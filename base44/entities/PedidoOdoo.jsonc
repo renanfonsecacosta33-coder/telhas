@@ -64,7 +64,13 @@
     "prioridade": {
       "type": "boolean",
       "default": false,
-      "description": "Pedido priorit\u00e1rio/urgente \u2014 exige Senha de Gestor (PIN 0000) para ativar. Fixado no topo da fila e bloqueia in\u00edcio de OPs normais nas m\u00e1quinas."
+      "description": "Pedido prioritário/urgente — exige Senha de Gestor (PIN 0000) para ativar. Fixado no topo da fila e bloqueia início de OPs normais nas máquinas."
+    },
+    "prioridade_nivel": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "Nível de prioridade de 1 (mais urgente) a 5 (baixa prioridade)"
     },
     "percentual_concluido": {
       "type": "number",

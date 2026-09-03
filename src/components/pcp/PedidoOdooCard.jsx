@@ -13,6 +13,7 @@ import CroquiThumb from "@/components/pcp/CroquiThumb";
 import PedidoItensLista from "@/components/pcp/PedidoItensLista";
 import { notificarStatus } from "@/lib/biNotificador";
 import { toast } from "sonner";
+import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelper";
 
 const STATUS_PCP = {
   pendente_distribuicao: { label: "Pendente", cls: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40" },
@@ -22,7 +23,7 @@ const STATUS_PCP = {
 };
 
 export default function PedidoOdooCard({
-  pedido, onClick, onDelete, onRetirarFila, onTogglePrioridade,
+  pedido, onClick, onDelete, onRetirarFila, onTogglePrioridade, onSetPrioridade,
   progressoReal, pedidosProducao = [], ordensCD = [],
   selecionado = false, onToggleSelect, onDistribuir
 }) {
@@ -108,15 +109,19 @@ export default function PedidoOdooCard({
             >
               <RefreshCw className={`w-3.5 h-3.5 ${sincronizando ? "animate-spin" : ""}`} />
             </button>
-            {onTogglePrioridade && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onTogglePrioridade(pedido); }}
-                title={isPrioritario ? "Remover prioridade" : "Marcar como Prioridade Alta (requer PIN do gestor)"}
-                className={`p-1 rounded-md transition-colors ${isPrioritario ? "text-amber-500 bg-amber-500/10" : "text-slate-300 hover:text-amber-500 hover:bg-amber-500/10"}`}
-              >
-                <Star className={`w-4 h-4 ${isPrioritario ? "fill-amber-500" : ""}`} />
-              </button>
+            {(onSetPrioridade || onTogglePrioridade) && (
+              <div onClick={(e) => e.stopPropagation()}>
+                <SeletorPrioridadeDropdown
+                  pedido={pedido}
+                  onSelectPrioridade={(nivel) => {
+                    if (onSetPrioridade) onSetPrioridade(pedido, nivel);
+                    else onTogglePrioridade(pedido);
+                  }}
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-1.5"
+                />
+              </div>
             )}
             {onDelete && (
               <button
@@ -128,6 +133,7 @@ export default function PedidoOdooCard({
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             )}
+            <PrioridadeBadge pedido={pedido} />
             <Badge className={`border ${st.cls}`}>{st.label}</Badge>
           </div>
         </div>
