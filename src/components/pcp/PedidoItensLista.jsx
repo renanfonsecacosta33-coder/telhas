@@ -1,6 +1,7 @@
 import React from "react";
 import { Factory, Scissors, Wind, Layers, Ruler, ClipboardList } from "lucide-react";
 import { stripHtml } from "@/lib/stripHtml";
+import { obterStatusDescritivoItem } from "@/lib/pedidoOdooHelper";
 
 // Config visual por categoria — cores conforme spec:
 // 🔧 C&D → LARANJA (#FF6B00) | 🏠 Telha → DOURADO (#FFD700) | 🔩 Avulso → CINZA (#888)
@@ -107,45 +108,11 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
             ) || opsCD[0];
           }
 
-          let pctItem = 0;
-          let statusTexto = "Pendente";
-          let etapaAtiva = 1; // 1: Tirar Telha, 2: Corte EPS, 3: Colagem, 4: Concluído
-
-          if (opReal) {
-            if (opReal.status === "finalizado") {
-              pctItem = 100;
-              statusTexto = "Concluído";
-              etapaAtiva = 4;
-            } else if (opReal.status === "aguardando_colagem") {
-              pctItem = 85;
-              statusTexto = isSanduiche ? "Aguardando Colagem" : "Acabamento";
-              etapaAtiva = 3;
-            } else if (opReal.status === "em_producao") {
-              pctItem = 70;
-              statusTexto = isSanduiche ? "1ª Etapa: Tirando Telha" : "Em Produção";
-              etapaAtiva = 1;
-            } else if (opReal.status === "pausado") {
-              pctItem = 60;
-              statusTexto = "Pausado";
-              etapaAtiva = 1;
-            } else if (opReal.status === "pendente") {
-              pctItem = 50;
-              statusTexto = opReal.maquina ? `Na máquina ${opReal.maquina}` : "Na máquina";
-              etapaAtiva = 1;
-            }
-          } else if (it.status === "concluido") {
-            pctItem = 100;
-            statusTexto = "Concluído";
-            etapaAtiva = 4;
-          } else if (it.status === "em_producao" || it.maquina) {
-            pctItem = 50;
-            statusTexto = it.maquina ? `Na máquina ${it.maquina}` : "Em preparação";
-            etapaAtiva = 1;
-          } else if (pedido?.status_pcp === "distribuido") {
-            pctItem = 15;
-            statusTexto = "Distribuído";
-            etapaAtiva = 1;
-          }
+          // Obtém status descritivo exato para o vendedor e PCP
+          const itemInfo = obterStatusDescritivoItem(it, pedido, pedidosProducao, ordensCD);
+          const pctItem = itemInfo.pct;
+          const statusTexto = itemInfo.status;
+          const etapaAtiva = itemInfo.etapaAtiva;
 
           return (
             <div

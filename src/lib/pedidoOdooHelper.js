@@ -124,8 +124,143 @@ export function calcularProgressoRealPedido(pedido, pedidosProducao = [], ordens
     }
   }
 
-  const progresso = Math.min(100, Math.round(soma / itens.length));
-  return Math.max(progresso, pedido.percentual_concluido || 0);
+// Retorna status descritivo e claro para cada item (ex: "Aguardando Início (TP - 25)", "Aguardando Revisão (C&D)")
+export function obterStatusDescritivoItem(it, pedido, pedidosProducao = [], ordensCD = []) {
+  const g = classGrupo(it);
+  const numPed = String(pedido?.numero_pedido || "").trim().toUpperCase();
+
+  const opsTelha = (pedidosProducao || []).filter(op =>
+    op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed
+  );
+  const opsCD = (ordensCD || []).filter(op =>
+    op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed
+  );
+
+  let opReal = null;
+  if (g === "telha") {
+    opReal = opsTelha.find(o =>
+      String(o.produto || "").toUpperCase().includes(String(it.produto || "").toUpperCase())
+    ) || opsTelha[0];
+  } else {
+    opReal = opsCD.find(o =>
+      String(o.produto || "").toUpperCase().includes(String(it.produto || "").toUpperCase())
+    ) || opsCD[0];
+  }
+
+  const isSanduiche = /(eps|manta|sanduiche|isopor|termoacustica)/i.test(
+    String(it.produto || it.descricao || "")
+  );
+
+  if (opReal) {
+    const maquinaNome = opReal.maquina || it.maquina || (g === "telha" ? "Perfiladeira" : "C&D");
+    if (opReal.status === "finalizado") {
+      return {
+        status: "Concluído",
+        status_detalhado: "100% Concluído",
+        pct: 100,
+        maquina: maquinaNome,
+        fase: "concluido",
+        etapaAtiva: 4
+      };
+    }
+    if (opReal.status === "aguardando_colagem") {
+      return {
+        status: "Aguardando Colagem",
+        status_detalhado: "Telha Cortada — Aguardando Colagem",
+        pct: 85,
+        maquina: "Bancada Colagem",
+        fase: "colagem",
+        etapaAtiva: 3
+      };
+    }
+    if (opReal.status === "em_producao") {
+      return {
+        status: `Em Produção (${maquinaNome})`,
+        status_detalhado: `Em Produção na Máquina ${maquinaNome}`,
+        pct: 75,
+        maquina: maquinaNome,
+        fase: "em_producao",
+        etapaAtiva: 1
+      };
+    }
+    if (opReal.status === "pausado") {
+      return {
+        status: `Pausado (${maquinaNome})`,
+        status_detalhado: `Produção Pausada na Máquina ${maquinaNome}`,
+        pct: 60,
+        maquina: maquinaNome,
+        fase: "pausado",
+        etapaAtiva: 1
+      };
+    }
+    if (opReal.status === "pendente") {
+      return {
+        status: `Aguardando Início (${maquinaNome})`,
+        status_detalhado: `Na Máquina ${maquinaNome} — Aguardando Início`,
+        pct: 50,
+        maquina: maquinaNome,
+        fase: "aguardando_inicio",
+        etapaAtiva: 1
+      };
+    }
+  }
+
+  // Se não foi criada OP na máquina ainda
+  if (it.status === "concluido") {
+    return {
+      status: "Concluído",
+      status_detalhado: "100% Concluído",
+      pct: 100,
+      maquina: it.maquina || "",
+      fase: "concluido",
+      etapaAtiva: 4
+    };
+  }
+  if (it.status === "em_producao" || it.maquina) {
+    const maq = it.maquina || (g === "telha" ? "Telhas" : "C&D");
+    return {
+      status: `Aguardando Início (${maq})`,
+      status_detalhado: `Na Máquina ${maq} — Aguardando Início`,
+      pct: 50,
+      maquina: maq,
+      fase: "aguardando_inicio",
+      etapaAtiva: 1
+    };
+  }
+  if (pedido?.status_pcp === "distribuido") {
+    const setorNome = g === "telha" ? "Fila Telhas" : "Fila Corte & Dobra";
+    return {
+      status: `Aguardando Revisão (${setorNome})`,
+      status_detalhado: `Aguardando Revisão do Encarregado (${setorNome})`,
+      pct: 15,
+      maquina: "",
+      fase: "aguardando_revisao",
+      etapaAtiva: 1
+    };
+  }
+
+  return {
+    status: "Aguardando Distribuição (PCP)",
+    status_detalhado: "Aguardando Distribuição na Central PCP",
+    pct: 0,
+    maquina: "",
+    fase: "pendente_pcp",
+    etapaAtiva: 1
+  };
+}
+
+export function enriquecerItensComStatusReal(pedido, pedidosProducao = [], ordensCD = []) {
+  const itens = getItens(pedido);
+  return itens.map((it) => {
+    const info = obterStatusDescritivoItem(it, pedido, pedidosProducao, ordensCD);
+    return {
+      ...it,
+      status: info.status,
+      status_detalhado: info.status_detalhado,
+      percentual: info.pct,
+      maquina: info.maquina || it.maquina || ""
+    };
+  });
 }
 
 export function buildItensJson(itens) {

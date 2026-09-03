@@ -34,6 +34,25 @@ export default async function(req: Request): Promise<Response> {
     const maquinas: any[] = Array.isArray(body.maquinas) ? body.maquinas : [];
     const etapas: any[] = Array.isArray(body.etapas) ? body.etapas : [];
 
+    const formatStatusCD = (st: string, maq: string) => {
+      const s = String(st || "").trim().toLowerCase();
+      if (s === "concluido" || s === "finalizado") return "Concluído";
+      if (s === "em_producao") return maq ? `Em Produção (${maq})` : "Em Produção (C&D)";
+      if (s.includes("revis")) return st;
+      if (s.includes("início") || s.includes("inicio")) return st;
+      return "Aguardando Revisão (C&D)";
+    };
+
+    const formatStatusTelha = (st: string, maq: string) => {
+      const s = String(st || "").trim().toLowerCase();
+      if (s === "concluido" || s === "finalizado") return "Concluído";
+      if (s.includes("colagem")) return "Aguardando Colagem";
+      if (s === "em_producao") return maq ? `Em Produção (${maq})` : "Em Produção (Telhas)";
+      if (s.includes("início") || s.includes("inicio")) return st;
+      if (s.includes("revis")) return st;
+      return maq ? `Aguardando Início (${maq})` : "Aguardando Início (Telhas)";
+    };
+
     const itens_cd_arr = itensParsed
       .filter((i) => /(chapa|perfil|barra|tubo|zincado|serralheiro|corte)/i.test(String(i.produto || i.categoria || "")))
       .map((i) => ({
@@ -41,7 +60,8 @@ export default async function(req: Request): Promise<Response> {
         quantidade: i.quantidade,
         unidade: i.unidade || "UN",
         observacao: i.observacao || "",
-        status: i.status || "aguardando",
+        status: formatStatusCD(i.status, i.maquina || body.maquina_atual || ""),
+        status_detalhado: i.status_detalhado || formatStatusCD(i.status, i.maquina || body.maquina_atual || ""),
         maquinas: i.maquinas || maquinas
       }));
 
@@ -52,7 +72,8 @@ export default async function(req: Request): Promise<Response> {
         quantidade: i.quantidade,
         unidade: i.unidade || "MT",
         observacao: i.observacao || "",
-        status: i.status || "aguardando",
+        status: formatStatusTelha(i.status, i.maquina || body.maquina_atual || ""),
+        status_detalhado: i.status_detalhado || formatStatusTelha(i.status, i.maquina || body.maquina_atual || ""),
         maquinas: i.maquinas || etapas
       }));
 

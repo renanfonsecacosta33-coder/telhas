@@ -18,7 +18,7 @@ import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import { calcularDataPrometidaSLA, toISODate, slaDiasPorCategoria, diasUteisRestantes } from "@/lib/sla";
 import { parseItensPedido } from "@/lib/regrasFabrica";
 import { notificarStatus } from "@/lib/biNotificador";
-import { calcularProgressoRealPedido, statusPcpPorPercentual } from "@/lib/pedidoOdooHelper";
+import { calcularProgressoRealPedido, statusPcpPorPercentual, enriquecerItensComStatusReal } from "@/lib/pedidoOdooHelper";
 
 const FILTROS = [
   { id: "todos", label: "Todos" },
@@ -78,20 +78,25 @@ export default function CentralPCP() {
       if (!p.id || !p.numero_pedido) return;
       const progressoReal = calcularProgressoRealPedido(p, pedidosProducao, ordensCD);
       const statusReal = statusPcpPorPercentual(progressoReal, p.status_pcp);
+      const itensEnriquecidos = enriquecerItensComStatusReal(p, pedidosProducao, ordensCD);
+      const itensJsonEnriquecido = JSON.stringify(itensEnriquecidos);
 
-      // Sincroniza automaticamente se o percentual ou status diferir do gravado
-      const syncKey = `${p.id}_${progressoReal}_${statusReal}`;
+      // Sincroniza automaticamente se o percentual, status ou itens divergirem do gravado
+      const syncKey = `${p.id}_${progressoReal}_${statusReal}_${itensJsonEnriquecido.length}`;
       if (
-        (progressoReal !== p.percentual_concluido || (p.status_pcp !== "concluido" && statusReal === "concluido")) &&
+        (progressoReal !== p.percentual_concluido ||
+         (p.status_pcp !== "concluido" && statusReal === "concluido") ||
+         p.itens_json !== itensJsonEnriquecido) &&
         !syncEmAndamentoRef.current.has(syncKey)
       ) {
         syncEmAndamentoRef.current.add(syncKey);
         try {
           const atualizado = await base44.entities.PedidoOdoo.update(p.id, {
             percentual_concluido: progressoReal,
-            status_pcp: statusReal
+            status_pcp: statusReal,
+            itens_json: itensJsonEnriquecido
           });
-          // Notifica Mini BI do Odoo automaticamente em tempo real
+          // Notifica Mini BI do Odoo automaticamente em tempo real com itens descritivos
           await notificarStatus(atualizado, "progresso_automatico", {
             percentual_concluido: progressoReal,
             status_novo: statusReal,
