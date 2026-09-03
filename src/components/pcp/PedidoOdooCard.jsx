@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, User, Tag, Layers, Factory, Scissors, Wind, Trash2, Star, ShieldAlert, Undo2 } from "lucide-react";
+import { Calendar, User, Tag, Layers, Factory, Scissors, Wind, Trash2, Star, ShieldAlert, Undo2, RefreshCw } from "lucide-react";
 import {
   formatDataBR,
   slaDiasPorCategoria
@@ -11,7 +11,8 @@ import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
 import PedidoItensLista from "@/components/pcp/PedidoItensLista";
-
+import { notificarStatus } from "@/lib/biNotificador";
+import { toast } from "sonner";
 
 const STATUS_PCP = {
   pendente_distribuicao: { label: "Pendente", cls: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40" },
@@ -20,8 +21,12 @@ const STATUS_PCP = {
   concluido: { label: "Concluído", cls: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40" }
 };
 
-export default function PedidoOdooCard({ pedido, onClick, onDelete, onRetirarFila, onTogglePrioridade, progressoReal }) {
+export default function PedidoOdooCard({
+  pedido, onClick, onDelete, onRetirarFila, onTogglePrioridade,
+  progressoReal, pedidosProducao = [], ordensCD = []
+}) {
   const [hover, setHover] = useState(false);
+  const [sincronizando, setSincronizando] = useState(false);
   const st = STATUS_PCP[pedido.status_pcp] || STATUS_PCP.pendente_distribuicao;
   const sla = slaDiasPorCategoria(pedido);
   const chk = progressoChecklist(pedido.itens_json);
@@ -30,6 +35,23 @@ export default function PedidoOdooCard({ pedido, onClick, onDelete, onRetirarFil
   })();
   const isPrioritario = !!pedido.prioridade;
   const podeRetirarFila = pedido.status_pcp === "distribuido" || pedido.status_pcp === "em_producao";
+  const handleSincronizarOdoo = async (e) => {
+    e.stopPropagation();
+    setSincronizando(true);
+    try {
+      const pct = progressoReal != null ? progressoReal : (pedido.percentual_concluido || 0);
+      await notificarStatus(pedido, "sincronizacao_manual", {
+        percentual_concluido: pct,
+        status_novo: pedido.status_pcp || "em_producao",
+        item_nome: `Pedido #${pedido.numero_pedido}`
+      });
+      toast.success(`Pedido #${pedido.numero_pedido} sincronizado com o Odoo ERP!`);
+    } catch (err) {
+      toast.error("Falha ao sincronizar com o Odoo ERP");
+    } finally {
+      setSincronizando(false);
+    }
+  };
 
   return (
     <div
@@ -50,9 +72,9 @@ export default function PedidoOdooCard({ pedido, onClick, onDelete, onRetirarFil
                   <Star className="w-3 h-3 fill-white" /> URGENTE
                 </Badge>
               )}
-              <span className="text-sm font-bold text-slate-900 dark:text-white truncate">
+              <h3 className="font-extrabold text-base text-slate-900 dark:text-slate-100 leading-none">
                 #{pedido.numero_pedido}
-              </span>
+              </h3>
               {pedido.odoo_id && (
                 <span className="text-[10px] text-slate-400 font-mono">Odoo:{pedido.odoo_id}</span>
               )}
@@ -61,7 +83,16 @@ export default function PedidoOdooCard({ pedido, onClick, onDelete, onRetirarFil
               {pedido.cliente_nome || "Cliente não informado"}
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={handleSincronizarOdoo}
+              disabled={sincronizando}
+              title="Sincronizar em tempo real com o Mini BI do Odoo ERP"
+              className="p-1 rounded-md text-blue-500 hover:text-blue-600 hover:bg-blue-500/10 transition-colors"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${sincronizando ? "animate-spin" : ""}`} />
+            </button>
             {onTogglePrioridade && (
               <button
                 type="button"
@@ -95,37 +126,35 @@ export default function PedidoOdooCard({ pedido, onClick, onDelete, onRetirarFil
       {/* SLA Countdown (Regra 6) */}
       <SlaCountdownBadge dataPrometida={pedido.data_entrega} />
 
-      <PedidoItensLista itensJson={pedido.itens_json} />
+      {/* Lista de Itens com Barras de Progresso Individuais e Etapas (Telha+EPS+Manta) */}
+      <PedidoItensLista
+        pedido={pedido}
+        itensJson={pedido.itens_json}
+        pedidosProducao={pedidosProducao}
+        ordensCD={ordensCD}
+      />
 
-      {/* Checklist progress (Regra 4) */}
-      {chk.total > 1 && (
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${chk.percentual >= 100 ? "bg-emerald-500" : "bg-blue-500"}`}
-              style={{ width: `${chk.percentual}%` }}
-            />
-          </div>
-          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
-            {chk.concluidos}/{chk.total} itens
-          </span>
-        </div>
-      )}
-
+      {/* Barra de Progresso Geral do Pedido (Combinando todos os itens) */}
       {(() => {
         const pct = progressoReal != null ? progressoReal : (pedido.percentual_concluido || 0);
-        if (pct <= 0 && pedido.status_pcp !== "em_producao") return null;
         return (
-          <div className="flex items-center gap-2">
-            <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+          <div className="flex flex-col gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-slate-700 dark:text-slate-300">
+                Progresso Geral do Pedido
+              </span>
+              <span className={`font-black text-sm ${pct >= 100 ? "text-emerald-600" : "text-orange-600"}`}>
+                {pct}%
+              </span>
+            </div>
+            <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-emerald-500" : "bg-orange-500"}`}
+                className={`h-full rounded-full transition-all duration-500 ${
+                  pct >= 100 ? "bg-emerald-500" : "bg-gradient-to-r from-orange-500 to-amber-500"
+                }`}
                 style={{ width: `${pct}%` }}
               />
             </div>
-            <span className={`text-[11px] font-bold ${pct >= 100 ? "text-emerald-600" : "text-orange-600"}`}>
-              {pct}%
-            </span>
           </div>
         );
       })()}

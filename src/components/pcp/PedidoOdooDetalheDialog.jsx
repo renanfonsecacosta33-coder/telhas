@@ -5,16 +5,19 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Zap, Factory, Scissors, Wind, Tag, Ruler, Package, CheckCircle2, Trash2, ImageIcon, ExternalLink, Star, ShieldAlert, Undo2, RotateCcw } from "lucide-react";
+import { Zap, Factory, Scissors, Wind, Tag, Ruler, Package, CheckCircle2, Trash2, ImageIcon, ExternalLink, Star, ShieldAlert, Undo2, RotateCcw, RefreshCw } from "lucide-react";
 import { formatDataBR, slaDiasPorCategoria } from "@/lib/sla";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import PedidoItemChecklist from "@/components/pcp/PedidoItemChecklist";
+import PedidoItensLista from "@/components/pcp/PedidoItensLista";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
 import MaquinaSequenceCD from "@/components/pcp/MaquinaSequenceCD";
 import EtapasTelhaSequence from "@/components/pcp/EtapasTelhaSequence";
 import { parseItensPedido, roteamentoMaterial, progressoChecklist } from "@/lib/regrasFabrica";
+import { notificarStatus } from "@/lib/biNotificador";
+import { toast } from "sonner";
 
 export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, onDistribuir, distribuindo, onExcluirOS, onRetirarFila, onTogglePrioridade, onToggleItem, onDevolverPCP, showTracking = false, progressoReal, onAtualizado }) {
   const [confirmaExcluir, setConfirmaExcluir] = useState(false);
@@ -22,6 +25,25 @@ export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, on
   const [motivo, setMotivo] = useState("");
   const [excluindo, setExcluindo] = useState(false);
   const [operadorNome, setOperadorNome] = useState("");
+  const [sincronizando, setSincronizando] = useState(false);
+
+  const handleSincronizarOdoo = async () => {
+    if (!pedido) return;
+    setSincronizando(true);
+    try {
+      const pct = progressoReal != null ? progressoReal : (pedido.percentual_concluido || 0);
+      await notificarStatus(pedido, "sincronizacao_manual", {
+        percentual_concluido: pct,
+        status_novo: pedido.status_pcp || "em_producao",
+        item_nome: `Pedido #${pedido.numero_pedido}`
+      });
+      toast.success(`Pedido #${pedido.numero_pedido} sincronizado com o Odoo ERP!`);
+    } catch (err) {
+      toast.error("Falha ao sincronizar com o Odoo ERP");
+    } finally {
+      setSincronizando(false);
+    }
+  };
 
   // Rastreamento (Mini BI) só na visão do operador (galpão). Busca o nome do operador logado.
   useEffect(() => {
@@ -122,17 +144,29 @@ export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, on
           {/* SLA Countdown (Regra 6) */}
           <div className="flex items-center gap-2 flex-wrap">
             <SlaCountdownBadge dataPrometida={pedido.data_entrega} />
-            {onTogglePrioridade && (
+            <div className="ml-auto flex items-center gap-2">
               <Button
                 size="sm"
-                variant={isPrioritario ? "default" : "outline"}
-                onClick={() => onTogglePrioridade(pedido)}
-                className={`ml-auto gap-1.5 ${isPrioritario ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-600" : "border-amber-400 text-amber-600 hover:bg-amber-50"}`}
+                variant="outline"
+                onClick={handleSincronizarOdoo}
+                disabled={sincronizando}
+                className="gap-1.5 border-blue-400 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
               >
-                {isPrioritario ? <Star className="w-4 h-4 fill-white" /> : <ShieldAlert className="w-4 h-4" />}
-                {isPrioritario ? "Prioridade Ativa" : "Prioridade Alta (PIN)"}
+                <RefreshCw className={`w-3.5 h-3.5 ${sincronizando ? "animate-spin" : ""}`} />
+                {sincronizando ? "Sincronizando..." : "Sincronizar com Odoo"}
               </Button>
-            )}
+              {onTogglePrioridade && (
+                <Button
+                  size="sm"
+                  variant={isPrioritario ? "default" : "outline"}
+                  onClick={() => onTogglePrioridade(pedido)}
+                  className={`gap-1.5 ${isPrioritario ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-600" : "border-amber-400 text-amber-600 hover:bg-amber-50"}`}
+                >
+                  {isPrioritario ? <Star className="w-4 h-4 fill-white" /> : <ShieldAlert className="w-4 h-4" />}
+                  {isPrioritario ? "Prioridade Ativa" : "Prioridade Alta (PIN)"}
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Foto do Pedido (Odoo → Encarregado) — Anexo 1 + Anexo 2, clica para expandir */}
@@ -207,11 +241,17 @@ export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, on
             {itens.length === 0 ? (
               <p className="text-xs text-slate-400 italic">Nenhum item detalhado.</p>
             ) : (
-              <PedidoItemChecklist
-                itensJson={pedido.itens_json}
-                onToggleItem={handleToggleItemLocal}
-                compact
-              />
+              <div className="flex flex-col gap-3">
+                <PedidoItensLista
+                  pedido={pedido}
+                  itensJson={pedido.itens_json}
+                />
+                <PedidoItemChecklist
+                  itensJson={pedido.itens_json}
+                  onToggleItem={handleToggleItemLocal}
+                  compact
+                />
+              </div>
             )}
 
             {/* Roteamento de matéria-prima (Regra 3) */}

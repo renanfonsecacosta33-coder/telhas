@@ -469,6 +469,8 @@ export default function CentralPCP() {
                   key={p.id}
                   pedido={p}
                   progressoReal={calcularProgressoRealPedido(p, pedidosProducao, ordensCD)}
+                  pedidosProducao={pedidosProducao}
+                  ordensCD={ordensCD}
                   onClick={() => { setPedidoSelecionado(p); setDetalheOpen(true); }}
                   onDelete={handleExcluirCard}
                   onRetirarFila={handleRetirarFila}
