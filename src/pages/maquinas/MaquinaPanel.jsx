@@ -78,11 +78,29 @@ export default function MaquinaPanel({ maquina }) {
     return { historico_alteracoes: JSON.stringify(hist) };
   };
 
-  const { data: pedidos = [], isLoading } = useQuery({
-    queryKey: ["pedidos-maquina", maquina, filialAtiva],
-    queryFn: () => base44.entities.Pedido.filter({ maquina, unidade: filialAtiva }, "-data", 300),
+  const maquinaNorm = (m) => String(m || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  const targetNorm = maquinaNorm(maquina);
+
+  const { data: todosPedidos = [], isLoading } = useQuery({
+    queryKey: ["pedidos-maquina-raw", filialAtiva],
+    queryFn: async () => {
+      const lista = filialAtiva 
+        ? await base44.entities.Pedido.filter({ unidade: filialAtiva }, "-data", 500).catch(() => [])
+        : await base44.entities.Pedido.list("-data", 500).catch(() => []);
+      if (!lista || lista.length === 0) {
+        return base44.entities.Pedido.list("-data", 500).catch(() => []);
+      }
+      return lista;
+    },
     refetchInterval: 10000,
   });
+
+  const pedidos = useMemo(() => {
+    return todosPedidos.filter(p => {
+      const mNorm = maquinaNorm(p.maquina);
+      return mNorm === targetNorm || String(p.maquina || "").toUpperCase().includes(targetNorm);
+    });
+  }, [todosPedidos, targetNorm]);
 
   // Detectar novas OPs e anunciar por voz
   const prevOrderIds = useRef(new Set());
@@ -110,7 +128,8 @@ export default function MaquinaPanel({ maquina }) {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Pedido.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pedidos-maquina", maquina] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-maquina-raw"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
       toast.success("Status atualizado!");
     },
   });
@@ -163,6 +182,7 @@ export default function MaquinaPanel({ maquina }) {
           const odooList = await base44.entities.PedidoOdoo.filter({ numero_pedido: pedido.numero_pedido }, "-created_date", 1);
           if (odooList && odooList[0]) {
             const pedOdoo = odooList[0];
+            const itens = getItens(pedOdoo);
             const itemIdx = itens.findIndex(i => {
               const iProd = String(i.produto || "").toLowerCase();
               const pedProd = String(pedido.produto || "").toLowerCase();
@@ -264,10 +284,11 @@ export default function MaquinaPanel({ maquina }) {
     const hoje = format(new Date(), "yyyy-MM-dd");
     const isHoje = selectedDay === hoje;
     if (!isHoje) {
-      return pedidos.filter(p => p.data === selectedDay || p.status === "pausado" || p.status === "em_producao");
+      return pedidos.filter(p => p.data === selectedDay || p.data_finalizacao === selectedDay || p.status === "pausado" || p.status === "em_producao");
     }
     return pedidos.filter(p =>
       p.data === selectedDay ||
+      p.data_finalizacao === selectedDay ||
       p.status === "pausado" ||
       p.status === "em_producao" ||
       (p.data < hoje && p.status !== "finalizado" && p.status !== "cancelado")
@@ -349,7 +370,11 @@ export default function MaquinaPanel({ maquina }) {
 
   // Próximos dias com pedidos
   const diasComPedidos = useMemo(() => {
-    const set = new Set(pedidos.map(p => p.data));
+    const set = new Set();
+    pedidos.forEach(p => {
+      if (p.data) set.add(p.data);
+      if (p.data_finalizacao) set.add(p.data_finalizacao);
+    });
     return Array.from(set).sort();
   }, [pedidos]);
 
