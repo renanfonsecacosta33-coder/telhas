@@ -135,7 +135,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                       <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40 text-[10px]">
                         <CheckCircle2 className="w-3 h-3 mr-0.5" />Pacote Telhas Concluído
                       </Badge>
-                    ) : opsEmProducao.length > 0 ? (
+                    ) : opsDoPedido.length > 0 ? (
                       <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 text-[10px]">
                         ⚙️ Em Produção na Fábrica
                       </Badge>
