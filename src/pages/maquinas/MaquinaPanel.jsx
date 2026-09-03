@@ -275,7 +275,18 @@ export default function MaquinaPanel({ maquina }) {
   }, [pedidos, selectedDay]);
 
   const hoje = isToday(new Date(selectedDay + "T12:00:00"));
-  const totalMetros = pedidosDia.reduce((s, p) => s + (p.metros || 0), 0);
+  const calcularMetrosOp = (p) => {
+    let variacoesTelhas = [];
+    try { variacoesTelhas = JSON.parse(p.variacoes_telhas || "[]"); } catch { variacoesTelhas = []; }
+    if (variacoesTelhas.length > 0) {
+      return variacoesTelhas.reduce((sum, v) => sum + (Number(v.qty) || 0) * (Number(v.mm) || 0), 0) / 1000;
+    }
+    if (p.metragem_mm > 0 && p.metros > 0) {
+      return (Number(p.metros) * Number(p.metragem_mm)) / 1000;
+    }
+    return Number(p.metros) || 0;
+  };
+  const totalMetros = pedidosDia.reduce((s, p) => s + calcularMetrosOp(p), 0);
   
   // Para o dashboard da máquina: "finalizado" = finalizado OU aguardando_colagem (passou por aqui e foi para outra)
   // Mas se aguardando_colagem e maquina mudou (está em outra), conta como finalizado nessa máquina

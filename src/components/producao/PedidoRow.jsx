@@ -585,6 +585,18 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
     setMetragemDialog(false);
   };
 
+  const metragemTotalCalculada = useMemo(() => {
+    let variacoesTelhas = [];
+    try { variacoesTelhas = JSON.parse(p.variacoes_telhas || "[]"); } catch { variacoesTelhas = []; }
+    if (variacoesTelhas.length > 0) {
+      return variacoesTelhas.reduce((sum, v) => sum + (Number(v.qty) || 0) * (Number(v.mm) || 0), 0) / 1000;
+    }
+    if (p.metragem_mm > 0 && p.metros > 0) {
+      return (Number(p.metros) * Number(p.metragem_mm)) / 1000;
+    }
+    return Number(p.metros) || 0;
+  }, [p.variacoes_telhas, p.metragem_mm, p.metros]);
+
   const steps = ETAPAS[p.produto];
 
   return (
@@ -638,7 +650,7 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
           </div>
           <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
             <p className="text-3xl font-black text-primary leading-none">
-              {(p.metros || 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
+              {metragemTotalCalculada.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
               <span className="text-base font-normal text-muted-foreground">m</span>
             </p>
             <ChatPedidoButton canal_id={p.id} canal_label={`PED ${p.numero_pedido || p.id.slice(-6).toUpperCase()}`} currentUser={user} />
