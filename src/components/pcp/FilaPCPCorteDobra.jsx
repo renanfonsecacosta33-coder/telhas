@@ -171,6 +171,11 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                           <span className={restantes < 0 ? "text-red-600 font-semibold" : ""}>
                             {restantes < 0 ? `Atrasado ${restantes}d` : `${restantes}d úteis`}
                           </span>
+                          {item.data_programada && (
+                            <span className="text-blue-600 dark:text-blue-400 font-semibold">
+                              · Previsto: {formatDataBR(item.data_programada)}
+                            </span>
+                          )}
                         </div>
 
                         {/* Checklist individual: máquina + medição + qtd produzida */}
@@ -225,7 +230,7 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                                   item_nome: item.produto || item.descricao || "",
                                   maquina_atual: maquinaItem || "PCP / C&D"
                                 });
-                                onNovaOrdem(pedido, { ...item, _idx: idx, maquina: maquinaItem });
+                                onNovaOrdem(pedido, { ...item, _idx: idx, maquina: maquinaItem, data: item.data_programada || pedido.data_entrega });
                               }}
                               className={
                                 concluido

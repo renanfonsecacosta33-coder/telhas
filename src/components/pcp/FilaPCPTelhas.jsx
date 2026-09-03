@@ -194,6 +194,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                           <p className="text-[11px] text-slate-400">
                             {item.medida || "—"} · {item.quantidade}x{item.espessura ? ` · ${item.espessura}mm` : ""}
                             {maquinaItem ? <strong className="text-orange-600 dark:text-orange-400 ml-1.5">· Máquina: {maquinaItem}</strong> : ""}
+                            {item.data_programada ? <span className="text-blue-600 dark:text-blue-400 ml-1.5 font-semibold">· Previsto: {formatDataBR(item.data_programada)}</span> : ""}
                           </p>
                         </div>
                         <Badge className={`shrink-0 border text-[10px] ${st.cls}`}>
@@ -208,7 +209,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                                 item_nome: item.produto || item.descricao || "",
                                 maquina_atual: maquinaItem || "PCP / Fábrica"
                               });
-                              onNovaOrdem(pedido, { ...item, _idx: idx, maquina: maquinaItem });
+                              onNovaOrdem(pedido, { ...item, _idx: idx, maquina: maquinaItem, data: item.data_programada || pedido.data_entrega });
                             }}
                             className={
                               concluido

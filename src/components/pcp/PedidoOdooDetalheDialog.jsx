@@ -18,8 +18,14 @@ import EtapasTelhaSequence from "@/components/pcp/EtapasTelhaSequence";
 import { parseItensPedido, roteamentoMaterial, progressoChecklist } from "@/lib/regrasFabrica";
 import { notificarStatus } from "@/lib/biNotificador";
 import { toast } from "sonner";
+import ProgramadorItensSection from "./ProgramadorItensSection";
 
-export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, onDistribuir, distribuindo, onExcluirOS, onRetirarFila, onTogglePrioridade, onToggleItem, onDevolverPCP, showTracking = false, progressoReal, onAtualizado }) {
+export default function PedidoOdooDetalheDialog({
+  pedido, open, onOpenChange, onDistribuir, distribuindo,
+  onExcluirOS, onRetirarFila, onTogglePrioridade, onToggleItem,
+  onDevolverPCP, showTracking = false, progressoReal, onAtualizado,
+  onProgramarItem, onProgramarTodosItens
+}) {
   const [confirmaExcluir, setConfirmaExcluir] = useState(false);
   const [senhaDevolverOpen, setSenhaDevolverOpen] = useState(false);
   const [motivo, setMotivo] = useState("");
@@ -242,6 +248,13 @@ export default function PedidoOdooDetalheDialog({ pedido, open, onOpenChange, on
               <p className="text-xs text-slate-400 italic">Nenhum item detalhado.</p>
             ) : (
               <div className="flex flex-col gap-3">
+                {onProgramarItem && onProgramarTodosItens && (
+                  <ProgramadorItensSection
+                    pedido={pedido}
+                    onProgramarItem={onProgramarItem}
+                    onProgramarTodosItens={onProgramarTodosItens}
+                  />
+                )}
                 <PedidoItensLista
                   pedido={pedido}
                   itensJson={pedido.itens_json}

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import {
-  Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap,
+  Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send,
   Factory, Scissors, Wind, Layers, AlertTriangle, CheckCircle2, Star
 } from "lucide-react";
 import PedidoOdooCard from "@/components/pcp/PedidoOdooCard";
@@ -38,6 +38,7 @@ export default function CentralPCP() {
   const [detalheOpen, setDetalheOpen] = useState(false);
   const [webhookOpen, setWebhookOpen] = useState(false);
   const [distribuindo, setDistribuindo] = useState(false);
+  const [selecionados, setSelecionados] = useState(new Set());
   const [senhaGestorOpen, setSenhaGestorOpen] = useState(false);
   const [pedidoPrioridadePendente, setPedidoPrioridadePendente] = useState(null);
 
@@ -384,6 +385,163 @@ export default function CentralPCP() {
     }
   };
 
+  // Distribuição em Lote (Todos os Selecionados ou Todos os Pendentes)
+  const handleDistribuirLote = async (pedidosADistribuir) => {
+    if (!pedidosADistribuir || pedidosADistribuir.length === 0) return;
+    setDistribuindo(true);
+    try {
+      let sucesso = 0;
+      for (const ped of pedidosADistribuir) {
+        try {
+          const logExistente = (() => { try { return JSON.parse(ped.historico_log || "[]"); } catch { return []; } })();
+          const novoLog = [...logExistente, {
+            data: new Date().toISOString(),
+            usuario: "PCP",
+            acao: "distribuicao_lote",
+            detalhes: "Pedido distribuído em lote para os galpões de produção (Telhas, C&D e Frisada)."
+          }];
+          const atualizado = await base44.entities.PedidoOdoo.update(ped.id, {
+            status_pcp: "distribuido",
+            percentual_concluido: 15,
+            historico_log: JSON.stringify(novoLog)
+          });
+          await notificarStatus(atualizado, "distribuido", { status_novo: "distribuido", percentual_concluido: 15 });
+          sucesso++;
+        } catch (err) {
+          console.error("[PCP Distribuir Lote] falha ao distribuir pedido:", ped.numero_pedido, err);
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      setSelecionados(new Set());
+      toast({
+        title: `🚀 ${sucesso} pedidos distribuídos!`,
+        description: `Todas as ordens selecionadas foram encaminhadas simultaneamente para as filas dos galpões.`,
+        className: "border-emerald-500/40"
+      });
+    } catch (e) {
+      toast({ title: "Erro na distribuição em lote", description: e.message, variant: "destructive" });
+    } finally {
+      setDistribuindo(false);
+    }
+  };
+
+  const handleToggleSelect = (pedido) => {
+    setSelecionados(prev => {
+      const next = new Set(prev);
+      if (next.has(pedido.id)) next.delete(pedido.id);
+      else next.add(pedido.id);
+      return next;
+    });
+  };
+
+  const handleSelectAllPendentes = (marcarTodos) => {
+    if (marcarTodos) {
+      const ids = pedidosFiltrados
+        .filter(p => p.status_pcp === "pendente_distribuicao")
+        .map(p => p.id);
+      setSelecionados(new Set(ids));
+    } else {
+      setSelecionados(new Set());
+    }
+  };
+
+  // Programação e Distribuição por Item
+  const handleProgramarItem = async (pedido, idx, { maquina, data_programada, distribuir = false }) => {
+    try {
+      const itens = parseItensPedido(pedido.itens_json);
+      if (!itens[idx]) return;
+
+      const itemAtualizado = {
+        ...itens[idx],
+        maquina: maquina || itens[idx].maquina || "",
+        data_programada: data_programada || itens[idx].data_programada || new Date().toISOString().slice(0, 10),
+        status: distribuir ? "distribuido" : (itens[idx].status || "pendente"),
+        distribuido: distribuir ? true : (itens[idx].distribuido || false)
+      };
+      itens[idx] = itemAtualizado;
+
+      const algumDistribuido = itens.some(i => i.distribuido || i.status === "distribuido" || i.status === "concluido");
+      const novoStatusPcp = algumDistribuido && pedido.status_pcp === "pendente_distribuicao" 
+        ? "distribuido" 
+        : pedido.status_pcp;
+
+      const logExistente = (() => { try { return JSON.parse(pedido.historico_log || "[]"); } catch { return []; } })();
+      const novoLog = [...logExistente, {
+        data: new Date().toISOString(),
+        usuario: "PCP",
+        acao: distribuir ? "distribuicao_item" : "programacao_item",
+        detalhes: `Item "${itemAtualizado.produto || itemAtualizado.descricao}" programado para máquina ${itemAtualizado.maquina || "Padrão"} na data ${itemAtualizado.data_programada}.${distribuir ? " (Distribuído ao galpão)" : ""}`
+      }];
+
+      const atualizado = await base44.entities.PedidoOdoo.update(pedido.id, {
+        itens_json: JSON.stringify(itens),
+        status_pcp: novoStatusPcp,
+        historico_log: JSON.stringify(novoLog)
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      setPedidoSelecionado({ ...pedido, ...atualizado });
+
+      if (distribuir) {
+        await notificarStatus(atualizado, "distribuido", {
+          status_novo: novoStatusPcp,
+          item_nome: itemAtualizado.produto || `Item #${idx + 1}`,
+          maquina_atual: itemAtualizado.maquina || ""
+        });
+      }
+
+      toast({
+        title: distribuir ? "Item distribuído!" : "Item programado!",
+        description: `Item #${idx + 1} direcionado para ${itemAtualizado.maquina || "Galpão"} (${itemAtualizado.data_programada}).`,
+        className: "border-blue-500/40"
+      });
+    } catch (err) {
+      toast({ title: "Erro ao programar item", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleProgramarTodosItens = async (pedido, itensProgramados, distribuir = true) => {
+    try {
+      const algumDistribuido = itensProgramados.some(i => i.distribuido || i.status === "distribuido");
+      const novoStatusPcp = (distribuir || algumDistribuido) && pedido.status_pcp === "pendente_distribuicao"
+        ? "distribuido"
+        : pedido.status_pcp;
+
+      const logExistente = (() => { try { return JSON.parse(pedido.historico_log || "[]"); } catch { return []; } })();
+      const novoLog = [...logExistente, {
+        data: new Date().toISOString(),
+        usuario: "PCP",
+        acao: "programacao_itens_completa",
+        detalhes: `Programação de todos os itens do pedido #${pedido.numero_pedido} salva e distribuída.`
+      }];
+
+      const atualizado = await base44.entities.PedidoOdoo.update(pedido.id, {
+        itens_json: JSON.stringify(itensProgramados),
+        status_pcp: novoStatusPcp,
+        percentual_concluido: novoStatusPcp === "distribuido" && pedido.percentual_concluido < 15 ? 15 : pedido.percentual_concluido,
+        historico_log: JSON.stringify(novoLog)
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      setPedidoSelecionado({ ...pedido, ...atualizado });
+
+      if (distribuir) {
+        await notificarStatus(atualizado, "distribuido", {
+          status_novo: novoStatusPcp,
+          percentual_concluido: 15
+        });
+      }
+
+      toast({
+        title: "Itens programados com sucesso!",
+        description: `Todos os itens do pedido #${pedido.numero_pedido} foram programados e enviados aos galpões.`,
+        className: "border-emerald-500/40"
+      });
+    } catch (err) {
+      toast({ title: "Erro ao programar itens", description: err.message, variant: "destructive" });
+    }
+  };
+
   // Filtros + busca
   const pedidosFiltrados = pedidos.filter(p => {
     if (filtro !== "todos" && p.status_pcp !== filtro) return false;
@@ -500,6 +658,69 @@ export default function CentralPCP() {
           </div>
         ) : (
           <>
+            {/* Barra de Distribuição em Lote e Ações Rápidas do PCP */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={
+                      pedidosFiltrados.filter(p => p.status_pcp === "pendente_distribuicao").length > 0 &&
+                      pedidosFiltrados
+                        .filter(p => p.status_pcp === "pendente_distribuicao")
+                        .every(p => selecionados.has(p.id))
+                    }
+                    onChange={(e) => handleSelectAllPendentes(e.target.checked)}
+                    className="w-4 h-4 rounded text-orange-600 border-slate-300 focus:ring-orange-500 cursor-pointer"
+                  />
+                  <span>
+                    Selecionar Todos os Pendentes ({pedidosFiltrados.filter(p => p.status_pcp === "pendente_distribuicao").length})
+                  </span>
+                </label>
+
+                {selecionados.size > 0 && (
+                  <Badge variant="outline" className="text-xs bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border-orange-200">
+                    {selecionados.size} selecionado(s)
+                  </Badge>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Distribuir Selecionados */}
+                {selecionados.size > 0 && (
+                  <Button
+                    size="sm"
+                    disabled={distribuindo}
+                    onClick={() => {
+                      const lista = pedidos.filter(p => selecionados.has(p.id));
+                      handleDistribuirLote(lista);
+                    }}
+                    className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-xs h-8 gap-1.5 shadow-sm font-bold"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    {distribuindo ? "Distribuindo..." : `Distribuir Selecionados (${selecionados.size})`}
+                  </Button>
+                )}
+
+                {/* Distribuir TODOS os Pendentes de uma vez só */}
+                {pedidosFiltrados.filter(p => p.status_pcp === "pendente_distribuicao").length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={distribuindo}
+                    onClick={() => {
+                      const pendentes = pedidosFiltrados.filter(p => p.status_pcp === "pendente_distribuicao");
+                      handleDistribuirLote(pendentes);
+                    }}
+                    className="border-orange-400 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/30 text-xs h-8 gap-1.5 font-bold"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    {distribuindo ? "Distribuindo..." : `Distribuir Todos os Pendentes (${pedidosFiltrados.filter(p => p.status_pcp === "pendente_distribuicao").length})`}
+                  </Button>
+                )}
+              </div>
+            </div>
+
             <div className="flex items-center gap-2 mb-3 text-xs text-slate-500 dark:text-slate-400">
               <Zap className="w-3.5 h-3.5 text-orange-500" />
               <span className="font-semibold">Fila FIFO</span> — {pedidosFiltrados.length} pedido(s) em ordem de chegada
@@ -512,6 +733,9 @@ export default function CentralPCP() {
                   progressoReal={calcularProgressoRealPedido(p, pedidosProducao, ordensCD)}
                   pedidosProducao={pedidosProducao}
                   ordensCD={ordensCD}
+                  selecionado={selecionados.has(p.id)}
+                  onToggleSelect={handleToggleSelect}
+                  onDistribuir={handleDistribuir}
                   onClick={() => { setPedidoSelecionado(p); setDetalheOpen(true); }}
                   onDelete={handleExcluirCard}
                   onRetirarFila={handleRetirarFila}
@@ -535,6 +759,8 @@ export default function CentralPCP() {
         onDevolverPCP={handleDevolverPCP}
         onTogglePrioridade={handleTogglePrioridade}
         onToggleItem={handleToggleItem}
+        onProgramarItem={handleProgramarItem}
+        onProgramarTodosItens={handleProgramarTodosItens}
       />
       <SenhaGestorDialog
         open={senhaGestorOpen}

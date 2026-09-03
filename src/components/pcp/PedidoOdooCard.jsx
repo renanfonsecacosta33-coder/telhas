@@ -23,7 +23,8 @@ const STATUS_PCP = {
 
 export default function PedidoOdooCard({
   pedido, onClick, onDelete, onRetirarFila, onTogglePrioridade,
-  progressoReal, pedidosProducao = [], ordensCD = []
+  progressoReal, pedidosProducao = [], ordensCD = [],
+  selecionado = false, onToggleSelect, onDistribuir
 }) {
   const [hover, setHover] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
@@ -63,7 +64,21 @@ export default function PedidoOdooCard({
       }`}
     >
       <CroquiThumb pedido={pedido} alt={`Croqui do pedido #${pedido.numero_pedido}`} className="w-full mb-1" />
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-2.5">
+        {onToggleSelect && pedido.status_pcp === "pendente_distribuicao" && (
+          <div
+            onClick={(e) => { e.stopPropagation(); onToggleSelect(pedido); }}
+            className="pt-0.5 shrink-0"
+            title="Selecionar para distribuição em lote"
+          >
+            <input
+              type="checkbox"
+              checked={!!selecionado}
+              onChange={() => {}}
+              className="w-4 h-4 rounded text-orange-600 border-slate-300 focus:ring-orange-500 cursor-pointer"
+            />
+          </div>
+        )}
         <div className="flex items-start justify-between gap-2 flex-1 min-w-0">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -197,6 +212,27 @@ export default function PedidoOdooCard({
               {e.espessura}mm
             </span>
           ))}
+        </div>
+      {pedido.status_pcp === "pendente_distribuicao" && onDistribuir && (
+        <div className="flex items-center gap-1.5 pt-1">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onDistribuir(pedido); }}
+            className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-sm transition-all"
+            title="Distribuir este pedido individualmente para os galpões"
+          >
+            <Zap className="w-3.5 h-3.5" />
+            Distribuir Pedido
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onClick(); }}
+            className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-all"
+            title="Programar máquinas e datas de produção dos itens"
+          >
+            <Calendar className="w-3.5 h-3.5 text-orange-500" />
+            Itens
+          </button>
         </div>
       )}
 
