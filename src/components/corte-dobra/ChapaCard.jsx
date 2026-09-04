@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import {
   CheckCircle2, ShoppingCart, Ruler, Clock, Camera, Edit2, Trash2,
   ChevronDown, ChevronUp, Image as ImageIcon, Package, Hash,
-  Weight, FileCheck, ShieldCheck, Lock
+  Weight, FileCheck, ShieldCheck, Lock, Printer
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -31,7 +31,7 @@ function StatusBadge({ status, destino, numeroPedido, origem }) {
 
 export default function ChapaCard({
   chapa, bobina, isAdmin, isConsumed,
-  onEdit, onDelete, onViewFoto
+  onEdit, onDelete, onViewFoto, onPrintEtiqueta
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -165,6 +165,16 @@ export default function ChapaCard({
               {expanded ? "Ver menos" : "Ver mais"}
             </Button>
           )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1 border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-900 font-semibold"
+            onClick={() => onPrintEtiqueta?.(chapa)}
+            title="Gerar e Imprimir Etiqueta da Chapa"
+          >
+            <Printer className="w-3.5 h-3.5 text-blue-600" />
+            <span className="hidden sm:inline">Etiqueta</span>
+          </Button>
           {(isAdmin || !isConsumed) && (
             <Button size="sm" variant="outline" className="gap-1" onClick={() => onEdit(chapa)}>
               <Edit2 className="w-3 h-3" /> Editar

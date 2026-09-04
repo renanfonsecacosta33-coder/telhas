@@ -37,7 +37,12 @@ export default function ValidacaoEtiquetaChapaDialog({ open, onClose, ordem, onA
     }
   }, [open, ordem?.id, ordem?.chapa_cd_id]);
 
-  const chapaCodigo = chapaDetalhes?.codigo || (ordem?.chapa_descricao?.match(/CH\d+/i)?.[0]) || "";
+  const chapaCodigo = chapaDetalhes?.codigo 
+    || ordem?.chapa_codigo 
+    || ordem?.codigo_chapa
+    || (ordem?.chapa_descricao?.match(/CH\d+/i)?.[0]) 
+    || (ordem?.observacoes?.match(/CH\d+/i)?.[0])
+    || "";
   const chapaDescricao = ordem?.chapa_descricao || chapaDetalhes?.bobina_descricao || ordem?.tipo_peca || "Chapa de Aço";
   const dimensoes = ordem?.dimensoes_livres || (chapaDetalhes?.comprimento_mm ? `${chapaDetalhes.comprimento_mm}mm × ${chapaDetalhes.largura_mm || ""}mm` : "");
   const espessura = ordem?.material_espessura || chapaDetalhes?.espessura_mm || "";
@@ -63,33 +68,47 @@ export default function ValidacaoEtiquetaChapaDialog({ open, onClose, ordem, onA
   const validarEtiqueta = async (url) => {
     setValidando(true);
     try {
-      const prompt = `Você é um inspetor de qualidade e validador de etiquetas de chapas de aço em uma guilhotina industrial de corte e dobra.
+      const prompt = `Você é um inspetor de qualidade e validador de etiquetas de chapas de aço em uma guilhotina industrial de corte e dobra da AJL Ferro & Aço.
 Analise a foto enviada da ETIQUETA DA CHAPA (ou do fardo/pacote de chapas) e verifique se ela corresponde à chapa esperada para ser cortada nesta ordem de produção da guilhotina.
 
 DADOS DA CHAPA ESPERADA PARA O CORTE:
 - Máquina: ${maquina}
-- Código da Chapa (se houver): ${chapaCodigo || "Não especificado"}
+- Código Oficial da Chapa: ${chapaCodigo || "Não especificado (validar por especificações)"}
 - Descrição da Chapa / Material: ${chapaDescricao}
 - Dimensões / Especificações: ${dimensoes || "Não informadas"}
-- Espessura esperada: ${espessura || "Não informada"}
+- Espessura esperada: ${espessura ? `${espessura} mm` : "Não informada"}
 - Peça a produzir: ${ordem?.tipo_peca || "—"}
 - Pedido: ${pedido}
 - Cliente: ${cliente}
 
-INSTRUÇÕES DE VALIDAÇÃO:
-1. Procure e leia na etiqueta: código da chapa (ex: CH0001, CH0012, etc.), código da bobina de origem (ex: TE0001, CD0024, etc.), espessura em mm, tipo de aço (GV, Galvalume, FF, PP, FQ, Xadrez), dimensões ou pedido.
-2. Compare a espessura e material da etiqueta com os dados da chapa esperada.
-   - Pequenas variações de escrita de espessura (ex: "1,25", "1.25", "#18") são perfeitamente normais e devem ser aceitas.
-   - Se o código da chapa bater ou se a descrição técnica (espessura + tipo de aço) for compatível com a ordem, considere VÁLIDO.
-3. Se a foto comprovar que se trata da chapa/fardo correto para o trabalho, marque valido = true.
-4. Se a etiqueta for de um material totalmente incompatível (ex: espessura ou material diferente do esperado), marque valido = false explicando o motivo.
-5. Se a foto for ilegível, cortada, ou não contiver etiqueta, marque valido = false e oriente o operador a aproximar a câmera.
+MODELO DE ETIQUETA EXCLUSIVA DE CHAPA AJL:
+A empresa AJL Ferro & Aço gera etiquetas industriais próprias exclusivas para chapas com:
+- Topo esquerdo: Código da Chapa em fonte grande e negrito (ex: "CH0130", "CH0129", "CH0045") e subtítulo "Chapa de Corte & Dobra / AJL FERRO & AÇO".
+- Centro esquerdo: "ESPESSURA: X.XX mm" em destaque numérico grande.
+- Linhas com: "MATERIAL: ... | QUAL: ...", "DIMENSÕES: Comprimento × Largura mm", "QUANTIDADE: ... | PESO: ...", "DESTINO: Estoque Geral ou Pedido #...", "ORIGEM: Desbobinadeira ou Entrada Manual".
+- Direita: QR Code oficial contendo dados JSON da chapa.
+- Rodapé: "AJL FERRO & AÇO · VALIDAÇÃO POR IA NA GUILHOTINA".
 
-Responda em formato JSON com:
-- valido: boolean
+INSTRUÇÕES DE VALIDAÇÃO:
+1. Verifique se a foto contém a "Etiqueta Exclusiva de Chapa AJL" ou uma etiqueta de usina/fornecedor/fardo.
+2. Identificação do Código:
+   - Se a etiqueta tiver um código CHxxxx (ex: "${chapaCodigo || "CH..."}"):
+     - Se o código lido bater com o código esperado (${chapaCodigo ? `"${chapaCodigo}"` : "código da ordem"}), APROVE IMEDIATAMENTE com valido = true.
+     - Se a ordem não tiver código CH restrito fixo, mas a chapa tiver código CHxxxx e a espessura/material coincidir com a ordem, APROVE com valido = true.
+3. Identificação por Espessura e Material:
+   - Se a espessura na etiqueta (ex: "${espessura || "X.XX"}") coincidir com a espessura esperada (${espessura || "da ordem"}), mesmo com pequenas variações de notação (ex: "2.65", "2,65", "1.25", "1,25 mm", bitola MSG correspondente), considere compatível.
+   - Se o tipo de aço (ex: Galvalume, Galvanizado, FQ, FF, Xadrez, etc.) for compatível com a ordem, considere compatível.
+4. Critérios de Rejeição:
+   - Rejeite com valido = false se a espessura for visivelmente divergente (ex: ordem pede 2.65mm e a etiqueta diz 1.25mm ou 0.43mm).
+   - Rejeite se o código da chapa lido for explicitamente diferente do código obrigatório exigido para esta ordem.
+   - Rejeite se a imagem for totalmente ilegível, cortada ou não contiver etiqueta de chapa/aço.
+5. Seja objetivo e acolhedor no motivo da resposta, orientando o operador.
+
+Responda em formato JSON estrito:
+- valido: boolean (true se a etiqueta comprova a chapa correta)
 - motivo: resumo da validação (máx 120 caracteres)
-- codigo_lido: código lido na etiqueta (se encontrado)
-- espessura_lida: espessura lida na etiqueta (se encontrada)`;
+- codigo_lido: código lido na etiqueta (se encontrado, ex: "CH0130")
+- espessura_lida: espessura lida na etiqueta (se encontrada, ex: "2.65 mm")`;
 
       const res = await base44.integrations.Core.InvokeLLM({
         prompt,

@@ -16,6 +16,7 @@ import UploadButton from "@/components/ui/UploadButton";
 import ReservaPanelChapa from "@/components/corte-dobra/ReservaPanelChapa";
 import ChapaFormDialog from "@/components/corte-dobra/ChapaFormDialog";
 import ChapaCard from "@/components/corte-dobra/ChapaCard";
+import EtiquetaChapaModal from "@/components/corte-dobra/EtiquetaChapaModal";
 import ImageLink from "@/components/ui/ImageLink";
 import ImageViewer from "@/components/ui/ImageViewer";
 import { useFilial } from "@/contexts/FilialContext";
@@ -406,6 +407,7 @@ export default function Chaparia() {
   const [editChapa, setEditChapa] = useState(null);
   const [fotoViewer, setFotoViewer] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [chapaEtiqueta, setChapaEtiqueta] = useState(null);
   const [user, setUser] = useState(null);
 
   useEffect(() => { base44.auth.me().then(setUser).catch(() => {}); }, []);
@@ -454,11 +456,14 @@ export default function Chaparia() {
       }
       return base44.entities.ChapaCD.create(data);
     },
-    onSuccess: () => {
+    onSuccess: (chapaCriada) => {
       qc.invalidateQueries(["chapas-cd"]);
       qc.invalidateQueries(["chapas-cd-global-codigos"]);
       setShowForm(false);
       toast.success("Nova chapa adicionada ao estoque com sucesso!");
+      if (chapaCriada) {
+        setChapaEtiqueta(chapaCriada);
+      }
     },
     onError: (err) => {
       toast.error(err.message || "Erro ao cadastrar chapa");
@@ -734,6 +739,7 @@ export default function Chaparia() {
                 onEdit={(chapa) => setEditChapa(chapa)}
                 onDelete={(id) => deleteMut.mutate(id)}
                 onViewFoto={(url) => setFotoViewer(url)}
+                onPrintEtiqueta={(chapa) => setChapaEtiqueta(chapa)}
               />
             );
           })}
@@ -764,6 +770,14 @@ export default function Chaparia() {
         onClose={() => setFotoViewer(null)}
         url={fotoViewer || ""}
         name="Foto de finalização"
+      />
+
+      {/* Modal Etiqueta Exclusiva de Chapa */}
+      <EtiquetaChapaModal
+        open={!!chapaEtiqueta}
+        onClose={() => setChapaEtiqueta(null)}
+        chapa={chapaEtiqueta}
+        bobina={chapaEtiqueta?.bobina_id ? bobinasMap[chapaEtiqueta.bobina_id] : null}
       />
     </div>
   );
