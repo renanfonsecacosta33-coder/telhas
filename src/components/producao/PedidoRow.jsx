@@ -224,18 +224,18 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
     }
   };
 
-  const handleConfirmarColagemEps = () => {
-    if (!fotoColagemEpsUrl) {
+  const handleConfirmarColagemEps = (pularFoto = false) => {
+    if (!fotoColagemEpsUrl && !pularFoto) {
       alert("Por favor, tire uma foto do bloco de EPS para validar antes de iniciar!");
       return;
     }
     setValidarEpsColagemOpen(false);
     const updates = {
       inicio_producao_ts: new Date().toISOString(),
-      foto_colagem_eps_url: fotoColagemEpsUrl,
+      ...(fotoColagemEpsUrl ? { foto_colagem_eps_url: fotoColagemEpsUrl } : {}),
     };
     if (appendHistoricoFn) {
-      Object.assign(updates, appendHistoricoFn(p, "inicio_colagem_validado", "Validou EPS e iniciou colagem"));
+      Object.assign(updates, appendHistoricoFn(p, "inicio_colagem_validado", pularFoto ? "Iniciou colagem (modo direto)" : "Validou EPS e iniciou colagem"));
     }
     onStatusChange(p, "em_producao", updates);
   };
@@ -294,7 +294,9 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
       setValidacaoEtiquetaOpen(true);
       return;
     }
-    // COLAGEM: trava — só pode iniciar se o corte do EPS foi finalizado (eps_status pronto)
+    // COLAGEM: trava temporariamente desativada a pedido do usuário (até pedir para voltar)
+    // Anteriormente impedia o início se o corte do EPS não estivesse com status "pronto"
+    /*
     if (p.maquina === "COLAGEM" && PRODUTOS_COM_EPS.includes(p.produto) && p.eps_status !== "pronto") {
       playAlertSound();
       alert(
@@ -304,6 +306,7 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
       );
       return;
     }
+    */
     // Se já existe OP rodando nesta máquina, mostra confirmação
     if (opRodando && opRodando.id !== p.id && opRodando.status === "em_producao") {
       setConfirmarInicioOpen(true);
@@ -1617,15 +1620,25 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
               )}
             </div>
           </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setValidarEpsColagemOpen(false)}>Cancelar</Button>
+          <DialogFooter className="gap-2 sm:justify-between flex-wrap">
             <Button
-              onClick={handleConfirmarColagemEps}
-              disabled={!fotoColagemEpsUrl}
-              className="bg-cyan-600 hover:bg-cyan-700 text-white gap-1.5"
+              type="button"
+              variant="ghost"
+              onClick={() => handleConfirmarColagemEps(true)}
+              className="text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 text-xs font-semibold"
             >
-              <CheckCircle2 className="w-4 h-4" /> Confirmar EPS e Iniciar Colagem
+              Iniciar Sem Foto (Modo Rápido)
             </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setValidarEpsColagemOpen(false)}>Cancelar</Button>
+              <Button
+                onClick={() => handleConfirmarColagemEps(false)}
+                disabled={!fotoColagemEpsUrl}
+                className="bg-cyan-600 hover:bg-cyan-700 text-white gap-1.5"
+              >
+                <CheckCircle2 className="w-4 h-4" /> Confirmar EPS e Iniciar Colagem
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
