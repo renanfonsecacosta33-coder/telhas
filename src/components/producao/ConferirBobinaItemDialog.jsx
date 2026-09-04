@@ -20,15 +20,9 @@ export default function ConferirBobinaItemDialog({
   bobinas = [],
   onConfirmarInicio
 }) {
-  if (!item) return null;
-
-  const qty = Number(item.qty) || 0;
-  const mm = Number(item.mm) || 0;
-  const metros = qty > 0 && mm > 0 ? (qty * mm) / 1000 : 0;
-
   // Localiza bobinas configuradas para este item (com fallback para as bobinas da OP)
-  const bobinaSupId = item.bobina_id || pedido?.bobina_superior_id || pedido?.bobina_superior;
-  const bobinaInfId = item.bobina_inf_id || pedido?.bobina_inferior_id || pedido?.bobina_inferior;
+  const bobinaSupId = item?.bobina_id || pedido?.bobina_superior_id || pedido?.bobina_superior;
+  const bobinaInfId = item?.bobina_inf_id || pedido?.bobina_inferior_id || pedido?.bobina_inferior;
 
   const bobinaSup = useMemo(() => {
     return bobinas.find(b => b.id === bobinaSupId || b.codigo === bobinaSupId);
@@ -37,6 +31,12 @@ export default function ConferirBobinaItemDialog({
   const bobinaInf = useMemo(() => {
     return bobinas.find(b => b.id === bobinaInfId || b.codigo === bobinaInfId);
   }, [bobinas, bobinaInfId]);
+
+  if (!item) return null;
+
+  const qty = Number(item.qty) || 0;
+  const mm = Number(item.mm) || 0;
+  const metros = qty > 0 && mm > 0 ? (qty * mm) / 1000 : 0;
 
   const corSup = bobinaSup?.cor || item.bobina_desc || pedido?.rvm_superior || "Padrão / Natural";
   const chapaSup = bobinaSup?.chapa || bobinaSup?.espessura_mm || pedido?.espessura_exigida || "—";
