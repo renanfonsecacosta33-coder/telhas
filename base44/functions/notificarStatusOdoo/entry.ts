@@ -45,37 +45,57 @@ export default async function(req: Request): Promise<Response> {
 
     const formatStatusTelha = (st: string, maq: string) => {
       const s = String(st || "").trim().toLowerCase();
-      if (s === "concluido" || s === "finalizado" || s.includes("conclu") || (Number(body.percentual_concluido) >= 100) || (body.status_novo === "concluido")) return "Concluído";
-      if (s.includes("colagem")) return "Aguardando Colagem";
-      if (s === "em_producao") return maq ? `Em Produção (${maq})` : "Em Produção (Telhas)";
+      if (s === "concluido" || s === "finalizado" || s.includes("conclu") || (Number(body.percentual_concluido) >= 100) || (body.status_novo === "concluido") || (body.evento === "maquina_fim")) return "Concluído";
+      if (s.includes("colagem") || body.evento === "etapa_colagem") return "Aguardando Colagem";
+      if (s === "em_producao" || s.includes("produ") || body.evento === "maquina_inicio" || body.status_novo === "em_producao") {
+        return maq ? `Em Produção (${maq})` : "Em Produção (Telhas)";
+      }
       if (s.includes("início") || s.includes("inicio")) return st;
       if (s.includes("revis")) return st;
       return maq ? `Aguardando Início (${maq})` : "Aguardando Início (Telhas)";
     };
 
+    const isTelhaEvent = body.evento === "maquina_inicio" || body.evento === "etapa_concluida" || /(telha|tp|colonial|bandeja|colagem)/i.test(body.maquina_atual || "");
+
     const itens_cd_arr = itensParsed
       .filter((i) => /(chapa|perfil|barra|tubo|zincado|serralheiro|corte)/i.test(String(i.produto || i.categoria || "")))
-      .map((i) => ({
-        produto: i.produto,
-        quantidade: i.quantidade,
-        unidade: i.unidade || "UN",
-        observacao: i.observacao || "",
-        status: formatStatusCD(i.status, i.maquina || body.maquina_atual || ""),
-        status_detalhado: i.status_detalhado || formatStatusCD(i.status, i.maquina || body.maquina_atual || ""),
-        maquinas: i.maquinas || maquinas
-      }));
+      .map((i) => {
+        const isTarget = Boolean(body.item_nome) && (
+          String(i.produto || "").toLowerCase().includes(String(body.item_nome || "").toLowerCase()) ||
+          String(body.item_nome || "").toLowerCase().includes(String(i.produto || "").toLowerCase())
+        );
+        const itemSt = isTarget && (body.evento === "maquina_inicio" && !/(telha|tp)/i.test(body.maquina_atual || "")) ? "em_producao" : i.status;
+        const itemMaq = (isTarget && body.maquina_atual) ? body.maquina_atual : (i.maquina || "");
+        return {
+          produto: i.produto,
+          quantidade: i.quantidade,
+          unidade: i.unidade || "UN",
+          observacao: i.observacao || "",
+          status: formatStatusCD(itemSt, itemMaq),
+          status_detalhado: i.status_detalhado || formatStatusCD(itemSt, itemMaq),
+          maquinas: i.maquinas || maquinas
+        };
+      });
 
     const itens_telha_arr = itensParsed
       .filter((i) => /(telha|TP|EPS|manta|cumeeira|ondulada|colonial)/i.test(String(i.produto || i.categoria || "")))
-      .map((i) => ({
-        produto: i.produto,
-        quantidade: i.quantidade,
-        unidade: i.unidade || "MT",
-        observacao: i.observacao || "",
-        status: formatStatusTelha(i.status, i.maquina || body.maquina_atual || ""),
-        status_detalhado: i.status_detalhado || formatStatusTelha(i.status, i.maquina || body.maquina_atual || ""),
-        maquinas: i.maquinas || etapas
-      }));
+      .map((i) => {
+        const isTarget = !body.item_nome ||
+                         String(i.produto || "").toLowerCase().includes(String(body.item_nome || "").toLowerCase()) ||
+                         String(body.item_nome || "").toLowerCase().includes(String(i.produto || "").toLowerCase()) ||
+                         isTelhaEvent;
+        const itemSt = (isTarget && isTelhaEvent) ? "em_producao" : (i.status || body.status_novo);
+        const itemMaq = (isTarget && body.maquina_atual) ? body.maquina_atual : (i.maquina || body.maquina_atual || "");
+        return {
+          produto: i.produto,
+          quantidade: i.quantidade,
+          unidade: i.unidade || "MT",
+          observacao: i.observacao || "",
+          status: formatStatusTelha(itemSt, itemMaq),
+          status_detalhado: formatStatusTelha(itemSt, itemMaq),
+          maquinas: i.maquinas || etapas
+        };
+      });
 
     const itens_cd_count = Number(body.itens_cd_count != null ? body.itens_cd_count : itens_cd_arr.length);
     const itens_telha_count = Number(body.itens_telha_count != null ? body.itens_telha_count : itens_telha_arr.length);
@@ -104,6 +124,7 @@ export default async function(req: Request): Promise<Response> {
       itens_telha_count,
       total_itens,
       itens_cd_json: JSON.stringify(itens_cd_arr),
+      itens_telha_json: JSON.stringify(itens_telha_arr)
     };
 
     const res = await fetch(ODOO_BI_URL, {

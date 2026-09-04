@@ -1003,13 +1003,13 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                             </span>
                           )}
                         </div>
-                        </SelectItem>
-                        );
-                        })}
-                        </SelectContent>
-                        </Select>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
 
-                        {bobinaSuperiorObj && (() => {
+              {bobinaSuperiorObj && (() => {
                     const pb = preBaixaMap[bobinaSuperiorObj.id] || 0;
                     const disp = Math.max(0, (bobinaSuperiorObj.peso_kg || 0) - pb);
                     const kgNec = Number(form.kg_superior) || 0;

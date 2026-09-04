@@ -346,7 +346,10 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
       status: "em_producao",
       bobina_conferida: true
     };
-    onStatusChange(p, p.status, { variacoes_telhas: JSON.stringify(novos) });
+    onStatusChange(p, "em_producao", {
+      variacoes_telhas: JSON.stringify(novos),
+      inicio_producao_ts: p.inicio_producao_ts || new Date().toISOString()
+    });
     toast.success(`Item ${index + 1} iniciado! Bobina conferida na máquina.`);
   };
 
@@ -415,7 +418,16 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
     }
 
     novos[itemIndex] = targetItem;
-    onStatusChange(p, p.status, { variacoes_telhas: JSON.stringify(novos) });
+    const todosFinalizados = novos.length > 0 && novos.every(it => it.finalizado);
+    const novoStatusOp = todosFinalizados ? (precisaColagem ? "aguardando_colagem" : "finalizado") : "em_producao";
+    onStatusChange(p, novoStatusOp, {
+      variacoes_telhas: JSON.stringify(novos),
+      ...(todosFinalizados ? {
+        data_finalizacao: format(new Date(), "yyyy-MM-dd"),
+        fim_producao_ts: new Date().toISOString(),
+        foto_finalizacao_url: fotoUrl || p.foto_finalizacao_url || ""
+      } : {})
+    });
     playFinishSound();
     toast.success(`Item ${itemIndex + 1} finalizado com foto e ${metragemReal}m real!`);
   };

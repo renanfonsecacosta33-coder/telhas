@@ -177,30 +177,40 @@ export default function MaquinaPanel({ maquina }) {
     if (pedido.numero_pedido) {
       (async () => {
         try {
-          const odooList = await base44.entities.PedidoOdoo.filter({ numero_pedido: pedido.numero_pedido }, "-created_date", 1);
+          const numRaw = String(pedido.numero_pedido || "").trim();
+          let odooList = await base44.entities.PedidoOdoo.filter({ numero_pedido: numRaw }, "-created_date", 1).catch(() => []);
+          if (!odooList?.length) {
+            const numUpper = numRaw.toUpperCase();
+            odooList = await base44.entities.PedidoOdoo.filter({ numero_pedido: numUpper }, "-created_date", 1).catch(() => []);
+          }
+          if (!odooList?.length) {
+            const cleanDigits = numRaw.replace(/\D/g, "");
+            if (cleanDigits) {
+              odooList = await base44.entities.PedidoOdoo.filter({ numero_pedido: `S${cleanDigits.padStart(5, "0")}` }, "-created_date", 1).catch(() => []);
+            }
+          }
+
           if (odooList && odooList[0]) {
             const pedOdoo = odooList[0];
             const itens = getItens(pedOdoo);
-            const itemIdx = itens.findIndex(i => {
+            let itemIdx = itens.findIndex(i => {
               const iProd = String(i.produto || "").toLowerCase();
               const pedProd = String(pedido.produto || "").toLowerCase();
-              return iProd.includes(pedProd) || pedProd.includes(iProd) || classGrupo(i) === "telha";
+              return iProd.includes(pedProd) || pedProd.includes(iProd);
             });
+            if (itemIdx < 0) {
+              itemIdx = itens.findIndex(i => classGrupo(i) === "telha");
+            }
+            const targetIdx = itemIdx >= 0 ? itemIdx : 0;
 
             if (novoStatus === "finalizado") {
               const fotoUrl = extraData.foto_finalizacao_url || "";
-              if (itemIdx >= 0) {
-                itens[itemIdx] = {
-                  ...itens[itemIdx],
+              if (itens[targetIdx]) {
+                itens[targetIdx] = {
+                  ...itens[targetIdx],
                   status: "concluido",
-                  quantidade_produzida: pedido.quantidade_telhas || pedido.metros || itens[itemIdx].quantidade,
-                  foto_url: fotoUrl || itens[itemIdx].foto_url || ""
-                };
-              } else if (itens.length === 1) {
-                itens[0] = {
-                  ...itens[0],
-                  status: "concluido",
-                  foto_url: fotoUrl || itens[0].foto_url || ""
+                  quantidade_produzida: pedido.quantidade_telhas || pedido.metros || itens[targetIdx].quantidade,
+                  foto_url: fotoUrl || itens[targetIdx].foto_url || ""
                 };
               }
               const pct = computePercentual(itens);
@@ -213,7 +223,7 @@ export default function MaquinaPanel({ maquina }) {
               });
               await notificarStatus(updated, "etapa_concluida", {
                 maquina_atual: pedido.maquina || "",
-                item_nome: pedido.produto || "",
+                item_nome: itens[targetIdx]?.produto || pedido.produto || "",
                 fim_fmt: new Date().toISOString(),
                 status_novo: status_pcp,
                 percentual_concluido: pct,
@@ -221,9 +231,9 @@ export default function MaquinaPanel({ maquina }) {
                 usuario: user?.full_name || user?.email || `Operador ${pedido.maquina || ""}`
               });
             } else if (novoStatus === "aguardando_colagem") {
-              if (itemIdx >= 0) {
-                itens[itemIdx] = {
-                  ...itens[itemIdx],
+              if (itens[targetIdx]) {
+                itens[targetIdx] = {
+                  ...itens[targetIdx],
                   status: "aguardando_colagem",
                   maquina: "COLAGEM",
                 };
@@ -237,17 +247,17 @@ export default function MaquinaPanel({ maquina }) {
               });
               await notificarStatus(updated, "etapa_concluida", {
                 maquina_atual: "COLAGEM",
-                item_nome: pedido.produto || "",
+                item_nome: itens[targetIdx]?.produto || pedido.produto || "",
                 status_novo: status_pcp,
                 percentual_concluido: pct,
                 usuario: user?.full_name || user?.email || `Operador ${pedido.maquina || ""}`
               });
             } else if (novoStatus === "em_producao") {
-              if (itemIdx >= 0) {
-                itens[itemIdx] = {
-                  ...itens[itemIdx],
+              if (itens[targetIdx]) {
+                itens[targetIdx] = {
+                  ...itens[targetIdx],
                   status: "em_producao",
-                  maquina: pedido.maquina || itens[itemIdx].maquina || "",
+                  maquina: pedido.maquina || itens[targetIdx].maquina || "",
                   iniciada: true
                 };
               }
@@ -260,7 +270,7 @@ export default function MaquinaPanel({ maquina }) {
               });
               await notificarStatus(updated, "maquina_inicio", {
                 maquina_atual: pedido.maquina || "",
-                item_nome: pedido.produto || "",
+                item_nome: itens[targetIdx]?.produto || pedido.produto || "",
                 inicio_fmt: new Date().toISOString(),
                 status_novo: status_pcp,
                 percentual_concluido: pct,

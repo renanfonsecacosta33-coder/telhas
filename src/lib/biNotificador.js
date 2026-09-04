@@ -66,10 +66,12 @@ export async function notificarStatus(pedido, evento, extra = {}) {
   // item_nome padrão por evento, se não informado pelo chamador
   const itens = getItens(pedido);
   let itemNomeDefault = "";
-  if (evento.startsWith("etapa_")) {
-    itemNomeDefault = itens.find((i) => classGrupo(i) === "telha")?.produto || "";
+  const maq = String(extra.maquina_atual || atual?.nome || "").toLowerCase();
+  const isTelhaMaq = /tp|telha|colonial|bandeja|colagem|cumeeira|perfiladeira/i.test(maq);
+  if (evento.startsWith("etapa_") || isTelhaMaq) {
+    itemNomeDefault = itens.find((i) => classGrupo(i) === "telha")?.produto || itens[0]?.produto || "";
   } else if (evento.startsWith("maquina_")) {
-    itemNomeDefault = itens.find((i) => classGrupo(i) === "cd")?.produto || "";
+    itemNomeDefault = itens.find((i) => classGrupo(i) === "cd")?.produto || itens.find((i) => classGrupo(i) === "telha")?.produto || "";
   }
 
   let usuarioNome = extra.usuario || extra.operador || "";
