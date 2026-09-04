@@ -342,7 +342,8 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               percentual_concluido: pct,
               status_pcp
             });
-            await notificarStatus(updated, "maquina_fim", {
+            const eventoNotif = (pct >= 100 || status_pcp === "concluido") ? "concluido" : "maquina_fim";
+            await notificarStatus(updated, eventoNotif, {
               maquina_atual: o.maquina || "",
               item_nome: o.tipo_peca || "",
               fim_fmt: new Date().toISOString(),

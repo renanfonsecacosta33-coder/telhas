@@ -221,7 +221,8 @@ export default function MaquinaPanel({ maquina }) {
                 status_pcp,
                 ...(fotoUrl ? { foto_producao_url: fotoUrl } : {})
               });
-              await notificarStatus(updated, "etapa_concluida", {
+              const eventoNotif = (pct >= 100 || status_pcp === "concluido") ? "concluido" : "etapa_concluida";
+              await notificarStatus(updated, eventoNotif, {
                 maquina_atual: pedido.maquina || "",
                 item_nome: itens[targetIdx]?.produto || pedido.produto || "",
                 fim_fmt: new Date().toISOString(),

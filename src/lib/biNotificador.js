@@ -84,12 +84,24 @@ export async function notificarStatus(pedido, evento, extra = {}) {
     }
   }
 
+  const isConcluido = pedido.status_pcp === "concluido" ||
+    String(extra.status_novo || "").toLowerCase() === "concluido" ||
+    Number(extra.percentual_concluido) >= 100 ||
+    Number(pedido.percentual_concluido) >= 100;
+
+  const eventoEfetivo = isConcluido && (!evento || evento === "progresso_automatico" || evento === "sincronizacao_manual")
+    ? "concluido"
+    : evento;
+
+  const statusNovoEfetivo = isConcluido ? "concluido" : (extra.status_novo || pedido.status_pcp || "");
+  const pctEfetivo = isConcluido ? 100 : (extra.percentual_concluido != null ? extra.percentual_concluido : (pedido.percentual_concluido ?? 0));
+
   try {
     await base44.functions.invoke("notificarStatusOdoo", {
       numero_pedido: pedido.numero_pedido,
       odoo_id: pedido.odoo_id || "",
-      evento,
-      status_novo: extra.status_novo || pedido.status_pcp || "",
+      evento: eventoEfetivo,
+      status_novo: statusNovoEfetivo,
       item_nome: extra.item_nome || itemNomeDefault,
       galpao: pedido.galpao_responsavel || pedido.unidade || "",
       maquina_atual: extra.maquina_atual || atual?.nome || "",
@@ -99,7 +111,7 @@ export async function notificarStatus(pedido, evento, extra = {}) {
       duracao_min: extra.duracao_min != null ? extra.duracao_min : null,
       hora_corte: extra.hora_corte || "",
       hora_colagem: extra.hora_colagem || "",
-      percentual_concluido: extra.percentual_concluido != null ? extra.percentual_concluido : (pedido.percentual_concluido ?? 0),
+      percentual_concluido: pctEfetivo,
       foto_finalizacao_url: extra.foto_finalizacao_url || pedido.foto_producao_url || extra.foto_url || "",
       itens_telha_count: pedido.itens_telha_count || itens.filter((i) => classGrupo(i) === "telha").length,
       itens_cd_count: pedido.itens_cd_count || itens.filter((i) => classGrupo(i) === "cd").length,

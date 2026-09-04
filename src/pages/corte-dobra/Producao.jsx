@@ -174,7 +174,7 @@ export default function ProducaoCD() {
     toast.success(novaRota ? "Marcado como Rota de Entrega!" : "Rota removida.");
   };
 
-  const handleStatusChangeMaq = (ordem, novoStatus) => {
+  const handleStatusChangeMaq = async (ordem, novoStatus) => {
     if (novoStatus === "em_producao") {
       const isGuilhotina = ordem.maquina === "CORTE 3M" || ordem.maquina === "CORTE 6M";
       if (isGuilhotina) {
@@ -192,6 +192,45 @@ export default function ProducaoCD() {
     }
     updateMaq.mutate({ id: ordem.id, data: dataUpdate });
     toast.success(`Status atualizado para ${novoStatus}!`);
+
+    // Sincronizar com PedidoOdoo e Mini BI do Odoo
+    if (ordem.numero_pedido) {
+      try {
+        const pedList = await base44.entities.PedidoOdoo.filter({ numero_pedido: String(ordem.numero_pedido).trim() });
+        if (pedList && pedList.length > 0) {
+          const ped = pedList[0];
+          const itens = getItens(ped);
+          const itemIdx = itens.findIndex(i =>
+            String(i.produto || "").toLowerCase().includes(String(ordem.peca || "").toLowerCase()) ||
+            /(chapa|perfil|barra|dobra|corte)/i.test(String(i.produto || i.categoria || ""))
+          );
+          if (itemIdx >= 0) {
+            itens[itemIdx] = {
+              ...itens[itemIdx],
+              status: novoStatus === "finalizado" ? "concluido" : (novoStatus === "em_producao" ? "em_producao" : itens[itemIdx].status),
+              status_detalhado: novoStatus === "finalizado" ? "Concluído" : (novoStatus === "em_producao" ? `Em Produção (${ordem.maquina || "C&D"})` : itens[itemIdx].status_detalhado),
+              concluido: novoStatus === "finalizado" ? true : itens[itemIdx].concluido
+            };
+          }
+          const pct = computePercentual(itens);
+          const novoStatusPcp = statusPcpPorPercentual(pct, ped.status_pcp);
+          const pedAtualizado = await base44.entities.PedidoOdoo.update(ped.id, {
+            itens_json: buildItensJson(itens),
+            percentual_concluido: pct,
+            status_pcp: novoStatusPcp
+          });
+          const ev = novoStatus === "finalizado" && pct >= 100 ? "concluido" : (novoStatus === "em_producao" ? "maquina_inicio" : "maquina_fim");
+          await notificarStatus(pedAtualizado, ev, {
+            maquina_atual: ordem.maquina || "",
+            status_novo: novoStatusPcp,
+            percentual_concluido: pct,
+            item_nome: ordem.peca || `Item #${ordem.numero_pedido}`
+          });
+        }
+      } catch (errSync) {
+        console.warn("[ProducaoCD] Falha ao sincronizar com PedidoOdoo:", errSync);
+      }
+    }
   };
 
   const handleEtiquetaChapaAprovadaProducao = (fotoUrl, motivo, statusValidacao) => {

@@ -11,7 +11,8 @@ import ReservaPanel from "@/components/bobinas/ReservaPanel";
 import UploadButton from "@/components/ui/UploadButton";
 import ImageLink from "@/components/ui/ImageLink";
 
-export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }) {
+export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo, isSaving = false, chapasExistentes = [] }) {
+  const [salvandoLocal, setSalvandoLocal] = useState(false);
   const [form, setForm] = useState({
     codigo: "",
     data_corte: new Date().toISOString().slice(0, 10),
@@ -96,44 +97,63 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
 
   const canSave = form.comprimento_mm && form.quantidade_total;
 
-  const handleSave = () => {
-    const bobinaDescricao = [
-      form.material && `Mat: ${form.material}`,
-      form.espessura_mm && `${form.espessura_mm}mm`,
-    ].filter(Boolean).join(" — ") || "Entrada manual";
+  const handleSave = async () => {
+    if (isSaving || salvandoLocal) return;
 
-    onSave({
-      codigo: form.codigo,
-      origem: "manual",
-      comprimento_mm: Number(form.comprimento_mm),
-      largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
-      espessura_mm: form.espessura_mm ? Number(form.espessura_mm) : undefined,
-      material: form.material || undefined,
-      qualidade: form.qualidade || undefined,
-      quantidade_total: Number(form.quantidade_total),
-      quantidade_disponivel: Number(form.quantidade_total),
-      peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
-      destino: form.destino,
-      numero_pedido: form.destino === "pedido_direto" ? form.numero_pedido : undefined,
-      cliente: form.destino === "pedido_direto" ? form.cliente : undefined,
-      data_corte: form.data_corte,
-      nf: form.nf || undefined,
-      foto_finalizacao_url: undefined,
-      anexo_nf_url: form.anexo_nf_url || undefined,
-      anexo_nf_nome: form.anexo_nf_nome || undefined,
-      anexo_cf_url: form.anexo_cf_url || undefined,
-      anexo_cf_nome: form.anexo_cf_nome || undefined,
-      bobina_descricao: bobinaDescricao,
-      observacoes: form.observacoes,
-      status: "disponivel",
-      reservada: form.reservada || false,
-      reserva_tipo: form.reservada ? form.reserva_tipo : undefined,
-      reserva_kg: (form.reservada && form.reserva_tipo === "parcial" && form.reserva_kg) ? Number(form.reserva_kg) : undefined,
-      reserva_numero_pedido: form.reservada ? form.reserva_numero_pedido : undefined,
-      reserva_motivo: form.reservada ? form.reserva_motivo : undefined,
-      reserva_autorizado_por: form.reservada ? form.reserva_autorizado_por : undefined,
-      reserva_data: form.reservada ? (form.reserva_data || new Date().toISOString().split("T")[0]) : undefined,
-    });
+    const codLimpo = (form.codigo || "").trim().toUpperCase();
+    if (!codLimpo) {
+      alert("Por favor, informe o código da chapa.");
+      return;
+    }
+
+    const jaExiste = chapasExistentes.some(c => (c.codigo || "").trim().toUpperCase() === codLimpo);
+    if (jaExiste) {
+      alert(`Atenção: A chapa com código ${codLimpo} já existe no sistema! Use outro código para não gerar duplicidade de estoque.`);
+      return;
+    }
+
+    setSalvandoLocal(true);
+    try {
+      const bobinaDescricao = [
+        form.material && `Mat: ${form.material}`,
+        form.espessura_mm && `${form.espessura_mm}mm`,
+      ].filter(Boolean).join(" — ") || "Entrada manual";
+
+      await onSave({
+        codigo: codLimpo,
+        origem: "manual",
+        comprimento_mm: Number(form.comprimento_mm),
+        largura_mm: form.largura_mm ? Number(form.largura_mm) : undefined,
+        espessura_mm: form.espessura_mm ? Number(form.espessura_mm) : undefined,
+        material: form.material || undefined,
+        qualidade: form.qualidade || undefined,
+        quantidade_total: Number(form.quantidade_total),
+        quantidade_disponivel: Number(form.quantidade_total),
+        peso_kg: form.peso_kg ? Number(form.peso_kg) : undefined,
+        destino: form.destino,
+        numero_pedido: form.destino === "pedido_direto" ? form.numero_pedido : undefined,
+        cliente: form.destino === "pedido_direto" ? form.cliente : undefined,
+        data_corte: form.data_corte,
+        nf: form.nf || undefined,
+        foto_finalizacao_url: undefined,
+        anexo_nf_url: form.anexo_nf_url || undefined,
+        anexo_nf_nome: form.anexo_nf_nome || undefined,
+        anexo_cf_url: form.anexo_cf_url || undefined,
+        anexo_cf_nome: form.anexo_cf_nome || undefined,
+        bobina_descricao: bobinaDescricao,
+        observacoes: form.observacoes,
+        status: "disponivel",
+        reservada: form.reservada || false,
+        reserva_tipo: form.reservada ? form.reserva_tipo : undefined,
+        reserva_kg: (form.reservada && form.reserva_tipo === "parcial" && form.reserva_kg) ? Number(form.reserva_kg) : undefined,
+        reserva_numero_pedido: form.reservada ? form.reserva_numero_pedido : undefined,
+        reserva_motivo: form.reservada ? form.reserva_motivo : undefined,
+        reserva_autorizado_por: form.reservada ? form.reserva_autorizado_por : undefined,
+        reserva_data: form.reservada ? (form.reserva_data || new Date().toISOString().split("T")[0]) : undefined,
+      });
+    } finally {
+      setSalvandoLocal(false);
+    }
   };
 
   return (
@@ -306,8 +326,17 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo }
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={!canSave}>Adicionar Chapa</Button>
+          <Button variant="outline" onClick={onClose} disabled={isSaving || salvandoLocal}>Cancelar</Button>
+          <Button onClick={handleSave} disabled={!canSave || isSaving || salvandoLocal}>
+            {(isSaving || salvandoLocal) ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Adicionando Chapa...
+              </>
+            ) : (
+              "Adicionar Chapa"
+            )}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

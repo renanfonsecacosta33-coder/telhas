@@ -55,6 +55,28 @@ export default function ChapaCard({
   const cfNome = chapa.anexo_cf_nome || bobina?.anexo_cert_nome || "";
   const docOrigem = !chapa.anexo_nf_url && bobina?.anexo_nf_url ? "bobina" : !chapa.anexo_cf_url && bobina?.anexo_cert_url ? "bobina" : "chapa";
 
+  // Descrição limpa da chapa sem duplicar milímetros
+  const descricaoFormatada = (() => {
+    const rawDesc = String(chapa.bobina_descricao || "").trim();
+    const espNum = chapa.espessura_mm != null && chapa.espessura_mm !== "" ? String(chapa.espessura_mm) : "";
+    const espStr = espNum ? `${espNum}mm` : "";
+
+    if (rawDesc) {
+      if (/(\d+(?:[.,]\d+)?)\s*mm/i.test(rawDesc)) {
+        return rawDesc;
+      }
+      if (espStr) {
+        return `${rawDesc} — ${espStr}`;
+      }
+      return rawDesc;
+    }
+
+    const parts = [];
+    if (chapa.material) parts.push(`Mat: ${chapa.material}`);
+    if (espStr) parts.push(espStr);
+    return parts.length > 0 ? parts.join(" — ") : "Chapa";
+  })();
+
   const temAnexos = !!nfUrl || !!cfUrl;
   const temFoto = !!chapa.foto_finalizacao_url || fotosHistorico.length > 0;
   const temExpandir = true;
@@ -89,8 +111,7 @@ export default function ChapaCard({
             )}
             <CorChapaDot espessura={espessuraChapa} size="sm" />
             <span className="font-semibold text-sm text-muted-foreground">
-              {chapa.bobina_descricao || (chapa.material ? `Mat: ${chapa.material}` : "Bobina")}
-              {chapa.espessura_mm ? ` — ${chapa.espessura_mm}mm` : ""}
+              {descricaoFormatada}
             </span>
             <StatusBadge status={chapa.status} destino={chapa.destino} numeroPedido={chapa.numero_pedido} origem={chapa.origem} />
           </div>

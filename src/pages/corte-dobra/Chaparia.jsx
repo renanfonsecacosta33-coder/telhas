@@ -9,8 +9,9 @@ import { Label } from "@/components/ui/label";
 import {
   Layers, ShoppingCart, Warehouse, Search,
   CheckCircle2, RefreshCw, X, Plus, Paperclip, Loader2,
-  FileCheck, ShieldCheck, Camera, Lock
+  FileCheck, ShieldCheck, Camera, Lock, AlertTriangle, Trash2
 } from "lucide-react";
+import { toast } from "sonner";
 import UploadButton from "@/components/ui/UploadButton";
 import ReservaPanelChapa from "@/components/corte-dobra/ReservaPanelChapa";
 import ChapaFormDialog from "@/components/corte-dobra/ChapaFormDialog";
@@ -440,9 +441,28 @@ export default function Chaparia() {
     onSuccess: () => qc.invalidateQueries(["chapas-cd"]),
   });
 
+  const [limpandoDuplicadas, setLimpandoDuplicadas] = useState(false);
+
   const createMut = useMutation({
-    mutationFn: (data) => base44.entities.ChapaCD.create(data),
-    onSuccess: () => { qc.invalidateQueries(["chapas-cd"]); setShowForm(false); },
+    mutationFn: async (data) => {
+      if (data.codigo) {
+        const cod = String(data.codigo).trim().toUpperCase();
+        const jaExiste = chapasGlobais.some(c => String(c.codigo || "").trim().toUpperCase() === cod);
+        if (jaExiste) {
+          throw new Error(`A chapa com código ${cod} já existe no sistema! Para não duplicar, utilize outro código.`);
+        }
+      }
+      return base44.entities.ChapaCD.create(data);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries(["chapas-cd"]);
+      qc.invalidateQueries(["chapas-cd-global-codigos"]);
+      setShowForm(false);
+      toast.success("Nova chapa adicionada ao estoque com sucesso!");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Erro ao cadastrar chapa");
+    }
   });
 
   // Próximo código CHxxxx
@@ -454,6 +474,59 @@ export default function Chaparia() {
     });
     return `CH${String(maxN + 1).padStart(4, "0")}`;
   })();
+
+  // Identifica chapas duplicadas pelo código (mesmo código criado mais de uma vez)
+  const duplicadasInfo = React.useMemo(() => {
+    const codMap = new Map();
+    chapas.forEach(c => {
+      if (!c.codigo) return;
+      const cod = String(c.codigo).trim().toUpperCase();
+      if (!codMap.has(cod)) codMap.set(cod, []);
+      codMap.get(cod).push(c);
+    });
+    const gruposDuplicados = [];
+    let totalExcedente = 0;
+    codMap.forEach((lista, cod) => {
+      if (lista.length > 1) {
+        gruposDuplicados.push({ codigo: cod, chapas: lista });
+        totalExcedente += (lista.length - 1);
+      }
+    });
+    return { gruposDuplicados, totalExcedente };
+  }, [chapas]);
+
+  const handleLimparDuplicadas = async () => {
+    if (duplicadasInfo.totalExcedente === 0) return;
+    const nomesCodigos = duplicadasInfo.gruposDuplicados.map(g => `${g.codigo} (${g.chapas.length}x)`).join(", ");
+    if (!confirm(`Deseja remover ${duplicadasInfo.totalExcedente} chapa(s) duplicada(s) excedente(s)?\n\nCódigos afetados: ${nomesCodigos}\n\nO sistema manterá exatamente 1 chapa de cada código no estoque e excluirá apenas as cópias repetidas.`)) {
+      return;
+    }
+
+    setLimpandoDuplicadas(true);
+    let removidas = 0;
+    try {
+      for (const grupo of duplicadasInfo.gruposDuplicados) {
+        // Mantém a primeira (ou a que tiver mais fotos/histórico) e deleta as outras
+        const ordenadas = [...grupo.chapas].sort((a, b) => {
+          const pesoA = (a.historico_movimentacoes ? 2 : 0) + (a.foto_finalizacao_url ? 1 : 0);
+          const pesoB = (b.historico_movimentacoes ? 2 : 0) + (b.foto_finalizacao_url ? 1 : 0);
+          return pesoB - pesoA;
+        });
+        const [, ...excedentes] = ordenadas;
+        for (const dup of excedentes) {
+          await base44.entities.ChapaCD.delete(dup.id);
+          removidas++;
+        }
+      }
+      toast.success(`${removidas} chapa(s) duplicada(s) removida(s) com sucesso! Estoque regularizado.`);
+      qc.invalidateQueries(["chapas-cd"]);
+      qc.invalidateQueries(["chapas-cd-global-codigos"]);
+    } catch (err) {
+      toast.error(`Falha ao remover duplicadas: ${err.message || err}`);
+    } finally {
+      setLimpandoDuplicadas(false);
+    }
+  };
 
   const filtradas = chapas.filter(c => {
     const matchBusca = !busca || [c.codigo, c.bobina_descricao, c.numero_pedido, c.cliente, c.material, c.qualidade].some(v => v?.toLowerCase().includes(busca.toLowerCase()));
@@ -475,9 +548,24 @@ export default function Chaparia() {
     setFiltroMaterial("");
   };
 
-  const totalDisponiveis = chapas.filter(c => (c.status === "disponivel" || !c.status) && c.destino === "estoque").reduce((s, c) => s + (c.quantidade_disponivel || 0), 0);
-  const totalPedido = chapas.filter(c => (c.status === "disponivel" || !c.status) && c.destino === "pedido_direto").reduce((s, c) => s + (c.quantidade_disponivel || 0), 0);
-  const totalConsumido = chapas.filter(c => c.status === "consumido").reduce((s, c) => s + (c.quantidade_total || 0), 0);
+  const totalDisponiveis = chapas
+    .filter(c => (c.status === "disponivel" || !c.status) && c.destino === "estoque")
+    .reduce((s, c) => s + (Number(c.quantidade_disponivel) || 0), 0);
+
+  const totalPedido = chapas
+    .filter(c => (c.status === "disponivel" || !c.status) && (c.destino === "pedido_direto" || c.reservada))
+    .reduce((s, c) => {
+      if (c.destino === "pedido_direto") return s + (Number(c.quantidade_disponivel) || 0);
+      if (c.reservada) {
+        if (c.reserva_tipo === "parcial" && c.reserva_qtd_chapas) return s + Number(c.reserva_qtd_chapas);
+        return s + (Number(c.quantidade_disponivel) || 0);
+      }
+      return s;
+    }, 0);
+
+  const totalConsumido = chapas
+    .filter(c => c.status === "consumido")
+    .reduce((s, c) => s + (Number(c.quantidade_total) || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -501,17 +589,23 @@ export default function Chaparia() {
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
           <Warehouse className="w-6 h-6 mx-auto mb-1 text-emerald-600" />
-          <p className="text-2xl font-black text-emerald-700">{totalDisponiveis}</p>
+          <p className="text-2xl font-black text-emerald-700">
+            {Number(totalDisponiveis).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
+          </p>
           <p className="text-xs text-emerald-600 font-semibold">Chapas em Estoque</p>
         </div>
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
           <ShoppingCart className="w-6 h-6 mx-auto mb-1 text-blue-600" />
-          <p className="text-2xl font-black text-blue-700">{totalPedido}</p>
+          <p className="text-2xl font-black text-blue-700">
+            {Number(totalPedido).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
+          </p>
           <p className="text-xs text-blue-600 font-semibold">Reservadas para Pedido</p>
         </div>
         <div className="bg-slate-50 border border-border rounded-xl p-4 text-center">
           <CheckCircle2 className="w-6 h-6 mx-auto mb-1 text-slate-500" />
-          <p className="text-2xl font-black text-slate-600">{totalConsumido}</p>
+          <p className="text-2xl font-black text-slate-600">
+            {Number(totalConsumido).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
+          </p>
           <p className="text-xs text-slate-500 font-semibold">Consumidas</p>
         </div>
       </div>
@@ -586,6 +680,37 @@ export default function Chaparia() {
         </div>
       </div>
 
+      {/* Alerta de Duplicidades */}
+      {duplicadasInfo.totalExcedente > 0 && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-amber-100 border border-amber-300 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5 text-amber-700" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-amber-900">
+                {duplicadasInfo.totalExcedente} chapa(s) duplicada(s) detectada(s) ({duplicadasInfo.gruposDuplicados.map(g => `${g.codigo} [${g.chapas.length}x]`).join(", ")})
+              </p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Foram identificados registros repetidos com o mesmo código no estoque. Clique no botão ao lado para remover as cópias excedentes e manter apenas 1 chapa de cada.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            disabled={limpandoDuplicadas}
+            onClick={handleLimparDuplicadas}
+            className="bg-amber-600 hover:bg-amber-700 text-white font-bold shrink-0 shadow-sm gap-1.5"
+          >
+            {limpandoDuplicadas ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Limpando Estoque...</>
+            ) : (
+              <><Trash2 className="w-4 h-4" /> Limpar Duplicadas ({duplicadasInfo.totalExcedente})</>
+            )}
+          </Button>
+        </div>
+      )}
+
       {/* Lista */}
       {isLoading ? (
         <div className="text-center py-16 text-muted-foreground text-sm">Carregando...</div>
@@ -629,6 +754,8 @@ export default function Chaparia() {
         onClose={() => setShowForm(false)}
         onSave={(data) => createMut.mutate({ ...data, unidade: filialAtiva })}
         proximoCodigo={proximoCodigo}
+        isSaving={createMut.isPending}
+        chapasExistentes={chapasGlobais}
       />
 
       {/* Viewer foto */}

@@ -17,6 +17,7 @@ import MaquinaSequenceCD from "@/components/pcp/MaquinaSequenceCD";
 import EtapasTelhaSequence from "@/components/pcp/EtapasTelhaSequence";
 import { parseItensPedido, roteamentoMaterial, progressoChecklist } from "@/lib/regrasFabrica";
 import { notificarStatus } from "@/lib/biNotificador";
+import { getItens } from "@/lib/pedidoOdooHelper";
 import { toast } from "sonner";
 import ProgramadorItensSection from "./ProgramadorItensSection";
 import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelper";
@@ -39,12 +40,35 @@ export default function PedidoOdooDetalheDialog({
     setSincronizando(true);
     try {
       const pct = progressoReal != null ? progressoReal : (pedido.percentual_concluido || 0);
-      await notificarStatus(pedido, "sincronizacao_manual", {
-        percentual_concluido: pct,
-        status_novo: pedido.status_pcp || "em_producao",
+      const isConcluido = pedido.status_pcp === "concluido" || pct >= 100;
+
+      let pedidoParaEnviar = pedido;
+      if (isConcluido) {
+        // Assegura que todos os itens estejam salvos como concluídos
+        const itensAtuais = getItens(pedido);
+        const itensAtualizados = itensAtuais.map(i => ({
+          ...i,
+          status: "concluido",
+          status_detalhado: "Concluído",
+          concluido: true
+        }));
+        pedidoParaEnviar = await base44.entities.PedidoOdoo.update(pedido.id, {
+          status_pcp: "concluido",
+          percentual_concluido: 100,
+          itens_json: JSON.stringify(itensAtualizados)
+        });
+        onAtualizado?.();
+      }
+
+      await notificarStatus(pedidoParaEnviar, isConcluido ? "concluido" : "sincronizacao_manual", {
+        percentual_concluido: isConcluido ? 100 : pct,
+        status_novo: isConcluido ? "concluido" : (pedido.status_pcp || "em_producao"),
         item_nome: `Pedido #${pedido.numero_pedido}`
       });
-      toast.success(`Pedido #${pedido.numero_pedido} sincronizado com o Odoo ERP!`);
+      toast.success(isConcluido
+        ? `OF #${pedido.numero_pedido} marcada como 100% CONCLUÍDA no Odoo ERP!`
+        : `Pedido #${pedido.numero_pedido} sincronizado com o Odoo ERP!`
+      );
     } catch (err) {
       toast.error("Falha ao sincronizar com o Odoo ERP");
     } finally {
