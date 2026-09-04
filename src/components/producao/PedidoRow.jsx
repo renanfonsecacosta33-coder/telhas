@@ -4,13 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route, Camera, Scissors, Snowflake } from "lucide-react";
+import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route, Camera, Scissors, Snowflake, Lock } from "lucide-react";
 import ImageLink from "@/components/ui/ImageLink";
 import RetrabalhoTelhasDialog from "@/components/producao/RetrabalhoTelhasDialog";
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
 import ValidacaoEtiquetaTelhasDialog from "@/components/producao/ValidacaoEtiquetaTelhasDialog";
 import ConfirmarInicioDialog from "@/components/producao/ConfirmarInicioDialog";
+import ConferirBobinaItemDialog from "@/components/producao/ConferirBobinaItemDialog";
+import FinalizarItemVariacaoDialog from "@/components/producao/FinalizarItemVariacaoDialog";
 import { playFinishSound, speakOpFinalizada, playAlertSound } from "@/lib/sounds";
 import { useFilial } from "@/contexts/FilialContext";
 import { useQuery } from "@tanstack/react-query";
@@ -157,7 +159,16 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
   const [validarEpsColagemOpen, setValidarEpsColagemOpen] = useState(false);
   const [fotoColagemEpsUrl, setFotoColagemEpsUrl] = useState("");
   const [uploadingFotoColagemEps, setUploadingFotoColagemEps] = useState(false);
+  const [conferirBobinaModal, setConferirBobinaModal] = useState({ open: false, item: null, index: 0 });
+  const [finalizarItemModal, setFinalizarItemModal] = useState({ open: false, item: null, index: 0 });
   const intervalRef = useRef(null);
+
+  // Lista de bobinas para conferência nos itens de múltiplas medidas
+  const { data: todasBobinas = [] } = useQuery({
+    queryKey: ["todas-bobinas-row"],
+    queryFn: () => base44.entities.Bobina.list(),
+    staleTime: 60000,
+  });
 
   // Parse variações de telhas para verificar se todos os itens estão finalizados
   let _variacoesTelhas = [];
@@ -278,8 +289,8 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
       alert("Aguardando aprovação do encarregado para iniciar esta OP.");
       return;
     }
-    // Validação de etiqueta obrigatória antes de iniciar (exceto colagem)
-    if (p.maquina !== "COLAGEM" && p.validacao_etiqueta_status !== "aprovado") {
+    // Validação de etiqueta obrigatória antes de iniciar (exceto colagem e pedidos com múltiplas medidas que validam bobinas por item)
+    if (!temVariacoes && p.maquina !== "COLAGEM" && p.validacao_etiqueta_status !== "aprovado") {
       setValidacaoEtiquetaOpen(true);
       return;
     }
@@ -308,6 +319,121 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
       inicio_producao_ts: new Date().toISOString(),
     };
     onStatusChange(p, "em_producao", updates);
+    if (temVariacoes) {
+      toast.success("Pedido pré-iniciado! Os múltiplos itens foram liberados para início e conferência individual.");
+    }
+  };
+
+  // Handlers para múltiplos itens (iniciação individual, conferência de bobina e finalização com foto/metragem)
+  const handleIniciarItem = (index) => {
+    setConferirBobinaModal({
+      open: true,
+      item: _variacoesTelhas[index],
+      index
+    });
+  };
+
+  const handleConfirmarInicioItem = (index) => {
+    let vars = [];
+    try { vars = JSON.parse(p.variacoes_telhas || "[]"); } catch { vars = []; }
+    if (!vars[index]) return;
+
+    const novos = [...vars];
+    novos[index] = {
+      ...novos[index],
+      iniciado: true,
+      iniciado_em: new Date().toISOString(),
+      status: "em_producao",
+      bobina_conferida: true
+    };
+    onStatusChange(p, p.status, { variacoes_telhas: JSON.stringify(novos) });
+    toast.success(`Item ${index + 1} iniciado! Bobina conferida na máquina.`);
+  };
+
+  const handleAbrirFinalizarItem = (index) => {
+    setFinalizarItemModal({
+      open: true,
+      item: _variacoesTelhas[index],
+      index
+    });
+  };
+
+  const handleConfirmarFinalizacaoItem = async ({ itemIndex, metragemReal, fotoUrl, observacao }) => {
+    let vars = [];
+    try { vars = JSON.parse(p.variacoes_telhas || "[]"); } catch { vars = []; }
+    if (!vars[itemIndex]) return;
+
+    const novos = [...vars];
+    const targetItem = { ...novos[itemIndex] };
+
+    targetItem.finalizado = true;
+    targetItem.status = "finalizado";
+    targetItem.metragem_real = metragemReal;
+    targetItem.foto_item_url = fotoUrl;
+    targetItem.observacao = observacao;
+    targetItem.finalizado_em = new Date().toISOString();
+
+    // Desconta bobina deste item no estoque imediatamente
+    const bobId = targetItem.bobina_id || p.bobina_superior_id || p.bobina_superior;
+    if (bobId && !targetItem.estoque_baixado) {
+      try {
+        const bobList = await base44.entities.Bobina.filter({ id: bobId }).catch(() => []);
+        const b = bobList[0];
+        if (b) {
+          const chapa = Number(b.chapa || b.espessura_mm) || 0.43;
+          const kgConsumido = +(metragemReal * chapa).toFixed(1);
+          await base44.entities.Bobina.update(bobId, {
+            peso_kg: Math.max(0, (b.peso_kg || 0) - kgConsumido),
+            ...(b.metragem_restante != null ? { metragem_restante: Math.max(0, b.metragem_restante - metragemReal) } : {})
+          });
+          targetItem.estoque_baixado = true;
+          targetItem.kg_baixado = kgConsumido;
+        }
+      } catch (err) {
+        console.error("Erro ao baixar estoque da bobina do item:", err);
+      }
+    }
+
+    // Se houver bobina inferior para este item (telha termoacústica)
+    const bobInfId = targetItem.bobina_inf_id || p.bobina_inferior_id || p.bobina_inferior;
+    if (bobInfId && !targetItem.estoque_inf_baixado) {
+      try {
+        const bobInfList = await base44.entities.Bobina.filter({ id: bobInfId }).catch(() => []);
+        const bInf = bobInfList[0];
+        if (bInf) {
+          const chapaInf = Number(bInf.chapa || bInf.espessura_mm) || 0.43;
+          const kgInfConsumido = +(metragemReal * chapaInf).toFixed(1);
+          await base44.entities.Bobina.update(bobInfId, {
+            peso_kg: Math.max(0, (bInf.peso_kg || 0) - kgInfConsumido)
+          });
+          targetItem.estoque_inf_baixado = true;
+          targetItem.kg_inf_baixado = kgInfConsumido;
+        }
+      } catch (err) {
+        console.error("Erro ao baixar estoque da bobina inferior do item:", err);
+      }
+    }
+
+    novos[itemIndex] = targetItem;
+    onStatusChange(p, p.status, { variacoes_telhas: JSON.stringify(novos) });
+    playFinishSound();
+    toast.success(`Item ${itemIndex + 1} finalizado com foto e ${metragemReal}m real!`);
+  };
+
+  const handleReabrirItem = (index) => {
+    const ok = confirm(`Deseja reabrir o Item ${index + 1} para refazer a medição/foto?`);
+    if (!ok) return;
+    let vars = [];
+    try { vars = JSON.parse(p.variacoes_telhas || "[]"); } catch { vars = []; }
+    if (!vars[index]) return;
+    const novos = [...vars];
+    novos[index] = {
+      ...novos[index],
+      finalizado: false,
+      status: "em_producao"
+    };
+    onStatusChange(p, p.status, { variacoes_telhas: JSON.stringify(novos) });
+    toast.info(`Item ${index + 1} reaberto para produção.`);
   };
 
   const handleConfirmarInicio = async (motivo) => {
@@ -534,34 +660,37 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
     const kgInferiorReal = (Number(p.kg_inferior) || 0) * razao;
     const kgSecundariaReal = (Number(p.kg_secundaria) || 0) * razao;
 
-    // Desconta bobinas proporcionalmente à metragem real
-    if (p.bobina_superior_id && kgSuperiorReal > 0) {
-      const bobSupList = await base44.entities.Bobina.filter({ id: p.bobina_superior_id }).catch(() => []);
-      const bobSup = bobSupList[0] || null;
-      if (bobSup) {
-        await base44.entities.Bobina.update(p.bobina_superior_id, {
-          peso_kg: Math.max(0, (bobSup.peso_kg || 0) - kgSuperiorReal),
-          ...(bobSup.metragem_restante != null ? { metragem_restante: Math.max(0, bobSup.metragem_restante - metragemRealNum) } : {})
-        });
+    // Desconta bobinas proporcionalmente à metragem real (se NÃO foram baixadas pelos itens)
+    const jaBaixouPorItens = variacoesTelhas.length > 0 && variacoesTelhas.some(v => v.estoque_baixado);
+    if (!jaBaixouPorItens) {
+      if (p.bobina_superior_id && kgSuperiorReal > 0) {
+        const bobSupList = await base44.entities.Bobina.filter({ id: p.bobina_superior_id }).catch(() => []);
+        const bobSup = bobSupList[0] || null;
+        if (bobSup) {
+          await base44.entities.Bobina.update(p.bobina_superior_id, {
+            peso_kg: Math.max(0, (bobSup.peso_kg || 0) - kgSuperiorReal),
+            ...(bobSup.metragem_restante != null ? { metragem_restante: Math.max(0, bobSup.metragem_restante - metragemRealNum) } : {})
+          });
+        }
       }
-    }
-    if (p.bobina_secundaria_id && kgSecundariaReal > 0) {
-      const bobSecList = await base44.entities.Bobina.filter({ id: p.bobina_secundaria_id }).catch(() => []);
-      const bobSec = bobSecList[0] || null;
-      if (bobSec) {
-        await base44.entities.Bobina.update(p.bobina_secundaria_id, {
-          peso_kg: Math.max(0, (bobSec.peso_kg || 0) - kgSecundariaReal)
-        });
+      if (p.bobina_secundaria_id && kgSecundariaReal > 0) {
+        const bobSecList = await base44.entities.Bobina.filter({ id: p.bobina_secundaria_id }).catch(() => []);
+        const bobSec = bobSecList[0] || null;
+        if (bobSec) {
+          await base44.entities.Bobina.update(p.bobina_secundaria_id, {
+            peso_kg: Math.max(0, (bobSec.peso_kg || 0) - kgSecundariaReal)
+          });
+        }
       }
-    }
-    if (p.bobina_inferior_id && kgInferiorReal > 0) {
-      const bobInfList = await base44.entities.Bobina.filter({ id: p.bobina_inferior_id }).catch(() => []);
-      const bobInf = bobInfList[0] || null;
-      if (bobInf) {
-        await base44.entities.Bobina.update(p.bobina_inferior_id, {
-          peso_kg: Math.max(0, (bobInf.peso_kg || 0) - kgInferiorReal),
-          ...(bobInf.metragem_restante != null ? { metragem_restante: Math.max(0, bobInf.metragem_restante - metragemRealNum) } : {})
-        });
+      if (p.bobina_inferior_id && kgInferiorReal > 0) {
+        const bobInfList = await base44.entities.Bobina.filter({ id: p.bobina_inferior_id }).catch(() => []);
+        const bobInf = bobInfList[0] || null;
+        if (bobInf) {
+          await base44.entities.Bobina.update(p.bobina_inferior_id, {
+            peso_kg: Math.max(0, (bobInf.peso_kg || 0) - kgInferiorReal),
+            ...(bobInf.metragem_restante != null ? { metragem_restante: Math.max(0, bobInf.metragem_restante - metragemRealNum) } : {})
+          });
+        }
       }
     }
 
@@ -670,108 +799,239 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
         </div>
 
         {/* Destaque: Quantidade de Telhas + Metragem individual */}
-        {(p.metros > 0 || p.metragem_mm > 0) && (
+        {(p.metros > 0 || p.metragem_mm > 0 || temVariacoes) && (
           <div className="flex items-stretch gap-2 mb-3">
-            {p.metros > 0 && (
-              <div className="flex-1 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2 text-center">
-                <p className="text-xs font-semibold text-indigo-500 uppercase tracking-wide">Qtd. Telhas</p>
-                <p className="text-2xl font-black text-indigo-700 leading-none">{Number(p.metros).toLocaleString("pt-BR")}</p>
-                <p className="text-xs text-indigo-400 font-medium">peças</p>
-              </div>
-            )}
-            {p.metragem_mm > 0 && (
-              <div className="flex-1 bg-teal-50 border border-teal-200 rounded-xl px-3 py-2 text-center">
-                <p className="text-xs font-semibold text-teal-500 uppercase tracking-wide">Comprimento</p>
-                <p className="text-2xl font-black text-teal-700 leading-none">{Number(p.metragem_mm).toLocaleString("pt-BR")}</p>
-                <p className="text-xs text-teal-400 font-medium">mm por peça</p>
-              </div>
-            )}
-            {p.metros > 0 && p.metragem_mm > 0 && (
-              <div className="flex-1 bg-primary/5 border border-primary/20 rounded-xl px-3 py-2 text-center">
-                <p className="text-xs font-semibold text-primary/60 uppercase tracking-wide">Total</p>
-                <p className="text-2xl font-black text-primary leading-none">
-                  {(Number(p.metros) * (Number(p.metragem_mm) / 1000)).toFixed(1)}
-                </p>
-                <p className="text-xs text-primary/50 font-medium">metros</p>
-              </div>
-            )}
+            <div className="flex-1 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2 text-center">
+              <p className="text-xs font-semibold text-indigo-500 uppercase tracking-wide">Qtd. Telhas</p>
+              <p className="text-2xl font-black text-indigo-700 leading-none">
+                {temVariacoes
+                  ? _variacoesTelhas.reduce((s, v) => s + (Number(v.qty) || 0), 0).toLocaleString("pt-BR")
+                  : Number(p.metros || 0).toLocaleString("pt-BR")}
+              </p>
+              <p className="text-xs text-indigo-400 font-medium">peças</p>
+            </div>
+
+            <div className="flex-1 bg-teal-50 border border-teal-200 rounded-xl px-3 py-2 text-center">
+              <p className="text-xs font-semibold text-teal-500 uppercase tracking-wide">
+                {temVariacoes ? "Medidas" : "Comprimento"}
+              </p>
+              <p className="text-2xl font-black text-teal-700 leading-none">
+                {temVariacoes
+                  ? `${_variacoesTelhas.length}`
+                  : Number(p.metragem_mm || 0).toLocaleString("pt-BR")}
+              </p>
+              <p className="text-xs text-teal-400 font-medium">
+                {temVariacoes ? "diferentes" : "mm por peça"}
+              </p>
+            </div>
+
+            <div className="flex-1 bg-primary/5 border border-primary/20 rounded-xl px-3 py-2 text-center">
+              <p className="text-xs font-semibold text-primary/60 uppercase tracking-wide">Total</p>
+              <p className="text-2xl font-black text-primary leading-none">
+                {metragemTotalCalculada.toFixed(1)}
+              </p>
+              <p className="text-xs text-primary/50 font-medium">metros</p>
+            </div>
           </div>
         )}
 
-        {/* Variações de telhas (múltiplas medidas) */}
+        {/* Variações de telhas (múltiplas medidas com iniciações independentes e conferência de bobina) */}
         {(() => {
           let vars = [];
           try { vars = JSON.parse(p.variacoes_telhas || "[]"); } catch { vars = []; }
           if (!Array.isArray(vars) || vars.length === 0) return null;
 
-          const toggleFinalizado = (idx) => {
-            const novos = [...vars];
-            novos[idx] = { ...novos[idx], finalizado: !novos[idx].finalizado };
-            onStatusChange(p, p.status, { variacoes_telhas: JSON.stringify(novos) });
-          };
-          const salvarObs = (idx, obs) => {
-            const novos = [...vars];
-            novos[idx] = { ...novos[idx], observacao: obs };
-            onStatusChange(p, p.status, { variacoes_telhas: JSON.stringify(novos) });
-          };
           const todosFinalizados = vars.every(v => v.finalizado);
+          const finalizadosCount = vars.filter(v => v.finalizado).length;
+          const emProducaoCount = vars.filter(v => v.iniciado && !v.finalizado).length;
 
           return (
-            <div className="bg-indigo-50/50 border border-indigo-200 rounded-lg p-2.5 mb-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide">Medidas do Pedido ({vars.length})</p>
-                {todosFinalizados && (
-                  <span className="text-xs font-bold text-green-600 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Todos finalizados
+            <div className="bg-indigo-50/50 border border-indigo-200 rounded-xl p-3 mb-3 space-y-2.5">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-bold text-indigo-700 uppercase tracking-wide flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                    Medidas do Pedido ({vars.length})
+                  </p>
+                  <Badge variant="outline" className="text-[11px] font-bold border-indigo-300 text-indigo-800 bg-white">
+                    {finalizadosCount}/{vars.length} concluídos
+                  </Badge>
+                </div>
+
+                {todosFinalizados ? (
+                  <span className="text-xs font-bold text-green-700 bg-green-100 border border-green-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> Todos os itens finalizados!
                   </span>
-                )}
+                ) : p.status === "pendente" ? (
+                  <span className="text-xs font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <Lock className="w-3 h-3 text-amber-700" /> Inicie o pedido abaixo para liberar itens
+                  </span>
+                ) : emProducaoCount > 0 ? (
+                  <span className="text-xs font-bold text-blue-800 bg-blue-100 border border-blue-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" /> {emProducaoCount} item(ns) em produção
+                  </span>
+                ) : null}
               </div>
+
               {vars.map((v, i) => {
                 const q = Number(v.qty) || 0;
                 const mm = Number(v.mm) || 0;
+                const metrosPlan = q > 0 && mm > 0 ? +((q * mm) / 1000).toFixed(2) : 0;
                 const fin = !!v.finalizado;
+                const inic = !!v.iniciado;
+
                 return (
-                  <div key={i} className={`rounded-lg border p-2 transition-all ${fin ? "bg-green-50 border-green-300" : "bg-white border-slate-200"}`}>
-                    <div className="flex items-start gap-2 text-xs">
-                      <span className={`font-mono font-bold flex-shrink-0 ${fin ? "text-green-600" : "text-indigo-500"}`}>{i + 1}.</span>
-                      <div className="flex-1">
-                        <span className={`font-semibold ${fin ? "text-green-700 line-through" : "text-slate-700"}`}>{q} pçs</span>
-                        <span className="text-muted-foreground mx-1">×</span>
-                        <span className={`font-semibold ${fin ? "text-green-700 line-through" : "text-slate-700"}`}>{mm.toLocaleString("pt-BR")}mm</span>
-                        {q > 0 && mm > 0 && (
-                          <span className={`${fin ? "text-green-500" : "text-indigo-500"} ml-1`}>= {(q * mm / 1000).toFixed(2)}m</span>
-                        )}
-                        {v.bobina_desc && (
-                          <p className="text-blue-600 font-medium mt-0.5">Bobina: {v.bobina_desc}</p>
-                        )}
-                        {v.bobina_inf_desc && (
-                          <p className="text-indigo-600 font-medium mt-0.5">Bobina Inf.: {v.bobina_inf_desc}</p>
-                        )}
-                        {v.obs && (
-                          <p className="text-muted-foreground italic mt-0.5">OBS: {v.obs}</p>
-                        )}
+                  <div
+                    key={i}
+                    className={`rounded-xl border p-3 transition-all ${
+                      fin
+                        ? "bg-green-50/80 border-green-300 shadow-xs"
+                        : inic
+                        ? "bg-blue-50/70 border-blue-400 ring-2 ring-blue-300/50 shadow-sm"
+                        : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5 text-xs">
+                      <span className={`w-5 h-5 rounded-full font-mono font-bold text-xs flex items-center justify-center shrink-0 ${
+                        fin
+                          ? "bg-green-600 text-white"
+                          : inic
+                          ? "bg-blue-600 text-white"
+                          : "bg-indigo-100 text-indigo-700"
+                      }`}>
+                        {i + 1}
+                      </span>
+
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center justify-between flex-wrap gap-1">
+                          <div>
+                            <span className={`font-bold text-sm ${fin ? "text-green-800" : inic ? "text-blue-900" : "text-slate-800"}`}>
+                              {q} pçs × {mm.toLocaleString("pt-BR")}mm
+                            </span>
+                            <span className="text-muted-foreground ml-1 font-medium">
+                              (~{metrosPlan.toFixed(2)}m planejado)
+                            </span>
+                          </div>
+
+                          {fin && (
+                            <Badge className="bg-green-600 text-white text-[11px] font-bold">
+                              ✓ Finalizado · {(v.metragem_real || metrosPlan).toFixed(1)}m real
+                            </Badge>
+                          )}
+                          {!fin && inic && (
+                            <Badge className="bg-blue-600 text-white text-[11px] font-bold animate-pulse">
+                              ⚡ Produzindo agora
+                            </Badge>
+                          )}
+                          {!fin && !inic && (
+                            <Badge variant="outline" className="text-[10px] text-slate-500 border-slate-200">
+                              Aguardando Início
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* Bobinas deste item específico */}
+                        <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                          {v.bobina_desc ? (
+                            <span className="text-blue-700 bg-blue-50 border border-blue-200 text-[11px] font-semibold px-2 py-0.5 rounded-md">
+                              Bobina: {v.bobina_desc}
+                            </span>
+                          ) : p.bobina_superior ? (
+                            <span className="text-slate-600 bg-slate-100 text-[11px] font-medium px-2 py-0.5 rounded-md">
+                              Bobina: {p.bobina_superior}
+                            </span>
+                          ) : null}
+
+                          {v.bobina_inf_desc && (
+                            <span className="text-indigo-700 bg-indigo-50 border border-indigo-200 text-[11px] font-semibold px-2 py-0.5 rounded-md">
+                              Bobina Inf.: {v.bobina_inf_desc}
+                            </span>
+                          )}
+
+                          {v.obs && (
+                            <span className="text-muted-foreground text-[11px] italic">
+                              OBS: {v.obs}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    {/* Checkbox finalizar + campo observação por item */}
-                    <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-200">
-                      <button
-                        onClick={() => toggleFinalizado(i)}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all border ${
-                          fin
-                            ? "bg-green-500 text-white border-green-500"
-                            : "bg-white text-slate-600 border-slate-300 hover:border-green-400 hover:text-green-600"
-                        }`}
-                      >
-                        <CheckCircle2 className={`w-3 h-3 ${fin ? "fill-white text-green-500" : ""}`} />
-                        {fin ? "Finalizado" : "Finalizar Item"}
-                      </button>
-                      <input
-                        type="text"
-                        value={v.observacao || ""}
-                        onChange={(e) => salvarObs(i, e.target.value)}
-                        placeholder="Observação deste item..."
-                        className="flex-1 h-7 px-2 text-xs border border-slate-200 rounded-md bg-slate-50 focus:outline-none focus:ring-1 focus:ring-indigo-400 focus:bg-white"
-                      />
+
+                    {/* Ações por Item: Iniciar com conferência de bobina OU Finalizar com foto e metragem real */}
+                    <div className="mt-2.5 pt-2 border-t border-slate-200/80">
+                      {fin ? (
+                        <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {v.foto_item_url && (
+                              <a
+                                href={v.foto_item_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-green-300 text-green-800 font-bold hover:bg-green-100 transition-all shadow-xs"
+                                title="Ver foto do lote produzido"
+                              >
+                                <Camera className="w-3.5 h-3.5 text-green-600" />
+                                <img
+                                  src={v.foto_item_url}
+                                  alt="Foto do Item"
+                                  className="w-4 h-4 rounded object-cover border border-green-400"
+                                />
+                                <span>Ver Foto do Lote</span>
+                              </a>
+                            )}
+                            {v.observacao && (
+                              <span className="text-slate-600 bg-white/90 px-2 py-0.5 rounded border border-green-200 text-[11px]">
+                                <strong>Obs:</strong> {v.observacao}
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleReabrirItem(i)}
+                            className="text-[10px] text-muted-foreground hover:text-red-600 underline font-medium ml-auto"
+                          >
+                            Reabrir item
+                          </button>
+                        </div>
+                      ) : inic ? (
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <span className="text-xs text-blue-800 font-semibold flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
+                            Produzindo {v.iniciado_em ? `(desde ${format(new Date(v.iniciado_em), "HH:mm")})` : ""}
+                          </span>
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white font-bold h-8 text-xs gap-1.5 shadow-sm"
+                            onClick={() => handleAbrirFinalizarItem(i)}
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Finalizar Item {i + 1}
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          {p.status === "pendente" ? (
+                            <div className="w-full flex items-center justify-between text-xs py-1.5 px-3 rounded-lg bg-slate-100 text-slate-500 font-medium">
+                              <span>Aguardando liberação</span>
+                              <span className="text-[11px] text-amber-700 font-bold flex items-center gap-1">
+                                <Lock className="w-3.5 h-3.5" /> Inicie a OP abaixo para liberar
+                              </span>
+                            </div>
+                          ) : (
+                            <>
+                              <span className="text-xs text-slate-600 font-medium">
+                                Bobina configurada e pronta para conferir
+                              </span>
+                              <Button
+                                size="sm"
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-8 text-xs gap-1.5 shadow-sm"
+                                onClick={() => handleIniciarItem(i)}
+                              >
+                                <Play className="w-3.5 h-3.5 fill-white" /> Iniciar Item {i + 1}
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -1072,6 +1332,27 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
         pedidoRodando={opRodando}
         isRotaOuPrioridade={p.rota || p.prioridade}
         onConfirm={handleConfirmarInicio}
+      />
+
+      {/* Dialog de conferência de bobina por item (múltiplas medidas) */}
+      <ConferirBobinaItemDialog
+        open={conferirBobinaModal.open}
+        onClose={() => setConferirBobinaModal({ open: false, item: null, index: 0 })}
+        item={conferirBobinaModal.item}
+        itemIndex={conferirBobinaModal.index}
+        pedido={p}
+        bobinas={todasBobinas}
+        onConfirmarInicio={handleConfirmarInicioItem}
+      />
+
+      {/* Dialog de finalização de item com foto e metragem real */}
+      <FinalizarItemVariacaoDialog
+        open={finalizarItemModal.open}
+        onClose={() => setFinalizarItemModal({ open: false, item: null, index: 0 })}
+        item={finalizarItemModal.item}
+        itemIndex={finalizarItemModal.index}
+        pedido={p}
+        onConfirmarFinalizacao={handleConfirmarFinalizacaoItem}
       />
 
       {/* Dialog de pausa */}
