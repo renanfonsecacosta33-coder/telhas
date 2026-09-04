@@ -60,17 +60,22 @@ export default function PedidoOdooDetalheDialog({
         onAtualizado?.();
       }
 
-      await notificarStatus(pedidoParaEnviar, isConcluido ? "concluido" : "sincronizacao_manual", {
+      const notifRes = await notificarStatus(pedidoParaEnviar, isConcluido ? "concluido" : "sincronizacao_manual", {
         percentual_concluido: isConcluido ? 100 : pct,
         status_novo: isConcluido ? "concluido" : (pedido.status_pcp || "em_producao"),
         item_nome: `Pedido #${pedido.numero_pedido}`
       });
-      toast.success(isConcluido
-        ? `OF #${pedido.numero_pedido} marcada como 100% CONCLUÍDA no Odoo ERP!`
-        : `Pedido #${pedido.numero_pedido} sincronizado com o Odoo ERP!`
-      );
+
+      if (notifRes && !notifRes.ok) {
+        toast.error(`Aviso: O webhook do Odoo retornou erro 500 no processamento. Verifique o log do script do Odoo com o suporte/Gui.`, { duration: 8000 });
+      } else {
+        toast.success(isConcluido
+          ? `OF #${pedido.numero_pedido} marcada como 100% CONCLUÍDA no Odoo ERP!`
+          : `Pedido #${pedido.numero_pedido} sincronizado com o Odoo ERP!`
+        );
+      }
     } catch (err) {
-      toast.error("Falha ao sincronizar com o Odoo ERP");
+      toast.error("Falha ao sincronizar com o Odoo ERP: " + (err.message || "tente novamente"));
     } finally {
       setSincronizando(false);
     }

@@ -97,7 +97,7 @@ export async function notificarStatus(pedido, evento, extra = {}) {
   const pctEfetivo = isConcluido ? 100 : (extra.percentual_concluido != null ? extra.percentual_concluido : (pedido.percentual_concluido ?? 0));
 
   try {
-    await base44.functions.invoke("notificarStatusOdoo", {
+    const res = await base44.functions.invoke("notificarStatusOdoo", {
       numero_pedido: pedido.numero_pedido,
       odoo_id: pedido.odoo_id || "",
       evento: eventoEfetivo,
@@ -120,7 +120,9 @@ export async function notificarStatus(pedido, evento, extra = {}) {
       maquinas,
       etapas
     });
+    return { ok: true, data: res };
   } catch (e) {
     console.error("[biNotificador] falha notificarStatus:", e?.message || e);
+    return { ok: false, error: e?.message || String(e) };
   }
 }
