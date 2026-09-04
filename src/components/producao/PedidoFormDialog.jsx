@@ -44,6 +44,55 @@ function labelBobina(b) {
   return `${codigo}${chapa}${qual}${cor}${peso}`;
 }
 
+function renderBobinaSelectItem(b, preBaixaMap = {}, ordensAtivas = [], statusMap = {}) {
+  const pb = preBaixaMap[b.id] || 0;
+  const pesoBruto = b.peso_kg || 0;
+  const dispLivre = Math.max(0, pesoBruto - pb);
+  const metrosLivres = calcMetrosDisponiveis(b, dispLivre);
+  const metrosBrutos = calcMetrosDisponiveis(b, pesoBruto);
+  const st = getBobinaStatus(b, ordensAtivas, statusMap);
+  return (
+    <SelectItem key={b.id} value={b.id} className="py-2.5 cursor-pointer">
+      <div className="flex items-center justify-between gap-2 w-full pr-2">
+        <div className="space-y-0.5">
+          {/* Linha 1: Identificação */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {b.codigo && <span className="font-mono font-bold text-primary text-xs">{b.codigo}</span>}
+            <span className="font-medium text-xs">{b.chapa}</span>
+            {b.qualidade && <span className="text-muted-foreground text-[11px]">({b.qualidade})</span>}
+            {b.cor && <span className="text-blue-600 font-semibold text-[11px]">— {b.cor}</span>}
+          </div>
+          {/* Linha 2: Peso e metros */}
+          {pb > 0 ? (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-muted-foreground text-[10px]">
+                Total: {pesoBruto.toLocaleString("pt-BR")}kg{metrosBrutos ? ` (~${metrosBrutos.toLocaleString("pt-BR")}m)` : ""}
+              </span>
+              <span className="text-amber-600 text-[10px] font-bold">
+                − {pb.toFixed(0)}kg reservado
+              </span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">
+                = {dispLivre.toFixed(0)}kg livre{metrosLivres ? ` (~${metrosLivres.toLocaleString("pt-BR")}m)` : ""}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <span className="text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">
+                {dispLivre.toFixed(0)}kg disp.{metrosLivres ? ` (~${metrosLivres.toLocaleString("pt-BR")}m)` : ""}
+              </span>
+            </div>
+          )}
+        </div>
+        {st && (
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${st.bgClass}`}>
+            {st.label}
+          </span>
+        )}
+      </div>
+    </SelectItem>
+  );
+}
+
 const emptyForm = {
   data: format(new Date(), "yyyy-MM-dd"),
   unidade: "Matriz AJL",
@@ -136,6 +185,18 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   const [bloqueio, setBloqueio] = useState({ open: false, motivos: [], titulo: "" });
   const reqValidacao = { espessuraExigida: form.espessura_exigida, origemExigida: form.origem_exigida, tolerancias };
   const temReqOdoo = !!(form.espessura_exigida || (form.origem_exigida && form.origem_exigida !== "ambas"));
+  const precisaEPS = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(form.produto);
+  const precisaBobinaInferior = ["TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(form.produto);
+
+  // Bobinas ativas ordenadas por chapa — filtradas pela exigência Odoo (espessura + origem)
+  const bobinasFiltradas = useMemo(() => filtrarBobinasCompativeis(bobinas, reqValidacao), [bobinas, reqValidacao]);
+  const bobinasList = useMemo(() => {
+    return [...bobinasFiltradas].sort((a, b) => {
+      const ca = `${a.chapa}${a.qualidade}${a.cor}`.toLowerCase();
+      const cb = `${b.chapa}${b.qualidade}${b.cor}`.toLowerCase();
+      return ca.localeCompare(cb);
+    });
+  }, [bobinasFiltradas]);
 
   const { data: modelosCad = [] } = useQuery({
     queryKey: ["modelos-produto"],
@@ -328,6 +389,20 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     }
   }, [open, modeloAutoObj, form.maquina, form.modelo, form.produto]);
 
+  // Pré-seleciona a primeira bobina compatível disponível como padrão se ainda não houver nenhuma definida
+  useEffect(() => {
+    if (!open || !bobinasList || bobinasList.length === 0) return;
+    const defaultSup = form.bobina_superior || bobinasList[0]?.id;
+    if (!form.bobina_superior && defaultSup) {
+      const b = bobinas.find((x) => x.id === defaultSup);
+      setForm((f) => ({
+        ...f,
+        bobina_superior: defaultSup,
+        rvm_superior: b?.cor || f.rvm_superior || ""
+      }));
+    }
+  }, [open, bobinasList, form.bobina_superior, bobinas]);
+
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
   // ─── Variações de telhas (múltiplas medidas no mesmo pedido) ───
@@ -338,41 +413,106 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     } catch { return null; }
   }, [form.variacoes_telhas]);
 
+  // Calcula totais a partir das variações
+  const calcTotaisVariacoes = (vars) => {
+    let totalTelhas = 0;
+    let totalMm = 0; // soma de qty × mm
+    (vars || []).forEach(v => {
+      const q = Number(v.qty) || 0;
+      const mm = Number(v.mm) || 0;
+      totalTelhas += q;
+      totalMm += q * mm;
+    });
+    const totalMetros = totalMm / 1000;
+    return { totalTelhas, totalMm, totalMetros };
+  };
+
+  const recalcFromVariacoes = (vars, extraFields = {}) => {
+    const { totalTelhas, totalMetros } = calcTotaisVariacoes(vars);
+    const newForm = { ...form, ...extraFields, variacoes_telhas: JSON.stringify(vars) };
+
+    // Mantém metros (qtd telhas) e metragem_mm (primeira variação) sincronizados para compat
+    newForm.metros = totalTelhas || "";
+    const primeiraMm = vars[0]?.mm;
+    newForm.metragem_mm = primeiraMm ? Number(primeiraMm) : "";
+    newForm.quantidade_telhas = totalTelhas > 0 ? +totalTelhas.toFixed(2) : "";
+
+    // KG calculado por variação — cada item usa sua própria bobina
+    let totalKgSup = 0;
+    let totalKgInf = 0;
+    (vars || []).forEach(v => {
+      const q = Number(v.qty) || 0;
+      const mm = Number(v.mm) || 0;
+      const metrosVar = (q * mm) / 1000;
+      const bobId = v.bobina_id || newForm.bobina_superior || (bobinasList && bobinasList[0]?.id);
+      if (metrosVar > 0 && bobId) {
+        const b = bobinas.find(x => x.id === bobId);
+        const chapa = Number(b?.chapa) || 0;
+        if (chapa > 0) totalKgSup += chapa * metrosVar;
+      }
+      const bobInfId = v.bobina_inf_id || newForm.bobina_inferior || (precisaBobinaInferior && bobinasList && bobinasList[1]?.id);
+      if (metrosVar > 0 && bobInfId) {
+        const b = bobinas.find(x => x.id === bobInfId);
+        const chapa = Number(b?.chapa) || 0;
+        if (chapa > 0) totalKgInf += chapa * metrosVar;
+      }
+    });
+    newForm.kg_superior = totalKgSup > 0 ? +totalKgSup.toFixed(1) : "";
+    newForm.kg_inferior = totalKgInf > 0 ? +totalKgInf.toFixed(1) : "";
+    newForm.kg_total = recalcTotal(newForm.kg_superior, newForm.kg_inferior);
+    setForm(newForm);
+  };
+
   const initVariacoesIfNeeded = () => {
     if (!variacoes) {
       // Migra dados existentes (metros + metragem_mm) para a primeira variação
-      // e já traz a bobina global selecionada como padrão
+      // e já traz a bobina global selecionada ou primeira compatível como padrão
+      const bobinaDefault = form.bobina_superior || (bobinasList && bobinasList[0]?.id) || "";
+      const bobinaInfDefault = form.bobina_inferior || (precisaBobinaInferior && bobinasList && bobinasList[1]?.id) || "";
+      const bSup = bobinas.find(b => b.id === bobinaDefault);
+      const bInf = bobinas.find(b => b.id === bobinaInfDefault);
+
       const primeira = {
         qty: form.metros ? String(form.metros) : "",
         mm: form.metragem_mm ? String(form.metragem_mm) : "",
         obs: "",
-        bobina_id: form.bobina_superior || "",
-        bobina_inf_id: form.bobina_inferior || "",
-        bobina_desc: bobinaSuperiorObj ? labelBobina(bobinaSuperiorObj) : "",
-        bobina_inf_desc: bobinaInferiorObj ? labelBobina(bobinaInferiorObj) : ""
+        bobina_id: bobinaDefault,
+        bobina_inf_id: bobinaInfDefault,
+        bobina_desc: bSup ? labelBobina(bSup) : (bobinaSuperiorObj ? labelBobina(bobinaSuperiorObj) : ""),
+        bobina_inf_desc: bInf ? labelBobina(bInf) : (bobinaInferiorObj ? labelBobina(bobinaInferiorObj) : "")
       };
-      setForm(f => ({ ...f, variacoes_telhas: JSON.stringify([primeira]) }));
+      const novo = [primeira];
+      recalcFromVariacoes(novo, {
+        bobina_superior: form.bobina_superior || bobinaDefault,
+        bobina_inferior: form.bobina_inferior || bobinaInfDefault
+      });
     }
   };
 
   const addVariacao = () => {
     const atual = variacoes || [];
-    // Nova variação herda a bobina da última variação como padrão
+    // Nova variação herda a bobina da última variação como padrão, ou da bobina do formulário
     const ultima = atual[atual.length - 1] || {};
-    setForm(f => ({ ...f, variacoes_telhas: JSON.stringify([...atual, {
+    const bobinaPadrao = ultima.bobina_id || form.bobina_superior || (bobinasList && bobinasList[0]?.id) || "";
+    const bobinaInfPadrao = ultima.bobina_inf_id || form.bobina_inferior || (precisaBobinaInferior && bobinasList && bobinasList[1]?.id) || "";
+    const bSup = bobinas.find(b => b.id === bobinaPadrao);
+    const bInf = bobinas.find(b => b.id === bobinaInfPadrao);
+
+    const novo = [...atual, {
       qty: "", mm: "", obs: "",
-      bobina_id: ultima.bobina_id || "",
-      bobina_inf_id: ultima.bobina_inf_id || "",
-      bobina_desc: ultima.bobina_desc || "",
-      bobina_inf_desc: ultima.bobina_inf_desc || ""
-    }]) }));
+      bobina_id: bobinaPadrao,
+      bobina_inf_id: bobinaInfPadrao,
+      bobina_desc: bSup ? labelBobina(bSup) : (ultima.bobina_desc || ""),
+      bobina_inf_desc: bInf ? labelBobina(bInf) : (ultima.bobina_inf_desc || "")
+    }];
+    recalcFromVariacoes(novo);
   };
 
   const removeVariacao = (idx) => {
     const atual = variacoes || [];
     if (atual.length <= 1) return;
     const novo = atual.filter((_, i) => i !== idx);
-    setForm(f => ({ ...f, variacoes_telhas: JSON.stringify(novo) }));
+    recalcFromVariacoes(novo);
   };
 
   const updateVariacao = (idx, field, val) => {
@@ -402,57 +542,16 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
       }
       return updated;
     });
-    setForm(f => ({ ...f, variacoes_telhas: JSON.stringify(novo) }));
-    // Recalcula KG e totais
-    recalcFromVariacoes(novo);
-  };
 
-  // Calcula totais a partir das variações
-  const calcTotaisVariacoes = (vars) => {
-    let totalTelhas = 0;
-    let totalMm = 0; // soma de qty × mm
-    vars.forEach(v => {
-      const q = Number(v.qty) || 0;
-      const mm = Number(v.mm) || 0;
-      totalTelhas += q;
-      totalMm += q * mm;
-    });
-    const totalMetros = totalMm / 1000;
-    return { totalTelhas, totalMm, totalMetros };
-  };
+    const extraSync = {};
+    if (field === "bobina_id" && idx === 0 && !form.bobina_superior && val) {
+      extraSync.bobina_superior = val;
+    }
+    if (field === "bobina_inf_id" && idx === 0 && !form.bobina_inferior && val) {
+      extraSync.bobina_inferior = val;
+    }
 
-  const recalcFromVariacoes = (vars) => {
-    const { totalTelhas, totalMetros } = calcTotaisVariacoes(vars);
-    const newForm = { ...form, variacoes_telhas: JSON.stringify(vars) };
-
-    // Mantém metros (qtd telhas) e metragem_mm (primeira variação) sincronizados para compat
-    newForm.metros = totalTelhas || "";
-    const primeiraMm = vars[0]?.mm;
-    newForm.metragem_mm = primeiraMm ? Number(primeiraMm) : "";
-    newForm.quantidade_telhas = totalTelhas > 0 ? +totalTelhas.toFixed(2) : "";
-
-    // KG calculado por variação — cada item usa sua própria bobina
-    let totalKgSup = 0;
-    let totalKgInf = 0;
-    vars.forEach(v => {
-      const q = Number(v.qty) || 0;
-      const mm = Number(v.mm) || 0;
-      const metrosVar = (q * mm) / 1000;
-      if (metrosVar > 0 && v.bobina_id) {
-        const b = bobinas.find(x => x.id === v.bobina_id);
-        const chapa = Number(b?.chapa) || 0;
-        if (chapa > 0) totalKgSup += chapa * metrosVar;
-      }
-      if (metrosVar > 0 && v.bobina_inf_id) {
-        const b = bobinas.find(x => x.id === v.bobina_inf_id);
-        const chapa = Number(b?.chapa) || 0;
-        if (chapa > 0) totalKgInf += chapa * metrosVar;
-      }
-    });
-    newForm.kg_superior = totalKgSup > 0 ? +totalKgSup.toFixed(1) : "";
-    newForm.kg_inferior = totalKgInf > 0 ? +totalKgInf.toFixed(1) : "";
-    newForm.kg_total = recalcTotal(newForm.kg_superior, newForm.kg_inferior);
-    setForm(newForm);
+    recalcFromVariacoes(novo, extraSync);
   };
 
   // Calcula metragem total (em metros) — suporta variações ou modo legado
@@ -489,6 +588,17 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
         novoForm.kg_total = recalcTotal(novoForm.kg_superior, form.kg_inferior);
       }
     }
+    // Propaga para as variações de medidas se existirem
+    if (variacoes && variacoes.length > 0) {
+      const updatedVars = variacoes.map(v => {
+        if (!v.bobina_id || v.bobina_id === form.bobina_superior || variacoes.length === 1) {
+          return { ...v, bobina_id: bobinaId, bobina_desc: b ? labelBobina(b) : "" };
+        }
+        return v;
+      });
+      recalcFromVariacoes(updatedVars, { bobina_superior: bobinaId, rvm_superior: b?.cor || "" });
+      return;
+    }
     setForm(novoForm);
   };
 
@@ -511,8 +621,20 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
         novoForm.kg_total = recalcTotal(form.kg_superior, novoForm.kg_inferior);
       }
     }
+    // Propaga bobina inferior para as variações se existirem
+    if (variacoes && variacoes.length > 0) {
+      const updatedVars = variacoes.map(v => {
+        if (!v.bobina_inf_id || v.bobina_inf_id === form.bobina_inferior || variacoes.length === 1) {
+          return { ...v, bobina_inf_id: bobinaId, bobina_inf_desc: b ? labelBobina(b) : "" };
+        }
+        return v;
+      });
+      recalcFromVariacoes(updatedVars, { bobina_inferior: bobinaId, rvm_inferior: b?.cor || "" });
+      return;
+    }
     setForm(novoForm);
   };
+
 
   const handleBobinaSecChange = (secBobinaId) => {
     if (!secBobinaId) {
@@ -763,17 +885,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     onSave(data);
   };
 
-  const precisaEPS = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(form.produto);
-  const precisaBobinaInferior = ["TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(form.produto);
   const isEditing = editItem && !editItem._presets;
-
-  // Bobinas ativas ordenadas por chapa — filtradas pela exigência Odoo (espessura + origem)
-  const bobinasFiltradas = filtrarBobinasCompativeis(bobinas, reqValidacao);
-  const bobinasList = [...bobinasFiltradas].sort((a, b) => {
-    const ca = `${a.chapa}${a.qualidade}${a.cor}`.toLowerCase();
-    const cb = `${b.chapa}${b.qualidade}${b.cor}`.toLowerCase();
-    return ca.localeCompare(cb);
-  });
 
   const bobinasCompativeisSecundaria = useMemo(() => {
     if (!bobinaSuperiorObj) return [];
@@ -959,54 +1071,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                   <SelectValue placeholder="Selecione a bobina do estoque..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {bobinasList.map((b) => {
-                    const pb = preBaixaMap[b.id] || 0;
-                    const pesoBruto = b.peso_kg || 0;
-                    const dispLivre = Math.max(0, pesoBruto - pb);
-                    const metrosLivres = calcMetrosDisponiveis(b, dispLivre);
-                    const metrosBrutos = calcMetrosDisponiveis(b, pesoBruto);
-                    const st = getBobinaStatus(b, ordensAtivas, statusMap);
-                    return (
-                      <SelectItem key={b.id} value={b.id} className="py-2.5 cursor-pointer">
-                        <div className="flex items-center justify-between gap-2 w-full pr-2">
-                          <div className="space-y-0.5">
-                            {/* Linha 1: Identificação */}
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              {b.codigo && <span className="font-mono font-bold text-primary text-xs">{b.codigo}</span>}
-                              <span className="font-medium text-xs">{b.chapa}</span>
-                              {b.qualidade && <span className="text-muted-foreground text-[11px]">({b.qualidade})</span>}
-                              {b.cor && <span className="text-blue-600 font-semibold text-[11px]">— {b.cor}</span>}
-                            </div>
-                            {/* Linha 2: Peso e metros */}
-                            {pb > 0 ? (
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-muted-foreground text-[10px]">
-                                  Total: {pesoBruto.toLocaleString("pt-BR")}kg{metrosBrutos ? ` (~${metrosBrutos.toLocaleString("pt-BR")}m)` : ""}
-                                </span>
-                                <span className="text-amber-600 text-[10px] font-bold">
-                                  − {pb.toFixed(0)}kg reservado
-                                </span>
-                                <span className="text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">
-                                  = {dispLivre.toFixed(0)}kg livre{metrosLivres ? ` (~${metrosLivres.toLocaleString("pt-BR")}m)` : ""}
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">
-                                  {dispLivre.toFixed(0)}kg disp.{metrosLivres ? ` (~${metrosLivres.toLocaleString("pt-BR")}m)` : ""}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          {st && (
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${st.bgClass}`}>
-                              {st.label}
-                            </span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
+                  {bobinasList.map((b) => renderBobinaSelectItem(b, preBaixaMap, ordensAtivas, statusMap))}
                 </SelectContent>
               </Select>
 
@@ -1060,17 +1125,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                                   <SelectValue placeholder="Selecione a 2ª bobina para suprir os quilos restantes..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {bobinasCompativeisSecundaria.map((b) => {
-                                    const pb2 = preBaixaMap[b.id] || 0;
-                                    const disp2 = Math.max(0, (b.peso_kg || 0) - pb2);
-                                    return (
-                                      <SelectItem key={b.id} value={b.id}>
-                                        <span className="font-mono font-bold text-primary mr-1">{b.codigo}</span>
-                                        <span>{b.chapa} · {b.cor || "Natural"}</span>
-                                        <span className="text-emerald-700 font-bold ml-2">({disp2.toFixed(0)}kg disp.)</span>
-                                      </SelectItem>
-                                    );
-                                  })}
+                                  {bobinasCompativeisSecundaria.map((b) => renderBobinaSelectItem(b, preBaixaMap, ordensAtivas, statusMap))}
                                 </SelectContent>
                               </Select>
 
@@ -1111,54 +1166,9 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                     <SelectValue placeholder="Selecione a bobina inferior..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {bobinasList.map((b) => {
-                      const pb = preBaixaMap[b.id] || 0;
-                      const pesoBruto = b.peso_kg || 0;
-                      const dispLivre = Math.max(0, pesoBruto - pb);
-                      const metrosLivres = calcMetrosDisponiveis(b, dispLivre);
-                      const metrosBrutos = calcMetrosDisponiveis(b, pesoBruto);
-                      const st = getBobinaStatus(b, ordensAtivas, statusMap);
-                      return (
-                        <SelectItem key={b.id} value={b.id} className="py-2.5 cursor-pointer">
-                          <div className="flex items-center justify-between gap-2 w-full pr-2">
-                            <div className="space-y-0.5">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                {b.codigo && <span className="font-mono font-bold text-primary text-xs">{b.codigo}</span>}
-                                <span className="font-medium text-xs">{b.chapa}</span>
-                                {b.qualidade && <span className="text-muted-foreground text-[11px]">({b.qualidade})</span>}
-                                {b.cor && <span className="text-blue-600 font-semibold text-[11px]">— {b.cor}</span>}
-                              </div>
-                              {pb > 0 ? (
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-muted-foreground text-[10px]">
-                                    Total: {pesoBruto.toLocaleString("pt-BR")}kg{metrosBrutos ? ` (~${metrosBrutos.toLocaleString("pt-BR")}m)` : ""}
-                                  </span>
-                                  <span className="text-amber-600 text-[10px] font-bold">
-                                    − {pb.toFixed(0)}kg reservado
-                                  </span>
-                                  <span className="text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">
-                                    = {dispLivre.toFixed(0)}kg livre{metrosLivres ? ` (~${metrosLivres.toLocaleString("pt-BR")}m)` : ""}
-                                  </span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">
-                                    {dispLivre.toFixed(0)}kg disp.{metrosLivres ? ` (~${metrosLivres.toLocaleString("pt-BR")}m)` : ""}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                            {st && (
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${st.bgClass}`}>
-                                {st.label}
-                              </span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
-                    </SelectContent>
-                    </Select>
+                    {bobinasList.map((b) => renderBobinaSelectItem(b, preBaixaMap, ordensAtivas, statusMap))}
+                  </SelectContent>
+                </Select>
                     {bobinaInferiorObj && (() => {
                     const pb = preBaixaMap[bobinaInferiorObj.id] || 0;
                     const disp = (bobinaInferiorObj.peso_kg || 0) - pb;
@@ -1307,52 +1317,87 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                         </div>
                       </div>
                       {/* Bobina desta variação */}
-                      <div className="space-y-0.5">
-                        <Label className="text-xs text-muted-foreground">
+                      <div className="space-y-1.5 pt-1">
+                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                           Bobina {precisaBobinaInferior ? "Superior" : "do Item"}
                         </Label>
-                        <Select value={v.bobina_id || ""} onValueChange={(val) => updateVariacao(idx, "bobina_id", val)}>
-                         <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Selecionar bobina para esta medida..." /></SelectTrigger>
-                         <SelectContent>
-                           {bobinasList.map((b) => {
-                             const pb = preBaixaMap[b.id] || 0;
-                             const disp = (b.peso_kg || 0) - pb;
-                             return (
-                             <SelectItem key={b.id} value={b.id}>
-                               {b.codigo && <span className="font-mono font-bold text-primary">{b.codigo}</span>}
-                               <span className="font-medium ml-1">{b.chapa}</span>
-                               {b.qualidade && <span className="text-muted-foreground"> ({b.qualidade})</span>}
-                               {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
-                               {b.peso_kg && <span className="text-muted-foreground text-xs"> · {disp.toFixed(0)}kg disp.</span>}
-                               {pb > 0 && <span className="text-blue-500 text-xs">(pré-baixa: {pb.toFixed(0)}kg)</span>}
-                             </SelectItem>
-                             );
-                           })}
+                        <Select
+                          value={v.bobina_id || form.bobina_superior || (bobinasList && bobinasList[0]?.id) || ""}
+                          onValueChange={(val) => updateVariacao(idx, "bobina_id", val)}
+                        >
+                          <SelectTrigger className="h-auto min-h-[38px] text-xs">
+                            <SelectValue placeholder="Selecionar bobina para esta medida..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {bobinasList.map((b) => renderBobinaSelectItem(b, preBaixaMap, ordensAtivas, statusMap))}
                           </SelectContent>
                         </Select>
+
+                        {/* Card informativo da bobina selecionada para esta medida */}
+                        {(() => {
+                          const bobId = v.bobina_id || form.bobina_superior || (bobinasList && bobinasList[0]?.id);
+                          const bSel = bobinas.find((x) => x.id === bobId);
+                          if (!bSel) return null;
+                          const pb = preBaixaMap[bSel.id] || 0;
+                          const disp = Math.max(0, (bSel.peso_kg || 0) - pb);
+                          const mDisp = calcMetrosDisponiveis(bSel, disp);
+                          const mItem = (q * mm) / 1000;
+                          const chapa = Number(bSel.chapa) || 0;
+                          const kgNecItem = (mItem > 0 && chapa > 0) ? +(chapa * mItem).toFixed(1) : 0;
+                          return (
+                            <div className="bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md px-3 py-1.5 text-xs text-blue-900 dark:text-blue-200 flex flex-wrap gap-2.5 items-center">
+                              <span>Cód: <strong className="font-mono font-bold text-primary">{bSel.codigo || "—"}</strong></span>
+                              <span>Chapa: <strong>{bSel.chapa || "—"}</strong></span>
+                              {bSel.cor && <span>Cor: <strong className="text-blue-600 font-semibold">{bSel.cor}</strong></span>}
+                              {bSel.qualidade && <span className="text-muted-foreground">({bSel.qualidade})</span>}
+                              <span className="text-emerald-700 dark:text-emerald-400 font-bold">
+                                Livre: {disp.toFixed(0)}kg {mDisp ? `(~${mDisp.toLocaleString("pt-BR")}m)` : ""}
+                              </span>
+                              {kgNecItem > 0 && (
+                                <span className="ml-auto bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold text-[10px]">
+                                  ↓ ~{kgNecItem} kg para esta medida
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
+
                       {precisaBobinaInferior && (
-                        <div className="space-y-0.5">
-                          <Label className="text-xs text-muted-foreground">Bobina Inferior do Item</Label>
-                          <Select value={v.bobina_inf_id || ""} onValueChange={(val) => updateVariacao(idx, "bobina_inf_id", val)}>
-                            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Selecionar bobina inferior..." /></SelectTrigger>
+                        <div className="space-y-1.5 pt-1">
+                          <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            Bobina Inferior do Item
+                          </Label>
+                          <Select
+                            value={v.bobina_inf_id || form.bobina_inferior || (bobinasList && bobinasList[1]?.id) || ""}
+                            onValueChange={(val) => updateVariacao(idx, "bobina_inf_id", val)}
+                          >
+                            <SelectTrigger className="h-auto min-h-[38px] text-xs">
+                              <SelectValue placeholder="Selecionar bobina inferior..." />
+                            </SelectTrigger>
                             <SelectContent>
-                              {bobinasList.map((b) => {
-                                const pb = preBaixaMap[b.id] || 0;
-                                const disp = (b.peso_kg || 0) - pb;
-                                return (
-                                <SelectItem key={b.id} value={b.id}>
-                                  {b.codigo && <span className="font-mono font-bold text-primary">{b.codigo}</span>}
-                                  <span className="font-medium ml-1">{b.chapa}</span>
-                                  {b.qualidade && <span className="text-muted-foreground"> ({b.qualidade})</span>}
-                                  {b.cor && <span className="text-blue-600"> — {b.cor}</span>}
-                                  {b.peso_kg && <span className="text-muted-foreground text-xs"> · {disp.toFixed(0)}kg disp.</span>}
-                                  {pb > 0 && <span className="text-blue-500 text-xs">(pré-baixa: {pb.toFixed(0)}kg)</span>}
-                                </SelectItem>
-                                );
-                              })}
+                              {bobinasList.map((b) => renderBobinaSelectItem(b, preBaixaMap, ordensAtivas, statusMap))}
                             </SelectContent>
                           </Select>
+
+                          {(() => {
+                            const bobInfId = v.bobina_inf_id || form.bobina_inferior || (bobinasList && bobinasList[1]?.id);
+                            const bSel = bobinas.find((x) => x.id === bobInfId);
+                            if (!bSel) return null;
+                            const pb = preBaixaMap[bSel.id] || 0;
+                            const disp = Math.max(0, (bSel.peso_kg || 0) - pb);
+                            const mDisp = calcMetrosDisponiveis(bSel, disp);
+                            return (
+                              <div className="bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md px-3 py-1.5 text-xs text-blue-900 dark:text-blue-200 flex flex-wrap gap-2.5 items-center">
+                                <span>Cód: <strong className="font-mono font-bold text-primary">{bSel.codigo || "—"}</strong></span>
+                                <span>Chapa: <strong>{bSel.chapa || "—"}</strong></span>
+                                {bSel.cor && <span>Cor: <strong className="text-blue-600 font-semibold">{bSel.cor}</strong></span>}
+                                <span className="text-emerald-700 dark:text-emerald-400 font-bold">
+                                  Livre: {disp.toFixed(0)}kg {mDisp ? `(~${mDisp.toLocaleString("pt-BR")}m)` : ""}
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                       <div className="space-y-0.5">
