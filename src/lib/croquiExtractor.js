@@ -81,81 +81,58 @@ export function extrairCroquiPedido(pedido) {
 }
 
 /**
- * Força a construção de um Data URI (`data:image/png;base64,...`) a partir de
- * qualquer string Base64 bruta enviada pelo Odoo. Remove prefixos `data:`
- * existentes, quebras de linha e espaços que inviabilizam a renderização no
- * <img>. Retorna "" se a string não contiver Base64 utilizável.
- */
-function forcarDataUriBase64(raw) {
-  if (!raw || typeof raw !== "string") return "";
-  let s = raw.trim();
-  if (!s) return "";
-  // Remove prefixo data:image/...;base64, se já existir
-  if (s.startsWith("data:")) {
-    const idx = s.indexOf("base64,");
-    if (idx >= 0) s = s.slice(idx + 7).trim();
-  }
-  // Remove quebras de linha e espaços internos que quebram o Base64
-  s = s.replace(/\s+/g, "");
-  if (!s || s.length < 64) return "";
-  // Valida caracteres Base64
-  if (!/^[A-Za-z0-9+/=]+$/.test(s)) return "";
-  return `data:image/png;base64,${s}`;
-}
-
-// Verifica se uma string é uma URL interna do Odoo (relativa /web/content, /web/image...)
-// que exigiria sessão logada no Odoo para carregar.
-function ehUrlOdooInterna(str) {
-  if (typeof str !== "string") return false;
-  const s = str.trim();
-  if (!s) return false;
-  // Já é data: URI ou URL http(s) absoluta → não é interna
-  if (s.startsWith("data:")) return false;
-  if (/^https?:\/\//i.test(s)) return false;
-  // Caminhos relativos do Odoo: /web/content/... /web/image/...
-  return s.startsWith("/web/") || s.startsWith("web/");
-}
-
-/**
  * Extrai a lista de anexos de croqui do pedido (Anexo 1 e Anexo 2).
- * Cada item: { src, fallback, label }.
+ * Cada item: { src, label }.
  *
- * Prioriza o Base64 (anexo_x_base64) — renderiza imediatamente sem exigir
- * login no Odoo. Se só houver URL externa http, usa-a (com fallback Base64 no
- * onError). URLs internas do Odoo (/web/content/...) são ignoradas quando não
- * há Base64 correspondente, pois exigiriam sessão logada.
+ * Prioriza Data URIs limpos (Base64) ou URLs públicas prontas.
  */
 export function extrairAnexosLista(pedido) {
   if (!pedido) return [];
   const grupos = [
     {
       label: "Anexo 1",
-      base64Keys: ["anexo_1_base64", "anexo1_base64", "anexo_1", "anexo1"],
-      urlKeys: ["anexo_1_url", "anexo1_url", "anexo_1", "anexo1", "foto_pedido_url", "foto_pedido", "croqui_url", "foto_url"]
+      keys: [
+        "anexo_1_base64", "anexo1_base64", "anexo_1_url", "anexo1_url",
+        "anexo_1", "anexo1", "foto_pedido_url", "foto_pedido", "croqui_url", "foto_url"
+      ]
     },
     {
       label: "Anexo 2",
-      base64Keys: ["anexo_2_base64", "anexo2_base64", "anexo_2", "anexo2"],
-      urlKeys: ["anexo_2_url", "anexo2_url", "anexo_2", "anexo2"]
+      keys: [
+        "anexo_2_base64", "anexo2_base64", "anexo_2_url", "anexo2_url",
+        "anexo_2", "anexo2"
+      ]
     },
   ];
   const anexos = [];
   for (const g of grupos) {
-    const base64Raw = g.base64Keys.map((k) => pedido[k]).find((v) => v);
-    const base64Forcado = forcarDataUriBase64(base64Raw);
-    const urlRaw = g.urlKeys.map((k) => pedido[k]).find((v) => v);
-    const urlSrc = normalizarImagemBase64(urlRaw);
-
     let src = "";
-    let fallback = "";
-    if (base64Forcado) {
-      src = base64Forcado;
-    } else if (urlSrc) {
-      src = urlSrc;
+    // 1. Procura primeiro por Base64 real (começa com data: ou Base64 puro)
+    for (const k of g.keys) {
+      const val = pedido[k];
+      if (val && typeof val === "string" && val.trim()) {
+        const norm = normalizarImagemBase64(val);
+        if (norm && norm.startsWith("data:")) {
+          src = norm;
+          break;
+        }
+      }
     }
-    if (base64Forcado && src !== base64Forcado) fallback = base64Forcado;
+    // 2. Se não achou data URI, procura por qualquer URL pública válida
+    if (!src) {
+      for (const k of g.keys) {
+        const val = pedido[k];
+        if (val && typeof val === "string" && val.trim()) {
+          const norm = normalizarImagemBase64(val);
+          if (norm) {
+            src = norm;
+            break;
+          }
+        }
+      }
+    }
 
-    if (src) anexos.push({ src, fallback, label: g.label });
+    if (src) anexos.push({ src, label: g.label });
   }
 
   // Se ainda não encontrou anexos, tenta buscar dentro de itens_json
@@ -163,10 +140,10 @@ export function extrairAnexosLista(pedido) {
     try {
       const itens = JSON.parse(pedido.itens_json || "[]");
       for (const it of itens) {
-        const a1 = normalizarImagemBase64(it.anexo_1_url || it.anexo_1 || it.foto_url || it.croqui_url);
-        const a2 = normalizarImagemBase64(it.anexo_2_url || it.anexo_2);
-        if (a1 && !anexos.some(a => a.src === a1)) anexos.push({ src: a1, fallback: "", label: "Anexo 1" });
-        if (a2 && !anexos.some(a => a.src === a2)) anexos.push({ src: a2, fallback: "", label: "Anexo 2" });
+        const a1 = normalizarImagemBase64(it.anexo_1_base64 || it.anexo_1_url || it.anexo_1 || it.foto_url || it.croqui_url);
+        const a2 = normalizarImagemBase64(it.anexo_2_base64 || it.anexo_2_url || it.anexo_2);
+        if (a1 && !anexos.some(a => a.src === a1)) anexos.push({ src: a1, label: "Anexo 1" });
+        if (a2 && !anexos.some(a => a.src === a2)) anexos.push({ src: a2, label: "Anexo 2" });
       }
     } catch { /* ignore */ }
   }

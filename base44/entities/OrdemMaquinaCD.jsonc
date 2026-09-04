@@ -238,7 +238,22 @@
     "prioridade": {
       "type": "boolean",
       "default": false,
-      "description": "OP priorit\u00e1ria \u2014 fixada no topo e bloqueia in\u00edcio de outras OPs na mesma m\u00e1quina at\u00e9 ser finalizada"
+      "description": "OP prioritária — fixada no topo e bloqueia início de outras OPs na mesma máquina até ser finalizada"
+    },
+    "prioridade_nivel": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "Nível de prioridade de 1 (mais urgente) a 5 (baixa prioridade)"
+    },
+    "rota": {
+      "type": "boolean",
+      "default": false,
+      "description": "Ordem de rota de entrega — destaque visual pulsante no topo"
+    },
+    "rota_ts": {
+      "type": "string",
+      "description": "Timestamp ISO de quando a ordem foi marcada como rota"
     },
     "foto_carregamento_url": {
       "type": "string",

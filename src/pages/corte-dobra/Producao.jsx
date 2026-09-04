@@ -8,6 +8,7 @@ import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, 
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import OrdemFormDialogCD from "@/components/corte-dobra/OrdemFormDialogCD";
+import OrdemCardCD from "@/components/corte-dobra/OrdemCardCD";
 import OrdemDesbobinadiraRow from "@/components/corte-dobra/OrdemDesbobinadiraRow";
 import DiaResumoCardCD from "@/components/corte-dobra/DiaResumoCardCD";
 import OrdemMaquinaFormDialog from "@/components/corte-dobra/OrdemMaquinaFormDialog.jsx";
@@ -19,6 +20,7 @@ import ExpedicaoTab from "@/components/logistica/ExpedicaoTab";
 import FilaPCPCorteDobra from "@/components/pcp/FilaPCPCorteDobra";
 import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
+import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
 
 const MAQUINAS_OUTRAS = [
   { id: "CORTE 3M",       label: "Guilhotina 3m",       cor: "bg-purple-100 text-purple-800 border-purple-200" },
@@ -84,6 +86,13 @@ export default function ProducaoCD() {
     mutationFn: ({ id, data }) => base44.entities.OrdemDesbobinadeira.update(id, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] }),
   });
+  const deleteDesb = useMutation({
+    mutationFn: (id) => base44.entities.OrdemDesbobinadeira.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
+      toast.success("Ordem excluída com sucesso!");
+    },
+  });
 
   // Mutations outras máquinas
   const createMaq = useMutation({
@@ -94,6 +103,85 @@ export default function ProducaoCD() {
     mutationFn: ({ id, data }) => base44.entities.OrdemMaquinaCD.update(id, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] }),
   });
+  const deleteMaq = useMutation({
+    mutationFn: (id) => base44.entities.OrdemMaquinaCD.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
+      toast.success("Ordem excluída com sucesso!");
+    },
+  });
+
+  // Handlers Prioridade / Rota / Status (Desbobinadeira)
+  const handleSelectPrioridadeDesb = (ordem, nivel) => {
+    updateDesb.mutate({
+      id: ordem.id,
+      data: {
+        prioridade_nivel: nivel,
+        prioridade: Boolean(nivel),
+      },
+    });
+    toast.success(nivel ? `Marcado como Prioridade P${nivel}!` : "Prioridade removida.");
+  };
+
+  const handleToggleRotaDesb = (ordem) => {
+    const novaRota = !ordem.rota;
+    updateDesb.mutate({
+      id: ordem.id,
+      data: {
+        rota: novaRota,
+        rota_ts: novaRota ? new Date().toISOString() : null,
+      },
+    });
+    toast.success(novaRota ? "Marcado como Rota de Entrega!" : "Rota removida.");
+  };
+
+  const handleStatusChangeDesb = (ordem, novoStatus) => {
+    const dataUpdate = { status: novoStatus };
+    if (novoStatus === "em_producao" && !ordem.inicio_producao_ts) {
+      dataUpdate.inicio_producao_ts = new Date().toISOString();
+    }
+    if (novoStatus === "finalizado") {
+      dataUpdate.data_finalizacao = new Date().toISOString();
+    }
+    updateDesb.mutate({ id: ordem.id, data: dataUpdate });
+    toast.success(`Status atualizado para ${novoStatus}!`);
+  };
+
+  // Handlers Prioridade / Rota / Status (Outras Máquinas)
+  const handleSelectPrioridadeMaq = (ordem, nivel) => {
+    updateMaq.mutate({
+      id: ordem.id,
+      data: {
+        prioridade_nivel: nivel,
+        prioridade: Boolean(nivel),
+      },
+    });
+    toast.success(nivel ? `Marcado como Prioridade P${nivel}!` : "Prioridade removida.");
+  };
+
+  const handleToggleRotaMaq = (ordem) => {
+    const novaRota = !ordem.rota;
+    updateMaq.mutate({
+      id: ordem.id,
+      data: {
+        rota: novaRota,
+        rota_ts: novaRota ? new Date().toISOString() : null,
+      },
+    });
+    toast.success(novaRota ? "Marcado como Rota de Entrega!" : "Rota removida.");
+  };
+
+  const handleStatusChangeMaq = (ordem, novoStatus) => {
+    const dataUpdate = { status: novoStatus };
+    if (novoStatus === "em_producao" && !ordem.inicio_producao_ts) {
+      dataUpdate.inicio_producao_ts = new Date().toISOString();
+    }
+    if (novoStatus === "finalizado") {
+      dataUpdate.data_finalizacao = new Date().toISOString();
+    }
+    updateMaq.mutate({ id: ordem.id, data: dataUpdate });
+    toast.success(`Status atualizado para ${novoStatus}!`);
+  };
 
   const isGestor = user?.role === "admin" || user?.full_name?.toLowerCase().includes("hudson");
   const maquinaDoUsuario = user?.maquina;
@@ -252,14 +340,39 @@ export default function ProducaoCD() {
     toast.success("Exportado!");
   };
 
-  const ordensDiaOrdenadas = [...ordensDia].sort((a, b) => {
+  const ordenarOrdensCD = (lista) => {
     const hoje = format(new Date(), "yyyy-MM-dd");
-    const aAtrasada = a.data < hoje ? 0 : 1;
-    const bAtrasada = b.data < hoje ? 0 : 1;
-    if (aAtrasada !== bAtrasada) return aAtrasada - bAtrasada;
-    const order = { em_producao: 0, pausado: 1, pendente: 2, finalizado: 3, cancelado: 4 };
-    return (order[a.status] ?? 2) - (order[b.status] ?? 2);
-  });
+    return [...lista].sort((a, b) => {
+      // 1. Finalizados e cancelados vão pro final
+      const aConcluido = (a.status === "finalizado" || a.status === "cancelado") ? 1 : 0;
+      const bConcluido = (b.status === "finalizado" || b.status === "cancelado") ? 1 : 0;
+      if (aConcluido !== bConcluido) return aConcluido - bConcluido;
+
+      // 2. Atrasadas pendentes vêm pro topo
+      const aAtrasada = (!aConcluido && a.data < hoje) ? 0 : 1;
+      const bAtrasada = (!bConcluido && b.data < hoje) ? 0 : 1;
+      if (aAtrasada !== bAtrasada) return aAtrasada - bAtrasada;
+
+      // 3. Em produção ou pausado primeiro
+      const statusScore = { em_producao: 0, pausado: 1, pendente: 2, finalizado: 3, cancelado: 4 };
+      const aScore = statusScore[a.status] ?? 2;
+      const bScore = statusScore[b.status] ?? 2;
+      if (aScore !== bScore && (aScore < 2 || bScore < 2)) {
+        return aScore - bScore;
+      }
+
+      // 4. Peso de Prioridade / Rota (P1 = 0, Rota = 0.5, P2 = 1, P3 = 2, P4 = 3, P5 = 4, sem = 10)
+      const aPeso = getPesoOrdenacaoPrioridade(a);
+      const bPeso = getPesoOrdenacaoPrioridade(b);
+      if (aPeso !== bPeso) return aPeso - bPeso;
+
+      if (aScore !== bScore) return aScore - bScore;
+
+      return (a.created_at || "").localeCompare(b.created_at || "");
+    });
+  };
+
+  const ordensDiaOrdenadas = ordenarOrdensCD(ordensDia);
 
   const totalOrdensDia = ordensDia.length + ordensMaqDia.length;
 
@@ -452,33 +565,26 @@ export default function ProducaoCD() {
               isGestor={isGestor}
               onAdd={() => openNewDesb(selectedDay)}
               renderRow={(o) => (
-                <div key={o.id}>
-                  <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateDesb.mutate({ id, data })} isGestor={isGestor} zoom={zoom} ordens={ordens} />
-                  {isGestor && (
-                    <div className="flex justify-end mt-1 gap-1">
-                      {o.status === "pendente" && (
-                        <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEditDesb(o)}>✏️ Editar</Button>
-                      )}
-                      <Button size="sm" variant="ghost" className="text-xs text-red-600 h-6 px-2 hover:bg-red-50" onClick={() => { setOrdemRetrabalho({ ...o, _desb: true }); setDialogRetrabalho(true); }}>
-                        <AlertTriangle className="w-3 h-3 mr-1" /> Retrabalho
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                <OrdemCardCD
+                  key={o.id}
+                  ordem={o}
+                  tipo="desbobinadeira"
+                  isGestor={isGestor}
+                  user={user}
+                  onEdit={openEditDesb}
+                  onDelete={(id) => deleteDesb.mutate(id)}
+                  onStatusChange={handleStatusChangeDesb}
+                  onSelectPrioridade={handleSelectPrioridadeDesb}
+                  onToggleRota={handleToggleRotaDesb}
+                  onRetrabalho={(ord) => { setOrdemRetrabalho({ ...ord, _desb: true }); setDialogRetrabalho(true); }}
+                />
               )}
             />
           )}
 
           {/* ── OUTRAS MÁQUINAS ── */}
           {MAQUINAS_OUTRAS.filter(maq => isGestor || !maquinaDoUsuario || maquinaDoUsuario === maq.id).map(maq => {
-            const ordensDaMaq = ordensMaqDia.filter(o => o.maquina === maq.id).sort((a, b) => {
-              const hoje = format(new Date(), "yyyy-MM-dd");
-              const aAtrasada = a.data < hoje ? 0 : 1;
-              const bAtrasada = b.data < hoje ? 0 : 1;
-              if (aAtrasada !== bAtrasada) return aAtrasada - bAtrasada;
-              const order = { em_producao: 0, pausado: 1, pendente: 2, finalizado: 3, cancelado: 4 };
-              return (order[a.status] ?? 2) - (order[b.status] ?? 2);
-            });
+            const ordensDaMaq = ordenarOrdensCD(ordensMaqDia.filter(o => o.maquina === maq.id));
             return (
               <MaquinaBloco key={maq.id}
                 label={maq.label}
@@ -487,19 +593,19 @@ export default function ProducaoCD() {
                 isGestor={isGestor}
                 onAdd={() => openNewMaq(maq.id, selectedDay)}
                 renderRow={(o) => (
-                  <div key={o.id}>
-                    <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} zoom={zoom} ordens={ordensDaMaq} />
-                    {isGestor && (
-                      <div className="flex justify-end mt-1 gap-1">
-                        {o.status === "pendente" && (
-                          <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEditMaq(o)}>✏️ Editar</Button>
-                        )}
-                        <Button size="sm" variant="ghost" className="text-xs text-red-600 h-6 px-2 hover:bg-red-50" onClick={() => { setOrdemRetrabalho(o); setDialogRetrabalho(true); }}>
-                          <AlertTriangle className="w-3 h-3 mr-1" /> Retrabalho
-                        </Button>
-                      </div>
-                    )}
-                  </div>
+                  <OrdemCardCD
+                    key={o.id}
+                    ordem={o}
+                    tipo="maquina"
+                    isGestor={isGestor}
+                    user={user}
+                    onEdit={openEditMaq}
+                    onDelete={(id) => deleteMaq.mutate(id)}
+                    onStatusChange={handleStatusChangeMaq}
+                    onSelectPrioridade={handleSelectPrioridadeMaq}
+                    onToggleRota={handleToggleRotaMaq}
+                    onRetrabalho={(ord) => { setOrdemRetrabalho(ord); setDialogRetrabalho(true); }}
+                  />
                 )}
               />
             );
@@ -570,7 +676,7 @@ function MaquinaBloco({ label, cor, ordens, isGestor, onAdd, renderRow }) {
           )}
         </div>
       ) : (
-        <div className="p-4 space-y-3">{ordens.map(o => renderRow(o))}</div>
+        <div className="divide-y divide-border">{ordens.map(o => renderRow(o))}</div>
       )}
     </div>
   );

@@ -10,12 +10,11 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
-import { Layers, Package, Camera, PackageX } from "lucide-react";
+import { Layers, Package, Camera, PackageX, Scissors, Lock, Flame, Route, Star } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import ChapaEstoqueCombobox from "@/components/corte-dobra/ChapaEstoqueCombobox";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 import { getBobinaStatus } from "@/lib/bobinaStatusHelper";
-import { Scissors, Lock } from "lucide-react";
 
 // etapa: "corte" | "dobra" | "ambas" | "perfiladeira"
 const TIPOS_PECA = [
@@ -71,6 +70,9 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     material_em_falta: false,
     material_espessura: "",
     material_cor: "",
+    prioridade: false,
+    prioridade_nivel: null,
+    rota: false,
   });
   const fotoPedidoRef = useRef();
   const fotoPedidoScanRef = useRef();
@@ -145,6 +147,9 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         material_espessura: editItem.material_espessura || "",
         material_cor: editItem.material_cor || "",
         vendedor: editItem.vendedor || "",
+        prioridade: editItem.prioridade || false,
+        prioridade_nivel: editItem.prioridade_nivel ?? null,
+        rota: editItem.rota || false,
       });
     } else {
       setForm({
@@ -171,6 +176,9 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         material_espessura: "",
         material_cor: "",
         vendedor: "",
+        prioridade: false,
+        prioridade_nivel: null,
+        rota: false,
       });
     }
   }, [open, editItem, defaultDate, maquinaProp]);
@@ -722,6 +730,71 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
             ) : (
               <UploadButton label="Anexar Foto do Pedido" icon={Camera} cameraRef={fotoPedidoRef} fileRef={fotoPedidoScanRef} uploading={uploadingFoto} size="default" variant="outline" />
             )}
+          </div>
+
+          {/* Nível de Prioridade (1 a 5) & Rota */}
+          <div className="rounded-xl border border-border p-3.5 bg-card/60 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-bold flex items-center gap-1.5">
+                <Flame className="w-4 h-4 text-amber-500" />
+                Nível de Prioridade (1 a 5)
+              </Label>
+              <span className="text-[11px] text-muted-foreground">
+                1 é a mais urgente a fazer
+              </span>
+            </div>
+
+            <div className="grid grid-cols-6 gap-1.5">
+              {[
+                { nivel: 1, label: "P1", sub: "Urgente", cls: "border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40", activeCls: "bg-red-600 text-white border-red-700 shadow-sm animate-pulse font-black" },
+                { nivel: 2, label: "P2", sub: "Alta", cls: "border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/40", activeCls: "bg-orange-500 text-white border-orange-600 font-bold" },
+                { nivel: 3, label: "P3", sub: "Média", cls: "border-amber-500 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40", activeCls: "bg-amber-500 text-white border-amber-600 font-bold" },
+                { nivel: 4, label: "P4", sub: "Normal", cls: "border-blue-500 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40", activeCls: "bg-blue-600 text-white border-blue-700 font-bold" },
+                { nivel: 5, label: "P5", sub: "Baixa", cls: "border-slate-400 text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-900", activeCls: "bg-slate-600 text-white border-slate-700 font-bold" },
+                { nivel: null, label: "Sem P", sub: "Padrão", cls: "border-border text-muted-foreground hover:bg-accent", activeCls: "bg-muted text-foreground border-border font-bold" },
+              ].map(item => {
+                const isSelected = form.prioridade_nivel === item.nivel || (!form.prioridade_nivel && item.nivel === null);
+                return (
+                  <button
+                    key={String(item.nivel)}
+                    type="button"
+                    onClick={() => {
+                      setForm(f => ({
+                        ...f,
+                        prioridade_nivel: item.nivel,
+                        prioridade: Boolean(item.nivel)
+                      }));
+                    }}
+                    className={`flex flex-col items-center justify-center p-2 rounded-lg border text-center transition-all ${
+                      isSelected ? item.activeCls : `${item.cls} bg-background`
+                    }`}
+                  >
+                    <span className="text-xs font-black">{item.label}</span>
+                    <span className="text-[9px] opacity-80 whitespace-nowrap">{item.sub}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="pt-1.5 flex items-center justify-between border-t border-border/60">
+              <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(form.rota)}
+                  onChange={(e) => set("rota", e.target.checked)}
+                  className="rounded border-gray-300 text-red-600 focus:ring-red-500 h-4 w-4"
+                />
+                <span className="flex items-center gap-1 text-red-600 font-bold">
+                  <Route className="w-3.5 h-3.5" />
+                  Pedido de Rota (Carga Agendada)
+                </span>
+              </label>
+              {form.prioridade_nivel && (
+                <span className="text-[11px] font-bold text-amber-600">
+                  Prioridade Selecionada: P{form.prioridade_nivel}
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="space-y-1">

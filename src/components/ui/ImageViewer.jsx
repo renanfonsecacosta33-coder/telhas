@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { RotateCw, Download, X, ZoomIn, ZoomOut, Loader2 } from "lucide-react";
+import { isPdfUrl } from "@/lib/imagemBase64";
 
 /**
  * Lightweight full-screen image viewer — opens instantly (no Radix Dialog animation),
@@ -11,11 +12,7 @@ export default function ImageViewer({ url, name, open, onClose }) {
   const [zoom, setZoom] = useState(1);
   const [loaded, setLoaded] = useState(false);
 
-  const isPdf = useCallback(() => {
-    if (!url) return false;
-    const lower = url.toLowerCase();
-    return lower.endsWith(".pdf") || lower.includes(".pdf?");
-  }, [url]);
+  const isPdf = useCallback(() => isPdfUrl(url), [url]);
 
   // Reset state + preload image as soon as the viewer opens (or url changes)
   useEffect(() => {
