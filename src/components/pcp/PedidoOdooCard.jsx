@@ -91,9 +91,17 @@ export default function PedidoOdooCard({
               <h3 className="font-extrabold text-base text-slate-900 dark:text-slate-100 leading-none">
                 #{pedido.numero_pedido}
               </h3>
-              {pedido.odoo_id && (
+              {pedido.of_nome ? (
+                <Badge variant="outline" className="text-[10px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200/80">
+                  OF: {pedido.of_nome}
+                </Badge>
+              ) : pedido.of_odoo_id ? (
+                <Badge variant="outline" className="text-[10px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200/80">
+                  OF: {pedido.of_odoo_id}
+                </Badge>
+              ) : pedido.odoo_id ? (
                 <span className="text-[10px] text-slate-400 font-mono">Odoo:{pedido.odoo_id}</span>
-              )}
+              ) : null}
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-400 font-medium truncate mt-0.5">
               {pedido.cliente_nome || "Cliente não informado"}

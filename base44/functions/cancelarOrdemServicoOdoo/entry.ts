@@ -25,18 +25,16 @@ Deno.serve(async (req) => {
 
     let body = {};
     try { body = await req.json(); } catch { body = {}; }
-    const { numero_pedido, odoo_id: odoo_id_in, motivo, forcar_local, force } = body;
+    const { numero_pedido, odoo_id: odoo_id_in, of_odoo_id: of_odoo_id_in, of_nome: of_nome_in, pedido_id, motivo, forcar_local, force } = body;
     const deveForcar = Boolean(forcar_local || force);
-    if (!numero_pedido && !odoo_id_in) {
-      return Response.json({ error: 'numero_pedido ou odoo_id é obrigatório' }, { status: 400 });
+    const ofIdIn = of_odoo_id_in || odoo_id_in;
+    if (!numero_pedido && !ofIdIn && !pedido_id) {
+      return Response.json({ error: 'numero_pedido, of_odoo_id ou odoo_id é obrigatório' }, { status: 400 });
     }
 
     const numeroStr = numero_pedido ? String(numero_pedido) : null;
 
-    // ── 1) Resolve o odoo_id (ID da mrp.production/OF) salvo no registro ──
-    // Fonte de verdade: campo 'odoo_id' do PedidoOdoo, que o Odoo agora envia
-    // como ID interno da Ordem de Fabricação (mrp.production). Sem fallback
-    // para numero_pedido — o ID da OF é o único valor válido para cancelar.
+    // ── 1) Resolve o odoo_id / of_odoo_id (ID da mrp.production/OF) salvo no registro ──
     const extrairIdNumerico = (raw) => {
       if (raw === null || raw === undefined) return null;
       const str = String(raw).trim();
@@ -47,19 +45,42 @@ Deno.serve(async (req) => {
       return Number.isFinite(n) ? n : null;
     };
 
-    let pedidoOdooId = null;
+    let pedidoOdooId = pedido_id || null;
     let odoo_id_salvo = null;
-    if (numeroStr) {
+    let of_nome = of_nome_in || null;
+
+    if (pedidoOdooId) {
+      const p = await base44.asServiceRole.entities.PedidoOdoo.get(pedidoOdooId).catch(() => null);
+      if (p) {
+        odoo_id_salvo = p.of_odoo_id || p.odoo_id || null;
+        of_nome = of_nome || p.of_nome || null;
+      }
+    } else if (ofIdIn) {
+      const byOf = await base44.asServiceRole.entities.PedidoOdoo.filter({ of_odoo_id: String(ofIdIn) }).catch(() => []);
+      if (byOf.length > 0) {
+        pedidoOdooId = byOf[0].id;
+        odoo_id_salvo = byOf[0].of_odoo_id || byOf[0].odoo_id;
+        of_nome = of_nome || byOf[0].of_nome;
+      } else {
+        const byOdoo = await base44.asServiceRole.entities.PedidoOdoo.filter({ odoo_id: String(ofIdIn) }).catch(() => []);
+        if (byOdoo.length > 0) {
+          pedidoOdooId = byOdoo[0].id;
+          odoo_id_salvo = byOdoo[0].odoo_id;
+          of_nome = of_nome || byOdoo[0].of_nome;
+        }
+      }
+    } else if (numeroStr) {
       const pedidos = await base44.asServiceRole.entities.PedidoOdoo
         .filter({ numero_pedido: numeroStr }, '-data_recebimento', 50)
         .catch(() => []);
       if (pedidos.length > 0) {
         pedidoOdooId = pedidos[0].id;
-        odoo_id_salvo = pedidos[0].odoo_id || null;
+        odoo_id_salvo = pedidos[0].of_odoo_id || pedidos[0].odoo_id || null;
+        of_nome = of_nome || pedidos[0].of_nome || null;
       }
     }
     // Prioriza o odoo_id salvo no registro; fallback para o valor do frontend.
-    const odoo_id_raw = odoo_id_salvo || odoo_id_in || null;
+    const odoo_id_raw = odoo_id_salvo || ofIdIn || null;
     const odooIdNumerico = extrairIdNumerico(odoo_id_raw);
 
     // ── Detecção de Pedidos de Teste/Simulação ──
@@ -161,6 +182,8 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           api_key: ODOO_CANCEL_API_KEY,
           odoo_id: odooIdNumerico,
+          of_odoo_id: odooIdNumerico,
+          of_nome: of_nome || undefined,
           numero_pedido: numeroStr || undefined,
         }),
       });

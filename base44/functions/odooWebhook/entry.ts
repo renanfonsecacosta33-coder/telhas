@@ -124,48 +124,56 @@ export default async function(req: Request): Promise<Response> {
       try { newItems = JSON.parse(body.itens_json); } catch { newItems = []; }
     }
 
-    // ── 4. Montar cliente + buscar registro existente ──
+    // ── 4. Montar cliente + resolver identificador da OF (odoo_id / of_odoo_id) ──
     const base44 = createClientFromRequest(req);
     const db = base44.asServiceRole;
 
-    // TRAVA ESTRITA DE ANTIDUPLICIDADE — numero_pedido é chave única.
-    // Consulta por match EXATO antes de qualquer create/update.
-    const existing = await db.entities.PedidoOdoo.filter({ numero_pedido: numeroPedido });
-    const existingRec = existing && existing.length ? existing[0] : null;
+    const ofIdRaw = body?.of_odoo_id ?? body?.odoo_id;
+    const ofId = ofIdRaw != null && String(ofIdRaw).trim() !== "" ? String(ofIdRaw).trim() : null;
+    const ofNome = (body?.of_nome || "").toString().trim();
+    const isNovaOf = Boolean(body?.nova_of);
 
-    // Higiene: se já existirem duplicatas históricas do mesmo numero_pedido,
-    // mantém apenas a mais antiga (existingRec) e remove as demais.
-    if (existing && existing.length > 1) {
-      const idsParaRemover = existing.slice(1).map((r: any) => r.id);
-      try {
-        for (const id of idsParaRemover) {
-          await db.entities.PedidoOdoo.delete(id);
+    let existingRec: any = null;
+
+    // Regra Principal: of_odoo_id / odoo_id é o identificador único da OF no Odoo.
+    // numero_pedido identifica apenas o Pedido de Venda e pode ter múltiplas OFs.
+    if (ofId && !isNovaOf) {
+      const byOfId = await db.entities.PedidoOdoo.filter({ of_odoo_id: ofId });
+      if (byOfId && byOfId.length > 0) {
+        existingRec = byOfId[0];
+      } else {
+        const byOdooId = await db.entities.PedidoOdoo.filter({ odoo_id: ofId });
+        if (byOdooId && byOdooId.length > 0) {
+          existingRec = byOdooId[0];
         }
-      } catch {
-        // tolerante: não aborta o upsert se a limpeza falhar
+      }
+    } else if (!ofId && !isNovaOf) {
+      // Fallback legado: se não foi enviado of_odoo_id nem odoo_id, busca por numero_pedido
+      const byPed = await db.entities.PedidoOdoo.filter({ numero_pedido: numeroPedido });
+      if (byPed && byPed.length > 0) {
+        existingRec = byPed[0];
       }
     }
 
-    // ── MERGE de itens por 'produto' (SUBSTITUI, nunca soma) ──
-    // Cada webhook do Odoo traz 1 item. Se o produto já existe no registro,
-    // SUBSTITUIMOS o item pelos dados mais recentes (quantidade, observacao,
-    // espessura...). Só adicionamos ao final se for um produto NOVO.
-    const itensExistentes: any[] = existingRec?.itens_json
-      ? ((() => { try { return JSON.parse(existingRec.itens_json); } catch { return []; } })() as any[])
-      : [];
-    const mergedItems: any[] = [...itensExistentes];
-    // Normaliza espaços (simples vs duplo) e caixa para evitar duplicatas
-    // do mesmo produto: "[1] 1  Chapa" === "[1] 1 Chapa".
-    const normalizar = (s: any) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
-    for (const novoItem of newItems) {
-      const idx = mergedItems.findIndex(i => normalizar(i?.produto) === normalizar(novoItem?.produto));
-      if (idx >= 0) {
-        // SUBSTITUI o item existente — NÃO SOMA
-        mergedItems[idx] = novoItem;
-      } else {
-        // Só adiciona se for produto NOVO
-        mergedItems.push(novoItem);
+    // ── MERGE de itens: apenas se for atualização da MESMA OF existente ──
+    // Se for uma nova_of ou OF inédita, newItems é a lista limpa daquela produção específica.
+    let mergedItems: any[] = [];
+    if (existingRec && !isNovaOf) {
+      const itensExistentes: any[] = existingRec?.itens_json
+        ? ((() => { try { return JSON.parse(existingRec.itens_json); } catch { return []; } })() as any[])
+        : [];
+      mergedItems = [...itensExistentes];
+      const normalizar = (s: any) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
+      for (const novoItem of newItems) {
+        const idx = mergedItems.findIndex(i => normalizar(i?.produto) === normalizar(novoItem?.produto));
+        if (idx >= 0) {
+          mergedItems[idx] = novoItem;
+        } else {
+          mergedItems.push(novoItem);
+        }
       }
+    } else {
+      mergedItems = [...newItems];
     }
     const itensJsonStr = JSON.stringify(mergedItems);
 
@@ -210,8 +218,13 @@ export default async function(req: Request): Promise<Response> {
 
     const nowIso = new Date().toISOString();
 
+    const progressoInicial = body?.progresso_inicial != null ? Number(body.progresso_inicial) : 0;
+
     const record: Record<string, any> = {
       numero_pedido: numeroPedido,
+      odoo_id: ofId || existingRec?.odoo_id || "",
+      of_odoo_id: ofId || existingRec?.of_odoo_id || "",
+      of_nome: ofNome || existingRec?.of_nome || "",
       cliente_nome: body?.cliente_nome ?? existingRec?.cliente_nome ?? "",
       vendedor_nome: body?.vendedor_nome ?? existingRec?.vendedor_nome ?? "",
       foto_pedido_url: (fotoUrl || existingRec?.foto_pedido_url) ?? "",
@@ -220,7 +233,6 @@ export default async function(req: Request): Promise<Response> {
       data_entrega: body?.data_entrega ?? existingRec?.data_entrega ?? "",
       unidade: body?.unidade ?? existingRec?.unidade ?? "Matriz AJL",
       prioridade: body?.prioridade ?? existingRec?.prioridade ?? false,
-      odoo_id: (body?.odoo_id != null && String(body.odoo_id).trim() !== "") ? String(body.odoo_id) : (existingRec?.odoo_id ?? ""),
       itens_json: itensJsonStr,
       total_itens: mergedItems.length,
       itens_telha_count: itensTelha,
@@ -228,13 +240,17 @@ export default async function(req: Request): Promise<Response> {
       itens_frisada_count: itensFrisada,
       espessuras_tags: espessurasTags,
       data_recebimento: nowIso,
-      percentual_concluido: body?.reset ? 0 : (body?.percentual_concluido != null ? Number(body.percentual_concluido) : (existingRec?.percentual_concluido ?? 0)),
-      status_pcp: body?.reset ? "pendente_distribuicao" : (body?.status_pcp || existingRec?.status_pcp || "pendente_distribuicao"),
+      percentual_concluido: (isNovaOf || body?.reset)
+        ? progressoInicial
+        : (body?.progresso_inicial != null ? Number(body.progresso_inicial) : (body?.percentual_concluido != null ? Number(body.percentual_concluido) : (existingRec?.percentual_concluido ?? 0))),
+      status_pcp: (isNovaOf || body?.reset)
+        ? "pendente_distribuicao"
+        : (body?.status_pcp || existingRec?.status_pcp || "pendente_distribuicao"),
     };
     // Limpa campos undefined
     Object.keys(record).forEach(k => { if (record[k] === undefined) delete record[k]; });
 
-    // Upsert: NUNCA cria duplicata — se existingRec existe, atualiza; senão, cria.
+    // Upsert da OF: se existingRec existe (mesma OF), atualiza; senão, cria nova OF.
     let result;
     if (existingRec) {
       result = await db.entities.PedidoOdoo.update(existingRec.id, record);
@@ -246,6 +262,8 @@ export default async function(req: Request): Promise<Response> {
       status: "success",
       action: existingRec ? "updated" : "created",
       numero_pedido: numeroPedido,
+      of_odoo_id: ofId,
+      of_nome: ofNome,
       id: result?.id || existingRec?.id,
     }, { status: 201 });
   } catch (error) {

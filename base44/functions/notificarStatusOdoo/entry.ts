@@ -126,6 +126,8 @@ export default async function(req: Request): Promise<Response> {
       api_key: ODOO_BI_KEY,
       numero_pedido: body.numero_pedido || "",
       odoo_id: body.odoo_id || "",
+      of_odoo_id: body.of_odoo_id || body.odoo_id || "",
+      of_nome: body.of_nome || "",
       evento: isOrderConcluida ? "concluido" : (body.evento || ""),
       timestamp: new Date().toISOString().slice(0, 19).replace("T", " "),
       item_nome: body.item_nome || "",

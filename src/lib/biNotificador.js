@@ -100,6 +100,8 @@ export async function notificarStatus(pedido, evento, extra = {}) {
     const res = await base44.functions.invoke("notificarStatusOdoo", {
       numero_pedido: pedido.numero_pedido,
       odoo_id: pedido.odoo_id || "",
+      of_odoo_id: pedido.of_odoo_id || pedido.odoo_id || "",
+      of_nome: pedido.of_nome || "",
       evento: eventoEfetivo,
       status_novo: statusNovoEfetivo,
       item_nome: extra.item_nome || itemNomeDefault,

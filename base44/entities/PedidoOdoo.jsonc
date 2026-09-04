@@ -4,11 +4,19 @@
   "properties": {
     "odoo_id": {
       "type": "string",
-      "description": "ID externo no Odoo (sale.order id)"
+      "description": "ID externo no Odoo (sale.order id ou mrp.production id)"
+    },
+    "of_odoo_id": {
+      "type": "string",
+      "description": "CHAVE ÚNICA DA PRODUÇÃO — ID da Ordem de Fabricação (mrp.production) no Odoo (ex: 456, 489). Permite múltiplas OFs independentes no mesmo Pedido de Venda."
+    },
+    "of_nome": {
+      "type": "string",
+      "description": "Nome/código visível da OF no Odoo (ex: WH/MO/406632, OF 456)"
     },
     "numero_pedido": {
       "type": "string",
-      "description": "CHAVE \u00daNICA (Unique Key) \u2014 n\u00famero do pedido Odoo (ex: SO-2026-283427, S00559). O webhook odooWebhook faz upsert por este campo: se j\u00e1 existir, atualiza dados/fotos/itens; se n\u00e3o, cria. Nunca duplica."
+      "description": "Número do Pedido de Venda no Odoo (ex: SO-2026-283427, S00556, SO001). Identifica a venda comercial à qual a OF pertence."
     },
     "cliente_nome": {
       "type": "string",

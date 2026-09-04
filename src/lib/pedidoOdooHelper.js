@@ -75,14 +75,20 @@ export function calcularProgressoRealPedido(pedido, pedidosProducao = [], ordens
   if (!itens || itens.length === 0) return pedido.percentual_concluido || 0;
 
   const numPed = String(pedido.numero_pedido || "").trim().toUpperCase();
+  const ofId = String(pedido.of_odoo_id || pedido.odoo_id || "").trim().toUpperCase();
+  const ofNome = String(pedido.of_nome || "").trim().toUpperCase();
 
-  const opsTelha = (pedidosProducao || []).filter(op =>
-    op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed && op.status !== "cancelado"
-  );
+  const matchOp = (op) => {
+    if (!op || op.status === "cancelado") return false;
+    if (ofId && op.of_odoo_id && String(op.of_odoo_id).trim().toUpperCase() === ofId) return true;
+    if (ofNome && op.of_nome && String(op.of_nome).trim().toUpperCase() === ofNome) return true;
+    if (op.pedido_odoo_id && op.pedido_odoo_id === pedido.id) return true;
+    if (op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed) return true;
+    return false;
+  };
 
-  const opsCD = (ordensCD || []).filter(op =>
-    op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed && op.status !== "cancelado"
-  );
+  const opsTelha = (pedidosProducao || []).filter(matchOp);
+  const opsCD = (ordensCD || []).filter(matchOp);
 
   let soma = 0;
   for (const it of itens) {
@@ -133,13 +139,20 @@ export function calcularProgressoRealPedido(pedido, pedidosProducao = [], ordens
 export function obterStatusDescritivoItem(it, pedido, pedidosProducao = [], ordensCD = []) {
   const g = classGrupo(it);
   const numPed = String(pedido?.numero_pedido || "").trim().toUpperCase();
+  const ofId = String(pedido?.of_odoo_id || pedido?.odoo_id || "").trim().toUpperCase();
+  const ofNome = String(pedido?.of_nome || "").trim().toUpperCase();
 
-  const opsTelha = (pedidosProducao || []).filter(op =>
-    op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed && op.status !== "cancelado"
-  );
-  const opsCD = (ordensCD || []).filter(op =>
-    op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed && op.status !== "cancelado"
-  );
+  const matchOp = (op) => {
+    if (!op || op.status === "cancelado") return false;
+    if (ofId && op.of_odoo_id && String(op.of_odoo_id).trim().toUpperCase() === ofId) return true;
+    if (ofNome && op.of_nome && String(op.of_nome).trim().toUpperCase() === ofNome) return true;
+    if (op.pedido_odoo_id && op.pedido_odoo_id === pedido?.id) return true;
+    if (op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed) return true;
+    return false;
+  };
+
+  const opsTelha = (pedidosProducao || []).filter(matchOp);
+  const opsCD = (ordensCD || []).filter(matchOp);
 
   let opReal = null;
   if (g === "telha") {

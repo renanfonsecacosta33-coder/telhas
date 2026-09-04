@@ -641,6 +641,8 @@ export default function CentralPCP() {
     const q = busca.toLowerCase();
     return (
       String(p.numero_pedido || "").toLowerCase().includes(q) ||
+      String(p.of_nome || "").toLowerCase().includes(q) ||
+      String(p.of_odoo_id || "").toLowerCase().includes(q) ||
       String(p.cliente_nome || "").toLowerCase().includes(q) ||
       String(p.vendedor_nome || "").toLowerCase().includes(q)
     );
@@ -710,7 +712,7 @@ export default function CentralPCP() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <Input
-            placeholder="Buscar por nº pedido, cliente ou vendedor..."
+            placeholder="Buscar por nº pedido, OF, cliente ou vendedor..."
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             className="pl-9"

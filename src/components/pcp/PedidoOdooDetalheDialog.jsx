@@ -210,9 +210,17 @@ export default function PedidoOdooDetalheDialog({
                 </Badge>
               )}
               <span>Pedido #{pedido.numero_pedido}</span>
-              {pedido.odoo_id && (
+              {pedido.of_nome ? (
+                <Badge variant="outline" className="text-xs font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200/80">
+                  OF: {pedido.of_nome}
+                </Badge>
+              ) : pedido.of_odoo_id ? (
+                <Badge variant="outline" className="text-xs font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200/80">
+                  OF: {pedido.of_odoo_id}
+                </Badge>
+              ) : pedido.odoo_id ? (
                 <span className="text-xs font-mono text-slate-400">Odoo:{pedido.odoo_id}</span>
-              )}
+              ) : null}
             </DialogTitle>
             <DialogDescription>
               Detalhamento técnico e distribuição para os galpões
