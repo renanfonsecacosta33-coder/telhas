@@ -201,20 +201,35 @@ export default function CentralPCP() {
         acao: "Devolvido ao PCP",
         detalhes: "Retirado da fila do galpão pelo gestor"
       }];
+      const itensAtuais = parseItensPedido(pedido.itens_json);
+      const itensZerados = itensAtuais.map(i => ({
+        ...i,
+        status: "pendente",
+        status_detalhado: "Pendente de Distribuição",
+        concluido: false,
+        maquina: ""
+      }));
       const updateData = {
         status_pcp: "pendente_distribuicao",
+        percentual_concluido: 0,
+        maquinas_json: "[]",
+        etapas_telha_json: "[]",
+        itens_json: JSON.stringify(itensZerados),
         historico_log: JSON.stringify(novoLog)
       };
       if (pedido.galpao_responsavel !== undefined) updateData.galpao_responsavel = "";
       await base44.entities.PedidoOdoo.update(pedido.id, updateData);
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
       // Mini BI — evento devolvido_pcp
-      await notificarStatus({ ...pedido, ...updateData }, "devolvido_pcp", { status_novo: "pendente_distribuicao", operador: usuario });
+      await notificarStatus({ ...pedido, ...updateData }, "devolvido_pcp", { status_novo: "pendente_distribuicao", percentual_concluido: 0, operador: usuario }).catch(() => {});
       setDetalheOpen(false);
       setPedidoSelecionado(null);
       toast({
         title: "↩️ Pedido devolvido ao PCP!",
-        description: `#${pedido.numero_pedido} voltou para a Central PCP.`,
+        description: `#${pedido.numero_pedido} voltou para a Central PCP (0%).`,
         className: "border-amber-500/40"
       });
     } catch (e) {
@@ -249,17 +264,32 @@ export default function CentralPCP() {
         acao: "retirada_fila_galpao",
         detalhes: "Pedido retirado da fila dos galpões e devolvido para a Central PCP."
       }];
+      const itensAtuais = parseItensPedido(pedido.itens_json);
+      const itensZerados = itensAtuais.map(i => ({
+        ...i,
+        status: "pendente",
+        status_detalhado: "Pendente de Distribuição",
+        concluido: false,
+        maquina: ""
+      }));
       await base44.entities.PedidoOdoo.update(pedido.id, {
         status_pcp: "pendente_distribuicao",
         percentual_concluido: 0,
+        maquinas_json: "[]",
+        etapas_telha_json: "[]",
+        itens_json: JSON.stringify(itensZerados),
         historico_log: JSON.stringify(novoLog)
       });
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
+      await notificarStatus(pedido, "retirada_fila_galpao", { status_novo: "pendente_distribuicao", percentual_concluido: 0 }).catch(() => {});
       setDetalheOpen(false);
       setPedidoSelecionado(null);
       toast({
         title: "↩️ OS retirada da fila",
-        description: `#${pedido.numero_pedido} devolvida para a Central PCP.`,
+        description: `#${pedido.numero_pedido} devolvida para a Central PCP (0%).`,
         className: "border-amber-500/40"
       });
     } catch (e) {
