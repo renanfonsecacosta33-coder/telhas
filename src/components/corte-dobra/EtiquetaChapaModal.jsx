@@ -12,14 +12,49 @@ export default function EtiquetaChapaModal({ open, onClose, chapa, bobina }) {
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [copiedZpl, setCopiedZpl] = useState(false);
 
+  // Extrai a espessura da chapa ou da bobina de origem de forma resiliente
+  const extrairEspessura = () => {
+    if (chapa?.espessura_mm && Number(chapa.espessura_mm) > 0) {
+      return String(chapa.espessura_mm);
+    }
+    if (bobina?.espessura_mm && Number(bobina.espessura_mm) > 0) {
+      return String(bobina.espessura_mm);
+    }
+    const raw = `${chapa?.material || ""} ${chapa?.bobina_descricao || ""} ${chapa?.codigo || ""}`;
+    const m = raw.match(/(\d+[\.,]\d+)\s*(?:mm)?/);
+    if (m) return m[1].replace(",", ".");
+    return "";
+  };
+
+  const espValor = chapa ? extrairEspessura() : "";
+  const espessuraTexto = espValor ? `${espValor} mm` : "—";
+
+  // Nome do material limpo (sem traços soltos no final)
+  let materialNome = chapa?.material || (chapa?.bobina_descricao && !chapa.bobina_descricao.includes("mm") ? chapa.bobina_descricao : "Chapa de Aço");
+  materialNome = materialNome ? materialNome.replace(/[\s-]+$/, "").trim() : "Chapa de Aço";
+
+  const qualidadeTexto = chapa?.qualidade || bobina?.qualidade || "FQ";
+  const dimensoesTexto = chapa?.comprimento_mm > 0 ? `${chapa.comprimento_mm} × ${chapa.largura_mm || 1200} mm` : "—";
+  const qtdTexto = `${chapa?.quantidade_disponivel ?? chapa?.quantidade_total ?? 0} pçs`;
+  const pesoTexto = chapa?.peso_kg ? `${Number(chapa.peso_kg).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : "—";
+
+  const destinoTexto = chapa?.destino === "pedido_direto"
+    ? `Pedido #${chapa.numero_pedido || ""}${chapa.cliente ? ` · ${chapa.cliente}` : ""}`
+    : "Estoque Geral";
+
+  const bobinaDescLimpa = (chapa?.bobina_descricao || "").replace(/[\s-]+$/, "").trim();
+  const origemTexto = chapa?.origem === "desbobinadeira"
+    ? `Desbobinadeira ${bobinaDescLimpa ? `(${bobinaDescLimpa})` : ""}`
+    : "Entrada Manual";
+
   useEffect(() => {
     if (chapa && open) {
       const qrPayload = JSON.stringify({
         tipo: "CHAPA_CD",
         codigo: chapa.codigo || "",
-        mat: chapa.material || "",
-        esp: chapa.espessura_mm || "",
-        qual: chapa.qualidade || "",
+        mat: materialNome || "",
+        esp: espValor || "",
+        qual: qualidadeTexto || "",
         dim: `${chapa.comprimento_mm || 0}x${chapa.largura_mm || 0}`,
         qtd: chapa.quantidade_disponivel ?? chapa.quantidade_total ?? 0,
         ped: chapa.numero_pedido || "",
@@ -36,46 +71,31 @@ export default function EtiquetaChapaModal({ open, onClose, chapa, bobina }) {
         .then(setQrDataUrl)
         .catch((err) => console.error("Erro ao gerar QR da chapa:", err));
     }
-  }, [chapa, open]);
+  }, [chapa, open, espValor, materialNome, qualidadeTexto]);
 
   if (!chapa) return null;
 
   const dataFormatada = format(new Date(chapa.data_corte || chapa.created_date || Date.now()), "dd/MM/yyyy", { locale: ptBR });
   const horaEmissao = format(new Date(), "HH:mm", { locale: ptBR });
 
-  const materialNome = chapa.material || (chapa.bobina_descricao && !chapa.bobina_descricao.includes("mm") ? chapa.bobina_descricao : "Chapa de Aço");
-  const espessuraTexto = chapa.espessura_mm ? `${chapa.espessura_mm} mm` : "—";
-  const qualidadeTexto = chapa.qualidade || bobina?.qualidade || "FQ";
-  const dimensoesTexto = chapa.comprimento_mm > 0 ? `${chapa.comprimento_mm} × ${chapa.largura_mm || 1200} mm` : "—";
-  const qtdTexto = `${chapa.quantidade_disponivel ?? chapa.quantidade_total ?? 0} pçs`;
-  const pesoTexto = chapa.peso_kg ? `${Number(chapa.peso_kg).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : "—";
-
-  const destinoTexto = chapa.destino === "pedido_direto"
-    ? `Pedido #${chapa.numero_pedido || ""}${chapa.cliente ? ` · ${chapa.cliente}` : ""}`
-    : "Estoque Geral";
-
-  const origemTexto = chapa.origem === "desbobinadeira"
-    ? `Desbobinadeira ${chapa.bobina_descricao ? `(${chapa.bobina_descricao})` : ""}`
-    : "Entrada Manual";
-
-  // Código ZPL para impressoras industriais térmicas (Zebra / Argox / Datamax)
+  // Código ZPL para impressoras térmicas industriais (Zebra / Argox / Datamax)
   const zplCode = `^XA
 ^PW800
 ^LL600
-^FO40,30^GB720,540,3^FS
-^FO60,50^A0N,42,42^FD${chapa.codigo || "CHAPA"}^FS
-^FO320,55^A0N,22,22^FDAJL FERRO E ACO - CORTE E DOBRA^FS
-^FO60,105^GB680,2,2^FS
-^FO60,120^A0N,20,20^FDMATERIAL: ${materialNome} | QUAL: ${qualidadeTexto}^FS
-^FO60,150^A0N,28,28^FDESPESSURA: ${espessuraTexto}^FS
-^FO60,185^A0N,22,22^FDDIMENSOES: ${dimensoesTexto}^FS
-^FO60,215^A0N,22,22^FDQUANTIDADE: ${qtdTexto} | PESO: ${pesoTexto}^FS
-^FO60,245^A0N,20,20^FDDESTINO: ${destinoTexto}^FS
-^FO60,275^A0N,18,18^FDORIGEM: ${origemTexto}^FS
-^FO60,305^A0N,18,18^FDDATA: ${dataFormatada} ${horaEmissao} | UNIDADE: ${chapa.unidade || "Matriz AJL"}^FS
-^FO550,130^BQN,2,5^FDQA,CHAPA:${chapa.codigo || ""}|ESP:${chapa.espessura_mm || ""}|QTD:${chapa.quantidade_disponivel || 0}^FS
-^FO60,490^GB680,2,2^FS
-^FO60,510^A0N,18,18^FDVALIDACAO POR IA NA GUILHOTINA - AJL FERRO E ACO^FS
+^FO30,20^GB740,560,3^FS
+^FO50,40^A0N,44,44^FD${chapa.codigo || "CHAPA"}^FS
+^FO300,45^A0N,24,24^FDAJL FERRO E ACO - CORTE E DOBRA^FS
+^FO50,95^GB700,2,2^FS
+^FO50,110^A0N,20,20^FDMATERIAL: ${materialNome} | QUAL: ${qualidadeTexto}^FS
+^FO50,140^A0N,30,30^FDESPESSURA: ${espessuraTexto}^FS
+^FO50,180^A0N,22,22^FDDIMENSOES: ${dimensoesTexto}^FS
+^FO50,210^A0N,22,22^FDQUANTIDADE: ${qtdTexto} | PESO: ${pesoTexto}^FS
+^FO50,240^A0N,20,20^FDDESTINO: ${destinoTexto}^FS
+^FO50,270^A0N,18,18^FDORIGEM: ${origemTexto}^FS
+^FO50,300^A0N,18,18^FDDATA: ${dataFormatada} ${horaEmissao} | UNIDADE: ${chapa.unidade || "Matriz AJL"}^FS
+^FO530,120^BQN,2,5^FDQA,CHAPA:${chapa.codigo || ""}|ESP:${espValor}|QTD:${chapa.quantidade_disponivel || 0}^FS
+^FO50,510^GB700,2,2^FS
+^FO50,525^A0N,18,18^FDVALIDACAO POR IA NA GUILHOTINA - AJL FERRO E ACO^FS
 ^XZ`;
 
   const handleCopyZpl = () => {
@@ -86,8 +106,10 @@ export default function EtiquetaChapaModal({ open, onClose, chapa, bobina }) {
   };
 
   const handlePrint = () => {
-    const conteudo = printRef.current?.innerHTML;
-    const janela = window.open("", "_blank", "width=800,height=600");
+    const el = printRef.current;
+    if (!el) return;
+    const conteudo = el.outerHTML;
+    const janela = window.open("", "_blank", "width=850,height=650");
     if (!janela) {
       toast.error("O bloqueador de pop-ups impediu a impressão. Permita pop-ups para este site.");
       return;
@@ -101,45 +123,59 @@ export default function EtiquetaChapaModal({ open, onClose, chapa, bobina }) {
           <style>
             @page {
               size: 101.6mm 76.2mm;
-              margin: 0;
+              margin: 0 !important;
             }
             * {
-              box-sizing: border-box;
+              box-sizing: border-box !important;
               margin: 0;
               padding: 0;
             }
-            body {
-              font-family: 'Arial', sans-serif;
-              background: white;
-              color: black;
+            html, body {
               width: 101.6mm;
               height: 76.2mm;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #fff;
+              color: #000;
               display: flex;
               align-items: center;
               justify-content: center;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
             .etq-container {
-              width: 98mm;
-              height: 72mm;
-              border: 2.5pt solid #000;
-              display: flex;
-              flex-direction: column;
-              background: white;
-              overflow: hidden;
-              padding: 3pt;
+              width: 98mm !important;
+              height: 72mm !important;
+              margin: auto !important;
+              border: 2.5pt solid #000 !important;
+              border-radius: 0 !important;
+              display: flex !important;
+              flex-direction: column !important;
+              justify-content: space-between !important;
+              padding: 2.5mm !important;
+              background: #fff !important;
+              box-sizing: border-box !important;
+              overflow: hidden !important;
             }
             @media print {
-              body {
-                width: 101.6mm;
-                height: 76.2mm;
+              html, body {
+                width: 101.6mm !important;
+                height: 76.2mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
               }
               .etq-container {
+                width: 98mm !important;
+                height: 72mm !important;
+                margin: auto !important;
                 border: 2.5pt solid #000 !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
               }
             }
           </style>
         </head>
-        <body onload="window.print(); window.close();">
+        <body onload="setTimeout(function(){ window.print(); window.close(); }, 350);">
           ${conteudo}
         </body>
       </html>
@@ -171,8 +207,9 @@ export default function EtiquetaChapaModal({ open, onClose, chapa, bobina }) {
         <div className="flex justify-center py-4 bg-slate-100/70 dark:bg-slate-950/60 rounded-xl p-4 border border-slate-200 dark:border-slate-800 overflow-x-auto">
           <div
             ref={printRef}
+            className="etq-container"
             style={{
-              fontFamily: "Arial, sans-serif",
+              fontFamily: "Arial, Helvetica, sans-serif",
               color: "#000",
               background: "#fff",
               width: "384px",
@@ -194,7 +231,7 @@ export default function EtiquetaChapaModal({ open, onClose, chapa, bobina }) {
                   <div style={{ fontSize: "28px", fontWeight: 900, lineHeight: 1, letterSpacing: "-1px", fontFamily: "monospace" }}>
                     {chapa.codigo || "CH0000"}
                   </div>
-                  <div style={{ fontSize: "7px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "#333" }}>
+                  <div style={{ fontSize: "7.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "#222", marginTop: "2px" }}>
                     Chapa de Corte &amp; Dobra
                   </div>
                 </div>
@@ -203,49 +240,57 @@ export default function EtiquetaChapaModal({ open, onClose, chapa, bobina }) {
                   <div style={{ fontSize: "12px", fontWeight: 900, lineHeight: 1, letterSpacing: "0.5px" }}>
                     AJL FERRO &amp; AÇO
                   </div>
-                  <div style={{ fontSize: "7px", fontWeight: 600, color: "#444", textTransform: "uppercase" }}>
+                  <div style={{ fontSize: "7.5px", fontWeight: 700, color: "#444", textTransform: "uppercase", marginTop: "2px" }}>
                     Rastreabilidade Industrial
                   </div>
                 </div>
               </div>
 
               {/* Sub-faixa com Data e Origem */}
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "8px", fontWeight: 700, padding: "3px 0", borderBottom: "1px solid #000", background: "#f8f8f8" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "8px", fontWeight: 700, padding: "3px 4px", borderBottom: "1px solid #000", background: "#f4f4f4" }}>
                 <span>DATA: {dataFormatada} {horaEmissao}</span>
-                <span>ORIGEM: {origemTexto.toUpperCase()}</span>
+                <span style={{ maxWidth: "190px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  ORIGEM: {origemTexto.toUpperCase()}
+                </span>
                 <span>{chapa.unidade || "MATRIZ"}</span>
               </div>
             </div>
 
             {/* Corpo com especificações + QR Code */}
-            <div style={{ display: "flex", gap: "8px", flex: 1, padding: "6px 0", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: "8px", flex: 1, padding: "5px 0", alignItems: "stretch" }}>
               {/* Coluna de dados */}
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "3px", fontSize: "9px" }}>
-                <div style={{ display: "flex", borderBottom: "1px dashed #ccc", paddingBottom: "2px" }}>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between", fontSize: "9px" }}>
+                <div style={{ display: "flex", alignItems: "center", borderBottom: "1px dashed #ccc", paddingBottom: "2px" }}>
                   <span style={{ width: "70px", fontWeight: 700, color: "#444" }}>MATERIAL:</span>
-                  <strong style={{ fontSize: "10.5px", textTransform: "uppercase" }}>{materialNome}</strong>
+                  <strong style={{ fontSize: "10.5px", textTransform: "uppercase", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {materialNome}
+                  </strong>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", borderBottom: "1px solid #000", padding: "2px 0", background: "#fafafa" }}>
+                <div style={{ display: "flex", alignItems: "center", borderBottom: "1.5px solid #000", padding: "2px 4px", background: "#f8f8f8", borderRadius: "2px" }}>
                   <span style={{ width: "70px", fontWeight: 700, color: "#000" }}>ESPESSURA:</span>
-                  <strong style={{ fontSize: "15px", fontWeight: 900, color: "#000" }}>{espessuraTexto}</strong>
-                  <span style={{ marginLeft: "auto", fontSize: "8.5px", fontWeight: 700, padding: "1px 4px", border: "1px solid #000", borderRadius: "2px" }}>
+                  <strong style={{ fontSize: "16px", fontWeight: 900, color: "#000" }}>{espessuraTexto}</strong>
+                  <span style={{ marginLeft: "auto", fontSize: "8.5px", fontWeight: 800, padding: "1px 5px", border: "1.5px solid #000", borderRadius: "2px", background: "#fff" }}>
                     {qualidadeTexto}
                   </span>
                 </div>
 
-                <div style={{ display: "flex", borderBottom: "1px dashed #ccc", paddingBottom: "2px" }}>
+                <div style={{ display: "flex", alignItems: "center", borderBottom: "1px dashed #ccc", paddingBottom: "2px" }}>
                   <span style={{ width: "70px", fontWeight: 700, color: "#444" }}>DIMENSÕES:</span>
-                  <strong style={{ fontSize: "10px" }}>{dimensoesTexto}</strong>
+                  <strong style={{ fontSize: "10.5px" }}>{dimensoesTexto}</strong>
                 </div>
 
-                <div style={{ display: "flex", borderBottom: "1px dashed #ccc", paddingBottom: "2px" }}>
+                <div style={{ display: "flex", alignItems: "center", borderBottom: "1px dashed #ccc", paddingBottom: "2px" }}>
                   <span style={{ width: "70px", fontWeight: 700, color: "#444" }}>QUANTIDADE:</span>
                   <strong style={{ fontSize: "11px" }}>{qtdTexto}</strong>
-                  {pesoTexto !== "—" && <span style={{ marginLeft: "auto", fontSize: "9px", color: "#444" }}>Peso: <strong>{pesoTexto}</strong></span>}
+                  {pesoTexto !== "—" && (
+                    <span style={{ marginLeft: "auto", fontSize: "9px", color: "#333" }}>
+                      Peso: <strong>{pesoTexto}</strong>
+                    </span>
+                  )}
                 </div>
 
-                <div style={{ display: "flex", paddingTop: "1px" }}>
+                <div style={{ display: "flex", alignItems: "center", paddingTop: "1px" }}>
                   <span style={{ width: "70px", fontWeight: 700, color: "#444" }}>DESTINO:</span>
                   <strong style={{ fontSize: "9px", textTransform: "uppercase", color: chapa.destino === "pedido_direto" ? "#0033cc" : "#000" }}>
                     {destinoTexto}
@@ -254,22 +299,22 @@ export default function EtiquetaChapaModal({ open, onClose, chapa, bobina }) {
               </div>
 
               {/* QR Code */}
-              <div style={{ width: "95px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", borderLeft: "1px solid #000", paddingLeft: "6px" }}>
+              <div style={{ width: "95px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", borderLeft: "1.5px solid #000", paddingLeft: "6px" }}>
                 {qrDataUrl ? (
-                  <img src={qrDataUrl} alt="QR Code da Chapa" style={{ width: "84px", height: "84px", display: "block" }} />
+                  <img src={qrDataUrl} alt="QR Code da Chapa" style={{ width: "82px", height: "82px", display: "block" }} />
                 ) : (
-                  <div style={{ width: "84px", height: "84px", background: "#eee", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "8px" }}>
+                  <div style={{ width: "82px", height: "82px", background: "#eee", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "8px" }}>
                     QR Code
                   </div>
                 )}
-                <div style={{ fontSize: "6.5px", fontWeight: 800, textTransform: "uppercase", textAlign: "center", marginTop: "2px", letterSpacing: "0.2px" }}>
+                <div style={{ fontSize: "7px", fontWeight: 900, textTransform: "uppercase", textAlign: "center", marginTop: "2px", letterSpacing: "0.4px" }}>
                   LEITURA POR IA
                 </div>
               </div>
             </div>
 
             {/* Rodapé industrial */}
-            <div style={{ borderTop: "1.5px solid #000", paddingTop: "3px", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "7px", fontWeight: 700, textTransform: "uppercase", color: "#333" }}>
+            <div style={{ borderTop: "1.5px solid #000", paddingTop: "3px", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "7px", fontWeight: 800, textTransform: "uppercase", color: "#222" }}>
               <span>VALIDAÇÃO OBRIGATÓRIA DA ETIQUETA AO INICIAR GUILHOTINA</span>
               <span>AJL INDÚSTRIA</span>
             </div>
@@ -277,7 +322,7 @@ export default function EtiquetaChapaModal({ open, onClose, chapa, bobina }) {
         </div>
 
         <p className="text-xs text-muted-foreground text-center">
-          Padrão industrial: <strong>101,6 × 76,2 mm (4" × 3")</strong>. O operador deve colar esta etiqueta no fardo/pacote de chapas para leitura fotográfica na Guilhotina.
+          Padrão industrial: <strong>101,6 × 76,2 mm (4" × 3")</strong>. Se imprimir em folha comum/PDF, selecione <strong>Margens: Nenhuma</strong> para ajuste perfeito.
         </p>
 
         <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-border">
