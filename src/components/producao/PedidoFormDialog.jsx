@@ -55,6 +55,9 @@ const emptyForm = {
   numero_pedido: "",
   bobina_superior: "",
   bobina_inferior: "",
+  bobina_secundaria_id: "",
+  bobina_secundaria: "",
+  kg_secundaria: "",
   rvm_superior: "",
   rvm_inferior: "",
   eps: "",
@@ -175,9 +178,10 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   dadosEPS.map((d) => d.valor) :
   ["EPS - TP 25", "EPS - TP 40", "EPS - TP 40 BANDEJA", "EPS - COLONIAL", "EPS - COLONIAL BANDEJA", "EPS - ONDULADO"];
 
-  // Encontra bobina selecionada (superior e inferior)
+  // Encontra bobina selecionada (superior, inferior e secundária/emenda)
   const bobinaSuperiorObj = useMemo(() => bobinas.find((b) => b.id === form.bobina_superior), [bobinas, form.bobina_superior]);
   const bobinaInferiorObj = useMemo(() => bobinas.find((b) => b.id === form.bobina_inferior), [bobinas, form.bobina_inferior]);
+  const bobinaSecundariaObj = useMemo(() => bobinas.find((b) => b.id === form.bobina_secundaria_id), [bobinas, form.bobina_secundaria_id]);
 
   useEffect(() => {
     if (open) {
@@ -193,6 +197,9 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           numero_pedido: editItem.numero_pedido || "",
           bobina_superior: editItem.bobina_superior || "",
           bobina_inferior: editItem.bobina_inferior || "",
+          bobina_secundaria_id: editItem.bobina_secundaria_id || "",
+          bobina_secundaria: editItem.bobina_secundaria || "",
+          kg_secundaria: editItem.kg_secundaria || "",
           rvm_superior: editItem.rvm_superior || "",
           rvm_inferior: editItem.rvm_inferior || "",
           eps: editItem.eps || "",
@@ -507,6 +514,31 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     setForm(novoForm);
   };
 
+  const handleBobinaSecChange = (secBobinaId) => {
+    if (!secBobinaId) {
+      setForm(f => ({ ...f, bobina_secundaria_id: "", bobina_secundaria: "", kg_secundaria: "" }));
+      return;
+    }
+    const bSec = bobinas.find(x => x.id === secBobinaId);
+    if (!bSec) return;
+
+    const pb1 = preBaixaMap[bobinaSuperiorObj?.id] || 0;
+    const disp1 = Math.max(0, (bobinaSuperiorObj?.peso_kg || 0) - pb1);
+    const kgNec = Number(form.kg_superior) || 0;
+    const faltaKg = Math.max(0, +(kgNec - disp1).toFixed(1));
+
+    const pbSec = preBaixaMap[bSec.id] || 0;
+    const dispSec = Math.max(0, (bSec.peso_kg || 0) - pbSec);
+    const kgAlocado = Math.min(faltaKg, dispSec);
+
+    setForm(f => ({
+      ...f,
+      bobina_secundaria_id: bSec.id,
+      bobina_secundaria: labelBobina(bSec),
+      kg_secundaria: kgAlocado
+    }));
+  };
+
   // Recalcula quantidade de telhas: quantidade × comprimento_telha_em_m
   const calcQtdTelhas = (metros, metragem_mm) => {
     const m = Number(metros) || 0;
@@ -633,6 +665,13 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
       isopor_utilizado: form.isopor_utilizado ? form.isopor_utilizado.total : undefined
     };
 
+    // Garante que metros totais representem a metragem linear real em variações
+    if (variacoes && variacoes.length > 0) {
+      const { totalTelhas, totalMetros } = calcTotaisVariacoes(variacoes);
+      data.metros = totalMetros;
+      data.quantidade_telhas = totalTelhas;
+    }
+
     // Validação de pré-baixa: verifica se cada bobina tem peso suficiente
     const bobinasChecar = [];
     if (variacoes && variacoes.length > 0) {
@@ -658,13 +697,46 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
       if (bobinaInfId && Number(form.kg_inferior) > 0) bobinasChecar.push({ id: bobinaInfId, kg: Number(form.kg_inferior) });
     }
 
-    const insuficientes = bobinasChecar.filter(bc => {
+    let insuficientes = bobinasChecar.filter(bc => {
       const b = bobinas.find(x => x.id === bc.id);
       if (!b) return false;
       const preBaixa = preBaixaMap[bc.id] || 0;
       const disp = (b.peso_kg || 0) - preBaixa;
       return disp < bc.kg;
     });
+
+    // Tratamento inteligente de bobina insuficiente com 2ª Bobina (Emenda)
+    const supInsuficiente = insuficientes.find(bc => bc.id === bobinaSupId);
+    if (supInsuficiente) {
+      const b1 = bobinas.find(x => x.id === bobinaSupId);
+      const pb1 = preBaixaMap[bobinaSupId] || 0;
+      const disp1 = Math.max(0, (b1?.peso_kg || 0) - pb1);
+      const kgNec = supInsuficiente.kg;
+
+      if (form.bobina_secundaria_id) {
+        const b2 = bobinas.find(x => x.id === form.bobina_secundaria_id);
+        const pb2 = preBaixaMap[form.bobina_secundaria_id] || 0;
+        const disp2 = Math.max(0, (b2?.peso_kg || 0) - pb2);
+        const totalDispDuas = disp1 + disp2;
+
+        if (totalDispDuas >= kgNec) {
+          // As duas bobinas juntas atendem o pedido!
+          data.kg_superior = +disp1.toFixed(1);
+          data.bobina_secundaria_id = form.bobina_secundaria_id;
+          data.bobina_secundaria = labelBobina(b2);
+          data.kg_secundaria = +(kgNec - disp1).toFixed(1);
+          // Remove a bobina superior da lista de insuficientes
+          insuficientes = insuficientes.filter(bc => bc.id !== bobinaSupId);
+        } else {
+          alert(`⚠️ As duas bobinas selecionadas cobrem apenas ${totalDispDuas.toFixed(1)}kg dos ${kgNec.toFixed(1)}kg necessários!\n\nBobina 1 (${b1?.codigo || '1ª'}): ${disp1.toFixed(1)}kg disp.\nBobina 2 (${b2?.codigo || '2ª'}): ${disp2.toFixed(1)}kg disp.\nFaltam ainda: ${(kgNec - totalDispDuas).toFixed(1)}kg.\n\nEscolha outra 2ª bobina com mais saldo ou reduza a quantidade do pedido para evitar furo de estoque.`);
+          return;
+        }
+      } else {
+        const faltaKg = +(kgNec - disp1).toFixed(1);
+        alert(`⚠️ Bobina insuficiente para todo o pedido!\n\nA Bobina 1 (${b1?.codigo || 'selecionada'}) possui apenas ${disp1.toFixed(1)}kg disponíveis (após pré-baixa) e o pedido necessita de ${kgNec.toFixed(1)}kg.\n\nFaltam ${faltaKg.toFixed(1)}kg! Para continuar sem dar furo de estoque, selecione uma 2ª Bobina (Emenda / Complementar) no formulário.`);
+        return;
+      }
+    }
 
     if (insuficientes.length > 0) {
       const msgs = insuficientes.map(bc => {
@@ -701,6 +773,19 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     const cb = `${b.chapa}${b.qualidade}${b.cor}`.toLowerCase();
     return ca.localeCompare(cb);
   });
+
+  const bobinasCompativeisSecundaria = useMemo(() => {
+    if (!bobinaSuperiorObj) return [];
+    const chapaPrim = Number(bobinaSuperiorObj.chapa || bobinaSuperiorObj.espessura_mm) || 0;
+    return bobinasList.filter(b => {
+      if (b.id === bobinaSuperiorObj.id) return false;
+      const chapaSec = Number(b.chapa || b.espessura_mm) || 0;
+      if (chapaPrim > 0 && chapaSec > 0 && Math.abs(chapaPrim - chapaSec) > 0.03) return false;
+      const pb = preBaixaMap[b.id] || 0;
+      const disp = (b.peso_kg || 0) - pb;
+      return disp > 0;
+    });
+  }, [bobinasList, bobinaSuperiorObj, preBaixaMap]);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -918,33 +1003,97 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                             </span>
                           )}
                         </div>
-                      </SelectItem>
-                    );
-                  })}
-                  </SelectContent>
-                  </Select>
-                  {bobinaSuperiorObj && (() => {
+                   {bobinaSuperiorObj && (() => {
                     const pb = preBaixaMap[bobinaSuperiorObj.id] || 0;
-                    const disp = (bobinaSuperiorObj.peso_kg || 0) - pb;
+                    const disp = Math.max(0, (bobinaSuperiorObj.peso_kg || 0) - pb);
+                    const kgNec = Number(form.kg_superior) || 0;
+                    const ehInsuficiente = kgNec > 0 && disp < kgNec;
+                    const faltaKg = ehInsuficiente ? +(kgNec - disp).toFixed(1) : 0;
                     return (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-800 flex flex-wrap gap-3 items-center">
-                  <span>Cód: <strong>{bobinaSuperiorObj.codigo || "—"}</strong></span>
-                  <span>Cor/RVM: <strong>{bobinaSuperiorObj.cor || "—"}</strong></span>
-                  <span>Qualidade: <strong>{bobinaSuperiorObj.qualidade || "—"}</strong></span>
-                  <span>Peso: <strong>{bobinaSuperiorObj.peso_kg || 0}kg</strong></span>
-                  {pb > 0 && <span className="text-blue-600 font-semibold">Pré-baixa: <strong>{pb.toFixed(1)}kg</strong></span>}
-                  <span className="text-emerald-700 font-semibold">Disponível: <strong>{disp.toFixed(1)}kg</strong></span>
-                  {bobinaSuperiorObj.metragem_restante && <span>Metragem: <strong>{bobinaSuperiorObj.metragem_restante}m restantes</strong></span>}
-                  {form.kg_superior &&
-                <span className="ml-auto bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold text-xs">
-                      ↓ {form.kg_superior} kg serão usados
-                    </span>
-                }
-                </div>
+                      <div className="space-y-2 mt-2">
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-800 flex flex-wrap gap-3 items-center">
+                          <span>Cód: <strong>{bobinaSuperiorObj.codigo || "—"}</strong></span>
+                          <span>Cor/RVM: <strong>{bobinaSuperiorObj.cor || "—"}</strong></span>
+                          <span>Qualidade: <strong>{bobinaSuperiorObj.qualidade || "—"}</strong></span>
+                          <span>Estoque: <strong>{bobinaSuperiorObj.peso_kg || 0}kg</strong></span>
+                          {pb > 0 && <span className="text-blue-600 font-semibold">Pré-baixa: <strong>{pb.toFixed(1)}kg</strong></span>}
+                          <span className="text-emerald-700 font-bold">Disponível: <strong>{disp.toFixed(1)}kg</strong></span>
+                          {bobinaSuperiorObj.metragem_restante && <span>Metragem: <strong>{bobinaSuperiorObj.metragem_restante}m restantes</strong></span>}
+                          {form.kg_superior && (
+                            <span className="ml-auto bg-blue-600 text-white px-2.5 py-0.5 rounded-full font-bold text-xs">
+                              ↓ {form.kg_superior} kg necessários
+                            </span>
+                          )}
+                        </div>
+
+                        {/* ALERTA DE BOBINA INSUFICIENTE & SELETOR DE 2ª BOBINA */}
+                        {ehInsuficiente && (
+                          <div className="bg-amber-50 border-2 border-amber-400 rounded-xl p-3.5 space-y-2.5 shadow-sm">
+                            <div className="flex items-start gap-2.5">
+                              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                              <div className="space-y-1">
+                                <p className="text-xs font-black text-amber-900 uppercase tracking-wide">
+                                  ⚠️ Bobina insuficiente para atender todo o pedido!
+                                </p>
+                                <p className="text-xs text-amber-800">
+                                  Necessário: <strong>{kgNec.toLocaleString("pt-BR")} kg</strong> · Disponível na Bobina 1: <strong>{disp.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg</strong> (livre de pré-baixas).
+                                </p>
+                                <p className="text-xs font-bold text-red-700">
+                                  👉 Faltam {faltaKg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg! Selecione uma 2ª Bobina (Emenda / Complementar) para suprir o restante:
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="pt-2 border-t border-amber-200">
+                              <Label className="text-xs font-bold text-slate-800 uppercase tracking-wider block mb-1">
+                                2ª Bobina (Emenda / Complementar) *
+                              </Label>
+                              <Select value={form.bobina_secundaria_id || ""} onValueChange={handleBobinaSecChange}>
+                                <SelectTrigger className="bg-white border-amber-400 text-xs">
+                                  <SelectValue placeholder="Selecione a 2ª bobina para suprir os quilos restantes..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {bobinasCompativeisSecundaria.map((b) => {
+                                    const pb2 = preBaixaMap[b.id] || 0;
+                                    const disp2 = Math.max(0, (b.peso_kg || 0) - pb2);
+                                    return (
+                                      <SelectItem key={b.id} value={b.id}>
+                                        <span className="font-mono font-bold text-primary mr-1">{b.codigo}</span>
+                                        <span>{b.chapa} · {b.cor || "Natural"}</span>
+                                        <span className="text-emerald-700 font-bold ml-2">({disp2.toFixed(0)}kg disp.)</span>
+                                      </SelectItem>
+                                    );
+                                  })}
+                                </SelectContent>
+                              </Select>
+
+                              {bobinaSecundariaObj && (() => {
+                                const pb2 = preBaixaMap[bobinaSecundariaObj.id] || 0;
+                                const disp2 = Math.max(0, (bobinaSecundariaObj.peso_kg || 0) - pb2);
+                                const totalCob = disp + Math.min(faltaKg, disp2);
+                                const coberto100 = totalCob >= kgNec;
+                                return (
+                                  <div className={`mt-2 p-2.5 rounded-lg border text-xs flex flex-wrap items-center justify-between gap-2 ${
+                                    coberto100 ? "bg-emerald-50 border-emerald-300 text-emerald-900" : "bg-red-50 border-red-300 text-red-900"
+                                  }`}>
+                                    <div>
+                                      <span className="font-bold">Divisão do Pedido:</span>
+                                      <span className="ml-2">Bobina 1 ({bobinaSuperiorObj.codigo}): <strong>{disp.toFixed(1)}kg</strong></span>
+                                      <span className="ml-2">Bobina 2 ({bobinaSecundariaObj.codigo}): <strong>{form.kg_secundaria}kg</strong></span>
+                                    </div>
+                                    <Badge className={`text-xs font-bold ${coberto100 ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}`}>
+                                      {coberto100 ? `✅ Total: ${totalCob.toFixed(1)}kg (100% Coberto)` : `⚠️ Total: ${totalCob.toFixed(1)}kg (Ainda faltam ${(kgNec - totalCob).toFixed(1)}kg)`}
+                                    </Badge>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     );
-                  })()
-              }
-            </div>
+                  })()}
+                </div>
 
             {/* Bobina Inferior (condicionalmente) */}
             {precisaBobinaInferior &&

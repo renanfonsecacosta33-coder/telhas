@@ -532,6 +532,7 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
     const razao = metragemTotalPedido > 0 ? metragemRealNum / metragemTotalPedido : 1;
     const kgSuperiorReal = (Number(p.kg_superior) || 0) * razao;
     const kgInferiorReal = (Number(p.kg_inferior) || 0) * razao;
+    const kgSecundariaReal = (Number(p.kg_secundaria) || 0) * razao;
 
     // Desconta bobinas proporcionalmente à metragem real
     if (p.bobina_superior_id && kgSuperiorReal > 0) {
@@ -541,6 +542,15 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
         await base44.entities.Bobina.update(p.bobina_superior_id, {
           peso_kg: Math.max(0, (bobSup.peso_kg || 0) - kgSuperiorReal),
           ...(bobSup.metragem_restante != null ? { metragem_restante: Math.max(0, bobSup.metragem_restante - metragemRealNum) } : {})
+        });
+      }
+    }
+    if (p.bobina_secundaria_id && kgSecundariaReal > 0) {
+      const bobSecList = await base44.entities.Bobina.filter({ id: p.bobina_secundaria_id }).catch(() => []);
+      const bobSec = bobSecList[0] || null;
+      if (bobSec) {
+        await base44.entities.Bobina.update(p.bobina_secundaria_id, {
+          peso_kg: Math.max(0, (bobSec.peso_kg || 0) - kgSecundariaReal)
         });
       }
     }
@@ -774,6 +784,11 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
         <div className="flex flex-wrap gap-2 mb-3">
           {p.bobina_superior && (
             <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full">Bobina: {p.bobina_superior}</span>
+          )}
+          {p.bobina_secundaria && (
+            <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-semibold border border-blue-200">
+              2ª Bobina: {p.bobina_secundaria} ({p.kg_secundaria || 0}kg)
+            </span>
           )}
           {/* Cálculo de placas de isopor — visível principalmente na colagem */}
           {p.maquina === "COLAGEM" && p.isopor_utilizado > 0 && (() => {

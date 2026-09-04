@@ -89,7 +89,18 @@ function BarraProgresso({ pct, alerta }) {
   );
 }
 
-export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statusColors = {}, preBaixaKg = 0, statusInfo }) {
+export default function BobinaCard({
+  bobina,
+  onEdit,
+  onDelete,
+  onArquivar,
+  statusColors = {},
+  preBaixaKg = 0,
+  preBaixaMetros = 0,
+  preBaixaOps = [],
+  onVerOps,
+  statusInfo
+}) {
   const [expandido, setExpandido] = useState(false);
   const [showEtiqueta, setShowEtiqueta] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
@@ -219,13 +230,35 @@ export default function BobinaCard({ bobina, onEdit, onDelete, onArquivar, statu
 
         {/* Barra pré-baixa (OPs ativas) */}
         {preBaixaKg > 0 && (
-          <div className="mt-3">
-            <div className="flex justify-between text-xs text-muted-foreground mb-1">
-              <span className="text-blue-700 font-semibold">Pré-baixa (OPs ativas): {preBaixaKg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg</span>
-              <span className="font-semibold text-emerald-700">Disponível real: {Math.max(0, (bobina.peso_kg || 0) - (bobina.reservada ? (bobina.reserva_tipo === "parcial" ? (bobina.reserva_kg || 0) : (bobina.peso_kg || 0)) : 0) - preBaixaKg).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg</span>
+          <div className="mt-3 bg-blue-50/60 border border-blue-200/80 rounded-lg p-2.5">
+            <div className="flex flex-wrap items-center justify-between text-xs gap-1 mb-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-blue-800 font-bold">
+                  🔄 Pré-baixa: {preBaixaKg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg
+                </span>
+                <span className="text-blue-600 text-[11px] font-semibold">
+                  (≈ {preBaixaMetros > 0 ? preBaixaMetros.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : Math.round(preBaixaKg / 3.7)}m telhas)
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-emerald-700">
+                  Disponível real: {Math.max(0, (bobina.peso_kg || 0) - (bobina.reservada ? (bobina.reserva_tipo === "parcial" ? (bobina.reserva_kg || 0) : (bobina.peso_kg || 0)) : 0) - preBaixaKg).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg
+                </span>
+                {preBaixaOps && preBaixaOps.length > 0 && onVerOps && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onVerOps(bobina)}
+                    className="h-6 px-2 text-[10px] bg-white border-blue-300 text-blue-700 hover:bg-blue-100 font-bold gap-1"
+                  >
+                    Ver {preBaixaOps.length} OP(s)
+                  </Button>
+                )}
+              </div>
             </div>
-            <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
-              <div className="h-full rounded-full bg-blue-500" style={{ width: `${Math.min(100, (preBaixaKg / (bobina.peso_kg || 1)) * 100)}%` }} />
+            <div className="w-full h-2 bg-blue-200/70 rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${Math.min(100, (preBaixaKg / (bobina.peso_kg || 1)) * 100)}%` }} />
             </div>
           </div>
         )}

@@ -20,6 +20,7 @@ import ExpedicaoTab from "@/components/logistica/ExpedicaoTab";
 import FilaPCPTelhas from "@/components/pcp/FilaPCPTelhas";
 import { prepararPresetNovaOrdemTelhas, getItens, computePercentual, statusPcpPorPercentual, buildItensJson } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
+import { calcularMetrosPedido } from "@/lib/metrosHelper";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 
@@ -149,12 +150,13 @@ export default function ProducaoAdmin() {
     return pedidos.filter(p => p.data === selectedDay).sort((a, b) => (b.prioridade ? 1 : 0) - (a.prioridade ? 1 : 0));
   }, [pedidos, selectedDay]);
 
-  const totalSemana = pedidosSemana.reduce((s, p) => s + (p.metros || 0), 0);
+  const totalSemana = pedidosSemana.reduce((s, p) => s + calcularMetrosPedido(p), 0);
 
   const exportarSemana = () => {
     const linhas = ["Dia,Máquina,Cliente,Produto,Metros,Status"];
     pedidosSemana.forEach(p => {
-      linhas.push(`${p.data},${p.maquina || ""},${p.cliente || ""},${p.produto || ""},${p.metros || 0},${p.status || ""}`);
+      const m = calcularMetrosPedido(p);
+      linhas.push(`${p.data},${p.maquina || ""},${p.cliente || ""},${p.produto || ""},${m.toFixed(1)},${p.status || ""}`);
     });
     const blob = new Blob([linhas.join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -338,7 +340,7 @@ export default function ProducaoAdmin() {
           {diasDaSemana.map(dia => {
             const diaStr = format(dia, "yyyy-MM-dd");
             const pedidosDoDia = pedidosSemana.filter(p => p.data === diaStr);
-            const totalDia = pedidosDoDia.reduce((s, p) => s + (p.metros || 0), 0);
+            const totalDia = pedidosDoDia.reduce((s, p) => s + calcularMetrosPedido(p), 0);
             const isSelected = selectedDay === diaStr;
             const isHoje = isToday(dia);
             return (
@@ -424,7 +426,7 @@ export default function ProducaoAdmin() {
             </h2>
             <div className="flex items-center gap-2">
               <Badge className="bg-primary/10 text-primary border border-primary/20">
-                {pedidosDia.length} pedidos · {pedidosDia.reduce((s, p) => s + (p.metros || 0), 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}m
+                {pedidosDia.length} pedidos · {pedidosDia.reduce((s, p) => s + calcularMetrosPedido(p), 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}m
               </Badge>
               <Button size="sm" onClick={() => openNew(selectedDay)} className="gap-1">
                 <Plus className="w-3 h-3" />
@@ -435,7 +437,7 @@ export default function ProducaoAdmin() {
 
           {MAQUINAS.map(maquina => {
             const pedidosMaquina = pedidosDia.filter(p => p.maquina === maquina);
-            const totalMaq = pedidosMaquina.reduce((s, p) => s + (p.metros || 0), 0);
+            const totalMaq = pedidosMaquina.reduce((s, p) => s + calcularMetrosPedido(p), 0);
             return (
               <div key={maquina} className="bg-card border border-border rounded-xl overflow-hidden">
                 <div className="px-4 py-3 flex items-center justify-between border-b border-border">

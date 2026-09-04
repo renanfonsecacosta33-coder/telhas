@@ -4,6 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Pencil, Trash2, CheckCircle2, Clock, Circle, Printer, Star } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { calcularMetrosPedido } from "@/lib/metrosHelper";
+import { PrioridadeBadge } from "@/lib/prioridadeHelper";
 
 const STATUS_CONFIG = {
   pendente: { label: "Pendente", icon: Circle, badge: "bg-gray-100 text-gray-700 border-gray-200" },
@@ -20,17 +22,22 @@ export default function PedidoCard({ pedido: p, maquinaCores, onEdit, onDelete, 
     <div className={`px-4 py-3 hover:bg-muted/10 transition-colors ${p.prioridade ? "bg-amber-50/50 border-l-4 border-l-amber-400" : ""}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          {/* Linha 1: produto + status + metros */}
+          {/* Linha 1: produto + status + prioridade + metros */}
           <div className="flex items-center gap-2 flex-wrap mb-1">
-            {p.prioridade && <Star className="w-4 h-4 text-amber-500 fill-amber-500 flex-shrink-0" />}
+            <PrioridadeBadge pedido={p} />
             <span className="font-semibold text-sm">{p.produto}</span>
             <Badge className={`border text-xs ${st.badge}`}>
               <Icon className="w-3 h-3 mr-1" />
               {st.label}
             </Badge>
-            {p.metros > 0 && (
-              <span className="text-sm font-bold text-primary">{Number(p.metros).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}m</span>
-            )}
+            {(() => {
+              const m = calcularMetrosPedido(p);
+              return m > 0 ? (
+                <span className="text-sm font-bold text-primary">
+                  {Number(m).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}m
+                </span>
+              ) : null;
+            })()}
           </div>
           {/* Linha 2: cliente + vendedor + pedido */}
           <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">

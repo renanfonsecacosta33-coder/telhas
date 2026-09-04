@@ -67,6 +67,18 @@
       "type": "string",
       "description": "Texto descritivo da bobina inferior"
     },
+    "bobina_secundaria_id": {
+      "type": "string",
+      "description": "ID da 2ª bobina de aço (emenda/complementar quando a 1ª não aguenta todo o pedido)"
+    },
+    "bobina_secundaria": {
+      "type": "string",
+      "description": "Texto descritivo da 2ª bobina (emenda/complementar)"
+    },
+    "kg_secundaria": {
+      "type": "number",
+      "description": "Peso em KG consumido da 2ª bobina"
+    },
     "rvm_superior": {
       "type": "string",
       "description": "RVM / Cor superior"

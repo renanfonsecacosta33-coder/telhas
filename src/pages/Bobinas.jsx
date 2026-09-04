@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, AlertTriangle, Package, Weight, Archive, X, Loader2 } from "lucide-react";
+import { Plus, Search, AlertTriangle, Package, Weight, Archive, X, Loader2, Layers } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import BobinaFormDialog from "@/components/bobinas/BobinaFormDialog";
@@ -13,6 +13,7 @@ import EmptyState from "@/components/stock/EmptyState";
 import BobinaCard, { getAlertaNivel } from "@/components/bobinas/BobinaCardShared";
 import PainelSolicitacoesReserva from "@/components/vendedor/PainelSolicitacoesReserva";
 import PainelTransferencias from "@/components/bobinas/PainelTransferencias";
+import PreBaixaDetalhesDialog from "@/components/bobinas/PreBaixaDetalhesDialog";
 import { useFilial } from "@/contexts/FilialContext";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 
@@ -37,6 +38,8 @@ export default function Bobinas() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterAlerta, setFilterAlerta] = useState(false);
   const [showArquivadas, setShowArquivadas] = useState(false);
+  const [filterPreBaixa, setFilterPreBaixa] = useState(false);
+  const [bobinaOpsModal, setBobinaOpsModal] = useState(null);
   const [filtroQualidade, setFiltroQualidade] = useState("todos");
   const [filtroFornecedor, setFiltroFornecedor] = useState("");
   const queryClient = useQueryClient();
@@ -48,7 +51,7 @@ export default function Bobinas() {
   });
 
   const filiaisHook = filialAtiva === "todas" ? null : [filialAtiva];
-  const { preBaixaMap, statusMap, totalPreBaixaKg } = usePreBaixaBobinas("telhas", filiaisHook);
+  const { preBaixaMap, preBaixaMetrosMap, preBaixaOpsMap, statusMap, totalPreBaixaKg, totalPreBaixaMetros } = usePreBaixaBobinas("telhas", filiaisHook);
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Bobina.delete(id),
@@ -73,6 +76,7 @@ export default function Bobinas() {
   const totalPeso = ativas.reduce((s, b) => s + (b.peso_kg || 0), 0);
   const emAlerta = ativas.filter(b => getAlertaNivel(b) !== null);
   const reservadas = ativas.filter(b => b.reservada);
+  const bobinasComPreBaixa = ativas.filter(b => (preBaixaMap[b.id] || 0) > 0);
   const statusList = [...new Set(ativas.map(b => b.status).filter(Boolean))].sort();
 
   const base = showArquivadas ? arquivadas : ativas;
@@ -84,16 +88,18 @@ export default function Bobinas() {
       b.nf?.toLowerCase().includes(q);
     const matchStatus = filterStatus === "all" || b.status === filterStatus;
     const matchAlerta = !filterAlerta || getAlertaNivel(b) !== null;
+    const matchPreBaixa = !filterPreBaixa || (preBaixaMap[b.id] || 0) > 0;
     const matchQualidade = filtroQualidade === "todos" || b.qualidade === filtroQualidade;
     const matchFornecedor = !filtroFornecedor || (b.fornecedor || "").toLowerCase().includes(filtroFornecedor.toLowerCase());
-    return matchSearch && matchStatus && matchAlerta && matchQualidade && matchFornecedor;
+    return matchSearch && matchStatus && matchAlerta && matchPreBaixa && matchQualidade && matchFornecedor;
   });
 
-  const temFiltrosExtras = filtroQualidade !== "todos" || !!filtroFornecedor;
+  const temFiltrosExtras = filtroQualidade !== "todos" || !!filtroFornecedor || filterPreBaixa;
   const limparFiltros = () => {
     setSearch("");
     setFilterStatus("all");
     setFilterAlerta(false);
+    setFilterPreBaixa(false);
     setFiltroQualidade("todos");
     setFiltroFornecedor("");
   };
@@ -122,11 +128,24 @@ export default function Bobinas() {
           <p className="text-xs text-muted-foreground">Em Estoque</p>
           <p className="text-sm font-semibold text-muted-foreground mt-1">{totalPeso.toLocaleString("pt-BR")} kg</p>
         </div>
-        <div className="bg-white border border-border rounded-xl p-4 text-center">
+        <div
+          onClick={() => setFilterPreBaixa(!filterPreBaixa)}
+          className={`border rounded-xl p-4 text-center cursor-pointer transition-all hover:shadow-md ${
+            filterPreBaixa ? "bg-blue-50 border-blue-400 ring-2 ring-blue-300" : "bg-white border-border"
+          }`}
+          title="Clique para filtrar apenas bobinas com pré-baixa"
+        >
           <Weight className="w-5 h-5 text-green-500 mx-auto mb-1" />
           <p className="text-2xl font-bold">{totalPeso.toLocaleString("pt-BR")}</p>
-          <p className="text-xs text-muted-foreground">kg disponíveis</p>
-          <p className="text-xs text-blue-600 font-medium mt-0.5">Pré-baixa: {totalPreBaixaKg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg</p>
+          <p className="text-xs text-muted-foreground">kg em estoque</p>
+          <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex flex-col items-center gap-0.5">
+            <span className="text-xs text-blue-700 font-bold flex items-center gap-1">
+              🔄 Pré-baixa: {totalPreBaixaKg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg
+            </span>
+            <span className="text-[11px] text-blue-600 font-semibold">
+              ≈ {totalPreBaixaMetros > 0 ? totalPreBaixaMetros.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : Math.round(totalPreBaixaKg / 3.7)}m de telhas
+            </span>
+          </div>
         </div>
         <div className={`border rounded-xl p-4 text-center ${emAlerta.length > 0 ? "bg-red-50 border-red-300" : "bg-white border-border"}`}>
           <AlertTriangle className={`w-5 h-5 mx-auto mb-1 ${emAlerta.length > 0 ? "text-red-500" : "text-gray-400"}`} />
@@ -168,6 +187,19 @@ export default function Bobinas() {
                   Alertas ({emAlerta.length})
                 </Button>
               )}
+              <Button
+                variant={filterPreBaixa ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilterPreBaixa(!filterPreBaixa)}
+                className={`gap-1 h-8 text-xs font-semibold ${
+                  filterPreBaixa
+                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                    : "border-blue-300 text-blue-700 hover:bg-blue-50"
+                }`}
+              >
+                <Layers className="w-3 h-3" />
+                Com Pré-baixa ({bobinasComPreBaixa.length})
+              </Button>
               <Button variant={filterStatus === "all" ? "default" : "outline"} size="sm" onClick={() => setFilterStatus("all")}
                 className="h-8 text-xs">Todas</Button>
               {statusList.map(s => (
@@ -216,6 +248,9 @@ export default function Bobinas() {
               bobina={bobina}
               statusColors={statusColors}
               preBaixaKg={preBaixaMap[bobina.id] || 0}
+              preBaixaMetros={preBaixaMetrosMap[bobina.id] || 0}
+              preBaixaOps={preBaixaOpsMap[bobina.id] || []}
+              onVerOps={(b) => setBobinaOpsModal(b)}
               statusInfo={statusMap[bobina.id]}
               onEdit={(b) => { setEditItem(b); setDialogOpen(true); }}
               onDelete={(b) => setDeleteItem(b)}
@@ -234,6 +269,15 @@ export default function Bobinas() {
       <div className="mt-6">
         <PainelTransferencias setor="telhas" />
       </div>
+
+      <PreBaixaDetalhesDialog
+        open={!!bobinaOpsModal}
+        onClose={() => setBobinaOpsModal(null)}
+        bobina={bobinaOpsModal}
+        preBaixaKg={bobinaOpsModal ? (preBaixaMap[bobinaOpsModal.id] || 0) : 0}
+        preBaixaMetros={bobinaOpsModal ? (preBaixaMetrosMap[bobinaOpsModal.id] || 0) : 0}
+        ops={bobinaOpsModal ? (preBaixaOpsMap[bobinaOpsModal.id] || []) : []}
+      />
 
       <BobinaFormDialog open={dialogOpen} onClose={() => { setDialogOpen(false); setEditItem(null); }} editItem={editItem} />
       <DeleteConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} onConfirm={() => deleteMutation.mutate(deleteItem.id)} itemName={deleteItem ? `${deleteItem.cor} - ${deleteItem.chapa}` : ""} />

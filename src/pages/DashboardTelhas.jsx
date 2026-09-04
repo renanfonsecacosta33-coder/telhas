@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { useFilial } from "@/contexts/FilialContext";
 import FilaPCPTelhas from "@/components/pcp/FilaPCPTelhas";
 import RotasEntregaSection from "@/components/logistica/RotasEntregaSection";
+import { calcularMetrosPedido } from "@/lib/metrosHelper";
 import PedidoFormDialog from "@/components/producao/PedidoFormDialog";
 import { prepararPresetNovaOrdemTelhas, getItens, computePercentual, statusPcpPorPercentual, buildItensJson } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
@@ -138,9 +139,9 @@ export default function DashboardTelhas() {
   const emProducaoAgora = pedidos.filter(p => p.status === "em_producao" || p.status === "pausado").length;
   const aguardandoColagem = pedidos.filter(p => p.status === "aguardando_colagem").length;
   const finalizadosHoje = pedidosHoje.filter(p => p.status === "finalizado").length;
-  const metrosHoje = pedidosHoje.filter(p => p.status === "finalizado").reduce((s, p) => s + (p.metros || 0), 0);
-  const metrosSemana = pedidosSemana.filter(p => p.status === "finalizado").reduce((s, p) => s + (p.metros || 0), 0);
-  const metrosMes = pedidosMes.filter(p => p.status === "finalizado").reduce((s, p) => s + (p.metros || 0), 0);
+  const metrosHoje = pedidosHoje.filter(p => p.status === "finalizado").reduce((s, p) => s + calcularMetrosPedido(p), 0);
+  const metrosSemana = pedidosSemana.filter(p => p.status === "finalizado").reduce((s, p) => s + calcularMetrosPedido(p), 0);
+  const metrosMes = pedidosMes.filter(p => p.status === "finalizado").reduce((s, p) => s + calcularMetrosPedido(p), 0);
   const kgHoje = pedidosHoje.filter(p => p.status === "finalizado").reduce((s, p) => s + (p.kg_total || 0), 0);
 
   const tempoProdTotal = pedidosHoje.reduce((s, p) => s + (p.tempo_producao_seg || 0), 0);
@@ -154,14 +155,14 @@ export default function DashboardTelhas() {
     const fin = pedidos.filter(p => p.data === dia && p.status === "finalizado");
     return {
       dia: format(new Date(dia + "T12:00:00"), "EEE dd", { locale: ptBR }),
-      metros: +fin.reduce((s, p) => s + (p.metros || 0), 0).toFixed(1),
+      metros: +fin.reduce((s, p) => s + calcularMetrosPedido(p), 0).toFixed(1),
     };
   }), [pedidos]);
 
   const mixProdutos = useMemo(() => {
     const map = {};
     pedidosSemana.filter(p => p.status === "finalizado").forEach(p => {
-      map[p.produto] = (map[p.produto] || 0) + (p.metros || 0);
+      map[p.produto] = (map[p.produto] || 0) + calcularMetrosPedido(p);
     });
     return Object.entries(map).map(([nome, metros]) => ({ nome, metros: +metros.toFixed(1) }))
       .sort((a, b) => b.metros - a.metros);
@@ -176,7 +177,7 @@ export default function DashboardTelhas() {
         emProd: os.filter(p => p.status === "em_producao").length,
         pausado: os.filter(p => p.status === "pausado").length,
         finalizado: os.filter(p => p.status === "finalizado").length,
-        metros: os.filter(p => p.status === "finalizado").reduce((s, p) => s + (p.metros || 0), 0),
+        metros: os.filter(p => p.status === "finalizado").reduce((s, p) => s + calcularMetrosPedido(p), 0),
       };
     }), [pedidosHoje]);
 
@@ -359,7 +360,7 @@ export default function DashboardTelhas() {
                           {p.status === "pausado" ? "Pausado" : "Produzindo"}
                         </Badge>
                       </div>
-                      <div className="text-muted-foreground">{p.maquina} · {p.metros || 0}m · {p.cliente || "—"}</div>
+                      <div className="text-muted-foreground">{p.maquina} · {calcularMetrosPedido(p).toFixed(1)}m · {p.cliente || "—"}</div>
                     </div>
                   ))}
                 </div>

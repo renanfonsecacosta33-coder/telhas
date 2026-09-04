@@ -4,10 +4,11 @@ import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronUp, Plus } from "lucide-react";
 import { format, isToday as dateFnsIsToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { calcularMetrosPedido } from "@/lib/metrosHelper";
 
 export default function DiaResumoCard({ dia, pedidos, maquinaCores, onVerDia, onNovoPedido }) {
   const [expanded, setExpanded] = useState(dateFnsIsToday(dia));
-  const totalDia = pedidos.reduce((s, p) => s + (p.metros || 0), 0);
+  const totalDia = pedidos.reduce((s, p) => s + calcularMetrosPedido(p), 0);
   const finalizados = pedidos.filter(p => p.status === "finalizado").length;
 
   const porMaquina = pedidos.reduce((acc, p) => {
@@ -64,17 +65,20 @@ export default function DiaResumoCard({ dia, pedidos, maquinaCores, onVerDia, on
                 <div key={maquina}>
                   <div className="flex items-center gap-2 mb-2">
                     <Badge className={`border text-xs ${maquinaCores[maquina] || "bg-gray-100 text-gray-700 border-gray-200"}`}>{maquina}</Badge>
-                    <span className="text-xs text-muted-foreground">{peds.reduce((s, p) => s + (p.metros || 0), 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}m</span>
+                    <span className="text-xs text-muted-foreground">{peds.reduce((s, p) => s + calcularMetrosPedido(p), 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}m</span>
                   </div>
                   <div className="space-y-1 pl-2">
-                    {peds.map(p => (
-                      <div key={p.id} className="flex items-center gap-2 text-xs">
-                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${p.status === "finalizado" ? "bg-green-500" : p.status === "em_producao" ? "bg-amber-500" : "bg-gray-300"}`} />
-                        <span className="font-medium">{p.produto}</span>
-                        {p.cliente && <span className="text-muted-foreground">— {p.cliente}</span>}
-                        {p.metros > 0 && <span className="ml-auto font-bold text-primary">{p.metros}m</span>}
-                      </div>
-                    ))}
+                    {peds.map(p => {
+                      const m = calcularMetrosPedido(p);
+                      return (
+                        <div key={p.id} className="flex items-center gap-2 text-xs">
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${p.status === "finalizado" ? "bg-green-500" : p.status === "em_producao" ? "bg-amber-500" : "bg-gray-300"}`} />
+                          <span className="font-medium">{p.produto}</span>
+                          {p.cliente && <span className="text-muted-foreground">— {p.cliente}</span>}
+                          {m > 0 && <span className="ml-auto font-bold text-primary">{m.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}m</span>}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ))}

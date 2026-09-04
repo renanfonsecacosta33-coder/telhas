@@ -13,11 +13,24 @@ export function usePreBaixaBobinas(setor, filiais = null) {
     queryKey: ["pre-baixa-bobinas-v2", setor, filialKey],
     queryFn: async () => {
       const preBaixaMap = {};
+      const preBaixaMetrosMap = {};
+      const preBaixaOpsMap = {};
       const statusMap = {};
 
+      const addReserva = (bobinaId, kg, metros, opInfo) => {
+        if (!bobinaId) return;
+        const k = Number(kg) || 0;
+        const m = Number(metros) || 0;
+        if (k > 0) preBaixaMap[bobinaId] = (preBaixaMap[bobinaId] || 0) + k;
+        if (m > 0) preBaixaMetrosMap[bobinaId] = (preBaixaMetrosMap[bobinaId] || 0) + m;
+        if (opInfo) {
+          if (!preBaixaOpsMap[bobinaId]) preBaixaOpsMap[bobinaId] = [];
+          preBaixaOpsMap[bobinaId].push(opInfo);
+        }
+      };
+
       const addKg = (bobinaId, kg) => {
-        if (!bobinaId || !kg || isNaN(kg) || kg <= 0) return;
-        preBaixaMap[bobinaId] = (preBaixaMap[bobinaId] || 0) + Number(kg);
+        addReserva(bobinaId, kg, 0, null);
       };
 
       const addStatus = (bobinaId, maquina, status) => {
@@ -122,20 +135,41 @@ export function usePreBaixaBobinas(setor, filiais = null) {
               if (bSupId) {
                 const chapa = Number(bobinaById[bSupId]?.chapa || bobinaById[bSupId]?.espessura_mm) || 0.43;
                 const kg = Number(v.kg) > 0 ? Number(v.kg) : (metros * chapa);
-                addKg(bSupId, kg);
+                addReserva(bSupId, kg, metros, {
+                  id: p.id,
+                  numero_pedido: p.numero_pedido,
+                  cliente: p.cliente,
+                  produto: p.produto,
+                  metros,
+                  kg,
+                  maquina: p.maquina || "Produção",
+                  status: p.status,
+                  data: p.data
+                });
                 addStatus(bSupId, p.maquina || "Produção", p.status);
               }
               if (bInfId) {
                 const chapa = Number(bobinaById[bInfId]?.chapa || bobinaById[bInfId]?.espessura_mm) || 0.43;
                 const kg = Number(v.kg_inf) > 0 ? Number(v.kg_inf) : (metros * chapa);
-                addKg(bInfId, kg);
+                addReserva(bInfId, kg, metros, {
+                  id: p.id,
+                  numero_pedido: p.numero_pedido,
+                  cliente: p.cliente,
+                  produto: `${p.produto} (Inferior)`,
+                  metros,
+                  kg,
+                  maquina: p.maquina || "Produção",
+                  status: p.status,
+                  data: p.data
+                });
                 addStatus(bInfId, p.maquina || "Produção", p.status);
               }
             });
           } else {
-            // Pedido padrão (bobina superior e opcionalmente inferior)
+            // Pedido padrão (bobina superior e opcionalmente inferior/secundária)
             const bSupId = resolveBobinaId(p.bobina_superior_id, p.bobina_superior, p.bobina_id);
             const bInfId = resolveBobinaId(p.bobina_inferior_id, p.bobina_inferior);
+            const bSecId = resolveBobinaId(p.bobina_secundaria_id, p.bobina_secundaria);
 
             // Metragem total calculada: quantidade de peças * comprimento
             const qtdPecas = Number(p.metros) || Number(p.quantidade_telhas) || 1;
@@ -151,8 +185,36 @@ export function usePreBaixaBobinas(setor, filiais = null) {
               if (!kgSup) {
                 kgSup = metragemM * chapaSup;
               }
-              addKg(bSupId, kgSup);
+              addReserva(bSupId, kgSup, metragemM, {
+                id: p.id,
+                numero_pedido: p.numero_pedido,
+                cliente: p.cliente,
+                produto: p.produto,
+                metros: metragemM,
+                kg: kgSup,
+                maquina: p.maquina || "Produção",
+                status: p.status,
+                data: p.data
+              });
               addStatus(bSupId, p.maquina || "Produção", p.status);
+            }
+
+            if (bSecId && Number(p.kg_secundaria) > 0) {
+              const chapaSec = Number(bobinaById[bSecId]?.chapa || bobinaById[bSecId]?.espessura_mm) || 0.43;
+              const kgSec = Number(p.kg_secundaria) || 0;
+              const metrosSec = chapaSec > 0 ? (kgSec / (chapaSec * 7.85 * 1.2)) : 0;
+              addReserva(bSecId, kgSec, metrosSec, {
+                id: p.id,
+                numero_pedido: p.numero_pedido,
+                cliente: p.cliente,
+                produto: `${p.produto} (2ª Bobina / Emenda)`,
+                metros: metrosSec,
+                kg: kgSec,
+                maquina: p.maquina || "Produção",
+                status: p.status,
+                data: p.data
+              });
+              addStatus(bSecId, p.maquina || "Produção", p.status);
             }
 
             if (bInfId) {
@@ -164,7 +226,17 @@ export function usePreBaixaBobinas(setor, filiais = null) {
               if (!kgInf) {
                 kgInf = metragemM * chapaInf;
               }
-              addKg(bInfId, kgInf);
+              addReserva(bInfId, kgInf, metragemM, {
+                id: p.id,
+                numero_pedido: p.numero_pedido,
+                cliente: p.cliente,
+                produto: `${p.produto} (Inferior)`,
+                metros: metragemM,
+                kg: kgInf,
+                maquina: p.maquina || "Produção",
+                status: p.status,
+                data: p.data
+              });
               addStatus(bInfId, p.maquina || "Produção", p.status);
             }
           }
@@ -187,7 +259,19 @@ export function usePreBaixaBobinas(setor, filiais = null) {
         ordensAtivas.forEach(o => {
           if (!filialMatch(o.unidade)) return;
           const bId = o.bobina_id || o.bobina_superior_id || o.bobina_superior;
-          addKg(bId, Number(o.kg_estimado || o.peso_kg) || 0);
+          const kg = Number(o.kg_estimado || o.peso_kg) || 0;
+          const metros = Number(o.comprimento_mm || 0) / 1000 * (Number(o.quantidade) || 1);
+          addReserva(bId, kg, metros, {
+            id: o.id,
+            numero_pedido: o.numero_pedido,
+            cliente: o.cliente,
+            produto: "Chapa / Corte",
+            metros,
+            kg,
+            maquina: "Desbobinadeira",
+            status: o.status,
+            data: o.data
+          });
           addStatus(bId, "Desbobinadeira", o.status);
         });
 
@@ -209,22 +293,37 @@ export function usePreBaixaBobinas(setor, filiais = null) {
           if (!filialMatch(o.unidade)) return;
           const bId = o.bobina_id || o.bobina_superior;
           if (bId) {
-            addKg(bId, Number(o.peso_kg || o.kg_estimado) || 0);
+            const kg = Number(o.peso_kg || o.kg_estimado) || 0;
+            addReserva(bId, kg, 0, {
+              id: o.id,
+              numero_pedido: o.numero_pedido,
+              cliente: o.cliente,
+              produto: o.tipo_peca || "Perfil",
+              metros: 0,
+              kg,
+              maquina: o.maquina || "Máquina CD",
+              status: o.status,
+              data: o.data
+            });
             addStatus(bId, o.maquina || "Máquina CD", o.status);
           }
         });
       }
 
       const totalPreBaixaKg = Object.values(preBaixaMap).reduce((s, kg) => s + kg, 0);
-      return { preBaixaMap, statusMap, totalPreBaixaKg };
+      const totalPreBaixaMetros = Object.values(preBaixaMetrosMap).reduce((s, m) => s + m, 0);
+      return { preBaixaMap, preBaixaMetrosMap, preBaixaOpsMap, statusMap, totalPreBaixaKg, totalPreBaixaMetros };
     },
     refetchInterval: 15000,
   });
 
   return {
     preBaixaMap: data.preBaixaMap || {},
+    preBaixaMetrosMap: data.preBaixaMetrosMap || {},
+    preBaixaOpsMap: data.preBaixaOpsMap || {},
     statusMap: data.statusMap || {},
     totalPreBaixaKg: data.totalPreBaixaKg || 0,
+    totalPreBaixaMetros: data.totalPreBaixaMetros || 0,
     isLoading,
   };
 }
