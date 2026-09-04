@@ -28,14 +28,22 @@
       "type": "string",
       "description": "Espessuras dispon\u00edveis (ex: 0,43 / 0,50 / 0,65)"
     },
+    "meta_min_metros": {
+      "type": "number",
+      "description": "Meta mínima diária em metros lineares para este modelo"
+    },
+    "meta_max_metros": {
+      "type": "number",
+      "description": "Meta máxima diária (capacidade de agendamento) em metros lineares para este modelo"
+    },
     "ativo": {
       "type": "boolean",
       "default": true,
-      "description": "Se o modelo est\u00e1 ativo"
+      "description": "Se o modelo está ativo"
     },
     "observacoes": {
       "type": "string",
-      "description": "Observa\u00e7\u00f5es adicionais"
+      "description": "Observações adicionais"
     }
   },
   "required": [

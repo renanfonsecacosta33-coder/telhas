@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, TrendingUp, Trash2, Star, Truck, Inbox } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, TrendingUp, Trash2, Star, Truck, Inbox, Target, ShieldAlert } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Link } from "react-router-dom";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
@@ -13,6 +13,8 @@ import PedidoFormDialog from "@/components/producao/PedidoFormDialog";
 import PedidoCard from "@/components/producao/PedidoCard";
 import DiaResumoCard from "@/components/producao/DiaResumoCard";
 import ProducaoDados from "@/pages/ProducaoDados";
+import MetasProducaoDialog from "@/components/producao/MetasProducaoDialog";
+import { useMetasProducao } from "@/hooks/useMetasProducao";
 import AlertasEstoque from "@/components/producao/AlertasEstoque";
 import OPImpressao from "@/components/producao/OPImpressao";
 import { useFilial } from "@/contexts/FilialContext";
@@ -47,6 +49,8 @@ export default function ProducaoAdmin() {
   const [opPedido, setOpPedido] = useState(null);
   const [alertasVisivel, setAlertasVisivel] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // pedido a excluir
+  const [metasDialogOpen, setMetasDialogOpen] = useState(false);
+  const { metaGeral, calcularStatusMeta } = useMetasProducao();
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
 
@@ -184,6 +188,15 @@ export default function ProducaoAdmin() {
         <div className="flex items-center gap-2">
           {activeTab === "producao" && (
             <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setMetasDialogOpen(true)}
+                className="gap-1.5 font-semibold text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-800 hover:bg-orange-50 dark:hover:bg-orange-950/30"
+              >
+                <Target className="w-4 h-4 text-orange-500" />
+                Metas do Dia
+              </Button>
               <Button variant="outline" size="sm" onClick={exportarSemana} className="gap-1">
                 <Download className="w-4 h-4" />
                 Exportar
@@ -348,24 +361,70 @@ export default function ProducaoAdmin() {
             const totalDia = pedidosDoDia.reduce((s, p) => s + calcularMetrosPedido(p), 0);
             const isSelected = selectedDay === diaStr;
             const isHoje = isToday(dia);
+            const statusMeta = calcularStatusMeta(totalDia, metaGeral.min, metaGeral.max);
+            const estourou = totalDia > 0 && statusMeta.status === "limite_estourado";
+            const bateuMeta = totalDia > 0 && statusMeta.status === "meta_atingida";
+
             return (
               <button
                 key={diaStr}
                 onClick={() => { setSelectedDay(diaStr); setViewMode("dia"); }}
-                className={`rounded-lg p-2 text-center transition-all border ${
+                className={`rounded-lg p-2 text-center transition-all border relative flex flex-col justify-between min-h-[72px] ${
                   isSelected
-                    ? "bg-primary text-primary-foreground border-primary"
+                    ? (estourou ? "bg-red-600 text-white border-red-700 shadow" : "bg-primary text-primary-foreground border-primary shadow")
+                    : estourou
+                    ? "border-red-500 bg-red-500/10 text-red-900 dark:text-red-200 hover:bg-red-500/15"
+                    : bateuMeta
+                    ? "border-emerald-500/50 bg-emerald-500/5 hover:bg-emerald-500/10"
                     : isHoje
-                    ? "border-primary/50 bg-primary/5"
+                    ? "border-primary/50 bg-primary/5 hover:bg-primary/10"
                     : "border-border hover:bg-muted/50"
                 }`}
               >
-                <p className="text-xs font-semibold uppercase">{format(dia, "EEE", { locale: ptBR })}</p>
-                <p className={`text-lg font-bold ${isSelected ? "" : isHoje ? "text-primary" : ""}`}>{format(dia, "dd")}</p>
-                {pedidosDoDia.length > 0 && (
-                  <div className={`text-xs mt-0.5 ${isSelected ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-                    {pedidosDoDia.length}p · {totalDia.toFixed(0)}m
+                <div>
+                  <div className="flex items-center justify-center gap-1">
+                    <p className="text-xs font-semibold uppercase">{format(dia, "EEE", { locale: ptBR })}</p>
+                    {estourou && (
+                      <span className={`text-[10px] ${isSelected ? "text-white" : "text-red-600 dark:text-red-400"}`} title="Capacidade máxima esgotada">
+                        ⚠️
+                      </span>
+                    )}
+                    {bateuMeta && !estourou && (
+                      <span className={`text-[10px] ${isSelected ? "text-white" : "text-emerald-600 dark:text-emerald-400"}`} title="Meta atingida">
+                        ✓
+                      </span>
+                    )}
                   </div>
+                  <p className={`text-lg font-bold leading-tight ${
+                    isSelected ? "text-inherit" : estourou ? "text-red-700 dark:text-red-300" : isHoje ? "text-primary" : ""
+                  }`}>
+                    {format(dia, "dd")}
+                  </p>
+                </div>
+
+                {pedidosDoDia.length > 0 ? (
+                  <div className="w-full mt-1">
+                    <div className={`text-[11px] leading-tight font-medium ${
+                      isSelected ? "text-inherit opacity-90" : estourou ? "text-red-600 dark:text-red-400 font-bold" : bateuMeta ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-muted-foreground"
+                    }`}>
+                      {pedidosDoDia.length}p · {totalDia.toFixed(0)}m
+                    </div>
+                    {/* Barra sutil de capacidade no dia */}
+                    <div className={`w-full ${isSelected ? "bg-white/25" : "bg-muted"} rounded-full h-1 mt-1 overflow-hidden`}>
+                      <div
+                        className={`h-full transition-all ${
+                          estourou
+                            ? (isSelected ? "bg-white" : "bg-red-500")
+                            : bateuMeta
+                            ? (isSelected ? "bg-white" : "bg-emerald-500")
+                            : (isSelected ? "bg-white/70" : "bg-amber-400")
+                        }`}
+                        style={{ width: `${Math.min(100, (totalDia / (metaGeral.max || 3500)) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-[10px] text-muted-foreground/60 mt-1">Livre</div>
                 )}
               </button>
             );
@@ -440,6 +499,75 @@ export default function ProducaoAdmin() {
             </div>
           </div>
 
+          {/* Card de Capacidade e Metas do Dia */}
+          {(() => {
+            const totalMetrosDia = pedidosDia.reduce((s, p) => s + calcularMetrosPedido(p), 0);
+            const statusDia = calcularStatusMeta(totalMetrosDia, metaGeral.min, metaGeral.max);
+            const estourou = totalMetrosDia > 0 && statusDia.status === "limite_estourado";
+
+            return (
+              <div className="bg-card border border-border rounded-xl p-3.5 space-y-2.5 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Target className="w-4 h-4 text-orange-500 shrink-0" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Capacidade do Dia:</span>
+                    <span className="text-sm font-bold">
+                      {totalMetrosDia.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}m
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      / Meta Mín: <strong>{metaGeral.min.toLocaleString("pt-BR")}m</strong> · Teto/Trava: <strong>{metaGeral.max.toLocaleString("pt-BR")}m</strong>
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant={statusDia.badgeVariant} className={`text-[11px] font-semibold ${statusDia.bgClass}`}>
+                      {statusDia.label}
+                    </Badge>
+                    {metaGeral.travarMaximo && (
+                      <Badge variant="outline" className="text-[10px] gap-1 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700">
+                        <ShieldAlert className="w-3 h-3 text-red-500" />
+                        Trava Ativa
+                      </Badge>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setMetasDialogOpen(true)}
+                      className="h-6 px-2 text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/30"
+                    >
+                      Ajustar Metas
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Barra de progresso de capacidade */}
+                <div className="space-y-1">
+                  <div className="relative w-full bg-muted rounded-full h-2 overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-300 ${statusDia.barClass}`}
+                      style={{ width: `${Math.min(100, (totalMetrosDia / (metaGeral.max || 3500)) * 100)}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>0m</span>
+                    <span>Meta Mín: {metaGeral.min.toLocaleString("pt-BR")}m</span>
+                    <span>Teto Máx: {metaGeral.max.toLocaleString("pt-BR")}m</span>
+                  </div>
+                </div>
+
+                {estourou && (
+                  <div className="flex items-center gap-2 text-xs font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/50 p-2 rounded-lg border border-red-200 dark:border-red-900/50">
+                    <ShieldAlert className="w-4 h-4 shrink-0" />
+                    <span>
+                      Capacidade diária esgotada! Excesso de <strong>+{statusDia.excesso.toLocaleString("pt-BR")}m</strong> além do limite ({metaGeral.max.toLocaleString("pt-BR")}m).
+                      {metaGeral.travarMaximo ? " Novos agendamentos para este dia estão bloqueados." : " Trava desativada nas configurações."}
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {MAQUINAS.map(maquina => {
             const pedidosMaquina = pedidosDia.filter(p => p.maquina === maquina);
             const totalMaq = pedidosMaquina.reduce((s, p) => s + calcularMetrosPedido(p), 0);
@@ -478,6 +606,11 @@ export default function ProducaoAdmin() {
         onSave={handleSave}
         editItem={editItem}
         defaultDate={selectedDay}
+      />
+
+      <MetasProducaoDialog
+        open={metasDialogOpen}
+        onClose={() => setMetasDialogOpen(false)}
       />
 
       <OPImpressao open={opOpen} onClose={() => setOpOpen(false)} pedido={opPedido} />

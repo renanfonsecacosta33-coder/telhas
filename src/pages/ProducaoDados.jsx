@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Pencil, Check, X, ChevronDown, ArrowUp, ArrowDown, GripVertical } from "lucide-react";
+import { Plus, Trash2, Pencil, Check, X, ChevronDown, ArrowUp, ArrowDown, GripVertical, Target, ShieldAlert } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { useMetasProducao } from "@/hooks/useMetasProducao";
 
 const PRODUTOS = ["TELHA", "TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA", "BOBININHA", "CUMEEIRA", "PAINEL"];
 
@@ -129,12 +130,102 @@ function MaquinasSelect({ value, onChange }) {
 // helper para exibir badges na tabela
 const maqsToArray = (str) => str ? str.split(",").map(s => s.trim()).filter(Boolean) : [];
 
+// ─── Card de Metas Gerais da Fábrica ─────────────────────────
+function CardMetasGerais() {
+  const { metaGeral, salvarMetaGeral } = useMetasProducao();
+  const [form, setForm] = useState(metaGeral);
+
+  useEffect(() => {
+    setForm(metaGeral);
+  }, [metaGeral]);
+
+  const handleSalvar = () => {
+    salvarMetaGeral(form);
+    toast.success("Meta geral da fábrica salva com sucesso!");
+  };
+
+  return (
+    <div className="bg-card border-2 border-orange-500/30 rounded-2xl p-5 space-y-4 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-xl bg-orange-500/10 text-orange-600">
+            <Target className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="font-bold text-base text-foreground">Metas Diárias de Produção (Geral da Fábrica)</h3>
+            <p className="text-xs text-muted-foreground">Estabeleça o piso diário e a capacidade máxima / trava de agendamento</p>
+          </div>
+        </div>
+        <Button size="sm" onClick={handleSalvar} className="gap-1.5 font-bold shrink-0">
+          <Check className="w-4 h-4" /> Salvar Meta Geral
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+        <div className="space-y-1.5 bg-muted/30 p-3 rounded-xl border border-border">
+          <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+            Meta Mínima Diária (m)
+          </Label>
+          <div className="relative">
+            <Input
+              type="number"
+              min="0"
+              step="50"
+              placeholder="1000"
+              value={form.min}
+              onChange={e => setForm(f => ({ ...f, min: e.target.value }))}
+              className="font-bold text-sm pr-8"
+            />
+            <span className="absolute right-3 top-2.5 text-xs text-muted-foreground font-semibold">m</span>
+          </div>
+          <p className="text-[10px] text-muted-foreground">Piso mínimo esperado de produção no dia.</p>
+        </div>
+
+        <div className="space-y-1.5 bg-red-500/5 p-3 rounded-xl border border-red-200 dark:border-red-900/40">
+          <Label className="text-xs font-bold text-red-600 dark:text-red-400">
+            Capacidade Máxima / Trava (m)
+          </Label>
+          <div className="relative">
+            <Input
+              type="number"
+              min="0"
+              step="50"
+              placeholder="3500"
+              value={form.max}
+              onChange={e => setForm(f => ({ ...f, max: e.target.value }))}
+              className="font-bold text-sm border-red-300 dark:border-red-800 text-red-600 pr-8"
+            />
+            <span className="absolute right-3 top-2.5 text-xs text-red-600 font-semibold">m</span>
+          </div>
+          <p className="text-[10px] text-red-600/80">Teto máximo para não sobrecarregar a fábrica.</p>
+        </div>
+
+        <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-background">
+          <div className="space-y-0.5 pr-2">
+            <div className="flex items-center gap-1.5">
+              <ShieldAlert className="w-4 h-4 text-orange-600 shrink-0" />
+              <span className="text-xs font-bold text-foreground">Trava de Agendamento</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Bloquear agendamentos que estourem o teto
+            </p>
+          </div>
+          <Switch
+            checked={form.travarMaximo}
+            onCheckedChange={v => setForm(f => ({ ...f, travarMaximo: v }))}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Modelos de Produto ─────────────────────────────────────────
 function TabelaModelos() {
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ produto: "", modelo: "", maquinas: "", espessuras: "" });
+  const [form, setForm] = useState({ produto: "", modelo: "", maquinas: "", espessuras: "", meta_min_metros: "", meta_max_metros: "" });
   const [editForm, setEditForm] = useState({});
 
   const { data: modelos = [] } = useQuery({
@@ -143,12 +234,20 @@ function TabelaModelos() {
   });
 
   const createM = useMutation({
-    mutationFn: (d) => base44.entities.ModeloProduto.create(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["modelos-produto"] }); setAdding(false); setForm({ produto: "", modelo: "", maquinas: "", espessuras: "" }); toast.success("Modelo adicionado!"); },
+    mutationFn: (d) => base44.entities.ModeloProduto.create({
+      ...d,
+      meta_min_metros: d.meta_min_metros !== "" ? Number(d.meta_min_metros) : undefined,
+      meta_max_metros: d.meta_max_metros !== "" ? Number(d.meta_max_metros) : undefined,
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["modelos-produto"] }); setAdding(false); setForm({ produto: "", modelo: "", maquinas: "", espessuras: "", meta_min_metros: "", meta_max_metros: "" }); toast.success("Modelo adicionado!"); },
   });
 
   const updateM = useMutation({
-    mutationFn: ({ id, d }) => base44.entities.ModeloProduto.update(id, d),
+    mutationFn: ({ id, d }) => base44.entities.ModeloProduto.update(id, {
+      ...d,
+      meta_min_metros: d.meta_min_metros !== "" ? Number(d.meta_min_metros) : undefined,
+      meta_max_metros: d.meta_max_metros !== "" ? Number(d.meta_max_metros) : undefined,
+    }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["modelos-produto"] }); setEditId(null); toast.success("Salvo!"); },
   });
 
@@ -157,12 +256,22 @@ function TabelaModelos() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["modelos-produto"] }); toast.success("Removido!"); },
   });
 
-  const startEdit = (m) => { setEditId(m.id); setEditForm({ produto: m.produto, modelo: m.modelo, maquinas: m.maquinas || "", espessuras: m.espessuras || "" }); };
+  const startEdit = (m) => {
+    setEditId(m.id);
+    setEditForm({
+      produto: m.produto,
+      modelo: m.modelo,
+      maquinas: m.maquinas || "",
+      espessuras: m.espessuras || "",
+      meta_min_metros: m.meta_min_metros !== undefined && m.meta_min_metros !== null ? m.meta_min_metros : "",
+      meta_max_metros: m.meta_max_metros !== undefined && m.meta_max_metros !== null ? m.meta_max_metros : "",
+    });
+  };
 
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-        <h3 className="font-bold">Produtos × Modelos × Espessuras</h3>
+        <h3 className="font-bold">Produtos × Modelos × Metas Diárias</h3>
         <Button size="sm" onClick={() => setAdding(true)} className="gap-1"><Plus className="w-3 h-3" />Adicionar</Button>
       </div>
       <div className="overflow-x-auto">
@@ -173,6 +282,8 @@ function TabelaModelos() {
               <th className="px-4 py-2 text-left font-semibold">Modelo</th>
               <th className="px-4 py-2 text-left font-semibold">Máquinas</th>
               <th className="px-4 py-2 text-left font-semibold">Espessuras</th>
+              <th className="px-3 py-2 text-left font-semibold text-xs">Meta Mín (m)</th>
+              <th className="px-3 py-2 text-left font-semibold text-xs text-red-600">Meta Máx / Trava (m)</th>
               <th className="px-4 py-2 w-20"></th>
             </tr>
           </thead>
@@ -187,7 +298,9 @@ function TabelaModelos() {
                 </td>
                 <td className="px-3 py-2"><Input className="h-8 text-xs" placeholder="ex: TP-40 RVM" value={form.modelo} onChange={e => setForm(f => ({ ...f, modelo: e.target.value }))} /></td>
                 <td className="px-3 py-2"><MaquinasSelect value={form.maquinas} onChange={v => setForm(f => ({ ...f, maquinas: v }))} /></td>
-                <td className="px-3 py-2"><Input className="h-8 text-xs" placeholder="ex: 0,43 / 0,50 / 0,65" value={form.espessuras} onChange={e => setForm(f => ({ ...f, espessuras: e.target.value }))} /></td>
+                <td className="px-3 py-2"><Input className="h-8 text-xs" placeholder="ex: 0,43 / 0,50" value={form.espessuras} onChange={e => setForm(f => ({ ...f, espessuras: e.target.value }))} /></td>
+                <td className="px-2 py-2"><Input className="h-8 text-xs w-20" type="number" placeholder="Mín" value={form.meta_min_metros} onChange={e => setForm(f => ({ ...f, meta_min_metros: e.target.value }))} /></td>
+                <td className="px-2 py-2"><Input className="h-8 text-xs w-20 border-red-300" type="number" placeholder="Máx" value={form.meta_max_metros} onChange={e => setForm(f => ({ ...f, meta_max_metros: e.target.value }))} /></td>
                 <td className="px-3 py-2 flex gap-1">
                   <Button size="icon" className="h-7 w-7" onClick={() => createM.mutate(form)}><Check className="w-3 h-3" /></Button>
                   <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAdding(false)}><X className="w-3 h-3" /></Button>
@@ -207,6 +320,8 @@ function TabelaModelos() {
                     <td className="px-3 py-2"><Input className="h-8 text-xs" value={editForm.modelo} onChange={e => setEditForm(f => ({ ...f, modelo: e.target.value }))} /></td>
                     <td className="px-3 py-2"><MaquinasSelect value={editForm.maquinas} onChange={v => setEditForm(f => ({ ...f, maquinas: v }))} /></td>
                     <td className="px-3 py-2"><Input className="h-8 text-xs" value={editForm.espessuras} onChange={e => setEditForm(f => ({ ...f, espessuras: e.target.value }))} /></td>
+                    <td className="px-2 py-2"><Input className="h-8 text-xs w-20 font-semibold" type="number" placeholder="Mín" value={editForm.meta_min_metros} onChange={e => setEditForm(f => ({ ...f, meta_min_metros: e.target.value }))} /></td>
+                    <td className="px-2 py-2"><Input className="h-8 text-xs w-20 font-bold border-red-300 text-red-600" type="number" placeholder="Máx" value={editForm.meta_max_metros} onChange={e => setEditForm(f => ({ ...f, meta_max_metros: e.target.value }))} /></td>
                     <td className="px-3 py-2 flex gap-1">
                       <Button size="icon" className="h-7 w-7" onClick={() => updateM.mutate({ id: m.id, d: editForm })}><Check className="w-3 h-3" /></Button>
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditId(null)}><X className="w-3 h-3" /></Button>
@@ -235,6 +350,12 @@ function TabelaModelos() {
                       </div>
                     </td>
                     <td className="px-4 py-2.5 text-muted-foreground">{m.espessuras || "—"}</td>
+                    <td className="px-3 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      {m.meta_min_metros ? `${Number(m.meta_min_metros).toLocaleString("pt-BR")}m` : <span className="text-muted-foreground text-[11px]">—</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs font-bold text-red-600 dark:text-red-400">
+                      {m.meta_max_metros ? `${Number(m.meta_max_metros).toLocaleString("pt-BR")}m` : <span className="text-muted-foreground text-[11px]">—</span>}
+                    </td>
                     <td className="px-4 py-2.5">
                       <div className="flex gap-1">
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(m)}><Pencil className="w-3 h-3" /></Button>
@@ -246,7 +367,7 @@ function TabelaModelos() {
               </tr>
             ))}
             {modelos.length === 0 && !adding && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground italic">Nenhum modelo cadastrado</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground italic">Nenhum modelo cadastrado</td></tr>
             )}
           </tbody>
         </table>
@@ -314,8 +435,10 @@ export default function ProducaoDados() {
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-bold">Dados de Produção</h2>
-        <p className="text-sm text-muted-foreground">Gerencie modelos, vendedores, cores e maquinários disponíveis no sistema</p>
+        <p className="text-sm text-muted-foreground">Gerencie metas diárias, modelos, vendedores, cores e maquinários disponíveis no sistema</p>
       </div>
+
+      <CardMetasGerais />
 
       <TabelaModelos />
 

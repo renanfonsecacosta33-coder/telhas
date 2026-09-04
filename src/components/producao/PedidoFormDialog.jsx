@@ -16,9 +16,10 @@ import { useTolerancias } from "@/hooks/useTolerancias";
 import { getBobinaStatus, calcMetrosDisponiveis } from "@/lib/bobinaStatusHelper";
 import { validarBobina, filtrarBobinasCompativeis } from "@/lib/bobinaValidation";
 import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
-import { Building2, X, Loader2, FileText, Plus, Trash2, Camera, ShieldAlert, Flame, Route, AlertTriangle } from "lucide-react";
+import { Building2, X, Loader2, FileText, Plus, Trash2, Camera, ShieldAlert, Flame, Route, AlertTriangle, Target } from "lucide-react";
 import { detectarTipoProdutoTelha, detectarMaquinaTelha, detectarEspessura, detectarOrigemAco, detectarEPSTelha, normalizarNumPedido, saoPedidosIguais } from "@/lib/pedidoOdooHelper";
 import { calcularDataPrometidaSLA, toISODate, formatDataBR } from "@/lib/sla";
+import { useMetasProducao } from "@/hooks/useMetasProducao";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 const PRODUTOS = ["TELHA", "TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA", "BOBININHA", "CUMEEIRA", "PAINEL"];
@@ -202,6 +203,41 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   }, [form.numero_pedido, todasOrdens, editItem]);
 
   const temDuplicidade = ordensDuplicadas.length > 0;
+
+  const { metaGeral, verificarExcessoAgendamento } = useMetasProducao();
+
+  // Calcula metragem total (em metros) — suporta variações ou modo legado
+  const calcMetragemTotalM = (formData) => {
+    const vars = (() => {
+      try {
+        const parsed = JSON.parse(formData.variacoes_telhas || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+      } catch { return []; }
+    })();
+    if (vars.length > 0) {
+      return vars.reduce((sum, v) => sum + (Number(v.qty) || 0) * (Number(v.mm) || 0), 0) / 1000;
+    }
+    return (Number(formData.metros) || 0) * ((Number(formData.metragem_mm) || 0) / 1000);
+  };
+
+  const metragemTotalPedidoM = useMemo(() => {
+    return calcMetragemTotalM(form);
+  }, [form.variacoes_telhas, form.metros, form.metragem_mm]);
+
+  // Checagem de capacidade máxima diária (geral da fábrica e por modelo)
+  const checagemCapacidade = useMemo(() => {
+    if (!form.data || metragemTotalPedidoM <= 0) {
+      return { excedeuGeral: false, excedeuModelo: false, deveBloquear: false };
+    }
+    return verificarExcessoAgendamento({
+      data: form.data,
+      novoMetros: metragemTotalPedidoM,
+      modelo: form.modelo,
+      maquina: form.maquina,
+      pedidos: todasOrdens,
+      idEditando: editItem && !editItem._presets && editItem.id ? editItem.id : null,
+    });
+  }, [form.data, form.modelo, form.maquina, metragemTotalPedidoM, todasOrdens, editItem, verificarExcessoAgendamento]);
 
   const { preBaixaMap, statusMap } = usePreBaixaBobinas("telhas");
   const { data: tolerancias = [] } = useTolerancias();
@@ -606,20 +642,6 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     recalcFromVariacoes(novo, extraSync);
   };
 
-  // Calcula metragem total (em metros) — suporta variações ou modo legado
-  const calcMetragemTotalM = (formData) => {
-    const vars = (() => {
-      try {
-        const parsed = JSON.parse(formData.variacoes_telhas || "[]");
-        return Array.isArray(parsed) ? parsed : [];
-      } catch { return []; }
-    })();
-    if (vars.length > 0) {
-      return vars.reduce((sum, v) => sum + (Number(v.qty) || 0) * (Number(v.mm) || 0), 0) / 1000;
-    }
-    return (Number(formData.metros) || 0) * ((Number(formData.metragem_mm) || 0) / 1000);
-  };
-
   // Quando selecionar bobina superior, preenche RVM/Cor automaticamente
   const handleBobinaSupChange = (bobinaId) => {
     const b = bobinas.find((x) => x.id === bobinaId);
@@ -833,6 +855,33 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
       return;
     }
 
+    // ─── BLOQUEIO DE CAPACIDADE MÁXIMA DIÁRIA (TRAVA ATIVA) ───
+    if (checagemCapacidade.deveBloquear) {
+      const motivos = [];
+      if (checagemCapacidade.excedeuGeral) {
+        motivos.push(
+          `A capacidade diária geral da fábrica para ${formatDataBR(form.data)} (${checagemCapacidade.limiteMaxGeral.toLocaleString("pt-BR")}m) foi ultrapassada!`,
+          `Total já agendado no dia: ${checagemCapacidade.totalAtualGeral.toFixed(1)}m. Com este pedido (${metragemTotalPedidoM.toFixed(1)}m), atinge ${checagemCapacidade.totalNovoGeral.toFixed(1)}m (Excesso de +${checagemCapacidade.excessoGeral.toFixed(1)}m acima da capacidade).`
+        );
+      }
+      if (checagemCapacidade.excedeuModelo) {
+        motivos.push(
+          `A capacidade diária para o modelo/máquina "${checagemCapacidade.modeloNome}" (${checagemCapacidade.limiteMaxModelo.toLocaleString("pt-BR")}m) foi ultrapassada!`,
+          `Total já agendado para este modelo: ${checagemCapacidade.totalAtualModelo.toFixed(1)}m. Com este pedido (${metragemTotalPedidoM.toFixed(1)}m), atinge ${checagemCapacidade.totalNovoModelo.toFixed(1)}m (Excesso de +${checagemCapacidade.excessoModelo.toFixed(1)}m acima do limite).`
+        );
+      }
+      motivos.push("A trava automática de metragem máxima diária está ATIVADA no sistema.");
+      motivos.push("Para agendar este pedido, selecione outro dia com capacidade disponível ou altere o teto diário em 'Metas do Dia'.");
+
+      setBloqueio({
+        open: true,
+        titulo: "Capacidade Diária Esgotada (Trava de Metragem Ativa)!",
+        motivos,
+        rodape: "Agendamento bloqueado para manter o controle de produção e evitar sobrecarga na fábrica."
+      });
+      return;
+    }
+
     // Monta dados do pedido — em modo variações, deriva bobinas da 1ª variação
     let bobinaSupId = form.bobina_superior;
     let bobinaInfId = form.bobina_inferior;
@@ -1002,15 +1051,32 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                     OP Duplicada
                   </Badge>
                 )}
+                {checagemCapacidade.deveBloquear && !temDuplicidade && (
+                  <Badge className="bg-red-600 hover:bg-red-700 text-white text-[10px] uppercase font-black tracking-wider animate-pulse">
+                    Capacidade Esgotada
+                  </Badge>
+                )}
               </div>
             ) : isEditing ? (
-              "Editar Pedido"
+              <div className="flex items-center gap-2 flex-wrap">
+                <span>Editar Pedido</span>
+                {checagemCapacidade.deveBloquear && !temDuplicidade && (
+                  <Badge className="bg-red-600 hover:bg-red-700 text-white text-[10px] uppercase font-black tracking-wider animate-pulse">
+                    Capacidade Esgotada
+                  </Badge>
+                )}
+              </div>
             ) : (
               <div className="flex items-center gap-2 flex-wrap">
                 <span>Novo Pedido</span>
                 {temDuplicidade && (
                   <Badge className="bg-red-600 hover:bg-red-700 text-white text-[10px] uppercase font-black tracking-wider animate-pulse">
                     OP Duplicada
+                  </Badge>
+                )}
+                {checagemCapacidade.deveBloquear && !temDuplicidade && (
+                  <Badge className="bg-red-600 hover:bg-red-700 text-white text-[10px] uppercase font-black tracking-wider animate-pulse">
+                    Capacidade Esgotada
                   </Badge>
                 )}
               </div>
@@ -1075,6 +1141,56 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
               <p className="text-[11px] font-semibold text-red-700 dark:text-red-300">
                 💡 Dica: Para fazer alterações neste pedido, edite a OP existente no painel da máquina ou cancele-a antes de registrar novamente.
               </p>
+            </div>
+          )}
+
+          {/* Alerta Visual de Capacidade Máxima / Trava Diária */}
+          {(checagemCapacidade.excedeuGeral || checagemCapacidade.excedeuModelo) && (
+            <div className={`rounded-xl p-3.5 space-y-2 border-2 animate-in fade-in slide-in-from-top-2 ${
+              checagemCapacidade.deveBloquear
+                ? "bg-red-50 dark:bg-red-950/60 border-red-500 text-red-800 dark:text-red-200"
+                : "bg-amber-50 dark:bg-amber-950/60 border-amber-500 text-amber-800 dark:text-amber-200"
+            }`}>
+              <div className="flex items-start gap-2.5">
+                {checagemCapacidade.deveBloquear ? (
+                  <ShieldAlert className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-[11px] font-black uppercase tracking-wider px-2 py-0.5 rounded text-white ${
+                      checagemCapacidade.deveBloquear ? "bg-red-600" : "bg-amber-600"
+                    }`}>
+                      {checagemCapacidade.deveBloquear ? "Trava de Capacidade Ativa" : "Aviso de Capacidade Diária"}
+                    </span>
+                    <span className="text-sm font-bold">
+                      {checagemCapacidade.deveBloquear
+                        ? "Capacidade diária esgotada para esta data!"
+                        : "Atenção: capacidade recomendada ultrapassada"}
+                    </span>
+                  </div>
+
+                  <div className="mt-1.5 space-y-1 text-xs">
+                    {checagemCapacidade.excedeuGeral && (
+                      <p>
+                        • <strong>Geral da Fábrica ({formatDataBR(form.data)}):</strong> Teto de {checagemCapacidade.limiteMaxGeral.toLocaleString("pt-BR")}m. Já agendado: {checagemCapacidade.totalAtualGeral.toFixed(1)}m + Este pedido ({metragemTotalPedidoM.toFixed(1)}m) = <strong>{checagemCapacidade.totalNovoGeral.toFixed(1)}m</strong> (<span className="font-bold text-red-600 dark:text-red-400">+{checagemCapacidade.excessoGeral.toFixed(1)}m acima da capacidade</span>).
+                      </p>
+                    )}
+                    {checagemCapacidade.excedeuModelo && (
+                      <p>
+                        • <strong>Modelo {checagemCapacidade.modeloNome}:</strong> Teto de {checagemCapacidade.limiteMaxModelo.toLocaleString("pt-BR")}m. Já agendado: {checagemCapacidade.totalAtualModelo.toFixed(1)}m + Este pedido ({metragemTotalPedidoM.toFixed(1)}m) = <strong>{checagemCapacidade.totalNovoModelo.toFixed(1)}m</strong> (<span className="font-bold text-red-600 dark:text-red-400">+{checagemCapacidade.excessoModelo.toFixed(1)}m acima do limite</span>).
+                      </p>
+                    )}
+                  </div>
+
+                  <p className="text-[11px] mt-2 font-medium">
+                    {checagemCapacidade.deveBloquear
+                      ? "⛔ O salvamento foi bloqueado para este dia. Escolha outra data no calendário ou altere os limites em 'Metas do Dia'."
+                      : "⚠️ A trava automática está desligada. É possível salvar o agendamento, mas atente-se à capacidade da fábrica."}
+                  </p>
+                </div>
+              </div>
             </div>
           )}
           {/* Linha 1: Data / Produto */}
@@ -1917,9 +2033,9 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
           <Button
             onClick={handleSave}
-            disabled={temDuplicidade}
+            disabled={temDuplicidade || checagemCapacidade.deveBloquear}
             className={
-              temDuplicidade
+              temDuplicidade || checagemCapacidade.deveBloquear
                 ? "bg-red-600 hover:bg-red-700 text-white cursor-not-allowed opacity-90 font-bold gap-1.5"
                 : ""
             }
@@ -1928,6 +2044,11 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
               <>
                 <ShieldAlert className="w-4 h-4" />
                 <span>Bloqueado: OP Duplicada</span>
+              </>
+            ) : checagemCapacidade.deveBloquear ? (
+              <>
+                <ShieldAlert className="w-4 h-4" />
+                <span>Bloqueado: Capacidade Esgotada</span>
               </>
             ) : isEditing ? (
               "Salvar Alterações"
