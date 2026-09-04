@@ -17,7 +17,7 @@ import { getBobinaStatus, calcMetrosDisponiveis } from "@/lib/bobinaStatusHelper
 import { validarBobina, filtrarBobinasCompativeis } from "@/lib/bobinaValidation";
 import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
 import { Building2, X, Loader2, FileText, Plus, Trash2, Camera, ShieldAlert, Flame, Route, AlertTriangle } from "lucide-react";
-import { detectarTipoProdutoTelha, detectarMaquinaTelha, detectarEspessura, detectarOrigemAco } from "@/lib/pedidoOdooHelper";
+import { detectarTipoProdutoTelha, detectarMaquinaTelha, detectarEspessura, detectarOrigemAco, detectarEPSTelha } from "@/lib/pedidoOdooHelper";
 import { calcularDataPrometidaSLA, toISODate, formatDataBR } from "@/lib/sla";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
@@ -263,7 +263,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           kg_secundaria: editItem.kg_secundaria || "",
           rvm_superior: editItem.rvm_superior || "",
           rvm_inferior: editItem.rvm_inferior || "",
-          eps: editItem.eps || "",
+          eps: editItem.eps || (PRODUTOS_COM_EPS.includes(editItem.produto) ? detectarEPSTelha(editItem.produto, editItem.maquina) : ""),
           maquinario_superior: editItem.maquinario_superior || "",
           maquinario_inferior: editItem.maquinario_inferior || "",
           kg_superior: editItem.kg_superior || "",
@@ -297,6 +297,11 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           ? presets.origem_exigida
           : detectarOrigemAco(rawProd);
 
+        const isComEps = PRODUTOS_COM_EPS.includes(prodTipo) ||
+          /(eps|manta|sanduiche|isopor|termoacustica)/i.test(rawProd) ||
+          /(eps|manta|sanduiche|isopor|termoacustica)/i.test(presets.observacoes || "");
+        const epsAuto = presets.eps || (isComEps ? detectarEPSTelha(rawProd, maq) : "");
+
         const dataPed = presets.data_pedido || presets.data || defaultDate || format(new Date(), "yyyy-MM-dd");
         const dataPrev = presets.data_prevista || toISODate(calcularDataPrometidaSLA(dataPed, 7));
 
@@ -306,6 +311,8 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           data_pedido: dataPed,
           data_prevista: dataPrev,
           maquina: maq || "",
+          modelo: presets.modelo || modeloFromMaquina(maq) || "",
+          eps: epsAuto || "",
           espessura_exigida: esp || "",
           origem_exigida: origem || "ambas",
           cliente: presets.cliente || "",
@@ -354,40 +361,37 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     return map[maquina] || maquina;
   };
 
+  // Sincroniza modelo com a máquina
   useEffect(() => {
     if (!open || !form.maquina) return;
+    if (modeloAutoObj && modeloAutoObj.modelo && modeloAutoObj.modelo !== form.modelo) {
+      setForm(f => ({ ...f, modelo: modeloAutoObj.modelo }));
+    } else if (!modeloAutoObj && !form.modelo) {
+      const modFallback = modeloFromMaquina(form.maquina);
+      if (modFallback) {
+        setForm(f => ({ ...f, modelo: modFallback }));
+      }
+    }
+  }, [open, modeloAutoObj, form.maquina, form.modelo]);
+
+  // Sincroniza automaticamente o tipo de EPS com a máquina da telha
+  useEffect(() => {
+    if (!open) return;
     const isProdutoComEps = PRODUTOS_COM_EPS.includes(form.produto) ||
       (form.produto && form.produto !== "TELHA" && /(eps|manta|sanduiche|isopor|termoacustica)/i.test(form.produto)) ||
-      /(eps|manta|sanduiche|isopor|termoacustica)/i.test(form.observacoes || "");
+      /(eps|manta|sanduiche|isopor|termoacustica)/i.test(form.observacoes || "") ||
+      /(eps|manta|sanduiche|isopor|termoacustica)/i.test(form.produto_rotulo_pcp || "");
 
-    // Se encontrou no cadastro, usa o modelo cadastrado
-    if (modeloAutoObj && modeloAutoObj.modelo !== form.modelo) {
-      let epsAuto = "";
-      if (isProdutoComEps) {
-        const vUp = (modeloAutoObj.modelo || "").toUpperCase();
-        if (vUp.includes("TP-25") || vUp.includes("TP25")) epsAuto = "EPS - TP 25";
-        else if (vUp.includes("BANDEJA")) epsAuto = "EPS - TP 40 BANDEJA";
-        else if (vUp.includes("TP-40") || vUp.includes("TP40")) epsAuto = "EPS - TP 40";
-        else if (vUp.includes("COLONIAL BANDEJA")) epsAuto = "EPS - COLONIAL BANDEJA";
-        else if (vUp.includes("COLONIAL")) epsAuto = "EPS - COLONIAL";
-        else if (vUp.includes("ONDULAD")) epsAuto = "EPS - ONDULADO";
+    if (isProdutoComEps) {
+      const epsSugerido = detectarEPSTelha(
+        `${form.produto_rotulo_pcp || ""} ${form.modelo || ""} ${form.produto || ""} ${form.observacoes || ""}`,
+        form.maquina
+      );
+      if (epsSugerido && !form.eps) {
+        setForm(f => ({ ...f, eps: epsSugerido }));
       }
-      setForm(f => ({ ...f, modelo: modeloAutoObj.modelo, eps: isProdutoComEps ? (epsAuto || f.eps) : "" }));
-    } else if (!modeloAutoObj && !form.modelo) {
-      // Sem cadastro: deriva do nome da máquina
-      const modFallback = modeloFromMaquina(form.maquina);
-      let epsAuto = "";
-      if (isProdutoComEps) {
-        const vUp = modFallback.toUpperCase();
-        if (vUp.includes("TP-25") || vUp.includes("TP25")) epsAuto = "EPS - TP 25";
-        else if (vUp.includes("BANDEJA")) epsAuto = "EPS - TP 40 BANDEJA";
-        else if (vUp.includes("TP-40") || vUp.includes("TP40")) epsAuto = "EPS - TP 40";
-        else if (vUp.includes("COLONIAL")) epsAuto = "EPS - COLONIAL";
-        else if (vUp.includes("ONDULAD")) epsAuto = "EPS - ONDULADO";
-      }
-      setForm(f => ({ ...f, modelo: modFallback, eps: isProdutoComEps ? (epsAuto || f.eps) : "" }));
     }
-  }, [open, modeloAutoObj, form.maquina, form.modelo, form.produto]);
+  }, [open, form.maquina, form.modelo, form.produto, form.produto_rotulo_pcp, form.observacoes, form.eps]);
 
   // Pré-seleciona a primeira bobina compatível disponível como padrão se ainda não houver nenhuma definida
   useEffect(() => {
@@ -457,6 +461,31 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
         if (chapa > 0) totalKgInf += chapa * metrosVar;
       }
     });
+    // Isopor: calcula consumo somado de todas as medidas se o produto usar EPS
+    let totalPlacasIso = 0;
+    let totalInteirasIso = 0;
+    let totalPedacosIso = 0;
+    let maxSobraMm = 0;
+    (vars || []).forEach(v => {
+      const q = Number(v.qty) || 0;
+      const mm = Number(v.mm) || 0;
+      const comprM = mm / 1000;
+      if (q > 0 && comprM > 0) {
+        const placasPorTelha = Math.ceil(comprM / 2);
+        const inteirasPorTelha = Math.floor(comprM / 2);
+        const sobraPorTelha = +(comprM - inteirasPorTelha * 2).toFixed(4);
+        totalPlacasIso += placasPorTelha * q;
+        totalInteirasIso += inteirasPorTelha * q;
+        if (sobraPorTelha > 0) totalPedacosIso += q;
+        if (sobraPorTelha > 0) maxSobraMm = Math.round(sobraPorTelha * 1000);
+      }
+    });
+    if (totalPlacasIso > 0) {
+      newForm.isopor_utilizado = { total: totalPlacasIso, pecasInteiras: totalInteirasIso, pedacos: totalPedacosIso, sobraMm: maxSobraMm };
+    } else {
+      newForm.isopor_utilizado = "";
+    }
+
     newForm.kg_superior = totalKgSup > 0 ? +totalKgSup.toFixed(1) : "";
     newForm.kg_inferior = totalKgInf > 0 ? +totalKgInf.toFixed(1) : "";
     newForm.kg_total = recalcTotal(newForm.kg_superior, newForm.kg_inferior);
@@ -946,7 +975,18 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                   )}
                 </div>
               ) : (
-                <Select value={form.produto} onValueChange={(v) => {set("produto", v);set("modelo", "");set("maquina", "");}}>
+                <Select
+                  value={form.produto}
+                  onValueChange={(v) => {
+                    const isEps = PRODUTOS_COM_EPS.includes(v);
+                    const epsAuto = isEps ? (detectarEPSTelha(form.produto_rotulo_pcp, form.maquina) || form.eps) : "";
+                    setForm(f => ({
+                      ...f,
+                      produto: v,
+                      eps: isEps ? (epsAuto || f.eps) : ""
+                    }));
+                  }}
+                >
                   <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                   <SelectContent>{PRODUTOS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
                 </Select>
@@ -954,18 +994,61 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
             </div>
           </div>
 
-          {/* Modelo — sincronizado automaticamente com a máquina */}
+          {/* Máquina e Modelo da Telha */}
           <div className="space-y-1">
-            <Label>Modelo</Label>
-            <div className="flex items-center gap-3 border border-border rounded-md px-3 py-2 bg-muted/30">
-              <span className="font-semibold text-sm">{form.modelo || <span className="text-muted-foreground">Sincronizado com a máquina</span>}</span>
-              {modeloAutoObj?.espessuras && (
-                <span className="text-xs text-muted-foreground">· {modeloAutoObj.espessuras}</span>
-              )}
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold">Máquina da Telha / Modelo</Label>
               {form.maquina && (
-                <span className="ml-auto text-xs text-muted-foreground">Máquina: <strong className="text-foreground">{form.maquina}</strong></span>
+                <span className="text-[11px] text-muted-foreground">
+                  Máquina: <strong className="text-foreground font-bold">{form.maquina}</strong>
+                </span>
               )}
             </div>
+            {form.trava_produto_pcp ? (
+              <div className="flex items-center gap-3 border border-border rounded-md px-3 py-2 bg-muted/40 min-h-[38px]">
+                <span className="font-semibold text-sm">{form.modelo || form.maquina || <span className="text-muted-foreground">Sincronizado com a máquina</span>}</span>
+                {modeloAutoObj?.espessuras && (
+                  <span className="text-xs text-muted-foreground">· {modeloAutoObj.espessuras}</span>
+                )}
+                {form.maquina && (
+                  <span className="ml-auto text-xs bg-primary/10 text-primary font-bold px-2 py-0.5 rounded">
+                    {form.maquina}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <Select
+                  value={form.maquina || ""}
+                  onValueChange={(mVal) => {
+                    const mod = modeloFromMaquina(mVal);
+                    const isEps = PRODUTOS_COM_EPS.includes(form.produto);
+                    const epsAuto = isEps ? detectarEPSTelha(form.produto_rotulo_pcp, mVal) : form.eps;
+                    setForm(f => ({
+                      ...f,
+                      maquina: mVal,
+                      modelo: mod,
+                      eps: epsAuto || f.eps
+                    }));
+                  }}
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Selecione a máquina..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MAQUINAS.map(m => (
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  className="h-9 text-xs"
+                  placeholder="Modelo (ex: TP-25)"
+                  value={form.modelo || ""}
+                  onChange={(e) => set("modelo", e.target.value)}
+                />
+              </div>
+            )}
           </div>
 
           {/* Vendedor / Cliente / Pedido */}
@@ -1197,11 +1280,23 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           {/* EPS */}
           {precisaEPS &&
           <div className="border border-border rounded-lg p-3 space-y-3">
-              <p className="text-sm font-semibold">EPS / Isopor <span className="text-xs font-normal text-muted-foreground">— processo: COLAGEM</span></p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold">EPS / Isopor <span className="text-xs font-normal text-muted-foreground">— processo: COLAGEM</span></p>
+                {form.eps && (
+                  <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 font-bold">
+                    ✓ {form.eps} {form.maquina ? `(Máquina ${form.maquina})` : ""}
+                  </Badge>
+                )}
+              </div>
               <div className="space-y-1">
-                <Label className="text-xs">Tipo de EPS</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-medium">Tipo de EPS</Label>
+                  {form.maquina && (
+                    <span className="text-[10px] text-muted-foreground">Puxado da máquina: <strong>{form.maquina}</strong></span>
+                  )}
+                </div>
                 <Select value={form.eps || ""} onValueChange={(v) => set("eps", v)}>
-                  <SelectTrigger><SelectValue placeholder="Selecione o modelo para definir o EPS" /></SelectTrigger>
+                  <SelectTrigger className="font-semibold"><SelectValue placeholder="Selecione o modelo para definir o EPS" /></SelectTrigger>
                   <SelectContent>
                     {tiposEPS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                   </SelectContent>

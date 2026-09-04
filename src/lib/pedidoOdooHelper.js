@@ -350,6 +350,30 @@ export function detectarOrigemAco(produtoTexto = "") {
   return "ambas";
 }
 
+// Detecta o tipo de EPS a partir do texto do produto, modelo ou da máquina da telha
+export function detectarEPSTelha(produtoTexto = "", maquina = "") {
+  const p = String(produtoTexto || "").toUpperCase();
+  const m = String(maquina || "").toUpperCase();
+
+  // 1. Verifica no nome da máquina da telha
+  if (m.includes("COLONIAL") && (m.includes("BANDEJA") || p.includes("BANDEJA"))) return "EPS - COLONIAL BANDEJA";
+  if (m.includes("COLONIAL")) return "EPS - COLONIAL";
+  if (m.includes("BANDEJA")) return "EPS - TP 40 BANDEJA";
+  if (m.includes("TP 25") || m.includes("TP-25") || m.includes("TP25")) return "EPS - TP 25";
+  if (m.includes("TP 40") || m.includes("TP-40") || m.includes("TP40")) return "EPS - TP 40";
+  if (m.includes("ONDULAD")) return "EPS - ONDULADO";
+
+  // 2. Verifica no texto do produto / rótulo PCP
+  if (p.includes("COLONIAL") && p.includes("BANDEJA")) return "EPS - COLONIAL BANDEJA";
+  if (p.includes("COLONIAL")) return "EPS - COLONIAL";
+  if (p.includes("BANDEJA") || p.includes("TP 40 BANDEJA") || p.includes("TP-40 BANDEJA")) return "EPS - TP 40 BANDEJA";
+  if (p.includes("TP 25") || p.includes("TP-25") || p.includes("TP25")) return "EPS - TP 25";
+  if (p.includes("TP 40") || p.includes("TP-40") || p.includes("TP40")) return "EPS - TP 40";
+  if (p.includes("ONDULAD")) return "EPS - ONDULADO";
+
+  return "";
+}
+
 import { calcularDataPrometidaSLA, toISODate } from "@/lib/sla";
 
 // Monta o preset completo de Nova Ordem para Telhas
@@ -359,6 +383,9 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
   const maq = detectarMaquinaTelha(produtoNome);
   const esp = item?.espessura ? String(item.espessura) : detectarEspessura(produtoNome);
   const origem = item?.origem || detectarOrigemAco(produtoNome);
+  const isComEps = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(prodTipo) ||
+    /(eps|manta|sanduiche|isopor|termoacustica)/i.test(produtoNome);
+  const eps = isComEps ? detectarEPSTelha(produtoNome, maq) : "";
 
   const dataReceb = pedido?.data_recebimento ? String(pedido.data_recebimento).slice(0, 10) : new Date().toISOString().slice(0, 10);
   const dataPrevista = pedido?.data_entrega
@@ -377,6 +404,7 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
       produto: prodTipo,
       produto_rotulo_pcp: produtoNome,
       maquina: maq,
+      eps: eps,
       espessura_exigida: esp,
       origem_exigida: origem,
       quantidade_telhas: item?.quantidade || "",
