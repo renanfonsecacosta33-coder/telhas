@@ -274,8 +274,30 @@ export default function CentralPCP() {
         odoo_id: pedido.odoo_id,
         motivo,
       });
-      // Trava atômica: Odoo não confirmou (status ≠ 200/201) → nada foi excluído no App.
+      // Trava atômica: Odoo não confirmou (status ≠ 200/201) → oferece forçar limpeza no App.
       if (res?.status && res.status !== "ok") {
+        const confirmarForcar = window.confirm(
+          `⚠️ O ODOO RETORNOU ERRO NO CANCELAMENTO (Status: ${res?.odoo_status || 500})\n\nDeseja FORÇAR a exclusão da OS #${pedido.numero_pedido} diretamente do App de Fábricas para limpar a fila e resetar o pedido?`
+        );
+        if (confirmarForcar) {
+          await base44.functions.invoke("cancelarOrdemServicoOdoo", {
+            numero_pedido: pedido.numero_pedido,
+            odoo_id: pedido.odoo_id,
+            motivo,
+            force: true,
+          });
+          queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+          queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
+          queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+          setDetalheOpen(false);
+          setPedidoSelecionado(null);
+          toast({
+            title: "🧹 OS Removida do App (Forçado)",
+            description: `OS #${pedido.numero_pedido} e ordens vinculadas foram limpas do App.`,
+            className: "border-amber-500/40"
+          });
+          return;
+        }
         toast({
           title: "❌ FALHA NO CANCELAMENTO ODOO",
           description: "O Odoo não confirmou o cancelamento da ordem de fabricação. A OS foi mantida na fábrica!",
@@ -285,6 +307,8 @@ export default function CentralPCP() {
         return;
       }
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
       setDetalheOpen(false);
       setPedidoSelecionado(null);
       toast({
@@ -293,7 +317,33 @@ export default function CentralPCP() {
         className: "border-emerald-500/40"
       });
     } catch (e) {
-      // Erro de rede/execução → nada foi excluído no App.
+      // Erro de rede/execução → oferece forçar exclusão local
+      const confirmarForcar = window.confirm(
+        `⚠️ O ODOO NÃO RESPONDEU AO CANCELAMENTO\n\nDeseja FORÇAR a exclusão da OS #${pedido.numero_pedido} diretamente do App de Fábricas para limpar a fila e resetar o pedido?`
+      );
+      if (confirmarForcar) {
+        try {
+          await base44.functions.invoke("cancelarOrdemServicoOdoo", {
+            numero_pedido: pedido.numero_pedido,
+            odoo_id: pedido.odoo_id,
+            motivo,
+            force: true,
+          });
+          queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+          queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
+          queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+          setDetalheOpen(false);
+          setPedidoSelecionado(null);
+          toast({
+            title: "🧹 OS Removida do App (Forçado)",
+            description: `OS #${pedido.numero_pedido} e ordens vinculadas foram limpas do App.`,
+            className: "border-amber-500/40"
+          });
+          return;
+        } catch (errForcar) {
+          console.error("Falha ao forçar exclusão:", errForcar);
+        }
+      }
       toast({
         title: "❌ FALHA NO CANCELAMENTO ODOO",
         description: "O Odoo não confirmou o cancelamento da ordem de fabricação. A OS foi mantida na fábrica!",

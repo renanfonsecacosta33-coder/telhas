@@ -77,11 +77,11 @@ export function calcularProgressoRealPedido(pedido, pedidosProducao = [], ordens
   const numPed = String(pedido.numero_pedido || "").trim().toUpperCase();
 
   const opsTelha = (pedidosProducao || []).filter(op =>
-    op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed
+    op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed && op.status !== "cancelado"
   );
 
   const opsCD = (ordensCD || []).filter(op =>
-    op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed
+    op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed && op.status !== "cancelado"
   );
 
   let soma = 0;
@@ -110,8 +110,10 @@ export function calcularProgressoRealPedido(pedido, pedidosProducao = [], ordens
         soma += 60;
       } else if (opReal.status === "pendente") {
         soma += 50; // OP criada na máquina (ex: TP - 25)!
+      } else if (opReal.status === "aguardando_corte" || opReal.status === "aguardando_material") {
+        soma += 25;
       } else {
-        soma += 40;
+        soma += 0;
       }
     } else if (it.status === "concluido") {
       soma += 100;
@@ -133,10 +135,10 @@ export function obterStatusDescritivoItem(it, pedido, pedidosProducao = [], orde
   const numPed = String(pedido?.numero_pedido || "").trim().toUpperCase();
 
   const opsTelha = (pedidosProducao || []).filter(op =>
-    op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed
+    op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed && op.status !== "cancelado"
   );
   const opsCD = (ordensCD || []).filter(op =>
-    op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed
+    op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed && op.status !== "cancelado"
   );
 
   let opReal = null;

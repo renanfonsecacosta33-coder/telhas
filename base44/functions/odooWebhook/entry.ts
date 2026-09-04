@@ -228,8 +228,8 @@ export default async function(req: Request): Promise<Response> {
       itens_frisada_count: itensFrisada,
       espessuras_tags: espessurasTags,
       data_recebimento: nowIso,
-      percentual_concluido: existingRec?.percentual_concluido ?? 0,
-      status_pcp: existingRec?.status_pcp ?? "pendente_distribuicao",
+      percentual_concluido: body?.reset ? 0 : (body?.percentual_concluido != null ? Number(body.percentual_concluido) : (existingRec?.percentual_concluido ?? 0)),
+      status_pcp: body?.reset ? "pendente_distribuicao" : (body?.status_pcp || existingRec?.status_pcp || "pendente_distribuicao"),
     };
     // Limpa campos undefined
     Object.keys(record).forEach(k => { if (record[k] === undefined) delete record[k]; });

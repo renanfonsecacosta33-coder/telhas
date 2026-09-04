@@ -25,7 +25,8 @@ Deno.serve(async (req) => {
 
     let body = {};
     try { body = await req.json(); } catch { body = {}; }
-    const { numero_pedido, odoo_id: odoo_id_in, motivo } = body;
+    const { numero_pedido, odoo_id: odoo_id_in, motivo, forcar_local, force } = body;
+    const deveForcar = Boolean(forcar_local || force);
     if (!numero_pedido && !odoo_id_in) {
       return Response.json({ error: 'numero_pedido ou odoo_id é obrigatório' }, { status: 400 });
     }
@@ -175,8 +176,8 @@ Deno.serve(async (req) => {
       odoo_erro = e.message;
     }
 
-    // Se o Odoo não confirmou sucesso, NÃO exclui nada no App.
-    if (!odoo_notificado) {
+    // Se o Odoo não confirmou sucesso e NÃO foi solicitado forçar, NÃO exclui no App.
+    if (!odoo_notificado && !deveForcar) {
       return Response.json({
         status: 'erro_odoo',
         numero_pedido: numeroStr,
