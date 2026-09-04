@@ -14,7 +14,7 @@ import { ShieldAlert, AlertTriangle } from "lucide-react";
  * Red blocking modal shown when an operator tries to select a bobina
  * incompatible with the Odoo-required espessura or origem.
  */
-export default function BloqueioBobinaDialog({ open, onOpenChange, titulo, motivos }) {
+export default function BloqueioBobinaDialog({ open, onOpenChange, titulo, motivos, rodape }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md border-2 border-red-500 bg-red-50 dark:bg-red-950">
@@ -38,7 +38,7 @@ export default function BloqueioBobinaDialog({ open, onOpenChange, titulo, motiv
             </div>
           ))}
           <p className="text-xs text-red-500 dark:text-red-400 mt-2 text-center">
-            Selecione uma bobina compatível para iniciar a produção.
+            {rodape || "Selecione uma bobina compatível para iniciar a produção."}
           </p>
         </div>
         <DialogFooter>

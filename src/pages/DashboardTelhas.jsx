@@ -132,6 +132,25 @@ export default function DashboardTelhas() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.Pedido.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pedidos-dash-telhas"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      setDialogOpen(false);
+      setEditPreset(null);
+      toast.success("Pedido atualizado!");
+    },
+  });
+
+  const handleSave = (data) => {
+    if (editPreset && !editPreset._presets && editPreset.id) {
+      updateMutation.mutate({ id: editPreset.id, data });
+    } else {
+      createMutation.mutate({ ...data, unidade: filialAtiva });
+    }
+  };
+
   const pedidosHoje = useMemo(() => pedidos.filter(p => p.data === hoje), [pedidos, hoje]);
   const pedidosSemana = useMemo(() => pedidos.filter(p => p.data >= weekStart && p.data <= weekEnd), [pedidos, weekStart, weekEnd]);
   const pedidosMes = useMemo(() => pedidos.filter(p => p.data >= mesStart && p.data <= hoje), [pedidos, mesStart, hoje]);
@@ -430,7 +449,12 @@ export default function DashboardTelhas() {
       {/* ══════════════ ABA FILA PCP ══════════════ */}
       {aba === "fila_pcp" && <FilaPCPTelhas onNovaOrdem={(pedido, item) => {
         setFilaContext({ pedidoId: pedido.id, itemIdx: item._idx, pedido, produtoFixo: item.produto || "" });
-        setEditPreset(prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva));
+        if (item.existingOp) {
+          // Se já existe OP para este pedido, abre diretamente para edição/revisão sem duplicar
+          setEditPreset(item.existingOp);
+        } else {
+          setEditPreset(prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva));
+        }
         setDialogOpen(true);
       }} />}
 
@@ -581,7 +605,7 @@ export default function DashboardTelhas() {
         <PedidoFormDialog
           open={dialogOpen}
           onClose={() => { setDialogOpen(false); setEditPreset(null); }}
-          onSave={(data) => createMutation.mutate({ ...data, unidade: filialAtiva })}
+          onSave={handleSave}
           editItem={editPreset}
           defaultDate={hoje}
         />

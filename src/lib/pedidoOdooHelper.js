@@ -415,3 +415,27 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
     }
   };
 }
+
+// Normaliza número de pedido para comparação consistente (remove '#', prefixos, espaços e símbolos)
+export function normalizarNumPedido(num) {
+  if (num === null || num === undefined) return "";
+  return String(num)
+    .replace(/^(pedido|ped|op|ordem)\s*#?/i, "")
+    .replace(/^#+/, "")
+    .trim()
+    .toUpperCase();
+}
+
+// Compara se dois números de pedido são equivalentes
+export function saoPedidosIguais(num1, num2) {
+  if (!num1 || !num2) return false;
+  const s1 = normalizarNumPedido(num1);
+  const s2 = normalizarNumPedido(num2);
+  if (!s1 || !s2) return false;
+  if (s1 === s2) return true;
+
+  // Comparação sem pontuação ou caracteres não alfanuméricos
+  const clean1 = s1.replace(/[^a-zA-Z0-9]/g, "");
+  const clean2 = s2.replace(/[^a-zA-Z0-9]/g, "");
+  return Boolean(clean1 && clean2 && clean1 === clean2);
+}

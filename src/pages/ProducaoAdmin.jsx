@@ -289,7 +289,12 @@ export default function ProducaoAdmin() {
 
       {activeTab === "fila_pcp" && <FilaPCPTelhas onNovaOrdem={(pedido, item) => {
         setFilaContext({ pedidoId: pedido.id, itemIdx: item._idx, pedido, produtoFixo: item.produto || "" });
-        setEditItem(prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva));
+        if (item.existingOp) {
+          // Se já existe OP para este pedido, abre diretamente para edição/revisão sem duplicar
+          setEditItem(item.existingOp);
+        } else {
+          setEditItem(prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva));
+        }
         setDialogOpen(true);
       }} />}
 

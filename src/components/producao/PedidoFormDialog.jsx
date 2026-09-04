@@ -17,7 +17,7 @@ import { getBobinaStatus, calcMetrosDisponiveis } from "@/lib/bobinaStatusHelper
 import { validarBobina, filtrarBobinasCompativeis } from "@/lib/bobinaValidation";
 import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
 import { Building2, X, Loader2, FileText, Plus, Trash2, Camera, ShieldAlert, Flame, Route, AlertTriangle } from "lucide-react";
-import { detectarTipoProdutoTelha, detectarMaquinaTelha, detectarEspessura, detectarOrigemAco, detectarEPSTelha } from "@/lib/pedidoOdooHelper";
+import { detectarTipoProdutoTelha, detectarMaquinaTelha, detectarEspessura, detectarOrigemAco, detectarEPSTelha, normalizarNumPedido, saoPedidosIguais } from "@/lib/pedidoOdooHelper";
 import { calcularDataPrometidaSLA, toISODate, formatDataBR } from "@/lib/sla";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
@@ -167,22 +167,45 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     enabled: open
   });
 
-  const { data: ordensAtivas = [] } = useQuery({
-    queryKey: ["ordens-ativas-telhas"],
+  const { data: todasOrdens = [] } = useQuery({
+    queryKey: ["todas-ordens-telhas-validacao"],
     queryFn: async () => {
       try {
-        const list = await base44.entities.Pedido.list("-data", 500);
-        return list.filter(p => !["finalizado", "cancelado"].includes(String(p.status || "").toLowerCase()));
+        const list = await base44.entities.Pedido.list("-data", 1000);
+        return Array.isArray(list) ? list : [];
       } catch {
         return [];
       }
     },
-    enabled: open
+    enabled: open,
+    staleTime: 5000
   });
+
+  const ordensAtivas = useMemo(() => {
+    return todasOrdens.filter(p => !["finalizado", "cancelado"].includes(String(p.status || "").toLowerCase()));
+  }, [todasOrdens]);
+
+  // Verifica se já existe uma Ordem de Produção ativa ou já produzida para este número de pedido
+  const ordensDuplicadas = useMemo(() => {
+    const numAtual = normalizarNumPedido(form.numero_pedido);
+    if (!numAtual || numAtual.length < 2) return [];
+
+    // Se estiver editando uma OP existente da fábrica, ela não conta como duplicada de si mesma
+    const idEditando = editItem && !editItem._presets && editItem.id ? String(editItem.id) : null;
+
+    return todasOrdens.filter(p => {
+      if (idEditando && String(p.id) === idEditando) return false;
+      const st = String(p.status || "").toLowerCase().trim();
+      if (st === "cancelado") return false; // OP cancelada permite relançar
+      return saoPedidosIguais(p.numero_pedido, numAtual);
+    });
+  }, [form.numero_pedido, todasOrdens, editItem]);
+
+  const temDuplicidade = ordensDuplicadas.length > 0;
 
   const { preBaixaMap, statusMap } = usePreBaixaBobinas("telhas");
   const { data: tolerancias = [] } = useTolerancias();
-  const [bloqueio, setBloqueio] = useState({ open: false, motivos: [], titulo: "" });
+  const [bloqueio, setBloqueio] = useState({ open: false, motivos: [], titulo: "", rodape: "" });
   const reqValidacao = { espessuraExigida: form.espessura_exigida, origemExigida: form.origem_exigida, tolerancias };
   const temReqOdoo = !!(form.espessura_exigida || (form.origem_exigida && form.origem_exigida !== "ambas"));
   const precisaEPS = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(form.produto);
@@ -782,6 +805,34 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     if (!form.data) { alert("Informe a data do pedido."); return; }
     if (!form.produto) { alert("Selecione o tipo de produto."); return; }
 
+    // ─── BLOQUEIO DE ORDEM DUPLICADA ───
+    if (temDuplicidade) {
+      const detalheOps = ordensDuplicadas.map((op) => {
+        const statusLabel = op.status === "finalizado" ? "Finalizado (Já Produzido)" :
+          op.status === "em_producao" ? "Em Produção na Máquina" :
+          op.status === "aguardando_colagem" ? "Aguardando Colagem" :
+          op.status === "pausado" ? "Pausado na Máquina" :
+          op.status === "pendente" ? "Pendente na Fila" :
+          op.status || "Ativa";
+        const metrosFmt = op.metros ? `${Number(op.metros).toLocaleString("pt-BR")}m` : "Metragem não informada";
+        const clienteFmt = op.cliente ? ` · Cliente: ${op.cliente}` : "";
+        return `Máquina: ${op.maquina || "Não informada"} (${statusLabel}) · ${metrosFmt}${clienteFmt}`;
+      });
+
+      setBloqueio({
+        open: true,
+        titulo: `Ordem de Produção já existe para o Pedido #${form.numero_pedido}!`,
+        motivos: [
+          `Já existe uma OP registrada com o número de pedido #${form.numero_pedido} nesta fábrica.`,
+          ...detalheOps,
+          `O salvamento foi bloqueado para evitar corte e perfilamento de bobinas em duplicidade.`,
+          `Para fazer alterações, edite a OP existente no painel da máquina ou cancele a ordem anterior.`
+        ],
+        rodape: "Para evitar prejuízo com bobinas duplicadas, edite a OP já criada ou cancele a anterior."
+      });
+      return;
+    }
+
     // Monta dados do pedido — em modo variações, deriva bobinas da 1ª variação
     let bobinaSupId = form.bobina_superior;
     let bobinaInfId = form.bobina_inferior;
@@ -935,23 +986,97 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
         <DialogHeader>
           <DialogTitle>
             {form.trava_produto_pcp ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span>Revisar Ordem de Produção</span>
                 {form.numero_pedido && (
-                  <Badge variant="outline" className="text-xs bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-300">
+                  <Badge variant="outline" className={`text-xs ${
+                    temDuplicidade
+                      ? "bg-red-500/15 text-red-700 dark:text-red-300 border-red-400 font-bold"
+                      : "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-300"
+                  }`}>
                     Pedido #{form.numero_pedido}
+                  </Badge>
+                )}
+                {temDuplicidade && (
+                  <Badge className="bg-red-600 hover:bg-red-700 text-white text-[10px] uppercase font-black tracking-wider animate-pulse">
+                    OP Duplicada
                   </Badge>
                 )}
               </div>
             ) : isEditing ? (
               "Editar Pedido"
             ) : (
-              "Novo Pedido"
+              <div className="flex items-center gap-2 flex-wrap">
+                <span>Novo Pedido</span>
+                {temDuplicidade && (
+                  <Badge className="bg-red-600 hover:bg-red-700 text-white text-[10px] uppercase font-black tracking-wider animate-pulse">
+                    OP Duplicada
+                  </Badge>
+                )}
+              </div>
             )}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {/* Alerta Visual de Ordem de Produção Duplicada */}
+          {temDuplicidade && (
+            <div className="bg-red-50 dark:bg-red-950/60 border-2 border-red-500 rounded-xl p-3.5 space-y-2.5 text-red-800 dark:text-red-200 animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-start gap-2.5">
+                <ShieldAlert className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-black uppercase tracking-wider bg-red-600 text-white px-2 py-0.5 rounded">
+                      Bloqueio de Duplicidade
+                    </span>
+                    <span className="text-sm font-bold text-red-900 dark:text-red-100">
+                      Pedido #{form.numero_pedido} já possui Ordem de Produção!
+                    </span>
+                  </div>
+                  <p className="text-xs text-red-700 dark:text-red-300 mt-1">
+                    Não é permitido criar outra OP para o mesmo pedido nesta fábrica para evitar corte e perfilamento dobrados de bobinas.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white/90 dark:bg-slate-900/90 rounded-lg p-2.5 border border-red-200 dark:border-red-900/50 space-y-1.5 text-xs">
+                <p className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                  OP(s) Existente(s) no Sistema:
+                </p>
+                {ordensDuplicadas.map((op, i) => (
+                  <div key={op.id || i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-1.5 border-b last:border-b-0 border-red-100 dark:border-red-950">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-slate-900 dark:text-slate-100">{op.produto || "Telha"}</span>
+                      {op.maquina && (
+                        <Badge className="bg-red-100 dark:bg-red-900/60 text-red-800 dark:text-red-200 border-red-300 text-[10px]">
+                          Máquina: {op.maquina}
+                        </Badge>
+                      )}
+                      <span className="text-slate-600 dark:text-slate-400">
+                        · {op.metros ? `${Number(op.metros).toLocaleString("pt-BR")}m` : ""} {op.cliente ? `· ${op.cliente}` : ""}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-500">{op.data ? formatDataBR(op.data) : ""}</span>
+                      <Badge className={`text-[10px] uppercase font-bold ${
+                        op.status === "finalizado" ? "bg-emerald-600 text-white" :
+                        op.status === "em_producao" ? "bg-blue-600 text-white" :
+                        op.status === "aguardando_colagem" ? "bg-purple-600 text-white" :
+                        op.status === "pausado" ? "bg-amber-600 text-white" :
+                        "bg-slate-600 text-white"
+                      }`}>
+                        {op.status || "pendente"}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-[11px] font-semibold text-red-700 dark:text-red-300">
+                💡 Dica: Para fazer alterações neste pedido, edite a OP existente no painel da máquina ou cancele-a antes de registrar novamente.
+              </p>
+            </div>
+          )}
           {/* Linha 1: Data / Produto */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -1081,14 +1206,31 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
               )}
             </div>
             <div className="space-y-1">
-              <Label>Nº Pedido</Label>
+              <Label className={temDuplicidade ? "text-red-600 font-bold" : ""}>Nº Pedido</Label>
               {form.trava_produto_pcp ? (
-                <div className="flex items-center justify-between border border-border rounded-md px-3 py-2 bg-muted/60 min-h-[38px] text-xs font-mono font-bold text-foreground">
+                <div className={`flex items-center justify-between border rounded-md px-3 py-2 min-h-[38px] text-xs font-mono font-bold ${
+                  temDuplicidade
+                    ? "border-red-500 bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 shadow-sm"
+                    : "border-border bg-muted/60 text-foreground"
+                }`}>
                   <span>#{form.numero_pedido}</span>
-                  <Badge variant="secondary" className="text-[9px] ml-1 shrink-0">Fixo</Badge>
+                  <Badge variant={temDuplicidade ? "destructive" : "secondary"} className="text-[9px] ml-1 shrink-0 font-bold">
+                    {temDuplicidade ? "OP Já Existe!" : "Fixo"}
+                  </Badge>
                 </div>
               ) : (
-                <Input placeholder="283427" value={form.numero_pedido} onChange={(e) => set("numero_pedido", e.target.value)} />
+                <Input
+                  placeholder="283427"
+                  value={form.numero_pedido}
+                  onChange={(e) => set("numero_pedido", e.target.value)}
+                  className={temDuplicidade ? "border-red-500 bg-red-50/70 dark:bg-red-950/50 text-red-900 dark:text-red-200 font-bold focus-visible:ring-red-500" : ""}
+                />
+              )}
+              {temDuplicidade && (
+                <p className="text-[10px] font-bold text-red-600 dark:text-red-400 flex items-center gap-1 mt-0.5">
+                  <AlertTriangle className="w-3 h-3 shrink-0" />
+                  Já cadastrado ({ordensDuplicadas[0]?.maquina || "Máquina"} · {ordensDuplicadas[0]?.status || "pendente"})
+                </p>
               )}
             </div>
           </div>
@@ -1773,8 +1915,25 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave}>
-            {isEditing ? "Salvar Alterações" : "Registrar Pedido"}
+          <Button
+            onClick={handleSave}
+            disabled={temDuplicidade}
+            className={
+              temDuplicidade
+                ? "bg-red-600 hover:bg-red-700 text-white cursor-not-allowed opacity-90 font-bold gap-1.5"
+                : ""
+            }
+          >
+            {temDuplicidade ? (
+              <>
+                <ShieldAlert className="w-4 h-4" />
+                <span>Bloqueado: OP Duplicada</span>
+              </>
+            ) : isEditing ? (
+              "Salvar Alterações"
+            ) : (
+              "Registrar Pedido"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1784,6 +1943,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
         onOpenChange={(v) => setBloqueio((b) => ({ ...b, open: v }))}
         titulo={bloqueio.titulo}
         motivos={bloqueio.motivos}
+        rodape={bloqueio.rodape}
       />
     </Dialog>);
 

@@ -10,7 +10,7 @@ import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
 import {
   getItens, itensPorGrupo, computePercentual, computePercentualGrupo,
-  buildItensJson, statusPcpPorPercentual, STATUS_ITEM
+  buildItensJson, statusPcpPorPercentual, STATUS_ITEM, saoPedidosIguais
 } from "@/lib/pedidoOdooHelper";
 import { formatDataBR, slaDiasPorCategoria, diasUteisRestantes } from "@/lib/sla";
 import { notificarStatus } from "@/lib/biNotificador";
@@ -96,7 +96,8 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
           // Busca se existe Ordem de Produção real criada para este pedido na fábrica
           const opsDoPedido = pedidosProducao.filter(op =>
             op.numero_pedido &&
-            String(op.numero_pedido).trim().toUpperCase() === String(pedido.numero_pedido).trim().toUpperCase()
+            saoPedidosIguais(op.numero_pedido, pedido.numero_pedido) &&
+            String(op.status || "").toLowerCase() !== "cancelado"
           );
 
           let somaProgresso = 0;
@@ -209,7 +210,13 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                                 item_nome: item.produto || item.descricao || "",
                                 maquina_atual: maquinaItem || "PCP / Fábrica"
                               });
-                              onNovaOrdem(pedido, { ...item, _idx: idx, maquina: maquinaItem, data: item.data_programada || pedido.data_entrega });
+                              onNovaOrdem(pedido, {
+                                ...item,
+                                _idx: idx,
+                                maquina: maquinaItem,
+                                data: item.data_programada || pedido.data_entrega,
+                                existingOp: opDoItem
+                              });
                             }}
                             className={
                               concluido
