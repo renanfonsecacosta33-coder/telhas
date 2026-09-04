@@ -16,7 +16,7 @@ import { useTolerancias } from "@/hooks/useTolerancias";
 import { getBobinaStatus, calcMetrosDisponiveis } from "@/lib/bobinaStatusHelper";
 import { validarBobina, filtrarBobinasCompativeis } from "@/lib/bobinaValidation";
 import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
-import { Building2, X, Loader2, FileText, Plus, Trash2, Camera, ShieldAlert, Flame, Route } from "lucide-react";
+import { Building2, X, Loader2, FileText, Plus, Trash2, Camera, ShieldAlert, Flame, Route, AlertTriangle } from "lucide-react";
 import { detectarTipoProdutoTelha, detectarMaquinaTelha, detectarEspessura, detectarOrigemAco } from "@/lib/pedidoOdooHelper";
 import { calcularDataPrometidaSLA, toISODate, formatDataBR } from "@/lib/sla";
 
@@ -1003,7 +1003,13 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                             </span>
                           )}
                         </div>
-                   {bobinaSuperiorObj && (() => {
+                        </SelectItem>
+                        );
+                        })}
+                        </SelectContent>
+                        </Select>
+
+                        {bobinaSuperiorObj && (() => {
                     const pb = preBaixaMap[bobinaSuperiorObj.id] || 0;
                     const disp = Math.max(0, (bobinaSuperiorObj.peso_kg || 0) - pb);
                     const kgNec = Number(form.kg_superior) || 0;
