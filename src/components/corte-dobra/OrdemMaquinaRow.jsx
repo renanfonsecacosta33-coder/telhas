@@ -20,6 +20,7 @@ import ImageLink from "@/components/ui/ImageLink";
 import DualPhotoGallery from "@/components/corte-dobra/DualPhotoGallery";
 import CorChapaDot, { extractEspessuraFromDesc } from "@/components/corte-dobra/CorChapaDot";
 import AproveitamentoDialog from "@/components/corte-dobra/AproveitamentoDialog";
+import ValidacaoEtiquetaChapaDialog from "@/components/corte-dobra/ValidacaoEtiquetaChapaDialog";
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
 import ApontamentoOpButton from "@/components/producao/ApontamentoOpButton";
 import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo } from "@/lib/pedidoOdooHelper";
@@ -91,6 +92,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
   const fotoScanRef = useRef();
 
   const isGuilhotina = o.maquina === "CORTE 3M" || o.maquina === "CORTE 6M";
+  const [validacaoChapaDialog, setValidacaoChapaDialog] = useState(false);
 
   useEffect(() => {
     const iv = setInterval(() => setTick(t => t + 1), 1000);
@@ -130,9 +132,18 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
     return false;
   };
 
-  const doIniciar = async () => {
+  const doIniciar = async (fotoUrl = null, motivo = null, statusValidacao = null) => {
     const inicioTs = new Date().toISOString();
-    onUpdate(o.id, { status: "em_producao", inicio_producao_ts: inicioTs });
+    const updatePayload = { status: "em_producao", inicio_producao_ts: inicioTs };
+    if (fotoUrl) {
+      updatePayload.foto_etiqueta_chapa_url = fotoUrl;
+      if (!o.foto_material_url) {
+        updatePayload.foto_material_url = fotoUrl;
+      }
+      updatePayload.validacao_etiqueta_chapa_status = statusValidacao || "aprovado";
+      updatePayload.validacao_etiqueta_chapa_motivo = motivo || null;
+    }
+    onUpdate(o.id, updatePayload);
     if (o.numero_pedido) {
       try {
         const odooList = await base44.entities.PedidoOdoo.filter({ numero_pedido: o.numero_pedido }, "-created_date", 1);
@@ -186,7 +197,16 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
         return;
       }
     }
+    if (isGuilhotina) {
+      setValidacaoChapaDialog(true);
+      return;
+    }
     doIniciar();
+  };
+
+  const handleEtiquetaChapaAprovada = (fotoUrl, motivo, statusValidacao) => {
+    setValidacaoChapaDialog(false);
+    doIniciar(fotoUrl, motivo, statusValidacao);
   };
 
   const confirmarPausa = () => {
@@ -235,7 +255,10 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
 
   const confirmarBloqueio = () => {
     setBloqueioDialog(false);
-    if (acaoPendente === "iniciar") doIniciar();
+    if (acaoPendente === "iniciar") {
+      if (isGuilhotina) setValidacaoChapaDialog(true);
+      else doIniciar();
+    }
     else if (acaoPendente === "retomar") doRetomar();
     setAcaoPendente(null);
     setOrdemBloqueante(null);
@@ -420,9 +443,15 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
           </div>
         </div>
 
-        {/* Fotos: Pedido (encarregado) + Material (chapa) + Finalização (operador) */}
-        {(o.foto_pedido_url || o.foto_material_url || o.foto_finalizacao_url) && (
-          <DualPhotoGallery fotoPedidoUrl={o.foto_pedido_url} fotoMaterialUrl={o.foto_material_url} fotoFinalizacaoUrl={o.foto_finalizacao_url} z={zoom} />
+        {/* Fotos: Pedido (encarregado) + Material/Etiqueta (chapa) + Finalização (operador) */}
+        {(o.foto_pedido_url || o.foto_material_url || o.foto_etiqueta_chapa_url || o.foto_finalizacao_url) && (
+          <DualPhotoGallery
+            fotoPedidoUrl={o.foto_pedido_url}
+            fotoMaterialUrl={o.foto_etiqueta_chapa_url || o.foto_material_url}
+            fotoFinalizacaoUrl={o.foto_finalizacao_url}
+            labelMaterial={o.foto_etiqueta_chapa_url ? "Etiqueta Chapa" : "Foto do Material"}
+            z={zoom}
+          />
         )}
 
         {/* Observações (finalizado) */}
@@ -534,9 +563,15 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
           </div>
         </div>
 
-        {/* Fotos: Pedido (encarregado) + Material (chapa) + Finalização (operador) */}
-        {(o.foto_pedido_url || o.foto_material_url || o.foto_finalizacao_url) && (
-          <DualPhotoGallery fotoPedidoUrl={o.foto_pedido_url} fotoMaterialUrl={o.foto_material_url} fotoFinalizacaoUrl={o.foto_finalizacao_url} z={zoom} />
+        {/* Fotos: Pedido (encarregado) + Material/Etiqueta (chapa) + Finalização (operador) */}
+        {(o.foto_pedido_url || o.foto_material_url || o.foto_etiqueta_chapa_url || o.foto_finalizacao_url) && (
+          <DualPhotoGallery
+            fotoPedidoUrl={o.foto_pedido_url}
+            fotoMaterialUrl={o.foto_etiqueta_chapa_url || o.foto_material_url}
+            fotoFinalizacaoUrl={o.foto_finalizacao_url}
+            labelMaterial={o.foto_etiqueta_chapa_url ? "Etiqueta Chapa" : "Foto do Material"}
+            z={zoom}
+          />
         )}
 
         {/* Observações */}
@@ -801,13 +836,27 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
           <DialogFooter>
             <Button variant="outline" onClick={() => { setPrioridadeDialog(false); setOrdemPrioritaria(null); }}>Cancelar</Button>
             {isGestor && (
-              <Button className="bg-amber-500 hover:bg-amber-600 gap-1" onClick={() => { setPrioridadeDialog(false); setOrdemPrioritaria(null); doIniciar(); }}>
+              <Button className="bg-amber-500 hover:bg-amber-600 gap-1" onClick={() => {
+                setPrioridadeDialog(false);
+                setOrdemPrioritaria(null);
+                if (isGuilhotina) setValidacaoChapaDialog(true);
+                else doIniciar();
+              }}>
                 <Star className="w-4 h-4" /> Autorizar início
               </Button>
             )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog Validação de Etiqueta da Chapa (Guilhotina) */}
+      <ValidacaoEtiquetaChapaDialog
+        open={validacaoChapaDialog}
+        onClose={() => setValidacaoChapaDialog(false)}
+        ordem={o}
+        onAprovado={handleEtiquetaChapaAprovada}
+        isGestor={isGestor}
+      />
     </>
   );
 }

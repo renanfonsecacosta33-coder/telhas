@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -235,13 +235,13 @@ export default function OrdemCardCD({
                 </ImageLink>
               )}
 
-              {(o.foto_etiqueta_bobina_url || o.foto_material_url) && (
+              {(o.foto_etiqueta_bobina_url || o.foto_etiqueta_chapa_url || o.foto_material_url) && (
                 <ImageLink
-                  url={o.foto_etiqueta_bobina_url || o.foto_material_url}
-                  name={`Etiqueta Material — ${titulo}`}
+                  url={o.foto_etiqueta_chapa_url || o.foto_etiqueta_bobina_url || o.foto_material_url}
+                  name={o.foto_etiqueta_chapa_url ? `Etiqueta Chapa — ${titulo}` : `Etiqueta Material — ${titulo}`}
                 >
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800 hover:bg-orange-100 transition-colors cursor-pointer">
-                    <Camera className="w-3 h-3" /> Etiqueta
+                    <Camera className="w-3 h-3" /> {o.foto_etiqueta_chapa_url ? "Etiqueta Chapa" : "Etiqueta"}
                   </span>
                 </ImageLink>
               )}

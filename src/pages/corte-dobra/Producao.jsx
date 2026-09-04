@@ -14,6 +14,7 @@ import DiaResumoCardCD from "@/components/corte-dobra/DiaResumoCardCD";
 import OrdemMaquinaFormDialog from "@/components/corte-dobra/OrdemMaquinaFormDialog.jsx";
 import OrdemMaquinaRow from "@/components/corte-dobra/OrdemMaquinaRow.jsx";
 import RetrabalhoDialog from "@/components/corte-dobra/RetrabalhoDialog";
+import ValidacaoEtiquetaChapaDialog from "@/components/corte-dobra/ValidacaoEtiquetaChapaDialog";
 import OPSemMaterialTab from "@/components/corte-dobra/OPSemMaterialTab";
 import { useFilial } from "@/contexts/FilialContext";
 import ExpedicaoTab from "@/components/logistica/ExpedicaoTab";
@@ -51,6 +52,8 @@ export default function ProducaoCD() {
   const [maquinaAtiva, setMaquinaAtiva] = useState(null);
   // Contexto da Fila PCP — rastreia de qual item a OP foi criada para atualizar status + webhook
   const [filaContext, setFilaContext] = useState(null);
+  const [validacaoChapaOpen, setValidacaoChapaOpen] = useState(false);
+  const [ordemValidandoChapa, setOrdemValidandoChapa] = useState(null);
 
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
@@ -172,6 +175,14 @@ export default function ProducaoCD() {
   };
 
   const handleStatusChangeMaq = (ordem, novoStatus) => {
+    if (novoStatus === "em_producao") {
+      const isGuilhotina = ordem.maquina === "CORTE 3M" || ordem.maquina === "CORTE 6M";
+      if (isGuilhotina) {
+        setOrdemValidandoChapa(ordem);
+        setValidacaoChapaOpen(true);
+        return;
+      }
+    }
     const dataUpdate = { status: novoStatus };
     if (novoStatus === "em_producao" && !ordem.inicio_producao_ts) {
       dataUpdate.inicio_producao_ts = new Date().toISOString();
@@ -181,6 +192,23 @@ export default function ProducaoCD() {
     }
     updateMaq.mutate({ id: ordem.id, data: dataUpdate });
     toast.success(`Status atualizado para ${novoStatus}!`);
+  };
+
+  const handleEtiquetaChapaAprovadaProducao = (fotoUrl, motivo, statusValidacao) => {
+    if (!ordemValidandoChapa) return;
+    const inicioTs = new Date().toISOString();
+    const dataUpdate = {
+      status: "em_producao",
+      inicio_producao_ts: inicioTs,
+      foto_etiqueta_chapa_url: fotoUrl,
+      foto_material_url: ordemValidandoChapa.foto_material_url || fotoUrl,
+      validacao_etiqueta_chapa_status: statusValidacao || "aprovado",
+      validacao_etiqueta_chapa_motivo: motivo || null,
+    };
+    updateMaq.mutate({ id: ordemValidandoChapa.id, data: dataUpdate });
+    setValidacaoChapaOpen(false);
+    setOrdemValidandoChapa(null);
+    toast.success("Produção na guilhotina iniciada com foto da etiqueta da chapa!");
   };
 
   const isGestor = user?.role === "admin" || user?.full_name?.toLowerCase().includes("hudson");
@@ -640,6 +668,15 @@ export default function ProducaoCD() {
           queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
           queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
         }}
+      />
+
+      {/* Dialog Validação de Etiqueta da Chapa (Guilhotina) */}
+      <ValidacaoEtiquetaChapaDialog
+        open={validacaoChapaOpen}
+        onClose={() => { setValidacaoChapaOpen(false); setOrdemValidandoChapa(null); }}
+        ordem={ordemValidandoChapa}
+        onAprovado={handleEtiquetaChapaAprovadaProducao}
+        isGestor={isGestor}
       />
     </div>
   );
