@@ -829,6 +829,11 @@ export default function CentralPCP() {
         onToggleItem={handleToggleItem}
         onProgramarItem={handleProgramarItem}
         onProgramarTodosItens={handleProgramarTodosItens}
+        onAtualizado={() => {
+          queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+          queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
+          queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+        }}
       />
       <SenhaGestorDialog
         open={senhaGestorOpen}

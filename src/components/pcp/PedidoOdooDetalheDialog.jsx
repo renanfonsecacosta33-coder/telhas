@@ -81,6 +81,67 @@ export default function PedidoOdooDetalheDialog({
     }
   };
 
+  const [resetando, setResetando] = useState(false);
+
+  const handleResetarPedido = async () => {
+    if (!pedido) return;
+    if (!window.confirm(
+      `🔄 ZERAR PRODUÇÃO DA OS #${pedido.numero_pedido}?\n\nIsso irá:\n• Zerar o progresso para 0%\n• Mudar status para 'Pendente de Distribuição'\n• Limpar máquinas e etapas atribuídas\n• Cancelar OPs vinculadas na fábrica\n• Notificar o Odoo ERP com evento de Reset (0%)`
+    )) return;
+
+    setResetando(true);
+    try {
+      const todayIso = new Date().toISOString().slice(0, 10);
+      // 1. Cancela OPs vinculadas na fábrica
+      await base44.entities.OrdemMaquinaCD.updateMany(
+        { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
+        { $set: { status: "cancelado", data_finalizacao: todayIso } }
+      ).catch(() => {});
+      await base44.entities.OrdemDesbobinadeira.updateMany(
+        { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
+        { $set: { status: "cancelado", data_finalizacao: todayIso } }
+      ).catch(() => {});
+      await base44.entities.Pedido.updateMany(
+        { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
+        { $set: { status: "cancelado", data_finalizacao: todayIso } }
+      ).catch(() => {});
+
+      // 2. Limpa itens para status inicial
+      const itensAtuais = getItens(pedido);
+      const itensZerados = itensAtuais.map(i => ({
+        ...i,
+        status: "pendente",
+        status_detalhado: "Aguardando Início",
+        concluido: false,
+        maquina: ""
+      }));
+
+      // 3. Atualiza PedidoOdoo
+      const atualizado = await base44.entities.PedidoOdoo.update(pedido.id, {
+        status_pcp: "pendente_distribuicao",
+        percentual_concluido: 0,
+        maquinas_json: "[]",
+        etapas_telha_json: "[]",
+        itens_json: JSON.stringify(itensZerados)
+      });
+
+      // 4. Notifica Odoo do Reset
+      await notificarStatus(atualizado, "reset", {
+        percentual_concluido: 0,
+        status_novo: "Aguardando Início",
+        item_nome: `Pedido #${pedido.numero_pedido}`
+      }).catch(() => {});
+
+      toast.success(`OS #${pedido.numero_pedido} zerada para 0% com sucesso!`);
+      onAtualizado?.();
+      onOpenChange?.(false);
+    } catch (err) {
+      toast.error("Erro ao zerar OS: " + (err.message || String(err)));
+    } finally {
+      setResetando(false);
+    }
+  };
+
   // Rastreamento (Mini BI) só na visão do operador (galpão). Busca o nome do operador logado.
   useEffect(() => {
     if (!showTracking) return;
@@ -362,6 +423,16 @@ export default function PedidoOdooDetalheDialog({
                 <RotateCcw className="w-4 h-4" /> Devolver ao PCP
               </Button>
             )}
+            <Button
+              variant="outline"
+              disabled={resetando}
+              onClick={handleResetarPedido}
+              className="sm:w-auto border-sky-500 text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/30 font-semibold"
+              title="Zerar progresso para 0% e resetar a OS para o início"
+            >
+              <RotateCcw className={`w-4 h-4 mr-1.5 ${resetando ? "animate-spin" : ""}`} />
+              {resetando ? "Zerando..." : "Zerar OS (0%)"}
+            </Button>
             {onExcluirOS && (
               <Button
                 variant="destructive"
