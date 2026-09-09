@@ -16,7 +16,7 @@ import { HistoricoPedidoTelhasButton } from "@/components/producao/HistoricoPedi
 import PainelSolicitacoesProducao from "@/components/producao/PainelSolicitacoesProducao";
 import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
-import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo } from "@/lib/pedidoOdooHelper";
+import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo, detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import { SeletorPrioridadeDropdown, getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
@@ -76,6 +76,7 @@ export default function MaquinaPanel({ maquina }) {
       acao,
       acao_label: acaoLabel,
       detalhes,
+      maquina: maquina || pedido.maquina || "",
     });
     return { historico_alteracoes: JSON.stringify(hist) };
   };
@@ -92,7 +93,39 @@ export default function MaquinaPanel({ maquina }) {
   const pedidos = useMemo(() => {
     return todosPedidos.filter(p => {
       const mNorm = maquinaNorm(p.maquina);
-      return mNorm === targetNorm || String(p.maquina || "").toUpperCase().includes(targetNorm);
+      const mOrigemNorm = maquinaNorm(p.maquina_origem);
+
+      // Se estamos na tela da COLAGEM:
+      if (targetNorm === "COLAGEM") {
+        return mNorm === "COLAGEM" || p.status === "aguardando_colagem";
+      }
+
+      // 1. Está atualmente atribuído a esta máquina perfiladeira
+      if (mNorm === targetNorm || String(p.maquina || "").toUpperCase().includes(targetNorm)) {
+        return true;
+      }
+
+      // 2. Foi perfilado nesta máquina originalmente (maquina_origem bate com esta máquina)
+      if (mOrigemNorm === targetNorm || String(p.maquina_origem || "").toUpperCase().includes(targetNorm)) {
+        return true;
+      }
+
+      // 3. Retrocompatibilidade: Se o pedido está em COLAGEM ou aguardando_colagem,
+      // mas não tem maquina_origem explicitamente salvo ainda:
+      if (mNorm === "COLAGEM" || p.status === "aguardando_colagem") {
+        const maqDetectada = maquinaNorm(detectarMaquinaTelha(p.produto || p.modelo || ""));
+        if (maqDetectada === targetNorm) {
+          return true;
+        }
+        try {
+          const hist = JSON.parse(p.historico_alteracoes || "[]");
+          if (hist.some(h => maquinaNorm(h.maquina) === targetNorm || String(h.detalhes || "").toUpperCase().includes(targetNorm))) {
+            return true;
+          }
+        } catch {}
+      }
+
+      return false;
     });
   }, [todosPedidos, targetNorm]);
 
@@ -166,7 +199,19 @@ export default function MaquinaPanel({ maquina }) {
         ? `Metragem: ${extraData.metragem_utilizada}m`
         : "";
     const histData = appendHistorico(pedido, acao, label, detalhes);
-    const data = { ...pedido, status: novoStatus, ...extraData, ...histData };
+    const hojeStr = format(new Date(), "yyyy-MM-dd");
+    const agoraIso = new Date().toISOString();
+    const maqOrigem = extraData.maquina_origem || pedido.maquina_origem || (maquina !== "COLAGEM" ? maquina : null) || (pedido.maquina !== "COLAGEM" ? pedido.maquina : null);
+
+    const colagemUpdates = novoStatus === "aguardando_colagem" ? {
+      maquina: "COLAGEM",
+      maquina_origem: maqOrigem,
+      data_perfilacao: pedido.data_perfilacao || extraData.data_perfilacao || hojeStr,
+      hora_perfilacao: pedido.hora_perfilacao || extraData.hora_perfilacao || agoraIso,
+      perfilacao_concluida: true,
+    } : {};
+
+    const data = { ...pedido, status: novoStatus, ...colagemUpdates, ...extraData, ...histData };
     if (novoStatus === "finalizado") {
       playFinishSound();
       speakOpFinalizada(pedido.maquina, pedido.numero_pedido);
@@ -286,37 +331,70 @@ export default function MaquinaPanel({ maquina }) {
     }
   };
 
-  // Pedidos que "passaram" por esta máquina (foram para outra após aqui)
-  // Busca também pedidos com histórico nesta máquina
-  // No dia de hoje, inclui também pedidos atrasados (não finalizados/cancelados)
+  // Pedidos que pertencem ao dia selecionado:
+  // Se é uma máquina perfiladeira (ex: TP - 25), inclui também pedidos cujas peças foram perfiladas/tiradas aqui neste dia!
   const pedidosDia = useMemo(() => {
     const hoje = format(new Date(), "yyyy-MM-dd");
     const isHoje = selectedDay === hoje;
-    if (!isHoje) {
-      return pedidos.filter(p => p.data === selectedDay || p.data_finalizacao === selectedDay || p.status === "pausado" || p.status === "em_producao");
-    }
-    return pedidos.filter(p =>
-      p.data === selectedDay ||
-      p.data_finalizacao === selectedDay ||
-      p.status === "pausado" ||
-      p.status === "em_producao" ||
-      (p.data < hoje && p.status !== "finalizado" && p.status !== "cancelado")
-    );
+
+    return pedidos.filter(p => {
+      // 1. Data planejada do pedido bate com o dia selecionado
+      if (p.data === selectedDay) return true;
+      // 2. Data em que as peças foram perfiladas nesta máquina bate com o dia selecionado
+      if (p.data_perfilacao === selectedDay) return true;
+      if (p.hora_perfilacao && p.hora_perfilacao.startsWith(selectedDay)) return true;
+      // 3. Data de finalização bate com o dia selecionado
+      if (p.data_finalizacao === selectedDay) return true;
+      // 4. Status ativo hoje
+      if (p.status === "pausado" || p.status === "em_producao") return true;
+
+      // 5. Se hoje: pedidos pendentes ou atrasados
+      if (isHoje && p.data && p.data < hoje && p.status !== "finalizado" && p.status !== "cancelado") {
+        return true;
+      }
+
+      // 6. Se hoje e houve movimentação/trabalho registrado no histórico hoje
+      if (isHoje) {
+        try {
+          const hist = JSON.parse(p.historico_alteracoes || "[]");
+          if (hist.some(h => h.data && h.data.startsWith(hoje))) {
+            return true;
+          }
+        } catch {}
+      }
+
+      return false;
+    });
   }, [pedidos, selectedDay]);
 
   const hoje = isToday(new Date(selectedDay + "T12:00:00"));
   const totalMetros = pedidosDia.reduce((s, p) => s + calcularMetrosPedido(p), 0);
   
-  // Para o dashboard da máquina: "finalizado" = finalizado OU aguardando_colagem (passou por aqui e foi para outra)
-  // Mas se aguardando_colagem e maquina mudou (está em outra), conta como finalizado nessa máquina
+  // Para o painel da máquina:
+  // - Na COLAGEM: segue o fluxo padrão de colagem.
+  // - Na perfiladeira (TP - 25, etc.): se o pedido já foi para aguardando_colagem ou COLAGEM,
+  //   as peças já foram TIRADAS nesta máquina! Conta como concluído/pronto na máquina.
   const finalizados = pedidosDia.filter(p => {
     if (p.status === "finalizado") return true;
-    // aguardando_colagem e máquina atual é diferente desta → passou por aqui
-    if (p.status === "aguardando_colagem" && p.maquina !== maquina) return true;
+    if (targetNorm !== "COLAGEM" && (p.status === "aguardando_colagem" || maquinaNorm(p.maquina) === "COLAGEM")) {
+      return true;
+    }
     return false;
   }).length;
-  const emProducao = pedidosDia.filter(p => p.status === "em_producao" || p.status === "pausado").length;
-  const pendentes = pedidosDia.filter(p => p.status === "pendente").length;
+
+  const emProducao = pedidosDia.filter(p => {
+    if (targetNorm !== "COLAGEM" && (p.status === "aguardando_colagem" || maquinaNorm(p.maquina) === "COLAGEM")) {
+      return false;
+    }
+    return p.status === "em_producao" || p.status === "pausado";
+  }).length;
+
+  const pendentes = pedidosDia.filter(p => {
+    if (targetNorm !== "COLAGEM" && (p.status === "aguardando_colagem" || maquinaNorm(p.maquina) === "COLAGEM")) {
+      return false;
+    }
+    return p.status === "pendente";
+  }).length;
 
   const ordenados = useMemo(() => {
     const hoje = format(new Date(), "yyyy-MM-dd");
@@ -380,6 +458,7 @@ export default function MaquinaPanel({ maquina }) {
     pedidos.forEach(p => {
       if (p.data) set.add(p.data);
       if (p.data_finalizacao) set.add(p.data_finalizacao);
+      if (p.data_perfilacao) set.add(p.data_perfilacao);
     });
     return Array.from(set).sort();
   }, [pedidos]);

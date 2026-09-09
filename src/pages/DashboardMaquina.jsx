@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { useFilial } from "@/contexts/FilialContext";
+import { detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
 
 function formatTempo(seg) {
   const s = Math.floor(seg || 0);
@@ -92,13 +93,32 @@ export default function DashboardMaquina({ maquina }) {
   const cfg = MAQUINAS_CONFIG[maquina] || { colorHex: "#3b82f6", gradient: "from-primary to-primary/80", path: "/" };
   const hoje = format(new Date(), "yyyy-MM-dd");
 
-  const { data: pedidos = [], isLoading } = useQuery({
-    queryKey: ["pedidos-dash-maquina", maquina, filialAtiva],
-    queryFn: () => base44.entities.Pedido.filter({ maquina, unidade: filialAtiva }, "-data", 500),
+  const maquinaNorm = (m) => String(m || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  const targetNorm = maquinaNorm(maquina);
+
+  const { data: todosPedidos = [], isLoading } = useQuery({
+    queryKey: ["pedidos-dash-maquina", filialAtiva],
+    queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva }, "-data", 500),
     refetchInterval: 10000,
   });
 
-  const pedidosHoje = useMemo(() => pedidos.filter(p => p.data === hoje), [pedidos, hoje]);
+  const pedidos = useMemo(() => {
+    return todosPedidos.filter(p => {
+      const mNorm = maquinaNorm(p.maquina);
+      const mOrigemNorm = maquinaNorm(p.maquina_origem);
+      if (targetNorm === "COLAGEM") {
+        return mNorm === "COLAGEM" || p.status === "aguardando_colagem";
+      }
+      if (mNorm === targetNorm || String(p.maquina || "").toUpperCase().includes(targetNorm)) return true;
+      if (mOrigemNorm === targetNorm || String(p.maquina_origem || "").toUpperCase().includes(targetNorm)) return true;
+      if (mNorm === "COLAGEM" || p.status === "aguardando_colagem") {
+        if (maquinaNorm(detectarMaquinaTelha(p.produto || p.modelo || "")) === targetNorm) return true;
+      }
+      return false;
+    });
+  }, [todosPedidos, targetNorm]);
+
+  const pedidosHoje = useMemo(() => pedidos.filter(p => p.data === hoje || p.data_perfilacao === hoje || p.data_finalizacao === hoje), [pedidos, hoje]);
   const ativos = useMemo(() => pedidos.filter(p => p.status === "em_producao" || p.status === "pausado"), [pedidos]);
 
   const metrosHoje = pedidosHoje.reduce((s, p) => s + (p.metros || 0), 0);

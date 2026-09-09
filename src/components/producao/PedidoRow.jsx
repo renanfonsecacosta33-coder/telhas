@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route, Camera, Scissors, Snowflake, Lock } from "lucide-react";
+import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route, Camera, Scissors, Snowflake, Lock, RotateCcw } from "lucide-react";
 import ImageLink from "@/components/ui/ImageLink";
 import RetrabalhoTelhasDialog from "@/components/producao/RetrabalhoTelhasDialog";
 import { format } from "date-fns";
@@ -249,6 +249,17 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
   const borderColor = PRODUTO_BG[p.produto] || "border-l-slate-300";
   const temEpsReal = PRODUTOS_COM_EPS.includes(p.produto) || (p.produto && p.produto !== "TELHA" && /(eps|manta|sanduiche|isopor|termoacustica)/i.test(p.produto));
   const precisaColagem = temEpsReal;
+  const maquinaNorm = (m) => String(m || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  const mAtualNorm = maquinaNorm(p.maquina);
+  const mPainelNorm = maquinaNorm(maquina);
+  const mOrigemNorm = maquinaNorm(p.maquina_origem);
+  // Indica se este pedido foi tirado/perfilado nesta máquina e seguiu para a colagem
+  const isPerfiladoNestaMaquina = Boolean(
+    mPainelNorm &&
+    mPainelNorm !== "COLAGEM" &&
+    (mOrigemNorm === mPainelNorm || (!p.maquina_origem && (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem"))) &&
+    (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem" || p.perfilacao_concluida)
+  );
   // TELHA BANDEJA TP-40 tem fluxo especial de 3 etapas
   const isBandejaMultiEtapa = p.produto === "TELHA BANDEJA" && ["TP - 40", "COLONIAL", "BANDEJA", "COLAGEM"].includes(p.maquina);
   const proximaEtapaBandeja = isBandejaMultiEtapa ? proximaMaquinaFluxo(p.produto, p.maquina) : null;
@@ -423,13 +434,27 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
     novos[itemIndex] = targetItem;
     const todosFinalizados = novos.length > 0 && novos.every(it => it.finalizado);
     const novoStatusOp = todosFinalizados ? (precisaColagem ? "aguardando_colagem" : "finalizado") : "em_producao";
+    const hojeStr = format(new Date(), "yyyy-MM-dd");
+    const agoraIso = new Date().toISOString();
+    const maqOrigem = p.maquina_origem || (p.maquina !== "COLAGEM" ? p.maquina : null) || maquina || "TP - 25";
+
     onStatusChange(p, novoStatusOp, {
       variacoes_telhas: JSON.stringify(novos),
       ...(todosFinalizados ? {
-        data_finalizacao: format(new Date(), "yyyy-MM-dd"),
-        fim_producao_ts: new Date().toISOString(),
-        foto_finalizacao_url: fotoUrl || p.foto_finalizacao_url || ""
-      } : {})
+        data_finalizacao: novoStatusOp === "finalizado" ? hojeStr : undefined,
+        fim_producao_ts: agoraIso,
+        foto_finalizacao_url: fotoUrl || p.foto_finalizacao_url || "",
+        ...(precisaColagem ? {
+          maquina: "COLAGEM",
+          maquina_origem: maqOrigem,
+          data_perfilacao: p.data_perfilacao || hojeStr,
+          hora_perfilacao: p.hora_perfilacao || agoraIso,
+          perfilacao_concluida: true,
+        } : {})
+      } : {
+        maquina_origem: maqOrigem,
+        data_perfilacao: p.data_perfilacao || hojeStr,
+      })
     });
     playFinishSound();
     toast.success(`Item ${itemIndex + 1} finalizado com foto e ${metragemReal}m real!`);
@@ -724,6 +749,10 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
 
     // Produto sem colagem → finaliza direto; com colagem → vai pra COLAGEM
     const novoStatus = precisaColagem ? "aguardando_colagem" : "finalizado";
+    const hojeStr = format(new Date(), "yyyy-MM-dd");
+    const agoraIso = new Date().toISOString();
+    const maqOrigem = p.maquina_origem || (p.maquina !== "COLAGEM" ? p.maquina : null) || maquina || "TP - 25";
+
     if (novoStatus === "finalizado") {
       playFinishSound();
       speakOpFinalizada(p.maquina, p.numero_pedido);
@@ -733,9 +762,15 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
       metragem_utilizada: metragemRealNum,
       metragem_planejada: metragemRealNum,
       inicio_producao_ts: null,
-      data_finalizacao: novoStatus === "finalizado" ? format(new Date(), "yyyy-MM-dd") : undefined,
+      data_finalizacao: novoStatus === "finalizado" ? hojeStr : undefined,
       foto_finalizacao_url: fotoFinalizacaoUrl,
-      ...(precisaColagem ? { maquina: "COLAGEM" } : {}),
+      ...(precisaColagem ? {
+        maquina: "COLAGEM",
+        maquina_origem: maqOrigem,
+        data_perfilacao: p.data_perfilacao || hojeStr,
+        hora_perfilacao: p.hora_perfilacao || agoraIso,
+        perfilacao_concluida: true,
+      } : {}),
     });
     setMetragemDialog(false);
   };
@@ -768,18 +803,31 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
                   <Route className="w-3 h-3" /> ROTA
                 </Badge>
               )}
-              <StatusBadge status={p.status} />
-              {aguardandoAprovacao && (
-                <Badge className="bg-orange-500 text-white border-orange-600 text-xs gap-1">
-                  <AlertTriangle className="w-3 h-3" /> Aguard. Aprovação
-                </Badge>
-              )}
-              {p.status === "aguardando_colagem" && (
-                <Badge className="bg-orange-100 text-orange-700 border-orange-300 text-xs">
-                  {p.produto === "TELHA BANDEJA" && p.maquina === "BANDEJA" ? "→ Bandeja" :
-                   p.produto === "TELHA BANDEJA" && p.maquina === "COLAGEM" ? "→ Colagem" :
-                   "→ Colagem"}
-                </Badge>
+              {isPerfiladoNestaMaquina ? (
+                <>
+                  <Badge className="bg-emerald-600 text-white font-bold text-xs gap-1 shadow-xs">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Peças Tiradas na Máquina
+                  </Badge>
+                  <Badge className="bg-amber-100 text-amber-800 border-amber-300 font-semibold text-xs">
+                    {p.status === "finalizado" ? "✓ Colagem Concluída" : "→ Na Bancada de Colagem"}
+                  </Badge>
+                </>
+              ) : (
+                <>
+                  <StatusBadge status={p.status} />
+                  {aguardandoAprovacao && (
+                    <Badge className="bg-orange-500 text-white border-orange-600 text-xs gap-1">
+                      <AlertTriangle className="w-3 h-3" /> Aguard. Aprovação
+                    </Badge>
+                  )}
+                  {p.status === "aguardando_colagem" && (
+                    <Badge className="bg-orange-100 text-orange-700 border-orange-300 text-xs">
+                      {p.produto === "TELHA BANDEJA" && p.maquina === "BANDEJA" ? "→ Bandeja" :
+                       p.produto === "TELHA BANDEJA" && p.maquina === "COLAGEM" ? "→ Colagem" :
+                       "→ Colagem"}
+                    </Badge>
+                  )}
+                </>
               )}
               {temEpsReal && (
                 <Badge className={`text-xs gap-1 border font-semibold ${
@@ -1259,65 +1307,94 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
 
         {/* Ações */}
         <div className="flex items-center justify-end gap-2 mt-3">
-          {p.status === "pendente" && (
-            <Button
-              size="sm"
-              className={`gap-1 border-0 ${aguardandoAprovacao ? "bg-orange-400 hover:bg-orange-500 text-white" : p.rota ? "bg-red-500 hover:bg-red-600 text-white" : "bg-amber-500 hover:bg-amber-600 text-white"}`}
-              onClick={aguardandoAprovacao ? cancelarSolicitacaoPendente : handleIniciar}
-              title={aguardandoAprovacao ? "Aguardando aprovação do encarregado. Clique para cancelar a solicitação." : ""}
-            >
-              <Play className="w-3 h-3" /> {aguardandoAprovacao ? "Aguardando... (cancelar)" : p.maquina === "COLAGEM" ? "Iniciar Colagem" : "Iniciar"}
-            </Button>
-          )}
-
-          {p.status === "em_producao" && (
+          {isPerfiladoNestaMaquina ? (
+            <div className="flex items-center justify-between w-full flex-wrap gap-2 pt-2 border-t border-slate-100">
+              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>
+                  Perfilação concluída nesta máquina{p.data_perfilacao ? ` em ${format(new Date(p.data_perfilacao + "T12:00:00"), "dd/MM")}` : ""} · Peças tiradas e encaminhadas para a Colagem
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {podeGerenciar && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs text-slate-600 hover:text-amber-700 border-slate-300 gap-1"
+                    onClick={() => {
+                      if (confirm(`Deseja reabrir o pedido #${p.numero_pedido || ""} para refazer perfilação nesta máquina?`)) {
+                        onStatusChange(p, "em_producao", { maquina });
+                      }
+                    }}
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" /> Reabrir na Máquina
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
             <>
-              <Button size="sm" variant="outline" className="gap-1 border-amber-300 text-amber-700 hover:bg-amber-50" onClick={handlePausar}>
-                <Pause className="w-3 h-3" /> Pausar
-              </Button>
-              <Button
-                size="sm"
-                className={`gap-1 border-0 ${temVariacoes && !todosItensFinalizados ? "bg-slate-300 text-slate-500 cursor-not-allowed" : "bg-green-600 hover:bg-green-700 text-white"}`}
-                onClick={handleFinalizar}
-                disabled={temVariacoes && !todosItensFinalizados}
-                title={temVariacoes && !todosItensFinalizados ? "Finalize todos os itens primeiro" : ""}
-              >
-                <CheckCircle2 className="w-3 h-3" />
-                {temVariacoes && !todosItensFinalizados
-                  ? `Finalize os itens (${_variacoesTelhas.filter(v => v.finalizado).length}/${_variacoesTelhas.length})`
-                  : isBandejaMultiEtapa && proximaEtapaBandeja
-                  ? `Finalizar ${labelProximaEtapa(p.produto, p.maquina)}`
-                  : precisaColagem ? "Finalizar → Colagem" : "✓ Finalizar"}
-              </Button>
-            </>
-          )}
+              {p.status === "pendente" && (
+                <Button
+                  size="sm"
+                  className={`gap-1 border-0 ${aguardandoAprovacao ? "bg-orange-400 hover:bg-orange-500 text-white" : p.rota ? "bg-red-500 hover:bg-red-600 text-white" : "bg-amber-500 hover:bg-amber-600 text-white"}`}
+                  onClick={aguardandoAprovacao ? cancelarSolicitacaoPendente : handleIniciar}
+                  title={aguardandoAprovacao ? "Aguardando aprovação do encarregado. Clique para cancelar a solicitação." : ""}
+                >
+                  <Play className="w-3 h-3" /> {aguardandoAprovacao ? "Aguardando... (cancelar)" : p.maquina === "COLAGEM" ? "Iniciar Colagem" : "Iniciar"}
+                </Button>
+              )}
 
-          {p.status === "pausado" && (
-            <Button size="sm" className="gap-1 bg-primary hover:bg-primary/90 text-white border-0" onClick={handleRetomar}>
-              <Play className="w-3 h-3" /> Retomar
-            </Button>
-          )}
+              {p.status === "em_producao" && (
+                <>
+                  <Button size="sm" variant="outline" className="gap-1 border-amber-300 text-amber-700 hover:bg-amber-50" onClick={handlePausar}>
+                    <Pause className="w-3 h-3" /> Pausar
+                  </Button>
+                  <Button
+                    size="sm"
+                    className={`gap-1 border-0 ${temVariacoes && !todosItensFinalizados ? "bg-slate-300 text-slate-500 cursor-not-allowed" : "bg-green-600 hover:bg-green-700 text-white"}`}
+                    onClick={handleFinalizar}
+                    disabled={temVariacoes && !todosItensFinalizados}
+                    title={temVariacoes && !todosItensFinalizados ? "Finalize todos os itens primeiro" : ""}
+                  >
+                    <CheckCircle2 className="w-3 h-3" />
+                    {temVariacoes && !todosItensFinalizados
+                      ? `Finalize os itens (${_variacoesTelhas.filter(v => v.finalizado).length}/${_variacoesTelhas.length})`
+                      : isBandejaMultiEtapa && proximaEtapaBandeja
+                      ? `Finalizar ${labelProximaEtapa(p.produto, p.maquina)}`
+                      : precisaColagem ? "Finalizar → Colagem" : "✓ Finalizar"}
+                  </Button>
+                </>
+              )}
 
-          {p.status === "aguardando_colagem" && p.maquina === "COLAGEM" && (
-            <Button size="sm" className="gap-1 bg-amber-500 hover:bg-amber-600 text-white border-0" onClick={handleIniciar}>
-              <Play className="w-3 h-3" /> Iniciar Colagem
-            </Button>
-          )}
+              {p.status === "pausado" && (
+                <Button size="sm" className="gap-1 bg-primary hover:bg-primary/90 text-white border-0" onClick={handleRetomar}>
+                  <Play className="w-3 h-3" /> Retomar
+                </Button>
+              )}
 
-          {p.status === "aguardando_colagem" && (
-            <Button size="sm" variant="outline" className="gap-1 text-amber-600 border-amber-300 hover:bg-amber-50" onClick={() => onStatusChange(p, "pendente", { inicio_producao_ts: null })}>
-              ↩ Retornar
-            </Button>
-          )}
+              {p.status === "aguardando_colagem" && p.maquina === "COLAGEM" && (
+                <Button size="sm" className="gap-1 bg-amber-500 hover:bg-amber-600 text-white border-0" onClick={handleIniciar}>
+                  <Play className="w-3 h-3" /> Iniciar Colagem
+                </Button>
+              )}
 
-          {p.status === "finalizado" && p.maquina !== "COLAGEM" && podeGerenciar && (
-            <>
-              <Button size="sm" variant="outline" className="gap-1 text-slate-500" onClick={() => onStatusChange(p, "pendente", { inicio_producao_ts: null })}>
-                ↩ Reabrir
-              </Button>
-              <Button size="sm" variant="outline" className="gap-1 border-red-300 text-red-600 hover:bg-red-50" onClick={() => setRetrabalhoOpen(true)}>
-                <AlertTriangle className="w-3 h-3" /> Retrabalho
-              </Button>
+              {p.status === "aguardando_colagem" && (
+                <Button size="sm" variant="outline" className="gap-1 text-amber-600 border-amber-300 hover:bg-amber-50" onClick={() => onStatusChange(p, "pendente", { inicio_producao_ts: null })}>
+                  ↩ Retornar
+                </Button>
+              )}
+
+              {p.status === "finalizado" && p.maquina !== "COLAGEM" && podeGerenciar && (
+                <>
+                  <Button size="sm" variant="outline" className="gap-1 text-slate-500" onClick={() => onStatusChange(p, "pendente", { inicio_producao_ts: null })}>
+                    ↩ Reabrir
+                  </Button>
+                  <Button size="sm" variant="outline" className="gap-1 border-red-300 text-red-600 hover:bg-red-50" onClick={() => setRetrabalhoOpen(true)}>
+                    <AlertTriangle className="w-3 h-3" /> Retrabalho
+                  </Button>
+                </>
+              )}
             </>
           )}
         </div>
