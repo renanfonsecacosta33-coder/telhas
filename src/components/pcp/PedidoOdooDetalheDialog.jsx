@@ -10,12 +10,11 @@ import { formatDataBR, slaDiasPorCategoria } from "@/lib/sla";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
-import PedidoItemChecklist from "@/components/pcp/PedidoItemChecklist";
 import PedidoItensLista from "@/components/pcp/PedidoItensLista";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
 import MaquinaSequenceCD from "@/components/pcp/MaquinaSequenceCD";
 import EtapasTelhaSequence from "@/components/pcp/EtapasTelhaSequence";
-import { parseItensPedido, roteamentoMaterial, progressoChecklist } from "@/lib/regrasFabrica";
+import { parseItensPedido, progressoChecklist } from "@/lib/regrasFabrica";
 import { notificarStatus } from "@/lib/biNotificador";
 import { getItens } from "@/lib/pedidoOdooHelper";
 import { toast } from "sonner";
@@ -201,25 +200,25 @@ export default function PedidoOdooDetalheDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[96vw] max-w-5xl max-h-[92vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 flex-wrap">
               {isPrioritario && (
-                <Badge className="bg-amber-500 text-white border-amber-600 animate-pulse gap-0.5">
+                <Badge className="bg-amber-500 text-white border-amber-600 animate-pulse gap-0.5 shrink-0">
                   <Star className="w-3 h-3 fill-white" /> URGENTE
                 </Badge>
               )}
               <span>Pedido #{pedido.numero_pedido}</span>
               {pedido.of_nome ? (
-                <Badge variant="outline" className="text-xs font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200/80">
+                <Badge variant="outline" className="text-xs font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200/80 shrink-0">
                   OF: {pedido.of_nome}
                 </Badge>
               ) : pedido.of_odoo_id ? (
-                <Badge variant="outline" className="text-xs font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200/80">
+                <Badge variant="outline" className="text-xs font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200/80 shrink-0">
                   OF: {pedido.of_odoo_id}
                 </Badge>
               ) : pedido.odoo_id ? (
-                <span className="text-xs font-mono text-slate-400">Odoo:{pedido.odoo_id}</span>
+                <span className="text-xs font-mono text-slate-400 shrink-0">Odoo:{pedido.odoo_id}</span>
               ) : null}
             </DialogTitle>
             <DialogDescription>
@@ -228,34 +227,34 @@ export default function PedidoOdooDetalheDialog({
           </DialogHeader>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-            <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3">
+            <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 min-w-0">
               <p className="text-[10px] text-slate-400 uppercase font-semibold">Cliente</p>
-              <p className="font-medium text-slate-800 dark:text-slate-100 truncate">{pedido.cliente_nome || "—"}</p>
+              <p className="font-medium text-slate-800 dark:text-slate-100 truncate" title={pedido.cliente_nome}>{pedido.cliente_nome || "—"}</p>
             </div>
-            <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3">
+            <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 min-w-0">
               <p className="text-[10px] text-slate-400 uppercase font-semibold">Vendedor</p>
-              <p className="font-medium text-slate-800 dark:text-slate-100 truncate">{pedido.vendedor_nome || "—"}</p>
+              <p className="font-medium text-slate-800 dark:text-slate-100 truncate" title={pedido.vendedor_nome}>{pedido.vendedor_nome || "—"}</p>
             </div>
-            <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3">
+            <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 min-w-0">
               <p className="text-[10px] text-slate-400 uppercase font-semibold">Data Prometida</p>
-              <p className="font-medium text-slate-800 dark:text-slate-100">{formatDataBR(pedido.data_entrega)}</p>
+              <p className="font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">{formatDataBR(pedido.data_entrega)}</p>
             </div>
-            <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3">
+            <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 min-w-0">
               <p className="text-[10px] text-slate-400 uppercase font-semibold">SLA</p>
-              <p className="font-medium text-orange-600 dark:text-orange-400">{sla} dias úteis</p>
+              <p className="font-medium text-orange-600 dark:text-orange-400 whitespace-nowrap">{sla} dias úteis</p>
             </div>
           </div>
 
           {/* SLA Countdown (Regra 6) */}
           <div className="flex items-center gap-2 flex-wrap">
             <SlaCountdownBadge dataPrometida={pedido.data_entrega} />
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-2 flex-wrap">
               <Button
                 size="sm"
                 variant="outline"
                 onClick={handleSincronizarOdoo}
                 disabled={sincronizando}
-                className="gap-1.5 border-blue-400 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
+                className="gap-1.5 border-blue-400 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 whitespace-nowrap"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${sincronizando ? "animate-spin" : ""}`} />
                 {sincronizando ? "Sincronizando..." : "Sincronizar com Odoo"}
@@ -278,10 +277,12 @@ export default function PedidoOdooDetalheDialog({
           {/* Foto do Pedido (Odoo → Encarregado) — Anexo 1 + Anexo 2, clica para expandir */}
           {(pedido.foto_pedido_url || pedido.anexo_1_url || pedido.anexo_2_url) && (
             <div className="rounded-xl border-2 border-blue-300 dark:border-blue-800 overflow-hidden">
-              <div className="bg-blue-50 dark:bg-blue-950/40 px-3 py-2 flex items-center gap-2">
-                <ImageIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                <span className="text-xs font-bold text-blue-700 dark:text-blue-300">Foto do Pedido (Odoo) — Croqui/Vendedor</span>
-                <span className="ml-auto text-[11px] font-medium text-blue-500 dark:text-blue-400">Clique na imagem para expandir</span>
+              <div className="bg-blue-50 dark:bg-blue-950/40 px-3 py-2 flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2 min-w-0">
+                  <ImageIcon className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <span className="text-xs font-bold text-blue-700 dark:text-blue-300 truncate">Foto do Pedido (Odoo) — Croqui/Vendedor</span>
+                </div>
+                <span className="text-[11px] font-medium text-blue-500 dark:text-blue-400 shrink-0">Clique na imagem para expandir</span>
               </div>
               <div className="bg-white dark:bg-slate-900 p-2">
                 <CroquiThumb
@@ -359,29 +360,6 @@ export default function PedidoOdooDetalheDialog({
                   pedido={pedido}
                   itensJson={pedido.itens_json}
                 />
-                <PedidoItemChecklist
-                  itensJson={pedido.itens_json}
-                  onToggleItem={handleToggleItemLocal}
-                  compact
-                />
-              </div>
-            )}
-
-            {/* Roteamento de matéria-prima (Regra 3) */}
-            {itens.length > 0 && (
-              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {itens.map((it, idx) => {
-                  const rt = roteamentoMaterial(it.categoria);
-                  return (
-                    <div key={idx} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-2.5 py-1.5">
-                      <Badge className={`shrink-0 border ${grupoColor[classGrupo(it.categoria, it.produto)]}`}>{grupoIcon[classGrupo(it.categoria, it.produto)]}</Badge>
-                      <span className="text-[11px] font-medium text-slate-700 dark:text-slate-200 truncate flex-1">{it.produto || "—"}</span>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${rt.consome === "bobina" ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300" : "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300"}`}>
-                        {rt.label}
-                      </span>
-                    </div>
-                  );
-                })}
               </div>
             )}
           </div>

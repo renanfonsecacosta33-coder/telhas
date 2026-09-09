@@ -142,15 +142,15 @@ export default function ProgramadorItensSection({
             Defina a máquina e a data de produção de cada item individualmente ou distribua todos de uma vez.
           </p>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           <Button
             size="sm"
             onClick={() => handleSalvarTudo(true)}
             disabled={salvando}
-            className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-xs h-7 gap-1 shadow-sm font-semibold"
+            className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-xs h-7 px-3 gap-1 shadow-sm font-semibold whitespace-nowrap"
           >
-            <Send className="w-3 h-3" />
-            {salvando ? "Distribuindo..." : "Distribuir Itens Programados"}
+            <Send className="w-3 h-3 shrink-0" />
+            <span>{salvando ? "Distribuindo..." : "Distribuir Itens Programados"}</span>
           </Button>
         </div>
       </div>
@@ -179,7 +179,7 @@ export default function ProgramadorItensSection({
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge
                     variant="outline"
-                    className={`text-[10px] px-1.5 py-0 h-4 font-bold ${
+                    className={`text-[10px] px-1.5 py-0 h-4 font-bold shrink-0 ${
                       grupo === "telha"
                         ? "bg-amber-100 text-amber-800 border-amber-300"
                         : grupo === "cd"
@@ -195,21 +195,21 @@ export default function ProgramadorItensSection({
                     {it.produto || it.descricao || `Item #${idx + 1}`}
                   </span>
 
-                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0">
                     ({it.quantidade || 1} {it.unidade || "UN"})
                   </span>
                 </div>
 
                 {isDistribuido && (
                   <div className="flex items-center gap-1.5 text-[10px] text-blue-600 dark:text-blue-400 font-medium">
-                    <CheckCircle2 className="w-3 h-3 text-blue-500" />
-                    Distribuído para <strong>{it.maquina}</strong> na data <strong>{it.data_programada}</strong>
+                    <CheckCircle2 className="w-3 h-3 text-blue-500 shrink-0" />
+                    <span>Distribuído para <strong>{it.maquina}</strong> na data <strong>{it.data_programada}</strong></span>
                   </div>
                 )}
               </div>
 
               <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
-                <div className="w-36">
+                <div className="w-36 min-w-[130px]">
                   <Select
                     value={it.maquina}
                     onValueChange={(val) => atualizarItemLocal(idx, "maquina", val)}
@@ -227,7 +227,7 @@ export default function ProgramadorItensSection({
                   </Select>
                 </div>
 
-                <div className="w-32">
+                <div className="w-36 min-w-[130px]">
                   <Input
                     type="date"
                     value={it.data_programada || ""}
@@ -241,15 +241,15 @@ export default function ProgramadorItensSection({
                   size="sm"
                   variant={isDistribuido ? "outline" : "default"}
                   onClick={() => handleDistribuirItemIndividual(idx)}
-                  className={`h-7 px-2.5 text-xs gap-1 shrink-0 font-medium ${
+                  className={`h-7 px-2.5 text-xs gap-1 shrink-0 font-medium whitespace-nowrap ${
                     isDistribuido
                       ? "text-blue-600 border-blue-300 hover:bg-blue-50"
                       : "bg-orange-500 hover:bg-orange-600 text-white"
                   }`}
                   title={isDistribuido ? "Redistribuir / Atualizar este item" : "Distribuir apenas este item agora"}
                 >
-                  <Zap className="w-3 h-3" />
-                  {isDistribuido ? "Redistribuir" : "Distribuir"}
+                  <Zap className="w-3 h-3 shrink-0" />
+                  <span>{isDistribuido ? "Redistribuir" : "Distribuir"}</span>
                 </Button>
               </div>
             </div>
