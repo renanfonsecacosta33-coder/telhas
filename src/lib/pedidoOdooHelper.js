@@ -1,3 +1,5 @@
+import { stripHtml } from "@/lib/stripHtml";
+
 // Helper compartilhado para itens de PedidoOdoo com status por peça.
 // Normaliza itens_json garantindo campos de status por item.
 
@@ -453,4 +455,85 @@ export function saoPedidosIguais(num1, num2) {
   const clean1 = s1.replace(/[^a-zA-Z0-9]/g, "");
   const clean2 = s2.replace(/[^a-zA-Z0-9]/g, "");
   return Boolean(clean1 && clean2 && clean1 === clean2);
+}
+
+/**
+ * Extrai a anotação/instrução real do vendedor para um item do pedido Odoo.
+ * Elimina falsos positivos onde o Odoo envia o próprio nome do produto, modelo base
+ * ou variantes (ex: "(Padrão KG)", "Chapa 1,25 GV") no campo de observação.
+ * Se houver anotação real (ex: "1 Chapa 1,25 GV (Padrão KG) - Teste de anotação"),
+ * remove o prefixo do nome do produto e retorna apenas o texto da anotação: "Teste de anotação".
+ */
+export function extrairAnotacaoItem(item) {
+  if (!item) return "";
+  const prodRaw = stripHtml(item.produto || "").trim();
+  const obsRaw = stripHtml(item.observacao || "").trim();
+  const descRaw = stripHtml(item.descricao || "").trim();
+
+  // Candidato prioritário: observacao. Se não houver, usa descricao se diferente de produto
+  let texto = obsRaw || (descRaw !== prodRaw ? descRaw : "");
+  if (!texto) return "";
+
+  // Helper de canonicidade para desconsiderar acentos, pontuações, variações de código
+  const canonico = (s) =>
+    String(s || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\[\d+\]/g, "")
+      .replace(/^\s*\d+\s*[-–]?\s*/g, "")
+      .replace(/\(padr[aã]o[^)]*\)/gi, "")
+      .replace(/[^\w\d]/g, "")
+      .trim();
+
+  const cProd = canonico(prodRaw);
+  const cTexto = canonico(texto);
+
+  // Se o texto for idêntico ao produto ou vazio após normalização
+  if (!cTexto || cTexto === cProd) {
+    return "";
+  }
+
+  // Se for uma substring do produto com 6+ caracteres (ex: "Chapa 1,25 GV" dentro de "1 Chapa 1,25 GV (Padrão KG)")
+  if (cProd && cProd.includes(cTexto) && cTexto.length >= 6) {
+    return "";
+  }
+
+  // Se contiver quebras de linha e a primeira linha for apenas o nome do produto
+  const linhas = texto.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (linhas.length > 1) {
+    const primeiraLinhaCanon = canonico(linhas[0]);
+    if (primeiraLinhaCanon === cProd || (cProd && cProd.includes(primeiraLinhaCanon))) {
+      const resto = linhas.slice(1).join("\n").trim();
+      if (resto && canonico(resto) !== cProd) {
+        return resto;
+      }
+    }
+  }
+
+  // Se o texto começar com o nome do produto ou a versão base dele seguido de anotação:
+  // Ex: "1 Chapa 1,25 GV (Padrão KG) - Teste de anotação"
+  let resto = texto;
+  const separadorRegex = /^[\s\-–—:;,\/]+/;
+
+  if (prodRaw && resto.toLowerCase().startsWith(prodRaw.toLowerCase())) {
+    resto = resto.slice(prodRaw.length).replace(separadorRegex, "").trim();
+  } else {
+    const prodBase = prodRaw
+      .replace(/^\[\d+\]\s*/, "")
+      .replace(/^\d+\s*[-–]\s*/, "")
+      .replace(/\s*\(padr[aã]o[^)]*\)/i, "")
+      .trim();
+
+    if (prodBase && prodBase.length >= 4 && resto.toLowerCase().startsWith(prodBase.toLowerCase())) {
+      resto = resto.slice(prodBase.length).replace(separadorRegex, "").trim();
+    }
+  }
+
+  const cResto = canonico(resto);
+  if (!cResto || cResto === cProd || (cProd && cProd.includes(cResto) && cResto.length >= 6)) {
+    return "";
+  }
+
+  return resto;
 }

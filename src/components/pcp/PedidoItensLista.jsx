@@ -1,7 +1,7 @@
 import React from "react";
 import { Factory, Scissors, Wind, Layers, Ruler, ClipboardList } from "lucide-react";
 import { stripHtml } from "@/lib/stripHtml";
-import { obterStatusDescritivoItem } from "@/lib/pedidoOdooHelper";
+import { obterStatusDescritivoItem, extrairAnotacaoItem } from "@/lib/pedidoOdooHelper";
 
 // Config visual por categoria — cores conforme spec:
 // 🔧 C&D → LARANJA (#FF6B00) | 🏠 Telha → DOURADO (#FFD700) | 🔩 Avulso → CINZA (#888)
@@ -86,7 +86,7 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
           const { Icon: BIcon } = cfg;
           const desc = stripHtml(it.descricao || it.produto || "Item sem descrição");
           const produtoLimpo = stripHtml(it.produto);
-          const obs = stripHtml(it.observacao || "");
+          const anotacao = extrairAnotacaoItem(it);
           const qtd = it.quantidade;
           const unidade = (it.unidade || "").trim() || "peças";
           const esp = it.espessura || it.chapa;
@@ -137,22 +137,12 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
                     )}
                   </div>
 
-                  {/* Observação do item (itálico azul) — só se diferente do produto */}
-                  {obs && obs !== produtoLimpo && (
+                  {/* Anotação/Observação real do vendedor (itálico azul) — limpa de repetições do produto */}
+                  {anotacao && (
                     <div className="flex items-start gap-1 mt-1">
                       <ClipboardList className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400 shrink-0 mt-0.5" />
                       <p className="text-xs italic text-sky-700 dark:text-sky-300 leading-snug break-words">
-                        {obs}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Linha 2: Instrução/Descrição do vendedor (itálico azul) */}
-                  {desc && desc !== produtoLimpo && (
-                    <div className="flex items-start gap-1 mt-1">
-                      <ClipboardList className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400 shrink-0 mt-0.5" />
-                      <p className="text-xs italic text-sky-700 dark:text-sky-300 leading-snug break-words">
-                        {desc}
+                        {anotacao}
                       </p>
                     </div>
                   )}

@@ -98,6 +98,61 @@ async function resolveImageField(
   }
 }
 
+function canonicoTexto(s: any): string {
+  return String(s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\[\d+\]/g, "")
+    .replace(/^\s*\d+\s*[-–]?\s*/g, "")
+    .replace(/\(padrao[^)]*\)/gi, "")
+    .replace(/[^\w\d]/g, "")
+    .trim();
+}
+
+function sanitizarItemOdoo(it: any): any {
+  if (!it || typeof it !== "object") return it;
+  const prod = String(it.produto || "").trim();
+  const obs = String(it.observacao || "").trim();
+  const desc = String(it.descricao || "").trim();
+
+  let candidata = obs || (desc !== prod ? desc : "");
+  if (!candidata) {
+    return { ...it, observacao: "", descricao: "" };
+  }
+
+  const cProd = canonicoTexto(prod);
+  const cCandidata = canonicoTexto(candidata);
+
+  if (!cCandidata || cCandidata === cProd || (cProd && cProd.includes(cCandidata) && cCandidata.length >= 6)) {
+    return { ...it, observacao: "", descricao: "" };
+  }
+
+  let resto = candidata;
+  const linhas = candidata.split(/\r?\n/).map((l: string) => l.trim()).filter(Boolean);
+  if (linhas.length > 1 && (canonicoTexto(linhas[0]) === cProd || (cProd && cProd.includes(canonicoTexto(linhas[0]))))) {
+    resto = linhas.slice(1).join("\n").trim();
+  } else if (prod && resto.toLowerCase().startsWith(prod.toLowerCase())) {
+    resto = resto.slice(prod.length).replace(/^[\s\-–—:;,\/]+/, "").trim();
+  } else {
+    const prodBase = prod
+      .replace(/^\[\d+\]\s*/, "")
+      .replace(/^\d+\s*[-–]\s*/, "")
+      .replace(/\s*\(padr[aã]o[^)]*\)/i, "")
+      .trim();
+    if (prodBase && prodBase.length >= 4 && resto.toLowerCase().startsWith(prodBase.toLowerCase())) {
+      resto = resto.slice(prodBase.length).replace(/^[\s\-–—:;,\/]+/, "").trim();
+    }
+  }
+
+  const cResto = canonicoTexto(resto);
+  if (!cResto || cResto === cProd || (cProd && cProd.includes(cResto) && cResto.length >= 6)) {
+    return { ...it, observacao: "", descricao: "" };
+  }
+
+  return { ...it, observacao: resto, descricao: resto };
+}
+
 export default async function(req: Request): Promise<Response> {
   try {
     // ── 1. Ler corpo da requisição (POST direto do Odoo) ──
@@ -123,6 +178,7 @@ export default async function(req: Request): Promise<Response> {
     } else if (typeof body?.itens_json === "string" && body.itens_json.trim()) {
       try { newItems = JSON.parse(body.itens_json); } catch { newItems = []; }
     }
+    newItems = newItems.map(sanitizarItemOdoo);
 
     // ── 4. Montar cliente + resolver identificador da OF (odoo_id / of_odoo_id) ──
     const base44 = createClientFromRequest(req);
