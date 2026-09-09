@@ -74,29 +74,33 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   });
 
   const ordensDaMaquina = useMemo(
-    () => ordens.filter(o => o.maquina === maquinaId),
+    () => ordens.filter(o => o.maquina === maquinaId && o.status !== "cancelado"),
     [ordens, maquinaId]
   );
 
   // Mapa de sequência de pedidos: para cada ordem com numero_pedido repetido,
   // calcula "1/4", "2/4", etc. com base na ordem de criação — cruzando
-  // Desbobinadeira + todas as máquinas CD
+  // Desbobinadeira + todas as máquinas CD (excluindo cancelados)
   const pedidoSeqMap = useMemo(() => {
     const map = {};
     const groups = {};
-    const todas = [...ordens, ...ordensDesbob];
+    const todas = [...ordens, ...ordensDesbob].filter(o => o.status !== "cancelado");
     for (const o of todas) {
-      if (!o.numero_pedido) continue;
-      if (!groups[o.numero_pedido]) groups[o.numero_pedido] = [];
-      groups[o.numero_pedido].push(o);
+      const cleanNum = String(o.numero_pedido || "").replace(/^#/, "").trim().toUpperCase();
+      if (!cleanNum) continue;
+      if (!groups[cleanNum]) groups[cleanNum] = [];
+      groups[cleanNum].push(o);
     }
     for (const items of Object.values(groups)) {
       // Dedup por id (caso a mesma OP apareça nas duas listas)
       const unique = Array.from(new Map(items.map(i => [i.id, i])).values());
-      unique.sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
+      unique.sort((a, b) => new Date(a.created_date || a.created_at || 0) - new Date(b.created_date || b.created_at || 0));
       const total = unique.length;
+      if (total <= 1) continue;
       unique.forEach((item, idx) => {
-        map[item.id] = `${idx + 1}/${total}`;
+        const seq = `${idx + 1}/${total}`;
+        map[item.id] = seq;
+        map[String(item.id)] = seq;
       });
     }
     return map;

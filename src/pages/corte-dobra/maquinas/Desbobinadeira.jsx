@@ -86,23 +86,27 @@ export default function Desbobinadeira() {
 
   // Mapa de sequência de pedidos: para cada ordem com numero_pedido,
   // calcula "1/3", "2/3", etc. com base na ordem de criação — cruzando
-  // Desbobinadeira + todas as máquinas CD (guilhotina, dobra, etc.)
+  // Desbobinadeira + todas as máquinas CD (excluindo cancelados)
   const pedidoSeqMap = useMemo(() => {
     const map = {};
     const groups = {};
-    const todas = [...ordens, ...ordensMaquina];
+    const todas = [...ordens, ...ordensMaquina].filter(o => o.status !== "cancelado");
     for (const o of todas) {
-      if (!o.numero_pedido) continue;
-      if (!groups[o.numero_pedido]) groups[o.numero_pedido] = [];
-      groups[o.numero_pedido].push(o);
+      const cleanNum = String(o.numero_pedido || "").replace(/^#/, "").trim().toUpperCase();
+      if (!cleanNum) continue;
+      if (!groups[cleanNum]) groups[cleanNum] = [];
+      groups[cleanNum].push(o);
     }
     for (const items of Object.values(groups)) {
       // Dedup por id (caso a mesma OP apareça nas duas listas)
       const unique = Array.from(new Map(items.map(i => [i.id, i])).values());
-      unique.sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
+      unique.sort((a, b) => new Date(a.created_date || a.created_at || 0) - new Date(b.created_date || b.created_at || 0));
       const total = unique.length;
+      if (total <= 1) continue;
       unique.forEach((item, idx) => {
-        map[item.id] = `${idx + 1}/${total}`;
+        const seq = `${idx + 1}/${total}`;
+        map[item.id] = seq;
+        map[String(item.id)] = seq;
       });
     }
     return map;
@@ -111,17 +115,17 @@ export default function Desbobinadeira() {
   const ordensSemana = useMemo(() => {
     const s = format(weekStart, "yyyy-MM-dd");
     const e = format(weekEnd, "yyyy-MM-dd");
-    return ordens.filter(o => o.data >= s && o.data <= e && o.status !== "aguardando_material");
+    return ordens.filter(o => o.data >= s && o.data <= e && o.status !== "aguardando_material" && o.status !== "cancelado");
   }, [ordens, weekStart, weekEnd]);
 
   const ordensDia = useMemo(() => {
     if (buscaPedido.trim()) {
       const q = buscaPedido.toLowerCase().trim();
-      return ordens.filter(o => o.status !== "aguardando_material" && ((o.numero_pedido || "").toLowerCase().includes(q) || (o.bobina_descricao || "").toLowerCase().includes(q)));
+      return ordens.filter(o => o.status !== "aguardando_material" && o.status !== "cancelado" && ((o.numero_pedido || "").toLowerCase().includes(q) || (o.bobina_descricao || "").toLowerCase().includes(q)));
     }
     const hoje = format(new Date(), "yyyy-MM-dd");
     const isHoje = selectedDay === hoje;
-    const doDia = ordens.filter(o => o.data === selectedDay && o.status !== "aguardando_material");
+    const doDia = ordens.filter(o => o.data === selectedDay && o.status !== "aguardando_material" && o.status !== "cancelado");
     const priComp = (a, b) => getPesoOrdenacaoPrioridade(a) - getPesoOrdenacaoPrioridade(b);
     if (!isHoje) {
       return doDia.sort((a, b) => {

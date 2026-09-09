@@ -338,6 +338,9 @@ export default function MaquinaPanel({ maquina }) {
     const isHoje = selectedDay === hoje;
 
     return pedidos.filter(p => {
+      // 0. Cancelados nunca devem aparecer na fila de produção da máquina
+      if (p.status === "cancelado") return false;
+
       // 1. Data planejada do pedido bate com o dia selecionado
       if (p.data === selectedDay) return true;
       // 2. Data em que as peças foram perfiladas nesta máquina bate com o dia selecionado
@@ -456,6 +459,7 @@ export default function MaquinaPanel({ maquina }) {
   const diasComPedidos = useMemo(() => {
     const set = new Set();
     pedidos.forEach(p => {
+      if (p.status === "cancelado") return;
       if (p.data) set.add(p.data);
       if (p.data_finalizacao) set.add(p.data_finalizacao);
       if (p.data_perfilacao) set.add(p.data_perfilacao);
