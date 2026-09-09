@@ -30,6 +30,7 @@ export default function EtiquetaBTW({ bobina, onClose }) {
   const corBobina = bobina.cor || "—";
   const isCorteDobra = bobina.setor === "corte_dobra";
   const chapaUtilizada = bobina.espessura_utilizada || bobina.chapa || "—";
+  const fornecedor = (bobina.fornecedor || "").trim() || "—";
 
   const handlePrint = () => {
     const conteudo = printRef.current?.innerHTML;
@@ -149,10 +150,10 @@ export default function EtiquetaBTW({ bobina, onClose }) {
               <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
                 {/* Dimensões + Peso atual */}
                 <div style={{ display: "flex", borderBottom: "0.75px solid #000", flex: 1 }}>
-                  <div style={{ padding: "3px 8px", fontSize: "12px", background: "#f5f5f5", minWidth: "80px", display: "flex", alignItems: "center", borderRight: "0.75px solid #000", fontWeight: 700 }}>
+                  <div style={{ padding: "3px 8px", fontSize: "11px", background: "#f5f5f5", minWidth: "82px", display: "flex", alignItems: "center", borderRight: "0.75px solid #000", fontWeight: 700 }}>
                     Dimensões
                   </div>
-                  <div style={{ padding: "3px 8px", fontSize: "16px", fontWeight: 900, color: "#000", flex: 1, display: "flex", alignItems: "center" }}>
+                  <div style={{ padding: "3px 8px", fontSize: "15px", fontWeight: 900, color: "#000", flex: 1, display: "flex", alignItems: "center" }}>
                     {dim}
                   </div>
                   <div style={{ padding: "3px 8px", fontSize: "10px", borderLeft: "0.75px solid #000", minWidth: "90px", display: "flex", flexDirection: "column", justifyContent: "center", fontWeight: 600 }}>
@@ -163,30 +164,52 @@ export default function EtiquetaBTW({ bobina, onClose }) {
 
                 {/* Chapa Real */}
                 <div style={{ display: "flex", borderBottom: "0.75px solid #000", flex: 1 }}>
-                  <div style={{ padding: "3px 8px", fontSize: "12px", background: "#f5f5f5", minWidth: "80px", display: "flex", alignItems: "center", borderRight: "0.75px solid #000", fontWeight: 700 }}>
+                  <div style={{ padding: "3px 8px", fontSize: "11px", background: "#f5f5f5", minWidth: "82px", display: "flex", alignItems: "center", borderRight: "0.75px solid #000", fontWeight: 700 }}>
                     Chapa Real
                   </div>
-                  <div style={{ padding: "3px 8px", fontSize: "16px", fontWeight: 900, color: "#000", flex: 1, display: "flex", alignItems: "center" }}>
+                  <div style={{ padding: "3px 8px", fontSize: "15px", fontWeight: 900, color: "#000", flex: 1, display: "flex", alignItems: "center" }}>
                     {chapaReal}
                   </div>
                 </div>
 
                 {/* COR (Telhas) / CHAPA UTILIZADA (Corte e Dobra) */}
                 <div style={{ display: "flex", borderBottom: "0.75px solid #000", flex: 1 }}>
-                  <div style={{ padding: "3px 8px", fontSize: "12px", background: "#f5f5f5", minWidth: "80px", display: "flex", alignItems: "center", borderRight: "0.75px solid #000", fontWeight: 700 }}>
+                  <div style={{ padding: "3px 8px", fontSize: "11px", background: "#f5f5f5", minWidth: "82px", display: "flex", alignItems: "center", borderRight: "0.75px solid #000", fontWeight: 700 }}>
                     {isCorteDobra ? "CHAPA UTIL." : "COR"}
                   </div>
-                  <div style={{ padding: "3px 8px", fontSize: "16px", fontWeight: 900, color: "#000", flex: 1, display: "flex", alignItems: "center" }}>
+                  <div style={{ padding: "3px 8px", fontSize: "15px", fontWeight: 900, color: "#000", flex: 1, display: "flex", alignItems: "center" }}>
                     {isCorteDobra ? chapaUtilizada : corBobina}
+                  </div>
+                </div>
+
+                {/* FORNECEDOR */}
+                <div style={{ display: "flex", borderBottom: "0.75px solid #000", flex: 1 }}>
+                  <div style={{ padding: "3px 8px", fontSize: "11px", background: "#f5f5f5", minWidth: "82px", display: "flex", alignItems: "center", borderRight: "0.75px solid #000", fontWeight: 700 }}>
+                    FORNECEDOR
+                  </div>
+                  <div style={{
+                    padding: "3px 8px",
+                    fontSize: fornecedor.length > 20 ? "13px" : "15px",
+                    fontWeight: 900,
+                    color: "#000",
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    textTransform: "uppercase",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap"
+                  }}>
+                    {fornecedor}
                   </div>
                 </div>
 
                 {/* NF Origem */}
                 <div style={{ display: "flex", flex: 1 }}>
-                  <div style={{ padding: "3px 8px", fontSize: "12px", background: "#f5f5f5", minWidth: "80px", display: "flex", alignItems: "center", borderRight: "0.75px solid #000", fontWeight: 700 }}>
+                  <div style={{ padding: "3px 8px", fontSize: "11px", background: "#f5f5f5", minWidth: "82px", display: "flex", alignItems: "center", borderRight: "0.75px solid #000", fontWeight: 700 }}>
                     NF ORIGEM
                   </div>
-                  <div style={{ padding: "3px 8px", fontSize: "16px", fontWeight: 900, color: "#000", flex: 1, display: "flex", alignItems: "center" }}>
+                  <div style={{ padding: "3px 8px", fontSize: "15px", fontWeight: 900, color: "#000", flex: 1, display: "flex", alignItems: "center" }}>
                     {bobina.nf || "—"}
                   </div>
                 </div>
