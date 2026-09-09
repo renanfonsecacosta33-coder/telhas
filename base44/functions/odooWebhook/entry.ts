@@ -314,6 +314,32 @@ export default async function(req: Request): Promise<Response> {
       result = await db.entities.PedidoOdoo.create(record);
     }
 
+    // Se for uma nova OF ou reset, dispara notificação de 0% para o webhook do Mini BI no Odoo
+    if (!existingRec || isNovaOf || body?.reset) {
+      const ODOO_BI_URL = "https://ajlferroeaco.odoo.com/web/hook/56a16770-c0d5-49ab-a711-0fcefc90d210";
+      const ODOO_BI_KEY = "AJL_BASE44_DELETE_OF_2026_8fk92xLm";
+      try {
+        fetch(ODOO_BI_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            api_key: ODOO_BI_KEY,
+            numero_pedido: numeroPedido,
+            odoo_id: ofId || "",
+            of_odoo_id: ofId || "",
+            of_nome: ofNome || "",
+            evento: "of_recebida",
+            status_novo: "Aguardando Distribuição (PCP)",
+            percentual_concluido: 0,
+            total_itens: mergedItems.length,
+            itens_cd_count: itensCd,
+            itens_telha_count: itensTelha,
+            timestamp: nowIso.slice(0, 19).replace("T", " ")
+          })
+        }).catch(() => {});
+      } catch {}
+    }
+
     return Response.json({
       status: "success",
       action: existingRec ? "updated" : "created",

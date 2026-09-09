@@ -212,6 +212,26 @@ Deno.serve(async (req) => {
       }, { status: 502 });
     }
 
+    // ── 2.1) Notifica o Mini BI do Odoo que a OF foi cancelada (zera progresso para 0%) ──
+    const ODOO_BI_URL = "https://ajlferroeaco.odoo.com/web/hook/56a16770-c0d5-49ab-a711-0fcefc90d210";
+    try {
+      fetch(ODOO_BI_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_key: ODOO_CANCEL_API_KEY,
+          numero_pedido: numeroStr,
+          odoo_id: odooIdNumerico,
+          of_odoo_id: odooIdNumerico,
+          of_nome: of_nome || undefined,
+          evento: 'cancelado',
+          status_novo: 'Cancelado',
+          percentual_concluido: 0,
+          timestamp: new Date().toISOString().slice(0, 19).replace('T', ' ')
+        })
+      }).catch(() => {});
+    } catch {}
+
     // ── 3) Sucesso no Odoo → exclui PedidoOdoo + arquiva Ordens de Produção ──
     let pedidoOdooRemovido = false;
     if (pedidoOdooId) {
