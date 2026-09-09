@@ -125,8 +125,8 @@ export default function PedidoOdooDetalheDialog({
         itens_json: JSON.stringify(itensZerados)
       });
 
-      // 4. Notifica Odoo do Reset
-      await notificarStatus(atualizado, "reset", {
+      // 4. Notifica Odoo do Reset em segundo plano (sem travar a interface)
+      notificarStatus(atualizado, "reset", {
         percentual_concluido: 0,
         status_novo: "Aguardando Início",
         item_nome: `Pedido #${pedido.numero_pedido}`

@@ -463,13 +463,14 @@ export default function CentralPCP() {
       });
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
       setPedidoSelecionado({ ...pedido, ...atualizado });
-      // Mini BI — evento distribuido
-      await notificarStatus(atualizado, "distribuido", { status_novo: "distribuido", percentual_concluido: 15 });
+      setDistribuindo(false);
       toast({
         title: "Pedido distribuído!",
         description: `#${pedido.numero_pedido} enviado para os galpões.`,
         className: "border-blue-500/40"
       });
+      // Mini BI — notificação em segundo plano (não trava a interface do operador)
+      notificarStatus(atualizado, "distribuido", { status_novo: "distribuido", percentual_concluido: 15 }).catch(() => {});
     } catch (e) {
       toast({ title: "Erro ao distribuir", description: e.message, variant: "destructive" });
     } finally {
@@ -497,7 +498,8 @@ export default function CentralPCP() {
             percentual_concluido: 15,
             historico_log: JSON.stringify(novoLog)
           });
-          await notificarStatus(atualizado, "distribuido", { status_novo: "distribuido", percentual_concluido: 15 });
+          // Notificação em segundo plano sem bloquear o loop
+          notificarStatus(atualizado, "distribuido", { status_novo: "distribuido", percentual_concluido: 15 }).catch(() => {});
           sucesso++;
         } catch (err) {
           console.error("[PCP Distribuir Lote] falha ao distribuir pedido:", ped.numero_pedido, err);
@@ -505,6 +507,7 @@ export default function CentralPCP() {
       }
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
       setSelecionados(new Set());
+      setDistribuindo(false);
       toast({
         title: `🚀 ${sucesso} pedidos distribuídos!`,
         description: `Todas as ordens selecionadas foram encaminhadas simultaneamente para as filas dos galpões.`,
@@ -575,11 +578,11 @@ export default function CentralPCP() {
       setPedidoSelecionado({ ...pedido, ...atualizado });
 
       if (distribuir) {
-        await notificarStatus(atualizado, "distribuido", {
+        notificarStatus(atualizado, "distribuido", {
           status_novo: novoStatusPcp,
           item_nome: itemAtualizado.produto || `Item #${idx + 1}`,
           maquina_atual: itemAtualizado.maquina || ""
-        });
+        }).catch(() => {});
       }
 
       toast({
@@ -618,10 +621,10 @@ export default function CentralPCP() {
       setPedidoSelecionado({ ...pedido, ...atualizado });
 
       if (distribuir) {
-        await notificarStatus(atualizado, "distribuido", {
+        notificarStatus(atualizado, "distribuido", {
           status_novo: novoStatusPcp,
           percentual_concluido: 15
-        });
+        }).catch(() => {});
       }
 
       toast({

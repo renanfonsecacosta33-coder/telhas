@@ -149,24 +149,37 @@ export default async function(req: Request): Promise<Response> {
       itens_telha_json: JSON.stringify(itens_telha_arr)
     };
 
-    const res = await fetch(ODOO_BI_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
+    let res: Response | null = null;
     let odooResp: any = null;
-    try { odooResp = await res.json(); }
-    catch { odooResp = await res.text(); }
+    try {
+      res = await fetch(ODOO_BI_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(3500)
+      });
+      try { odooResp = await res.json(); }
+      catch { odooResp = await res.text(); }
+    } catch (fetchErr: any) {
+      // Se o Odoo demorar mais de 3.5s ou estiver fora, responde sem quebrar a aplicação
+      return Response.json({
+        status: "timeout_odoo",
+        http_status: 408,
+        evento: payload.evento,
+        numero_pedido: payload.numero_pedido,
+        message: "Odoo demorou mais de 3.5s para responder. Evento enfileirado.",
+        erro: fetchErr?.message || String(fetchErr)
+      }, { status: 200 });
+    }
 
     return Response.json({
-      status: res.ok ? "ok" : "erro_odoo",
-      http_status: res.status,
+      status: res && res.ok ? "ok" : "erro_odoo",
+      http_status: res ? res.status : 500,
       evento: payload.evento,
       numero_pedido: payload.numero_pedido,
       payload_enviado: payload,
       odoo_response: odooResp
-    }, { status: res.ok ? 200 : 502 });
+    }, { status: res && res.ok ? 200 : 200 });
   } catch (error) {
     return Response.json({ error: error.message || "Erro no notificarStatusOdoo" }, { status: 500 });
   }
