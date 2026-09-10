@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
@@ -12,6 +12,7 @@ import {
   ChevronDown, ChevronUp
 } from "lucide-react";
 import PedidoOdooCard from "@/components/pcp/PedidoOdooCard";
+import PedidoOdooGrupoCard from "@/components/pcp/PedidoOdooGrupoCard";
 import PedidoOdooDetalheDialog from "@/components/pcp/PedidoOdooDetalheDialog";
 import WebhookSimulatorDialog from "@/components/pcp/WebhookSimulatorDialog";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
@@ -36,6 +37,8 @@ export default function CentralPCP() {
   const [selecionados, setSelecionados] = useState(new Set());
   const [senhaGestorOpen, setSenhaGestorOpen] = useState(false);
   const [pedidoPrioridadePendente, setPedidoPrioridadePendente] = useState(null);
+  const [pedidosExpandidos, setPedidosExpandidos] = useState(() => new Set());
+  const [modoVisao, setModoVisao] = useState("agrupado");
 
   const { data: pedidos = [], isLoading: carregando, refetch } = useQuery({
     queryKey: ["pedidos-odoo-pcp"],
@@ -708,6 +711,89 @@ export default function CentralPCP() {
   const pedidosAtivosEmTodos = filtro === "todos" ? pedidosFiltrados.filter(p => !isPedidoConcluido(p)) : pedidosFiltrados;
   const pedidosConcluidosEmTodos = filtro === "todos" ? pedidosFiltrados.filter(p => isPedidoConcluido(p)) : [];
 
+  // Agrupa pedidos por numero_pedido mantendo a ordenação de prioridade/FIFO
+  const gruposPedidos = useMemo(() => {
+    const map = new Map();
+    const lista = filtro === "todos" ? pedidosAtivosEmTodos : pedidosFiltrados;
+    lista.forEach(p => {
+      const num = p.numero_pedido || `AVULSO_${p.id}`;
+      if (!map.has(num)) {
+        map.set(num, {
+          numero_pedido: p.numero_pedido || "Sem Número",
+          cliente_nome: p.cliente_nome || "—",
+          vendedor_nome: p.vendedor_nome || "—",
+          data_entrega: p.data_entrega,
+          unidade: p.unidade,
+          prioridade: !!p.prioridade,
+          prioridade_nivel: p.prioridade_nivel,
+          ofs: []
+        });
+      }
+      const g = map.get(num);
+      g.ofs.push(p);
+      if (p.prioridade && !g.prioridade) {
+        g.prioridade = true;
+        g.prioridade_nivel = p.prioridade_nivel;
+      }
+      if (!g.cliente_nome || g.cliente_nome === "—") g.cliente_nome = p.cliente_nome;
+      if (!g.vendedor_nome || g.vendedor_nome === "—") g.vendedor_nome = p.vendedor_nome;
+      if (!g.data_entrega) g.data_entrega = p.data_entrega;
+    });
+    return Array.from(map.values());
+  }, [pedidosFiltrados, pedidosAtivosEmTodos, filtro]);
+
+  const gruposConcluidosEmTodos = useMemo(() => {
+    if (filtro !== "todos") return [];
+    const map = new Map();
+    pedidosConcluidosEmTodos.forEach(p => {
+      const num = p.numero_pedido || `AVULSO_${p.id}`;
+      if (!map.has(num)) {
+        map.set(num, {
+          numero_pedido: p.numero_pedido || "Sem Número",
+          cliente_nome: p.cliente_nome || "—",
+          vendedor_nome: p.vendedor_nome || "—",
+          data_entrega: p.data_entrega,
+          unidade: p.unidade,
+          prioridade: !!p.prioridade,
+          prioridade_nivel: p.prioridade_nivel,
+          ofs: []
+        });
+      }
+      const g = map.get(num);
+      g.ofs.push(p);
+    });
+    return Array.from(map.values());
+  }, [pedidosConcluidosEmTodos, filtro]);
+
+  // Se o usuário pesquisar por algo (ex: '1337790' ou 'Nytro'), auto-expande os pedidos que bateram na busca
+  useEffect(() => {
+    if (busca && busca.trim().length >= 2) {
+      const numsParaExpandir = new Set(gruposPedidos.map(g => g.numero_pedido));
+      setPedidosExpandidos(numsParaExpandir);
+    }
+  }, [busca, gruposPedidos]);
+
+  const toggleExpandirPedido = (num) => {
+    setPedidosExpandidos(prev => {
+      const next = new Set(prev);
+      if (next.has(num)) next.delete(num);
+      else next.add(num);
+      return next;
+    });
+  };
+
+  const expandirTodos = () => {
+    const todos = new Set(gruposPedidos.map(g => g.numero_pedido));
+    if (filtro === "todos") {
+      gruposConcluidosEmTodos.forEach(g => todos.add(g.numero_pedido));
+    }
+    setPedidosExpandidos(todos);
+  };
+
+  const recolherTodos = () => {
+    setPedidosExpandidos(new Set());
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header */}
@@ -871,17 +957,67 @@ export default function CentralPCP() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-2 mb-3 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-3 mb-3 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Zap className="w-3.5 h-3.5 text-orange-500" />
                 <span className="font-semibold">
                   {filtro === "concluido" ? "Pedidos Concluídos" : "Fila FIFO"}
-                </span> — {pedidosFiltrados.length} pedido(s)
+                </span> — {gruposPedidos.length} pedido(s) ({pedidosFiltrados.length} OFs)
                 {filtro === "ativos" && " na fila ativa"}
                 {filtro === "todos" && " no total"}
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Botões Expandir / Recolher Todos */}
+                {modoVisao === "agrupado" && gruposPedidos.length > 0 && (
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <button
+                      type="button"
+                      onClick={expandirTodos}
+                      className="px-2 py-1 text-[11px] font-semibold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 rounded transition-colors"
+                      title="Expandir todas as OFs de todos os pedidos"
+                    >
+                      Expandir Todos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={recolherTodos}
+                      className="px-2 py-1 text-[11px] font-semibold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 rounded transition-colors"
+                      title="Recolher e minimizar todas as OFs"
+                    >
+                      Recolher Todos
+                    </button>
+                  </div>
+                )}
+
+                {/* Alternador de Modo: Por Pedido vs Grade Solta */}
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setModoVisao("agrupado")}
+                    className={`px-2 py-1 text-[11px] font-bold rounded transition-colors ${
+                      modoVisao === "agrupado"
+                        ? "bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-sm"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    }`}
+                    title="Visualização limpa agrupada por Pedido (Minimizada)"
+                  >
+                    Por Pedido
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModoVisao("cards")}
+                    className={`px-2 py-1 text-[11px] font-bold rounded transition-colors ${
+                      modoVisao === "cards"
+                        ? "bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-sm"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    }`}
+                    title="Visualização clássica com todas as OFs soltas em grade"
+                  >
+                    Grade Solta
+                  </button>
+                </div>
+
                 {filtro !== "concluido" && stats.concluidos > 0 && (
                   <button
                     type="button"
@@ -905,25 +1041,50 @@ export default function CentralPCP() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {(filtro === "todos" ? pedidosAtivosEmTodos : pedidosFiltrados).map(p => (
-                <PedidoOdooCard
-                  key={p.id}
-                  pedido={p}
-                  progressoReal={calcularProgressoRealPedido(p, pedidosProducao, ordensCD)}
-                  pedidosProducao={pedidosProducao}
-                  ordensCD={ordensCD}
-                  selecionado={selecionados.has(p.id)}
-                  onToggleSelect={handleToggleSelect}
-                  onDistribuir={handleDistribuir}
-                  onClick={() => { setPedidoSelecionado(p); setDetalheOpen(true); }}
-                  onDelete={handleExcluirCard}
-                  onRetirarFila={handleRetirarFila}
-                  onTogglePrioridade={handleTogglePrioridade}
-                  onSetPrioridade={handleSetPrioridade}
-                />
-              ))}
-            </div>
+            {/* Lista Principal de Pedidos: Agrupados ou Grade */}
+            {modoVisao === "agrupado" ? (
+              <div className="space-y-3">
+                {gruposPedidos.map(grupo => (
+                  <PedidoOdooGrupoCard
+                    key={grupo.numero_pedido}
+                    grupo={grupo}
+                    expandido={pedidosExpandidos.has(grupo.numero_pedido)}
+                    onToggle={() => toggleExpandirPedido(grupo.numero_pedido)}
+                    pedidosProducao={pedidosProducao}
+                    ordensCD={ordensCD}
+                    selecionados={selecionados}
+                    onToggleSelect={handleToggleSelect}
+                    onDistribuir={handleDistribuir}
+                    onDistribuirGrupo={handleDistribuirLote}
+                    onClickPedido={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
+                    onDelete={handleExcluirCard}
+                    onRetirarFila={handleRetirarFila}
+                    onTogglePrioridade={handleTogglePrioridade}
+                    onSetPrioridade={handleSetPrioridade}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {(filtro === "todos" ? pedidosAtivosEmTodos : pedidosFiltrados).map(p => (
+                  <PedidoOdooCard
+                    key={p.id}
+                    pedido={p}
+                    progressoReal={calcularProgressoRealPedido(p, pedidosProducao, ordensCD)}
+                    pedidosProducao={pedidosProducao}
+                    ordensCD={ordensCD}
+                    selecionado={selecionados.has(p.id)}
+                    onToggleSelect={handleToggleSelect}
+                    onDistribuir={handleDistribuir}
+                    onClick={() => { setPedidoSelecionado(p); setDetalheOpen(true); }}
+                    onDelete={handleExcluirCard}
+                    onRetirarFila={handleRetirarFila}
+                    onTogglePrioridade={handleTogglePrioridade}
+                    onSetPrioridade={handleSetPrioridade}
+                  />
+                ))}
+              </div>
+            )}
 
             {/* Seção recolhível de Concluídos quando visualizando 'Todos' */}
             {filtro === "todos" && pedidosConcluidosEmTodos.length > 0 && (
@@ -933,7 +1094,7 @@ export default function CentralPCP() {
                     <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                     <div>
                       <span className="font-bold text-sm text-slate-800 dark:text-slate-100">
-                        Pedidos Concluídos ({pedidosConcluidosEmTodos.length})
+                        Pedidos Concluídos ({pedidosConcluidosEmTodos.length} OFs em {gruposConcluidosEmTodos.length} pedidos)
                       </span>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400">
                         Pedidos 100% finalizados nas máquinas e prontos para expedição
@@ -954,31 +1115,56 @@ export default function CentralPCP() {
                     ) : (
                       <>
                         <ChevronDown className="w-3.5 h-3.5 mr-1" />
-                        Mostrar Concluídos ({pedidosConcluidosEmTodos.length})
+                        Mostrar Concluídos ({gruposConcluidosEmTodos.length} pedidos)
                       </>
                     )}
                   </Button>
                 </div>
+
                 {mostrarConcluidosEmTodos && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {pedidosConcluidosEmTodos.map(p => (
-                      <PedidoOdooCard
-                        key={p.id}
-                        pedido={p}
-                        progressoReal={calcularProgressoRealPedido(p, pedidosProducao, ordensCD)}
-                        pedidosProducao={pedidosProducao}
-                        ordensCD={ordensCD}
-                        selecionado={selecionados.has(p.id)}
-                        onToggleSelect={handleToggleSelect}
-                        onDistribuir={handleDistribuir}
-                        onClick={() => { setPedidoSelecionado(p); setDetalheOpen(true); }}
-                        onDelete={handleExcluirCard}
-                        onRetirarFila={handleRetirarFila}
-                        onTogglePrioridade={handleTogglePrioridade}
-                        onSetPrioridade={handleSetPrioridade}
-                      />
-                    ))}
-                  </div>
+                  modoVisao === "agrupado" ? (
+                    <div className="space-y-3">
+                      {gruposConcluidosEmTodos.map(grupo => (
+                        <PedidoOdooGrupoCard
+                          key={grupo.numero_pedido}
+                          grupo={grupo}
+                          expandido={pedidosExpandidos.has(grupo.numero_pedido)}
+                          onToggle={() => toggleExpandirPedido(grupo.numero_pedido)}
+                          pedidosProducao={pedidosProducao}
+                          ordensCD={ordensCD}
+                          selecionados={selecionados}
+                          onToggleSelect={handleToggleSelect}
+                          onDistribuir={handleDistribuir}
+                          onDistribuirGrupo={handleDistribuirLote}
+                          onClickPedido={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
+                          onDelete={handleExcluirCard}
+                          onRetirarFila={handleRetirarFila}
+                          onTogglePrioridade={handleTogglePrioridade}
+                          onSetPrioridade={handleSetPrioridade}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {pedidosConcluidosEmTodos.map(p => (
+                        <PedidoOdooCard
+                          key={p.id}
+                          pedido={p}
+                          progressoReal={calcularProgressoRealPedido(p, pedidosProducao, ordensCD)}
+                          pedidosProducao={pedidosProducao}
+                          ordensCD={ordensCD}
+                          selecionado={selecionados.has(p.id)}
+                          onToggleSelect={handleToggleSelect}
+                          onDistribuir={handleDistribuir}
+                          onClick={() => { setPedidoSelecionado(p); setDetalheOpen(true); }}
+                          onDelete={handleExcluirCard}
+                          onRetirarFila={handleRetirarFila}
+                          onTogglePrioridade={handleTogglePrioridade}
+                          onSetPrioridade={handleSetPrioridade}
+                        />
+                      ))}
+                    </div>
+                  )
                 )}
               </div>
             )}
