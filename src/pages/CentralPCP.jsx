@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import {
   Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send,
-  Factory, Scissors, Wind, Layers, AlertTriangle, CheckCircle2, Star
+  Factory, Scissors, Wind, Layers, AlertTriangle, CheckCircle2, Star,
+  ChevronDown, ChevronUp
 } from "lucide-react";
 import PedidoOdooCard from "@/components/pcp/PedidoOdooCard";
 import PedidoOdooDetalheDialog from "@/components/pcp/PedidoOdooDetalheDialog";
@@ -21,20 +22,13 @@ import { notificarStatus } from "@/lib/biNotificador";
 import { calcularProgressoRealPedido, statusPcpPorPercentual, enriquecerItensComStatusReal } from "@/lib/pedidoOdooHelper";
 import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
 
-const FILTROS = [
-  { id: "todos", label: "Todos" },
-  { id: "pendente_distribuicao", label: "Pendentes", icon: AlertTriangle, color: "text-amber-500" },
-  { id: "distribuido", label: "Distribuídos", icon: CheckCircle2, color: "text-blue-500" },
-  { id: "em_producao", label: "Em Produção", icon: Factory, color: "text-indigo-500" },
-  { id: "concluido", label: "Concluídos", icon: CheckCircle2, color: "text-emerald-500" }
-];
-
 export default function CentralPCP() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [busca, setBusca] = useState("");
-  const [filtro, setFiltro] = useState("todos");
+  const [filtro, setFiltro] = useState("ativos");
+  const [mostrarConcluidosEmTodos, setMostrarConcluidosEmTodos] = useState(false);
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
   const [detalheOpen, setDetalheOpen] = useState(false);
   const [webhookOpen, setWebhookOpen] = useState(false);
@@ -637,9 +631,53 @@ export default function CentralPCP() {
     }
   };
 
+  // Identifica se um pedido está 100% concluído
+  const isPedidoConcluido = (p) => {
+    if (!p) return false;
+    if (p.status_pcp === "concluido") return true;
+    const prog = calcularProgressoRealPedido(p, pedidosProducao, ordensCD);
+    if (prog >= 100) return true;
+    if (p.percentual_concluido != null && p.percentual_concluido >= 100) return true;
+    return false;
+  };
+
+  const stats = {
+    total: pedidos.length,
+    ativos: pedidos.filter(p => !isPedidoConcluido(p)).length,
+    pendentes: pedidos.filter(p => p.status_pcp === "pendente_distribuicao" && !isPedidoConcluido(p)).length,
+    distribuidos: pedidos.filter(p => p.status_pcp === "distribuido" && !isPedidoConcluido(p)).length,
+    em_producao: pedidos.filter(p => p.status_pcp === "em_producao" && !isPedidoConcluido(p)).length,
+    concluidos: pedidos.filter(p => isPedidoConcluido(p)).length,
+    atrasados: pedidos.filter(p => diasUteisRestantes(p.data_entrega) < 0 && !isPedidoConcluido(p)).length
+  };
+
+  const FILTROS = [
+    { id: "ativos", label: "Fila Ativa", count: stats.ativos, icon: Zap, color: "text-orange-500" },
+    { id: "pendente_distribuicao", label: "Pendentes", count: stats.pendentes, icon: AlertTriangle, color: "text-amber-500" },
+    { id: "distribuido", label: "Distribuídos", count: stats.distribuidos, icon: CheckCircle2, color: "text-blue-500" },
+    { id: "em_producao", label: "Em Produção", count: stats.em_producao, icon: Factory, color: "text-indigo-500" },
+    { id: "concluido", label: "Concluídos", count: stats.concluidos, icon: CheckCircle2, color: "text-emerald-500" },
+    { id: "todos", label: "Todos", count: stats.total, icon: Layers, color: "text-slate-500" }
+  ];
+
   // Filtros + busca
   const pedidosFiltrados = pedidos.filter(p => {
-    if (filtro !== "todos" && p.status_pcp !== filtro) return false;
+    const concluido = isPedidoConcluido(p);
+
+    if (filtro === "ativos") {
+      if (concluido) return false;
+    } else if (filtro === "concluido") {
+      if (!concluido) return false;
+    } else if (filtro === "pendente_distribuicao") {
+      if (concluido || p.status_pcp !== "pendente_distribuicao") return false;
+    } else if (filtro === "distribuido") {
+      if (concluido || p.status_pcp !== "distribuido") return false;
+    } else if (filtro === "em_producao") {
+      if (concluido || p.status_pcp !== "em_producao") return false;
+    } else if (filtro !== "todos") {
+      if (p.status_pcp !== filtro) return false;
+    }
+
     if (!busca) return true;
     const q = busca.toLowerCase();
     return (
@@ -650,6 +688,9 @@ export default function CentralPCP() {
       String(p.vendedor_nome || "").toLowerCase().includes(q)
     );
   }).sort((a, b) => {
+    if (filtro === "concluido") {
+      return new Date(b.data_recebimento || 0).getTime() - new Date(a.data_recebimento || 0).getTime();
+    }
     // 1º: Prioridade 1 a 5 (P1 é a mais urgente absoluta!)
     const priDiff = getPesoOrdenacaoPrioridade(a) - getPesoOrdenacaoPrioridade(b);
     if (priDiff !== 0) return priDiff;
@@ -660,12 +701,8 @@ export default function CentralPCP() {
     return da - db;
   });
 
-  const stats = {
-    total: pedidos.length,
-    pendentes: pedidos.filter(p => p.status_pcp === "pendente_distribuicao").length,
-    distribuidos: pedidos.filter(p => p.status_pcp === "distribuido").length,
-    atrasados: pedidos.filter(p => diasUteisRestantes(p.data_entrega) < 0 && p.status_pcp !== "concluido").length
-  };
+  const pedidosAtivosEmTodos = filtro === "todos" ? pedidosFiltrados.filter(p => !isPedidoConcluido(p)) : pedidosFiltrados;
+  const pedidosConcluidosEmTodos = filtro === "todos" ? pedidosFiltrados.filter(p => isPedidoConcluido(p)) : [];
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -703,10 +740,11 @@ export default function CentralPCP() {
       </header>
 
       {/* Stats */}
-      <div className="px-4 sm:px-6 py-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard label="Total na Fila" value={stats.total} icon={<Layers className="w-4 h-4" />} color="text-slate-600" />
+      <div className="px-4 sm:px-6 py-4 grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <StatCard label="Fila Ativa" value={stats.ativos} icon={<Zap className="w-4 h-4" />} color="text-orange-500" />
         <StatCard label="Pendentes" value={stats.pendentes} icon={<AlertTriangle className="w-4 h-4" />} color="text-amber-500" />
         <StatCard label="Distribuídos" value={stats.distribuidos} icon={<CheckCircle2 className="w-4 h-4" />} color="text-blue-500" />
+        <StatCard label="Concluídos" value={stats.concluidos} icon={<CheckCircle2 className="w-4 h-4" />} color="text-emerald-500" />
         <StatCard label="Atrasados" value={stats.atrasados} icon={<AlertTriangle className="w-4 h-4" />} color="text-red-500" />
       </div>
 
@@ -728,12 +766,19 @@ export default function CentralPCP() {
               onClick={() => setFiltro(f.id)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                 filtro === f.id
-                  ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900"
-                  : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800"
+                  ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm"
+                  : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60"
               }`}
             >
               {f.icon && <f.icon className={`w-3.5 h-3.5 ${filtro !== f.id ? f.color : ""}`} />}
-              {f.label}
+              <span>{f.label}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                filtro === f.id
+                  ? "bg-white/20 dark:bg-slate-900/20 text-white dark:text-slate-900"
+                  : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+              }`}>
+                {f.count}
+              </span>
             </button>
           ))}
         </div>
@@ -822,12 +867,42 @@ export default function CentralPCP() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 mb-3 text-xs text-slate-500 dark:text-slate-400">
-              <Zap className="w-3.5 h-3.5 text-orange-500" />
-              <span className="font-semibold">Fila FIFO</span> — {pedidosFiltrados.length} pedido(s) em ordem de chegada
+            <div className="flex items-center justify-between gap-2 mb-3 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Zap className="w-3.5 h-3.5 text-orange-500" />
+                <span className="font-semibold">
+                  {filtro === "concluido" ? "Pedidos Concluídos" : "Fila FIFO"}
+                </span> — {pedidosFiltrados.length} pedido(s)
+                {filtro === "ativos" && " na fila ativa"}
+                {filtro === "todos" && " no total"}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {filtro !== "concluido" && stats.concluidos > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setFiltro("concluido")}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 transition-all border border-emerald-500/20"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    Ver Concluídos ({stats.concluidos})
+                  </button>
+                )}
+                {filtro === "concluido" && (
+                  <button
+                    type="button"
+                    onClick={() => setFiltro("ativos")}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold text-orange-700 dark:text-orange-300 bg-orange-500/10 hover:bg-orange-500/20 transition-all border border-orange-500/20"
+                  >
+                    <Zap className="w-3.5 h-3.5 text-orange-600" />
+                    Voltar à Fila Ativa ({stats.ativos})
+                  </button>
+                )}
+              </div>
             </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {pedidosFiltrados.map(p => (
+              {(filtro === "todos" ? pedidosAtivosEmTodos : pedidosFiltrados).map(p => (
                 <PedidoOdooCard
                   key={p.id}
                   pedido={p}
@@ -845,6 +920,64 @@ export default function CentralPCP() {
                 />
               ))}
             </div>
+
+            {/* Seção recolhível de Concluídos quando visualizando 'Todos' */}
+            {filtro === "todos" && pedidosConcluidosEmTodos.length > 0 && (
+              <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between mb-3 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 rounded-xl p-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                    <div>
+                      <span className="font-bold text-sm text-slate-800 dark:text-slate-100">
+                        Pedidos Concluídos ({pedidosConcluidosEmTodos.length})
+                      </span>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Pedidos 100% finalizados nas máquinas e prontos para expedição
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setMostrarConcluidosEmTodos(!mostrarConcluidosEmTodos)}
+                    className="text-xs h-8 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100/50"
+                  >
+                    {mostrarConcluidosEmTodos ? (
+                      <>
+                        <ChevronUp className="w-3.5 h-3.5 mr-1" />
+                        Minimizar Concluídos
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="w-3.5 h-3.5 mr-1" />
+                        Mostrar Concluídos ({pedidosConcluidosEmTodos.length})
+                      </>
+                    )}
+                  </Button>
+                </div>
+                {mostrarConcluidosEmTodos && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {pedidosConcluidosEmTodos.map(p => (
+                      <PedidoOdooCard
+                        key={p.id}
+                        pedido={p}
+                        progressoReal={calcularProgressoRealPedido(p, pedidosProducao, ordensCD)}
+                        pedidosProducao={pedidosProducao}
+                        ordensCD={ordensCD}
+                        selecionado={selecionados.has(p.id)}
+                        onToggleSelect={handleToggleSelect}
+                        onDistribuir={handleDistribuir}
+                        onClick={() => { setPedidoSelecionado(p); setDetalheOpen(true); }}
+                        onDelete={handleExcluirCard}
+                        onRetirarFila={handleRetirarFila}
+                        onTogglePrioridade={handleTogglePrioridade}
+                        onSetPrioridade={handleSetPrioridade}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )}
       </div>

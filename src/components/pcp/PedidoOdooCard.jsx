@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Calendar, User, Tag, Layers, Factory, Scissors, Wind, Trash2, Star, ShieldAlert, Undo2, RefreshCw, Zap } from "lucide-react";
+import {
+  Calendar, User, Tag, Layers, Factory, Scissors, Wind, Trash2, Star, ShieldAlert,
+  Undo2, RefreshCw, Zap, CheckCircle2, ChevronDown, ChevronUp
+} from "lucide-react";
 import {
   formatDataBR,
   slaDiasPorCategoria
@@ -25,11 +27,17 @@ const STATUS_PCP = {
 export default function PedidoOdooCard({
   pedido, onClick, onDelete, onRetirarFila, onTogglePrioridade, onSetPrioridade,
   progressoReal, pedidosProducao = [], ordensCD = [],
-  selecionado = false, onToggleSelect, onDistribuir
+  selecionado = false, onToggleSelect, onDistribuir,
+  defaultMinimizado
 }) {
   const [hover, setHover] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
-  const st = STATUS_PCP[pedido.status_pcp] || STATUS_PCP.pendente_distribuicao;
+  const pct = progressoReal != null ? progressoReal : (pedido.percentual_concluido || 0);
+  const isConcluido = pedido.status_pcp === "concluido" || pct >= 100;
+  const [expandidoManual, setExpandidoManual] = useState(defaultMinimizado === false);
+  const minimizado = isConcluido && !expandidoManual;
+
+  const st = STATUS_PCP[pedido.status_pcp] || (isConcluido ? STATUS_PCP.concluido : STATUS_PCP.pendente_distribuicao);
   const sla = slaDiasPorCategoria(pedido);
   const chk = progressoChecklist(pedido.itens_json);
   const espessuras = (() => {
@@ -41,7 +49,6 @@ export default function PedidoOdooCard({
     e.stopPropagation();
     setSincronizando(true);
     try {
-      const pct = progressoReal != null ? progressoReal : (pedido.percentual_concluido || 0);
       await notificarStatus(pedido, "sincronizacao_manual", {
         percentual_concluido: pct,
         status_novo: pedido.status_pcp || "em_producao",
@@ -55,12 +62,94 @@ export default function PedidoOdooCard({
     }
   };
 
+  if (minimizado) {
+    return (
+      <div
+        onClick={onClick}
+        className="bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-300 dark:border-emerald-800 rounded-2xl p-3.5 hover:shadow-md hover:border-emerald-400 transition-all cursor-pointer flex flex-col justify-between gap-2.5 group"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {isPrioritario && (
+                  <Badge className="bg-amber-500 text-white border-amber-600 text-[9px] gap-0.5 px-1.5 py-0">
+                    <Star className="w-2.5 h-2.5 fill-white" /> URGENTE
+                  </Badge>
+                )}
+                <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 leading-none">
+                  #{pedido.numero_pedido}
+                </h3>
+                {pedido.of_nome ? (
+                  <Badge variant="outline" className="text-[9px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200/80 px-1.5 py-0">
+                    OF: {pedido.of_nome}
+                  </Badge>
+                ) : pedido.of_odoo_id ? (
+                  <Badge variant="outline" className="text-[9px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200/80 px-1.5 py-0">
+                    OF: {pedido.of_odoo_id}
+                  </Badge>
+                ) : null}
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-400 font-medium truncate mt-0.5">
+                {pedido.cliente_nome || "Cliente não informado"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Badge className="bg-emerald-600 text-white border-emerald-700 text-[10px] font-bold px-2 py-0.5 shadow-xs">
+              Concluído 100%
+            </Badge>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-2 border-t border-emerald-200/60 dark:border-emerald-900/40 text-[11px] text-slate-500 dark:text-slate-400">
+          <div className="flex items-center gap-2 truncate">
+            <span className="font-semibold text-slate-700 dark:text-slate-300">{pedido.total_itens || 1} item(ns)</span>
+            <span>•</span>
+            <span className="truncate max-w-[120px]">{pedido.vendedor_nome || "—"}</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            {onDelete && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onDelete(pedido); }}
+                title="Excluir pedido"
+                className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-500/10 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpandidoManual(true);
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 transition-colors"
+              title="Expandir card completo com croquis e itens"
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+              Expandir
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       onClick={onClick}
       className={`bg-white dark:bg-slate-900 border rounded-2xl p-4 hover:shadow-lg transition-all cursor-pointer flex flex-col gap-3 ${
         isPrioritario
           ? "border-amber-400 dark:border-amber-600 ring-1 ring-amber-300/50"
+          : isConcluido
+          ? "border-emerald-300 dark:border-emerald-800"
           : "border-slate-200 dark:border-slate-800 hover:border-orange-400/50"
       }`}
     >
@@ -143,6 +232,20 @@ export default function PedidoOdooCard({
             )}
             <PrioridadeBadge pedido={pedido} />
             <Badge className={`border ${st.cls}`}>{st.label}</Badge>
+            {isConcluido && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setExpandidoManual(false);
+                }}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors border border-emerald-300 dark:border-emerald-700"
+                title="Minimizar card concluído"
+              >
+                <ChevronUp className="w-3 h-3 text-emerald-600" />
+                Minimizar
+              </button>
+            )}
           </div>
         </div>
       </div>
