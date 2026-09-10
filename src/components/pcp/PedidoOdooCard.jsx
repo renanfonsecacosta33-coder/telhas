@@ -28,7 +28,7 @@ export default function PedidoOdooCard({
   pedido, onClick, onDelete, onRetirarFila, onTogglePrioridade, onSetPrioridade,
   progressoReal, pedidosProducao = [], ordensCD = [],
   selecionado = false, onToggleSelect, onDistribuir,
-  defaultMinimizado
+  defaultMinimizado, compacto = false, dentroDeGrupo = false
 }) {
   const [hover, setHover] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
@@ -138,6 +138,142 @@ export default function PedidoOdooCard({
             </button>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  const isCompacto = compacto || dentroDeGrupo;
+
+  if (isCompacto) {
+    return (
+      <div
+        onClick={onClick}
+        className={`bg-white dark:bg-slate-900 border rounded-xl p-2.5 hover:shadow-md transition-all cursor-pointer flex flex-col gap-2 ${
+          isPrioritario
+            ? "border-amber-400 dark:border-amber-600 ring-1 ring-amber-300/50"
+            : isConcluido
+            ? "border-emerald-300 dark:border-emerald-800"
+            : "border-slate-200 dark:border-slate-800 hover:border-orange-400/50"
+        }`}
+      >
+        {/* Foto compacta */}
+        <CroquiThumb
+          pedido={pedido}
+          alt={`Croqui da OF ${pedido.of_nome || pedido.numero_pedido}`}
+          className="w-full mb-0.5"
+          alturaCompacta={65}
+        />
+
+        {/* Cabeçalho Compacto: Focado na identificação da OF e status */}
+        <div className="flex items-start justify-between gap-1.5 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
+            {onToggleSelect && pedido.status_pcp === "pendente_distribuicao" && (
+              <div
+                onClick={(e) => { e.stopPropagation(); onToggleSelect(pedido); }}
+                className="shrink-0"
+                title="Selecionar"
+              >
+                <input
+                  type="checkbox"
+                  checked={!!selecionado}
+                  onChange={() => {}}
+                  className="w-3.5 h-3.5 rounded text-orange-600 border-slate-300 focus:ring-orange-500 cursor-pointer"
+                />
+              </div>
+            )}
+            {isPrioritario && (
+              <Badge className="bg-amber-500 text-white border-amber-600 animate-pulse text-[9px] px-1 py-0 gap-0.5">
+                <Star className="w-2.5 h-2.5 fill-white" /> URGENTE
+              </Badge>
+            )}
+            <span
+              className="font-extrabold text-xs text-indigo-700 dark:text-indigo-300 font-mono bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded border border-indigo-200/80 truncate max-w-[170px]"
+              title={pedido.of_nome || (pedido.of_odoo_id ? `OF: ${pedido.of_odoo_id}` : `#${pedido.numero_pedido}`)}
+            >
+              {pedido.of_nome || (pedido.of_odoo_id ? `OF: ${pedido.of_odoo_id}` : `#${pedido.numero_pedido}`)}
+            </span>
+            <Badge className={`border text-[9px] px-1.5 py-0 leading-tight ${st.cls}`}>{st.label}</Badge>
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={handleSincronizarOdoo}
+              disabled={sincronizando}
+              title="Sincronizar com Odoo ERP"
+              className="p-1 rounded text-blue-500 hover:text-blue-600 hover:bg-blue-500/10 transition-colors"
+            >
+              <RefreshCw className={`w-3 h-3 ${sincronizando ? "animate-spin" : ""}`} />
+            </button>
+            {(onSetPrioridade || onTogglePrioridade) && (
+              <div onClick={(e) => e.stopPropagation()}>
+                <SeletorPrioridadeDropdown
+                  pedido={pedido}
+                  onSelectPrioridade={(nivel) => {
+                    if (onSetPrioridade) onSetPrioridade(pedido, nivel);
+                    else onTogglePrioridade(pedido);
+                  }}
+                  size="sm"
+                  variant="ghost"
+                  className="h-5 px-1 text-[10px]"
+                />
+              </div>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onDelete(pedido); }}
+                title="Excluir"
+                className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-500/10 transition-colors"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Lista de Itens Compacta */}
+        <PedidoItensLista
+          pedido={pedido}
+          itensJson={pedido.itens_json}
+          pedidosProducao={pedidosProducao}
+          ordensCD={ordensCD}
+          compacto={true}
+        />
+
+        {/* Botões Rápidos */}
+        {pedido.status_pcp === "pendente_distribuicao" && onDistribuir && (
+          <div className="flex items-center gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDistribuir(pedido); }}
+              className="flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-xs transition-all h-7"
+              title="Distribuir esta OF para os galpões"
+            >
+              <Zap className="w-3 h-3" />
+              Distribuir
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onClick(); }}
+              className="flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-all h-7"
+              title="Ver detalhes técnicos desta OF"
+            >
+              Detalhes
+            </button>
+          </div>
+        )}
+
+        {podeRetirarFila && onRetirarFila && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onRetirarFila(pedido); }}
+            className="w-full flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/20 transition-colors h-6"
+          >
+            <Undo2 className="w-3 h-3" />
+            Retirar da Fila
+          </button>
+        )}
       </div>
     );
   }

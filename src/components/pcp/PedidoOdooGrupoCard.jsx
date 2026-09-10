@@ -82,24 +82,24 @@ export default function PedidoOdooGrupoCard({
       {/* Cabeçalho Executivo do Pedido (Clicável para Expandir/Minimizar) */}
       <div
         onClick={onToggle}
-        className={`p-4 sm:p-5 cursor-pointer select-none transition-colors ${
+        className={`px-3.5 py-2.5 sm:px-5 sm:py-3 cursor-pointer select-none transition-colors ${
           expandido
             ? "bg-slate-50/80 dark:bg-slate-800/40 rounded-t-2xl border-b border-slate-200 dark:border-slate-800"
             : "hover:bg-slate-50/60 dark:hover:bg-slate-800/20 rounded-2xl"
         }`}
       >
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Lado Esquerdo: Identificação do Pedido, Cliente e SLA */}
-          <div className="flex items-start gap-3 min-w-0">
+          <div className="flex items-start gap-2.5 min-w-0">
             {/* Botão Ícone Chevron */}
             <div
-              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 ${
+              className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 ${
                 expandido
                   ? "bg-orange-500 text-white shadow-sm rotate-180"
                   : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
               }`}
             >
-              <ChevronDown className="w-5 h-5" />
+              <ChevronDown className="w-4 h-4" />
             </div>
 
             <div className="min-w-0 flex-1">
@@ -242,7 +242,7 @@ export default function PedidoOdooGrupoCard({
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
             {ofs.map(p => (
               <PedidoOdooCard
                 key={p.id}
@@ -258,6 +258,8 @@ export default function PedidoOdooGrupoCard({
                 onRetirarFila={onRetirarFila}
                 onTogglePrioridade={onTogglePrioridade}
                 onSetPrioridade={onSetPrioridade}
+                compacto={true}
+                dentroDeGrupo={true}
               />
             ))}
           </div>

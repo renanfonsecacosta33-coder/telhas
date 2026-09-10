@@ -11,7 +11,7 @@ import { normalizarImagemBase64, isPdfUrl } from "@/lib/imagemBase64";
  * - Na galeria completa (diálogo): exibe todos os anexos em grid responsivo
  * - Ao clicar em QUALQUER foto, abre o ImageViewer com navegação entre TODAS as fotos.
  */
-export default function CroquiThumb({ pedido, alt, className = "", galeriaCompleta = false }) {
+export default function CroquiThumb({ pedido, alt, className = "", galeriaCompleta = false, alturaCompacta }) {
   let anexos = extrairAnexosLista(pedido);
 
   // Fallback se extrairAnexosLista não encontrou nada mas extrairCroquiPedidoInfo achou
@@ -61,6 +61,8 @@ export default function CroquiThumb({ pedido, alt, className = "", galeriaComple
   const isDupla = total >= 2;
   const temMaisDeDois = total > 2;
 
+  const thumbHeight = alturaCompacta || (isDupla ? 75 : 90);
+
   return (
     <div className={`relative shrink-0 ${className}`} onClick={(e) => e.stopPropagation()}>
       {/* Grade principal: 1 foto (largura total) ou 2 fotos lado a lado */}
@@ -70,7 +72,7 @@ export default function CroquiThumb({ pedido, alt, className = "", galeriaComple
             <CroquiThumbItem
               anexo={anexo}
               alt={alt}
-              height={isDupla ? 95 : 115}
+              height={thumbHeight}
               images={viewerImages}
               index={idx}
             />
@@ -87,8 +89,8 @@ export default function CroquiThumb({ pedido, alt, className = "", galeriaComple
 
       {/* Faixa horizontal de fotos adicionais (Anexo 3, 4, 5...) */}
       {temMaisDeDois && (
-        <div className="flex items-center gap-1.5 mt-1.5 overflow-x-auto pb-0.5 no-scrollbar">
-          <span className="text-[10px] font-bold text-slate-400 uppercase shrink-0">
+        <div className="flex items-center gap-1.5 mt-1 overflow-x-auto pb-0.5 no-scrollbar">
+          <span className="text-[9px] font-bold text-slate-400 uppercase shrink-0">
             Mais:
           </span>
           {anexos.slice(2).map((anexo, idx) => {
@@ -100,6 +102,7 @@ export default function CroquiThumb({ pedido, alt, className = "", galeriaComple
                 index={indexReal}
                 alt={alt}
                 images={viewerImages}
+                compacto={Boolean(alturaCompacta)}
               />
             );
           })}
@@ -181,7 +184,7 @@ function CroquiThumbItem({ anexo, alt, height, images, index = 0 }) {
 /**
  * Miniatura compacta para a faixa horizontal de fotos adicionais (+3, +4...)
  */
-function CroquiMiniThumbItem({ anexo, alt, images, index }) {
+function CroquiMiniThumbItem({ anexo, alt, images, index, compacto = false }) {
   const [srcAtual, setSrcAtual] = useState(() => normalizarImagemBase64(anexo.src));
   const [falhouTotal, setFalhouTotal] = useState(false);
 
@@ -210,11 +213,13 @@ function CroquiMiniThumbItem({ anexo, alt, images, index }) {
         name={`${alt || "Croqui"} — ${anexo.label}`}
         className="block"
       >
-        <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 shadow-sm hover:ring-2 hover:ring-orange-500 transition-all flex items-center justify-center">
+        <div
+          className={`${compacto ? "w-8 h-8 rounded-md" : "w-10 h-10 rounded-lg"} overflow-hidden border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 shadow-sm hover:ring-2 hover:ring-orange-500 transition-all flex items-center justify-center`}
+        >
           {isPdf ? (
-            <FileText className="w-4 h-4 text-red-600" />
+            <FileText className={`${compacto ? "w-3.5 h-3.5" : "w-4 h-4"} text-red-600`} />
           ) : falhouTotal ? (
-            <Camera className="w-4 h-4 text-orange-500" />
+            <Camera className={`${compacto ? "w-3.5 h-3.5" : "w-4 h-4"} text-orange-500`} />
           ) : (
             <img
               src={srcAtual}
