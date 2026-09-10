@@ -9,7 +9,7 @@ import { useToast } from "@/components/ui/use-toast";
 import {
   Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send,
   Factory, Scissors, Wind, Layers, AlertTriangle, CheckCircle2, Star,
-  ChevronDown, ChevronUp
+  ChevronDown, ChevronUp, Calendar, Filter, X, Clock
 } from "lucide-react";
 import PedidoOdooCard from "@/components/pcp/PedidoOdooCard";
 import PedidoOdooGrupoCard from "@/components/pcp/PedidoOdooGrupoCard";
@@ -17,7 +17,7 @@ import PedidoOdooDetalheDialog from "@/components/pcp/PedidoOdooDetalheDialog";
 import WebhookSimulatorDialog from "@/components/pcp/WebhookSimulatorDialog";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
-import { calcularDataPrometidaSLA, toISODate, slaDiasPorCategoria, diasUteisRestantes } from "@/lib/sla";
+import { calcularDataPrometidaSLA, toISODate, slaDiasPorCategoria, diasUteisRestantes, formatDataBR } from "@/lib/sla";
 import { parseItensPedido } from "@/lib/regrasFabrica";
 import { notificarStatus } from "@/lib/biNotificador";
 import { calcularProgressoRealPedido, statusPcpPorPercentual, enriquecerItensComStatusReal } from "@/lib/pedidoOdooHelper";
@@ -39,6 +39,74 @@ export default function CentralPCP() {
   const [pedidoPrioridadePendente, setPedidoPrioridadePendente] = useState(null);
   const [pedidosExpandidos, setPedidosExpandidos] = useState(() => new Set());
   const [modoVisao, setModoVisao] = useState("agrupado");
+
+  // Filtros de Data
+  const [filtroDataPreset, setFiltroDataPreset] = useState("todas"); // "todas" | "hoje" | "amanha" | "semana" | "atrasados" | "personalizada"
+  const [filtroDataCampo, setFiltroDataCampo] = useState("data_entrega"); // "data_entrega" | "data_recebimento"
+  const [filtroDataInicio, setFiltroDataInicio] = useState("");
+  const [filtroDataFim, setFiltroDataFim] = useState("");
+
+  const formatToLocalDateInput = (date) => {
+    if (!date) return "";
+    const d = date instanceof Date ? date : new Date(date);
+    if (isNaN(d.getTime())) return "";
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const extrairDataISO = (val) => {
+    if (!val) return "";
+    if (typeof val === "string") {
+      if (/^\d{4}-\d{2}-\d{2}/.test(val)) {
+        return val.slice(0, 10);
+      }
+      const d = new Date(val);
+      if (!isNaN(d.getTime())) {
+        return formatToLocalDateInput(d);
+      }
+    }
+    if (val instanceof Date && !isNaN(val.getTime())) {
+      return formatToLocalDateInput(val);
+    }
+    return "";
+  };
+
+  const filtroDataAtivo = filtroDataPreset !== "todas" || Boolean(filtroDataInicio) || Boolean(filtroDataFim);
+
+  const limparFiltroData = () => {
+    setFiltroDataPreset("todas");
+    setFiltroDataInicio("");
+    setFiltroDataFim("");
+  };
+
+  const handleSelectPreset = (presetId) => {
+    setFiltroDataPreset(presetId);
+    const hojeStr = formatToLocalDateInput(new Date());
+
+    if (presetId === "todas") {
+      setFiltroDataInicio("");
+      setFiltroDataFim("");
+    } else if (presetId === "hoje") {
+      setFiltroDataInicio(hojeStr);
+      setFiltroDataFim(hojeStr);
+    } else if (presetId === "amanha") {
+      const am = new Date();
+      am.setDate(am.getDate() + 1);
+      const amStr = formatToLocalDateInput(am);
+      setFiltroDataInicio(amStr);
+      setFiltroDataFim(amStr);
+    } else if (presetId === "semana") {
+      const em7 = new Date();
+      em7.setDate(em7.getDate() + 7);
+      setFiltroDataInicio(hojeStr);
+      setFiltroDataFim(formatToLocalDateInput(em7));
+    } else if (presetId === "atrasados") {
+      setFiltroDataInicio("");
+      setFiltroDataFim(hojeStr);
+    }
+  };
 
   const { data: pedidos = [], isLoading: carregando, refetch } = useQuery({
     queryKey: ["pedidos-odoo-pcp"],
@@ -681,6 +749,30 @@ export default function CentralPCP() {
       if (p.status_pcp !== filtro) return false;
     }
 
+    // Filtro por Data
+    if (filtroDataAtivo) {
+      const dataAlvoStr = filtroDataCampo === "data_recebimento" ? p.data_recebimento : p.data_entrega;
+      const dataAlvoISO = extrairDataISO(dataAlvoStr);
+
+      if (!dataAlvoISO) {
+        return false;
+      }
+
+      const hojeStr = formatToLocalDateInput(new Date());
+
+      if (filtroDataPreset === "atrasados") {
+        if (dataAlvoISO >= hojeStr || concluido) return false;
+      } else if (filtroDataInicio && filtroDataFim) {
+        const dMin = filtroDataInicio <= filtroDataFim ? filtroDataInicio : filtroDataFim;
+        const dMax = filtroDataInicio <= filtroDataFim ? filtroDataFim : filtroDataInicio;
+        if (dataAlvoISO < dMin || dataAlvoISO > dMax) return false;
+      } else if (filtroDataInicio) {
+        if (dataAlvoISO !== filtroDataInicio) return false;
+      } else if (filtroDataFim) {
+        if (dataAlvoISO > filtroDataFim) return false;
+      }
+    }
+
     if (!busca) return true;
     const q = busca.toLowerCase();
     return (
@@ -874,6 +966,125 @@ export default function CentralPCP() {
         </div>
       </div>
 
+      {/* Barra de Filtro por Data */}
+      <div className="px-4 sm:px-6 pb-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+          {/* Lado Esquerdo: Identificador + Campo Alvo + Presets */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 shrink-0">
+              <Calendar className="w-4 h-4 text-orange-500" />
+              <span>Filtrar Data:</span>
+            </div>
+
+            {/* Alternar Campo: Entrega vs Chegada */}
+            <select
+              value={filtroDataCampo}
+              onChange={(e) => setFiltroDataCampo(e.target.value)}
+              className="text-xs bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-orange-500 cursor-pointer"
+            >
+              <option value="data_entrega">📅 Prazo de Entrega (SLA)</option>
+              <option value="data_recebimento">📥 Chegada no PCP</option>
+            </select>
+
+            {/* Divisor sutil */}
+            <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
+
+            {/* Presets Rápidos */}
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+              {[
+                { id: "todas", label: "Todas" },
+                { id: "hoje", label: "Hoje" },
+                { id: "amanha", label: "Amanhã" },
+                { id: "semana", label: "Próx. 7 Dias" },
+                { id: "atrasados", label: "Atrasados" },
+              ].map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => handleSelectPreset(p.id)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                    filtroDataPreset === p.id
+                      ? "bg-orange-500 text-white shadow-xs"
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Lado Direito: Seleção Manual de Data (De e Até) + Limpar */}
+          <div className="flex items-center gap-2 flex-wrap sm:justify-end">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+              <span className="text-[11px] font-medium">De:</span>
+              <input
+                type="date"
+                value={filtroDataInicio}
+                onChange={(e) => {
+                  setFiltroDataInicio(e.target.value);
+                  setFiltroDataPreset("personalizada");
+                }}
+                className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-orange-500 h-7"
+              />
+              <span className="text-[11px] font-medium">Até:</span>
+              <input
+                type="date"
+                value={filtroDataFim}
+                onChange={(e) => {
+                  setFiltroDataFim(e.target.value);
+                  setFiltroDataPreset("personalizada");
+                }}
+                className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-orange-500 h-7"
+              />
+            </div>
+
+            {filtroDataAtivo && (
+              <button
+                type="button"
+                onClick={limparFiltroData}
+                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors border border-rose-200 dark:border-rose-900/50 h-7 shrink-0"
+                title="Limpar filtro de data"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Limpar</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Indicador Ativo de Filtro de Data */}
+        {filtroDataAtivo && (
+          <div className="mt-1.5 flex items-center justify-between text-[11px] text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/30 border border-orange-200/80 dark:border-orange-900/40 rounded-lg px-3 py-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Calendar className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+              <span>
+                Filtrando por <strong>{filtroDataCampo === "data_entrega" ? "Prazo de Entrega" : "Chegada no PCP"}</strong>:{" "}
+                {filtroDataPreset === "hoje" && "Hoje"}
+                {filtroDataPreset === "amanha" && "Amanhã"}
+                {filtroDataPreset === "semana" && "Próximos 7 dias"}
+                {filtroDataPreset === "atrasados" && "Pedidos atrasados (vencidos)"}
+                {filtroDataPreset === "personalizada" && (
+                  filtroDataInicio && filtroDataFim && filtroDataInicio !== filtroDataFim
+                    ? `${formatDataBR(filtroDataInicio)} até ${formatDataBR(filtroDataFim)}`
+                    : formatDataBR(filtroDataInicio || filtroDataFim)
+                )}
+                {filtroDataPreset !== "hoje" && filtroDataPreset !== "amanha" && filtroDataPreset !== "semana" && filtroDataPreset !== "atrasados" && filtroDataPreset !== "personalizada" && "Personalizado"}
+              </span>
+              <span className="text-slate-400">·</span>
+              <span className="font-bold">{pedidosFiltrados.length} OFs encontradas</span>
+            </div>
+            <button
+              type="button"
+              onClick={limparFiltroData}
+              className="text-orange-600 hover:text-orange-800 dark:hover:text-orange-200 font-semibold underline text-[10px] shrink-0 ml-2"
+            >
+              Remover filtro
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Fila de Pedidos */}
       <div className="px-4 sm:px-6 pb-12">
         {carregando ? (
@@ -887,10 +1098,30 @@ export default function CentralPCP() {
             <div className="w-16 h-16 rounded-2xl bg-orange-500/10 flex items-center justify-center mb-4">
               <Inbox className="w-8 h-8 text-orange-500" />
             </div>
-            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">Nenhum pedido na fila</h3>
+            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">
+              {busca || filtroDataAtivo || filtro !== "ativos"
+                ? "Nenhum pedido encontrado para os filtros selecionados"
+                : "Nenhum pedido na fila"}
+            </h3>
             <p className="text-xs text-slate-400 mt-1 max-w-xs">
-              Clique em "Receber / Simular Webhook Odoo" para importar pedidos do ERP.
+              {busca || filtroDataAtivo || filtro !== "ativos"
+                ? "Tente ajustar o termo de busca, trocar a data ou limpar os filtros para visualizar outros pedidos."
+                : "Clique em \"Receber / Simular Webhook Odoo\" para importar pedidos do ERP."}
             </p>
+            {(busca || filtroDataAtivo || filtro !== "ativos") && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setBusca("");
+                  limparFiltroData();
+                  setFiltro("ativos");
+                }}
+                className="mt-3 text-xs"
+              >
+                Limpar Todos os Filtros
+              </Button>
+            )}
           </div>
         ) : (
           <>
