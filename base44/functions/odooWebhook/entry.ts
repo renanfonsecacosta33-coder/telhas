@@ -281,8 +281,8 @@ export default async function(req: Request): Promise<Response> {
     const anexo8Url = resolveAnexo(8);
     const anexo9Url = resolveAnexo(9);
     const anexo10Url = resolveAnexo(10);
-    // foto_pedido_url: prioriza o campo específico ou usa anexo1Url como foto principal
-    const fotoUrl = body?.foto_pedido_url || anexo1Url || "";
+    // foto_pedido_url: prioriza o campo específico, a foto do primeiro item ou anexo1Url
+    const fotoUrl = body?.foto_pedido_url || newItems[0]?.foto_url || newItems[0]?.imagem_url || anexo1Url || "";
 
     const nowIso = new Date().toISOString();
 

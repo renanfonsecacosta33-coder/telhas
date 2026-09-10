@@ -6,47 +6,29 @@ import { Radio, Send, CheckCircle2, AlertTriangle } from "lucide-react";
 import { parseWebhookPayload } from "@/lib/odooParser";
 
 const EXEMPLO = JSON.stringify({
-  numero_pedido: "SO00123",
-  cliente_nome: "Cliente Exemplo",
-  vendedor_nome: "Vendedor Exemplo",
+  numero_pedido: "S00627",
+  cliente_nome: "NOME DO CLIENTE",
+  vendedor_nome: "NOME DO VENDEDOR",
   data_entrega: "2026-09-15",
   unidade: "Matriz AJL",
-  identificacao_1: "Identificação 1",
-  identificacao_2: "Identificação 2",
-  odoo_id: "1234",
-  of_odoo_id: "1234",
-  of_nome: "WH/MO/00123",
-  total_itens: 3,
+  identificacao_1: "IDENTIFICAÇÃO 1",
+  identificacao_2: "IDENTIFICAÇÃO 2",
+  odoo_id: "1332146",
+  of_odoo_id: "1332146",
+  of_nome: "WH/MO/1332146",
+  total_itens: 1,
   itens_json: JSON.stringify([
     {
-      categoria: "Corte e Dobra",
-      produto: "Chapa 1,25 GV Dobrada",
-      quantidade: 2,
-      unidade: "UN",
-      observacao: "Dobra conforme desenho",
-      imagem_url: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600&q=80"
-    },
-    {
       categoria: "Telhas",
-      produto: "Telha TP-40 Galvalume",
-      quantidade: 5,
-      unidade: "UN",
-      observacao: "Corte 6 metros",
-      imagem_url: "https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?w=600&q=80"
-    },
-    {
-      categoria: "Frisadas",
-      produto: "Calha Frisada 3m",
-      quantidade: 1,
-      unidade: "UN",
-      observacao: "Acabamento padrão",
-      imagem_url: "https://images.unsplash.com/photo-1581092335397-9583fe92d232?w=600&q=80"
+      produto: "Telha TP 25 (0,43) nacional",
+      quantidade: 3000.0,
+      unidade: "Unidades A produzir",
+      observacao: "Teste",
+      foto_url: "https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?w=600&q=80"
     }
   ]),
-  descricao: "Observação geral da ordem",
-  anexo_1_url: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600&q=80",
-  anexo_2_url: "https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?w=600&q=80",
-  foto_pedido_url: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600&q=80",
+  descricao: "Teste",
+  foto_pedido_url: "https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?w=600&q=80",
   status_pcp: "pendente_distribuicao",
   progresso_inicial: 0,
   nova_of: true

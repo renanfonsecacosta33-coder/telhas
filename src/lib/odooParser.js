@@ -83,7 +83,7 @@ export function parseWebhookPayload(rawJson) {
           const em = String(produto).match(/\((\d+[.,]\d+)\s*\)/);
           if (em) espessura = em[1].replace(",", ".");
         }
-        const imgUrl = normalizarImagemBase64(it.imagem_url || it.foto_url || it.anexo_url || it.croqui_url || it.anexo_1_url || "");
+        const imgUrl = normalizarImagemBase64(it.foto_url || it.imagem_url || it.anexo_url || it.croqui_url || it.anexo_1_url || "");
         return {
           categoria: it.categoria || it.category || it.product_category || "",
           produto,
@@ -93,6 +93,7 @@ export function parseWebhookPayload(rawJson) {
           espessura,
           quantidade: Number(it.quantidade || it.qty || it.quantity || it.product_uom_qty || 0),
           unidade: it.unidade || "UN",
+          foto_url: imgUrl,
           imagem_url: imgUrl
         };
       })
@@ -111,7 +112,7 @@ export function parseWebhookPayload(rawJson) {
     // Foto/croqui do pedido enviado pelo Odoo (anexo principal).
     // Normaliza strings Base64 puras adicionando o prefixo data:image/png;base64,
     // quando o Odoo envia a imagem sem o prefixo.
-    const fotoRaw = p.foto_pedido_url || p.anexo_1_url || p.anexo_2_url || p.anexo_url || p.attachment_url || p.foto_url || "";
+    const fotoRaw = p.foto_pedido_url || itens[0]?.foto_url || itens[0]?.imagem_url || p.anexo_1_url || p.anexo_2_url || p.anexo_url || p.attachment_url || p.foto_url || "";
     const foto_pedido_url = normalizarImagemBase64(fotoRaw);
     const anexo_1_url = normalizarImagemBase64(p.anexo_1_url || p.anexo_1 || p.anexo1 || p.foto_pedido_url || "");
     const anexo_2_url = normalizarImagemBase64(p.anexo_2_url || p.anexo_2 || p.anexo2 || "");

@@ -15,8 +15,9 @@ const CAMPOS_IMAGEM_TOP = [
   { key: "foto_url", label: "Foto" },
 ];
 
-// Campos dentro de cada item do itens_json (prioriza imagem_url do novo payload Odoo)
+// Campos dentro de cada item do itens_json (prioriza foto_url e imagem_url da linha do Odoo)
 export const CAMPOS_IMAGEM_ITEM = [
+  "foto_url",
   "imagem_url",
   "anexo_1_base64",
   "anexo_1_url",
@@ -26,7 +27,6 @@ export const CAMPOS_IMAGEM_ITEM = [
   "anexo_2_url",
   "anexo_2",
   "anexo2",
-  "foto_url",
   "croqui_url",
   "foto_pedido_url"
 ];
