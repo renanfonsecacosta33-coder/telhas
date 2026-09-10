@@ -110,7 +110,20 @@ export function extrairAnexosLista(pedido) {
   if (!pedido) return [];
   const anexos = [];
 
-  // 1. Varre de Anexo 1 a Anexo 10
+  const adicionar = (srcRaw, label) => {
+    const src = normalizarImagemBase64(srcRaw);
+    if (src && !anexos.some(a => a.src === src)) {
+      anexos.push({ src, label: label || `Anexo ${anexos.length + 1}` });
+    }
+  };
+
+  // 1. Foto principal do pedido (se existir)
+  const fotoPrincipal = pedido.foto_pedido_url || pedido.foto_pedido || pedido.croqui_url;
+  if (fotoPrincipal) {
+    adicionar(fotoPrincipal, "Foto do Pedido");
+  }
+
+  // 2. Varre de Anexo 1 a Anexo 10
   for (let i = 1; i <= 10; i++) {
     const keys = [
       `anexo_${i}_base64`,
@@ -120,51 +133,58 @@ export function extrairAnexosLista(pedido) {
       `anexo_${i}`,
       `anexo${i}`
     ];
-    if (i === 1) {
-      keys.push("foto_pedido_url", "foto_pedido", "croqui_url", "foto_url");
-    }
-    let src = "";
+    let val = "";
     // Procura primeiro por Base64 real (data: ou Base64 puro)
     for (const k of keys) {
-      const val = pedido[k];
-      if (val && typeof val === "string" && val.trim()) {
-        const norm = normalizarImagemBase64(val);
+      const raw = pedido[k];
+      if (raw && typeof raw === "string" && raw.trim()) {
+        const norm = normalizarImagemBase64(raw);
         if (norm && norm.startsWith("data:")) {
-          src = norm;
+          val = norm;
           break;
         }
       }
     }
-    // Depois procura por URL
-    if (!src) {
+    // Depois procura por URL pública
+    if (!val) {
       for (const k of keys) {
-        const val = pedido[k];
-        if (val && typeof val === "string" && val.trim()) {
-          const norm = normalizarImagemBase64(val);
-          if (norm) {
-            src = norm;
-            break;
-          }
+        const raw = pedido[k];
+        if (raw && typeof raw === "string" && raw.trim()) {
+          val = raw;
+          break;
         }
       }
     }
-    if (src && !anexos.some(a => a.src === src)) {
-      anexos.push({ src, label: `Anexo ${i}` });
+    if (val) {
+      adicionar(val, `Anexo ${i}`);
     }
   }
 
-  // 2. Se ainda não encontrou anexos, tenta buscar dentro de itens_json
-  if (anexos.length === 0) {
-    try {
-      const itens = typeof pedido.itens_json === "string" ? JSON.parse(pedido.itens_json || "[]") : (pedido.itens || []);
-      for (const it of itens) {
-        const src = extrairCroquiItem(it);
-        if (src && !anexos.some(a => a.src === src)) {
-          anexos.push({ src, label: it.produto || "Anexo Item" });
-        }
-      }
-    } catch { /* ignore */ }
+  // 3. Imagens enviadas em array (anexos ou imagens_anexos)
+  const anexosArray = pedido.anexos || pedido.imagens_anexos || pedido.fotos;
+  if (anexosArray) {
+    let lista = anexosArray;
+    if (typeof anexosArray === "string") {
+      try { lista = JSON.parse(anexosArray); } catch { lista = null; }
+    }
+    if (Array.isArray(lista)) {
+      lista.forEach((item, idx) => {
+        const raw = typeof item === "string" ? item : (item?.url || item?.anexo_1_url || item?.src || item?.foto_url);
+        adicionar(raw, typeof item === "object" && item?.label ? item.label : `Anexo ${anexos.length + 1}`);
+      });
+    }
   }
+
+  // 4. Também inclui imagens específicas dos itens dentro de itens_json
+  try {
+    const itens = typeof pedido.itens_json === "string" ? JSON.parse(pedido.itens_json || "[]") : (pedido.itens || []);
+    for (const it of itens) {
+      const src = extrairCroquiItem(it);
+      if (src) {
+        adicionar(src, it.produto || `Item ${anexos.length + 1}`);
+      }
+    }
+  } catch { /* ignore */ }
 
   return anexos;
 }

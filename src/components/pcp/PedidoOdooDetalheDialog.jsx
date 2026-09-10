@@ -12,6 +12,7 @@ import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import PedidoItensLista from "@/components/pcp/PedidoItensLista";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
+import { extrairAnexosLista } from "@/lib/croquiExtractor";
 import MaquinaSequenceCD from "@/components/pcp/MaquinaSequenceCD";
 import EtapasTelhaSequence from "@/components/pcp/EtapasTelhaSequence";
 import { parseItensPedido, progressoChecklist } from "@/lib/regrasFabrica";
@@ -274,20 +275,23 @@ export default function PedidoOdooDetalheDialog({
             </div>
           </div>
 
-          {/* Foto do Pedido (Odoo → Encarregado) — Anexo 1 + Anexo 2, clica para expandir */}
-          {(pedido.foto_pedido_url || pedido.anexo_1_url || pedido.anexo_2_url) && (
+          {/* Fotos e Croquis do Pedido (Odoo) — Todos os anexos em grade completa com visualizador */}
+          {extrairAnexosLista(pedido).length > 0 && (
             <div className="rounded-xl border-2 border-blue-300 dark:border-blue-800 overflow-hidden">
               <div className="bg-blue-50 dark:bg-blue-950/40 px-3 py-2 flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2 min-w-0">
                   <ImageIcon className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                  <span className="text-xs font-bold text-blue-700 dark:text-blue-300 truncate">Foto do Pedido (Odoo) — Croqui/Vendedor</span>
+                  <span className="text-xs font-bold text-blue-700 dark:text-blue-300 truncate">
+                    Fotos e Croquis do Pedido ({extrairAnexosLista(pedido).length})
+                  </span>
                 </div>
                 <span className="text-[11px] font-medium text-blue-500 dark:text-blue-400 shrink-0">Clique na imagem para expandir</span>
               </div>
-              <div className="bg-white dark:bg-slate-900 p-2">
+              <div className="bg-white dark:bg-slate-900 p-3">
                 <CroquiThumb
                   pedido={pedido}
                   alt={`Croqui do pedido #${pedido.numero_pedido}`}
+                  galeriaCompleta={true}
                 />
               </div>
             </div>

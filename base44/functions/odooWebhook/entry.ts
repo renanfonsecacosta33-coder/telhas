@@ -287,10 +287,19 @@ export default async function(req: Request): Promise<Response> {
       if (/^[A-Za-z0-9+/=]+$/.test(s)) return `data:image/png;base64,${s}`;
       return "";
     };
+    // Se foram enviados anexos em array (anexos, fotos, imagens, imagens_anexos)
+    let arrayAnexosPayload: any[] = [];
+    if (Array.isArray(body?.anexos)) arrayAnexosPayload = body.anexos;
+    else if (Array.isArray(body?.imagens_anexos)) arrayAnexosPayload = body.imagens_anexos;
+    else if (Array.isArray(body?.fotos)) arrayAnexosPayload = body.fotos;
+    else if (Array.isArray(body?.imagens)) arrayAnexosPayload = body.imagens;
+
     const resolveAnexo = (idx: number) => {
       const dataUri = toDataUri(body?.[`anexo_${idx}_base64`]) || toDataUri(body?.[`anexo_${idx}_url`]);
       if (dataUri) return dataUri;
-      const rawUrl = body?.[`anexo_${idx}_url`] || body?.[`anexo_${idx}`] || "";
+      const rawItemArray = arrayAnexosPayload[idx - 1];
+      const itemUrl = typeof rawItemArray === "string" ? rawItemArray : (rawItemArray?.url || rawItemArray?.src || rawItemArray?.foto_url || "");
+      const rawUrl = body?.[`anexo_${idx}_url`] || body?.[`anexo_${idx}`] || body?.[`anexo${idx}`] || itemUrl || "";
       return normalizarUrlOdoo(rawUrl);
     };
 

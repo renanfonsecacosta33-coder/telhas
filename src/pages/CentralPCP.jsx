@@ -684,6 +684,10 @@ export default function CentralPCP() {
       String(p.numero_pedido || "").toLowerCase().includes(q) ||
       String(p.of_nome || "").toLowerCase().includes(q) ||
       String(p.of_odoo_id || "").toLowerCase().includes(q) ||
+      String(p.odoo_id || "").toLowerCase().includes(q) ||
+      String(p.identificacao_1 || "").toLowerCase().includes(q) ||
+      String(p.identificacao_2 || "").toLowerCase().includes(q) ||
+      String(p.descricao || "").toLowerCase().includes(q) ||
       String(p.cliente_nome || "").toLowerCase().includes(q) ||
       String(p.vendedor_nome || "").toLowerCase().includes(q)
     );
