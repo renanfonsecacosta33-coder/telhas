@@ -52,13 +52,23 @@ export function normalizarImagemBase64(raw) {
 
   // 1. URL pública HTTP/HTTPS
   if (/^https?:\/\//i.test(str)) {
+    // Se for URL do Odoo apontando para /web/content/, converte para /web/image/
+    // No Odoo, /web/content/ envia 'Content-Disposition: attachment' (download) que quebra miniaturas <img>.
+    // Já /web/image/ envia 'Content-Disposition: inline', permitindo exibição direta de miniaturas!
+    if (str.includes("odoo.com/web/content/")) {
+      return str.replace("/web/content/", "/web/image/");
+    }
     return str;
   }
 
   // 2. Caminho relativo do Odoo
   if (str.startsWith("/web/") || str.startsWith("web/")) {
     const limpo = str.startsWith("/") ? str.slice(1) : str;
-    return `https://ajlferroeaco.odoo.com/${limpo}`;
+    let url = `https://ajlferroeaco.odoo.com/${limpo}`;
+    if (url.includes("/web/content/")) {
+      url = url.replace("/web/content/", "/web/image/");
+    }
+    return url;
   }
 
   // 3. Já tem prefixo data: (data:image/... ou data:application/pdf...)

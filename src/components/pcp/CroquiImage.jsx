@@ -24,7 +24,18 @@ export default function CroquiImage({
   if (!src) return null;
   return (
     <ImageLink url={src} name={alt} className={`block ${className}`}>
-      <img src={src} alt={alt} className={imgClassName} />
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={(e) => {
+          if (e.currentTarget.src && e.currentTarget.src.includes("/web/content/")) {
+            e.currentTarget.src = e.currentTarget.src.replace("/web/content/", "/web/image/");
+          }
+        }}
+        className={imgClassName}
+      />
     </ImageLink>
   );
 }

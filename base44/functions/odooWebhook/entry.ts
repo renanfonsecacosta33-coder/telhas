@@ -110,22 +110,42 @@ function canonicoTexto(s: any): string {
     .trim();
 }
 
+function normalizarUrlOdoo(url: any): string {
+  if (typeof url !== "string") return "";
+  let s = url.trim();
+  if (s.includes("odoo.com/web/content/")) {
+    s = s.replace("/web/content/", "/web/image/");
+  } else if (s.startsWith("/web/content/") || s.startsWith("web/content/")) {
+    const limpo = s.startsWith("/") ? s.slice(1) : s;
+    s = `https://ajlferroeaco.odoo.com/${limpo}`.replace("/web/content/", "/web/image/");
+  }
+  return s;
+}
+
 function sanitizarItemOdoo(it: any): any {
   if (!it || typeof it !== "object") return it;
-  const prod = String(it.produto || "").trim();
-  const obs = String(it.observacao || "").trim();
-  const desc = String(it.descricao || "").trim();
+
+  // Normalizar URLs de imagem para /web/image/ inline (evita Content-Disposition: attachment)
+  const itemNormalizado = { ...it };
+  if (itemNormalizado.foto_url) itemNormalizado.foto_url = normalizarUrlOdoo(itemNormalizado.foto_url);
+  if (itemNormalizado.imagem_url) itemNormalizado.imagem_url = normalizarUrlOdoo(itemNormalizado.imagem_url);
+  if (itemNormalizado.anexo_url) itemNormalizado.anexo_url = normalizarUrlOdoo(itemNormalizado.anexo_url);
+  if (itemNormalizado.croqui_url) itemNormalizado.croqui_url = normalizarUrlOdoo(itemNormalizado.croqui_url);
+
+  const prod = String(itemNormalizado.produto || "").trim();
+  const obs = String(itemNormalizado.observacao || "").trim();
+  const desc = String(itemNormalizado.descricao || "").trim();
 
   let candidata = obs || (desc !== prod ? desc : "");
   if (!candidata) {
-    return { ...it, observacao: "", descricao: "" };
+    return { ...itemNormalizado, observacao: "", descricao: "" };
   }
 
   const cProd = canonicoTexto(prod);
   const cCandidata = canonicoTexto(candidata);
 
   if (!cCandidata || cCandidata === cProd || (cProd && cProd.includes(cCandidata) && cCandidata.length >= 6)) {
-    return { ...it, observacao: "", descricao: "" };
+    return { ...itemNormalizado, observacao: "", descricao: "" };
   }
 
   let resto = candidata;
@@ -268,7 +288,10 @@ export default async function(req: Request): Promise<Response> {
       return "";
     };
     const resolveAnexo = (idx: number) => {
-      return toDataUri(body?.[`anexo_${idx}_base64`]) || toDataUri(body?.[`anexo_${idx}_url`]) || (body?.[`anexo_${idx}_url`] || body?.[`anexo_${idx}`] || "");
+      const dataUri = toDataUri(body?.[`anexo_${idx}_base64`]) || toDataUri(body?.[`anexo_${idx}_url`]);
+      if (dataUri) return dataUri;
+      const rawUrl = body?.[`anexo_${idx}_url`] || body?.[`anexo_${idx}`] || "";
+      return normalizarUrlOdoo(rawUrl);
     };
 
     const anexo1Url = resolveAnexo(1);
@@ -282,7 +305,8 @@ export default async function(req: Request): Promise<Response> {
     const anexo9Url = resolveAnexo(9);
     const anexo10Url = resolveAnexo(10);
     // foto_pedido_url: prioriza o campo específico, a foto do primeiro item ou anexo1Url
-    const fotoUrl = body?.foto_pedido_url || newItems[0]?.foto_url || newItems[0]?.imagem_url || anexo1Url || "";
+    const rawFoto = body?.foto_pedido_url || newItems[0]?.foto_url || newItems[0]?.imagem_url || anexo1Url || "";
+    const fotoUrl = rawFoto.startsWith("data:") ? rawFoto : normalizarUrlOdoo(rawFoto);
 
     const nowIso = new Date().toISOString();
 

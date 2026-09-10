@@ -25,6 +25,7 @@ export default function ImageViewer({ url, name, open, onClose }) {
       return;
     }
     const img = new Image();
+    img.referrerPolicy = "no-referrer";
     img.onload = () => setLoaded(true);
     img.onerror = () => setLoaded(true);
     img.src = url;
@@ -110,6 +111,7 @@ export default function ImageViewer({ url, name, open, onClose }) {
           <img
             src={url}
             alt={name || "Imagem"}
+            referrerPolicy="no-referrer"
             onLoad={() => setLoaded(true)}
             className={`max-w-none transition-opacity duration-150 ${loaded ? "opacity-100" : "opacity-0 absolute"}`}
             style={{

@@ -176,6 +176,13 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
                         <img
                           src={itemCroqui}
                           alt="Croqui do item"
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            if (e.currentTarget.src && e.currentTarget.src.includes("/web/content/")) {
+                              e.currentTarget.src = e.currentTarget.src.replace("/web/content/", "/web/image/");
+                            }
+                          }}
                           className="w-12 h-12 sm:w-14 sm:h-14 object-cover rounded-lg border-2 border-blue-400 dark:border-blue-500 shadow-sm hover:scale-105 transition-transform"
                         />
                       </ImageLink>

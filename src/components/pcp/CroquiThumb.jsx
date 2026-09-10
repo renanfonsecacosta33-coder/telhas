@@ -59,6 +59,11 @@ function CroquiThumbItem({ anexo, alt, height }) {
   }, [anexo.src]);
 
   const handleError = () => {
+    if (srcAtual && srcAtual.includes("/web/content/")) {
+      const novaUrl = srcAtual.replace("/web/content/", "/web/image/");
+      setSrcAtual(novaUrl);
+      return;
+    }
     setFalhouTotal(true);
   };
 
@@ -92,6 +97,8 @@ function CroquiThumbItem({ anexo, alt, height }) {
           <img
             src={srcAtual}
             alt={anexo.label || "Miniatura"}
+            loading="lazy"
+            referrerPolicy="no-referrer"
             onError={handleError}
             style={{ width: "100%", height: `${height}px`, objectFit: "cover" }}
             className="w-full object-cover rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm group-hover:opacity-90 transition-opacity"
