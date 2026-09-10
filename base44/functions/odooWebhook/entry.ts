@@ -267,8 +267,20 @@ export default async function(req: Request): Promise<Response> {
       if (/^[A-Za-z0-9+/=]+$/.test(s)) return `data:image/png;base64,${s}`;
       return "";
     };
-    const anexo1Url = toDataUri(body?.anexo_1_base64) || toDataUri(body?.anexo_1_url) || (body?.anexo_1_url || "");
-    const anexo2Url = toDataUri(body?.anexo_2_base64) || toDataUri(body?.anexo_2_url) || (body?.anexo_2_url || "");
+    const resolveAnexo = (idx: number) => {
+      return toDataUri(body?.[`anexo_${idx}_base64`]) || toDataUri(body?.[`anexo_${idx}_url`]) || (body?.[`anexo_${idx}_url`] || body?.[`anexo_${idx}`] || "");
+    };
+
+    const anexo1Url = resolveAnexo(1);
+    const anexo2Url = resolveAnexo(2);
+    const anexo3Url = resolveAnexo(3);
+    const anexo4Url = resolveAnexo(4);
+    const anexo5Url = resolveAnexo(5);
+    const anexo6Url = resolveAnexo(6);
+    const anexo7Url = resolveAnexo(7);
+    const anexo8Url = resolveAnexo(8);
+    const anexo9Url = resolveAnexo(9);
+    const anexo10Url = resolveAnexo(10);
     // foto_pedido_url: prioriza o campo específico ou usa anexo1Url como foto principal
     const fotoUrl = body?.foto_pedido_url || anexo1Url || "";
 
@@ -286,6 +298,18 @@ export default async function(req: Request): Promise<Response> {
       foto_pedido_url: (fotoUrl || existingRec?.foto_pedido_url) ?? "",
       anexo_1_url: (anexo1Url || existingRec?.anexo_1_url) ?? "",
       anexo_2_url: (anexo2Url || existingRec?.anexo_2_url) ?? "",
+      anexo_3_url: (anexo3Url || existingRec?.anexo_3_url) ?? "",
+      anexo_4_url: (anexo4Url || existingRec?.anexo_4_url) ?? "",
+      anexo_5_url: (anexo5Url || existingRec?.anexo_5_url) ?? "",
+      anexo_6_url: (anexo6Url || existingRec?.anexo_6_url) ?? "",
+      anexo_7_url: (anexo7Url || existingRec?.anexo_7_url) ?? "",
+      anexo_8_url: (anexo8Url || existingRec?.anexo_8_url) ?? "",
+      anexo_9_url: (anexo9Url || existingRec?.anexo_9_url) ?? "",
+      anexo_10_url: (anexo10Url || existingRec?.anexo_10_url) ?? "",
+      identificacao_1: body?.identificacao_1 ?? existingRec?.identificacao_1 ?? "",
+      identificacao_2: body?.identificacao_2 ?? existingRec?.identificacao_2 ?? "",
+      descricao: body?.descricao ?? existingRec?.descricao ?? "",
+      nova_of: isNovaOf,
       data_entrega: body?.data_entrega ?? existingRec?.data_entrega ?? "",
       unidade: body?.unidade ?? existingRec?.unidade ?? "Matriz AJL",
       prioridade: body?.prioridade ?? existingRec?.prioridade ?? false,

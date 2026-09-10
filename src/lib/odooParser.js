@@ -59,9 +59,18 @@ export function parseWebhookPayload(rawJson) {
   for (const p of pedidos) {
     if (!p || typeof p !== "object") continue;
 
-    const itensRaw = Array.isArray(p.itens) ? p.itens :
-      Array.isArray(p.order_line) ? p.order_line :
-      Array.isArray(p.lines) ? p.lines : [];
+    let itensRaw = [];
+    if (Array.isArray(p.itens)) {
+      itensRaw = p.itens;
+    } else if (Array.isArray(p.order_line)) {
+      itensRaw = p.order_line;
+    } else if (Array.isArray(p.lines)) {
+      itensRaw = p.lines;
+    } else if (typeof p.itens_json === "string" && p.itens_json.trim()) {
+      try { itensRaw = JSON.parse(p.itens_json); } catch { itensRaw = []; }
+    } else if (Array.isArray(p.itens_json)) {
+      itensRaw = p.itens_json;
+    }
 
     // Filtra apenas categorias industriais válidas (Telhas, C&D, Perfis, etc.)
     const itens = itensRaw
@@ -74,13 +83,17 @@ export function parseWebhookPayload(rawJson) {
           const em = String(produto).match(/\((\d+[.,]\d+)\s*\)/);
           if (em) espessura = em[1].replace(",", ".");
         }
+        const imgUrl = normalizarImagemBase64(it.imagem_url || it.foto_url || it.anexo_url || it.croqui_url || it.anexo_1_url || "");
         return {
           categoria: it.categoria || it.category || it.product_category || "",
           produto,
           descricao,
+          observacao: it.observacao || descricao,
           medida: it.medida || it.dimension || it.dimensao || "",
           espessura,
-          quantidade: Number(it.quantidade || it.qty || it.quantity || it.product_uom_qty || 0)
+          quantidade: Number(it.quantidade || it.qty || it.quantity || it.product_uom_qty || 0),
+          unidade: it.unidade || "UN",
+          imagem_url: imgUrl
         };
       })
       .filter((it) => isCategoriaValida(it.categoria, it.produto || it.descricao));
@@ -103,14 +116,28 @@ export function parseWebhookPayload(rawJson) {
     const anexo_1_url = normalizarImagemBase64(p.anexo_1_url || p.anexo_1 || p.anexo1 || p.foto_pedido_url || "");
     const anexo_2_url = normalizarImagemBase64(p.anexo_2_url || p.anexo_2 || p.anexo2 || "");
 
+    const anexosExtras = {};
+    for (let i = 1; i <= 10; i++) {
+      const aVal = normalizarImagemBase64(p[`anexo_${i}_url`] || p[`anexo_${i}`] || p[`anexo${i}`] || "");
+      if (aVal) anexosExtras[`anexo_${i}_url`] = aVal;
+    }
+
     result.push({
       odoo_id: String(p.odoo_id || p.id || ""),
+      of_odoo_id: String(p.of_odoo_id || p.odoo_id || p.id || ""),
+      of_nome: p.of_nome || "",
+      nova_of: Boolean(p.nova_of),
       numero_pedido: String(numero),
       cliente_nome: p.cliente_nome || p.cliente || p.partner_name || p.partner_id?.[1] || "",
       vendedor_nome: p.vendedor_nome || p.vendedor || p.user_id?.[1] || p.salesman || "",
-      foto_pedido_url,
-      anexo_1_url,
-      anexo_2_url,
+      foto_pedido_url: foto_pedido_url || anexo_1_url || anexosExtras.anexo_1_url || "",
+      anexo_1_url: anexo_1_url || foto_pedido_url || anexosExtras.anexo_1_url || "",
+      anexo_2_url: anexo_2_url || anexosExtras.anexo_2_url || "",
+      ...anexosExtras,
+      identificacao_1: p.identificacao_1 || "",
+      identificacao_2: p.identificacao_2 || "",
+      descricao: p.descricao || "",
+      data_entrega: p.data_entrega || "",
       data_recebimento: p.data_recebimento || p.date_order || new Date().toISOString(),
       unidade: p.unidade || "Matriz AJL",
       itens,

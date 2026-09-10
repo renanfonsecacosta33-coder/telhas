@@ -1,30 +1,52 @@
 import { normalizarImagemBase64 } from "@/lib/imagemBase64";
 
 // Mapeamento amplo de variações de nomes de campos de imagem/anexo enviados
-// pelo Odoo. Ordem de prioridade: Anexo 1 primeiro, depois Anexo 2, depois foto.
+// pelo Odoo. Suporta Anexo 1 até Anexo 10.
 const CAMPOS_IMAGEM_TOP = [
-  { key: "anexo_1_base64", label: "Anexo 1" },
-  { key: "anexo_1_url", label: "Anexo 1" },
-  { key: "anexo_1", label: "Anexo 1" },
-  { key: "anexo1", label: "Anexo 1" },
-  { key: "anexo_2_base64", label: "Anexo 2" },
-  { key: "anexo_2_url", label: "Anexo 2" },
-  { key: "anexo_2", label: "Anexo 2" },
-  { key: "anexo2", label: "Anexo 2" },
+  ...Array.from({ length: 10 }, (_, i) => [
+    { key: `anexo_${i + 1}_base64`, label: `Anexo ${i + 1}` },
+    { key: `anexo_${i + 1}_url`, label: `Anexo ${i + 1}` },
+    { key: `anexo_${i + 1}`, label: `Anexo ${i + 1}` },
+    { key: `anexo${i + 1}`, label: `Anexo ${i + 1}` },
+  ]).flat(),
   { key: "foto_pedido_url", label: "Foto do Pedido" },
   { key: "foto_pedido", label: "Foto do Pedido" },
   { key: "anexo_url", label: "Anexo" },
   { key: "foto_url", label: "Foto" },
 ];
 
-// Campos dentro de cada item do itens_json
-const CAMPOS_IMAGEM_ITEM = ["anexo_1_base64", "anexo_1_url", "anexo_1", "anexo1", "anexo_2_base64", "anexo_2_url", "anexo_2", "anexo2", "foto_url", "croqui_url", "foto_pedido_url"];
+// Campos dentro de cada item do itens_json (prioriza imagem_url do novo payload Odoo)
+export const CAMPOS_IMAGEM_ITEM = [
+  "imagem_url",
+  "anexo_1_base64",
+  "anexo_1_url",
+  "anexo_1",
+  "anexo1",
+  "anexo_2_base64",
+  "anexo_2_url",
+  "anexo_2",
+  "anexo2",
+  "foto_url",
+  "croqui_url",
+  "foto_pedido_url"
+];
+
+/**
+ * Extrai o croqui/imagem específico de um item do pedido.
+ */
+export function extrairCroquiItem(item) {
+  if (!item) return "";
+  for (const k of CAMPOS_IMAGEM_ITEM) {
+    const src = normalizarImagemBase64(item[k]);
+    if (src) return src;
+  }
+  return "";
+}
 
 /**
  * Extrai a primeira imagem válida (URL ou Base64) de um pedido Odoo.
- * Procura em todas as variações de campos de anexo/foto (anexo_1, anexo_2,
- * anexo1, anexo2, anexo_1_url, anexo_2_url, foto_pedido_url, foto_pedido,
- * imagens_anexos) e, por fallback, nos anexos dos itens (itens_json).
+ * Procura em todas as variações de campos de anexo/foto (anexo_1 a anexo_10,
+ * foto_pedido_url, imagens_anexos) e, por fallback, nos anexos dos itens (itens_json).
  *
  * Retorna { src, origem } onde:
  *  - src: string pronta para o atributo src do <img> (URL http, data: ou "")
@@ -61,12 +83,10 @@ export function extrairCroquiPedidoInfo(pedido) {
 
   // 3. Fallback: anexos dentro dos itens do pedido (itens_json)
   try {
-    const itens = JSON.parse(pedido.itens_json || "[]");
+    const itens = typeof pedido.itens_json === "string" ? JSON.parse(pedido.itens_json || "[]") : (pedido.itens || []);
     for (const it of itens) {
-      for (const k of CAMPOS_IMAGEM_ITEM) {
-        const src = normalizarImagemBase64(it?.[k]);
-        if (src) return { src, origem: k.startsWith("anexo_2") || k === "anexo2" ? "Anexo 2" : "Anexo 1" };
-      }
+      const src = extrairCroquiItem(it);
+      if (src) return { src, origem: it.produto || "Anexo Item" };
     }
   } catch { /* ignore */ }
 
@@ -81,34 +101,31 @@ export function extrairCroquiPedido(pedido) {
 }
 
 /**
- * Extrai a lista de anexos de croqui do pedido (Anexo 1 e Anexo 2).
+ * Extrai a lista de anexos de croqui do pedido (Anexo 1 até Anexo 10).
  * Cada item: { src, label }.
  *
  * Prioriza Data URIs limpos (Base64) ou URLs públicas prontas.
  */
 export function extrairAnexosLista(pedido) {
   if (!pedido) return [];
-  const grupos = [
-    {
-      label: "Anexo 1",
-      keys: [
-        "anexo_1_base64", "anexo1_base64", "anexo_1_url", "anexo1_url",
-        "anexo_1", "anexo1", "foto_pedido_url", "foto_pedido", "croqui_url", "foto_url"
-      ]
-    },
-    {
-      label: "Anexo 2",
-      keys: [
-        "anexo_2_base64", "anexo2_base64", "anexo_2_url", "anexo2_url",
-        "anexo_2", "anexo2"
-      ]
-    },
-  ];
   const anexos = [];
-  for (const g of grupos) {
+
+  // 1. Varre de Anexo 1 a Anexo 10
+  for (let i = 1; i <= 10; i++) {
+    const keys = [
+      `anexo_${i}_base64`,
+      `anexo${i}_base64`,
+      `anexo_${i}_url`,
+      `anexo${i}_url`,
+      `anexo_${i}`,
+      `anexo${i}`
+    ];
+    if (i === 1) {
+      keys.push("foto_pedido_url", "foto_pedido", "croqui_url", "foto_url");
+    }
     let src = "";
-    // 1. Procura primeiro por Base64 real (começa com data: ou Base64 puro)
-    for (const k of g.keys) {
+    // Procura primeiro por Base64 real (data: ou Base64 puro)
+    for (const k of keys) {
       const val = pedido[k];
       if (val && typeof val === "string" && val.trim()) {
         const norm = normalizarImagemBase64(val);
@@ -118,9 +135,9 @@ export function extrairAnexosLista(pedido) {
         }
       }
     }
-    // 2. Se não achou data URI, procura por qualquer URL pública válida
+    // Depois procura por URL
     if (!src) {
-      for (const k of g.keys) {
+      for (const k of keys) {
         const val = pedido[k];
         if (val && typeof val === "string" && val.trim()) {
           const norm = normalizarImagemBase64(val);
@@ -131,19 +148,20 @@ export function extrairAnexosLista(pedido) {
         }
       }
     }
-
-    if (src) anexos.push({ src, label: g.label });
+    if (src && !anexos.some(a => a.src === src)) {
+      anexos.push({ src, label: `Anexo ${i}` });
+    }
   }
 
-  // Se ainda não encontrou anexos, tenta buscar dentro de itens_json
+  // 2. Se ainda não encontrou anexos, tenta buscar dentro de itens_json
   if (anexos.length === 0) {
     try {
-      const itens = JSON.parse(pedido.itens_json || "[]");
+      const itens = typeof pedido.itens_json === "string" ? JSON.parse(pedido.itens_json || "[]") : (pedido.itens || []);
       for (const it of itens) {
-        const a1 = normalizarImagemBase64(it.anexo_1_base64 || it.anexo_1_url || it.anexo_1 || it.foto_url || it.croqui_url);
-        const a2 = normalizarImagemBase64(it.anexo_2_base64 || it.anexo_2_url || it.anexo_2);
-        if (a1 && !anexos.some(a => a.src === a1)) anexos.push({ src: a1, label: "Anexo 1" });
-        if (a2 && !anexos.some(a => a.src === a2)) anexos.push({ src: a2, label: "Anexo 2" });
+        const src = extrairCroquiItem(it);
+        if (src && !anexos.some(a => a.src === src)) {
+          anexos.push({ src, label: it.produto || "Anexo Item" });
+        }
       }
     } catch { /* ignore */ }
   }

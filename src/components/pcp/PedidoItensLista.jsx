@@ -1,7 +1,9 @@
 import React from "react";
-import { Factory, Scissors, Wind, Layers, Ruler, ClipboardList } from "lucide-react";
+import { Factory, Scissors, Wind, Layers, Ruler, ClipboardList, ImageIcon } from "lucide-react";
 import { stripHtml } from "@/lib/stripHtml";
 import { obterStatusDescritivoItem, extrairAnotacaoItem } from "@/lib/pedidoOdooHelper";
+import { extrairCroquiItem } from "@/lib/croquiExtractor";
+import ImageLink from "@/components/ui/ImageLink";
 
 // Config visual por categoria — cores conforme spec:
 // 🔧 C&D → LARANJA (#FF6B00) | 🏠 Telha → DOURADO (#FFD700) | 🔩 Avulso → CINZA (#888)
@@ -163,6 +165,23 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
                     </div>
                   )}
                 </div>
+
+                {/* Imagem/Croqui do Item (específico da linha do Odoo) */}
+                {(() => {
+                  const itemCroqui = extrairCroquiItem(it);
+                  if (!itemCroqui) return null;
+                  return (
+                    <div className="shrink-0 flex items-center justify-center">
+                      <ImageLink url={itemCroqui} name={produtoLimpo || desc}>
+                        <img
+                          src={itemCroqui}
+                          alt="Croqui do item"
+                          className="w-12 h-12 sm:w-14 sm:h-14 object-cover rounded-lg border-2 border-blue-400 dark:border-blue-500 shadow-sm hover:scale-105 transition-transform"
+                        />
+                      </ImageLink>
+                    </div>
+                  );
+                })()}
 
                 {/* Coluna direita: QUANTIDADE em badge sólida colorida por categoria */}
                 {qtd != null && (

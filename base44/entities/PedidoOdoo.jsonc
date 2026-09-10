@@ -36,7 +36,55 @@
     },
     "anexo_2_url": {
       "type": "string",
-      "description": "Anexo 2 do pedido Odoo (URL ou Base64 do croqui/desenho t\u00e9cnico)"
+      "description": "Anexo 2 do pedido Odoo (URL ou Base64 do croqui/desenho técnico)"
+    },
+    "anexo_3_url": {
+      "type": "string",
+      "description": "Anexo 3 do pedido Odoo (URL do croqui)"
+    },
+    "anexo_4_url": {
+      "type": "string",
+      "description": "Anexo 4 do pedido Odoo (URL do croqui)"
+    },
+    "anexo_5_url": {
+      "type": "string",
+      "description": "Anexo 5 do pedido Odoo (URL do croqui)"
+    },
+    "anexo_6_url": {
+      "type": "string",
+      "description": "Anexo 6 do pedido Odoo (URL do croqui)"
+    },
+    "anexo_7_url": {
+      "type": "string",
+      "description": "Anexo 7 do pedido Odoo (URL do croqui)"
+    },
+    "anexo_8_url": {
+      "type": "string",
+      "description": "Anexo 8 do pedido Odoo (URL do croqui)"
+    },
+    "anexo_9_url": {
+      "type": "string",
+      "description": "Anexo 9 do pedido Odoo (URL do croqui)"
+    },
+    "anexo_10_url": {
+      "type": "string",
+      "description": "Anexo 10 do pedido Odoo (URL do croqui)"
+    },
+    "identificacao_1": {
+      "type": "string",
+      "description": "Identificação 1 enviada pelo Odoo"
+    },
+    "identificacao_2": {
+      "type": "string",
+      "description": "Identificação 2 enviada pelo Odoo"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Observação geral da ordem"
+    },
+    "nova_of": {
+      "type": "boolean",
+      "description": "Indica se é uma nova OF enviada pelo Odoo"
     },
     "data_entrega": {
       "type": "string",

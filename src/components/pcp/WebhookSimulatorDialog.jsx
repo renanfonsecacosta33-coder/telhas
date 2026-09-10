@@ -6,19 +6,50 @@ import { Radio, Send, CheckCircle2, AlertTriangle } from "lucide-react";
 import { parseWebhookPayload } from "@/lib/odooParser";
 
 const EXEMPLO = JSON.stringify({
-  odoo_id: "SO-2026-283427",
-  numero_pedido: "283427",
-  cliente_nome: "Perfilaço Indústria",
-  vendedor_nome: "João Souza",
-  data_recebimento: new Date().toISOString(),
+  numero_pedido: "SO00123",
+  cliente_nome: "Cliente Exemplo",
+  vendedor_nome: "Vendedor Exemplo",
+  data_entrega: "2026-09-15",
+  unidade: "Matriz AJL",
+  identificacao_1: "Identificação 1",
+  identificacao_2: "Identificação 2",
+  odoo_id: "1234",
+  of_odoo_id: "1234",
+  of_nome: "WH/MO/00123",
+  total_itens: 3,
+  itens_json: JSON.stringify([
+    {
+      categoria: "Corte e Dobra",
+      produto: "Chapa 1,25 GV Dobrada",
+      quantidade: 2,
+      unidade: "UN",
+      observacao: "Dobra conforme desenho",
+      imagem_url: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600&q=80"
+    },
+    {
+      categoria: "Telhas",
+      produto: "Telha TP-40 Galvalume",
+      quantidade: 5,
+      unidade: "UN",
+      observacao: "Corte 6 metros",
+      imagem_url: "https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?w=600&q=80"
+    },
+    {
+      categoria: "Frisadas",
+      produto: "Calha Frisada 3m",
+      quantidade: 1,
+      unidade: "UN",
+      observacao: "Acabamento padrão",
+      imagem_url: "https://images.unsplash.com/photo-1581092335397-9583fe92d232?w=600&q=80"
+    }
+  ]),
+  descricao: "Observação geral da ordem",
   anexo_1_url: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600&q=80",
+  anexo_2_url: "https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?w=600&q=80",
   foto_pedido_url: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600&q=80",
-  itens: [
-    { categoria: "Telhas", produto: "Telha TP-40 Galvalume", medida: "5000mm", espessura: "0,43", quantidade: 50 },
-    { categoria: "Corte e Dobra", produto: "Perfil U 100x40", medida: "3000mm", espessura: "2,00", quantidade: 20 },
-    { categoria: "Frisadas", produto: "Calha Beiral", medida: "4000mm", espessura: "0,50", quantidade: 10 },
-    { categoria: "Revenda", produto: "Parafuso", medida: "—", espessura: "", quantidade: 200 }
-  ]
+  status_pcp: "pendente_distribuicao",
+  progresso_inicial: 0,
+  nova_of: true
 }, null, 2);
 
 export default function WebhookSimulatorDialog({ open, onOpenChange, onReceber }) {
