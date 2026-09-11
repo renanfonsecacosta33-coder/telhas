@@ -9,8 +9,18 @@ import { useToast } from "@/components/ui/use-toast";
 import {
   Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send,
   Factory, Scissors, Wind, Layers, AlertTriangle, CheckCircle2, Star,
-  ChevronDown, ChevronUp, Calendar, Filter, X, Clock
+  ChevronDown, ChevronUp, Calendar, Filter, X, Clock, Trash2, CheckSquare, Square
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import PedidoOdooCard from "@/components/pcp/PedidoOdooCard";
 import PedidoOdooGrupoCard from "@/components/pcp/PedidoOdooGrupoCard";
 import PedidoOdooDetalheDialog from "@/components/pcp/PedidoOdooDetalheDialog";
@@ -45,6 +55,16 @@ export default function CentralPCP() {
   const [filtroDataCampo, setFiltroDataCampo] = useState("data_entrega"); // "data_entrega" | "data_recebimento"
   const [filtroDataInicio, setFiltroDataInicio] = useState("");
   const [filtroDataFim, setFiltroDataFim] = useState("");
+
+  // Modal de Exclusão Segura
+  const [modalExclusao, setModalExclusao] = useState({
+    aberto: false,
+    pedidos: [],
+    titulo: "",
+    descricao: "",
+    notificarOdoo: true
+  });
+  const [excluindo, setExcluindo] = useState(false);
 
   const formatToLocalDateInput = (date) => {
     if (!date) return "";
@@ -886,6 +906,202 @@ export default function CentralPCP() {
     setPedidosExpandidos(new Set());
   };
 
+  // ── SELEÇÃO INTELIGENTE DE TODAS AS OPS ──────────────────────────
+  const todosFiltradosSelecionados = pedidosFiltrados.length > 0 && pedidosFiltrados.every(p => selecionados.has(p.id));
+  const algumFiltradoSelecionado = pedidosFiltrados.length > 0 && pedidosFiltrados.some(p => selecionados.has(p.id)) && !todosFiltradosSelecionados;
+
+  const handleToggleSelectGrupo = (grupo) => {
+    const ids = (grupo.ofs || []).map(p => p.id);
+    setSelecionados(prev => {
+      const next = new Set(prev);
+      const todosJaSelecionados = ids.every(id => next.has(id));
+      if (todosJaSelecionados) {
+        ids.forEach(id => next.delete(id));
+      } else {
+        ids.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const handleSelectByCriteria = (criterio) => {
+    if (criterio === "todos") {
+      const ids = pedidosFiltrados.map(p => p.id);
+      setSelecionados(new Set(ids));
+    } else if (criterio === "pendentes") {
+      const ids = pedidosFiltrados
+        .filter(p => p.status_pcp === "pendente_distribuicao" && !isPedidoConcluido(p))
+        .map(p => p.id);
+      setSelecionados(new Set(ids));
+    } else if (criterio === "distribuidos") {
+      const ids = pedidosFiltrados
+        .filter(p => p.status_pcp === "distribuido" && !isPedidoConcluido(p))
+        .map(p => p.id);
+      setSelecionados(new Set(ids));
+    } else if (criterio === "em_producao") {
+      const ids = pedidosFiltrados
+        .filter(p => p.status_pcp === "em_producao" && !isPedidoConcluido(p))
+        .map(p => p.id);
+      setSelecionados(new Set(ids));
+    } else if (criterio === "concluidos") {
+      const ids = pedidosFiltrados
+        .filter(p => isPedidoConcluido(p))
+        .map(p => p.id);
+      setSelecionados(new Set(ids));
+    } else if (criterio === "nenhum") {
+      setSelecionados(new Set());
+    }
+  };
+
+  const handleMasterCheckboxToggle = () => {
+    if (todosFiltradosSelecionados) {
+      setSelecionados(prev => {
+        const next = new Set(prev);
+        pedidosFiltrados.forEach(p => next.delete(p.id));
+        return next;
+      });
+    } else {
+      setSelecionados(prev => {
+        const next = new Set(prev);
+        pedidosFiltrados.forEach(p => next.add(p.id));
+        return next;
+      });
+    }
+  };
+
+  // ── EXCLUSÃO SUPER COMPLETA (SELECIONADAS, TODAS, GRUPO OU INDIVIDUAL) ──
+  const solicitarExclusaoSelecionadas = () => {
+    const lista = pedidos.filter(p => selecionados.has(p.id));
+    if (lista.length === 0) return;
+    setModalExclusao({
+      aberto: true,
+      pedidos: lista,
+      titulo: `Excluir ${lista.length} Ordem(ns) de Fabricação Selecionada(s)?`,
+      descricao: `As ${lista.length} ordens de fabricação selecionadas serão excluídas definitivamente da fila do PCP e dos galpões de produção.`,
+      notificarOdoo: true
+    });
+  };
+
+  const solicitarExclusaoTodas = () => {
+    if (pedidosFiltrados.length === 0) return;
+    setModalExclusao({
+      aberto: true,
+      pedidos: pedidosFiltrados,
+      titulo: `⚠️ Excluir TODAS as ${pedidosFiltrados.length} Ordem(ns) da Fila Atual?`,
+      descricao: `ATENÇÃO: Todas as ${pedidosFiltrados.length} ordens de fabricação exibidas na visualização atual serão permanentemente apagadas do sistema.`,
+      notificarOdoo: true
+    });
+  };
+
+  const solicitarExclusaoGrupo = (grupo) => {
+    const ofs = grupo.ofs || [];
+    if (ofs.length === 0) return;
+    setModalExclusao({
+      aberto: true,
+      pedidos: ofs,
+      titulo: `Excluir Pedido #${grupo.numero_pedido} (${ofs.length} OFs)?`,
+      descricao: `Você está prestes a excluir o Pedido #${grupo.numero_pedido} (${grupo.cliente_nome}) e todas as suas ${ofs.length} Ordens de Fabricação vinculadas.`,
+      notificarOdoo: true
+    });
+  };
+
+  const solicitarExclusaoIndividual = (pedido) => {
+    setModalExclusao({
+      aberto: true,
+      pedidos: [pedido],
+      titulo: `Excluir OF ${pedido.of_nome || pedido.of_odoo_id || '#' + pedido.numero_pedido}?`,
+      descricao: `Esta ordem de fabricação (${pedido.cliente_nome || 'Cliente'}) será removida da Central PCP e das filas de produção.`,
+      notificarOdoo: true
+    });
+  };
+
+  const executarExclusaoConfirmada = async () => {
+    const lista = modalExclusao.pedidos;
+    if (!lista || lista.length === 0) {
+      setModalExclusao(prev => ({ ...prev, aberto: false }));
+      return;
+    }
+
+    setExcluindo(true);
+    let excluidos = 0;
+    let erros = 0;
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const numerosPedidos = [...new Set(lista.map(p => p.numero_pedido).filter(Boolean))];
+
+    try {
+      // 1) Cancela registros vinculados nos galpões de produção
+      for (const num of numerosPedidos) {
+        try {
+          await base44.entities.OrdemMaquinaCD.updateMany(
+            { numero_pedido: num, status: { $ne: "cancelado" } },
+            { $set: { status: "cancelado", data_finalizacao: todayIso } }
+          ).catch(() => {});
+          await base44.entities.OrdemDesbobinadeira.updateMany(
+            { numero_pedido: num, status: { $ne: "cancelado" } },
+            { $set: { status: "cancelado", data_finalizacao: todayIso } }
+          ).catch(() => {});
+          await base44.entities.Pedido.updateMany(
+            { numero_pedido: num, status: { $ne: "cancelado" } },
+            { $set: { status: "cancelado", data_finalizacao: todayIso } }
+          ).catch(() => {});
+        } catch (e) {
+          console.warn("[Exclusão] Falha ao atualizar ordens do galpão para pedido", num, e);
+        }
+      }
+
+      // 2) Exclui cada PedidoOdoo e notifica o Odoo se aplicável
+      for (const p of lista) {
+        try {
+          if (modalExclusao.notificarOdoo && p.odoo_id && !isPedidoTeste(p)) {
+            base44.functions.invoke("cancelarOrdemServicoOdoo", {
+              pedido_id: p.id,
+              numero_pedido: p.numero_pedido,
+              odoo_id: p.odoo_id,
+              of_odoo_id: p.of_odoo_id,
+              of_nome: p.of_nome,
+              force: true,
+            }).catch((err) => console.warn("[Exclusão Odoo Webhook]", err));
+          }
+
+          await base44.entities.PedidoOdoo.delete(p.id);
+          excluidos++;
+        } catch (err) {
+          console.error("[Exclusão] Falha ao deletar PedidoOdoo:", p.id, err);
+          erros++;
+        }
+      }
+
+      // Remove IDs excluídos do set de selecionados
+      setSelecionados(prev => {
+        const next = new Set(prev);
+        lista.forEach(p => next.delete(p.id));
+        return next;
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
+
+      toast({
+        title: `🗑️ ${excluidos} ordem(ns) de fabricação excluída(s)`,
+        description: erros > 0
+          ? `${excluidos} excluídas com sucesso. ${erros} falharam.`
+          : `As ordens foram removidas com sucesso da Central PCP e dos galpões.`,
+        className: "border-red-500/40"
+      });
+    } catch (e) {
+      toast({
+        title: "Erro ao excluir ordens",
+        description: e.message,
+        variant: "destructive"
+      });
+    } finally {
+      setExcluindo(false);
+      setModalExclusao({ aberto: false, pedidos: [], titulo: "", descricao: "", notificarOdoo: true });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header */}
@@ -1126,38 +1342,88 @@ export default function CentralPCP() {
         ) : (
           <>
             {/* Barra de Distribuição em Lote e Ações Rápidas do PCP */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-              <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 mb-3 flex flex-col xl:flex-row xl:items-center justify-between gap-3 shadow-sm">
+              {/* Lado Esquerdo: Checkbox Mestre + Atalhos de Seleção + Badge de Selecionados */}
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <label className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer select-none">
                   <input
                     type="checkbox"
-                    checked={
-                      pedidosFiltrados.filter(p => p.status_pcp === "pendente_distribuicao").length > 0 &&
-                      pedidosFiltrados
-                        .filter(p => p.status_pcp === "pendente_distribuicao")
-                        .every(p => selecionados.has(p.id))
-                    }
-                    onChange={(e) => handleSelectAllPendentes(e.target.checked)}
+                    checked={todosFiltradosSelecionados}
+                    ref={(el) => {
+                      if (el) el.indeterminate = algumFiltradoSelecionado;
+                    }}
+                    onChange={handleMasterCheckboxToggle}
                     className="w-4 h-4 rounded text-orange-600 border-slate-300 focus:ring-orange-500 cursor-pointer"
                   />
                   <span>
-                    Selecionar Todos os Pendentes ({pedidosFiltrados.filter(p => p.status_pcp === "pendente_distribuicao").length})
+                    Selecionar Todas ({pedidosFiltrados.length})
                   </span>
                 </label>
 
+                {/* Atalhos rápidos de seleção */}
+                <div className="flex items-center gap-1 text-[11px] overflow-x-auto no-scrollbar py-0.5">
+                  <span className="text-slate-400 font-medium text-[10px]">Filtrar:</span>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectByCriteria("pendentes")}
+                    className="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100 font-semibold border border-amber-200/60 transition-colors"
+                    title="Selecionar apenas OFs com status Pendente"
+                  >
+                    Pendentes ({stats.pendentes})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectByCriteria("distribuidos")}
+                    className="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100 font-semibold border border-blue-200/60 transition-colors"
+                    title="Selecionar apenas OFs já distribuídas"
+                  >
+                    Distribuídas ({stats.distribuidos})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectByCriteria("em_producao")}
+                    className="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 font-semibold border border-indigo-200/60 transition-colors"
+                    title="Selecionar apenas OFs em produção"
+                  >
+                    Em Produção ({stats.em_producao})
+                  </button>
+                  {stats.concluidos > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectByCriteria("concluidos")}
+                      className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 font-semibold border border-emerald-200/60 transition-colors"
+                      title="Selecionar apenas OFs concluídas"
+                    >
+                      Concluídas ({stats.concluidos})
+                    </button>
+                  )}
+                </div>
+
+                {/* Badge de Selecionados com botão de desmarcar */}
                 {selecionados.size > 0 && (
-                  <Badge variant="outline" className="text-xs bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border-orange-200">
-                    {selecionados.size} selecionado(s)
-                  </Badge>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="outline" className="text-xs bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border-orange-200 font-bold">
+                      {selecionados.size} selecionada(s)
+                    </Badge>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectByCriteria("nenhum")}
+                      className="text-[11px] text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 underline font-medium"
+                      title="Desmarcar todas"
+                    >
+                      Desmarcar
+                    </button>
+                  </div>
                 )}
               </div>
 
+              {/* Lado Direito: Ações em Lote (Distribuir, Apagar Selecionadas, Apagar Todas) */}
               <div className="flex items-center gap-2 flex-wrap">
                 {/* Distribuir Selecionados */}
                 {selecionados.size > 0 && (
                   <Button
                     size="sm"
-                    disabled={distribuindo}
+                    disabled={distribuindo || excluindo}
                     onClick={() => {
                       const lista = pedidos.filter(p => selecionados.has(p.id));
                       handleDistribuirLote(lista);
@@ -1165,16 +1431,16 @@ export default function CentralPCP() {
                     className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-xs h-8 gap-1.5 shadow-sm font-bold"
                   >
                     <Zap className="w-3.5 h-3.5" />
-                    {distribuindo ? "Distribuindo..." : `Distribuir Selecionados (${selecionados.size})`}
+                    {distribuindo ? "Distribuindo..." : `Distribuir Selecionadas (${selecionados.size})`}
                   </Button>
                 )}
 
-                {/* Distribuir TODOS os Pendentes de uma vez só */}
-                {pedidosFiltrados.filter(p => p.status_pcp === "pendente_distribuicao").length > 0 && (
+                {/* Distribuir TODOS os Pendentes da fila */}
+                {selecionados.size === 0 && pedidosFiltrados.filter(p => p.status_pcp === "pendente_distribuicao").length > 0 && (
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={distribuindo}
+                    disabled={distribuindo || excluindo}
                     onClick={() => {
                       const pendentes = pedidosFiltrados.filter(p => p.status_pcp === "pendente_distribuicao");
                       handleDistribuirLote(pendentes);
@@ -1183,6 +1449,36 @@ export default function CentralPCP() {
                   >
                     <Send className="w-3.5 h-3.5" />
                     {distribuindo ? "Distribuindo..." : `Distribuir Todos os Pendentes (${pedidosFiltrados.filter(p => p.status_pcp === "pendente_distribuicao").length})`}
+                  </Button>
+                )}
+
+                {/* APAGAR SELECIONADAS */}
+                {selecionados.size > 0 && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={distribuindo || excluindo}
+                    onClick={solicitarExclusaoSelecionadas}
+                    className="bg-red-600 hover:bg-red-700 text-white text-xs h-8 gap-1.5 shadow-sm font-bold"
+                    title="Excluir todas as ordens de fabricação selecionadas"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {excluindo ? "Apagando..." : `Apagar Selecionadas (${selecionados.size})`}
+                  </Button>
+                )}
+
+                {/* APAGAR TODAS DA FILA ATUAL */}
+                {pedidosFiltrados.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={distribuindo || excluindo}
+                    onClick={solicitarExclusaoTodas}
+                    className="border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 text-xs h-8 gap-1.5 font-semibold"
+                    title={`Excluir todas as ${pedidosFiltrados.length} ordens de fabricação exibidas nesta fila`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Apagar Todas ({pedidosFiltrados.length})</span>
                   </Button>
                 )}
               </div>
@@ -1285,10 +1581,12 @@ export default function CentralPCP() {
                     ordensCD={ordensCD}
                     selecionados={selecionados}
                     onToggleSelect={handleToggleSelect}
+                    onToggleSelectGrupo={handleToggleSelectGrupo}
                     onDistribuir={handleDistribuir}
                     onDistribuirGrupo={handleDistribuirLote}
                     onClickPedido={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
-                    onDelete={handleExcluirCard}
+                    onDelete={solicitarExclusaoIndividual}
+                    onDeleteGrupo={solicitarExclusaoGrupo}
                     onRetirarFila={handleRetirarFila}
                     onTogglePrioridade={handleTogglePrioridade}
                     onSetPrioridade={handleSetPrioridade}
@@ -1308,7 +1606,7 @@ export default function CentralPCP() {
                     onToggleSelect={handleToggleSelect}
                     onDistribuir={handleDistribuir}
                     onClick={() => { setPedidoSelecionado(p); setDetalheOpen(true); }}
-                    onDelete={handleExcluirCard}
+                    onDelete={solicitarExclusaoIndividual}
                     onRetirarFila={handleRetirarFila}
                     onTogglePrioridade={handleTogglePrioridade}
                     onSetPrioridade={handleSetPrioridade}
@@ -1365,10 +1663,12 @@ export default function CentralPCP() {
                           ordensCD={ordensCD}
                           selecionados={selecionados}
                           onToggleSelect={handleToggleSelect}
+                          onToggleSelectGrupo={handleToggleSelectGrupo}
                           onDistribuir={handleDistribuir}
                           onDistribuirGrupo={handleDistribuirLote}
                           onClickPedido={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
-                          onDelete={handleExcluirCard}
+                          onDelete={solicitarExclusaoIndividual}
+                          onDeleteGrupo={solicitarExclusaoGrupo}
                           onRetirarFila={handleRetirarFila}
                           onTogglePrioridade={handleTogglePrioridade}
                           onSetPrioridade={handleSetPrioridade}
@@ -1388,7 +1688,7 @@ export default function CentralPCP() {
                           onToggleSelect={handleToggleSelect}
                           onDistribuir={handleDistribuir}
                           onClick={() => { setPedidoSelecionado(p); setDetalheOpen(true); }}
-                          onDelete={handleExcluirCard}
+                          onDelete={solicitarExclusaoIndividual}
                           onRetirarFila={handleRetirarFila}
                           onTogglePrioridade={handleTogglePrioridade}
                           onSetPrioridade={handleSetPrioridade}
@@ -1441,6 +1741,96 @@ export default function CentralPCP() {
         onOpenChange={setWebhookOpen}
         onReceber={handleReceberWebhook}
       />
+
+      {/* Modal Seguro de Confirmação de Exclusão (Lote, Grupo ou Individual) */}
+      <AlertDialog
+        open={modalExclusao.aberto}
+        onOpenChange={(aberto) => {
+          if (!excluindo) setModalExclusao(prev => ({ ...prev, aberto }));
+        }}
+      >
+        <AlertDialogContent className="max-w-lg">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <AlertDialogTitle className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 text-left">
+                  {modalExclusao.titulo}
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 text-left">
+                  Esta ação é destrutiva e removerá os registros da fila do PCP.
+                </AlertDialogDescription>
+              </div>
+            </div>
+          </AlertDialogHeader>
+
+          <div className="space-y-3 py-2 text-xs">
+            <p className="text-slate-700 dark:text-slate-300">
+              {modalExclusao.descricao}
+            </p>
+
+            {/* Resumo das OFs afetadas */}
+            <div className="bg-slate-50 dark:bg-slate-800/60 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-48 overflow-y-auto space-y-1.5">
+              <div className="flex items-center justify-between font-bold text-[11px] text-slate-500 pb-1 border-b border-slate-200 dark:border-slate-700">
+                <span>Total de Ordens a excluir:</span>
+                <Badge variant="destructive" className="text-[10px] h-5">
+                  {modalExclusao.pedidos.length} {modalExclusao.pedidos.length === 1 ? "OF" : "OFs"}
+                </Badge>
+              </div>
+              <div className="flex flex-wrap gap-1 pt-1">
+                {modalExclusao.pedidos.map(p => (
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center gap-1 font-mono text-[10px] bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded px-1.5 py-0.5"
+                  >
+                    #{p.numero_pedido}
+                    {p.of_nome && ` (${p.of_nome})`}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Checkbox opcional de sincronização com Odoo */}
+            <label className="flex items-center gap-2 cursor-pointer select-none text-slate-600 dark:text-slate-300 text-[11px] pt-1">
+              <input
+                type="checkbox"
+                checked={modalExclusao.notificarOdoo}
+                onChange={(e) => setModalExclusao(prev => ({ ...prev, notificarOdoo: e.target.checked }))}
+                className="w-3.5 h-3.5 rounded text-red-600 border-slate-300 focus:ring-red-500 cursor-pointer"
+              />
+              <span>Sincronizar cancelamento no webhook do Odoo ERP (quando disponível)</span>
+            </label>
+          </div>
+
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel disabled={excluindo} className="text-xs h-9">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                executarExclusaoConfirmada();
+              }}
+              disabled={excluindo}
+              className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs h-9 gap-1.5"
+            >
+              {excluindo ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Excluindo...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Sim, Excluir Definitivamente ({modalExclusao.pedidos.length})</span>
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

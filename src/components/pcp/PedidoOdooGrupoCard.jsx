@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   ChevronDown, ChevronUp, Layers, User, Calendar, Zap, Send,
-  Star, CheckCircle2, AlertTriangle, Factory, Clock
+  Star, CheckCircle2, AlertTriangle, Factory, Clock, Trash2
 } from "lucide-react";
 import { formatDataBR } from "@/lib/sla";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
@@ -24,16 +24,22 @@ export default function PedidoOdooGrupoCard({
   ordensCD = [],
   selecionados = new Set(),
   onToggleSelect,
+  onToggleSelectGrupo,
   onDistribuir,
   onDistribuirGrupo,
   onClickPedido,
   onDelete,
+  onDeleteGrupo,
   onRetirarFila,
   onTogglePrioridade,
   onSetPrioridade
 }) {
   const ofs = grupo.ofs || [];
   const totalOfs = ofs.length;
+  const idsDoGrupo = ofs.map(p => p.id);
+  const totalSelecionadosNoGrupo = idsDoGrupo.filter(id => selecionados.has(id)).length;
+  const todosSelecionadosNoGrupo = totalOfs > 0 && totalSelecionadosNoGrupo === totalOfs;
+  const algumSelecionadoNoGrupo = totalSelecionadosNoGrupo > 0 && !todosSelecionadosNoGrupo;
 
   // Identifica se uma OF individual está 100% concluída
   const isOfConcluida = (p) => {
@@ -91,6 +97,32 @@ export default function PedidoOdooGrupoCard({
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Lado Esquerdo: Identificação do Pedido, Cliente e SLA */}
           <div className="flex items-start gap-2.5 min-w-0">
+            {/* Checkbox de Seleção do Pedido Inteiro */}
+            {onToggleSelectGrupo && (
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleSelectGrupo(grupo);
+                }}
+                className="mt-1.5 shrink-0 flex items-center justify-center p-1 rounded hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors cursor-pointer"
+                title={
+                  todosSelecionadosNoGrupo
+                    ? `Desmarcar todas as ${totalOfs} OFs deste pedido`
+                    : `Selecionar todas as ${totalOfs} OFs deste pedido`
+                }
+              >
+                <input
+                  type="checkbox"
+                  checked={todosSelecionadosNoGrupo}
+                  ref={(el) => {
+                    if (el) el.indeterminate = algumSelecionadoNoGrupo;
+                  }}
+                  onChange={() => {}}
+                  className="w-4 h-4 rounded text-orange-600 border-slate-300 focus:ring-orange-500 cursor-pointer"
+                />
+              </div>
+            )}
+
             {/* Botão Ícone Chevron */}
             <div
               className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 ${
@@ -205,6 +237,20 @@ export default function PedidoOdooGrupoCard({
                   <Send className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Distribuir Todas</span> ({pendentes.length})
                 </Button>
+              )}
+
+              {onDeleteGrupo && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteGrupo(grupo);
+                  }}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors border border-slate-200 dark:border-slate-700 hover:border-red-300 h-8 w-8 flex items-center justify-center shrink-0"
+                  title={`Excluir Pedido #${grupo.numero_pedido} (${totalOfs} OFs)`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               )}
 
               <Button

@@ -167,11 +167,11 @@ export default function PedidoOdooCard({
         {/* Cabeçalho Compacto: Focado na identificação da OF e status */}
         <div className="flex items-start justify-between gap-1.5 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
-            {onToggleSelect && pedido.status_pcp === "pendente_distribuicao" && (
+            {onToggleSelect && (
               <div
                 onClick={(e) => { e.stopPropagation(); onToggleSelect(pedido); }}
                 className="shrink-0"
-                title="Selecionar"
+                title="Selecionar OP"
               >
                 <input
                   type="checkbox"
@@ -291,11 +291,11 @@ export default function PedidoOdooCard({
     >
       <CroquiThumb pedido={pedido} alt={`Croqui do pedido #${pedido.numero_pedido}`} className="w-full mb-1" />
       <div className="flex items-start gap-2.5">
-        {onToggleSelect && pedido.status_pcp === "pendente_distribuicao" && (
+        {onToggleSelect && (
           <div
             onClick={(e) => { e.stopPropagation(); onToggleSelect(pedido); }}
             className="pt-0.5 shrink-0"
-            title="Selecionar para distribuição em lote"
+            title="Selecionar OP"
           >
             <input
               type="checkbox"
