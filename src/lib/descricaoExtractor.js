@@ -221,3 +221,55 @@ export function extrairDimensoesPerfil(texto) {
   }
   return null;
 }
+
+// Extrai quantidade de peças explicitada na observação livre do vendedor/pedido
+export function extrairPecasDaObs(texto) {
+  if (!texto) return null;
+  const t = String(texto).trim();
+
+  // 1. Regex de peças/chapas/barras/tubos: "1 chapa", "2 pçs", "5 peças", "10 barras", "1 un", "2 tubos"
+  const mPecas = t.match(/\b(\d+)\s*(?:p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|barras?|chapas?|unidades?|un\.?|pc\.?|tubos?|folhas?)\b/i);
+  if (mPecas) {
+    const q = parseInt(mPecas[1], 10);
+    if (q > 0) return q;
+  }
+
+  // 2. Notação "qtd: 2" ou "quantidade: 2" ou "qtd = 2"
+  const mQtd = t.match(/(?:qtd|quantidade|quant)\s*[:=]\s*(\d+)\b/i);
+  if (mQtd) {
+    const q = parseInt(mQtd[1], 10);
+    if (q > 0) return q;
+  }
+
+  // 3. Número isolado caso a observação seja apenas o número de peças
+  if (/^\d+$/.test(t)) {
+    const q = parseInt(t, 10);
+    if (q > 0 && q < 10000) return q;
+  }
+
+  return null;
+}
+
+// Extrai dimensões de chapas planas (ex: "Chapa 1200x3000", "1200×3000", "1000x2000")
+export function extrairDimensoesChapa(texto) {
+  if (!texto) return null;
+  const str = String(texto);
+  // Aceita x, X, × (unicode \u00D7), *
+  const m = str.match(/(\d{3,4})\s*[xX×*\u00D7]\s*(\d{3,4})/);
+  if (m) {
+    const d1 = parseInt(m[1], 10);
+    const d2 = parseInt(m[2], 10);
+    if (d1 >= 300 && d2 >= 500) {
+      const largMm = Math.min(d1, d2);
+      const compMm = Math.max(d1, d2);
+      return {
+        largura_mm: largMm,
+        comprimento_mm: compMm,
+        largura_m: +(largMm / 1000).toFixed(3),
+        comprimento_m: +(compMm / 1000).toFixed(3),
+        area_m2: +((largMm / 1000) * (compMm / 1000)).toFixed(3)
+      };
+    }
+  }
+  return null;
+}

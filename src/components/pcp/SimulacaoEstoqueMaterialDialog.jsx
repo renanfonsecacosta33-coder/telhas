@@ -175,6 +175,22 @@ export default function SimulacaoEstoqueMaterialDialog({
                         )}
                       </span>
                     )}
+                    {analiseAtiva?.demanda?.pecas > 0 && (
+                      <span className="font-medium flex items-center gap-1">
+                        <Scissors className="w-3.5 h-3.5 text-slate-500" />
+                        Peças: <strong>{analiseAtiva.demanda.pecas} un</strong>
+                        {analiseAtiva.demanda.pecasOrigem === "estimado" && (
+                          <span className="text-[10px] text-amber-700 dark:text-amber-300 font-bold">
+                            (est. a partir de {analiseAtiva.demanda.qtdOdoo} kg)
+                          </span>
+                        )}
+                        {analiseAtiva.demanda.pecasOrigem === "obs" && (
+                          <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold">
+                            (conf. OBS)
+                          </span>
+                        )}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

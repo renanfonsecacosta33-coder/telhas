@@ -265,6 +265,16 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
                     <span className="text-[8px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mt-0.5">
                       {unidade}
                     </span>
+                    {estoqueItem?.demanda?.isKg && estoqueItem?.demanda?.pecas > 0 && (
+                      <span
+                        className="text-[9px] font-extrabold text-orange-700 dark:text-orange-300 mt-0.5 bg-orange-50 dark:bg-orange-950/50 px-1 py-0.5 rounded border border-orange-200/60 dark:border-orange-900/40 leading-none whitespace-nowrap"
+                        title={estoqueItem.demanda.pecasOrigem === "obs" ? "Quantidade de peças informada nas observações" : "Quantidade de peças estimada pelo peso do item"}
+                      >
+                        {estoqueItem.demanda.pecasOrigem === "obs"
+                          ? `${estoqueItem.demanda.pecas} pç`
+                          : `~${estoqueItem.demanda.pecas} pç est.`}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

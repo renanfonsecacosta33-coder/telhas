@@ -1,4 +1,10 @@
-import { extrairEspecificacao, extrairPesoDoTexto, extrairDimensoesPerfil } from "./descricaoExtractor.js";
+import {
+  extrairEspecificacao,
+  extrairPesoDoTexto,
+  extrairDimensoesPerfil,
+  extrairDimensoesChapa,
+  extrairPecasDaObs
+} from "./descricaoExtractor.js";
 import { getItens, classGrupo } from "./pedidoOdooHelper.js";
 
 /**
@@ -165,32 +171,103 @@ export function isCorCompativel(bCor, itemCor) {
 
 /**
  * Extrai a demanda em metros lineares, peças e peso de um item.
+ * Suporta Odoo onde a quantidade vem em KG e a quantidade real de peças está nas OBS,
+ * ou estima automaticamente a quantidade de peças a partir do peso em KG caso não informado.
  */
 export function extrairDemandaItem(item) {
-  const desc = item.descricao || item.observacao || "";
-  const prod = item.produto || "";
+  const prod = String(item.produto || item.descricao || item.name || "").trim();
+  const desc = item.descricao || item.observacao || item.obs || "";
+  const obs = item.observacao || item.obs || "";
   const qtdOdoo = Number(item.quantidade || item.qtd || 1);
   const unid = String(item.unidade || "UN").toUpperCase();
 
+  const isKg = unid === "KG" || unid === "KGS" || unid === "QUILOS";
+  const setor = classGrupo(item);
+
+  // Espessura para cálculos físicos
+  let rawEsp =
+    item.espessura ||
+    item.chapa ||
+    item.thickness ||
+    item.espessura_mm ||
+    item.esp ||
+    extrairEspessuraDoTexto(prod) ||
+    extrairEspessuraDoTexto(desc) ||
+    extrairEspessuraDoTexto(obs);
+  const espNum = parseEspessuraToNumber(rawEsp) || (setor === "telha" ? 0.43 : 0.50);
+
   let pecas = qtdOdoo;
+  let pecasOrigem = "odoo"; // "odoo" | "obs" | "estimado"
   let metros = 0;
   let compMm = 0;
 
-  const spec = extrairEspecificacao(desc, qtdOdoo, unid);
-  if (spec && spec.tem_especificacao) {
-    pecas = spec.pecas || pecas;
+  // 1. Tentar extrair especificação completa ou peças da OBS / Descrição
+  const spec = extrairEspecificacao(desc, qtdOdoo, unid) || extrairEspecificacao(obs, qtdOdoo, unid);
+  const pecasObs = extrairPecasDaObs(obs) || extrairPecasDaObs(desc);
+
+  if (pecasObs != null) {
+    pecas = pecasObs;
+    pecasOrigem = "obs";
+    if (spec && spec.metragem_total) metros = spec.metragem_total;
+    if (spec && spec.comprimento_mm) compMm = spec.comprimento_mm;
+  } else if (spec && spec.tem_especificacao && spec.pecas) {
+    pecas = spec.pecas;
+    pecasOrigem = "obs";
     metros = spec.metragem_total || 0;
     compMm = spec.comprimento_mm || 0;
   } else if (unid.startsWith("M")) {
     metros = qtdOdoo;
+    pecas = 1;
+    pecasOrigem = "odoo";
+  } else if (isKg) {
+    // 2. Se a quantidade do Odoo for em KG e NÃO houver peças na OBS:
+    // Estima a quantidade de peças a partir do peso e dimensões do produto!
+    let pesoUnitario = 0;
+    const dimChapa = extrairDimensoesChapa(prod) || extrairDimensoesChapa(desc) || extrairDimensoesChapa(obs);
+    const dimPerfil = extrairDimensoesPerfil(prod) || extrairDimensoesPerfil(desc) || extrairDimensoesPerfil(obs);
+
+    if (dimChapa) {
+      pesoUnitario = +(dimChapa.largura_m * dimChapa.comprimento_m * espNum * 7.85).toFixed(2);
+      compMm = dimChapa.comprimento_mm;
+    } else if (dimPerfil) {
+      const compM = 6.0; // Padrão barra 6 metros
+      pesoUnitario = +(dimPerfil.desenvolvimento_m * compM * espNum * 7.85).toFixed(2);
+      compMm = 6000;
+    } else if (setor === "cd") {
+      pesoUnitario = +(1.2 * 3.0 * espNum * 7.85).toFixed(2); // Padrão chapa 1200x3000
+      compMm = 3000;
+    } else if (setor === "telha") {
+      const kgM = +(espNum * 7.85 * 1.2).toFixed(2);
+      metros = +(qtdOdoo / (kgM || 4.05)).toFixed(1);
+      pesoUnitario = +(kgM * 6.0).toFixed(2); // Padrão telha 6m
+      compMm = 6000;
+    }
+
+    if (pesoUnitario > 0) {
+      pecas = Math.max(1, Math.round(qtdOdoo / pesoUnitario));
+      pecasOrigem = "estimado";
+    } else {
+      pecas = 1;
+      pecasOrigem = "estimado";
+    }
   }
 
   // Extração de peso explícito se existir no pedido ou na descrição
   const pesoDireto = Number(item.peso_kg || item.kg_estimado || item.peso) || null;
-  const pesoTexto = extrairPesoDoTexto(desc) || extrairPesoDoTexto(prod);
-  const pesoKgInformado = pesoDireto || (unid === "KG" ? qtdOdoo : pesoTexto);
+  const pesoTexto = extrairPesoDoTexto(desc) || extrairPesoDoTexto(prod) || extrairPesoDoTexto(obs);
+  const pesoKgInformado = pesoDireto || (isKg ? qtdOdoo : pesoTexto);
 
-  return { pecas, metros, compMm, spec, pesoKgInformado };
+  return {
+    pecas,
+    pecasOrigem,
+    metros,
+    compMm,
+    spec,
+    pesoKgInformado,
+    isKg,
+    qtdOdoo,
+    unidade: unid
+  };
 }
 
 /**
@@ -201,11 +278,16 @@ export function extrairDemandaItem(item) {
 export function calcularPesoEstimadoItem({ setor, espessura, demanda, isSanduiche, prod, desc }) {
   // 1. Se veio peso informado no Odoo ou descrição explícita:
   if (demanda.pesoKgInformado && demanda.pesoKgInformado > 0) {
+    const origemTexto = demanda.pecasOrigem === "estimado"
+      ? ` (${demanda.pecas} pç${demanda.pecas > 1 ? "s" : ""} est. de ${demanda.pesoKgInformado}kg)`
+      : demanda.pecasOrigem === "obs"
+      ? ` (${demanda.pecas} pç${demanda.pecas > 1 ? "s" : ""} conf. OBS)`
+      : "";
     return {
       pesoKg: Math.round(demanda.pesoKgInformado),
       kgPorMetro: null,
       metodo: "informado_odoo",
-      formula: `Peso informado no Odoo: ${demanda.pesoKgInformado} kg`
+      formula: `Peso informado no Odoo: ${demanda.pesoKgInformado} kg${origemTexto}`
     };
   }
 
@@ -677,20 +759,25 @@ export function verificarEstoqueItem(item, { bobinas = [], chapas = [], slitters
   const chPrincipal = chapasSimuladas[0];
   const bPrincipal = bobinasSimuladas[0];
 
+  const totalChapasDispInt = Math.round(totalChapasDisp);
+  const pecasTexto = demanda.pecasOrigem === "estimado"
+    ? `${demanda.pecas} pç${demanda.pecas > 1 ? "s" : ""} (est.)`
+    : `${demanda.pecas} pç${demanda.pecas > 1 ? "s" : ""}`;
+
   if (totalChapasDisp >= demanda.pecas && totalChapasDisp > 0) {
     statusCD = "disponivel";
     tipoMaterial = "chapa";
-    opaMensagem = `Opa, temos sim chapas cortadas prontas (${totalChapasDisp} un) na espessura ${espessura}mm para fazer este pedido! Usará ${demanda.pecas} peças (~${pesoNecessarioKg} kg).`;
-    badgeText = `🟢 Temos Chapa Pronta (${totalChapasDisp} un) • Usa ${demanda.pecas} pçs (~${pesoNecessarioKg}kg)`;
+    opaMensagem = `Opa, temos sim chapas cortadas prontas (${totalChapasDispInt.toLocaleString("pt-BR")} un) na espessura ${espessura}mm para fazer este pedido! Usará ${pecasTexto} (~${pesoNecessarioKg} kg).`;
+    badgeText = `🟢 Temos Chapa Pronta (${totalChapasDispInt.toLocaleString("pt-BR")} un) • Usa ${pecasTexto} (~${pesoNecessarioKg}kg)`;
     shortBadge = `🟢 Chapa OK (~${pesoNecessarioKg}kg)`;
-    detalhe = `Chapas cortadas disponíveis na chaparia: ${totalChapasDisp} peças prontas para guilhotina/dobradeira.`;
+    detalhe = `Chapas cortadas disponíveis na chaparia: ${totalChapasDispInt.toLocaleString("pt-BR")} peças prontas para guilhotina/dobradeira.`;
   } else if (totalKgBobinas >= pesoNecessarioKg && totalKgBobinas > 0) {
     statusCD = "parcial"; // Necessita desbobinar
     tipoMaterial = "bobina";
-    opaMensagem = `Opa, temos sim bobinas de ${espessura}mm no estoque para fazer este pedido desbobinando! Usará ${pesoNecessarioKg} kg (Bobina atual: ${bPrincipal?.pesoAtualKg?.toLocaleString()}kg ➔ Restarão: ${bPrincipal?.pesoAposUsoKg?.toLocaleString()}kg).`;
-    badgeText = `🟡 Temos Bobina (${espessura}mm) — Desbobinar ${pesoNecessarioKg}kg (Agora: ${bPrincipal?.pesoAtualKg?.toLocaleString()}kg ➔ Sobram: ${bPrincipal?.pesoAposUsoKg?.toLocaleString()}kg)`;
+    opaMensagem = `Opa, temos sim bobinas de ${espessura}mm no estoque para fazer este pedido desbobinando! Usará ${pesoNecessarioKg} kg [${pecasTexto}] (Bobina atual: ${bPrincipal?.pesoAtualKg?.toLocaleString("pt-BR")}kg ➔ Restarão: ${bPrincipal?.pesoAposUsoKg?.toLocaleString("pt-BR")}kg).`;
+    badgeText = `🟡 Temos Bobina (${espessura}mm) — Desbobinar ${pesoNecessarioKg}kg [${pecasTexto}] (Agora: ${bPrincipal?.pesoAtualKg?.toLocaleString("pt-BR")}kg ➔ Sobram: ${bPrincipal?.pesoAposUsoKg?.toLocaleString("pt-BR")}kg)`;
     shortBadge = `🟡 Desbobinar (${pesoNecessarioKg}kg)`;
-    detalhe = `Sem chapas cortadas suficientes na chaparia, mas temos ${bobsCDCompativeis.length} bobina(s) (${totalKgBobinas.toLocaleString()}kg) prontas para desbobinar.`;
+    detalhe = `Sem chapas cortadas suficientes na chaparia, mas temos ${bobsCDCompativeis.length} bobina(s) (${totalKgBobinas.toLocaleString("pt-BR")}kg) prontas para desbobinar.`;
   } else if (totalChapasDisp > 0 || totalKgBobinas > 0) {
     statusCD = "parcial";
     tipoMaterial = "insuficiente";
