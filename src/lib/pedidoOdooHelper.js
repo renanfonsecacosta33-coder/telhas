@@ -392,6 +392,8 @@ export function detectarEPSTelha(produtoTexto = "", maquina = "") {
 }
 
 import { calcularDataPrometidaSLA, toISODate } from "@/lib/sla";
+import { extrairEspecificacao } from "@/lib/descricaoExtractor";
+import { extrairCroquiPedido } from "@/lib/croquiExtractor";
 
 // Monta o preset completo de Nova Ordem para Telhas
 export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
@@ -409,6 +411,36 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
     ? String(pedido.data_entrega).slice(0, 10)
     : toISODate(calcularDataPrometidaSLA(dataReceb, 7));
 
+  // Extrai especificação inteligente da descrição (ex: "50 PÇS c/ 2000\")
+  const descTexto = item?.descricao || item?.observacao || pedido?.observacoes || "";
+  const espTec = extrairEspecificacao(descTexto, item?.quantidade, item?.unidade);
+
+  // No formulário de Telhas:
+  // - metros = quantidade de chapas / peças a cortar (ex: 50)
+  // - metragem_mm = comprimento unitário da telha em mm (ex: 2000)
+  // - quantidade_telhas = metragem linear total do pedido em metros (ex: 100m)
+  let qtdChapas = item?.quantidade || "";
+  let metragemMm = "";
+  let metragemTotalLinear = item?.quantidade || "";
+  let variacoesTelhasJson = "";
+
+  if (espTec.tem_especificacao) {
+    if (espTec.variacoes && espTec.variacoes.length > 1) {
+      qtdChapas = espTec.quantidade;
+      metragemMm = espTec.comprimento_mm || "";
+      metragemTotalLinear = espTec.metragem_total || item?.quantidade || "";
+      variacoesTelhasJson = JSON.stringify(espTec.variacoes);
+    } else if (espTec.comprimento_mm && espTec.quantidade) {
+      qtdChapas = espTec.quantidade; // ex: 50 peças
+      metragemMm = espTec.comprimento_mm; // ex: 2000 mm
+      metragemTotalLinear = espTec.metragem_total || item?.quantidade || ""; // ex: 100 metros
+    } else if (espTec.quantidade) {
+      qtdChapas = espTec.quantidade;
+      if (espTec.comprimento_mm) metragemMm = espTec.comprimento_mm;
+      metragemTotalLinear = espTec.metragem_total || item?.quantidade || "";
+    }
+  }
+
   return {
     _presets: {
       data: dataReceb,
@@ -424,10 +456,14 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
       eps: eps,
       espessura_exigida: esp,
       origem_exigida: origem,
-      quantidade_telhas: item?.quantidade || "",
-      metros: item?.quantidade || "",
-      observacoes_odoo: item?.descricao || item?.observacao || pedido?.observacoes || "",
+      quantidade_telhas: metragemTotalLinear,
+      metros: qtdChapas,
+      metragem_mm: metragemMm,
+      metragem_planejada: metragemTotalLinear,
+      variacoes_telhas: variacoesTelhasJson,
+      observacoes_odoo: descTexto,
       observacoes_encarregado: "",
+      foto_pedido_url: item?.foto_url || item?.imagem_url || pedido?.foto_pedido_url || extrairCroquiPedido(pedido) || "",
       trava_produto_pcp: true,
     }
   };

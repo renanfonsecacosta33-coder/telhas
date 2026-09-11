@@ -1,6 +1,12 @@
-// Extrai especificações técnicas (qtd, comprimento, cor) da descrição livre
-// da linha do pedido Odoo (campo 'observacao' / 'name').
-// Ex: "250 telhas de 3000 pré pintada em preto" → { quantidade:250, comprimento_mm:3000, comprimento_m:3, cor:"Preto", metragem_total:750 }
+// Extrai especificações técnicas (qtd de peças, comprimento unitário, metragem total, cor e espessura)
+// da descrição livre da linha do pedido Odoo (campo 'observacao' / 'name' / 'descricao').
+// Suporta padrões industriais brasileiros:
+// - "50 PÇS c/ 2000\" → { quantidade: 50, comprimento_mm: 2000, comprimento_m: 2, metragem_total: 100 }
+// - "60 peças" → { quantidade: 60, comprimento_mm: null, metragem_total: null }
+// - "50 pcs c/ 2.000 mm" → { quantidade: 50, comprimento_mm: 2000, comprimento_m: 2, metragem_total: 100 }
+// - "50 pçs de 2,00m" → { quantidade: 50, comprimento_mm: 2000, comprimento_m: 2, metragem_total: 100 }
+// - "50 c/ 2000 + 20 c/ 3000" → variações múltiplas
+// - "50 peças" (com 100m no Odoo) → calcula comprimento unitário 2000mm
 
 const CORES = [
   "preto", "branca", "branco", "vermelho", "vermelha", "cinza", "bege",
@@ -13,39 +19,153 @@ function capitalizar(s) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-export function extrairEspecificacao(texto) {
-  const t = String(texto || "").toLowerCase().trim();
-  const out = { quantidade: null, comprimento_mm: null, comprimento_m: null, cor: null, metragem_total: null };
+// Normaliza string de comprimento para { mm, m }
+export function parseComprimento(str, rawUnidade = "") {
+  if (!str) return { mm: null, m: null };
+  const s = String(str).trim().toLowerCase().replace(/[\\\/]+$/, "").trim();
+  const u = rawUnidade.toLowerCase().trim();
+
+  // Ex: "2000mm" ou unidade explícita "mm"
+  if (s.endsWith("mm") || u === "mm") {
+    const num = parseFloat(s.replace("mm", "").trim().replace(",", "."));
+    if (isNaN(num) || num <= 0) return { mm: null, m: null };
+    return { mm: Math.round(num), m: +(num / 1000).toFixed(3) };
+  }
+
+  // Ex: "2,00m", "2m", "2 metros"
+  if (/(?:m|mts|metros?)$/.test(s) || u === "m" || u === "metros") {
+    const num = parseFloat(s.replace(/(?:m|mts|metros?)$/, "").trim().replace(",", "."));
+    if (isNaN(num) || num <= 0) return { mm: null, m: null };
+    return { mm: Math.round(num * 1000), m: +num.toFixed(3) };
+  }
+
+  // Notação brasileira de milhar: "2.000" ou "3.500" (ponto com exatamente 3 dígitos após)
+  if (/^\d{1,2}\.\d{3}$/.test(s)) {
+    const mm = parseInt(s.replace(".", ""), 10);
+    return { mm, m: +(mm / 1000).toFixed(3) };
+  }
+
+  const val = parseFloat(s.replace(",", "."));
+  if (isNaN(val) || val <= 0) return { mm: null, m: null };
+
+  // Heurística industrial:
+  // Se val >= 100 (ex: 500, 1000, 2000, 3200, 6000), a unidade é milímetros (mm).
+  // Se val < 50 (ex: 2, 2.5, 3, 6, 12), a unidade é metros (m).
+  if (val >= 100) {
+    return { mm: Math.round(val), m: +(val / 1000).toFixed(3) };
+  } else {
+    return { mm: Math.round(val * 1000), m: +val.toFixed(3) };
+  }
+}
+
+export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
+  const t = String(texto || "").trim();
+  const out = {
+    quantidade: null,
+    pecas: null,
+    comprimento_mm: null,
+    comprimento_m: null,
+    metragem_total: null,
+    cor: null,
+    variacoes: [],
+    resumo_formatado: null,
+    tem_especificacao: false
+  };
   if (!t) return out;
 
-  // Quantidade de peças: "250 telhas", "250 peças", "250x", "250 un"
-  let m = t.match(/(\d+)\s*(?:telhas?|pe[çc]as?|unidades?|un\.?|pcs?\.?|x\b)/);
-  if (m) out.quantidade = Number(m[1]);
+  // 1. Regex para cortes compostos: QTD + PALAVRA DE PEÇA + COMPRIMENTO
+  // Ex: 50 PÇS c/ 2000\, 50 pcs c/ 2.000 mm, 50 pçs de 2,00m, 50 pçs x 2000
+  const regexCorteComposto = /(\d+)\s*(?:p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|barras?|telhas?|chapas?|unidades?|un\.?|pc\.?)\s*(?:c\/|com|de|x|\*|\:)?\s*(\d+(?:[.,]\d+)?\s*(?:mm|mts?|metros?|m\b)?)[\\\/]*/gi;
 
-  // Comprimento em mm: "3000mm", "3000 mm", "de 3000", "3000"
-  m = t.match(/(\d{3,4})\s*(?:mm)?/);
-  if (m) out.comprimento_mm = Number(m[1]);
-
-  // Comprimento em metros: "3,00m", "3.00m", "3 metros"
-  if (out.comprimento_mm === null) {
-    m = t.match(/(\d+[.,]\d{1,2})\s*(?:m\b|metros?)/);
-    if (m) out.comprimento_mm = Math.round(Number(m[1].replace(",", ".")) * 1000);
-  }
-  if (out.comprimento_mm) out.comprimento_m = +(out.comprimento_mm / 1000).toFixed(2);
-
-  // Cor: "pré pintada em preto", "pintada em branco"
-  m = t.match(/(?:pr[eé]\s*)?pintad[oa]s?\s+em\s+([a-zç]{3,})/);
-  if (m) out.cor = m[1];
-  if (!out.cor) {
-    for (const c of CORES) {
-      if (t.includes(c)) { out.cor = c; break; }
+  let match;
+  while ((match = regexCorteComposto.exec(t)) !== null) {
+    const q = parseInt(match[1], 10);
+    const compRaw = match[2];
+    const { mm, m } = parseComprimento(compRaw);
+    if (q > 0 && mm) {
+      out.variacoes.push({
+        qty: q,
+        mm: mm,
+        m: m,
+        total_m: +(q * m).toFixed(2)
+      });
     }
   }
-  out.cor = capitalizar(out.cor);
 
-  // Metragem total = qtd × comprimento (m)
-  if (out.quantidade && out.comprimento_m) {
-    out.metragem_total = +(out.quantidade * out.comprimento_m).toFixed(2);
+  // 2. Se não encontrou no formato composto com unidade/palavra de peça, tenta padrão NxM grande
+  // Ex: 50x2000, 50 x 2000mm, 50*3000 (exige M >= 500 para não confundir com perfil 75x40)
+  if (out.variacoes.length === 0) {
+    const regexNxM = /(\d+)\s*[xX*]\s*(\d{3,5}\s*(?:mm)?|\d+[.,]\d+\s*(?:m|mts?|metros?)?)[\\\/]*/g;
+    while ((match = regexNxM.exec(t)) !== null) {
+      const q = parseInt(match[1], 10);
+      const compRaw = match[2];
+      const { mm, m } = parseComprimento(compRaw);
+      if (q > 0 && mm && mm >= 500) {
+        out.variacoes.push({
+          qty: q,
+          mm: mm,
+          m: m,
+          total_m: +(q * m).toFixed(2)
+        });
+      }
+    }
+  }
+
+  // Se encontrou variações com comprimento
+  if (out.variacoes.length > 0) {
+    const totalQtd = out.variacoes.reduce((acc, v) => acc + v.qty, 0);
+    const totalMetros = +(out.variacoes.reduce((acc, v) => acc + v.total_m, 0)).toFixed(2);
+    out.quantidade = totalQtd;
+    out.pecas = totalQtd;
+    out.comprimento_mm = out.variacoes[0].mm;
+    out.comprimento_m = out.variacoes[0].m;
+    out.metragem_total = totalMetros;
+    out.tem_especificacao = true;
+
+    if (out.variacoes.length === 1) {
+      const v = out.variacoes[0];
+      out.resumo_formatado = `${v.qty} pçs c/ ${v.mm.toLocaleString("pt-BR")} mm`;
+    } else {
+      out.resumo_formatado = out.variacoes.map(v => `${v.qty} c/ ${v.mm}mm`).join(" + ") + ` (${totalMetros}m)`;
+    }
+  } else {
+    // 3. Peças isoladas sem comprimento na descrição (ex: '60 peças', '60 pcs', '60 pçs', '60 barras')
+    const regexPecasIsoladas = /(\d+)\s*(?:p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|barras?|unidades?|un\.?)\b/i;
+    const matchPecas = t.match(regexPecasIsoladas);
+    if (matchPecas) {
+      const q = parseInt(matchPecas[1], 10);
+      out.quantidade = q;
+      out.pecas = q;
+      out.tem_especificacao = true;
+      out.resumo_formatado = `${q} peças`;
+
+      // Se o pedido do Odoo veio em metros lineares (ex: 100m) e temos a quantidade de peças:
+      const uOdoo = String(unidadeOdoo || "").toLowerCase();
+      const qOdoo = Number(qtdOdoo) || 0;
+      if (qOdoo > 0 && ["m", "mt", "mts", "metro", "metros"].includes(uOdoo)) {
+        const mUnit = +(qOdoo / q).toFixed(3);
+        const mmUnit = Math.round(mUnit * 1000);
+        out.comprimento_m = mUnit;
+        out.comprimento_mm = mmUnit;
+        out.metragem_total = qOdoo;
+        out.resumo_formatado = `${q} pçs c/ ${mmUnit.toLocaleString("pt-BR")} mm`;
+        out.variacoes.push({ qty: q, mm: mmUnit, m: mUnit, total_m: qOdoo });
+      }
+    }
+  }
+
+  // Cor: "pré pintada em preto", "pintada em branco", ou menção direta da cor
+  const mCor = t.match(/(?:pr[eé]\s*)?pintad[oa]s?\s+em\s+([a-zç]{3,})/i);
+  if (mCor) {
+    out.cor = capitalizar(mCor[1]);
+  } else {
+    const tLower = t.toLowerCase();
+    for (const c of CORES) {
+      if (new RegExp(`\\b${c}\\b`, "i").test(tLower)) {
+        out.cor = capitalizar(c);
+        break;
+      }
+    }
   }
 
   return out;

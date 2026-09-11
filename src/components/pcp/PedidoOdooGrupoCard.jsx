@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,7 +8,7 @@ import {
 import { formatDataBR } from "@/lib/sla";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import PedidoOdooCard from "@/components/pcp/PedidoOdooCard";
-import { calcularProgressoRealPedido } from "@/lib/pedidoOdooHelper";
+import { calcularProgressoRealPedido, classGrupo } from "@/lib/pedidoOdooHelper";
 
 /**
  * Card Consolidado do Pedido de Venda (Acordeon Executivo).
@@ -67,6 +67,20 @@ export default function PedidoOdooGrupoCard({
   // Prioridade / Urgência
   const isPrioritario = grupo.prioridade || ofs.some(p => p.prioridade);
 
+  // Contagem de OFs por setor no grupo
+  const contagemSetores = useMemo(() => {
+    let telha = 0;
+    let cd = 0;
+    let frisada = 0;
+    ofs.forEach(p => {
+      const g = classGrupo(p.categoria, p.of_nome || p.produto || "");
+      if (g === "telha") telha++;
+      else if (g === "frisada") frisada++;
+      else cd++;
+    });
+    return { telha, cd, frisada };
+  }, [ofs]);
+
   // Manipulador de distribuição em lote de todas as pendentes deste pedido
   const handleDistribuirTodas = (e) => {
     e.stopPropagation();
@@ -100,23 +114,14 @@ export default function PedidoOdooGrupoCard({
             {/* Checkbox de Seleção do Pedido Inteiro */}
             {onToggleSelectGrupo && (
               <div
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleSelectGrupo(grupo);
-                }}
-                className="mt-1.5 shrink-0 flex items-center justify-center p-1 rounded hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors cursor-pointer"
-                title={
-                  todosSelecionadosNoGrupo
-                    ? `Desmarcar todas as ${totalOfs} OFs deste pedido`
-                    : `Selecionar todas as ${totalOfs} OFs deste pedido`
-                }
+                onClick={(e) => { e.stopPropagation(); onToggleSelectGrupo(grupo); }}
+                className="pt-1.5 shrink-0"
+                title={todosSelecionadosNoGrupo ? "Desmarcar todas as OPs deste pedido" : "Selecionar todas as OPs deste pedido"}
               >
                 <input
                   type="checkbox"
                   checked={todosSelecionadosNoGrupo}
-                  ref={(el) => {
-                    if (el) el.indeterminate = algumSelecionadoNoGrupo;
-                  }}
+                  ref={el => { if (el) el.indeterminate = algumSelecionadoNoGrupo; }}
                   onChange={() => {}}
                   className="w-4 h-4 rounded text-orange-600 border-slate-300 focus:ring-orange-500 cursor-pointer"
                 />
@@ -151,6 +156,21 @@ export default function PedidoOdooGrupoCard({
                   <Layers className="w-3 h-3 mr-1 text-indigo-500" />
                   {totalOfs} {totalOfs === 1 ? "OF" : "OFs"}
                 </Badge>
+                {contagemSetores.telha > 0 && (
+                  <Badge className="bg-blue-600 text-white border-blue-700 text-[10px] font-bold px-1.5 py-0 shadow-xs">
+                    🏠 {contagemSetores.telha} Telha{contagemSetores.telha > 1 ? "s" : ""}
+                  </Badge>
+                )}
+                {contagemSetores.cd > 0 && (
+                  <Badge className="bg-orange-600 text-white border-orange-700 text-[10px] font-bold px-1.5 py-0 shadow-xs">
+                    🏭 {contagemSetores.cd} C&D
+                  </Badge>
+                )}
+                {contagemSetores.frisada > 0 && (
+                  <Badge className="bg-teal-600 text-white border-teal-700 text-[10px] font-bold px-1.5 py-0 shadow-xs">
+                    🌬️ {contagemSetores.frisada} Frisada{contagemSetores.frisada > 1 ? "s" : ""}
+                  </Badge>
+                )}
                 {grupo.unidade && (
                   <Badge variant="secondary" className="text-[11px]">
                     {grupo.unidade}

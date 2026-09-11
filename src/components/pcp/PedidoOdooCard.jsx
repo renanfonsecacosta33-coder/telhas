@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   Calendar, User, Tag, Layers, Factory, Scissors, Wind, Trash2, Star, ShieldAlert,
-  Undo2, RefreshCw, Zap, CheckCircle2, ChevronDown, ChevronUp
+  Undo2, RefreshCw, Zap, CheckCircle2, ChevronDown, ChevronUp, Home
 } from "lucide-react";
 import {
   formatDataBR,
@@ -16,6 +16,51 @@ import PedidoItensLista from "@/components/pcp/PedidoItensLista";
 import { notificarStatus } from "@/lib/biNotificador";
 import { toast } from "sonner";
 import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelper";
+import { classGrupo } from "@/lib/pedidoOdooHelper";
+
+// Cores estritas do Ecossistema AJL conforme menu do sistema:
+// 🏠 Fábrica de Telhas → AZUL (#2563EB)
+// 🏭 Corte & Dobra    → LARANJA (#EA580C)
+// 🌬️ Frisada          → TEAL (#0D9488)
+// 🔩 Avulso           → SLATE (#475569)
+const SETOR_CARD_CFG = {
+  telha: {
+    label: "Fábrica de Telhas",
+    curto: "🏠 Telha",
+    borderLeft: "border-l-4 border-l-blue-600",
+    borderBase: "border-blue-200/90 dark:border-blue-800/60 hover:border-blue-400 dark:hover:border-blue-600",
+    bgTint: "bg-blue-50/15 dark:bg-blue-950/10",
+    badgeCls: "bg-blue-600 text-white border-blue-700 shadow-xs",
+    btnDistribuir: "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-blue-500/20",
+  },
+  cd: {
+    label: "Corte & Dobra",
+    curto: "🏭 C&D",
+    borderLeft: "border-l-4 border-l-orange-600",
+    borderBase: "border-orange-200/90 dark:border-orange-800/60 hover:border-orange-400 dark:hover:border-orange-600",
+    bgTint: "bg-orange-50/15 dark:bg-orange-950/10",
+    badgeCls: "bg-orange-600 text-white border-orange-700 shadow-xs",
+    btnDistribuir: "bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-orange-500/20",
+  },
+  frisada: {
+    label: "Frisada",
+    curto: "🌬️ Frisada",
+    borderLeft: "border-l-4 border-l-teal-600",
+    borderBase: "border-teal-200/90 dark:border-teal-800/60 hover:border-teal-400 dark:hover:border-teal-600",
+    bgTint: "bg-teal-50/15 dark:bg-teal-950/10",
+    badgeCls: "bg-teal-600 text-white border-teal-700 shadow-xs",
+    btnDistribuir: "bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white shadow-teal-500/20",
+  },
+  avulso: {
+    label: "Avulso",
+    curto: "🔩 Avulso",
+    borderLeft: "border-l-4 border-l-slate-400",
+    borderBase: "border-slate-200 dark:border-slate-800 hover:border-slate-400",
+    bgTint: "bg-white dark:bg-slate-900",
+    badgeCls: "bg-slate-600 text-white border-slate-700 shadow-xs",
+    btnDistribuir: "bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 text-white",
+  }
+};
 
 const STATUS_PCP = {
   pendente_distribuicao: { label: "Pendente", cls: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40" },
@@ -142,29 +187,42 @@ export default function PedidoOdooCard({
     );
   }
 
+  const itens = (() => {
+    try {
+      const arr = typeof pedido.itens_json === "string" ? JSON.parse(pedido.itens_json || "[]") : (pedido.itens || []);
+      return Array.isArray(arr) ? arr : [];
+    } catch {
+      return [];
+    }
+  })();
+
+  const grupoSetor = (() => {
+    if (pedido.categoria) {
+      const g = classGrupo(pedido.categoria, pedido.of_nome || "");
+      if (g) return g;
+    }
+    if (itens.length > 0) {
+      return classGrupo(itens[0]);
+    }
+    return classGrupo(null, pedido.of_nome || pedido.produto || "");
+  })();
+
+  const cfgSetor = SETOR_CARD_CFG[grupoSetor] || SETOR_CARD_CFG.cd;
   const isCompacto = compacto || dentroDeGrupo;
 
   if (isCompacto) {
     return (
       <div
         onClick={onClick}
-        className={`bg-white dark:bg-slate-900 border rounded-xl p-2.5 hover:shadow-md transition-all cursor-pointer flex flex-col gap-2 ${
+        className={`${cfgSetor.bgTint} ${cfgSetor.borderLeft} border rounded-xl p-2.5 hover:shadow-md transition-all cursor-pointer flex flex-col gap-2 ${
           isPrioritario
             ? "border-amber-400 dark:border-amber-600 ring-1 ring-amber-300/50"
             : isConcluido
             ? "border-emerald-300 dark:border-emerald-800"
-            : "border-slate-200 dark:border-slate-800 hover:border-orange-400/50"
+            : cfgSetor.borderBase
         }`}
       >
-        {/* Foto compacta */}
-        <CroquiThumb
-          pedido={pedido}
-          alt={`Croqui da OF ${pedido.of_nome || pedido.numero_pedido}`}
-          className="w-full mb-0.5"
-          alturaCompacta={65}
-        />
-
-        {/* Cabeçalho Compacto: Focado na identificação da OF e status */}
+        {/* Cabeçalho Compacto: Focado na identificação da OF, setor e status */}
         <div className="flex items-start justify-between gap-1.5 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
             {onToggleSelect && (
@@ -186,6 +244,9 @@ export default function PedidoOdooCard({
                 <Star className="w-2.5 h-2.5 fill-white" /> URGENTE
               </Badge>
             )}
+            <Badge className={`text-[9px] font-black uppercase tracking-wide px-1.5 py-0 leading-tight ${cfgSetor.badgeCls}`}>
+              {cfgSetor.curto}
+            </Badge>
             <span
               className="font-extrabold text-xs text-indigo-700 dark:text-indigo-300 font-mono bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded border border-indigo-200/80 truncate max-w-[170px]"
               title={pedido.of_nome || (pedido.of_odoo_id ? `OF: ${pedido.of_odoo_id}` : `#${pedido.numero_pedido}`)}
@@ -247,7 +308,7 @@ export default function PedidoOdooCard({
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onDistribuir(pedido); }}
-              className="flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-xs transition-all h-7"
+              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold ${cfgSetor.btnDistribuir} text-white shadow-xs transition-all h-7`}
               title="Distribuir esta OF para os galpões"
             >
               <Zap className="w-3 h-3" />
@@ -281,15 +342,14 @@ export default function PedidoOdooCard({
   return (
     <div
       onClick={onClick}
-      className={`bg-white dark:bg-slate-900 border rounded-2xl p-4 hover:shadow-lg transition-all cursor-pointer flex flex-col gap-3 ${
+      className={`${cfgSetor.bgTint} ${cfgSetor.borderLeft} border rounded-2xl p-4 hover:shadow-lg transition-all cursor-pointer flex flex-col gap-3 ${
         isPrioritario
           ? "border-amber-400 dark:border-amber-600 ring-1 ring-amber-300/50"
           : isConcluido
           ? "border-emerald-300 dark:border-emerald-800"
-          : "border-slate-200 dark:border-slate-800 hover:border-orange-400/50"
+          : cfgSetor.borderBase
       }`}
     >
-      <CroquiThumb pedido={pedido} alt={`Croqui do pedido #${pedido.numero_pedido}`} className="w-full mb-1" />
       <div className="flex items-start gap-2.5">
         {onToggleSelect && (
           <div
@@ -313,6 +373,9 @@ export default function PedidoOdooCard({
                   <Star className="w-3 h-3 fill-white" /> URGENTE
                 </Badge>
               )}
+              <Badge className={`text-[10px] font-black uppercase tracking-wide px-2 py-0.5 leading-tight ${cfgSetor.badgeCls}`}>
+                {cfgSetor.curto}
+              </Badge>
               <h3 className="font-extrabold text-base text-slate-900 dark:text-slate-100 leading-none">
                 #{pedido.numero_pedido}
               </h3>
@@ -438,17 +501,17 @@ export default function PedidoOdooCard({
 
       <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-slate-100 dark:border-slate-800">
         {pedido.itens_telha_count > 0 && (
-          <Badge className="bg-[#FFD700] text-black border-[#FFD700] text-[10px]">
-            <Factory className="w-3 h-3 mr-0.5" />{pedido.itens_telha_count} Telha
+          <Badge className="bg-blue-600 text-white border-blue-700 text-[10px] shadow-xs">
+            <Home className="w-3 h-3 mr-0.5" />{pedido.itens_telha_count} Telha
           </Badge>
         )}
         {pedido.itens_cd_count > 0 && (
-          <Badge className="bg-[#FF6B00] text-white border-[#FF6B00] text-[10px]">
+          <Badge className="bg-orange-600 text-white border-orange-700 text-[10px] shadow-xs">
             <Scissors className="w-3 h-3 mr-0.5" />{pedido.itens_cd_count} C&D
           </Badge>
         )}
         {pedido.itens_frisada_count > 0 && (
-          <Badge className="bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/30 text-[10px]">
+          <Badge className="bg-teal-600 text-white border-teal-700 text-[10px] shadow-xs">
             <Wind className="w-3 h-3 mr-0.5" />{pedido.itens_frisada_count} Frisada
           </Badge>
         )}
@@ -472,7 +535,7 @@ export default function PedidoOdooCard({
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onDistribuir(pedido); }}
-            className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-sm transition-all"
+            className={`flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold ${cfgSetor.btnDistribuir} text-white shadow-sm transition-all`}
             title="Distribuir este pedido individualmente para os galpões"
           >
             <Zap className="w-3.5 h-3.5" />

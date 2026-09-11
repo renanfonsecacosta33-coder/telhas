@@ -22,6 +22,8 @@ import FilaPCPCorteDobra from "@/components/pcp/FilaPCPCorteDobra";
 import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
+import { extrairEspecificacao } from "@/lib/descricaoExtractor";
+import { extrairCroquiPedido } from "@/lib/croquiExtractor";
 
 const MAQUINAS_OUTRAS = [
   { id: "CORTE 3M",       label: "Guilhotina 3m",       cor: "bg-purple-100 text-purple-800 border-purple-200" },
@@ -298,15 +300,27 @@ export default function ProducaoCD() {
   const openNewFromFila = (pedido, item) => {
     setMaquinaAtiva(null);
     setFilaContext({ pedidoId: pedido.id, itemIdx: item._idx, pedido, produtoFixo: item.produto || "" });
+
+    // Extrai especificação da descrição (ex: "60 peças" ou "50 PÇS c/ 2000\")
+    const descItem = item.descricao || item.observacao || pedido.observacoes || "";
+    const esp = extrairEspecificacao(descItem, item.quantidade, item.unidade);
+
+    // Se na descrição vier "60 peças" (ou similar), a quantidade da ordem de produção passa a ser 60!
+    const qtdFinal = esp.quantidade || item.quantidade || "";
+    const pesoKgFinal = String(item.unidade || "").toLowerCase().includes("kg") ? item.quantidade : (item.peso_kg || "");
+
     setEditMaq({
       data: selectedDay,
       numero_pedido: pedido.numero_pedido || "",
       cliente: pedido.cliente_nome || "",
       vendedor: pedido.vendedor_nome || "",
       tipo_peca: item.produto || "",
-      dimensoes_livres: item.medida || "",
-      quantidade: item.quantidade || "",
+      dimensoes_livres: item.medida || (esp.comprimento_mm ? `${esp.comprimento_mm}mm` : ""),
+      quantidade: qtdFinal,
+      peso_kg: pesoKgFinal,
       material_espessura: item.espessura ? String(item.espessura) : "",
+      observacoes: descItem,
+      foto_pedido_url: item.foto_url || item.imagem_url || pedido.foto_pedido_url || extrairCroquiPedido(pedido) || "",
     });
     setDialogMaq(true);
   };

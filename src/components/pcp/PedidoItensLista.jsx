@@ -1,45 +1,56 @@
 import React from "react";
-import { Factory, Scissors, Wind, Layers, Ruler, ClipboardList, ImageIcon } from "lucide-react";
+import { Factory, Scissors, Wind, Layers, Ruler, ClipboardList, ImageIcon, Sparkles, Home } from "lucide-react";
 import { stripHtml } from "@/lib/stripHtml";
 import { obterStatusDescritivoItem, extrairAnotacaoItem } from "@/lib/pedidoOdooHelper";
-import { extrairCroquiItem } from "@/lib/croquiExtractor";
+import { extrairCroquiItem, extrairCroquiPedido } from "@/lib/croquiExtractor";
+import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import ImageLink from "@/components/ui/ImageLink";
 
-// Config visual por categoria — cores conforme spec:
-// 🔧 C&D → LARANJA (#FF6B00) | 🏠 Telha → DOURADO (#FFD700) | 🔩 Avulso → CINZA (#888)
-// Frisada mantém teal (categoria existente, não alterada pelo request).
+// Config visual por categoria — cores sincronizadas com o ecossistema AJL:
+// 🏠 Fábrica de Telhas → AZUL (#2563EB)
+// 🏭 Corte & Dobra    → LARANJA (#EA580C)
+// 🌬️ Frisada          → TEAL (#0D9488)
+// 🔩 Avulso           → CINZA SLATE (#475569)
 const CATEGORIA_CFG = {
   telha: {
-    label: "🏠 Telha",
-    Icon: Factory,
-    border: "border-l-[#FFD700]",
-    qtdBg: "bg-[#FFD700]",
-    qtdText: "text-black",
-    chip: "bg-[#FFD700] text-black border-[#FFD700]",
+    label: "🏠 Fábrica de Telhas",
+    curto: "🏠 Telha",
+    Icon: Home,
+    border: "border-l-blue-600",
+    qtdBg: "bg-blue-600",
+    qtdText: "text-white",
+    chip: "bg-blue-600 text-white border-blue-700 shadow-xs",
+    highlightBg: "bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-800",
   },
   cd: {
-    label: "✂️ C&D",
+    label: "🏭 Corte & Dobra",
+    curto: "✂️ C&D",
     Icon: Scissors,
-    border: "border-l-[#FF6B00]",
-    qtdBg: "bg-[#FF6B00]",
+    border: "border-l-orange-600",
+    qtdBg: "bg-orange-600",
     qtdText: "text-white",
-    chip: "bg-[#FF6B00] text-white border-[#FF6B00]",
+    chip: "bg-orange-600 text-white border-orange-700 shadow-xs",
+    highlightBg: "bg-orange-50 dark:bg-orange-950/40 text-orange-800 dark:text-orange-300 border-orange-300 dark:border-orange-800",
   },
   frisada: {
     label: "🌬️ Frisada",
+    curto: "🌬️ Frisada",
     Icon: Wind,
-    border: "border-l-teal-400",
-    qtdBg: "bg-teal-500",
+    border: "border-l-teal-600",
+    qtdBg: "bg-teal-600",
     qtdText: "text-white",
-    chip: "bg-teal-500/15 text-teal-700 dark:text-teal-300 border-teal-500/30",
+    chip: "bg-teal-600 text-white border-teal-700 shadow-xs",
+    highlightBg: "bg-teal-50 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300 border-teal-300 dark:border-teal-800",
   },
   avulso: {
     label: "🔩 Avulso",
+    curto: "🔩 Avulso",
     Icon: Layers,
-    border: "border-l-[#888888]",
-    qtdBg: "bg-[#888888]",
+    border: "border-l-slate-400",
+    qtdBg: "bg-slate-600",
     qtdText: "text-white",
-    chip: "bg-[#888888] text-white border-[#888888]",
+    chip: "bg-slate-600 text-white border-slate-700 shadow-xs",
+    highlightBg: "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-300 border-slate-300",
   },
 };
 
@@ -141,6 +152,20 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
                     )}
                   </div>
 
+                  {/* Especificação técnica inteligente extraída da descrição (ex: 50 pçs c/ 2000mm ou 60 peças) */}
+                  {(() => {
+                    const espTec = extrairEspecificacao(it.descricao || it.observacao, it.quantidade, it.unidade);
+                    if (!espTec.tem_especificacao || !espTec.resumo_formatado) return null;
+                    return (
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md border ${cfg.highlightBg} shadow-xs`}>
+                          <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
+                          <span>{espTec.resumo_formatado}</span>
+                        </span>
+                      </div>
+                    );
+                  })()}
+
                   {/* Anotação/Observação real do vendedor (itálico azul) — limpa de repetições do produto */}
                   {anotacao && (
                     <div className="flex items-start gap-1 mt-1">
@@ -168,9 +193,9 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
                   )}
                 </div>
 
-                {/* Imagem/Croqui do Item (específico da linha do Odoo) */}
+                {/* Imagem/Croqui do Item (específico da linha do Odoo com fallback p/ foto do pedido) */}
                 {(() => {
-                  const itemCroqui = extrairCroquiItem(it);
+                  const itemCroqui = extrairCroquiItem(it) || extrairCroquiPedido(pedido);
                   if (!itemCroqui) return null;
                   return (
                     <div className="shrink-0 flex items-center justify-center">
@@ -185,7 +210,7 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
                               e.currentTarget.src = e.currentTarget.src.replace("/web/content/", "/web/image/");
                             }
                           }}
-                          className={`${compacto ? "w-9 h-9 rounded-md" : "w-12 h-12 sm:w-14 sm:h-14 rounded-lg"} object-cover border-2 border-blue-400 dark:border-blue-500 shadow-sm hover:scale-105 transition-transform`}
+                          className={`${compacto ? "w-9 h-9 rounded-md" : "w-12 h-12 sm:w-14 sm:h-14 rounded-lg"} object-cover border-2 border-slate-300 dark:border-slate-700 shadow-sm hover:scale-105 transition-transform`}
                         />
                       </ImageLink>
                     </div>
