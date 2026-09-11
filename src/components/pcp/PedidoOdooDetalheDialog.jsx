@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Zap, Factory, Scissors, Wind, Tag, Ruler, Package, CheckCircle2, Trash2, ImageIcon, ExternalLink, Star, ShieldAlert, Undo2, RotateCcw, RefreshCw } from "lucide-react";
+import { Zap, Factory, Scissors, Wind, Tag, Ruler, Package, CheckCircle2, Trash2, ImageIcon, ExternalLink, Star, ShieldAlert, Undo2, RotateCcw, RefreshCw, Disc, AlertTriangle, Layers } from "lucide-react";
 import { formatDataBR, slaDiasPorCategoria } from "@/lib/sla";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
@@ -17,6 +17,7 @@ import MaquinaSequenceCD from "@/components/pcp/MaquinaSequenceCD";
 import EtapasTelhaSequence from "@/components/pcp/EtapasTelhaSequence";
 import { parseItensPedido, progressoChecklist } from "@/lib/regrasFabrica";
 import { getItens, classGrupo } from "@/lib/pedidoOdooHelper";
+import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 import ProgramadorItensSection from "./ProgramadorItensSection";
 import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelper";
 
@@ -24,7 +25,8 @@ export default function PedidoOdooDetalheDialog({
   pedido, open, onOpenChange, onDistribuir, distribuindo,
   onExcluirOS, onRetirarFila, onTogglePrioridade, onSetPrioridade, onToggleItem,
   onDevolverPCP, showTracking = false, progressoReal, onAtualizado,
-  onProgramarItem, onProgramarTodosItens
+  onProgramarItem, onProgramarTodosItens,
+  estoqueContext = null
 }) {
   const [confirmaExcluir, setConfirmaExcluir] = useState(false);
   const [senhaDevolverOpen, setSenhaDevolverOpen] = useState(false);
@@ -158,6 +160,11 @@ export default function PedidoOdooDetalheDialog({
   const chk = progressoChecklist(pedido.itens_json);
   const isPrioritario = !!pedido.prioridade;
 
+  const statusEstoque = useMemo(() => {
+    if (!estoqueContext || !pedido) return null;
+    return verificarEstoquePedido(pedido, estoqueContext);
+  }, [pedido, estoqueContext]);
+
   const grupoIcon = {
     telha: <Factory className="w-3.5 h-3.5" />,
     cd: <Scissors className="w-3.5 h-3.5" />,
@@ -211,6 +218,20 @@ export default function PedidoOdooDetalheDialog({
               ) : pedido.odoo_id ? (
                 <span className="text-xs font-mono text-slate-400 shrink-0">Odoo:{pedido.odoo_id}</span>
               ) : null}
+              {statusEstoque && (
+                <Badge
+                  className={`text-xs font-bold px-2 py-0.5 border ${
+                    statusEstoque.statusGeral === "ok"
+                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
+                      : statusEstoque.statusGeral === "desbobinar" || statusEstoque.statusGeral === "parcial"
+                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40"
+                      : "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40"
+                  }`}
+                  title={statusEstoque.badgeGeral}
+                >
+                  {statusEstoque.badgeGeral}
+                </Badge>
+              )}
             </DialogTitle>
             <DialogDescription>
               Detalhamento técnico e distribuição para os galpões
@@ -327,6 +348,95 @@ export default function PedidoOdooDetalheDialog({
             </div>
           )}
 
+          {/* Conferência de Matéria-Prima em Tempo Real (Estoque) */}
+          {statusEstoque && (
+            <div className={`rounded-xl border p-3.5 space-y-3 ${
+              statusEstoque.statusGeral === "ok"
+                ? "bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800"
+                : statusEstoque.statusGeral === "desbobinar" || statusEstoque.statusGeral === "parcial"
+                ? "bg-amber-50/40 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800"
+                : "bg-red-50/40 dark:bg-red-950/20 border-red-300 dark:border-red-800"
+            }`}>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Disc className={`w-4 h-4 ${
+                    statusEstoque.statusGeral === "ok"
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : statusEstoque.statusGeral === "desbobinar" || statusEstoque.statusGeral === "parcial"
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-red-600 dark:text-red-400"
+                  }`} />
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                    Conferência de Matéria-Prima em Tempo Real (Estoque)
+                  </span>
+                </div>
+                <Badge className={`text-xs font-bold ${
+                  statusEstoque.statusGeral === "ok"
+                    ? "bg-emerald-600 text-white"
+                    : statusEstoque.statusGeral === "desbobinar" || statusEstoque.statusGeral === "parcial"
+                    ? "bg-amber-600 text-white"
+                    : "bg-red-600 text-white"
+                }`}>
+                  {statusEstoque.badgeGeral}
+                </Badge>
+              </div>
+
+              {/* Resumo dos Itens e Lotes Encontrados */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                {statusEstoque.analises.map((a, idx) => (
+                  <div
+                    key={idx}
+                    className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-1.5 shadow-2xs"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 line-clamp-1">
+                        {a.descricao}
+                      </span>
+                      <Badge className={`text-[10px] shrink-0 font-bold ${
+                        a.status === "ok"
+                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300"
+                          : a.status === "desbobinar"
+                          ? "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300"
+                          : a.status === "parcial"
+                          ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300"
+                          : "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 border-red-300"
+                      }`}>
+                        {a.badge}
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                      {a.motivo}
+                    </p>
+                    {/* Detalhe das bobinas ou chapas encontradas */}
+                    {a.disponivel?.bobinasCompativeis?.length > 0 && (
+                      <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-500">
+                        <span className="font-medium">Bobinas compatíveis ({a.disponivel.bobinasCompativeis.length}):</span>
+                        {a.disponivel.bobinasCompativeis.slice(0, 3).map((b, bi) => (
+                          <span key={bi} className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-slate-700 dark:text-slate-300">
+                            {b.codigo_bobina || b.id?.slice(0,6)} ({b.metragem_restante || b.metragem || 0}m)
+                          </span>
+                        ))}
+                        {a.disponivel.bobinasCompativeis.length > 3 && (
+                          <span>+{a.disponivel.bobinasCompativeis.length - 3} mais</span>
+                        )}
+                      </div>
+                    )}
+                    {a.disponivel?.chapasCompativeis?.length > 0 && (
+                      <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-500">
+                        <span className="font-medium">Lotes de chapa ({a.disponivel.chapasCompativeis.length}):</span>
+                        {a.disponivel.chapasCompativeis.slice(0, 3).map((c, ci) => (
+                          <span key={ci} className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-slate-700 dark:text-slate-300">
+                            {c.quantidade_disponivel || c.quantidade || 0} pçs ({c.largura_mm || 0}x{c.comprimento_mm || 0}mm)
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Checklist de Itens Agrupados (Regra 4) + Roteamento (Regra 3) */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -353,6 +463,7 @@ export default function PedidoOdooDetalheDialog({
                 <PedidoItensLista
                   pedido={pedido}
                   itensJson={pedido.itens_json}
+                  estoqueContext={estoqueContext}
                 />
               </div>
             )}

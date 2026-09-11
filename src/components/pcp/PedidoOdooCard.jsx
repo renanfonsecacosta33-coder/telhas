@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   Calendar, User, Tag, Layers, Factory, Scissors, Wind, Trash2, Star, ShieldAlert,
-  Undo2, RefreshCw, Zap, CheckCircle2, ChevronDown, ChevronUp, Home
+  Undo2, RefreshCw, Zap, CheckCircle2, ChevronDown, ChevronUp, Home,
+  AlertTriangle, Clock, Disc
 } from "lucide-react";
 import {
   formatDataBR,
@@ -17,6 +18,7 @@ import { notificarStatus } from "@/lib/biNotificador";
 import { toast } from "sonner";
 import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelper";
 import { classGrupo } from "@/lib/pedidoOdooHelper";
+import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 
 // Cores estritas do Ecossistema AJL conforme menu do sistema:
 // 🏠 Fábrica de Telhas → AZUL (#2563EB)
@@ -73,7 +75,8 @@ export default function PedidoOdooCard({
   pedido, onClick, onDelete, onRetirarFila, onTogglePrioridade, onSetPrioridade,
   progressoReal, pedidosProducao = [], ordensCD = [],
   selecionado = false, onToggleSelect, onDistribuir,
-  defaultMinimizado, compacto = false, dentroDeGrupo = false
+  defaultMinimizado, compacto = false, dentroDeGrupo = false,
+  estoqueContext = null
 }) {
   const [hover, setHover] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
@@ -81,6 +84,11 @@ export default function PedidoOdooCard({
   const isConcluido = pedido.status_pcp === "concluido" || pct >= 100;
   const [expandidoManual, setExpandidoManual] = useState(defaultMinimizado === false);
   const minimizado = isConcluido && !expandidoManual;
+
+  const statusEstoque = useMemo(() => {
+    if (!estoqueContext) return null;
+    return verificarEstoquePedido(pedido, estoqueContext);
+  }, [pedido, estoqueContext]);
 
   const st = STATUS_PCP[pedido.status_pcp] || (isConcluido ? STATUS_PCP.concluido : STATUS_PCP.pendente_distribuicao);
   const sla = slaDiasPorCategoria(pedido);
@@ -250,6 +258,20 @@ export default function PedidoOdooCard({
               {pedido.of_nome || (pedido.of_odoo_id ? `OF: ${pedido.of_odoo_id}` : `#${pedido.numero_pedido}`)}
             </span>
             <Badge className={`border text-[9px] px-1.5 py-0 leading-tight ${st.cls}`}>{st.label}</Badge>
+            {statusEstoque && (
+              <Badge
+                className={`text-[9px] font-bold px-1.5 py-0 leading-tight border ${
+                  statusEstoque.statusGeral === "ok"
+                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                    : statusEstoque.statusGeral === "desbobinar" || statusEstoque.statusGeral === "parcial"
+                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                    : "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30"
+                }`}
+                title={statusEstoque.badgeGeral}
+              >
+                {statusEstoque.shortBadge}
+              </Badge>
+            )}
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
@@ -296,6 +318,7 @@ export default function PedidoOdooCard({
           pedidosProducao={pedidosProducao}
           ordensCD={ordensCD}
           compacto={true}
+          estoqueContext={estoqueContext}
         />
 
         {/* Botões Rápidos */}
@@ -427,6 +450,20 @@ export default function PedidoOdooCard({
             )}
             <PrioridadeBadge pedido={pedido} />
             <Badge className={`border ${st.cls}`}>{st.label}</Badge>
+            {statusEstoque && (
+              <Badge
+                className={`text-[10px] font-bold px-2 py-0.5 border ${
+                  statusEstoque.statusGeral === "ok"
+                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                    : statusEstoque.statusGeral === "desbobinar" || statusEstoque.statusGeral === "parcial"
+                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                    : "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30"
+                }`}
+                title={statusEstoque.badgeGeral}
+              >
+                {statusEstoque.badgeGeral}
+              </Badge>
+            )}
             {isConcluido && (
               <button
                 type="button"
@@ -459,6 +496,7 @@ export default function PedidoOdooCard({
         itensJson={pedido.itens_json}
         pedidosProducao={pedidosProducao}
         ordensCD={ordensCD}
+        estoqueContext={estoqueContext}
       />
 
       {/* Barra de Progresso Geral do Pedido (Combinando todos os itens) */}

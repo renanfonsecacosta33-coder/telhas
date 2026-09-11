@@ -1,9 +1,10 @@
 import React from "react";
-import { Factory, Scissors, Wind, Layers, Ruler, ClipboardList, ImageIcon, Sparkles, Home } from "lucide-react";
+import { Factory, Scissors, Wind, Layers, Ruler, ClipboardList, ImageIcon, Sparkles, Home, CheckCircle2, AlertTriangle, Clock, Disc } from "lucide-react";
 import { stripHtml } from "@/lib/stripHtml";
 import { obterStatusDescritivoItem, extrairAnotacaoItem } from "@/lib/pedidoOdooHelper";
 import { extrairCroquiItem, extrairCroquiPedido } from "@/lib/croquiExtractor";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
+import { verificarEstoqueItem } from "@/lib/estoqueMaterialHelper";
 import ImageLink from "@/components/ui/ImageLink";
 
 // Config visual por categoria — cores sincronizadas com o ecossistema AJL:
@@ -69,7 +70,7 @@ function detectarCategoria(item) {
 
 // Lista cada item do pedido com cor distinta por categoria.
 // Layout de alto contraste: quantidade GIGANTE em badge sólida colorida + barra de progresso individual + processo sanduíche.
-export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = [], ordensCD = [], compacto = false }) {
+export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = [], ordensCD = [], compacto = false, estoqueContext = null }) {
   let itens = [];
   try {
     const arr = JSON.parse(itensJson || "[]");
@@ -128,6 +129,9 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
           const pctItem = itemInfo.pct;
           const statusTexto = itemInfo.status;
           const etapaAtiva = itemInfo.etapaAtiva;
+
+          // Verificação de Matéria-Prima em Tempo Real
+          const estoqueItem = estoqueContext ? verificarEstoqueItem(it, estoqueContext, pedido) : null;
 
           return (
             <div
@@ -189,6 +193,31 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
                           <Ruler className="w-2.5 h-2.5" /> {it.medida}
                         </span>
                       )}
+                    </div>
+                  )}
+
+                  {/* Linha 4: Diagnóstico de Matéria-Prima em Estoque (Tempo Real) */}
+                  {estoqueItem && (
+                    <div className="flex items-center gap-1.5 mt-1.5 pt-1 border-t border-slate-100 dark:border-slate-800/80 flex-wrap">
+                      <span
+                        className={`inline-flex items-center gap-1 font-bold px-1.5 py-0.5 rounded text-[10px] leading-tight ${
+                          estoqueItem.status === "disponivel"
+                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-800/80"
+                            : estoqueItem.status === "parcial"
+                            ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300/80 dark:border-amber-800/80"
+                            : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-300/80 dark:border-rose-800/80"
+                        }`}
+                        title={estoqueItem.detalhe}
+                      >
+                        {estoqueItem.status === "disponivel" ? (
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                        ) : estoqueItem.status === "parcial" ? (
+                          <Clock className="w-3 h-3 text-amber-600 shrink-0" />
+                        ) : (
+                          <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                        )}
+                        <span>{estoqueItem.badgeText}</span>
+                      </span>
                     </div>
                   )}
                 </div>

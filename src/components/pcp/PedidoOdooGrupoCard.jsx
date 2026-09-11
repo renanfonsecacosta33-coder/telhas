@@ -9,6 +9,7 @@ import { formatDataBR } from "@/lib/sla";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import PedidoOdooCard from "@/components/pcp/PedidoOdooCard";
 import { calcularProgressoRealPedido, classGrupo } from "@/lib/pedidoOdooHelper";
+import { verificarEstoqueGrupo } from "@/lib/estoqueMaterialHelper";
 
 /**
  * Card Consolidado do Pedido de Venda (Acordeon Executivo).
@@ -32,7 +33,8 @@ export default function PedidoOdooGrupoCard({
   onDeleteGrupo,
   onRetirarFila,
   onTogglePrioridade,
-  onSetPrioridade
+  onSetPrioridade,
+  estoqueContext = null
 }) {
   const ofs = grupo.ofs || [];
   const totalOfs = ofs.length;
@@ -80,6 +82,12 @@ export default function PedidoOdooGrupoCard({
     });
     return { telha, cd, frisada };
   }, [ofs]);
+
+  // Verificação consolidada de estoque de matéria-prima (Bobinas e Chapas)
+  const statusEstoqueGrupo = useMemo(() => {
+    if (!estoqueContext) return null;
+    return verificarEstoqueGrupo(ofs, estoqueContext);
+  }, [ofs, estoqueContext]);
 
   // Manipulador de distribuição em lote de todas as pendentes deste pedido
   const handleDistribuirTodas = (e) => {
@@ -174,6 +182,25 @@ export default function PedidoOdooGrupoCard({
                 {grupo.unidade && (
                   <Badge variant="secondary" className="text-[11px]">
                     {grupo.unidade}
+                  </Badge>
+                )}
+                {statusEstoqueGrupo && (
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] font-bold px-2 py-0.5 shadow-xs ${
+                      statusEstoqueGrupo.statusGeral === "ok"
+                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
+                        : statusEstoqueGrupo.statusGeral === "desbobinar" || statusEstoqueGrupo.statusGeral === "parcial"
+                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40"
+                        : "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40"
+                    }`}
+                    title={
+                      statusEstoqueGrupo.statusGeral === "ok"
+                        ? "Toda a matéria-prima necessária para este pedido está disponível em estoque!"
+                        : `${statusEstoqueGrupo.ofsOk} OFs com material OK, ${statusEstoqueGrupo.ofsDesbobinar} necessitam desbobinamento, ${statusEstoqueGrupo.ofsFalta} sem material suficiente`
+                    }
+                  >
+                    {statusEstoqueGrupo.badgeGeral}
                   </Badge>
                 )}
               </div>
@@ -326,6 +353,7 @@ export default function PedidoOdooGrupoCard({
                 onSetPrioridade={onSetPrioridade}
                 compacto={true}
                 dentroDeGrupo={true}
+                estoqueContext={estoqueContext}
               />
             ))}
           </div>

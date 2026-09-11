@@ -32,6 +32,7 @@ import { parseItensPedido } from "@/lib/regrasFabrica";
 import { notificarStatus } from "@/lib/biNotificador";
 import { calcularProgressoRealPedido, statusPcpPorPercentual, enriquecerItensComStatusReal } from "@/lib/pedidoOdooHelper";
 import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
+import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 
 export default function CentralPCP() {
   const navigate = useNavigate();
@@ -39,6 +40,7 @@ export default function CentralPCP() {
   const { toast } = useToast();
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState("ativos");
+  const [filtroMaterial, setFiltroMaterial] = useState("todos"); // "todos" | "com_material" | "sem_material"
   const [mostrarConcluidosEmTodos, setMostrarConcluidosEmTodos] = useState(false);
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
   const [detalheOpen, setDetalheOpen] = useState(false);
@@ -145,6 +147,24 @@ export default function CentralPCP() {
     queryFn: () => base44.entities.OrdemMaquinaCD.list("-data", 500),
     refetchInterval: 10000
   });
+
+  // Consultas de Matéria-Prima em Tempo Real para Análise de Disponibilidade no PCP
+  const { data: bobinasEstoque = [] } = useQuery({
+    queryKey: ["bobinas-estoque-pcp"],
+    queryFn: () => base44.entities.Bobina.filter({ arquivada: false }),
+    refetchInterval: 15000
+  });
+
+  const { data: chapasEstoque = [] } = useQuery({
+    queryKey: ["chapas-estoque-pcp"],
+    queryFn: () => base44.entities.ChapaCD.filter({ status: { $ne: "cancelado" } }),
+    refetchInterval: 15000
+  });
+
+  const estoqueContext = useMemo(() => ({
+    bobinas: bobinasEstoque,
+    chapas: chapasEstoque
+  }), [bobinasEstoque, chapasEstoque]);
 
   // Subscription: atualiza percentual/status em tempo real quando os galpões concluem itens
   useEffect(() => {
@@ -751,6 +771,21 @@ export default function CentralPCP() {
     { id: "todos", label: "Todos", count: stats.total, icon: Layers, color: "text-slate-500" }
   ];
 
+  // Estatísticas de Matéria-Prima em Tempo Real (Bobinas e Chapas)
+  const statsMaterial = useMemo(() => {
+    let comMaterial = 0;
+    let semMaterial = 0;
+    pedidos.forEach(p => {
+      const diag = verificarEstoquePedido(p, estoqueContext);
+      if (diag.statusGeral === "ok" || diag.statusGeral === "desbobinar") {
+        comMaterial++;
+      } else {
+        semMaterial++;
+      }
+    });
+    return { comMaterial, semMaterial };
+  }, [pedidos, estoqueContext]);
+
   // Filtros + busca
   const pedidosFiltrados = pedidos.filter(p => {
     const concluido = isPedidoConcluido(p);
@@ -767,6 +802,14 @@ export default function CentralPCP() {
       if (concluido || p.status_pcp !== "em_producao") return false;
     } else if (filtro !== "todos") {
       if (p.status_pcp !== filtro) return false;
+    }
+
+    // Filtro por Matéria-Prima em Estoque
+    if (filtroMaterial !== "todos") {
+      const diag = verificarEstoquePedido(p, estoqueContext);
+      const temMaterial = diag.statusGeral === "ok" || diag.statusGeral === "desbobinar";
+      if (filtroMaterial === "com_material" && !temMaterial) return false;
+      if (filtroMaterial === "sem_material" && temMaterial) return false;
     }
 
     // Filtro por Data
@@ -1182,6 +1225,51 @@ export default function CentralPCP() {
         </div>
       </div>
 
+      {/* Barra de Filtro Rápido de Matéria-Prima em Estoque (Bobinas & Chapas) */}
+      <div className="px-4 sm:px-6 pb-2.5">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 mr-1 shrink-0 flex items-center gap-1">
+            <Layers className="w-3.5 h-3.5 text-indigo-500" />
+            Estoque MP:
+          </span>
+          <button
+            type="button"
+            onClick={() => setFiltroMaterial("todos")}
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+              filtroMaterial === "todos"
+                ? "bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 shadow-xs"
+                : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60"
+            }`}
+          >
+            Todas as OPs
+          </button>
+          <button
+            type="button"
+            onClick={() => setFiltroMaterial("com_material")}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+              filtroMaterial === "com_material"
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100/60"
+            }`}
+            title="Ordens de Fabricação com matéria-prima em estoque (bobinas ou chapas disponíveis)"
+          >
+            <span>🟢 Com Material ({statsMaterial.comMaterial})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFiltroMaterial("sem_material")}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+              filtroMaterial === "sem_material"
+                ? "bg-red-600 text-white shadow-xs"
+                : "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 hover:bg-red-100/60"
+            }`}
+            title="Ordens de Fabricação sem matéria-prima suficiente em estoque"
+          >
+            <span>🔴 Sem Material ({statsMaterial.semMaterial})</span>
+          </button>
+        </div>
+      </div>
+
       {/* Barra de Filtro por Data */}
       <div className="px-4 sm:px-6 pb-3">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
@@ -1590,6 +1678,7 @@ export default function CentralPCP() {
                     onRetirarFila={handleRetirarFila}
                     onTogglePrioridade={handleTogglePrioridade}
                     onSetPrioridade={handleSetPrioridade}
+                    estoqueContext={estoqueContext}
                   />
                 ))}
               </div>
@@ -1610,6 +1699,7 @@ export default function CentralPCP() {
                     onRetirarFila={handleRetirarFila}
                     onTogglePrioridade={handleTogglePrioridade}
                     onSetPrioridade={handleSetPrioridade}
+                    estoqueContext={estoqueContext}
                   />
                 ))}
               </div>
@@ -1672,6 +1762,7 @@ export default function CentralPCP() {
                           onRetirarFila={handleRetirarFila}
                           onTogglePrioridade={handleTogglePrioridade}
                           onSetPrioridade={handleSetPrioridade}
+                          estoqueContext={estoqueContext}
                         />
                       ))}
                     </div>
@@ -1692,6 +1783,7 @@ export default function CentralPCP() {
                           onRetirarFila={handleRetirarFila}
                           onTogglePrioridade={handleTogglePrioridade}
                           onSetPrioridade={handleSetPrioridade}
+                          estoqueContext={estoqueContext}
                         />
                       ))}
                     </div>
@@ -1718,6 +1810,7 @@ export default function CentralPCP() {
         onToggleItem={handleToggleItem}
         onProgramarItem={handleProgramarItem}
         onProgramarTodosItens={handleProgramarTodosItens}
+        estoqueContext={estoqueContext}
         onAtualizado={() => {
           queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
           queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
