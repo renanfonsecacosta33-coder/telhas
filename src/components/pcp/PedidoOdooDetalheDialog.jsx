@@ -16,9 +16,7 @@ import { extrairAnexosLista } from "@/lib/croquiExtractor";
 import MaquinaSequenceCD from "@/components/pcp/MaquinaSequenceCD";
 import EtapasTelhaSequence from "@/components/pcp/EtapasTelhaSequence";
 import { parseItensPedido, progressoChecklist } from "@/lib/regrasFabrica";
-import { notificarStatus } from "@/lib/biNotificador";
-import { getItens } from "@/lib/pedidoOdooHelper";
-import { toast } from "sonner";
+import { getItens, classGrupo } from "@/lib/pedidoOdooHelper";
 import ProgramadorItensSection from "./ProgramadorItensSection";
 import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelper";
 
@@ -166,17 +164,9 @@ export default function PedidoOdooDetalheDialog({
     frisada: <Wind className="w-3.5 h-3.5" />
   };
   const grupoColor = {
-    telha: "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/30",
-    cd: "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30",
+    telha: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30",
+    cd: "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/30",
     frisada: "bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/30"
-  };
-
-  const classGrupo = (catRaw, produtoNome = "") => {
-    const cat = String(catRaw || "").trim().toLowerCase();
-    const prod = String(produtoNome || "").trim().toLowerCase();
-    if (["telhas", "telha"].includes(cat) || /(telha|tp\s*25|tp\s*40|eps|manta|cumeeira|ondulada|colonial)/i.test(prod)) return "telha";
-    if (["frisadas", "frisada"].includes(cat)) return "frisada";
-    return "cd";
   };
 
   const jaDistribuido = pedido.status_pcp !== "pendente_distribuicao";

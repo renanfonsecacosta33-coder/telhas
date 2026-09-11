@@ -11,32 +11,69 @@ const STATUS_DEFAULTS = {
 };
 
 export function getItens(pedido) {
+  if (!pedido) return [];
   let arr = [];
-  try { arr = JSON.parse(pedido?.itens_json || "[]"); } catch { arr = []; }
+  if (Array.isArray(pedido.itens)) {
+    arr = pedido.itens;
+  } else if (typeof pedido.itens_json === "string" && pedido.itens_json.trim()) {
+    try { arr = JSON.parse(pedido.itens_json); } catch { arr = []; }
+  } else if (Array.isArray(pedido.itens_json)) {
+    arr = pedido.itens_json;
+  }
   return arr.map((it, idx) => ({ ...STATUS_DEFAULTS, ...it, _idx: idx }));
 }
 
-// Aceita item completo (obj) ou categoria + produto (strings)
+// Aceita item individual (obj), Pedido/OF completo (obj com itens_json) ou categoria + produto (strings)
 export function classGrupo(itemOrCat, produtoNome = "") {
   let cat = "";
   let prod = "";
+  let itens = [];
+
   if (typeof itemOrCat === "object" && itemOrCat !== null) {
-    cat = String(itemOrCat.categoria || "").trim().toLowerCase();
-    prod = String(itemOrCat.produto || itemOrCat.descricao || "").trim().toLowerCase();
+    // Se for objeto Pedido ou OF, tenta inspecionar itens_json / itens
+    if (Array.isArray(itemOrCat.itens)) {
+      itens = itemOrCat.itens;
+    } else if (typeof itemOrCat.itens_json === "string" && itemOrCat.itens_json.trim()) {
+      try { itens = JSON.parse(itemOrCat.itens_json); } catch {}
+    } else if (Array.isArray(itemOrCat.itens_json)) {
+      itens = itemOrCat.itens_json;
+    }
+
+    if (itens.length > 0) {
+      // Prioridade: inspeciona os itens reais da ordem de fabricação
+      const first = itens[0] || {};
+      cat = String(first.categoria || itemOrCat.categoria || "").trim().toLowerCase();
+      prod = String(first.produto || first.descricao || first.observacao || itemOrCat.produto || itemOrCat.descricao || itemOrCat.of_nome || "").trim().toLowerCase();
+    } else {
+      cat = String(itemOrCat.categoria || "").trim().toLowerCase();
+      prod = String(itemOrCat.produto || itemOrCat.descricao || itemOrCat.observacao || itemOrCat.of_nome || "").trim().toLowerCase();
+    }
+
+    // Se o pedido tiver contagens de itens pré-computadas e nenhum item detalhado
+    if (itens.length === 0 && !prod) {
+      if ((itemOrCat.itens_telha_count || 0) > 0 && !(itemOrCat.itens_cd_count > 0) && !(itemOrCat.itens_frisada_count > 0)) return "telha";
+      if ((itemOrCat.itens_frisada_count || 0) > 0 && !(itemOrCat.itens_cd_count > 0) && !(itemOrCat.itens_telha_count > 0)) return "frisada";
+      if ((itemOrCat.itens_cd_count || 0) > 0 && !(itemOrCat.itens_telha_count > 0) && !(itemOrCat.itens_frisada_count > 0)) return "cd";
+    }
   } else {
     cat = String(itemOrCat || "").trim().toLowerCase();
     prod = String(produtoNome || "").trim().toLowerCase();
   }
 
-  if (["telhas", "telha", "bandeja", "bobininha"].includes(cat)) return "telha";
-  if (/(telha|tp\s*25|tp\s*40|eps|manta|cumeeira|ondulada|colonial)/i.test(prod)) return "telha";
-  if (["frisadas", "frisada"].includes(cat)) return "frisada";
-  if (["chapa", "perfil", "barra", "tubo", "zincado", "corte e dobra", "corte_dobra"].some((k) => cat.includes(k))) return "cd";
+  // 1. Frisadas / Lambris (prioridade sobre C&D genérico)
+  if (["frisadas", "frisada"].includes(cat) || /(frisad|lambri)/i.test(prod) || /(frisad|lambri)/i.test(cat)) return "frisada";
 
-  // Fallback por nome do produto/descrição
+  // 2. Telhas e acessórios de telhas
+  if (["telhas", "telha", "bandeja", "bobininha"].includes(cat)) return "telha";
+  if (/(telha|tp\s*-?\s*25|tp\s*-?\s*40|termoac[uú]stica|sandu[ií]che|eps|manta|cumeeira|ondulada|colonial|bandeja|bobininha)/i.test(prod)) return "telha";
+
+  // 3. Corte & Dobra / Perfis / Chapas
+  if (["chapa", "perfil", "barra", "tubo", "zincado", "corte e dobra", "corte_dobra", "cd"].some((k) => cat.includes(k))) return "cd";
+  if (["chapa", "perfil", "barra", "tubo", "zincado", "cantoneira", "ferro", "dobra"].some((k) => prod.includes(k))) return "cd";
+
+  // Fallbacks adicionais por texto
   if (["telha", "tp-", "tp ", "eps", "manta"].some((k) => prod.includes(k))) return "telha";
-  if (["chapa", "perfil", "barra", "tubo", "zincado"].some((k) => prod.includes(k))) return "cd";
-  return "cd"; // corte e dobra, perfis, chapas (fallback seguro p/ produção C&D)
+  return "cd"; // fallback seguro p/ produção C&D
 }
 
 export function itensPorGrupo(itens, grupo) {

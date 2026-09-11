@@ -197,14 +197,10 @@ export default function PedidoOdooCard({
   })();
 
   const grupoSetor = (() => {
-    if (pedido.categoria) {
-      const g = classGrupo(pedido.categoria, pedido.of_nome || "");
-      if (g) return g;
-    }
     if (itens.length > 0) {
       return classGrupo(itens[0]);
     }
-    return classGrupo(null, pedido.of_nome || pedido.produto || "");
+    return classGrupo(pedido);
   })();
 
   const cfgSetor = SETOR_CARD_CFG[grupoSetor] || SETOR_CARD_CFG.cd;

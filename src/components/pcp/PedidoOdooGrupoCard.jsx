@@ -73,7 +73,7 @@ export default function PedidoOdooGrupoCard({
     let cd = 0;
     let frisada = 0;
     ofs.forEach(p => {
-      const g = classGrupo(p.categoria, p.of_nome || p.produto || "");
+      const g = classGrupo(p);
       if (g === "telha") telha++;
       else if (g === "frisada") frisada++;
       else cd++;
