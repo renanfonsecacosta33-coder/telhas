@@ -201,55 +201,67 @@ export function extrairDemandaItem(item) {
   let metros = 0;
   let compMm = 0;
 
-  // 1. Tentar extrair especificação completa ou peças da OBS / Descrição
+  // 1. Tentar extrair especificação completa (ex: 2 pcs de 3000mm)
   const spec = extrairEspecificacao(desc, qtdOdoo, unid) || extrairEspecificacao(obs, qtdOdoo, unid);
   const pecasObs = extrairPecasDaObs(obs) || extrairPecasDaObs(desc);
 
-  if (pecasObs != null) {
-    pecas = pecasObs;
-    pecasOrigem = "obs";
+  const isContagemDireta = ["UN", "UND", "UNID", "UNIDADE", "UNIDADES", "BR", "BARRA", "BARRAS", "PC", "PCS", "PECA", "PECAS", "FL", "FOLHA"].includes(unid);
+
+  if (isKg) {
+    // Quando vem em KG do Odoo (conforme conversão feita pelo Gui):
+    // Prioridade 1: Quantidade de barras/peças informada pelo vendedor na OBS/descrição
+    if (pecasObs != null) {
+      pecas = pecasObs;
+      pecasOrigem = "obs";
+      if (spec && spec.metragem_total) metros = spec.metragem_total;
+      if (spec && spec.comprimento_mm) compMm = spec.comprimento_mm;
+    } else if (spec && spec.tem_especificacao && spec.pecas) {
+      pecas = spec.pecas;
+      pecasOrigem = "obs";
+      metros = spec.metragem_total || 0;
+      compMm = spec.comprimento_mm || 0;
+    } else {
+      // Prioridade 2: Estimativa física dimensional pelo peso em KG
+      let pesoUnitario = 0;
+      const dimChapa = extrairDimensoesChapa(prod) || extrairDimensoesChapa(desc) || extrairDimensoesChapa(obs);
+      const dimPerfil = extrairDimensoesPerfil(prod) || extrairDimensoesPerfil(desc) || extrairDimensoesPerfil(obs);
+
+      if (dimChapa) {
+        pesoUnitario = +(dimChapa.largura_m * dimChapa.comprimento_m * espNum * 7.85).toFixed(2);
+        compMm = dimChapa.comprimento_mm;
+      } else if (dimPerfil) {
+        const compM = 6.0; // Padrão barra 6 metros
+        pesoUnitario = +(dimPerfil.desenvolvimento_m * compM * espNum * 7.85).toFixed(2);
+        compMm = 6000;
+      } else if (setor === "cd") {
+        pesoUnitario = +(1.2 * 3.0 * espNum * 7.85).toFixed(2); // Padrão chapa 1200x3000
+        compMm = 3000;
+      } else if (setor === "telha") {
+        const kgM = +(espNum * 7.85 * 1.2).toFixed(2);
+        metros = +(qtdOdoo / (kgM || 4.05)).toFixed(1);
+        pesoUnitario = +(kgM * 6.0).toFixed(2); // Padrão telha 6m
+        compMm = 6000;
+      }
+
+      if (pesoUnitario > 0) {
+        pecas = Math.max(1, Math.round(qtdOdoo / pesoUnitario));
+        pecasOrigem = "estimado";
+      } else {
+        pecas = 1;
+        pecasOrigem = "estimado";
+      }
+    }
+  } else if (isContagemDireta) {
+    // Unidade explícita de contagem no Odoo (BR, UN, PC, etc.)
+    pecas = qtdOdoo;
+    pecasOrigem = "odoo";
     if (spec && spec.metragem_total) metros = spec.metragem_total;
     if (spec && spec.comprimento_mm) compMm = spec.comprimento_mm;
-  } else if (spec && spec.tem_especificacao && spec.pecas) {
-    pecas = spec.pecas;
-    pecasOrigem = "obs";
-    metros = spec.metragem_total || 0;
-    compMm = spec.comprimento_mm || 0;
   } else if (unid.startsWith("M")) {
     metros = qtdOdoo;
-    pecas = 1;
-    pecasOrigem = "odoo";
-  } else if (isKg) {
-    // 2. Se a quantidade do Odoo for em KG e NÃO houver peças na OBS:
-    // Estima a quantidade de peças a partir do peso e dimensões do produto!
-    let pesoUnitario = 0;
-    const dimChapa = extrairDimensoesChapa(prod) || extrairDimensoesChapa(desc) || extrairDimensoesChapa(obs);
-    const dimPerfil = extrairDimensoesPerfil(prod) || extrairDimensoesPerfil(desc) || extrairDimensoesPerfil(obs);
-
-    if (dimChapa) {
-      pesoUnitario = +(dimChapa.largura_m * dimChapa.comprimento_m * espNum * 7.85).toFixed(2);
-      compMm = dimChapa.comprimento_mm;
-    } else if (dimPerfil) {
-      const compM = 6.0; // Padrão barra 6 metros
-      pesoUnitario = +(dimPerfil.desenvolvimento_m * compM * espNum * 7.85).toFixed(2);
-      compMm = 6000;
-    } else if (setor === "cd") {
-      pesoUnitario = +(1.2 * 3.0 * espNum * 7.85).toFixed(2); // Padrão chapa 1200x3000
-      compMm = 3000;
-    } else if (setor === "telha") {
-      const kgM = +(espNum * 7.85 * 1.2).toFixed(2);
-      metros = +(qtdOdoo / (kgM || 4.05)).toFixed(1);
-      pesoUnitario = +(kgM * 6.0).toFixed(2); // Padrão telha 6m
-      compMm = 6000;
-    }
-
-    if (pesoUnitario > 0) {
-      pecas = Math.max(1, Math.round(qtdOdoo / pesoUnitario));
-      pecasOrigem = "estimado";
-    } else {
-      pecas = 1;
-      pecasOrigem = "estimado";
-    }
+    pecas = (spec && spec.pecas) ? spec.pecas : 1;
+    pecasOrigem = (spec && spec.pecas) ? "obs" : "odoo";
+  } else if (pecasObs != null) {
   }
 
   // Extração de peso explícito se existir no pedido ou na descrição
