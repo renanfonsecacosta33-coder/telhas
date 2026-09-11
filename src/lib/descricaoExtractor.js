@@ -178,3 +178,42 @@ export function extrairEspessuraProduto(produtoName) {
   if (m) return m[1].replace(",", ".");
   return null;
 }
+
+// Extrai peso explícito em kg da descrição livre do pedido (ex: "KG = 850", "850 kg", "peso: 420.5kg")
+export function extrairPesoDoTexto(texto) {
+  if (!texto) return null;
+  const t = String(texto);
+  // Padrão 1: "KG = 850", "KG: 850", "peso = 850kg"
+  const m1 = t.match(/(?:kg|peso|quilos?)\s*[:=]?\s*([\d]+(?:[.,]\d+)?)\s*(?:kg|kgs|quilos?)?/i);
+  if (m1 && m1[1]) {
+    const val = parseFloat(m1[1].replace(",", "."));
+    if (!isNaN(val) && val > 0) return val;
+  }
+  // Padrão 2: "850 kg", "850.5kg", "850,5 kg"
+  const m2 = t.match(/\b([\d]+(?:[.,]\d+)?)\s*(?:kg|kgs|quilos)\b/i);
+  if (m2 && m2[1]) {
+    const val = parseFloat(m2[1].replace(",", "."));
+    if (!isNaN(val) && val > 0) return val;
+  }
+  return null;
+}
+
+// Extrai dimensões de perfil dobrado em U (ex: "Perfil U 75x40", "U 100x50")
+export function extrairDimensoesPerfil(texto) {
+  if (!texto) return null;
+  const t = String(texto);
+  const m = t.match(/(\d{2,3})\s*[xX]\s*(\d{2,3})/);
+  if (m) {
+    const base = parseFloat(m[1]);
+    const aba = parseFloat(m[2]);
+    if (base > 0 && aba > 0) {
+      return {
+        base_mm: base,
+        aba_mm: aba,
+        desenvolvimento_mm: base + (2 * aba),
+        desenvolvimento_m: (base + (2 * aba)) / 1000
+      };
+    }
+  }
+  return null;
+}

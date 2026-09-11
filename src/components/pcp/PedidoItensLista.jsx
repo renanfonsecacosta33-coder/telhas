@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Factory, Scissors, Wind, Layers, Ruler, ClipboardList, ImageIcon, Sparkles, Home, CheckCircle2, AlertTriangle, Clock, Disc } from "lucide-react";
 import { stripHtml } from "@/lib/stripHtml";
 import { obterStatusDescritivoItem, extrairAnotacaoItem } from "@/lib/pedidoOdooHelper";
@@ -6,6 +6,7 @@ import { extrairCroquiItem, extrairCroquiPedido } from "@/lib/croquiExtractor";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import { verificarEstoqueItem } from "@/lib/estoqueMaterialHelper";
 import ImageLink from "@/components/ui/ImageLink";
+import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
 
 // Config visual por categoria — cores sincronizadas com o ecossistema AJL:
 // 🏠 Fábrica de Telhas → AZUL (#2563EB)
@@ -71,6 +72,7 @@ function detectarCategoria(item) {
 // Lista cada item do pedido com cor distinta por categoria.
 // Layout de alto contraste: quantidade GIGANTE em badge sólida colorida + barra de progresso individual + processo sanduíche.
 export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = [], ordensCD = [], compacto = false, estoqueContext = null }) {
+  const [modalSimulacaoItem, setModalSimulacaoItem] = useState(null);
   let itens = [];
   try {
     const arr = JSON.parse(itensJson || "[]");
@@ -196,28 +198,36 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
                     </div>
                   )}
 
-                  {/* Linha 4: Diagnóstico de Matéria-Prima em Estoque (Tempo Real) */}
+                  {/* Linha 4: Diagnóstico de Matéria-Prima em Estoque (Tempo Real) com Simulação Interativa */}
                   {estoqueItem && (
                     <div className="flex items-center gap-1.5 mt-1.5 pt-1 border-t border-slate-100 dark:border-slate-800/80 flex-wrap">
-                      <span
-                        className={`inline-flex items-center gap-1 font-bold px-1.5 py-0.5 rounded text-[10px] leading-tight ${
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setModalSimulacaoItem(estoqueItem);
+                        }}
+                        className={`inline-flex items-center gap-1.5 font-bold px-2 py-1 rounded-md text-[10px] leading-tight transition-all cursor-pointer hover:shadow-xs hover:scale-[1.01] text-left group ${
                           estoqueItem.status === "disponivel"
-                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-800/80"
+                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-800/80 hover:bg-emerald-100 dark:hover:bg-emerald-900/60"
                             : estoqueItem.status === "parcial"
-                            ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300/80 dark:border-amber-800/80"
-                            : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-300/80 dark:border-rose-800/80"
+                            ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300/80 dark:border-amber-800/80 hover:bg-amber-100 dark:hover:bg-amber-900/60"
+                            : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-300/80 dark:border-rose-800/80 hover:bg-rose-100 dark:hover:bg-rose-900/60"
                         }`}
-                        title={estoqueItem.detalhe}
+                        title="Clique para ver a simulação detalhada de bobinas e quanto ficará o peso antes e depois do uso"
                       >
                         {estoqueItem.status === "disponivel" ? (
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                         ) : estoqueItem.status === "parcial" ? (
-                          <Clock className="w-3 h-3 text-amber-600 shrink-0" />
+                          <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                         ) : (
-                          <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
                         )}
                         <span>{estoqueItem.badgeText}</span>
-                      </span>
+                        <span className="ml-1 text-[9px] font-extrabold text-orange-600 dark:text-orange-400 underline decoration-dotted group-hover:underline">
+                          🔍 Simulação
+                        </span>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -322,6 +332,15 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
           );
         })}
       </div>
+
+      {modalSimulacaoItem && (
+        <SimulacaoEstoqueMaterialDialog
+          open={!!modalSimulacaoItem}
+          onOpenChange={(isOpen) => !isOpen && setModalSimulacaoItem(null)}
+          analiseItem={modalSimulacaoItem}
+          pedido={pedido}
+        />
+      )}
     </div>
   );
 }

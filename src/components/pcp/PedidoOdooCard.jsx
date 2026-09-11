@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelper";
 import { classGrupo } from "@/lib/pedidoOdooHelper";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
+import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
 
 // Cores estritas do Ecossistema AJL conforme menu do sistema:
 // 🏠 Fábrica de Telhas → AZUL (#2563EB)
@@ -80,6 +81,7 @@ export default function PedidoOdooCard({
 }) {
   const [hover, setHover] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
+  const [simulacaoModalOpen, setSimulacaoModalOpen] = useState(false);
   const pct = progressoReal != null ? progressoReal : (pedido.percentual_concluido || 0);
   const isConcluido = pedido.status_pcp === "concluido" || pct >= 100;
   const [expandidoManual, setExpandidoManual] = useState(defaultMinimizado === false);
@@ -260,14 +262,18 @@ export default function PedidoOdooCard({
             <Badge className={`border text-[9px] px-1.5 py-0 leading-tight ${st.cls}`}>{st.label}</Badge>
             {statusEstoque && (
               <Badge
-                className={`text-[9px] font-bold px-1.5 py-0 leading-tight border ${
-                  statusEstoque.statusGeral === "ok"
-                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSimulacaoModalOpen(true);
+                }}
+                className={`text-[9px] font-bold px-1.5 py-0 leading-tight border cursor-pointer hover:scale-105 hover:shadow-xs transition-all ${
+                  statusEstoque.statusGeral === "disponivel" || statusEstoque.statusGeral === "ok"
+                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25"
                     : statusEstoque.statusGeral === "desbobinar" || statusEstoque.statusGeral === "parcial"
-                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
-                    : "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30"
+                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/25"
+                    : "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30 hover:bg-red-500/25"
                 }`}
-                title={statusEstoque.badgeGeral}
+                title="Clique para ver a simulação completa de bobinas e consumo"
               >
                 {statusEstoque.shortBadge}
               </Badge>
@@ -353,6 +359,16 @@ export default function PedidoOdooCard({
             <Undo2 className="w-3 h-3" />
             Retirar da Fila
           </button>
+        )}
+
+        {simulacaoModalOpen && (
+          <SimulacaoEstoqueMaterialDialog
+            open={simulacaoModalOpen}
+            onOpenChange={setSimulacaoModalOpen}
+            pedido={pedido}
+            statusEstoque={statusEstoque}
+            estoqueContext={estoqueContext}
+          />
         )}
       </div>
     );
@@ -452,14 +468,18 @@ export default function PedidoOdooCard({
             <Badge className={`border ${st.cls}`}>{st.label}</Badge>
             {statusEstoque && (
               <Badge
-                className={`text-[10px] font-bold px-2 py-0.5 border ${
-                  statusEstoque.statusGeral === "ok"
-                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSimulacaoModalOpen(true);
+                }}
+                className={`text-[10px] font-bold px-2 py-0.5 border cursor-pointer hover:scale-105 hover:shadow-xs transition-all ${
+                  statusEstoque.statusGeral === "disponivel" || statusEstoque.statusGeral === "ok"
+                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25"
                     : statusEstoque.statusGeral === "desbobinar" || statusEstoque.statusGeral === "parcial"
-                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
-                    : "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30"
+                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/25"
+                    : "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30 hover:bg-red-500/25"
                 }`}
-                title={statusEstoque.badgeGeral}
+                title="Clique para ver a simulação completa de bobinas e consumo"
               >
                 {statusEstoque.badgeGeral}
               </Badge>
@@ -596,6 +616,16 @@ export default function PedidoOdooCard({
           <Undo2 className="w-3.5 h-3.5" />
           Retirar da Fila do Galpão
         </button>
+      )}
+
+      {simulacaoModalOpen && (
+        <SimulacaoEstoqueMaterialDialog
+          open={simulacaoModalOpen}
+          onOpenChange={setSimulacaoModalOpen}
+          pedido={pedido}
+          statusEstoque={statusEstoque}
+          estoqueContext={estoqueContext}
+        />
       )}
     </div>
   );

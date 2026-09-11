@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +10,7 @@ import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import PedidoOdooCard from "@/components/pcp/PedidoOdooCard";
 import { calcularProgressoRealPedido, classGrupo } from "@/lib/pedidoOdooHelper";
 import { verificarEstoqueGrupo } from "@/lib/estoqueMaterialHelper";
+import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
 
 /**
  * Card Consolidado do Pedido de Venda (Acordeon Executivo).
@@ -36,6 +37,7 @@ export default function PedidoOdooGrupoCard({
   onSetPrioridade,
   estoqueContext = null
 }) {
+  const [simulacaoGrupoOpen, setSimulacaoGrupoOpen] = useState(false);
   const ofs = grupo.ofs || [];
   const totalOfs = ofs.length;
   const idsDoGrupo = ofs.map(p => p.id);
@@ -88,6 +90,18 @@ export default function PedidoOdooGrupoCard({
     if (!estoqueContext) return null;
     return verificarEstoqueGrupo(ofs, estoqueContext);
   }, [ofs, estoqueContext]);
+
+  // Diagnóstico consolidado de todos os itens do pedido para o modal de simulação
+  const statusEstoqueConsolidado = useMemo(() => {
+    if (!statusEstoqueGrupo) return null;
+    const allAnalises = (statusEstoqueGrupo.analisesOfs || []).flatMap(a => a.diagnostico?.analises || []);
+    return {
+      statusGeral: statusEstoqueGrupo.statusGeral,
+      pesoTotalKg: statusEstoqueGrupo.pesoTotalGrupoKg,
+      opaMensagemGeral: `Pedido Consolidado #${grupo.numero_pedido}: ${statusEstoqueGrupo.badgeGeral}. ${statusEstoqueGrupo.ofsOk}/${statusEstoqueGrupo.totalOfs} OFs com matéria-prima disponível.`,
+      analises: allAnalises
+    };
+  }, [statusEstoqueGrupo, grupo]);
 
   // Manipulador de distribuição em lote de todas as pendentes deste pedido
   const handleDistribuirTodas = (e) => {
@@ -187,18 +201,18 @@ export default function PedidoOdooGrupoCard({
                 {statusEstoqueGrupo && (
                   <Badge
                     variant="outline"
-                    className={`text-[10px] font-bold px-2 py-0.5 shadow-xs ${
-                      statusEstoqueGrupo.statusGeral === "ok"
-                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSimulacaoGrupoOpen(true);
+                    }}
+                    className={`text-[10px] font-bold px-2 py-0.5 shadow-xs cursor-pointer hover:scale-105 transition-all ${
+                      statusEstoqueGrupo.statusGeral === "disponivel" || statusEstoqueGrupo.statusGeral === "ok"
+                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/25"
                         : statusEstoqueGrupo.statusGeral === "desbobinar" || statusEstoqueGrupo.statusGeral === "parcial"
-                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40"
-                        : "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40"
+                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 hover:bg-amber-500/25"
+                        : "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40 hover:bg-red-500/25"
                     }`}
-                    title={
-                      statusEstoqueGrupo.statusGeral === "ok"
-                        ? "Toda a matéria-prima necessária para este pedido está disponível em estoque!"
-                        : `${statusEstoqueGrupo.ofsOk} OFs com material OK, ${statusEstoqueGrupo.ofsDesbobinar} necessitam desbobinamento, ${statusEstoqueGrupo.ofsFalta} sem material suficiente`
-                    }
+                    title="Clique para ver a simulação completa de matéria-prima das OFs deste pedido"
                   >
                     {statusEstoqueGrupo.badgeGeral}
                   </Badge>
@@ -358,6 +372,16 @@ export default function PedidoOdooGrupoCard({
             ))}
           </div>
         </div>
+      )}
+
+      {simulacaoGrupoOpen && (
+        <SimulacaoEstoqueMaterialDialog
+          open={simulacaoGrupoOpen}
+          onOpenChange={setSimulacaoGrupoOpen}
+          pedido={{ numero_pedido: grupo.numero_pedido, cliente_nome: grupo.cliente_nome }}
+          statusEstoque={statusEstoqueConsolidado}
+          estoqueContext={estoqueContext}
+        />
       )}
     </div>
   );

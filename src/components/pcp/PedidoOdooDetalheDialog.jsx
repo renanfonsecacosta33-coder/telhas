@@ -22,6 +22,7 @@ import { getItens, classGrupo } from "@/lib/pedidoOdooHelper";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 import ProgramadorItensSection from "./ProgramadorItensSection";
 import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelper";
+import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
 
 export default function PedidoOdooDetalheDialog({
   pedido, open, onOpenChange, onDistribuir, distribuindo,
@@ -32,6 +33,8 @@ export default function PedidoOdooDetalheDialog({
 }) {
   const [confirmaExcluir, setConfirmaExcluir] = useState(false);
   const [senhaDevolverOpen, setSenhaDevolverOpen] = useState(false);
+  const [simulacaoOpen, setSimulacaoOpen] = useState(false);
+  const [itemSimulacaoSelecionado, setItemSimulacaoSelecionado] = useState(null);
   const [motivo, setMotivo] = useState("");
   const [excluindo, setExcluindo] = useState(false);
   const [operadorNome, setOperadorNome] = useState("");
@@ -222,14 +225,18 @@ export default function PedidoOdooDetalheDialog({
               ) : null}
               {statusEstoque && (
                 <Badge
-                  className={`text-xs font-bold px-2 py-0.5 border ${
-                    statusEstoque.statusGeral === "ok"
-                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
+                  onClick={() => {
+                    setItemSimulacaoSelecionado(null);
+                    setSimulacaoOpen(true);
+                  }}
+                  className={`text-xs font-bold px-2 py-0.5 border cursor-pointer hover:scale-105 hover:shadow-xs transition-all ${
+                    statusEstoque.statusGeral === "disponivel" || statusEstoque.statusGeral === "ok"
+                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/25"
                       : statusEstoque.statusGeral === "desbobinar" || statusEstoque.statusGeral === "parcial"
-                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40"
-                      : "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40"
+                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 hover:bg-amber-500/25"
+                      : "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40 hover:bg-red-500/25"
                   }`}
-                  title={statusEstoque.badgeGeral}
+                  title="Clique para ver a simulação completa de bobinas e consumo"
                 >
                   {statusEstoque.badgeGeral}
                 </Badge>
@@ -353,7 +360,7 @@ export default function PedidoOdooDetalheDialog({
           {/* Conferência de Matéria-Prima em Tempo Real (Estoque) */}
           {statusEstoque && (
             <div className={`rounded-xl border p-3.5 space-y-3 ${
-              statusEstoque.statusGeral === "ok"
+              statusEstoque.statusGeral === "disponivel" || statusEstoque.statusGeral === "ok"
                 ? "bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800"
                 : statusEstoque.statusGeral === "desbobinar" || statusEstoque.statusGeral === "parcial"
                 ? "bg-amber-50/40 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800"
@@ -362,79 +369,143 @@ export default function PedidoOdooDetalheDialog({
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2">
                   <Disc className={`w-4 h-4 ${
-                    statusEstoque.statusGeral === "ok"
+                    statusEstoque.statusGeral === "disponivel" || statusEstoque.statusGeral === "ok"
                       ? "text-emerald-600 dark:text-emerald-400"
                       : statusEstoque.statusGeral === "desbobinar" || statusEstoque.statusGeral === "parcial"
                       ? "text-amber-600 dark:text-amber-400"
                       : "text-red-600 dark:text-red-400"
                   }`} />
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
-                    Conferência de Matéria-Prima em Tempo Real (Estoque)
-                  </span>
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block">
+                      Conferência de Matéria-Prima em Tempo Real (Estoque)
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      Peso Total a Usar: <strong>{statusEstoque.pesoTotalKg?.toLocaleString("pt-BR")} kg</strong>
+                    </span>
+                  </div>
                 </div>
-                <Badge className={`text-xs font-bold ${
-                  statusEstoque.statusGeral === "ok"
-                    ? "bg-emerald-600 text-white"
-                    : statusEstoque.statusGeral === "desbobinar" || statusEstoque.statusGeral === "parcial"
-                    ? "bg-amber-600 text-white"
-                    : "bg-red-600 text-white"
-                }`}>
-                  {statusEstoque.badgeGeral}
-                </Badge>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      setItemSimulacaoSelecionado(null);
+                      setSimulacaoOpen(true);
+                    }}
+                    className="h-7 text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white shadow-xs"
+                  >
+                    🔍 Simulação de Bobinas & Saldo
+                  </Button>
+                  <Badge className={`text-xs font-bold ${
+                    statusEstoque.statusGeral === "disponivel" || statusEstoque.statusGeral === "ok"
+                      ? "bg-emerald-600 text-white"
+                      : statusEstoque.statusGeral === "desbobinar" || statusEstoque.statusGeral === "parcial"
+                      ? "bg-amber-600 text-white"
+                      : "bg-red-600 text-white"
+                  }`}>
+                    {statusEstoque.badgeGeral}
+                  </Badge>
+                </div>
               </div>
 
-              {/* Resumo dos Itens e Lotes Encontrados */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-                {statusEstoque.analises.map((a, idx) => (
-                  <div
-                    key={idx}
-                    className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-1.5 shadow-2xs"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 line-clamp-1">
-                        {a.descricao}
-                      </span>
-                      <Badge className={`text-[10px] shrink-0 font-bold ${
-                        a.status === "ok"
-                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300"
-                          : a.status === "desbobinar"
-                          ? "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300"
-                          : a.status === "parcial"
-                          ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300"
-                          : "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 border-red-300"
-                      }`}>
-                        {a.badge}
-                      </Badge>
-                    </div>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                      {a.motivo}
-                    </p>
-                    {/* Detalhe das bobinas ou chapas encontradas */}
-                    {a.disponivel?.bobinasCompativeis?.length > 0 && (
-                      <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-500">
-                        <span className="font-medium">Bobinas compatíveis ({a.disponivel.bobinasCompativeis.length}):</span>
-                        {a.disponivel.bobinasCompativeis.slice(0, 3).map((b, bi) => (
-                          <span key={bi} className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-slate-700 dark:text-slate-300">
-                            {b.codigo_bobina || b.id?.slice(0,6)} ({b.metragem_restante || b.metragem || 0}m)
+              {/* Mensagem OPA em destaque */}
+              <div className="p-2.5 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-xs">
+                <p className="font-semibold text-slate-800 dark:text-slate-100">
+                  {statusEstoque.opaMensagemGeral}
+                </p>
+              </div>
+
+              {/* Resumo dos Itens e Simulação Individual */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs">
+                {statusEstoque.analises.map((a, idx) => {
+                  const bPrincipal = a.bobinasSimuladas?.[0];
+                  const chPrincipal = a.chapasSimuladas?.[0];
+
+                  return (
+                    <div
+                      key={idx}
+                      className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-2 shadow-2xs"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-bold text-slate-800 dark:text-slate-200 line-clamp-1">
+                            {a.produto || a.descricao || `Item #${idx + 1}`}
                           </span>
-                        ))}
-                        {a.disponivel.bobinasCompativeis.length > 3 && (
-                          <span>+{a.disponivel.bobinasCompativeis.length - 3} mais</span>
+                          <Badge className={`text-[10px] shrink-0 font-bold ${
+                            a.status === "disponivel"
+                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300"
+                              : a.status === "parcial"
+                              ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300"
+                              : "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 border-red-300"
+                          }`}>
+                            {a.shortBadge}
+                          </Badge>
+                        </div>
+
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                          Consumo estimado: <strong>{a.calculoPeso?.pesoKg?.toLocaleString("pt-BR") || 0} kg</strong>
+                          {a.espessura && ` • Espessura ${a.espessura}mm`}
+                          {a.cor && ` • Cor ${a.cor}`}
+                        </p>
+
+                        {/* Comparativo Antes vs Depois da Bobina Principal */}
+                        {bPrincipal && (
+                          <div className="mt-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-800 text-[11px] space-y-1">
+                            <div className="flex items-center justify-between text-slate-500">
+                              <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                                Bobina {bPrincipal.codigo}
+                              </span>
+                              <span className={bPrincipal.daParaFazer ? "text-emerald-600 font-bold" : "text-amber-600 font-bold"}>
+                                {bPrincipal.daParaFazer ? "✅ 100% OK" : "⚠️ Parcial"}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between font-mono text-[10px]">
+                              <span>Agora: <strong>{bPrincipal.pesoAtualKg?.toLocaleString("pt-BR")}kg</strong></span>
+                              <span className="text-orange-600 font-bold">- {bPrincipal.pesoConsumoKg?.toLocaleString("pt-BR")}kg</span>
+                              <span className="text-emerald-600 font-bold">DEPOIS: {bPrincipal.pesoAposUsoKg?.toLocaleString("pt-BR")}kg</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Comparativo de Chapas Cortadas */}
+                        {chPrincipal && (
+                          <div className="mt-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-800 text-[11px] space-y-1">
+                            <div className="flex items-center justify-between text-slate-500">
+                              <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                                Chapa {chPrincipal.codigo}
+                              </span>
+                              <span className={chPrincipal.daParaFazer ? "text-emerald-600 font-bold" : "text-amber-600 font-bold"}>
+                                {chPrincipal.daParaFazer ? "✅ Chapas OK" : "⚠️ Faltam"}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between font-mono text-[10px]">
+                              <span>Agora: <strong>{chPrincipal.pecasAtual} un</strong></span>
+                              <span className="text-orange-600 font-bold">- {chPrincipal.pecasConsumo} un</span>
+                              <span className="text-emerald-600 font-bold">DEPOIS: {chPrincipal.pecasAposUso} un</span>
+                            </div>
+                          </div>
                         )}
                       </div>
-                    )}
-                    {a.disponivel?.chapasCompativeis?.length > 0 && (
-                      <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-500">
-                        <span className="font-medium">Lotes de chapa ({a.disponivel.chapasCompativeis.length}):</span>
-                        {a.disponivel.chapasCompativeis.slice(0, 3).map((c, ci) => (
-                          <span key={ci} className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-slate-700 dark:text-slate-300">
-                            {c.quantidade_disponivel || c.quantidade || 0} pçs ({c.largura_mm || 0}x{c.comprimento_mm || 0}mm)
-                          </span>
-                        ))}
+
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                        <span className="text-[10px] text-slate-400">
+                          {a.bobinasSimuladas?.length || a.chapasSimuladas?.length || 0} lote(s) disponível(is)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setItemSimulacaoSelecionado(a);
+                            setSimulacaoOpen(true);
+                          }}
+                          className="text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1"
+                        >
+                          🔍 Ver Simulação
+                        </button>
                       </div>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -588,6 +659,17 @@ export default function PedidoOdooDetalheDialog({
         descricao="Para devolver este pedido à Central PCP, digite o PIN de liberação do Gestor."
         onAutorizado={() => onDevolverPCP?.(pedido)}
       />
+
+      {simulacaoOpen && (
+        <SimulacaoEstoqueMaterialDialog
+          open={simulacaoOpen}
+          onOpenChange={setSimulacaoOpen}
+          pedido={pedido}
+          analiseItem={itemSimulacaoSelecionado}
+          statusEstoque={statusEstoque}
+          estoqueContext={estoqueContext}
+        />
+      )}
     </>
   );
 }

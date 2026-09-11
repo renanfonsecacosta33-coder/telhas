@@ -1,4 +1,4 @@
-import { extrairEspecificacao } from "./descricaoExtractor.js";
+import { extrairEspecificacao, extrairPesoDoTexto, extrairDimensoesPerfil } from "./descricaoExtractor.js";
 import { getItens, classGrupo } from "./pedidoOdooHelper.js";
 
 /**
@@ -123,7 +123,7 @@ export function isCorCompativel(bCor, itemCor) {
 }
 
 /**
- * Extrai a demanda em metros lineares e peças de um item.
+ * Extrai a demanda em metros lineares, peças e peso de um item.
  */
 export function extrairDemandaItem(item) {
   const desc = item.descricao || item.observacao || "";
@@ -144,12 +144,85 @@ export function extrairDemandaItem(item) {
     metros = qtdOdoo;
   }
 
-  return { pecas, metros, compMm, spec };
+  // Extração de peso explícito se existir no pedido ou na descrição
+  const pesoDireto = Number(item.peso_kg || item.kg_estimado || item.peso) || null;
+  const pesoTexto = extrairPesoDoTexto(desc) || extrairPesoDoTexto(prod);
+  const pesoKgInformado = pesoDireto || (unid === "KG" ? qtdOdoo : pesoTexto);
+
+  return { pecas, metros, compMm, spec, pesoKgInformado };
 }
 
 /**
- * Avalia a disponibilidade de matéria-prima de um item específico do PCP.
- * Retorna diagnóstico detalhado: disponível, parcial ou indisponível.
+ * Calcula o peso estimado rigoroso (em kg) que um item consumirá de matéria-prima.
+ * Considera densidade do aço (7.85 kg/m² por mm), largura da bobina (1.20m para telhas),
+ * faces duplas em telhas sanduíche e desenvolvimento de perfis em Corte & Dobra.
+ */
+export function calcularPesoEstimadoItem({ setor, espessura, demanda, isSanduiche, prod, desc }) {
+  // 1. Se veio peso informado no Odoo ou descrição explícita:
+  if (demanda.pesoKgInformado && demanda.pesoKgInformado > 0) {
+    return {
+      pesoKg: Math.round(demanda.pesoKgInformado),
+      kgPorMetro: null,
+      metodo: "informado_odoo",
+      formula: `Peso informado no Odoo: ${demanda.pesoKgInformado} kg`
+    };
+  }
+
+  const espNum = parseEspessuraToNumber(espessura) || (setor === "telha" ? 0.43 : 1.95);
+
+  // 2. Telhas e Frisadas: base na metragem linear da bobina (1.20m de largura padrão)
+  if (setor === "telha" || setor === "frisada") {
+    // Fórmula física: Espessura (mm) × Largura (1.20m) × 7.85 kg/m³ = kg/m
+    const kgPorMetro = +(espNum * 7.85 * 1.2).toFixed(2);
+    const metros = isSanduiche ? (demanda.metros * 2 || demanda.pecas * 4) : (demanda.metros || demanda.pecas * 2);
+    const pesoKg = Math.max(1, Math.round(metros * kgPorMetro));
+    return {
+      pesoKg,
+      kgPorMetro,
+      metros,
+      metodo: isSanduiche ? "formula_sanduiche_dupla_face" : "formula_telha_linear",
+      formula: isSanduiche
+        ? `${metros}m (${demanda.metros}m × 2 faces) × ${kgPorMetro} kg/m (${espNum}mm)`
+        : `${metros}m × ${kgPorMetro} kg/m (${espNum}mm)`
+    };
+  }
+
+  // 3. Corte & Dobra (C&D):
+  if (setor === "cd") {
+    const dimPerfil = extrairDimensoesPerfil(prod) || extrairDimensoesPerfil(desc);
+    if (dimPerfil) {
+      const compM = demanda.compMm > 0 ? (demanda.compMm / 1000) : 6.0; // Padrão barra de 6 metros
+      const kgPorBarra = +(dimPerfil.desenvolvimento_m * compM * espNum * 7.85).toFixed(2);
+      const pesoKg = Math.max(1, Math.round(demanda.pecas * kgPorBarra));
+      return {
+        pesoKg,
+        kgPorBarra,
+        dimPerfil,
+        compM,
+        metodo: "formula_perfil_dobrado",
+        formula: `${demanda.pecas} barras de ${compM}m (${dimPerfil.base_mm}x${dimPerfil.aba_mm}mm) × ${kgPorBarra} kg/barra`
+      };
+    }
+
+    // Se é chapa padrão sem perfil definido:
+    const compM = demanda.compMm > 0 ? (demanda.compMm / 1000) : 3.0; // 3000mm padrão
+    const largM = 1.2; // 1200mm padrão
+    const kgPorChapa = +(largM * compM * espNum * 7.85).toFixed(2);
+    const pesoKg = Math.max(1, Math.round(demanda.pecas * kgPorChapa));
+    return {
+      pesoKg,
+      kgPorChapa,
+      metodo: "formula_chapa_padrao",
+      formula: `${demanda.pecas} peças × ${kgPorChapa} kg/peça (${espNum}mm)`
+    };
+  }
+
+  return { pesoKg: 0, metodo: "desconhecido", formula: "—" };
+}
+
+/**
+ * Avalia a disponibilidade de matéria-prima de um item específico do PCP
+ * e SIMULA o peso e metragem antes vs depois do uso em cada bobina ou lote de chapa.
  */
 export function verificarEstoqueItem(item, { bobinas = [], chapas = [], slitters = [] } = {}, pedido = null) {
   const prod = String(item.produto || item.descricao || "").trim();
@@ -163,15 +236,19 @@ export function verificarEstoqueItem(item, { bobinas = [], chapas = [], slitters
   // Cor exigida
   const cor = item.cor || extrairCorDoTexto(desc) || extrairCorDoTexto(prod) || "Natural";
 
-  // Demanda
+  // Demanda de peças e metros
   const demanda = extrairDemandaItem(item);
 
   // Telhas Termoacústicas (sanduíche com EPS/PU) exigem 2 chapas (superior e inferior)
   const isSanduiche = /(sandu[ií]che|termoac[uú]stica|eps|isopor|pir|pu)/i.test(prod);
   const metrosNecessarios = isSanduiche ? demanda.metros * 2 : demanda.metros;
 
+  // Cálculo rigoroso do peso necessário em kg
+  const calculoPeso = calcularPesoEstimadoItem({ setor, espessura, demanda, isSanduiche, prod, desc });
+  const pesoNecessarioKg = calculoPeso.pesoKg;
+
   // ─────────────────────────────────────────────────────────────
-  // 1. FÁBRICA DE TELHAS: Verifica Bobinas
+  // 1. FÁBRICA DE TELHAS: Verifica e Simula Bobinas
   // ─────────────────────────────────────────────────────────────
   if (setor === "telha") {
     const bobsCompativeis = bobinas.filter((b) => {
@@ -186,7 +263,7 @@ export function verificarEstoqueItem(item, { bobinas = [], chapas = [], slitters
     const saldoMetros = bobsCompativeis.reduce((acc, b) => {
       if (b.metragem_restante > 0) return acc + b.metragem_restante;
       if (b.metragem > 0) return acc + b.metragem;
-      if (b.peso_kg > 0) return acc + Math.round(b.peso_kg / 4.05);
+      if (b.peso_kg > 0) return acc + Math.round(b.peso_kg / (calculoPeso.kgPorMetro || 4.05));
       return acc;
     }, 0);
 
@@ -201,48 +278,89 @@ export function verificarEstoqueItem(item, { bobinas = [], chapas = [], slitters
       }
     }
 
-    const bPrincipal = bobsCompativeis[0];
+    // Simulação detalhada de cada bobina candidata (Antes vs Depois)
+    const bobinasSimuladas = bobsCompativeis.map((b) => {
+      let bPeso = Number(b.peso_kg) || 0;
+      let bMetros = Number(b.metragem_restante) || Number(b.metragem) || 0;
+      if (bMetros === 0 && bPeso > 0 && calculoPeso.kgPorMetro > 0) {
+        bMetros = Math.round(bPeso / calculoPeso.kgPorMetro);
+      }
+      if (bPeso === 0 && bMetros > 0 && calculoPeso.kgPorMetro > 0) {
+        bPeso = Math.round(bMetros * calculoPeso.kgPorMetro);
+      }
+      const pesoApos = Math.max(0, bPeso - pesoNecessarioKg);
+      const metrosApos = Math.max(0, bMetros - metrosNecessarios);
+      const sobraKg = bPeso - pesoNecessarioKg;
+      const sobraMetros = bMetros - metrosNecessarios;
+      const daParaFazer = (bPeso >= pesoNecessarioKg || pesoNecessarioKg === 0) && (bMetros >= metrosNecessarios || metrosNecessarios === 0);
+      const pctUso = bPeso > 0 ? Math.min(100, Math.round((pesoNecessarioKg / bPeso) * 100)) : 100;
+
+      return {
+        id: b.id,
+        codigo: b.codigo || b.codigo_bobina || (b.id ? b.id.slice(0, 8) : "BOB"),
+        chapa: b.chapa || espessura,
+        cor: b.cor || cor,
+        status: b.status || "Disponível",
+        unidade: b.unidade || "Fábrica Telhas",
+        pesoAtualKg: bPeso,
+        pesoConsumoKg: pesoNecessarioKg,
+        pesoAposUsoKg: pesoApos,
+        sobraKg,
+        metrosAtual: bMetros,
+        metrosConsumo: metrosNecessarios,
+        metrosAposUso: metrosApos,
+        sobraMetros,
+        daParaFazer,
+        pctUso
+      };
+    });
+
+    const bPrincipal = bobinasSimuladas[0];
     let badgeText = "";
     let shortBadge = "";
     let detalhe = "";
+    let opaMensagem = "";
 
     if (status === "disponivel") {
-      badgeText = `🟢 Bobina ${bPrincipal?.codigo || ""} (${espessura}mm): ${saldoMetros.toLocaleString()}m disp.`;
-      shortBadge = `🟢 Bobina OK (${saldoMetros}m)`;
-      detalhe = `Matéria-prima 100% disponível: ${bobsCompativeis.length} bobina(s) em estoque somando ${saldoMetros.toLocaleString()}m (${saldoKg.toLocaleString()}kg). Necessário para o pedido: ${metrosNecessarios || demanda.pecas}m.`;
+      opaMensagem = `Opa, temos sim bobina na espessura ${espessura}mm para fazer este pedido! Usará ${pesoNecessarioKg} kg (restarão ${bPrincipal?.pesoAposUsoKg?.toLocaleString() || 0} kg na bobina principal).`;
+      badgeText = `🟢 Temos Bobina (${espessura}mm) • Usa ${pesoNecessarioKg}kg (Agora: ${bPrincipal?.pesoAtualKg?.toLocaleString()}kg ➔ Sobram: ${bPrincipal?.pesoAposUsoKg?.toLocaleString()}kg)`;
+      shortBadge = `🟢 Bobina OK (${pesoNecessarioKg}kg)`;
+      detalhe = `Matéria-prima 100% disponível: ${bobsCompativeis.length} bobina(s) em estoque somando ${saldoMetros.toLocaleString()}m (${saldoKg.toLocaleString()}kg). Necessário para o pedido: ${metrosNecessarios || demanda.pecas}m (${pesoNecessarioKg}kg).`;
     } else if (status === "parcial") {
-      badgeText = `🟡 Bobina Parcial: ${saldoMetros}m disp. (Nec: ${metrosNecessarios}m)`;
-      shortBadge = `🟡 Parcial (${saldoMetros}m)`;
-      detalhe = `Saldo insuficiente: Temos ${saldoMetros}m disponíveis, mas o pedido necessita de ${metrosNecessarios}m de chapa.`;
+      opaMensagem = `Atenção: Saldo parcial de bobina. O pedido necessita de ${pesoNecessarioKg} kg (${metrosNecessarios}m), mas o estoque atual tem apenas ${saldoMetros}m (${saldoKg}kg).`;
+      badgeText = `🟡 Bobina Parcial: ${saldoMetros}m (${saldoKg}kg) disp. (Nec: ${pesoNecessarioKg}kg)`;
+      shortBadge = `🟡 Parcial (${pesoNecessarioKg}kg)`;
+      detalhe = `Saldo insuficiente: Temos ${saldoMetros}m (${saldoKg}kg) disponíveis, mas o pedido necessita de ${metrosNecessarios}m (${pesoNecessarioKg}kg) de chapa.`;
     } else {
-      badgeText = `🔴 Falta Bobina: ${espessura ? espessura + "mm" : ""} ${cor} (0m)`;
+      opaMensagem = `Falta bobina: Nenhuma bobina compatível de ${espessura || "0,43"}mm na cor ${cor} no estoque. Necessário: ${pesoNecessarioKg} kg (${metrosNecessarios}m).`;
+      badgeText = `🔴 Falta Bobina: ${espessura ? espessura + "mm" : ""} ${cor} (Nec: ${pesoNecessarioKg}kg)`;
       shortBadge = `🔴 Sem Bobina (${espessura || "0,43"}mm)`;
       detalhe = `Nenhuma bobina compatível de ${espessura || "0,43"}mm na cor ${cor} encontrada no estoque de Telhas.`;
     }
 
     return {
       setor: "telha",
+      produto: prod,
+      descricao: desc,
+      itemOriginal: item,
       espessura,
       cor,
       status,
       demanda: { ...demanda, metrosNecessarios, isSanduiche },
+      calculoPeso,
       saldo: { metros: saldoMetros, kg: saldoKg, bobinasCount: bobsCompativeis.length },
-      materiais: bobsCompativeis.map((b) => ({
-        tipo: "bobina",
-        codigo: b.codigo,
-        chapa: b.chapa,
-        cor: b.cor,
-        metros: b.metragem_restante || Math.round((b.peso_kg || 0) / 4.05),
-        peso_kg: b.peso_kg
-      })),
+      bobinasSimuladas,
+      chapasSimuladas: [],
+      materiais: bobinasSimuladas,
       badgeText,
       shortBadge,
-      detalhe
+      detalhe,
+      opaMensagem
     };
   }
 
   // ─────────────────────────────────────────────────────────────
-  // 2. FRISADAS: Verifica Bobinas de Frisada / Expedição
+  // 2. FRISADAS: Verifica e Simula Bobinas de Frisada / Expedição
   // ─────────────────────────────────────────────────────────────
   if (setor === "frisada") {
     const bobsCompativeis = bobinas.filter((b) => {
@@ -255,9 +373,11 @@ export function verificarEstoqueItem(item, { bobinas = [], chapas = [], slitters
     const saldoMetros = bobsCompativeis.reduce((acc, b) => {
       if (b.metragem_restante > 0) return acc + b.metragem_restante;
       if (b.metragem > 0) return acc + b.metragem;
-      if (b.peso_kg > 0) return acc + Math.round(b.peso_kg / 4.05);
+      if (b.peso_kg > 0) return acc + Math.round(b.peso_kg / (calculoPeso.kgPorMetro || 4.05));
       return acc;
     }, 0);
+
+    const saldoKg = bobsCompativeis.reduce((acc, b) => acc + (b.peso_kg || 0), 0);
 
     const status =
       bobsCompativeis.length > 0 && (saldoMetros >= demanda.metros || demanda.metros === 0)
@@ -266,46 +386,88 @@ export function verificarEstoqueItem(item, { bobinas = [], chapas = [], slitters
         ? "parcial"
         : "indisponivel";
 
-    const bPrincipal = bobsCompativeis[0];
+    const bobinasSimuladas = bobsCompativeis.map((b) => {
+      let bPeso = Number(b.peso_kg) || 0;
+      let bMetros = Number(b.metragem_restante) || Number(b.metragem) || 0;
+      if (bMetros === 0 && bPeso > 0 && calculoPeso.kgPorMetro > 0) {
+        bMetros = Math.round(bPeso / calculoPeso.kgPorMetro);
+      }
+      if (bPeso === 0 && bMetros > 0 && calculoPeso.kgPorMetro > 0) {
+        bPeso = Math.round(bMetros * calculoPeso.kgPorMetro);
+      }
+      const pesoApos = Math.max(0, bPeso - pesoNecessarioKg);
+      const metrosApos = Math.max(0, bMetros - demanda.metros);
+      const sobraKg = bPeso - pesoNecessarioKg;
+      const sobraMetros = bMetros - demanda.metros;
+      const daParaFazer = (bPeso >= pesoNecessarioKg || pesoNecessarioKg === 0) && (bMetros >= demanda.metros || demanda.metros === 0);
+      const pctUso = bPeso > 0 ? Math.min(100, Math.round((pesoNecessarioKg / bPeso) * 100)) : 100;
+
+      return {
+        id: b.id,
+        codigo: b.codigo || b.codigo_bobina || (b.id ? b.id.slice(0, 8) : "FRIS"),
+        chapa: b.chapa || espessura,
+        cor: b.cor || cor,
+        status: b.status || "Disponível",
+        unidade: b.unidade || "Expedição",
+        pesoAtualKg: bPeso,
+        pesoConsumoKg: pesoNecessarioKg,
+        pesoAposUsoKg: pesoApos,
+        sobraKg,
+        metrosAtual: bMetros,
+        metrosConsumo: demanda.metros,
+        metrosAposUso: metrosApos,
+        sobraMetros,
+        daParaFazer,
+        pctUso
+      };
+    });
+
+    const bPrincipal = bobinasSimuladas[0];
     let badgeText = "";
     let shortBadge = "";
     let detalhe = "";
+    let opaMensagem = "";
 
     if (status === "disponivel") {
-      badgeText = `🟢 Bobina Frisada ${bPrincipal?.codigo || ""}: ${saldoMetros.toLocaleString()}m disp.`;
-      shortBadge = `🟢 Frisada OK (${saldoMetros}m)`;
-      detalhe = `Bobinas para frisada disponíveis: ${saldoMetros.toLocaleString()}m em estoque (Necessário: ${demanda.metros || demanda.pecas}m).`;
+      opaMensagem = `Opa, temos sim bobinas de frisada na espessura ${espessura}mm! Usará ${pesoNecessarioKg} kg (restarão ${bPrincipal?.pesoAposUsoKg?.toLocaleString() || 0} kg).`;
+      badgeText = `🟢 Temos Bobina Frisada • Usa ${pesoNecessarioKg}kg (Agora: ${bPrincipal?.pesoAtualKg?.toLocaleString()}kg ➔ Sobram: ${bPrincipal?.pesoAposUsoKg?.toLocaleString()}kg)`;
+      shortBadge = `🟢 Frisada OK (${pesoNecessarioKg}kg)`;
+      detalhe = `Bobinas para frisada disponíveis: ${saldoMetros.toLocaleString()}m (${saldoKg.toLocaleString()}kg) em estoque. Necessário: ${demanda.metros || demanda.pecas}m (${pesoNecessarioKg}kg).`;
     } else if (status === "parcial") {
-      badgeText = `🟡 Frisada Parcial: ${saldoMetros}m disp. (Nec: ${demanda.metros}m)`;
-      shortBadge = `🟡 Parcial (${saldoMetros}m)`;
+      opaMensagem = `Atenção: Saldo parcial de bobina para frisada. Necessário: ${pesoNecessarioKg} kg (${demanda.metros}m), disponível: ${saldoMetros}m (${saldoKg}kg).`;
+      badgeText = `🟡 Frisada Parcial: ${saldoMetros}m (${saldoKg}kg) disp. (Nec: ${pesoNecessarioKg}kg)`;
+      shortBadge = `🟡 Parcial (${pesoNecessarioKg}kg)`;
       detalhe = `Saldo parcial de bobina para frisada: ${saldoMetros}m disponíveis para ${demanda.metros}m necessários.`;
     } else {
-      badgeText = `🔴 Falta Bobina Frisada: ${espessura ? espessura + "mm" : ""}`;
+      opaMensagem = `Falta bobina de frisada: Nenhuma bobina de ${espessura}mm no estoque de Frisada. Necessário: ${pesoNecessarioKg} kg.`;
+      badgeText = `🔴 Falta Bobina Frisada: ${espessura ? espessura + "mm" : ""} (Nec: ${pesoNecessarioKg}kg)`;
       shortBadge = `🔴 Sem Bobina Frisada`;
       detalhe = `Nenhuma bobina de frisada encontrada no estoque para a espessura ${espessura}mm.`;
     }
 
     return {
       setor: "frisada",
+      produto: prod,
+      descricao: desc,
+      itemOriginal: item,
       espessura,
       cor,
       status,
       demanda,
-      saldo: { metros: saldoMetros, bobinasCount: bobsCompativeis.length },
-      materiais: bobsCompativeis.map((b) => ({
-        tipo: "bobina",
-        codigo: b.codigo,
-        metros: b.metragem_restante,
-        peso_kg: b.peso_kg
-      })),
+      calculoPeso,
+      saldo: { metros: saldoMetros, kg: saldoKg, bobinasCount: bobsCompativeis.length },
+      bobinasSimuladas,
+      chapasSimuladas: [],
+      materiais: bobinasSimuladas,
       badgeText,
       shortBadge,
-      detalhe
+      detalhe,
+      opaMensagem
     };
   }
 
   // ─────────────────────────────────────────────────────────────
-  // 3. CORTE & DOBRA (C&D): Verifica Chapas E Bobinas E Slitters!
+  // 3. CORTE & DOBRA (C&D): Verifica e Simula Chapas E Bobinas
   // ─────────────────────────────────────────────────────────────
   const chapasCompativeis = chapas.filter((c) => {
     if (c.status === "cancelado") return false;
@@ -335,73 +497,134 @@ export function verificarEstoqueItem(item, { bobinas = [], chapas = [], slitters
     bobsCDCompativeis.reduce((acc, b) => acc + (b.peso_kg || 0), 0) +
     slittersCompativeis.reduce((acc, s) => acc + (s.peso_kg || 0), 0);
 
+  // Simulação de Chapas Prontas (Antes vs Depois)
+  const espNumCD = parseEspessuraToNumber(espessura) || 1.95;
+  const chapasSimuladas = chapasCompativeis.map((c) => {
+    const cQtd = Number(c.quantidade_disponivel != null ? c.quantidade_disponivel : c.quantidade_total) || 0;
+    const cEsp = parseEspessuraToNumber(c.espessura_mm) || espNumCD;
+    const largM = (Number(c.largura_mm) || 1200) / 1000;
+    const compM = (Number(c.comprimento_mm) || 3000) / 1000;
+    const kgUnit = +(largM * compM * cEsp * 7.85).toFixed(2);
+    const pesoTotalChapa = Math.round(cQtd * kgUnit);
+    const pecasApos = Math.max(0, cQtd - demanda.pecas);
+    const sobraPecas = cQtd - demanda.pecas;
+    const pesoApos = Math.max(0, Math.round(pecasApos * kgUnit));
+    const daParaFazer = cQtd >= demanda.pecas;
+    const pctUso = cQtd > 0 ? Math.min(100, Math.round((demanda.pecas / cQtd) * 100)) : 100;
+
+    return {
+      id: c.id,
+      codigo: c.codigo || (c.id ? c.id.slice(0, 8) : "CHP"),
+      espessura_mm: c.espessura_mm || espessura,
+      largura_mm: c.largura_mm || 1200,
+      comprimento_mm: c.comprimento_mm || 3000,
+      pecasAtual: cQtd,
+      pecasConsumo: demanda.pecas,
+      pecasAposUso: pecasApos,
+      sobraPecas,
+      pesoAtualKg: pesoTotalChapa,
+      pesoConsumoKg: pesoNecessarioKg,
+      pesoAposUsoKg: pesoApos,
+      sobraKg: pesoTotalChapa - pesoNecessarioKg,
+      daParaFazer,
+      pctUso
+    };
+  });
+
+  // Simulação de Bobinas de C&D para Desbobinadeira (Antes vs Depois)
+  const bobinasSimuladas = bobsCDCompativeis.map((b) => {
+    const bPeso = Number(b.peso_kg) || 0;
+    const pesoApos = Math.max(0, bPeso - pesoNecessarioKg);
+    const sobraKg = bPeso - pesoNecessarioKg;
+    const daParaFazer = bPeso >= pesoNecessarioKg;
+    const pctUso = bPeso > 0 ? Math.min(100, Math.round((pesoNecessarioKg / bPeso) * 100)) : 100;
+
+    return {
+      id: b.id,
+      codigo: b.codigo || b.codigo_bobina || (b.id ? b.id.slice(0, 8) : "BOB-CD"),
+      chapa: b.chapa || espessura,
+      cor: b.cor || "Natural",
+      status: b.status || "Disponível",
+      unidade: b.unidade || "Corte & Dobra",
+      pesoAtualKg: bPeso,
+      pesoConsumoKg: pesoNecessarioKg,
+      pesoAposUsoKg: pesoApos,
+      sobraKg,
+      daParaFazer,
+      pctUso
+    };
+  });
+
   let statusCD = "indisponivel";
   let tipoMaterial = "nenhum";
   let badgeText = "";
   let shortBadge = "";
   let detalhe = "";
+  let opaMensagem = "";
 
-  if (totalChapasDisp > 0 && totalKgBobinas > 0) {
-    statusCD = "disponivel";
-    tipoMaterial = "chapa_e_bobina";
-    badgeText = `🟢 Chapa (${totalChapasDisp} un) e Bobina (${totalKgBobinas.toLocaleString()}kg)`;
-    shortBadge = `🟢 Chapa & Bobina OK`;
-    detalhe = `Pronto para produzir! Temos ${totalChapasDisp} chapa(s) cortada(s) no estoque de chaparia e ${bobsCDCompativeis.length} bobina(s) somando ${totalKgBobinas.toLocaleString()}kg.`;
-  } else if (totalChapasDisp > 0) {
+  const chPrincipal = chapasSimuladas[0];
+  const bPrincipal = bobinasSimuladas[0];
+
+  if (totalChapasDisp >= demanda.pecas && totalChapasDisp > 0) {
     statusCD = "disponivel";
     tipoMaterial = "chapa";
-    badgeText = `🟢 Chapa Pronta: ${totalChapasDisp} un em estoque`;
-    shortBadge = `🟢 Chapa OK (${totalChapasDisp} un)`;
-    detalhe = `Chapas cortadas disponíveis na chaparia: ${totalChapasDisp} peças prontas para guilhotina e dobradeira.`;
-  } else if (totalKgBobinas > 0) {
-    statusCD = "parcial"; // Bobina existe, mas precisa desbobinar
+    opaMensagem = `Opa, temos sim chapas cortadas prontas (${totalChapasDisp} un) na espessura ${espessura}mm para fazer este pedido! Usará ${demanda.pecas} peças (~${pesoNecessarioKg} kg).`;
+    badgeText = `🟢 Temos Chapa Pronta (${totalChapasDisp} un) • Usa ${demanda.pecas} pçs (~${pesoNecessarioKg}kg)`;
+    shortBadge = `🟢 Chapa OK (~${pesoNecessarioKg}kg)`;
+    detalhe = `Chapas cortadas disponíveis na chaparia: ${totalChapasDisp} peças prontas para guilhotina/dobradeira.`;
+  } else if (totalKgBobinas >= pesoNecessarioKg && totalKgBobinas > 0) {
+    statusCD = "parcial"; // Necessita desbobinar
     tipoMaterial = "bobina";
-    badgeText = `🟡 Bobina OK (${totalKgBobinas.toLocaleString()}kg) — Desbobinar`;
-    shortBadge = `🟡 Desbobinar (${totalKgBobinas.toLocaleString()}kg)`;
-    detalhe = `Sem chapa cortada na chaparia, mas temos ${bobsCDCompativeis.length} bobina(s) (${totalKgBobinas.toLocaleString()}kg) prontas para desbobinadeira.`;
+    opaMensagem = `Opa, temos sim bobinas de ${espessura}mm no estoque para fazer este pedido desbobinando! Usará ${pesoNecessarioKg} kg (Bobina atual: ${bPrincipal?.pesoAtualKg?.toLocaleString()}kg ➔ Restarão: ${bPrincipal?.pesoAposUsoKg?.toLocaleString()}kg).`;
+    badgeText = `🟡 Temos Bobina (${espessura}mm) — Desbobinar ${pesoNecessarioKg}kg (Agora: ${bPrincipal?.pesoAtualKg?.toLocaleString()}kg ➔ Sobram: ${bPrincipal?.pesoAposUsoKg?.toLocaleString()}kg)`;
+    shortBadge = `🟡 Desbobinar (${pesoNecessarioKg}kg)`;
+    detalhe = `Sem chapas cortadas suficientes na chaparia, mas temos ${bobsCDCompativeis.length} bobina(s) (${totalKgBobinas.toLocaleString()}kg) prontas para desbobinar.`;
+  } else if (totalChapasDisp > 0 || totalKgBobinas > 0) {
+    statusCD = "parcial";
+    tipoMaterial = "insuficiente";
+    opaMensagem = `Atenção: Saldo insuficiente de chapas e bobinas para ${espessura}mm. Necessário: ${pesoNecessarioKg} kg (${demanda.pecas} peças).`;
+    badgeText = `🟡 Saldo Parcial C&D: ${totalChapasDisp} chp / ${totalKgBobinas}kg (Nec: ${pesoNecessarioKg}kg)`;
+    shortBadge = `🟡 Parcial C&D (${pesoNecessarioKg}kg)`;
+    detalhe = `Estoque insuficiente de Corte & Dobra para atender integralmente este item (${pesoNecessarioKg}kg necessários).`;
   } else {
     statusCD = "indisponivel";
     tipoMaterial = "nenhum";
-    badgeText = `🔴 Falta Chapa e Bobina ${espessura ? espessura + "mm" : ""}`;
+    opaMensagem = `Falta chapa e bobina: Nenhuma chapa cortada nem bobina de ${espessura}mm encontrada no estoque. Necessário: ${pesoNecessarioKg} kg.`;
+    badgeText = `🔴 Falta Chapa e Bobina ${espessura ? espessura + "mm" : ""} (Nec: ${pesoNecessarioKg}kg)`;
     shortBadge = `🔴 Falta Chapa/Bobina`;
     detalhe = `Falta matéria-prima: Nenhuma chapa cortada nem bobina de ${espessura}mm encontrada no estoque de Corte e Dobra.`;
   }
 
   return {
     setor: "cd",
+    produto: prod,
+    descricao: desc,
+    itemOriginal: item,
     espessura,
     cor,
     status: statusCD,
     tipoMaterial,
     demanda,
+    calculoPeso,
     saldo: {
       chapasUn: totalChapasDisp,
       bobinasKg: totalKgBobinas,
       chapasCount: chapasCompativeis.length,
       bobinasCount: bobsCDCompativeis.length
     },
-    materiais: [
-      ...chapasCompativeis.map((c) => ({
-        tipo: "chapa",
-        codigo: c.codigo,
-        espessura: c.espessura_mm,
-        qtd: c.quantidade_disponivel || c.quantidade_total
-      })),
-      ...bobsCDCompativeis.map((b) => ({
-        tipo: "bobina",
-        codigo: b.codigo,
-        espessura: b.chapa,
-        peso_kg: b.peso_kg
-      }))
-    ],
+    chapasSimuladas,
+    bobinasSimuladas,
+    materiais: [...chapasSimuladas, ...bobinasSimuladas],
     badgeText,
     shortBadge,
-    detalhe
+    detalhe,
+    opaMensagem
   };
 }
 
 /**
  * Avalia todos os itens de uma Ordem de Fabricação (OF) ou Pedido individual.
+ * Consolida peso total do pedido e agrega simulações de bobinas e chapas.
  */
 export function verificarEstoquePedido(pedido, { bobinas = [], chapas = [], slitters = [] } = {}) {
   if (!pedido) {
@@ -411,7 +634,11 @@ export function verificarEstoquePedido(pedido, { bobinas = [], chapas = [], slit
       itensOk: 0,
       itensParcial: 0,
       itensFalta: 0,
+      pesoTotalKg: 0,
+      metrosTotal: 0,
       badgeGeral: "🔴 Sem Itens",
+      shortBadge: "🔴 Sem Itens",
+      opaMensagemGeral: "Nenhum item informado.",
       analises: []
     };
   }
@@ -425,8 +652,11 @@ export function verificarEstoquePedido(pedido, { bobinas = [], chapas = [], slit
       itensOk: single.status === "disponivel" ? 1 : 0,
       itensParcial: single.status === "parcial" ? 1 : 0,
       itensFalta: single.status === "indisponivel" ? 1 : 0,
+      pesoTotalKg: single.calculoPeso?.pesoKg || 0,
+      metrosTotal: single.demanda?.metros || 0,
       badgeGeral: single.badgeText,
       shortBadge: single.shortBadge,
+      opaMensagemGeral: single.opaMensagem,
       analises: [single]
     };
   }
@@ -438,22 +668,29 @@ export function verificarEstoquePedido(pedido, { bobinas = [], chapas = [], slit
   const itensParcial = analises.filter((a) => a.status === "parcial").length;
   const itensFalta = analises.filter((a) => a.status === "indisponivel").length;
 
+  const pesoTotalKg = analises.reduce((acc, a) => acc + (a.calculoPeso?.pesoKg || 0), 0);
+  const metrosTotal = analises.reduce((acc, a) => acc + (a.demanda?.metros || a.demanda?.metrosNecessarios || 0), 0);
+
   let statusGeral = "disponivel";
   let badgeGeral = "";
   let shortBadge = "";
+  let opaMensagemGeral = "";
 
   if (itensFalta > 0) {
     statusGeral = "indisponivel";
-    badgeGeral = `🔴 Falta Matéria-Prima (${itensFalta}/${totalItens} sem estoque)`;
-    shortBadge = `🔴 Sem Estoque (${itensFalta})`;
+    badgeGeral = `🔴 Falta Matéria-Prima (${itensFalta}/${totalItens} sem estoque) • ${pesoTotalKg.toLocaleString()}kg`;
+    shortBadge = `🔴 Sem Estoque (${pesoTotalKg}kg)`;
+    opaMensagemGeral = `Atenção: Falta matéria-prima para ${itensFalta} item(ns). Peso total estimado: ${pesoTotalKg.toLocaleString()} kg.`;
   } else if (itensParcial > 0) {
     statusGeral = "parcial";
-    badgeGeral = `🟡 MP Parcial / Desbobinar (${itensParcial}/${totalItens})`;
-    shortBadge = `🟡 MP Parcial`;
+    badgeGeral = `🟡 MP Parcial / Desbobinar (${pesoTotalKg.toLocaleString()}kg necessários)`;
+    shortBadge = `🟡 Desbobinar (${pesoTotalKg}kg)`;
+    opaMensagemGeral = `Opa, temos bobinas no estoque para desbobinar (${pesoTotalKg.toLocaleString()} kg necessários para este pedido).`;
   } else {
     statusGeral = "disponivel";
-    badgeGeral = `🟢 Matéria-Prima 100% Disponível`;
-    shortBadge = `🟢 MP 100% OK`;
+    badgeGeral = `🟢 Temos Matéria-Prima! 100% OK (${pesoTotalKg.toLocaleString()}kg)`;
+    shortBadge = `🟢 MP 100% OK (${pesoTotalKg}kg)`;
+    opaMensagemGeral = `Opa, temos sim bobinas e chapas na espessura para fazer este pedido! Peso total estimado: ${pesoTotalKg.toLocaleString()} kg.`;
   }
 
   return {
@@ -462,18 +699,21 @@ export function verificarEstoquePedido(pedido, { bobinas = [], chapas = [], slit
     itensOk,
     itensParcial,
     itensFalta,
+    pesoTotalKg,
+    metrosTotal,
     badgeGeral,
     shortBadge,
+    opaMensagemGeral,
     analises
   };
 }
 
 /**
  * Avalia todas as Ordens de Fabricação (OFs) pertencentes a um Pedido Consolidado (Grupo).
- * Retorna o diagnóstico global de matéria-prima do pedido.
+ * Retorna o diagnóstico global de matéria-prima do pedido consolidado com peso agregado.
  */
 export function verificarEstoqueGrupo(grupo, { bobinas = [], chapas = [], slitters = [] } = {}) {
-  const ofs = grupo?.ofs || [];
+  const ofs = Array.isArray(grupo) ? grupo : (grupo?.ofs || []);
   if (ofs.length === 0) {
     return {
       statusGeral: "indisponivel",
@@ -481,6 +721,7 @@ export function verificarEstoqueGrupo(grupo, { bobinas = [], chapas = [], slitte
       ofsOk: 0,
       ofsParcial: 0,
       ofsFalta: 0,
+      pesoTotalGrupoKg: 0,
       badgeGeral: "Sem OFs",
       resumoSetores: { telha: { ok: 0, total: 0 }, cd: { ok: 0, total: 0 }, frisada: { ok: 0, total: 0 } },
       analisesOfs: []
@@ -498,6 +739,7 @@ export function verificarEstoqueGrupo(grupo, { bobinas = [], chapas = [], slitte
   const ofsOk = analisesOfs.filter((a) => a.diagnostico.statusGeral === "disponivel").length;
   const ofsParcial = analisesOfs.filter((a) => a.diagnostico.statusGeral === "parcial").length;
   const ofsFalta = analisesOfs.filter((a) => a.diagnostico.statusGeral === "indisponivel").length;
+  const pesoTotalGrupoKg = analisesOfs.reduce((acc, a) => acc + (a.diagnostico.pesoTotalKg || 0), 0);
 
   let statusGeral = "disponivel";
   let badgeGeral = "";
@@ -505,16 +747,16 @@ export function verificarEstoqueGrupo(grupo, { bobinas = [], chapas = [], slitte
 
   if (ofsFalta > 0) {
     statusGeral = "indisponivel";
-    badgeGeral = `🔴 Falta Matéria-Prima (${ofsFalta} OFs)`;
-    shortBadge = `🔴 Falta MP (${ofsFalta})`;
+    badgeGeral = `🔴 Falta MP (${ofsFalta} OFs) • ${pesoTotalGrupoKg.toLocaleString()}kg`;
+    shortBadge = `🔴 Falta MP (${pesoTotalGrupoKg}kg)`;
   } else if (ofsParcial > 0) {
     statusGeral = "parcial";
-    badgeGeral = `🟡 MP Parcial / Desbobinar (${ofsParcial} OFs)`;
-    shortBadge = `🟡 MP Parcial`;
+    badgeGeral = `🟡 MP Parcial / Desbobinar (${pesoTotalGrupoKg.toLocaleString()}kg)`;
+    shortBadge = `🟡 Desbobinar (${pesoTotalGrupoKg}kg)`;
   } else {
     statusGeral = "disponivel";
-    badgeGeral = `🟢 Matéria-Prima 100% Pronta`;
-    shortBadge = `🟢 MP 100% OK`;
+    badgeGeral = `🟢 Estoque MP: 100% OK (${pesoTotalGrupoKg.toLocaleString()}kg)`;
+    shortBadge = `🟢 MP OK (${pesoTotalGrupoKg}kg)`;
   }
 
   // Resumo por setor
@@ -538,6 +780,7 @@ export function verificarEstoqueGrupo(grupo, { bobinas = [], chapas = [], slitte
     ofsOk,
     ofsParcial,
     ofsFalta,
+    pesoTotalGrupoKg,
     badgeGeral,
     shortBadge,
     resumoSetores,
