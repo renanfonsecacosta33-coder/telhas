@@ -267,7 +267,25 @@ export function extrairDemandaItem(item) {
   // Extração de peso explícito se existir no pedido ou na descrição
   const pesoDireto = Number(item.peso_kg || item.kg_estimado || item.peso) || null;
   const pesoTexto = extrairPesoDoTexto(desc) || extrairPesoDoTexto(prod) || extrairPesoDoTexto(obs);
-  const pesoKgInformado = pesoDireto || (isKg ? qtdOdoo : pesoTexto);
+  let pesoKgInformado = pesoDireto || (isKg ? qtdOdoo : pesoTexto);
+
+  // 🛡️ PROTEÇÃO CONTRA BUG DO ODOO (Multiplicação Dupla de Peso):
+  // No Odoo, ao converter a linha de venda para 'KG', se a Quantidade for 1.000 KG e o produto
+  // ainda tiver peso cadastrado de 15,63 kg/barra, o Odoo gera 'Peso Total' = 1.000 × 15,63 = 15.630 kg!
+  // Como temos as peças da OBS (ex: 64 peças) e o perfil/tubo/chapa:
+  // 64 peças × 15,63 kg = 1.000 kg.
+  // Se o peso informado for ~pesoUnitário vezes maior (15.630 ÷ 1.000 ≈ 15,63), corrigimos para 1.000 KG!
+  let pesoCorrigidoDuplicado = false;
+  if (isKg && pecas > 1 && pesoKgInformado > 0) {
+    const pesoPorPeca = pesoKgInformado / pecas;
+    if (pesoPorPeca > 60 && espNum <= 4.0) {
+      const raiz = Math.sqrt(pesoPorPeca);
+      if (raiz >= 5 && raiz <= 60) {
+        pesoKgInformado = Math.round(pesoKgInformado / raiz);
+        pesoCorrigidoDuplicado = true;
+      }
+    }
+  }
 
   return {
     pecas,
@@ -276,6 +294,7 @@ export function extrairDemandaItem(item) {
     compMm,
     spec,
     pesoKgInformado,
+    pesoCorrigidoDuplicado,
     isKg,
     qtdOdoo,
     unidade: unid

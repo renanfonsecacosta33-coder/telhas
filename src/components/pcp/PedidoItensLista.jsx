@@ -105,7 +105,11 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
           const desc = stripHtml(it.descricao || it.produto || "Item sem descrição");
           const produtoLimpo = stripHtml(it.produto);
           const anotacao = extrairAnotacaoItem(it);
-          const qtd = it.quantidade;
+          // Verificação de Matéria-Prima em Tempo Real
+          const estoqueItem = estoqueContext ? verificarEstoqueItem(it, estoqueContext, pedido) : null;
+          const qtd = (estoqueItem?.demanda?.isKg && estoqueItem?.demanda?.pesoKgInformado)
+            ? estoqueItem.demanda.pesoKgInformado
+            : it.quantidade;
           const unidade = (it.unidade || "").trim() || "peças";
           const esp = it.espessura || it.chapa;
 
@@ -131,9 +135,6 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
           const pctItem = itemInfo.pct;
           const statusTexto = itemInfo.status;
           const etapaAtiva = itemInfo.etapaAtiva;
-
-          // Verificação de Matéria-Prima em Tempo Real
-          const estoqueItem = estoqueContext ? verificarEstoqueItem(it, estoqueContext, pedido) : null;
 
           return (
             <div
