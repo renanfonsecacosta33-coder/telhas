@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
+import { toast } from "sonner";
+import { notificarStatus } from "@/lib/biNotificador";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
@@ -150,6 +152,11 @@ export default function PedidoOdooDetalheDialog({
       .catch(() => {});
   }, [showTracking]);
 
+  const statusEstoque = useMemo(() => {
+    if (!estoqueContext || !pedido) return null;
+    return verificarEstoquePedido(pedido, estoqueContext);
+  }, [pedido, estoqueContext]);
+
   if (!pedido) return null;
 
   const itens = parseItensPedido(pedido.itens_json);
@@ -159,11 +166,6 @@ export default function PedidoOdooDetalheDialog({
   const sla = slaDiasPorCategoria(pedido);
   const chk = progressoChecklist(pedido.itens_json);
   const isPrioritario = !!pedido.prioridade;
-
-  const statusEstoque = useMemo(() => {
-    if (!estoqueContext || !pedido) return null;
-    return verificarEstoquePedido(pedido, estoqueContext);
-  }, [pedido, estoqueContext]);
 
   const grupoIcon = {
     telha: <Factory className="w-3.5 h-3.5" />,
