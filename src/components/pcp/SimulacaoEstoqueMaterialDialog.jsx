@@ -132,7 +132,9 @@ export default function SimulacaoEstoqueMaterialDialog({
                 <div className="flex-1 min-w-0">
                   <h4 className="text-sm sm:text-base font-extrabold flex items-center gap-2 flex-wrap">
                     {isOk ? (
-                      <span>🎉 Opa, temos sim matéria-prima na espessura para fazer este pedido!</span>
+                      <span>
+                        🎉 Opa, temos sim matéria-prima{analiseAtiva?.espessura ? ` (${analiseAtiva.espessura}mm)` : ""} para fazer este pedido!
+                      </span>
                     ) : isParcial ? (
                       <span>⚠️ Saldo Parcial de Matéria-Prima / Requer Desbobinar</span>
                     ) : (
@@ -278,266 +280,285 @@ export default function SimulacaoEstoqueMaterialDialog({
           </div>
         )}
 
-        {/* 4. SIMULAÇÃO DE BOBINAS COMPATÍVEIS (ANTES vs DEPOIS DO USO) */}
-        {analiseAtiva?.bobinasSimuladas?.length > 0 && (
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <h5 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                <Disc className="w-4 h-4 text-orange-500" />
-                Bobinas Compatíveis em Estoque ({analiseAtiva.bobinasSimuladas.length} encontrada{analiseAtiva.bobinasSimuladas.length > 1 ? "s" : ""}):
-              </h5>
-              <span className="text-[11px] text-slate-500">
-                Comparativo: <strong>Peso Agora</strong> ➔ <strong>Consumo</strong> ➔ <strong>Peso Depois</strong>
-              </span>
-            </div>
+        {/* 4. e 5. SIMULAÇÃO DE MATERIAIS COMPATÍVEIS
+            Ordem inteligente: para Corte & Dobra (CD), exibe Chapas Cortadas PRIMEIRO, depois Bobinas para Desbobinar.
+            Para Telhas e Frisadas, exibe Bobinas. */}
+        {(() => {
+          const isCD = analiseAtiva?.setor === "cd";
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {analiseAtiva.bobinasSimuladas.map((b, bIdx) => {
-                const daParaFazer = b.daParaFazer;
+          const secaoBobinas = analiseAtiva?.bobinasSimuladas?.length > 0 && (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <h5 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                  <Disc className="w-4 h-4 text-orange-500" />
+                  {isCD ? "Bobinas para Desbobinar" : "Bobinas Compatíveis"}
+                  {analiseAtiva.espessura ? ` (${analiseAtiva.espessura}mm)` : ""} em Estoque ({analiseAtiva.bobinasSimuladas.length}):
+                </h5>
+                <span className="text-[11px] text-slate-500">
+                  Comparativo: <strong>Peso Agora</strong> ➔ <strong>Consumo</strong> ➔ <strong>Peso Depois</strong>
+                </span>
+              </div>
 
-                return (
-                  <div
-                    key={b.id || bIdx}
-                    className={`rounded-2xl p-4 border transition-all flex flex-col justify-between gap-3 shadow-sm ${
-                      daParaFazer
-                        ? "bg-white dark:bg-slate-900 border-emerald-300 dark:border-emerald-800 hover:border-emerald-400"
-                        : "bg-slate-50 dark:bg-slate-900/60 border-amber-300 dark:border-amber-800"
-                    }`}
-                  >
-                    <div>
-                      {/* Header do Card da Bobina */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-mono font-extrabold text-sm text-slate-900 dark:text-white">
-                              {b.codigo}
-                            </span>
-                            <Badge variant="outline" className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800">
-                              {b.chapa}mm
-                            </Badge>
-                            {b.cor && (
-                              <Badge variant="outline" className="text-[10px] font-medium">
-                                {b.cor}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {analiseAtiva.bobinasSimuladas.map((b, bIdx) => {
+                  const daParaFazer = b.daParaFazer;
+
+                  return (
+                    <div
+                      key={b.id || bIdx}
+                      className={`rounded-2xl p-4 border transition-all flex flex-col justify-between gap-3 shadow-sm ${
+                        daParaFazer
+                          ? "bg-white dark:bg-slate-900 border-emerald-300 dark:border-emerald-800 hover:border-emerald-400"
+                          : "bg-slate-50 dark:bg-slate-900/60 border-amber-300 dark:border-amber-800"
+                      }`}
+                    >
+                      <div>
+                        {/* Header do Card da Bobina */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-extrabold text-sm text-slate-900 dark:text-white">
+                                {b.codigo}
+                              </span>
+                              <Badge variant="outline" className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800">
+                                {b.chapa}mm
                               </Badge>
+                              {b.cor && (
+                                <Badge variant="outline" className="text-[10px] font-medium">
+                                  {b.cor}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                              {b.unidade} • Status: <strong>{b.status}</strong>
+                            </p>
+                          </div>
+
+                          <Badge
+                            className={`text-[10px] font-bold px-2 py-0.5 ${
+                              daParaFazer
+                                ? "bg-emerald-600 text-white"
+                                : "bg-amber-600 text-white"
+                            }`}
+                          >
+                            {daParaFazer ? "✅ Dá p/ Fazer 100%" : "⚠️ Parcial"}
+                          </Badge>
+                        </div>
+
+                        {/* COMPARAÇÃO DOS NÚMEROS: AGORA -> CONSUMO -> DEPOIS */}
+                        <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-center">
+                          {/* Peso Agora */}
+                          <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">
+                              Peso Agora
+                            </span>
+                            <span className="text-sm sm:text-base font-extrabold text-slate-800 dark:text-slate-100 block mt-0.5">
+                              {b.pesoAtualKg?.toLocaleString("pt-BR")} kg
+                            </span>
+                            {b.metrosAtual > 0 && (
+                              <span className="text-[10px] text-slate-500 font-mono block">
+                                {b.metrosAtual?.toLocaleString("pt-BR")} m
+                              </span>
                             )}
                           </div>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                            {b.unidade} • Status: <strong>{b.status}</strong>
-                          </p>
-                        </div>
 
-                        <Badge
-                          className={`text-[10px] font-bold px-2 py-0.5 ${
-                            daParaFazer
-                              ? "bg-emerald-600 text-white"
-                              : "bg-amber-600 text-white"
-                          }`}
-                        >
-                          {daParaFazer ? "✅ Dá p/ Fazer 100%" : "⚠️ Parcial"}
-                        </Badge>
-                      </div>
-
-                      {/* COMPARAÇÃO DOS NÚMEROS: AGORA -> CONSUMO -> DEPOIS */}
-                      <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-center">
-                        {/* Peso Agora */}
-                        <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50">
-                          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">
-                            Peso Agora
-                          </span>
-                          <span className="text-sm sm:text-base font-extrabold text-slate-800 dark:text-slate-100 block mt-0.5">
-                            {b.pesoAtualKg?.toLocaleString("pt-BR")} kg
-                          </span>
-                          {b.metrosAtual > 0 && (
-                            <span className="text-[10px] text-slate-500 font-mono block">
-                              {b.metrosAtual?.toLocaleString("pt-BR")} m
+                          {/* Consumo do Pedido */}
+                          <div className="p-2 rounded-xl bg-orange-50 dark:bg-orange-950/30 border border-orange-200/60 dark:border-orange-900/40">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-orange-600 dark:text-orange-400 block">
+                              Consumo Pedido
                             </span>
-                          )}
-                        </div>
-
-                        {/* Consumo do Pedido */}
-                        <div className="p-2 rounded-xl bg-orange-50 dark:bg-orange-950/30 border border-orange-200/60 dark:border-orange-900/40">
-                          <span className="text-[9px] font-bold uppercase tracking-wider text-orange-600 dark:text-orange-400 block">
-                            Consumo Pedido
-                          </span>
-                          <span className="text-sm sm:text-base font-extrabold text-orange-700 dark:text-orange-300 block mt-0.5">
-                            - {b.pesoConsumoKg?.toLocaleString("pt-BR")} kg
-                          </span>
-                          {b.metrosConsumo > 0 && (
-                            <span className="text-[10px] text-orange-600/80 font-mono block">
-                              - {b.metrosConsumo?.toLocaleString("pt-BR")} m
+                            <span className="text-sm sm:text-base font-extrabold text-orange-700 dark:text-orange-300 block mt-0.5">
+                              - {b.pesoConsumoKg?.toLocaleString("pt-BR")} kg
                             </span>
-                          )}
-                        </div>
+                            {b.metrosConsumo > 0 && (
+                              <span className="text-[10px] text-orange-600/80 font-mono block">
+                                - {b.metrosConsumo?.toLocaleString("pt-BR")} m
+                              </span>
+                            )}
+                          </div>
 
-                        {/* Peso Depois de Usada */}
-                        <div
-                          className={`p-2 rounded-xl border ${
-                            daParaFazer
-                              ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100"
-                              : "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-100"
-                          }`}
-                        >
-                          <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 block">
-                            Peso DEPOIS
-                          </span>
-                          <span className="text-sm sm:text-base font-black block mt-0.5">
-                            {b.pesoAposUsoKg?.toLocaleString("pt-BR")} kg
-                          </span>
-                          {b.metrosAposUso != null && (
-                            <span className="text-[10px] opacity-80 font-mono block">
-                              {b.metrosAposUso?.toLocaleString("pt-BR")} m
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Barra de Progresso Visual de Consumo da Bobina */}
-                      <div className="mt-3 space-y-1">
-                        <div className="flex items-center justify-between text-[10px] text-slate-500">
-                          <span>Percentual da bobina utilizado:</span>
-                          <strong className="text-slate-800 dark:text-slate-200">{b.pctUso}%</strong>
-                        </div>
-                        <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                          {/* Peso Depois de Usada */}
                           <div
-                            className={`h-full rounded-full transition-all ${
+                            className={`p-2 rounded-xl border ${
                               daParaFazer
-                                ? "bg-gradient-to-r from-emerald-500 to-teal-500"
-                                : "bg-gradient-to-r from-amber-500 to-rose-500"
+                                ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100"
+                                : "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-100"
                             }`}
-                            style={{ width: `${Math.min(100, b.pctUso)}%` }}
-                          />
+                          >
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 block">
+                              Peso DEPOIS
+                            </span>
+                            <span className="text-sm sm:text-base font-black block mt-0.5">
+                              {b.pesoAposUsoKg?.toLocaleString("pt-BR")} kg
+                            </span>
+                            {b.metrosAposUso != null && (
+                              <span className="text-[10px] opacity-80 font-mono block">
+                                {b.metrosAposUso?.toLocaleString("pt-BR")} m
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Barra de Progresso Visual de Consumo da Bobina */}
+                        <div className="mt-3 space-y-1">
+                          <div className="flex items-center justify-between text-[10px] text-slate-500">
+                            <span>Percentual da bobina utilizado:</span>
+                            <strong className="text-slate-800 dark:text-slate-200">{b.pctUso}%</strong>
+                          </div>
+                          <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                daParaFazer
+                                  ? "bg-gradient-to-r from-emerald-500 to-teal-500"
+                                  : "bg-gradient-to-r from-amber-500 to-rose-500"
+                              }`}
+                              style={{ width: `${Math.min(100, b.pctUso)}%` }}
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Conclusão */}
-                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
-                      {daParaFazer ? (
-                        <p className="text-emerald-700 dark:text-emerald-300 font-semibold flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                          <span>
-                            Dá para fabricar 100% nesta bobina! Sobrarão <strong>{b.sobraKg?.toLocaleString("pt-BR")} kg</strong>.
-                          </span>
-                        </p>
-                      ) : (
-                        <p className="text-amber-700 dark:text-amber-300 font-semibold flex items-center gap-1">
-                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                          <span>
-                            Bobina insuficiente sozinha. Faltam <strong>{Math.abs(b.sobraKg)?.toLocaleString("pt-BR")} kg</strong> para completar.
-                          </span>
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* 5. SIMULAÇÃO DE CHAPAS CORTADAS (CORTE & DOBRA) */}
-        {analiseAtiva?.chapasSimuladas?.length > 0 && (
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <h5 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                <Scissors className="w-4 h-4 text-orange-600" />
-                Lotes de Chapas Cortadas em Estoque ({analiseAtiva.chapasSimuladas.length}):
-              </h5>
-              <span className="text-[11px] text-slate-500">
-                Comparativo: <strong>Peças Agora</strong> ➔ <strong>Peças Depois</strong>
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {analiseAtiva.chapasSimuladas.map((c, cIdx) => {
-                const daParaFazer = c.daParaFazer;
-
-                return (
-                  <div
-                    key={c.id || cIdx}
-                    className={`rounded-2xl p-4 border transition-all flex flex-col justify-between gap-3 shadow-sm ${
-                      daParaFazer
-                        ? "bg-white dark:bg-slate-900 border-emerald-300 dark:border-emerald-800"
-                        : "bg-slate-50 dark:bg-slate-900/60 border-amber-300 dark:border-amber-800"
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <span className="font-mono font-extrabold text-sm text-slate-900 dark:text-white">
-                            {c.codigo}
-                          </span>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                            Dimensões: <strong>{c.largura_mm} x {c.comprimento_mm} mm</strong> • Chapa <strong>{c.espessura_mm}mm</strong>
+                      {/* Conclusão */}
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                        {daParaFazer ? (
+                          <p className="text-emerald-700 dark:text-emerald-300 font-semibold flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                            <span>
+                              Dá para fabricar 100% nesta bobina! Sobrarão <strong>{b.sobraKg?.toLocaleString("pt-BR")} kg</strong>.
+                            </span>
                           </p>
-                        </div>
-
-                        <Badge
-                          className={`text-[10px] font-bold px-2 py-0.5 ${
-                            daParaFazer ? "bg-emerald-600 text-white" : "bg-amber-600 text-white"
-                          }`}
-                        >
-                          {daParaFazer ? "✅ Chapas Suficientes" : "⚠️ Faltam Chapas"}
-                        </Badge>
-                      </div>
-
-                      {/* COMPARAÇÃO DE PEÇAS E PESO */}
-                      <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-center">
-                        <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50">
-                          <span className="text-[9px] font-bold uppercase text-slate-400 block">Peças Agora</span>
-                          <span className="text-base font-extrabold text-slate-800 dark:text-slate-100 block mt-0.5">
-                            {c.pecasAtual} un
-                          </span>
-                          <span className="text-[10px] text-slate-500 block">~{c.pesoAtualKg} kg</span>
-                        </div>
-
-                        <div className="p-2 rounded-xl bg-orange-50 dark:bg-orange-950/30 border border-orange-200/60 dark:border-orange-900/40">
-                          <span className="text-[9px] font-bold uppercase text-orange-600 dark:text-orange-400 block">Consumo</span>
-                          <span className="text-base font-extrabold text-orange-700 dark:text-orange-300 block mt-0.5">
-                            - {c.pecasConsumo} un
-                          </span>
-                          <span className="text-[10px] text-orange-600/80 block">~{c.pesoConsumoKg} kg</span>
-                        </div>
-
-                        <div
-                          className={`p-2 rounded-xl border ${
-                            daParaFazer
-                              ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100"
-                              : "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-100"
-                          }`}
-                        >
-                          <span className="text-[9px] font-bold uppercase text-emerald-600 dark:text-emerald-400 block">Peças DEPOIS</span>
-                          <span className="text-base font-black block mt-0.5">
-                            {c.pecasAposUso} un
-                          </span>
-                          <span className="text-[10px] opacity-80 block">~{c.pesoAposUsoKg} kg</span>
-                        </div>
+                        ) : (
+                          <p className="text-amber-700 dark:text-amber-300 font-semibold flex items-center gap-1">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                            <span>
+                              Bobina insuficiente sozinha. Faltam <strong>{Math.abs(b.sobraKg)?.toLocaleString("pt-BR")} kg</strong> para completar.
+                            </span>
+                          </p>
+                        )}
                       </div>
                     </div>
-
-                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
-                      {daParaFazer ? (
-                        <p className="text-emerald-700 dark:text-emerald-300 font-semibold flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                          <span>
-                            Dá para fabricar 100% neste lote! Sobram <strong>{c.sobraPecas} chapas</strong>.
-                          </span>
-                        </p>
-                      ) : (
-                        <p className="text-amber-700 dark:text-amber-300 font-semibold flex items-center gap-1">
-                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                          <span>
-                            Lote insuficiente. Faltam <strong>{Math.abs(c.sobraPecas)} chapas</strong>.
-                          </span>
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
+          );
+
+          const secaoChapas = analiseAtiva?.chapasSimuladas?.length > 0 && (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <h5 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                  <Scissors className="w-4 h-4 text-orange-600" />
+                  Lotes de Chapas Cortadas Prontas
+                  {analiseAtiva.espessura ? ` (${analiseAtiva.espessura}mm)` : ""} em Estoque ({analiseAtiva.chapasSimuladas.length}):
+                </h5>
+                <span className="text-[11px] text-slate-500">
+                  Comparativo: <strong>Peças Agora</strong> ➔ <strong>Peças Depois</strong>
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {analiseAtiva.chapasSimuladas.map((c, cIdx) => {
+                  const daParaFazer = c.daParaFazer;
+
+                  return (
+                    <div
+                      key={c.id || cIdx}
+                      className={`rounded-2xl p-4 border transition-all flex flex-col justify-between gap-3 shadow-sm ${
+                        daParaFazer
+                          ? "bg-white dark:bg-slate-900 border-emerald-300 dark:border-emerald-800"
+                          : "bg-slate-50 dark:bg-slate-900/60 border-amber-300 dark:border-amber-800"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="font-mono font-extrabold text-sm text-slate-900 dark:text-white">
+                              {c.codigo}
+                            </span>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                              Dimensões: <strong>{c.largura_mm} x {c.comprimento_mm} mm</strong> • Chapa <strong>{c.espessura_mm}mm</strong>
+                            </p>
+                          </div>
+
+                          <Badge
+                            className={`text-[10px] font-bold px-2 py-0.5 ${
+                              daParaFazer ? "bg-emerald-600 text-white" : "bg-amber-600 text-white"
+                            }`}
+                          >
+                            {daParaFazer ? "✅ Chapas Suficientes" : "⚠️ Faltam Chapas"}
+                          </Badge>
+                        </div>
+
+                        {/* COMPARAÇÃO DE PEÇAS E PESO */}
+                        <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-center">
+                          <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                            <span className="text-[9px] font-bold uppercase text-slate-400 block">Peças Agora</span>
+                            <span className="text-base font-extrabold text-slate-800 dark:text-slate-100 block mt-0.5">
+                              {c.pecasAtual} un
+                            </span>
+                            <span className="text-[10px] text-slate-500 block">~{c.pesoAtualKg} kg</span>
+                          </div>
+
+                          <div className="p-2 rounded-xl bg-orange-50 dark:bg-orange-950/30 border border-orange-200/60 dark:border-orange-900/40">
+                            <span className="text-[9px] font-bold uppercase text-orange-600 dark:text-orange-400 block">Consumo</span>
+                            <span className="text-base font-extrabold text-orange-700 dark:text-orange-300 block mt-0.5">
+                              - {c.pecasConsumo} un
+                            </span>
+                            <span className="text-[10px] text-orange-600/80 block">~{c.pesoConsumoKg} kg</span>
+                          </div>
+
+                          <div
+                            className={`p-2 rounded-xl border ${
+                              daParaFazer
+                                ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100"
+                                : "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-100"
+                            }`}
+                          >
+                            <span className="text-[9px] font-bold uppercase text-emerald-600 dark:text-emerald-400 block">Peças DEPOIS</span>
+                            <span className="text-base font-black block mt-0.5">
+                              {c.pecasAposUso} un
+                            </span>
+                            <span className="text-[10px] opacity-80 block">~{c.pesoAposUsoKg} kg</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                        {daParaFazer ? (
+                          <p className="text-emerald-700 dark:text-emerald-300 font-semibold flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                            <span>
+                              Dá para fabricar 100% neste lote! Sobram <strong>{c.sobraPecas} chapas</strong>.
+                            </span>
+                          </p>
+                        ) : (
+                          <p className="text-amber-700 dark:text-amber-300 font-semibold flex items-center gap-1">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                            <span>
+                              Lote insuficiente. Faltam <strong>{Math.abs(c.sobraPecas)} chapas</strong>.
+                            </span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+
+          return isCD ? (
+            <>
+              {secaoChapas}
+              {secaoBobinas}
+            </>
+          ) : (
+            <>
+              {secaoBobinas}
+              {secaoChapas}
+            </>
+          );
+        })()}
 
         {/* 6. ESTADO VAZIO (SEM MATERIAL COMPATÍVEL) */}
         {analiseAtiva &&
@@ -546,12 +567,24 @@ export default function SimulacaoEstoqueMaterialDialog({
             <div className="p-6 rounded-2xl border-2 border-dashed border-rose-200 dark:border-rose-900/50 bg-rose-50/30 dark:bg-rose-950/10 text-center space-y-2">
               <Boxes className="w-8 h-8 text-rose-500 mx-auto" />
               <h6 className="font-extrabold text-sm text-slate-800 dark:text-slate-100">
-                Nenhuma matéria-prima compatível encontrada no estoque
+                {analiseAtiva.espessura
+                  ? `Nenhuma matéria-prima compatível (${analiseAtiva.espessura}mm) no estoque`
+                  : "Espessura da matéria-prima não identificada"}
               </h6>
               <p className="text-xs text-slate-500 max-w-md mx-auto">
-                Não há bobinas nem chapas com espessura{" "}
-                <strong>{analiseAtiva.espessura || "especificada"}mm</strong> e cor{" "}
-                <strong>{analiseAtiva.cor || "especificada"}</strong> disponíveis para este item.
+                {analiseAtiva.espessura ? (
+                  <>
+                    Não há bobinas nem lotes de chapas com espessura{" "}
+                    <strong>{analiseAtiva.espessura}mm</strong>{" "}
+                    {analiseAtiva.setor === "telha" && analiseAtiva.cor ? (
+                      <>e cor <strong>{analiseAtiva.cor}</strong> </>
+                    ) : null}
+                    disponíveis no estoque do setor{" "}
+                    <strong>{analiseAtiva.setor === "cd" ? "Corte & Dobra" : analiseAtiva.setor === "telha" ? "Fábrica de Telhas" : "Frisadas"}</strong>.
+                  </>
+                ) : (
+                  "Não foi possível extrair a espessura deste item. Defina a espessura no produto ou na descrição do pedido no Odoo para consultar o estoque."
+                )}
               </p>
             </div>
           )}

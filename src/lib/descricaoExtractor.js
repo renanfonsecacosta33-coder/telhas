@@ -198,20 +198,24 @@ export function extrairPesoDoTexto(texto) {
   return null;
 }
 
-// Extrai dimensões de perfil dobrado em U (ex: "Perfil U 75x40", "U 100x50")
+// Extrai dimensões de perfil dobrado em U (ex: "Perfil U 75x40", "U 100x50") ou Tubo Retangular/Quadrado (ex: "Tubo Ret 40x60")
 export function extrairDimensoesPerfil(texto) {
   if (!texto) return null;
   const t = String(texto);
+  const isTubo = /(tubo|metalom|ret\b|quad\b)/i.test(t);
   const m = t.match(/(\d{2,3})\s*[xX]\s*(\d{2,3})/);
   if (m) {
     const base = parseFloat(m[1]);
     const aba = parseFloat(m[2]);
     if (base > 0 && aba > 0) {
+      // Perímetro fechado para tubos: 2 * (base + aba); Para perfil aberto em U: base + 2 * aba
+      const desenv = isTubo ? (2 * (base + aba)) : (base + (2 * aba));
       return {
+        tipo: isTubo ? "tubo" : "perfil_u",
         base_mm: base,
         aba_mm: aba,
-        desenvolvimento_mm: base + (2 * aba),
-        desenvolvimento_m: (base + (2 * aba)) / 1000
+        desenvolvimento_mm: desenv,
+        desenvolvimento_m: +(desenv / 1000).toFixed(4)
       };
     }
   }

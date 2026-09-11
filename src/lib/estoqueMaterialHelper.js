@@ -23,6 +23,13 @@ export function normalizeEspessura(val) {
   return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+const ESPESSURAS_COMERCIAIS = [
+  0.35, 0.38, 0.40, 0.43, 0.45, 0.47, 0.50, 0.65, 0.70, 0.75, 0.80, 0.90, 0.95,
+  1.00, 1.06, 1.11, 1.20, 1.25, 1.50, 1.55, 1.80, 1.90, 1.95, 2.00, 2.20, 2.22,
+  2.25, 2.30, 2.50, 2.65, 2.70, 2.75, 3.00, 3.17, 3.18, 3.35, 3.75, 4.00, 4.25,
+  4.75, 5.00, 6.00, 6.35, 7.93, 8.00, 9.52, 12.70
+];
+
 /**
  * Extrai a espessura da descrição ou nome do produto se não houver campo explícito.
  */
@@ -30,24 +37,57 @@ export function extrairEspessuraDoTexto(texto) {
   if (!texto) return null;
   const str = String(texto);
   
-  // 1. Regex entre parênteses: (0,43) ou (1.95)
-  const mPar = str.match(/\((\d+[.,]\d+)\)/);
+  // 1. Regex entre parênteses: (0,43) ou (1.95) ou (1,95mm)
+  const mPar = str.match(/\((\d+[.,]\d+)(?:\s*mm)?\)/i);
   if (mPar) return mPar[1].replace(".", ",");
 
-  // 2. Notação de chapa: ch 1,95 ou ch. 1.95 ou chapa 1,95
-  const mCh = str.match(/(?:ch\b|ch\.|chapa)\s*(\d+[.,]\d+)/i);
+  // 2. Notação com unidade ou sigla metalúrgica logo após o número:
+  // Ex: 1,95mm, 1,95 mm, 1,95 GI, 1,95 GL, 1,95 GALV, 1,95 FF, 1,95 FQ, 1,95 ZN, 1,95 CH, 1,95 CHAPA
+  const mSigla = str.match(/\b(\d+[.,]\d+)\s*(?:mm\b|gi\b|gl\b|galv\b|galvalume\b|zinc\b|zn\b|ff\b|fq\b|ch\b|ch\.|chapa\b)/i);
+  if (mSigla) return mSigla[1].replace(".", ",");
+
+  // 3. Notação de chapa/espessura antes do número: ch 1,95 ou ch. 1.95 ou chapa 1,95 ou esp 1,95
+  const mCh = str.match(/(?:ch\b|ch\.|chapa|esp\b|esp\.|espessura)\s*[:=]?\s*(\d+[.,]\d+)/i);
   if (mCh) return mCh[1].replace(".", ",");
 
-  // 3. Notação em milímetros: 0,43mm ou 0.43 mm ou 1,95mm
-  const mMm = str.match(/(\d+[.,]\d+)\s*mm/i);
-  if (mMm) return mMm[1].replace(".", ",");
+  // 4. Dimensões seguidas de espessura (tubos e perfis: 40x60 1,95 ou 40x60x1,95 ou 75x40 1,95 ou 100x50x2,00)
+  const mDimEsp = str.match(/\d+\s*[xX]\s*\d+\s*(?:[xX\s])\s*(\d+[.,]\d+)/);
+  if (mDimEsp) return mDimEsp[1].replace(".", ",");
 
-  // 4. Polegadas fracionárias comuns na metalurgia
+  // 5. Polegadas fracionárias comuns na metalurgia
   if (str.includes("5/16")) return "7,93";
   if (str.includes("1/4")) return "6,35";
   if (str.includes("3/16")) return "4,75";
   if (str.includes("1/8")) return "3,17";
   if (str.includes("1/2")) return "12,70";
+
+  // 6. Bitolas/calibres comerciais comuns na metalurgia (#14, chapa #16, MSG 14, etc.)
+  const GAUGE_MAP = {
+    "12": "2,65",
+    "13": "2,25",
+    "14": "1,95",
+    "16": "1,55",
+    "18": "1,25",
+    "19": "1,11",
+    "20": "0,90",
+    "22": "0,75",
+    "24": "0,65",
+    "26": "0,45",
+    "28": "0,40"
+  };
+  const mGauge = str.match(/(?:#|msg\s*#?|ch\s*#)\s*(1[2-9]|2[0-8])\b/i);
+  if (mGauge && GAUGE_MAP[mGauge[1]]) return GAUGE_MAP[mGauge[1]];
+
+  // 7. Número decimal isolado que corresponda a uma espessura padrão comercial de aço/chapa
+  const mDec = str.match(/\b(\d+[.,]\d+)\b/g);
+  if (mDec) {
+    for (const d of mDec) {
+      const num = parseFloat(d.replace(",", "."));
+      if (!isNaN(num) && ESPESSURAS_COMERCIAIS.some((ec) => Math.abs(ec - num) < 0.02)) {
+        return d.replace(".", ",");
+      }
+    }
+  }
 
   return null;
 }
@@ -94,14 +134,15 @@ export function getBobinaEspessuras(bobina) {
 }
 
 /**
- * Verifica se a bobina atende à espessura nominal solicitada (tolerância de até 0,05mm).
+ * Verifica se a bobina atende à espessura nominal solicitada (tolerância estrita de até 0,03mm).
+ * IMPORTANTE: Se espNominal for nula/indefinida, retorna estritamente FALSE!
  */
 export function isEspCompativel(b, espNominal) {
   const reqNum = parseEspessuraToNumber(espNominal);
-  if (reqNum == null) return true;
+  if (reqNum == null) return false;
   const bList = getBobinaEspessuras(b);
   if (bList.length === 0) return false;
-  return bList.some((e) => Math.abs(e - reqNum) < 0.05);
+  return bList.some((e) => Math.abs(e - reqNum) < 0.03);
 }
 
 /**
@@ -194,13 +235,15 @@ export function calcularPesoEstimadoItem({ setor, espessura, demanda, isSanduich
       const compM = demanda.compMm > 0 ? (demanda.compMm / 1000) : 6.0; // Padrão barra de 6 metros
       const kgPorBarra = +(dimPerfil.desenvolvimento_m * compM * espNum * 7.85).toFixed(2);
       const pesoKg = Math.max(1, Math.round(demanda.pecas * kgPorBarra));
+      const tipoNome = dimPerfil.tipo === "tubo" ? "tubos" : "barras";
+      const tipoSingular = dimPerfil.tipo === "tubo" ? "tubo" : "barra";
       return {
         pesoKg,
         kgPorBarra,
         dimPerfil,
         compM,
-        metodo: "formula_perfil_dobrado",
-        formula: `${demanda.pecas} barras de ${compM}m (${dimPerfil.base_mm}x${dimPerfil.aba_mm}mm) × ${kgPorBarra} kg/barra`
+        metodo: dimPerfil.tipo === "tubo" ? "formula_tubo_fechado" : "formula_perfil_dobrado",
+        formula: `${demanda.pecas} ${tipoNome} de ${compM}m (${dimPerfil.base_mm}x${dimPerfil.aba_mm}mm #${espessura}mm) × ${kgPorBarra} kg/${tipoSingular}`
       };
     }
 
@@ -225,13 +268,39 @@ export function calcularPesoEstimadoItem({ setor, espessura, demanda, isSanduich
  * e SIMULA o peso e metragem antes vs depois do uso em cada bobina ou lote de chapa.
  */
 export function verificarEstoqueItem(item, { bobinas = [], chapas = [], slitters = [] } = {}, pedido = null) {
-  const prod = String(item.produto || item.descricao || "").trim();
-  const desc = item.descricao || item.observacao || "";
+  const prod = String(item.produto || item.descricao || item.name || "").trim();
+  const desc = item.descricao || item.observacao || item.obs || "";
   const setor = classGrupo(item);
 
-  // Espessura exigida
-  let espessura = item.espessura || extrairEspessuraDoTexto(prod) || extrairEspessuraDoTexto(desc) || (setor === "telha" ? "0,43" : "");
-  espessura = normalizeEspessura(espessura);
+  // Espessura exigida: busca exaustiva em todos os campos e textos possíveis
+  let rawEsp =
+    item.espessura ||
+    item.chapa ||
+    item.thickness ||
+    item.espessura_mm ||
+    item.esp ||
+    extrairEspessuraDoTexto(prod) ||
+    extrairEspessuraDoTexto(desc) ||
+    extrairEspessuraDoTexto(item.observacao) ||
+    extrairEspessuraDoTexto(item.obs) ||
+    extrairEspessuraDoTexto(item.name);
+
+  // Fallback caso venha no pedido
+  if (!rawEsp && pedido) {
+    if (pedido.espessura) {
+      rawEsp = pedido.espessura;
+    } else if (Array.isArray(pedido.espessuras_tags) && pedido.espessuras_tags.length === 1) {
+      rawEsp = pedido.espessuras_tags[0];
+    }
+  }
+
+  // Telhas: se omitido e for fábrica de telhas, padrão do mercado é 0,43mm
+  if (!rawEsp && setor === "telha") {
+    rawEsp = "0,43";
+  }
+
+  const espessura = normalizeEspessura(rawEsp);
+  const espNum = parseEspessuraToNumber(espessura);
 
   // Cor exigida
   const cor = item.cor || extrairCorDoTexto(desc) || extrairCorDoTexto(prod) || "Natural";
@@ -243,6 +312,31 @@ export function verificarEstoqueItem(item, { bobinas = [], chapas = [], slitters
   const isSanduiche = /(sandu[ií]che|termoac[uú]stica|eps|isopor|pir|pu)/i.test(prod);
   const metrosNecessarios = isSanduiche ? demanda.metros * 2 : demanda.metros;
 
+  // Se a espessura for nula ou não puder ser determinada (especialmente em Corte & Dobra):
+  // NUNCA fazer match cego com bobinas ou chapas de outras espessuras!
+  if (!espessura || espNum == null) {
+    return {
+      setor,
+      produto: prod,
+      descricao: desc,
+      itemOriginal: item,
+      espessura: "",
+      cor,
+      status: "indisponivel",
+      tipoMaterial: "nenhum",
+      demanda: { ...demanda, metrosNecessarios, isSanduiche },
+      calculoPeso: { pesoKg: 0, pesoPorPecaKg: 0, formula: "Espessura não identificada" },
+      saldo: { metros: 0, kg: 0, bobinasCount: 0, chapasUn: 0, bobinasKg: 0 },
+      bobinasSimuladas: [],
+      chapasSimuladas: [],
+      materiais: [],
+      badgeText: "⚪ Espessura Indefinida",
+      shortBadge: "⚪ S/ Espessura",
+      detalhe: `Não foi possível identificar a espessura da matéria-prima no item "${prod}".`,
+      opaMensagem: `Espessura não identificada no item "${prod}". Defina a espessura no Odoo para simular o estoque.`
+    };
+  }
+
   // Cálculo rigoroso do peso necessário em kg
   const calculoPeso = calcularPesoEstimadoItem({ setor, espessura, demanda, isSanduiche, prod, desc });
   const pesoNecessarioKg = calculoPeso.pesoKg;
@@ -253,7 +347,12 @@ export function verificarEstoqueItem(item, { bobinas = [], chapas = [], slitters
   if (setor === "telha") {
     const bobsCompativeis = bobinas.filter((b) => {
       if (b.arquivada) return false;
-      if (b.setor && b.setor !== "telhas") return false;
+      // Isolamento estrito de setor: NUNCA permitir bobinas de Corte & Dobra (CD...)
+      const bSetor = String(b.setor || "").toLowerCase().trim();
+      const bCod = String(b.codigo || b.codigo_bobina || "").toUpperCase().trim();
+      if (bSetor === "cd" || bSetor === "corte_dobra" || bCod.startsWith("CD")) return false;
+      if (bSetor && bSetor !== "telhas" && bSetor !== "telha") return false;
+
       const espOk = isEspCompativel(b, espessura);
       const corOk = isCorCompativel(b.cor, cor);
       const saldoOk = (b.peso_kg || 0) > 0 || (b.metragem_restante || 0) > 0;
@@ -365,6 +464,9 @@ export function verificarEstoqueItem(item, { bobinas = [], chapas = [], slitters
   if (setor === "frisada") {
     const bobsCompativeis = bobinas.filter((b) => {
       if (b.arquivada) return false;
+      const bSetor = String(b.setor || "").toLowerCase().trim();
+      const bCod = String(b.codigo || b.codigo_bobina || "").toUpperCase().trim();
+      if (bSetor === "cd" || bSetor === "corte_dobra" || bCod.startsWith("CD")) return false;
       const espOk = isEspCompativel(b, espessura);
       const saldoOk = (b.peso_kg || 0) > 0 || (b.metragem_restante || 0) > 0;
       return espOk && saldoOk;
@@ -471,20 +573,30 @@ export function verificarEstoqueItem(item, { bobinas = [], chapas = [], slitters
   // ─────────────────────────────────────────────────────────────
   const chapasCompativeis = chapas.filter((c) => {
     if (c.status === "cancelado") return false;
-    const espNum = parseEspessuraToNumber(espessura);
-    const cEspNum = parseEspessuraToNumber(c.espessura_mm);
-    const matchEsp = espNum != null && cEspNum != null ? Math.abs(espNum - cEspNum) < 0.05 : true;
+    const cEspNum = parseEspessuraToNumber(c.espessura_mm || c.chapa || c.espessura);
+    if (espNum == null || cEspNum == null) return false;
+    // Tolerância estrita de até 0,03mm (1,95 só aceita 1,95)
+    const matchEsp = Math.abs(espNum - cEspNum) < 0.03;
     const qtdDisp = c.quantidade_disponivel != null ? c.quantidade_disponivel : c.quantidade_total;
     return matchEsp && qtdDisp > 0;
   });
 
   const bobsCDCompativeis = bobinas.filter((b) => {
     if (b.arquivada) return false;
+    // Isolamento estrito de setor: NUNCA permitir bobinas de Telhas nem Frisadas (TE...)
+    const bSetor = String(b.setor || "").toLowerCase().trim();
+    const bCod = String(b.codigo || b.codigo_bobina || "").toUpperCase().trim();
+    if (bSetor === "telhas" || bSetor === "telha" || bSetor === "frisadas" || bSetor === "frisada" || bCod.startsWith("TE")) {
+      return false;
+    }
     const espOk = isEspCompativel(b, espessura);
     return espOk && (b.peso_kg || 0) > 0;
   });
 
   const slittersCompativeis = slitters.filter((s) => {
+    const sSetor = String(s.setor || "").toLowerCase().trim();
+    const sCod = String(s.codigo || s.codigo_bobina || "").toUpperCase().trim();
+    if (sSetor === "telhas" || sSetor === "telha" || sCod.startsWith("TE")) return false;
     const espOk = isEspCompativel(s, espessura);
     return espOk && (s.peso_kg || 0) > 0;
   });
