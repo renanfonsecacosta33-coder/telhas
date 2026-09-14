@@ -9,10 +9,15 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Package, Plus, Search, ChevronLeft, Archive,
-  Weight, MapPin, AlertTriangle, CheckCircle2, Layers
+  Weight, MapPin, AlertTriangle, CheckCircle2, Layers, Calendar, X
 } from "lucide-react";
 import BobinaFormDialog from "@/components/bobinas/BobinaFormDialog";
-import { getTimestampArquivamento, formatarDataArquivamento } from "@/lib/bobinaStatusHelper";
+import {
+  getTimestampArquivamento,
+  formatarDataArquivamento,
+  matchBobinaBuscaData,
+  matchBobinaFiltroDataExata,
+} from "@/lib/bobinaStatusHelper";
 
 export default function EstoqueExpedicao() {
   const navigate = useNavigate();
@@ -21,6 +26,7 @@ export default function EstoqueExpedicao() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [showArquivadas, setShowArquivadas] = useState(false);
+  const [filtroData, setFiltroData] = useState("");
   const [ordenacao, setOrdenacao] = useState("none");
 
   const { data: bobinas = [], isLoading } = useQuery({
@@ -46,12 +52,15 @@ export default function EstoqueExpedicao() {
   const base      = showArquivadas ? arquivadas : ativas;
 
   const filtered = base.filter(b => {
-    if (!search) return true;
     const q = search.toLowerCase();
-    return b.codigo?.toLowerCase().includes(q) ||
+    const matchSearch = !q ||
+           b.codigo?.toLowerCase().includes(q) ||
            b.cor?.toLowerCase().includes(q) ||
            b.chapa?.toLowerCase().includes(q) ||
-           b.fornecedor?.toLowerCase().includes(q);
+           b.fornecedor?.toLowerCase().includes(q) ||
+           matchBobinaBuscaData(b, q, showArquivadas);
+    const matchData = !filtroData || matchBobinaFiltroDataExata(b, filtroData, showArquivadas);
+    return matchSearch && matchData;
   });
 
   const sorted = [...filtered].sort((a, b) => {
@@ -120,15 +129,34 @@ export default function EstoqueExpedicao() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             className="pl-9"
-            placeholder="Buscar por código, cor, espessura..."
+            placeholder="Buscar por código, cor, espessura, data (ex: 14/09)..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
+        <div className="flex items-center gap-1.5 bg-background border border-input rounded-md px-2.5 h-9 text-xs text-muted-foreground hover:border-primary/50 transition-colors" title={showArquivadas ? "Filtrar por data de arquivamento" : "Filtrar por data de recebimento"}>
+          <Calendar className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+          <input
+            type="date"
+            value={filtroData}
+            onChange={e => setFiltroData(e.target.value)}
+            className="bg-transparent text-xs outline-none text-foreground cursor-pointer"
+          />
+          {filtroData && (
+            <button
+              type="button"
+              onClick={() => setFiltroData("")}
+              className="hover:text-destructive text-muted-foreground p-0.5 rounded"
+              title="Limpar filtro de data"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
         <Button
           variant={showArquivadas ? "default" : "outline"}
           size="sm"
-          onClick={() => setShowArquivadas(s => { setOrdenacao("none"); return !s; })}
+          onClick={() => setShowArquivadas(s => { setOrdenacao("none"); setFiltroData(""); return !s; })}
         >
           <Archive className="w-4 h-4 mr-1" />
           {showArquivadas ? "Ver Ativas" : `Arquivadas (${arquivadas.length})`}

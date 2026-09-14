@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Archive, AlertTriangle, Package, Weight, X, Loader2 } from "lucide-react";
+import { Plus, Search, Archive, AlertTriangle, Package, Weight, X, Loader2, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import BobinaFormDialogCD from "@/components/corte-dobra/BobinaFormDialogCD";
 import DeleteConfirmDialog from "@/components/stock/DeleteConfirmDialog";
@@ -15,7 +15,7 @@ import PainelSolicitacoesReserva from "@/components/vendedor/PainelSolicitacoesR
 import PainelTransferencias from "@/components/bobinas/PainelTransferencias";
 import { useFilial } from "@/contexts/FilialContext";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
-import { getTimestampArquivamento } from "@/lib/bobinaStatusHelper";
+import { getTimestampArquivamento, matchBobinaBuscaData, matchBobinaFiltroDataExata } from "@/lib/bobinaStatusHelper";
 
 export default function BobinasCD() {
   const { filialAtiva } = useFilial();
@@ -27,6 +27,7 @@ export default function BobinasCD() {
   const [showArquivadas, setShowArquivadas] = useState(false);
   const [filtroQualidade, setFiltroQualidade] = useState("todos");
   const [filtroFornecedor, setFiltroFornecedor] = useState("");
+  const [filtroData, setFiltroData] = useState("");
   const [ordenacao, setOrdenacao] = useState("none");
   const queryClient = useQueryClient();
 
@@ -141,11 +142,13 @@ export default function BobinasCD() {
     const matchSearch = !q || b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q) ||
       b.codigo?.toLowerCase().includes(q) || b.fornecedor?.toLowerCase().includes(q) || b.qualidade?.toLowerCase().includes(q) ||
       b.nf?.toLowerCase().includes(q) || b.espessura_real?.toLowerCase().includes(q) || b.espessura_utilizada?.toLowerCase().includes(q) ||
-      b.sub_cod?.toLowerCase().includes(q) || String(b.largura_mm || "").includes(q) || String(b.peso_kg || "").includes(q);
+      b.sub_cod?.toLowerCase().includes(q) || String(b.largura_mm || "").includes(q) || String(b.peso_kg || "").includes(q) ||
+      matchBobinaBuscaData(b, q, showArquivadas);
     const matchAlerta = !filterAlerta || getAlertaNivel(b) !== null;
     const matchQualidade = filtroQualidade === "todos" || b.qualidade === filtroQualidade;
     const matchFornecedor = !filtroFornecedor || (b.fornecedor || "").toLowerCase().includes(filtroFornecedor.toLowerCase());
-    return matchSearch && matchAlerta && matchQualidade && matchFornecedor;
+    const matchData = !filtroData || matchBobinaFiltroDataExata(b, filtroData, showArquivadas);
+    return matchSearch && matchAlerta && matchQualidade && matchFornecedor && matchData;
   });
 
   // Ordenação inteligente (Prioriza data de arquivamento quando visualizando arquivadas)
@@ -196,11 +199,12 @@ export default function BobinasCD() {
     return 0;
   });
 
-  const temFiltrosBobina = filtroQualidade !== "todos" || !!filtroFornecedor;
+  const temFiltrosBobina = filtroQualidade !== "todos" || !!filtroFornecedor || !!filtroData;
   const limparFiltrosBobina = () => {
     setSearch("");
     setFiltroQualidade("todos");
     setFiltroFornecedor("");
+    setFiltroData("");
     setFilterAlerta(false);
   };
 
@@ -251,7 +255,7 @@ export default function BobinasCD() {
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input placeholder="Buscar por cor, chapa, esp. utilizada, código, fornecedor, NF, largura, peso..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
+            <Input placeholder="Buscar por cor, chapa, código, data (ex: 14/09), fornecedor, NF, largura, peso..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           {(temFiltrosBobina || filterAlerta) && (
             <Button variant="ghost" size="sm" onClick={limparFiltrosBobina} className="text-muted-foreground hover:text-foreground shrink-0">
@@ -261,7 +265,7 @@ export default function BobinasCD() {
         </div>
         <div className="flex flex-wrap gap-2 items-center">
           <Button variant={showArquivadas ? "default" : "outline"} size="sm"
-            onClick={() => { setShowArquivadas(!showArquivadas); setFilterAlerta(false); setOrdenacao("none"); }} className="gap-1 h-8 text-xs">
+            onClick={() => { setShowArquivadas(!showArquivadas); setFilterAlerta(false); setOrdenacao("none"); setFiltroData(""); }} className="gap-1 h-8 text-xs">
             <Archive className="w-3 h-3" />
             {showArquivadas ? "Ver em estoque" : `Arquivadas (${arquivadas.length})`}
           </Button>
@@ -290,6 +294,25 @@ export default function BobinasCD() {
               value={filtroFornecedor}
               onChange={e => setFiltroFornecedor(e.target.value)}
             />
+          </div>
+          <div className="flex items-center gap-1.5 bg-background border border-input rounded-md px-2.5 h-8 text-xs text-muted-foreground hover:border-primary/50 transition-colors" title={showArquivadas ? "Filtrar por data de arquivamento" : "Filtrar por data de recebimento"}>
+            <Calendar className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+            <input
+              type="date"
+              value={filtroData}
+              onChange={e => setFiltroData(e.target.value)}
+              className="bg-transparent text-xs outline-none text-foreground cursor-pointer"
+            />
+            {filtroData && (
+              <button
+                type="button"
+                onClick={() => setFiltroData("")}
+                className="hover:text-destructive text-muted-foreground p-0.5 rounded"
+                title="Limpar filtro de data"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
           </div>
           <Select value={ordenacao} onValueChange={setOrdenacao}>
             <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="Ordenar por..." /></SelectTrigger>

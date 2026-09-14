@@ -193,3 +193,118 @@ export function formatarDataArquivamento(bobina) {
   } catch {}
   return `Arquivada em ${dStr}`;
 }
+
+/**
+ * Extrai a data ISO "YYYY-MM-DD" de arquivamento da bobina
+ */
+export function getDataArquivamentoISO(bobina) {
+  if (!bobina) return "";
+  const dStr = bobina.data_encerramento || bobina.updated_date || bobina.created_date;
+  if (!dStr) return "";
+  if (/^\d{4}-\d{2}-\d{2}/.test(dStr)) {
+    return dStr.split("T")[0];
+  }
+  const dt = new Date(dStr);
+  if (!isNaN(dt.getTime())) {
+    return dt.toISOString().split("T")[0];
+  }
+  return "";
+}
+
+/**
+ * Extrai a data ISO "YYYY-MM-DD" de recebimento da bobina
+ */
+export function getDataRecebimentoISO(bobina) {
+  if (!bobina) return "";
+  const dStr = bobina.data_recebimento || bobina.created_date;
+  if (!dStr) return "";
+  if (/^\d{4}-\d{2}-\d{2}/.test(dStr)) {
+    return dStr.split("T")[0];
+  }
+  const dt = new Date(dStr);
+  if (!isNaN(dt.getTime())) {
+    return dt.toISOString().split("T")[0];
+  }
+  return "";
+}
+
+/**
+ * Retorna uma lista de strings de busca (formatos variados) para uma data "YYYY-MM-DD" ou ISO
+ */
+export function gerarVariacoesDataBusca(dateStr) {
+  if (!dateStr) return [];
+  const iso = String(dateStr).split("T")[0].trim();
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return [iso.toLowerCase()];
+
+  const [_, yyyy, mm, dd] = m;
+  const meses = [
+    "", "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+    "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"
+  ];
+  const mesNome = meses[parseInt(mm, 10)] || "";
+
+  return [
+    iso,                               // "2026-09-14"
+    `${dd}/${mm}/${yyyy}`,             // "14/09/2026"
+    `${dd}/${mm}`,                     // "14/09"
+    `${mm}/${yyyy}`,                   // "09/2026"
+    `${dd}-${mm}-${yyyy}`,             // "14-09-2026"
+    `${dd}.${mm}.${yyyy}`,             // "14.09.2026"
+    `${dd}.${mm}`,                     // "14.09"
+    `${dd}-${mm}`,                     // "14-09"
+    `${yyyy}-${mm}`,                   // "2026-09"
+    `${dd} de ${mesNome}`,             // "14 de setembro"
+    mesNome,                           // "setembro"
+  ].filter(Boolean).map(s => s.toLowerCase());
+}
+
+/**
+ * Verifica se a bobina corresponde ao termo de busca por data ou texto
+ */
+export function matchBobinaBuscaData(bobina, query, showArquivadas = false) {
+  if (!bobina || !query) return false;
+  const q = query.trim().toLowerCase();
+  if (!q) return false;
+
+  const datasParaVerificar = [];
+  if (showArquivadas) {
+    if (bobina.data_encerramento) datasParaVerificar.push(bobina.data_encerramento);
+    if (bobina.updated_date) datasParaVerificar.push(bobina.updated_date);
+    if (bobina.created_date) datasParaVerificar.push(bobina.created_date);
+  }
+  if (bobina.data_recebimento) datasParaVerificar.push(bobina.data_recebimento);
+  if (bobina.created_date) datasParaVerificar.push(bobina.created_date);
+
+  for (const d of datasParaVerificar) {
+    const variacoes = gerarVariacoesDataBusca(d);
+    for (const v of variacoes) {
+      if (v.includes(q)) return true;
+    }
+  }
+
+  // Também checa se o termo digitado está contido no texto "Arquivada em DD/MM/AAAA"
+  if (bobina.arquivada) {
+    const txtArq = formatarDataArquivamento(bobina).toLowerCase();
+    if (txtArq.includes(q)) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Verifica correspondência exata para o filtro input type="date" ("YYYY-MM-DD")
+ */
+export function matchBobinaFiltroDataExata(bobina, dataIso, showArquivadas = false) {
+  if (!bobina || !dataIso) return true;
+  const target = dataIso.trim();
+
+  if (showArquivadas) {
+    const arqIso = getDataArquivamentoISO(bobina);
+    if (arqIso === target) return true;
+  }
+  const recIso = getDataRecebimentoISO(bobina);
+  if (recIso === target) return true;
+
+  return false;
+}

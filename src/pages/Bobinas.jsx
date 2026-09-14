@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, AlertTriangle, Package, Weight, Archive, X, Loader2, Layers } from "lucide-react";
+import { Plus, Search, AlertTriangle, Package, Weight, Archive, X, Loader2, Layers, Calendar } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import BobinaFormDialog from "@/components/bobinas/BobinaFormDialog";
@@ -16,7 +16,7 @@ import PainelTransferencias from "@/components/bobinas/PainelTransferencias";
 import PreBaixaDetalhesDialog from "@/components/bobinas/PreBaixaDetalhesDialog";
 import { useFilial } from "@/contexts/FilialContext";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
-import { getTimestampArquivamento } from "@/lib/bobinaStatusHelper";
+import { getTimestampArquivamento, matchBobinaBuscaData, matchBobinaFiltroDataExata } from "@/lib/bobinaStatusHelper";
 
 const statusColors = {
   "Aberta": "bg-green-500/10 text-green-700 border-green-300",
@@ -43,6 +43,7 @@ export default function Bobinas() {
   const [bobinaOpsModal, setBobinaOpsModal] = useState(null);
   const [filtroQualidade, setFiltroQualidade] = useState("todos");
   const [filtroFornecedor, setFiltroFornecedor] = useState("");
+  const [filtroData, setFiltroData] = useState("");
   const [ordenacao, setOrdenacao] = useState("none");
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
@@ -87,13 +88,15 @@ export default function Bobinas() {
     const matchSearch = !q || b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q) ||
       b.codigo?.toLowerCase().includes(q) || b.fornecedor?.toLowerCase().includes(q) ||
       b.status?.toLowerCase().includes(q) || b.qualidade?.toLowerCase().includes(q) ||
-      b.nf?.toLowerCase().includes(q);
+      b.nf?.toLowerCase().includes(q) ||
+      matchBobinaBuscaData(b, q, showArquivadas);
     const matchStatus = filterStatus === "all" || b.status === filterStatus;
     const matchAlerta = !filterAlerta || getAlertaNivel(b) !== null;
     const matchPreBaixa = !filterPreBaixa || (preBaixaMap[b.id] || 0) > 0;
     const matchQualidade = filtroQualidade === "todos" || b.qualidade === filtroQualidade;
     const matchFornecedor = !filtroFornecedor || (b.fornecedor || "").toLowerCase().includes(filtroFornecedor.toLowerCase());
-    return matchSearch && matchStatus && matchAlerta && matchPreBaixa && matchQualidade && matchFornecedor;
+    const matchData = !filtroData || matchBobinaFiltroDataExata(b, filtroData, showArquivadas);
+    return matchSearch && matchStatus && matchAlerta && matchPreBaixa && matchQualidade && matchFornecedor && matchData;
   });
 
   // Ordenação inteligente (Prioriza data de arquivamento quando visualizando arquivadas)
@@ -139,7 +142,7 @@ export default function Bobinas() {
     return 0;
   });
 
-  const temFiltrosExtras = filtroQualidade !== "todos" || !!filtroFornecedor || filterPreBaixa;
+  const temFiltrosExtras = filtroQualidade !== "todos" || !!filtroFornecedor || !!filtroData || filterPreBaixa;
   const limparFiltros = () => {
     setSearch("");
     setFilterStatus("all");
@@ -147,6 +150,7 @@ export default function Bobinas() {
     setFilterPreBaixa(false);
     setFiltroQualidade("todos");
     setFiltroFornecedor("");
+    setFiltroData("");
   };
 
   return (
@@ -209,7 +213,7 @@ export default function Bobinas() {
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input placeholder="Buscar por cor, chapa, código, fornecedor, NF..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input placeholder="Buscar por cor, chapa, código, data (ex: 14/09), fornecedor, NF..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           {(temFiltrosExtras || filterAlerta) && (
             <Button variant="ghost" size="sm" onClick={limparFiltros} className="text-muted-foreground hover:text-foreground shrink-0">
@@ -219,7 +223,7 @@ export default function Bobinas() {
         </div>
         <div className="flex flex-wrap gap-2 items-center">
           <Button variant={showArquivadas ? "default" : "outline"} size="sm"
-            onClick={() => { setShowArquivadas(!showArquivadas); setFilterStatus("all"); setFilterAlerta(false); setOrdenacao("none"); }} className="gap-1 h-8 text-xs">
+            onClick={() => { setShowArquivadas(!showArquivadas); setFilterStatus("all"); setFilterAlerta(false); setOrdenacao("none"); setFiltroData(""); }} className="gap-1 h-8 text-xs">
             <Archive className="w-3 h-3" />
             {showArquivadas ? "Ver em estoque" : `Arquivadas (${arquivadas.length})`}
           </Button>
@@ -271,6 +275,25 @@ export default function Bobinas() {
               value={filtroFornecedor}
               onChange={e => setFiltroFornecedor(e.target.value)}
             />
+          </div>
+          <div className="flex items-center gap-1.5 bg-background border border-input rounded-md px-2.5 h-8 text-xs text-muted-foreground hover:border-primary/50 transition-colors" title={showArquivadas ? "Filtrar por data de arquivamento" : "Filtrar por data de recebimento"}>
+            <Calendar className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+            <input
+              type="date"
+              value={filtroData}
+              onChange={e => setFiltroData(e.target.value)}
+              className="bg-transparent text-xs outline-none text-foreground cursor-pointer"
+            />
+            {filtroData && (
+              <button
+                type="button"
+                onClick={() => setFiltroData("")}
+                className="hover:text-destructive text-muted-foreground p-0.5 rounded"
+                title="Limpar filtro de data"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
           </div>
           <Select value={ordenacao} onValueChange={setOrdenacao}>
             <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="Ordenar por..." /></SelectTrigger>
