@@ -73,7 +73,15 @@ export function parseWebhookPayload(rawJson) {
     }
 
     // Filtra apenas categorias industriais válidas (Telhas, C&D, Perfis, etc.)
+    // e descarta itens explicitamente desmarcados para produção no Odoo
     const itens = itensRaw
+      .filter((it) => {
+        if (!it || typeof it !== "object") return false;
+        if (it.fabricar === false || it.x_fabricar === false || it.a_fabricar === false || it.produzir === false) {
+          return false;
+        }
+        return true;
+      })
       .map((it) => {
         const produto = it.produto || it.product_name || it.product || "";
         // A descrição da linha (campo 'observacao'/'name') é a instrução de corte do vendedor

@@ -198,9 +198,17 @@ export default async function(req: Request): Promise<Response> {
     } else if (typeof body?.itens_json === "string" && body.itens_json.trim()) {
       try { newItems = JSON.parse(body.itens_json); } catch { newItems = []; }
     }
+    // Descarta itens que explicitamente não devem ser fabricados (ex: desmarcados na cotação)
+    newItems = newItems.filter((it: any) => {
+      if (!it || typeof it !== "object") return false;
+      if (it.fabricar === false || it.x_fabricar === false || it.a_fabricar === false || it.produzir === false) {
+        return false;
+      }
+      return true;
+    });
     newItems = newItems.map(sanitizarItemOdoo);
 
-    // ── 4. Montar cliente + resolver identificador da OF (odoo_id / of_odoo_id) ──
+    // ── 4. Montar cliente + resolver identificador da OF (odoo_id / of_odoo_id / of_nome) ──
     const base44 = createClientFromRequest(req);
     const db = base44.asServiceRole;
 
@@ -211,9 +219,10 @@ export default async function(req: Request): Promise<Response> {
 
     let existingRec: any = null;
 
-    // Regra Principal: of_odoo_id / odoo_id é o identificador único da OF no Odoo.
-    // numero_pedido identifica apenas o Pedido de Venda e pode ter múltiplas OFs.
-    if (ofId && !isNovaOf) {
+    // Regra de Ouro: of_odoo_id / odoo_id / of_nome é o identificador único da OF no Odoo.
+    // INDEPENDENTE de 'nova_of', se já existe um registro com esse of_odoo_id, odoo_id ou of_nome,
+    // trata-se da MESMA Ordem de Fabricação (evita duplicações por retentativa ou loop de webhook).
+    if (ofId) {
       const byOfId = await db.entities.PedidoOdoo.filter({ of_odoo_id: ofId });
       if (byOfId && byOfId.length > 0) {
         existingRec = byOfId[0];
@@ -223,8 +232,25 @@ export default async function(req: Request): Promise<Response> {
           existingRec = byOdooId[0];
         }
       }
-    } else if (!ofId && !isNovaOf) {
-      // Fallback legado: se não foi enviado of_odoo_id nem odoo_id, busca por numero_pedido
+    }
+
+    if (!existingRec && ofNome) {
+      const byOfNome = await db.entities.PedidoOdoo.filter({ of_nome: ofNome });
+      if (byOfNome && byOfNome.length > 0) {
+        existingRec = byOfNome[0];
+      }
+    }
+
+    if (!existingRec && ofNome && numeroPedido) {
+      const byPed = await db.entities.PedidoOdoo.filter({ numero_pedido: numeroPedido });
+      if (byPed && byPed.length > 0) {
+        const match = byPed.find((r: any) => r.of_nome === ofNome || (ofId && r.of_odoo_id === ofId));
+        if (match) existingRec = match;
+      }
+    }
+
+    if (!existingRec && !ofId && !ofNome && !isNovaOf) {
+      // Fallback legado: se não foi enviado of_odoo_id nem odoo_id nem of_nome, busca por numero_pedido
       const byPed = await db.entities.PedidoOdoo.filter({ numero_pedido: numeroPedido });
       if (byPed && byPed.length > 0) {
         existingRec = byPed[0];
@@ -369,32 +395,6 @@ export default async function(req: Request): Promise<Response> {
       result = await db.entities.PedidoOdoo.update(existingRec.id, record);
     } else {
       result = await db.entities.PedidoOdoo.create(record);
-    }
-
-    // Se for uma nova OF ou reset, dispara notificação de 0% para o webhook do Mini BI no Odoo
-    if (!existingRec || isNovaOf || body?.reset) {
-      const ODOO_BI_URL = "https://ajlferroeaco.odoo.com/web/hook/56a16770-c0d5-49ab-a711-0fcefc90d210";
-      const ODOO_BI_KEY = "AJL_BASE44_DELETE_OF_2026_8fk92xLm";
-      try {
-        fetch(ODOO_BI_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            api_key: ODOO_BI_KEY,
-            numero_pedido: numeroPedido,
-            odoo_id: ofId || "",
-            of_odoo_id: ofId || "",
-            of_nome: ofNome || "",
-            evento: "of_recebida",
-            status_novo: "Aguardando Distribuição (PCP)",
-            percentual_concluido: 0,
-            total_itens: mergedItems.length,
-            itens_cd_count: itensCd,
-            itens_telha_count: itensTelha,
-            timestamp: nowIso.slice(0, 19).replace("T", " ")
-          })
-        }).catch(() => {});
-      } catch {}
     }
 
     return Response.json({

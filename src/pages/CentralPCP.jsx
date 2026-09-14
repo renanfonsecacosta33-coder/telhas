@@ -130,11 +130,59 @@ export default function CentralPCP() {
     }
   };
 
-  const { data: pedidos = [], isLoading: carregando, refetch } = useQuery({
+  const { data: pedidosRaw = [], isLoading: carregando, refetch } = useQuery({
     queryKey: ["pedidos-odoo-pcp"],
     queryFn: () => base44.entities.PedidoOdoo.list("-data_recebimento", 200),
     refetchInterval: 10000
   });
+
+  // Deduplicação estrita de OFs: garante exibição de cada OF apenas uma vez
+  const pedidos = useMemo(() => {
+    const vistos = new Set();
+    const lista = [];
+    for (const p of pedidosRaw) {
+      if (!p) continue;
+      const chave = p.numero_pedido && (p.of_nome || p.of_odoo_id)
+        ? `${p.numero_pedido}___${p.of_nome || p.of_odoo_id}`
+        : (p.of_nome || p.of_odoo_id || p.id);
+      if (!vistos.has(chave)) {
+        vistos.add(chave);
+        lista.push(p);
+      }
+    }
+    return lista;
+  }, [pedidosRaw]);
+
+  // Auto-limpeza silenciosa em segundo plano: remove registros clones redundantes no banco
+  const limpezaExecutadaRef = useRef(false);
+  useEffect(() => {
+    if (!pedidosRaw.length || limpezaExecutadaRef.current) return;
+
+    const vistos = new Map();
+    const duplicadosParaRemover = [];
+
+    pedidosRaw.forEach(p => {
+      if (!p.id || !p.numero_pedido) return;
+      const ofIdent = p.of_nome || p.of_odoo_id;
+      if (!ofIdent) return;
+      const chave = `${p.numero_pedido}___${ofIdent}`;
+      if (vistos.has(chave)) {
+        duplicadosParaRemover.push(p.id);
+      } else {
+        vistos.set(chave, p.id);
+      }
+    });
+
+    if (duplicadosParaRemover.length > 0) {
+      limpezaExecutadaRef.current = true;
+      console.log(`[CentralPCP] Limpando ${duplicadosParaRemover.length} registros duplicados de PedidoOdoo...`);
+      Promise.allSettled(
+        duplicadosParaRemover.map(id => base44.entities.PedidoOdoo.delete(id))
+      ).then(() => {
+        queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      });
+    }
+  }, [pedidosRaw, queryClient]);
 
   const { data: pedidosProducao = [] } = useQuery({
     queryKey: ["pedidos-producao-todos"],
@@ -235,6 +283,8 @@ export default function CentralPCP() {
       }
       return {
         odoo_id: p.odoo_id,
+        of_odoo_id: p.of_odoo_id || p.odoo_id || null,
+        of_nome: p.of_nome || null,
         numero_pedido: p.numero_pedido,
         cliente_nome: p.cliente_nome,
         vendedor_nome: p.vendedor_nome,
@@ -885,7 +935,11 @@ export default function CentralPCP() {
         });
       }
       const g = map.get(num);
-      g.ofs.push(p);
+      const ofKey = p.of_nome || p.of_odoo_id || p.id;
+      const jaExiste = g.ofs.some(o => (o.of_nome || o.of_odoo_id || o.id) === ofKey);
+      if (!jaExiste) {
+        g.ofs.push(p);
+      }
       if (p.prioridade && !g.prioridade) {
         g.prioridade = true;
         g.prioridade_nivel = p.prioridade_nivel;
@@ -915,7 +969,11 @@ export default function CentralPCP() {
         });
       }
       const g = map.get(num);
-      g.ofs.push(p);
+      const ofKey = p.of_nome || p.of_odoo_id || p.id;
+      const jaExiste = g.ofs.some(o => (o.of_nome || o.of_odoo_id || o.id) === ofKey);
+      if (!jaExiste) {
+        g.ofs.push(p);
+      }
     });
     return Array.from(map.values());
   }, [pedidosConcluidosEmTodos, filtro]);
