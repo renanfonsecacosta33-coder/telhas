@@ -12,6 +12,7 @@ import {
   Weight, MapPin, AlertTriangle, CheckCircle2, Layers
 } from "lucide-react";
 import BobinaFormDialog from "@/components/bobinas/BobinaFormDialog";
+import { getTimestampArquivamento, formatarDataArquivamento } from "@/lib/bobinaStatusHelper";
 
 export default function EstoqueExpedicao() {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ export default function EstoqueExpedicao() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [showArquivadas, setShowArquivadas] = useState(false);
+  const [ordenacao, setOrdenacao] = useState("none");
 
   const { data: bobinas = [], isLoading } = useQuery({
     queryKey: ["bobinas-expedicao"],
@@ -28,7 +30,11 @@ export default function EstoqueExpedicao() {
   });
 
   const arquivarMutation = useMutation({
-    mutationFn: ({ id, arquivada }) => base44.entities.Bobina.update(id, { arquivada }),
+    mutationFn: ({ id, arquivada }) =>
+      base44.entities.Bobina.update(id, {
+        arquivada,
+        data_encerramento: arquivada ? new Date().toISOString().split("T")[0] : null,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bobinas-expedicao"] });
       toast.success("Status atualizado!");
@@ -46,6 +52,16 @@ export default function EstoqueExpedicao() {
            b.cor?.toLowerCase().includes(q) ||
            b.chapa?.toLowerCase().includes(q) ||
            b.fornecedor?.toLowerCase().includes(q);
+  });
+
+  const sorted = [...filtered].sort((a, b) => {
+    if (showArquivadas) {
+      if (ordenacao === "data_arq_asc") {
+        return getTimestampArquivamento(a) - getTimestampArquivamento(b);
+      }
+      return getTimestampArquivamento(b) - getTimestampArquivamento(a);
+    }
+    return 0;
   });
 
   const totalPeso = ativas.reduce((s, b) => s + (b.peso_kg || 0), 0);
@@ -112,7 +128,7 @@ export default function EstoqueExpedicao() {
         <Button
           variant={showArquivadas ? "default" : "outline"}
           size="sm"
-          onClick={() => setShowArquivadas(s => !s)}
+          onClick={() => setShowArquivadas(s => { setOrdenacao("none"); return !s; })}
         >
           <Archive className="w-4 h-4 mr-1" />
           {showArquivadas ? "Ver Ativas" : `Arquivadas (${arquivadas.length})`}
@@ -124,7 +140,7 @@ export default function EstoqueExpedicao() {
         <div className="flex items-center justify-center py-16">
           <div className="w-7 h-7 border-4 border-muted border-t-blue-500 rounded-full animate-spin" />
         </div>
-      ) : filtered.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <Package className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p className="font-medium">Nenhuma bobina encontrada</p>
@@ -134,7 +150,7 @@ export default function EstoqueExpedicao() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map(b => {
+          {sorted.map(b => {
             const alerta = b.peso_kg < (b.estoque_minimo_kg || 0);
             return (
               <div key={b.id} className={`border rounded-xl p-4 bg-card hover:bg-muted/20 transition-colors ${alerta ? "border-red-300" : ""}`}>
@@ -145,6 +161,12 @@ export default function EstoqueExpedicao() {
                       {b.qualidade && <Badge variant="secondary" className="text-[10px]">{b.qualidade}</Badge>}
                       {b.chapa && <span className="text-xs text-muted-foreground">{b.chapa}mm</span>}
                       {b.cor && <span className="text-xs font-medium text-blue-600">{b.cor}</span>}
+                      {b.arquivada && (
+                        <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 gap-1">
+                          <Archive className="w-3 h-3 inline-block" />
+                          {formatarDataArquivamento(b)}
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex gap-4 text-xs flex-wrap">
                       <span className="text-emerald-600 font-bold">

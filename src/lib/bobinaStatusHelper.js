@@ -141,3 +141,55 @@ function formatNomeMaquina(nome) {
   if (n.includes("SLITTER")) return "Slitter";
   return nome;
 }
+
+/**
+ * Extrai o timestamp numérico (ms) para ordenação de bobinas arquivadas.
+ * Prioridade:
+ * 1. data_encerramento (definida no arquivamento)
+ * 2. updated_date (quando o registro foi arquivado no Base44)
+ * 3. created_date
+ * 4. data_recebimento
+ */
+export function getTimestampArquivamento(bobina) {
+  if (!bobina) return 0;
+  if (bobina.data_encerramento) {
+    const t = new Date(bobina.data_encerramento).getTime();
+    if (!isNaN(t) && t > 0) return t;
+  }
+  if (bobina.updated_date) {
+    const t = new Date(bobina.updated_date).getTime();
+    if (!isNaN(t) && t > 0) return t;
+  }
+  if (bobina.created_date) {
+    const t = new Date(bobina.created_date).getTime();
+    if (!isNaN(t) && t > 0) return t;
+  }
+  if (bobina.data_recebimento) {
+    const t = new Date(bobina.data_recebimento).getTime();
+    if (!isNaN(t) && t > 0) return t;
+  }
+  return 0;
+}
+
+/**
+ * Formata a data de arquivamento para exibição no card.
+ * Ex: "Arquivada em 14/09/2026"
+ */
+export function formatarDataArquivamento(bobina) {
+  if (!bobina) return "Arquivada";
+  const dStr = bobina.data_encerramento || bobina.updated_date || bobina.created_date;
+  if (!dStr) return "Arquivada";
+  try {
+    if (/^\d{4}-\d{2}-\d{2}/.test(dStr)) {
+      const partes = dStr.split("T")[0].split("-");
+      if (partes.length === 3) {
+        return `Arquivada em ${partes[2]}/${partes[1]}/${partes[0]}`;
+      }
+    }
+    const dt = new Date(dStr);
+    if (!isNaN(dt.getTime())) {
+      return `Arquivada em ${dt.toLocaleDateString("pt-BR")}`;
+    }
+  } catch {}
+  return `Arquivada em ${dStr}`;
+}

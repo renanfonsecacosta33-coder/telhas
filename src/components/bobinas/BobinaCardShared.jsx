@@ -12,6 +12,7 @@ import TransferenciaDialog from "@/components/bobinas/TransferenciaDialog";
 import ImageViewer from "@/components/ui/ImageViewer";
 import { useFilial } from "@/contexts/FilialContext";
 import { ArrowLeftRight } from "lucide-react";
+import { formatarDataArquivamento } from "@/lib/bobinaStatusHelper";
 
 export const qualidadeColors = {
   "GV": "bg-blue-100 text-blue-800 border-blue-300",
@@ -161,6 +162,12 @@ export default function BobinaCard({
               {bobina.reservada && (
                 <Badge variant="outline" className="text-xs bg-purple-100 text-purple-800 border-purple-300">
                   <Lock className="w-2.5 h-2.5 mr-1" />Reservada
+                </Badge>
+              )}
+              {bobina.arquivada && (
+                <Badge variant="outline" className="text-xs bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-300/70 font-semibold flex items-center gap-1">
+                  <Archive className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                  {formatarDataArquivamento(bobina)}
                 </Badge>
               )}
             </div>

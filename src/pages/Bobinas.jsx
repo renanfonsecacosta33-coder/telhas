@@ -16,6 +16,7 @@ import PainelTransferencias from "@/components/bobinas/PainelTransferencias";
 import PreBaixaDetalhesDialog from "@/components/bobinas/PreBaixaDetalhesDialog";
 import { useFilial } from "@/contexts/FilialContext";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
+import { getTimestampArquivamento } from "@/lib/bobinaStatusHelper";
 
 const statusColors = {
   "Aberta": "bg-green-500/10 text-green-700 border-green-300",
@@ -42,6 +43,7 @@ export default function Bobinas() {
   const [bobinaOpsModal, setBobinaOpsModal] = useState(null);
   const [filtroQualidade, setFiltroQualidade] = useState("todos");
   const [filtroFornecedor, setFiltroFornecedor] = useState("");
+  const [ordenacao, setOrdenacao] = useState("none");
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
 
@@ -92,6 +94,49 @@ export default function Bobinas() {
     const matchQualidade = filtroQualidade === "todos" || b.qualidade === filtroQualidade;
     const matchFornecedor = !filtroFornecedor || (b.fornecedor || "").toLowerCase().includes(filtroFornecedor.toLowerCase());
     return matchSearch && matchStatus && matchAlerta && matchPreBaixa && matchQualidade && matchFornecedor;
+  });
+
+  // Ordenação inteligente (Prioriza data de arquivamento quando visualizando arquivadas)
+  const sorted = [...filtered].sort((a, b) => {
+    if (showArquivadas) {
+      if (ordenacao === "data_arq_asc") {
+        const da = getTimestampArquivamento(a);
+        const db = getTimestampArquivamento(b);
+        if (da !== db) return da - db;
+      } else if (ordenacao === "codigo_asc") {
+        return (a.codigo || "").localeCompare(b.codigo || "", undefined, { numeric: true });
+      } else if (ordenacao === "codigo_desc") {
+        return (b.codigo || "").localeCompare(a.codigo || "", undefined, { numeric: true });
+      } else if (ordenacao === "espessura_asc") {
+        return parseFloat((a.chapa || "0").replace(",", ".")) - parseFloat((b.chapa || "0").replace(",", "."));
+      } else if (ordenacao === "espessura_desc") {
+        return parseFloat((b.chapa || "0").replace(",", ".")) - parseFloat((a.chapa || "0").replace(",", "."));
+      } else {
+        // Padrão em arquivadas: Mais recentes primeiro (ordem por data de arquivamento)
+        const da = getTimestampArquivamento(a);
+        const db = getTimestampArquivamento(b);
+        if (da !== db) return db - da;
+      }
+    } else {
+      if (ordenacao === "codigo_asc") {
+        return (a.codigo || "").localeCompare(b.codigo || "", undefined, { numeric: true });
+      } else if (ordenacao === "codigo_desc") {
+        return (b.codigo || "").localeCompare(a.codigo || "", undefined, { numeric: true });
+      } else if (ordenacao === "espessura_asc") {
+        return parseFloat((a.chapa || "0").replace(",", ".")) - parseFloat((b.chapa || "0").replace(",", "."));
+      } else if (ordenacao === "espessura_desc") {
+        return parseFloat((b.chapa || "0").replace(",", ".")) - parseFloat((a.chapa || "0").replace(",", "."));
+      } else if (ordenacao === "data_recebimento_desc") {
+        const da = a.data_recebimento ? new Date(a.data_recebimento).getTime() : 0;
+        const db = b.data_recebimento ? new Date(b.data_recebimento).getTime() : 0;
+        return db - da;
+      } else if (ordenacao === "data_recebimento_asc") {
+        const da = a.data_recebimento ? new Date(a.data_recebimento).getTime() : 0;
+        const db = b.data_recebimento ? new Date(b.data_recebimento).getTime() : 0;
+        return da - db;
+      }
+    }
+    return 0;
   });
 
   const temFiltrosExtras = filtroQualidade !== "todos" || !!filtroFornecedor || filterPreBaixa;
@@ -174,7 +219,7 @@ export default function Bobinas() {
         </div>
         <div className="flex flex-wrap gap-2 items-center">
           <Button variant={showArquivadas ? "default" : "outline"} size="sm"
-            onClick={() => { setShowArquivadas(!showArquivadas); setFilterStatus("all"); setFilterAlerta(false); }} className="gap-1 h-8 text-xs">
+            onClick={() => { setShowArquivadas(!showArquivadas); setFilterStatus("all"); setFilterAlerta(false); setOrdenacao("none"); }} className="gap-1 h-8 text-xs">
             <Archive className="w-3 h-3" />
             {showArquivadas ? "Ver em estoque" : `Arquivadas (${arquivadas.length})`}
           </Button>
@@ -227,8 +272,33 @@ export default function Bobinas() {
               onChange={e => setFiltroFornecedor(e.target.value)}
             />
           </div>
+          <Select value={ordenacao} onValueChange={setOrdenacao}>
+            <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="Ordenar por..." /></SelectTrigger>
+            <SelectContent>
+              {showArquivadas ? (
+                <>
+                  <SelectItem value="none">Data Arquivamento (Recentes)</SelectItem>
+                  <SelectItem value="data_arq_asc">Data Arquivamento (Antigas)</SelectItem>
+                  <SelectItem value="codigo_asc">Código ↑</SelectItem>
+                  <SelectItem value="codigo_desc">Código ↓</SelectItem>
+                  <SelectItem value="espessura_asc">Espessura ↑</SelectItem>
+                  <SelectItem value="espessura_desc">Espessura ↓</SelectItem>
+                </>
+              ) : (
+                <>
+                  <SelectItem value="none">Padrão</SelectItem>
+                  <SelectItem value="data_recebimento_desc">Data Recebimento (Recentes)</SelectItem>
+                  <SelectItem value="data_recebimento_asc">Data Recebimento (Antigas)</SelectItem>
+                  <SelectItem value="codigo_asc">Código ↑</SelectItem>
+                  <SelectItem value="codigo_desc">Código ↓</SelectItem>
+                  <SelectItem value="espessura_asc">Espessura ↑</SelectItem>
+                  <SelectItem value="espessura_desc">Espessura ↓</SelectItem>
+                </>
+              )}
+            </SelectContent>
+          </Select>
           <p className="text-xs text-muted-foreground ml-auto">
-            {filtered.length} de {base.length} bobinas
+            {sorted.length} de {base.length} bobinas
           </p>
         </div>
       </div>
@@ -238,11 +308,11 @@ export default function Bobinas() {
         <div className="flex items-center justify-center py-16">
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
         </div>
-      ) : filtered.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <EmptyState title="Nenhuma bobina encontrada" description="Adicione bobinas ao estoque." onAdd={() => { setEditItem(null); setDialogOpen(true); }} />
       ) : (
         <div className="space-y-3">
-          {filtered.map((bobina) => (
+          {sorted.map((bobina) => (
             <BobinaCard
               key={bobina.id}
               bobina={bobina}

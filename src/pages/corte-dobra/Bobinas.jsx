@@ -15,6 +15,7 @@ import PainelSolicitacoesReserva from "@/components/vendedor/PainelSolicitacoesR
 import PainelTransferencias from "@/components/bobinas/PainelTransferencias";
 import { useFilial } from "@/contexts/FilialContext";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
+import { getTimestampArquivamento } from "@/lib/bobinaStatusHelper";
 
 export default function BobinasCD() {
   const { filialAtiva } = useFilial();
@@ -147,19 +148,50 @@ export default function BobinasCD() {
     return matchSearch && matchAlerta && matchQualidade && matchFornecedor;
   });
 
-  // Ordenação
+  // Ordenação inteligente (Prioriza data de arquivamento quando visualizando arquivadas)
   const sorted = [...filtered].sort((a, b) => {
-    if (ordenacao === "codigo_asc")  return (a.codigo || "").localeCompare(b.codigo || "", undefined, { numeric: true });
-    if (ordenacao === "codigo_desc") return (b.codigo || "").localeCompare(a.codigo || "", undefined, { numeric: true });
-    if (ordenacao === "espessura_asc") {
-      const ea = parseFloat((a.chapa || "0").replace(",", "."));
-      const eb = parseFloat((b.chapa || "0").replace(",", "."));
-      return ea - eb;
-    }
-    if (ordenacao === "espessura_desc") {
-      const ea = parseFloat((a.chapa || "0").replace(",", "."));
-      const eb = parseFloat((b.chapa || "0").replace(",", "."));
-      return eb - ea;
+    if (showArquivadas) {
+      if (ordenacao === "data_arq_asc") {
+        const da = getTimestampArquivamento(a);
+        const db = getTimestampArquivamento(b);
+        if (da !== db) return da - db;
+      } else if (ordenacao === "codigo_asc") {
+        return (a.codigo || "").localeCompare(b.codigo || "", undefined, { numeric: true });
+      } else if (ordenacao === "codigo_desc") {
+        return (b.codigo || "").localeCompare(a.codigo || "", undefined, { numeric: true });
+      } else if (ordenacao === "espessura_asc") {
+        return parseFloat((a.chapa || "0").replace(",", ".")) - parseFloat((b.chapa || "0").replace(",", "."));
+      } else if (ordenacao === "espessura_desc") {
+        return parseFloat((b.chapa || "0").replace(",", ".")) - parseFloat((a.chapa || "0").replace(",", "."));
+      } else {
+        // Padrão em arquivadas: Mais recentes primeiro (ordem por data de arquivamento)
+        const da = getTimestampArquivamento(a);
+        const db = getTimestampArquivamento(b);
+        if (da !== db) return db - da;
+      }
+    } else {
+      if (ordenacao === "codigo_asc")  return (a.codigo || "").localeCompare(b.codigo || "", undefined, { numeric: true });
+      if (ordenacao === "codigo_desc") return (b.codigo || "").localeCompare(a.codigo || "", undefined, { numeric: true });
+      if (ordenacao === "espessura_asc") {
+        const ea = parseFloat((a.chapa || "0").replace(",", "."));
+        const eb = parseFloat((b.chapa || "0").replace(",", "."));
+        return ea - eb;
+      }
+      if (ordenacao === "espessura_desc") {
+        const ea = parseFloat((a.chapa || "0").replace(",", "."));
+        const eb = parseFloat((b.chapa || "0").replace(",", "."));
+        return eb - ea;
+      }
+      if (ordenacao === "data_recebimento_desc") {
+        const da = a.data_recebimento ? new Date(a.data_recebimento).getTime() : 0;
+        const db = b.data_recebimento ? new Date(b.data_recebimento).getTime() : 0;
+        return db - da;
+      }
+      if (ordenacao === "data_recebimento_asc") {
+        const da = a.data_recebimento ? new Date(a.data_recebimento).getTime() : 0;
+        const db = b.data_recebimento ? new Date(b.data_recebimento).getTime() : 0;
+        return da - db;
+      }
     }
     return 0;
   });
@@ -229,7 +261,7 @@ export default function BobinasCD() {
         </div>
         <div className="flex flex-wrap gap-2 items-center">
           <Button variant={showArquivadas ? "default" : "outline"} size="sm"
-            onClick={() => { setShowArquivadas(!showArquivadas); setFilterAlerta(false); }} className="gap-1 h-8 text-xs">
+            onClick={() => { setShowArquivadas(!showArquivadas); setFilterAlerta(false); setOrdenacao("none"); }} className="gap-1 h-8 text-xs">
             <Archive className="w-3 h-3" />
             {showArquivadas ? "Ver em estoque" : `Arquivadas (${arquivadas.length})`}
           </Button>
@@ -260,13 +292,28 @@ export default function BobinasCD() {
             />
           </div>
           <Select value={ordenacao} onValueChange={setOrdenacao}>
-            <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Ordenar por..." /></SelectTrigger>
+            <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="Ordenar por..." /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Padrão</SelectItem>
-              <SelectItem value="codigo_asc">Código ↑</SelectItem>
-              <SelectItem value="codigo_desc">Código ↓</SelectItem>
-              <SelectItem value="espessura_asc">Espessura ↑</SelectItem>
-              <SelectItem value="espessura_desc">Espessura ↓</SelectItem>
+              {showArquivadas ? (
+                <>
+                  <SelectItem value="none">Data Arquivamento (Recentes)</SelectItem>
+                  <SelectItem value="data_arq_asc">Data Arquivamento (Antigas)</SelectItem>
+                  <SelectItem value="codigo_asc">Código ↑</SelectItem>
+                  <SelectItem value="codigo_desc">Código ↓</SelectItem>
+                  <SelectItem value="espessura_asc">Espessura ↑</SelectItem>
+                  <SelectItem value="espessura_desc">Espessura ↓</SelectItem>
+                </>
+              ) : (
+                <>
+                  <SelectItem value="none">Padrão</SelectItem>
+                  <SelectItem value="data_recebimento_desc">Data Recebimento (Recentes)</SelectItem>
+                  <SelectItem value="data_recebimento_asc">Data Recebimento (Antigas)</SelectItem>
+                  <SelectItem value="codigo_asc">Código ↑</SelectItem>
+                  <SelectItem value="codigo_desc">Código ↓</SelectItem>
+                  <SelectItem value="espessura_asc">Espessura ↑</SelectItem>
+                  <SelectItem value="espessura_desc">Espessura ↓</SelectItem>
+                </>
+              )}
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground ml-auto">
