@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, AlertTriangle, Package, Weight, Archive, X, Loader2, Layers, Calendar } from "lucide-react";
+import { Plus, Search, AlertTriangle, Package, Weight, Archive, X, Loader2, Layers, Calendar, Download } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import BobinaFormDialog from "@/components/bobinas/BobinaFormDialog";
@@ -17,6 +17,7 @@ import PreBaixaDetalhesDialog from "@/components/bobinas/PreBaixaDetalhesDialog"
 import { useFilial } from "@/contexts/FilialContext";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 import { getTimestampArquivamento, matchBobinaBuscaData, matchBobinaFiltroDataExata } from "@/lib/bobinaStatusHelper";
+import { exportarPlanilhaBobinasOdoo } from "@/lib/exportarBobinasHelper";
 
 const statusColors = {
   "Aberta": "bg-green-500/10 text-green-700 border-green-300",
@@ -153,6 +154,20 @@ export default function Bobinas() {
     setFiltroData("");
   };
 
+  const [exportando, setExportando] = useState(false);
+
+  const handleExportarOdoo = async () => {
+    setExportando(true);
+    try {
+      const res = await exportarPlanilhaBobinasOdoo({ setor: "todos", apenasAtivas: false });
+      toast.success(`${res.total} bobinas exportadas com sucesso para a planilha do Odoo!`);
+    } catch (e) {
+      toast.error(e.message || "Erro ao exportar planilha.");
+    } finally {
+      setExportando(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -164,9 +179,21 @@ export default function Bobinas() {
           </div>
           <p className="text-sm text-muted-foreground">Bobinas de aço para produção de telhas</p>
         </div>
-        <Button onClick={() => { setEditItem(null); setDialogOpen(true); }} className="gap-2">
-          <Plus className="w-4 h-4" /> Nova Bobina
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={handleExportarOdoo}
+            disabled={exportando}
+            className="gap-2 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+            title="Exportar planilha de todas as bobinas do Base44 para parear no Odoo"
+          >
+            {exportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {exportando ? "Exportando..." : "Exportar Planilha (Odoo)"}
+          </Button>
+          <Button onClick={() => { setEditItem(null); setDialogOpen(true); }} className="gap-2">
+            <Plus className="w-4 h-4" /> Nova Bobina
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
