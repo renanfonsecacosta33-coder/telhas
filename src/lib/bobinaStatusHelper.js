@@ -308,3 +308,164 @@ export function matchBobinaFiltroDataExata(bobina, dataIso, showArquivadas = fal
 
   return false;
 }
+
+/**
+ * Normaliza string removendo acentos e espaços extras para busca insensível
+ */
+export function normalizarTextoBusca(str) {
+  return String(str || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Identifica se a bobina é de aço natural (Galvalume / sem pintura)
+ * ou se é pré-pintada (cores: Preta, Branca, Azul, etc.)
+ */
+export function isBobinaNatural(bobina) {
+  if (!bobina) return true;
+  const qual = String(bobina.qualidade || "").trim().toUpperCase();
+  // Qualidade PP = Pré-Pintada
+  if (qual === "PP" || qual === "PRE-PINTADA" || qual === "PRÉ-PINTADA") {
+    return false;
+  }
+  const cor = normalizarTextoBusca(bobina.cor);
+  if (!cor) return true;
+
+  const termosNatural = [
+    "natural", "galvalume", "galv", "gl", "gv",
+    "sem pintura", "sem cor", "padrao",
+    "zinco", "cinza natural", "crua", "cru"
+  ];
+  if (termosNatural.some(t => cor === t || cor.startsWith(t))) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Identifica se a bobina está aberta ou em uso na fábrica
+ */
+export function isBobinaAberta(bobina, statusMap = {}) {
+  if (!bobina) return false;
+  const st = normalizarTextoBusca(bobina.status);
+  // Status explícito de aberta ou em máquina (ex: "Aberta", "Na TP40", "Na BOBININHA")
+  if (st === "aberta" || st.startsWith("na ") || st === "em uso" || st === "em producao" || st === "em processo") {
+    return true;
+  }
+  // Em produção no statusMap em tempo real
+  const mapSt = statusMap[bobina.id];
+  if (mapSt && mapSt.status === "em_producao") {
+    return true;
+  }
+  // Se for explicitamente fechada
+  if (st === "fechada" || st === "fechado" || st === "encerrada" || st === "lacrada") {
+    return false;
+  }
+  // Se peso atual < peso inicial (já foi parcialmente consumida/iniciada no chão de fábrica)
+  if (bobina.peso_inicial && bobina.peso_kg && bobina.peso_kg < (bobina.peso_inicial - 50)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Retorna o nível de prioridade para a listagem das bobinas nas máquinas de Telhas:
+ * 1: Aberta + Natural (Galvalume)
+ * 2: Aberta + Pré-Pintada (Cores)
+ * 3: Fechada + Natural (Galvalume)
+ * 4: Fechada + Pré-Pintada (Cores)
+ */
+export function getBobinaPrioridadeTelhas(bobina, statusMap = {}) {
+  const aberta = isBobinaAberta(bobina, statusMap);
+  const natural = isBobinaNatural(bobina);
+
+  if (aberta && natural) return 1;    // 1: Abertas Naturais
+  if (aberta && !natural) return 2;   // 2: Abertas Pré-Pintadas
+  if (!aberta && natural) return 3;   // 3: Fechadas Naturais
+  return 4;                           // 4: Fechadas Pré-Pintadas
+}
+
+/**
+ * Compara e ordena duas bobinas segundo a regra estrita de Telhas:
+ * - Abertas primeiro (Naturais antes de Pré-Pintadas)
+ * - Depois Fechadas (Naturais antes de Pré-Pintadas)
+ * - Desempate por espessura/chapa crescente, cor e código
+ */
+export function compararBobinasTelhas(a, b, statusMap = {}) {
+  const pA = getBobinaPrioridadeTelhas(a, statusMap);
+  const pB = getBobinaPrioridadeTelhas(b, statusMap);
+  if (pA !== pB) return pA - pB;
+
+  // Mesma prioridade: ordena por espessura/chapa crescente (ex: 0,43 < 0,50 < 0,65)
+  const espA = parseFloat(String(a.chapa || "").replace(",", ".")) || 0;
+  const espB = parseFloat(String(b.chapa || "").replace(",", ".")) || 0;
+  if (espA !== espB) return espA - espB;
+
+  // Mesma espessura: cor
+  const corA = normalizarTextoBusca(a.cor);
+  const corB = normalizarTextoBusca(b.cor);
+  const compCor = corA.localeCompare(corB);
+  if (compCor !== 0) return compCor;
+
+  // Código
+  return String(a.codigo || "").localeCompare(String(b.codigo || ""), undefined, { numeric: true });
+}
+
+/**
+ * Verifica se a bobina atende ao termo de busca digitado pelo usuário:
+ * - Código da bobina ou parte dele (ex: "TE001", "001", "45")
+ * - Cor ou nome da cor (ex: "Preta", "Branca", "Azul", "Grafite")
+ * - Espessura / Chapa (ex: "0,43", "0.43")
+ * - Qualidade ("PP", "GV", "GL")
+ * - Status ("Aberta", "Fechada")
+ * - Fornecedor ou NF
+ */
+export function matchBobinaBuscaGeral(bobina, query) {
+  if (!bobina) return false;
+  if (!query) return true;
+  const q = normalizarTextoBusca(query);
+  if (!q) return true;
+
+  const cod = normalizarTextoBusca(bobina.codigo);
+  const cor = normalizarTextoBusca(bobina.cor);
+  const chapa = normalizarTextoBusca(bobina.chapa);
+  const qual = normalizarTextoBusca(bobina.qualidade);
+  const status = normalizarTextoBusca(bobina.status);
+  const nf = normalizarTextoBusca(bobina.nf);
+  const forn = normalizarTextoBusca(bobina.fornecedor);
+
+  // Cor
+  if (cor.includes(q)) return true;
+
+  // Código (exato ou parcial)
+  if (cod.includes(q)) return true;
+
+  // Espessura / Chapa com ponto ou vírgula
+  const qComVirgula = q.replace(".", ",");
+  const qComPonto = q.replace(",", ".");
+  if (chapa.includes(q) || chapa.includes(qComVirgula) || chapa.includes(qComPonto)) return true;
+
+  // Qualidade (GV, PP, GL)
+  if (qual.includes(q)) return true;
+
+  // Status (Aberta, Fechada)
+  if (status.includes(q)) return true;
+
+  // Busca por "natural" ou "galvalume"
+  if (q === "natural" || q === "galvalume") {
+    if (isBobinaNatural(bobina)) return true;
+  }
+
+  // Busca por "pre-pintada" ou "prepintada" ou "pintada" ou "cor"
+  if (q === "pre-pintada" || q === "prepintada" || q === "pintada" || q === "colorida") {
+    if (!isBobinaNatural(bobina)) return true;
+  }
+
+  // NF ou Fornecedor
+  if (nf.includes(q) || forn.includes(q)) return true;
+
+  return false;
+}

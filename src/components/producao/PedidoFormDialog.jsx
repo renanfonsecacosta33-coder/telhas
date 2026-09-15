@@ -13,9 +13,10 @@ import UploadButton from "@/components/ui/UploadButton";
 import ImageLink from "@/components/ui/ImageLink";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 import { useTolerancias } from "@/hooks/useTolerancias";
-import { getBobinaStatus, calcMetrosDisponiveis } from "@/lib/bobinaStatusHelper";
+import { getBobinaStatus, calcMetrosDisponiveis, compararBobinasTelhas } from "@/lib/bobinaStatusHelper";
 import { validarBobina, filtrarBobinasCompativeis } from "@/lib/bobinaValidation";
 import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
+import BobinaComboboxTelhas from "@/components/producao/BobinaComboboxTelhas";
 import { Building2, X, Loader2, FileText, Plus, Trash2, Camera, ShieldAlert, Flame, Route, AlertTriangle, Target } from "lucide-react";
 import { detectarTipoProdutoTelha, detectarMaquinaTelha, detectarEspessura, detectarOrigemAco, detectarEPSTelha, normalizarNumPedido, saoPedidosIguais } from "@/lib/pedidoOdooHelper";
 import { calcularDataPrometidaSLA, toISODate, formatDataBR } from "@/lib/sla";
@@ -247,15 +248,12 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   const precisaEPS = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(form.produto);
   const precisaBobinaInferior = ["TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(form.produto);
 
-  // Bobinas ativas ordenadas por chapa — filtradas pela exigência Odoo (espessura + origem)
+  // Bobinas ativas ordenadas com prioridade estrita de Telhas:
+  // 1º Abertas Naturais -> 2º Abertas Pré-Pintadas -> 3º Fechadas Naturais -> 4º Fechadas Pré-Pintadas
   const bobinasFiltradas = useMemo(() => filtrarBobinasCompativeis(bobinas, reqValidacao), [bobinas, reqValidacao]);
   const bobinasList = useMemo(() => {
-    return [...bobinasFiltradas].sort((a, b) => {
-      const ca = `${a.chapa}${a.qualidade}${a.cor}`.toLowerCase();
-      const cb = `${b.chapa}${b.qualidade}${b.cor}`.toLowerCase();
-      return ca.localeCompare(cb);
-    });
-  }, [bobinasFiltradas]);
+    return [...bobinasFiltradas].sort((a, b) => compararBobinasTelhas(a, b, statusMap));
+  }, [bobinasFiltradas, statusMap]);
 
   const { data: modelosCad = [] } = useQuery({
     queryKey: ["modelos-produto"],
@@ -1411,14 +1409,15 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
             {/* Bobina Superior */}
             <div className="space-y-2">
               <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Bobina Superior</Label>
-              <Select value={form.bobina_superior} onValueChange={handleBobinaSupChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a bobina do estoque..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {bobinasList.map((b) => renderBobinaSelectItem(b, preBaixaMap, ordensAtivas, statusMap))}
-                </SelectContent>
-              </Select>
+              <BobinaComboboxTelhas
+                bobinas={bobinasList}
+                value={form.bobina_superior}
+                onChange={handleBobinaSupChange}
+                preBaixaMap={preBaixaMap}
+                statusMap={statusMap}
+                ordensAtivas={todasOrdens}
+                placeholder="Buscar código ou cor (ex: 001, Preta, Branca, Natural)..."
+              />
 
               {bobinaSuperiorObj && (() => {
                     const pb = preBaixaMap[bobinaSuperiorObj.id] || 0;
@@ -1465,14 +1464,16 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                               <Label className="text-xs font-bold text-slate-800 uppercase tracking-wider block mb-1">
                                 2ª Bobina (Emenda / Complementar) *
                               </Label>
-                              <Select value={form.bobina_secundaria_id || ""} onValueChange={handleBobinaSecChange}>
-                                <SelectTrigger className="bg-white border-amber-400 text-xs">
-                                  <SelectValue placeholder="Selecione a 2ª bobina para suprir os quilos restantes..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {bobinasCompativeisSecundaria.map((b) => renderBobinaSelectItem(b, preBaixaMap, ordensAtivas, statusMap))}
-                                </SelectContent>
-                              </Select>
+                              <BobinaComboboxTelhas
+                                bobinas={bobinasCompativeisSecundaria}
+                                value={form.bobina_secundaria_id || ""}
+                                onChange={handleBobinaSecChange}
+                                preBaixaMap={preBaixaMap}
+                                statusMap={statusMap}
+                                ordensAtivas={todasOrdens}
+                                placeholder="Buscar 2ª bobina por código ou cor..."
+                                className="bg-white border-amber-400 text-xs"
+                              />
 
                               {bobinaSecundariaObj && (() => {
                                 const pb2 = preBaixaMap[bobinaSecundariaObj.id] || 0;
@@ -1506,14 +1507,15 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
             {precisaBobinaInferior &&
             <div className="space-y-2">
                 <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Bobina Inferior</Label>
-                <Select value={form.bobina_inferior} onValueChange={handleBobinaInfChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a bobina inferior..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {bobinasList.map((b) => renderBobinaSelectItem(b, preBaixaMap, ordensAtivas, statusMap))}
-                  </SelectContent>
-                </Select>
+                <BobinaComboboxTelhas
+                  bobinas={bobinasList}
+                  value={form.bobina_inferior}
+                  onChange={handleBobinaInfChange}
+                  preBaixaMap={preBaixaMap}
+                  statusMap={statusMap}
+                  ordensAtivas={todasOrdens}
+                  placeholder="Buscar código ou cor da bobina inferior..."
+                />
                     {bobinaInferiorObj && (() => {
                     const pb = preBaixaMap[bobinaInferiorObj.id] || 0;
                     const disp = (bobinaInferiorObj.peso_kg || 0) - pb;
@@ -1678,17 +1680,16 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                         <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                           Bobina {precisaBobinaInferior ? "Superior" : "do Item"}
                         </Label>
-                        <Select
+                        <BobinaComboboxTelhas
+                          bobinas={bobinasList}
                           value={v.bobina_id || form.bobina_superior || (bobinasList && bobinasList[0]?.id) || ""}
-                          onValueChange={(val) => updateVariacao(idx, "bobina_id", val)}
-                        >
-                          <SelectTrigger className="h-auto min-h-[38px] text-xs">
-                            <SelectValue placeholder="Selecionar bobina para esta medida..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {bobinasList.map((b) => renderBobinaSelectItem(b, preBaixaMap, ordensAtivas, statusMap))}
-                          </SelectContent>
-                        </Select>
+                          onChange={(val) => updateVariacao(idx, "bobina_id", val)}
+                          preBaixaMap={preBaixaMap}
+                          statusMap={statusMap}
+                          ordensAtivas={todasOrdens}
+                          placeholder="Buscar bobina para esta medida..."
+                          className="min-h-[38px] text-xs"
+                        />
 
                         {/* Card informativo da bobina selecionada para esta medida */}
                         {(() => {
@@ -1725,17 +1726,16 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                           <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                             Bobina Inferior do Item
                           </Label>
-                          <Select
+                          <BobinaComboboxTelhas
+                            bobinas={bobinasList}
                             value={v.bobina_inf_id || form.bobina_inferior || (bobinasList && bobinasList[1]?.id) || ""}
-                            onValueChange={(val) => updateVariacao(idx, "bobina_inf_id", val)}
-                          >
-                            <SelectTrigger className="h-auto min-h-[38px] text-xs">
-                              <SelectValue placeholder="Selecionar bobina inferior..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {bobinasList.map((b) => renderBobinaSelectItem(b, preBaixaMap, ordensAtivas, statusMap))}
-                            </SelectContent>
-                          </Select>
+                            onChange={(val) => updateVariacao(idx, "bobina_inf_id", val)}
+                            preBaixaMap={preBaixaMap}
+                            statusMap={statusMap}
+                            ordensAtivas={todasOrdens}
+                            placeholder="Buscar bobina inferior..."
+                            className="min-h-[38px] text-xs"
+                          />
 
                           {(() => {
                             const bobInfId = v.bobina_inf_id || form.bobina_inferior || (bobinasList && bobinasList[1]?.id);

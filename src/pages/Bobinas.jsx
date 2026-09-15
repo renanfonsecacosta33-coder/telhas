@@ -16,7 +16,7 @@ import PainelTransferencias from "@/components/bobinas/PainelTransferencias";
 import PreBaixaDetalhesDialog from "@/components/bobinas/PreBaixaDetalhesDialog";
 import { useFilial } from "@/contexts/FilialContext";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
-import { getTimestampArquivamento, matchBobinaBuscaData, matchBobinaFiltroDataExata } from "@/lib/bobinaStatusHelper";
+import { getTimestampArquivamento, matchBobinaBuscaData, matchBobinaFiltroDataExata, compararBobinasTelhas, matchBobinaBuscaGeral } from "@/lib/bobinaStatusHelper";
 import { exportarPlanilhaBobinasOdoo } from "@/lib/exportarBobinasHelper";
 
 const statusColors = {
@@ -86,10 +86,7 @@ export default function Bobinas() {
   const base = showArquivadas ? arquivadas : ativas;
   const filtered = base.filter((b) => {
     const q = search.toLowerCase();
-    const matchSearch = !q || b.cor?.toLowerCase().includes(q) || b.chapa?.toLowerCase().includes(q) ||
-      b.codigo?.toLowerCase().includes(q) || b.fornecedor?.toLowerCase().includes(q) ||
-      b.status?.toLowerCase().includes(q) || b.qualidade?.toLowerCase().includes(q) ||
-      b.nf?.toLowerCase().includes(q) ||
+    const matchSearch = !q || matchBobinaBuscaGeral(b, q) ||
       matchBobinaBuscaData(b, q, showArquivadas);
     const matchStatus = filterStatus === "all" || b.status === filterStatus;
     const matchAlerta = !filterAlerta || getAlertaNivel(b) !== null;
@@ -138,6 +135,9 @@ export default function Bobinas() {
         const da = a.data_recebimento ? new Date(a.data_recebimento).getTime() : 0;
         const db = b.data_recebimento ? new Date(b.data_recebimento).getTime() : 0;
         return da - db;
+      } else {
+        // Padrão em Telhas: 1º Abertas Naturais -> 2º Abertas Cores -> 3º Fechadas Naturais -> 4º Fechadas Cores
+        return compararBobinasTelhas(a, b);
       }
     }
     return 0;
