@@ -19,7 +19,7 @@ export default function Logistica({ mode = "montagem" }) {
   const [dialogCarga, setDialogCarga] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedTipo, setSelectedTipo] = useState(null);
-  const [tab, setTab] = useState(isDespacho ? "cd" : "telhas");
+  const [tab, setTab] = useState("todos");
   const [filtroData, setFiltroData] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [mostrarEntregues, setMostrarEntregues] = useState(false);
@@ -87,7 +87,11 @@ export default function Logistica({ mode = "montagem" }) {
 
   // Items filtered by active tab
   const itensFiltradosTab = useMemo(() => {
-    let items = tab === "telhas" ? allItens.filter(i => i._setor === "Telhas") : allItens.filter(i => i._setor === "Corte e Dobra");
+    let items = tab === "todos"
+      ? allItens
+      : tab === "telhas"
+      ? allItens.filter(i => i._setor === "Telhas")
+      : allItens.filter(i => i._setor === "Corte e Dobra");
     if (filtroData) {
       items = items.filter(i => (i.data_finalizacao || i.data || "") === filtroData);
     }
@@ -179,6 +183,7 @@ export default function Logistica({ mode = "montagem" }) {
       try {
         const linked = JSON.parse(c.pedidos_json);
         if (linked.length === 0) return true; // empty carga — show in both tabs
+        if (tab === "todos") return true;
         if (tab === "telhas") return linked.some(p => p.tipo === "pedido");
         return linked.some(p => p.tipo === "ordem_maquina" || p.tipo === "ordem_desb");
       } catch {
@@ -265,23 +270,27 @@ export default function Logistica({ mode = "montagem" }) {
         )}
       </div>
 
-      {/* Tabs Barracões — oculto no modo despacho (barracão Corte e Dobra: travado em Corte e Dobra) */}
-      {!isDespacho && (
-      <div className="flex items-center gap-2 border-b border-border">
+      {/* Tabs Barracões */}
+      <div className="flex items-center gap-2 border-b border-border overflow-x-auto">
+        <button
+          onClick={() => setTab("todos")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${tab === "todos" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+        >
+          <Package className="w-4 h-4" /> Ambos os Barracões (Todos)
+        </button>
         <button
           onClick={() => setTab("telhas")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all ${tab === "telhas" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${tab === "telhas" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
         >
           <Factory className="w-4 h-4" /> Telhas
         </button>
         <button
           onClick={() => setTab("cd")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all ${tab === "cd" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${tab === "cd" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
         >
           <Layers className="w-4 h-4" /> Corte e Dobra
         </button>
       </div>
-      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -327,7 +336,7 @@ export default function Logistica({ mode = "montagem" }) {
 
       {/* Rotas de Entrega distribuídas pela IA — visão completa da expedição */}
       <RotasEntregaSection
-        departamento={tab === "telhas" ? "telhas" : "corte_dobra"}
+        departamento={tab === "todos" ? null : tab === "telhas" ? "telhas" : "corte_dobra"}
         filialAtiva={filialAtiva}
         title="Rotas de Entrega — IA"
         allowDelete

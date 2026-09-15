@@ -100,12 +100,41 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
     });
   }, [itens, departamento, getInfoPedido]);
 
+  // Ambos os barracões de fabricação (Telhas e Corte & Dobra) DEVEM estar sempre disponíveis lado a lado
   const departamentosAtivos = useMemo(() => {
-    if (departamento) return [departamento];
-    const set = new Set();
-    itens.forEach((i) => (i.departamentos || []).forEach((d) => set.add(d)));
-    return ["telhas", "corte_dobra", "expedicao"].filter((d) => set.has(d));
-  }, [itens, departamento]);
+    const list = ["telhas", "corte_dobra"];
+    if (rota.video_expedicao_url || rota.fotos_expedicao_json || (rota.itens_json && rota.itens_json.includes('"expedicao"'))) {
+      list.push("expedicao");
+    }
+    return list;
+  }, [rota]);
+
+  const alterarBarracaoPedido = async (numeroPedido, novoBarracao) => {
+    const novosItens = itens.map((it) => {
+      if (String(it.numero_pedido).trim() === String(numeroPedido).trim()) {
+        const deps = [];
+        if (novoBarracao === "telhas" || novoBarracao === "ambos") deps.push("telhas");
+        if (novoBarracao === "corte_dobra" || novoBarracao === "ambos") deps.push("corte_dobra");
+        if (novoBarracao === "aguardando") deps.push("expedicao");
+        return {
+          ...it,
+          barracao_sugerido: novoBarracao,
+          departamentos: deps,
+        };
+      }
+      return it;
+    });
+
+    try {
+      await base44.entities.RotaEntrega.update(rota.id, {
+        itens_json: JSON.stringify(novosItens),
+      });
+      queryClient.invalidateQueries({ queryKey: ["rotas-entrega"] });
+      toast.success(`Pedido #${numeroPedido} alterado para ${novoBarracao === "telhas" ? "Telhas" : novoBarracao === "corte_dobra" ? "Corte & Dobra" : novoBarracao === "ambos" ? "Ambos" : "Aguardando"}!`);
+    } catch (e) {
+      toast.error("Erro ao alterar barracão: " + (e?.message || ""));
+    }
+  };
 
   const carregamentoField = (dep) => ({
     fotosJson: rota[`fotos_${dep}_json`] || "",
@@ -154,8 +183,8 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
             )}
           </div>
         </div>
-        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 shrink-0">
-          {itensFiltrados.length} {departamento ? DEP_LABEL[departamento] : "ped"}
+        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 shrink-0 font-bold">
+          {itens.length} {itens.length === 1 ? "pedido" : "pedidos"}
         </Badge>
       </div>
 
@@ -238,9 +267,17 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
                     <td className="p-1.5 truncate max-w-[110px]" title={it.cliente}>{it.cliente}</td>
                     <td className="p-1.5 whitespace-nowrap">
                       <div className="flex flex-col gap-0.5">
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border ${info.barracaoBadgeClass}`}>
-                          {info.barracaoIcon} {info.barracaoLabel}
-                        </span>
+                        <select
+                          value={it.barracao_sugerido || info.barracao || "aguardando"}
+                          onChange={(e) => alterarBarracaoPedido(it.numero_pedido, e.target.value)}
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded border cursor-pointer outline-none transition-colors ${info.barracaoBadgeClass}`}
+                          title="Clique para alterar o barracão deste pedido"
+                        >
+                          <option value="telhas">🏠 Telhas</option>
+                          <option value="corte_dobra">🏗️ Corte & Dobra</option>
+                          <option value="ambos">📦 Ambos os Barracões</option>
+                          <option value="aguardando">⏳ Aguardando Entrada</option>
+                        </select>
                         {info.statusGeralLabel && (
                           <span className="text-[10px] text-muted-foreground font-medium">
                             {info.statusGeralLabel}

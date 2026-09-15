@@ -145,14 +145,31 @@ export function processarMapaBarracoes({
     const chave = limparNumeroPedido(p.numero_pedido);
     if (!chave) return;
 
-    const temTelhaOdoo = (p.itens_telha_count || 0) > 0;
-    const temCdOdoo = (p.itens_cd_count || 0) > 0;
+    let temTelhaOdoo = (p.itens_telha_count || 0) > 0;
+    let temCdOdoo = (p.itens_cd_count || 0) > 0;
+
+    // Varredura profunda no texto de itens_json, produto, descrição e OF
+    const textToScan = [
+      p.itens_json || "",
+      p.produto || "",
+      p.descricao || "",
+      p.of_nome || "",
+      p.identificacao_1 || "",
+      p.identificacao_2 || ""
+    ].join(" ").toLowerCase();
+
+    if (/(telha|tp\s*-?\s*25|tp\s*-?\s*40|termoac|sandu[ií]|eps|manta|cumeeir|ondulad|coloni|bandej|bobininha|isopor)/i.test(textToScan)) {
+      temTelhaOdoo = true;
+    }
+    if (/(chapa|perfil|dobra|corte|guilhot|calha|rufo|tubo|barra|cantoneira|slitter|desbobin)/i.test(textToScan)) {
+      temCdOdoo = true;
+    }
 
     if (!mapa[chave]) {
       mapa[chave] = {
         chave,
         numero_original: p.numero_pedido,
-        cliente: p.cliente || "",
+        cliente: p.cliente || p.cliente_nome || "",
         temTelhas: temTelhaOdoo,
         temCD: temCdOdoo,
         statusTelhas: temTelhaOdoo ? (p.status_pcp || "pendente") : null,
@@ -165,7 +182,9 @@ export function processarMapaBarracoes({
     } else {
       if (temTelhaOdoo) mapa[chave].temTelhas = true;
       if (temCdOdoo) mapa[chave].temCD = true;
-      if (p.cliente && !mapa[chave].cliente) mapa[chave].cliente = p.cliente;
+      if ((p.cliente || p.cliente_nome) && !mapa[chave].cliente) {
+        mapa[chave].cliente = p.cliente || p.cliente_nome;
+      }
     }
   });
 
@@ -231,12 +250,23 @@ export function useInvestigacaoBarracoes(filialAtiva) {
     queryFn: async () => {
       const filialQuery = filialAtiva ? { unidade: filialAtiva } : {};
 
-      const [pedidosTelhas, ordensCD, ordensDesbob, pedidosOdoo] = await Promise.all([
+      let [pedidosTelhas, ordensCD, ordensDesbob, pedidosOdoo] = await Promise.all([
         base44.entities.Pedido.filter(filialQuery, "-created_date", 500).catch(() => []),
         base44.entities.OrdemMaquinaCD.filter(filialQuery, "-created_date", 500).catch(() => []),
         base44.entities.OrdemDesbobinadeira.filter(filialQuery, "-created_date", 500).catch(() => []),
         base44.entities.PedidoOdoo.filter(filialQuery, "-created_date", 500).catch(() => []),
       ]);
+
+      // Fallback resiliente caso a busca por filial venha vazia
+      if (pedidosTelhas.length === 0) {
+        pedidosTelhas = await base44.entities.Pedido.filter({}, "-created_date", 500).catch(() => []);
+      }
+      if (ordensCD.length === 0) {
+        ordensCD = await base44.entities.OrdemMaquinaCD.filter({}, "-created_date", 500).catch(() => []);
+      }
+      if (pedidosOdoo.length === 0) {
+        pedidosOdoo = await base44.entities.PedidoOdoo.filter({}, "-created_date", 500).catch(() => []);
+      }
 
       return processarMapaBarracoes({
         pedidosTelhas,
@@ -299,12 +329,22 @@ export async function investigarBarracoesParaPedidos(listaNumeros = [], filialAt
   const filialQuery = filialAtiva ? { unidade: filialAtiva } : {};
 
   try {
-    const [pedidosTelhas, ordensCD, ordensDesbob, pedidosOdoo] = await Promise.all([
+    let [pedidosTelhas, ordensCD, ordensDesbob, pedidosOdoo] = await Promise.all([
       base44.entities.Pedido.filter(filialQuery, "-created_date", 500).catch(() => []),
       base44.entities.OrdemMaquinaCD.filter(filialQuery, "-created_date", 500).catch(() => []),
       base44.entities.OrdemDesbobinadeira.filter(filialQuery, "-created_date", 500).catch(() => []),
       base44.entities.PedidoOdoo.filter(filialQuery, "-created_date", 500).catch(() => []),
     ]);
+
+    if (pedidosTelhas.length === 0) {
+      pedidosTelhas = await base44.entities.Pedido.filter({}, "-created_date", 500).catch(() => []);
+    }
+    if (ordensCD.length === 0) {
+      ordensCD = await base44.entities.OrdemMaquinaCD.filter({}, "-created_date", 500).catch(() => []);
+    }
+    if (pedidosOdoo.length === 0) {
+      pedidosOdoo = await base44.entities.PedidoOdoo.filter({}, "-created_date", 500).catch(() => []);
+    }
 
     return processarMapaBarracoes({
       pedidosTelhas,
