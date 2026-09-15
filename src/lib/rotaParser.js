@@ -1,4 +1,5 @@
 import { base44 } from "@/api/base44Client";
+import { investigarBarracoesParaPedidos, limparNumeroPedido } from "@/lib/investigacaoBarracoesHelper";
 
 const SCHEMA = {
   type: "object",
@@ -40,39 +41,46 @@ const PROMPT = `Analise esta imagem de "ROTA DE ENTREGA" da AJL Ferro e Aço. Ex
 - Qualquer nota/observação geral no rodapé da imagem.
 Seja preciso com os números de pedido. Se um campo não estiver visível, use string vazia.`;
 
-export async function parseRotaImage(imageUrl) {
+export async function parseRotaImage(imageUrl, filialAtiva = null) {
   const res = await base44.integrations.Core.InvokeLLM({
     prompt: PROMPT,
     file_urls: [imageUrl],
     response_json_schema: SCHEMA,
   });
 
-  const numeros = (res.itens || []).map((i) => i.numero_pedido).filter(Boolean);
-  let itens = res.itens || [];
+  const rawItens = res.itens || [];
+  const numeros = rawItens.map((i) => i.numero_pedido).filter(Boolean);
+
+  let mapaBarracoes = {};
   if (numeros.length) {
     try {
-      const odooRecords = await base44.entities.PedidoOdoo.filter(
-        { numero_pedido: { $in: numeros } },
-        null,
-        500
-      );
-      const mapa = {};
-      odooRecords.forEach((p) => { mapa[p.numero_pedido] = p; });
-      itens = itens.map((item) => {
-        const odoo = mapa[item.numero_pedido];
-        const deps = [];
-        if (odoo) {
-          if (odoo.itens_telha_count > 0) deps.push("telhas");
-          if (odoo.itens_cd_count > 0) deps.push("corte_dobra");
-          if (odoo.itens_frisada_count > 0) deps.push("expedicao");
-        }
-        return { ...item, departamentos: deps.length ? deps : ["telhas", "corte_dobra", "expedicao"] };
-      });
-    } catch {
-      itens = itens.map((item) => ({ ...item, departamentos: ["telhas", "corte_dobra", "expedicao"] }));
+      mapaBarracoes = await investigarBarracoesParaPedidos(numeros, filialAtiva);
+    } catch (e) {
+      console.error("[parseRotaImage] Erro ao investigar barracões:", e);
     }
-  } else {
-    itens = itens.map((item) => ({ ...item, departamentos: ["telhas", "corte_dobra", "expedicao"] }));
   }
+
+  const itens = rawItens.map((item) => {
+    const chave = limparNumeroPedido(item.numero_pedido);
+    const info = mapaBarracoes[chave];
+
+    const deps = [];
+    if (info) {
+      if (info.temTelhas) deps.push("telhas");
+      if (info.temCD) deps.push("corte_dobra");
+      if (!info.temTelhas && !info.temCD) deps.push("expedicao");
+    } else {
+      deps.push("expedicao");
+    }
+
+    return {
+      ...item,
+      departamentos: deps.length ? deps : ["expedicao"],
+      barracao_sugerido: info ? info.barracao : "aguardando",
+      barracao_label: info ? info.barracaoLabel : "Aguardando Entrada",
+      status_producao: info ? info.statusGeralLabel : "⏳ Aguardando Entrada",
+    };
+  });
+
   return { ...res, itens };
-}
+}

@@ -85,7 +85,15 @@ export default function RotasEntregaSection({ departamento, filialAtiva, title, 
       if (!departamento) return true;
       try {
         const itens = JSON.parse(r.itens_json || "[]");
-        return itens.some((i) => (i.departamentos || []).includes(departamento));
+        return itens.some((i) => {
+          const deps = i.departamentos || [];
+          const b = i.barracao_sugerido;
+          if (deps.includes(departamento)) return true;
+          if (departamento === "telhas" && (b === "telhas" || b === "ambos")) return true;
+          if (departamento === "corte_dobra" && (b === "corte_dobra" || b === "ambos")) return true;
+          if (departamento === "expedicao") return true;
+          return false;
+        });
       } catch {
         return false;
       }

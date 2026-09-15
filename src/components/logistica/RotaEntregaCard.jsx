@@ -8,6 +8,9 @@ import { toast } from "sonner";
 import ImageViewer from "@/components/ui/ImageViewer";
 import RotaCarregamentoSlot from "@/components/logistica/RotaCarregamentoSlot";
 import { parseRotaImage } from "@/lib/rotaParser";
+import { useInvestigacaoBarracoes } from "@/lib/investigacaoBarracoesHelper";
+import FotoPedidoButton from "@/components/logistica/FotoPedidoButton";
+import RotaTraseiraCaminhaoSlot from "@/components/logistica/RotaTraseiraCaminhaoSlot";
 
 const DEP_LABEL = { telhas: "Telhas", corte_dobra: "Corte e Dobra", expedicao: "Expedição" };
 const DEP_COLOR = {
@@ -62,14 +65,40 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
     }
   };
 
+  const { getInfoPedido } = useInvestigacaoBarracoes(rota.unidade);
+
   const itens = useMemo(() => {
     try { return JSON.parse(rota.itens_json || "[]"); } catch { return []; }
   }, [rota.itens_json]);
 
+  const resumoBarracoes = useMemo(() => {
+    let telhas = 0;
+    let cd = 0;
+    let ambos = 0;
+    let aguardando = 0;
+
+    itens.forEach((it) => {
+      const info = getInfoPedido(it.numero_pedido);
+      const b = info?.barracao || it.barracao_sugerido || "aguardando";
+      if (b === "ambos") ambos++;
+      else if (b === "telhas") telhas++;
+      else if (b === "corte_dobra") cd++;
+      else aguardando++;
+    });
+
+    return { telhas, cd, ambos, aguardando };
+  }, [itens, getInfoPedido]);
+
   const itensFiltrados = useMemo(() => {
     if (!departamento) return itens;
-    return itens.filter((i) => (i.departamentos || []).includes(departamento));
-  }, [itens, departamento]);
+    return itens.filter((i) => {
+      const info = getInfoPedido(i.numero_pedido);
+      const b = info?.barracao || i.barracao_sugerido;
+      if (departamento === "telhas") return b === "telhas" || b === "ambos" || (i.departamentos || []).includes("telhas");
+      if (departamento === "corte_dobra") return b === "corte_dobra" || b === "ambos" || (i.departamentos || []).includes("corte_dobra");
+      return (i.departamentos || []).includes(departamento);
+    });
+  }, [itens, departamento, getInfoPedido]);
 
   const departamentosAtivos = useMemo(() => {
     if (departamento) return [departamento];
@@ -91,7 +120,7 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
   const dataCriacao = rota.data_criacao ? format(new Date(rota.data_criacao + "T12:00:00"), "dd/MM") : "";
 
   return (
-    <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+    <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-xs">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -100,6 +129,29 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
             {rota.entrega_date && <span className="flex items-center gap-0.5"><Truck className="w-3 h-3" /> Entrega: <b>{rota.entrega_date}</b></span>}
             {rota.embarque_date && <span>Embarque: <b>{rota.embarque_date}</b></span>}
             {dataCriacao && <span>· {dataCriacao}</span>}
+          </div>
+          {/* Badges de Investigação Dinâmica nos 2 Barracões */}
+          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+            {resumoBarracoes.telhas > 0 && (
+              <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-[10px] font-semibold">
+                🏠 {resumoBarracoes.telhas} Telhas
+              </Badge>
+            )}
+            {resumoBarracoes.cd > 0 && (
+              <Badge className="bg-orange-100 text-orange-800 border-orange-200 text-[10px] font-semibold">
+                🏗️ {resumoBarracoes.cd} Corte & Dobra
+              </Badge>
+            )}
+            {resumoBarracoes.ambos > 0 && (
+              <Badge className="bg-purple-100 text-purple-800 border-purple-200 text-[10px] font-semibold">
+                📦 {resumoBarracoes.ambos} Ambos
+              </Badge>
+            )}
+            {resumoBarracoes.aguardando > 0 && (
+              <Badge className="bg-slate-100 text-slate-700 border-slate-200 text-[10px]">
+                ⏳ {resumoBarracoes.aguardando} Aguardando Entrada
+              </Badge>
+            )}
           </div>
         </div>
         <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 shrink-0">
@@ -155,29 +207,62 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
         </div>
       </div>
 
-      {/* Itens filtrados por departamento */}
+      {/* Slot Traseira do Caminhão (Carga Geral) */}
+      <RotaTraseiraCaminhaoSlot
+        rotaId={rota.id}
+        fotosJson={rota.fotos_caminhao_traseira_json}
+      />
+
+      {/* Tabela detalhada de pedidos da rota com Barracão dinâmico e Foto por Pedido */}
       {itensFiltrados.length > 0 && (
-        <div className="max-h-44 overflow-y-auto rounded-md border border-border">
+        <div className="max-h-60 overflow-y-auto rounded-md border border-border">
           <table className="w-full text-xs">
             <thead className="bg-muted sticky top-0">
               <tr>
                 <th className="text-left p-1.5 font-semibold w-6">#</th>
                 <th className="text-left p-1.5 font-semibold">Pedido</th>
                 <th className="text-left p-1.5 font-semibold">Cliente</th>
+                <th className="text-left p-1.5 font-semibold">Barracão / Status</th>
                 <th className="text-left p-1.5 font-semibold hidden sm:table-cell">Bairro</th>
                 <th className="text-left p-1.5 font-semibold">Valor</th>
+                <th className="text-center p-1.5 font-semibold">Fotos do Pedido</th>
               </tr>
             </thead>
             <tbody>
-              {itensFiltrados.map((it, idx) => (
-                <tr key={idx} className="border-t border-border">
-                  <td className="p-1.5 text-muted-foreground">{it.ordem}</td>
-                  <td className="p-1.5 font-semibold">{it.numero_pedido}</td>
-                  <td className="p-1.5 truncate max-w-[110px]">{it.cliente}</td>
-                  <td className="p-1.5 truncate max-w-[80px] hidden sm:table-cell">{it.bairro}</td>
-                  <td className="p-1.5 font-medium">{it.valor}</td>
-                </tr>
-              ))}
+              {itensFiltrados.map((it, idx) => {
+                const info = getInfoPedido(it.numero_pedido);
+                return (
+                  <tr key={idx} className="border-t border-border hover:bg-muted/30 transition-colors">
+                    <td className="p-1.5 text-muted-foreground">{it.ordem}</td>
+                    <td className="p-1.5 font-bold">{it.numero_pedido}</td>
+                    <td className="p-1.5 truncate max-w-[110px]" title={it.cliente}>{it.cliente}</td>
+                    <td className="p-1.5 whitespace-nowrap">
+                      <div className="flex flex-col gap-0.5">
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border ${info.barracaoBadgeClass}`}>
+                          {info.barracaoIcon} {info.barracaoLabel}
+                        </span>
+                        {info.statusGeralLabel && (
+                          <span className="text-[10px] text-muted-foreground font-medium">
+                            {info.statusGeralLabel}
+                            {info.maquinasTelhas?.length > 0 && ` (${info.maquinasTelhas.join(",")})`}
+                            {info.maquinasCD?.length > 0 && ` (${info.maquinasCD.join(",")})`}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-1.5 truncate max-w-[80px] hidden sm:table-cell">{it.bairro}</td>
+                    <td className="p-1.5 font-medium">{it.valor}</td>
+                    <td className="p-1.5 text-center">
+                      <FotoPedidoButton
+                        rotaId={rota.id}
+                        numeroPedido={it.numero_pedido}
+                        cliente={it.cliente}
+                        fotosPedidosJson={rota.fotos_pedidos_json}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

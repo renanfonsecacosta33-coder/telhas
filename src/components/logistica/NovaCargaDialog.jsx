@@ -70,7 +70,7 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
     setParsing(true);
     setParsed(null);
     try {
-      const parsed = await parseRotaImage(imageUrl);
+      const parsed = await parseRotaImage(imageUrl, filialAtiva);
       setParsed(parsed);
       if (parsed.motorista_nome) setMotorista(parsed.motorista_nome);
       if (parsed.placa) setPlaca(parsed.placa.toUpperCase());
@@ -197,17 +197,23 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
                 </Badge>
               </div>
 
-              {/* Separação por departamento */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-semibold text-muted-foreground">Separado por:</span>
-                {["telhas", "corte_dobra", "expedicao"].map((d) => (
-                  <Badge key={d} className={`text-[10px] ${DEP_COLOR[d]}`}>
-                    {d === "telhas" && <Factory className="w-3 h-3 mr-0.5" />}
-                    {d === "corte_dobra" && <Layers className="w-3 h-3 mr-0.5" />}
-                    {d === "expedicao" && <PackageCheck className="w-3 h-3 mr-0.5" />}
-                    {DEP_LABEL[d]}: {depCount(d)}
+              {/* Separação por Barracão e Departamento */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs font-semibold text-muted-foreground">Investigação nos Barracões:</span>
+                  <Badge className="text-[10px] bg-blue-100 text-blue-800 border-blue-200">
+                    🏠 Telhas: {parsed.itens?.filter(i => i.barracao_sugerido === "telhas").length || 0}
                   </Badge>
-                ))}
+                  <Badge className="text-[10px] bg-orange-100 text-orange-800 border-orange-200">
+                    🏗️ Corte & Dobra: {parsed.itens?.filter(i => i.barracao_sugerido === "corte_dobra").length || 0}
+                  </Badge>
+                  <Badge className="text-[10px] bg-purple-100 text-purple-800 border-purple-200">
+                    📦 Ambos: {parsed.itens?.filter(i => i.barracao_sugerido === "ambos").length || 0}
+                  </Badge>
+                  <Badge className="text-[10px] bg-slate-100 text-slate-700 border-slate-200">
+                    ⏳ Aguardando Entrada: {parsed.itens?.filter(i => !i.barracao_sugerido || i.barracao_sugerido === "aguardando").length || 0}
+                  </Badge>
+                </div>
               </div>
 
               {/* Tabela de pedidos */}
@@ -218,7 +224,8 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
                       <th className="text-left p-1.5 font-semibold">#</th>
                       <th className="text-left p-1.5 font-semibold">Pedido</th>
                       <th className="text-left p-1.5 font-semibold">Cliente</th>
-                      <th className="text-left p-1.5 font-semibold">Bairro</th>
+                      <th className="text-left p-1.5 font-semibold">Barracão</th>
+                      <th className="text-left p-1.5 font-semibold hidden sm:table-cell">Bairro</th>
                       <th className="text-left p-1.5 font-semibold">Valor</th>
                     </tr>
                   </thead>
@@ -227,8 +234,24 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
                       <tr key={idx} className="border-t border-border">
                         <td className="p-1.5 text-muted-foreground">{it.ordem}</td>
                         <td className="p-1.5 font-semibold">{it.numero_pedido}</td>
-                        <td className="p-1.5 truncate max-w-[120px]">{it.cliente}</td>
-                        <td className="p-1.5 truncate max-w-[90px]">{it.bairro}</td>
+                        <td className="p-1.5 truncate max-w-[110px]">{it.cliente}</td>
+                        <td className="p-1.5">
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                            it.barracao_sugerido === "telhas"
+                              ? "bg-blue-100 text-blue-800 border-blue-200"
+                              : it.barracao_sugerido === "corte_dobra"
+                              ? "bg-orange-100 text-orange-800 border-orange-200"
+                              : it.barracao_sugerido === "ambos"
+                              ? "bg-purple-100 text-purple-800 border-purple-200"
+                              : "bg-slate-100 text-slate-700 border-slate-200"
+                          }`}>
+                            {it.barracao_sugerido === "telhas" && "🏠 Telhas"}
+                            {it.barracao_sugerido === "corte_dobra" && "🏗️ C&D"}
+                            {it.barracao_sugerido === "ambos" && "📦 Ambos"}
+                            {(!it.barracao_sugerido || it.barracao_sugerido === "aguardando") && "⏳ Aguardando"}
+                          </span>
+                        </td>
+                        <td className="p-1.5 truncate max-w-[80px] hidden sm:table-cell">{it.bairro}</td>
                         <td className="p-1.5 font-medium">{it.valor}</td>
                       </tr>
                     ))}
