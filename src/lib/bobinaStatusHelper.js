@@ -485,4 +485,150 @@ export function matchBobinaBuscaGeral(bobina, query) {
   if (nf.includes(q) || forn.includes(q)) return true;
 
   return false;
+}
+
+/**
+ * Extrai informações e flags de materiais/bobinas de um pedido
+ * (Galvalume/Natural, Importado, Nacional, Cores)
+ */
+export function extrairInfoBobinasPedido(p) {
+  if (!p) return { isNatural: false, isImportada: false, isNacional: false };
+
+  const textos = [];
+  if (p.bobina_superior) textos.push(String(p.bobina_superior));
+  if (p.bobina_inferior) textos.push(String(p.bobina_inferior));
+  if (p.bobina_secundaria) textos.push(String(p.bobina_secundaria));
+  if (p.rvm_superior) textos.push(String(p.rvm_superior));
+  if (p.rvm_inferior) textos.push(String(p.rvm_inferior));
+  if (p.cor) textos.push(String(p.cor));
+  if (p.modelo) textos.push(String(p.modelo));
+  if (p.produto) textos.push(String(p.produto));
+
+  try {
+    const vars = JSON.parse(p.variacoes_telhas || "[]");
+    if (Array.isArray(vars)) {
+      vars.forEach(v => {
+        if (v.bobina_desc) textos.push(String(v.bobina_desc));
+        if (v.bobina_inf_desc) textos.push(String(v.bobina_inf_desc));
+        if (v.cor) textos.push(String(v.cor));
+      });
+    }
+  } catch {}
+
+  const fullText = normalizarTextoBusca(textos.join(" "));
+
+  // 1. Cores
+  const temPreta = fullText.includes("pret");
+  const temBranca = fullText.includes("branc");
+  const temAzul = fullText.includes("azul");
+  const temCinza = fullText.includes("cinza") || fullText.includes("grafite");
+  const temCeramica = fullText.includes("ceramica") || fullText.includes("terracota");
+  const temBege = fullText.includes("bege") || fullText.includes("areia");
+  const temVermelha = fullText.includes("vermelh");
+  const temVerde = fullText.includes("verd");
+  const temMarrom = fullText.includes("marrom");
+
+  const temCor = temPreta || temBranca || temAzul || temCinza || temCeramica || temBege || temVermelha || temVerde || temMarrom;
+
+  // 2. Natural / Galvalume
+  const temIndicioNatural = fullText.includes("natural") || fullText.includes("galvalume") || fullText.includes(" gl ") || fullText.includes("(gl") || fullText.includes("gl(") || fullText.includes("gv") || fullText.includes("zinco");
+  const isNatural = (temIndicioNatural && (!temCor || fullText.includes("natural"))) || (!temCor && !fullText.includes("pp"));
+
+  // 3. Origem (Importada vs Nacional)
+  const isImportada = fullText.includes("imp") || fullText.includes("(imp)") || fullText.includes("importad");
+  const isNacional = fullText.includes("nac") || fullText.includes("(nac)") || fullText.includes("nacional") || fullText.includes("csn") || fullText.includes("arcelor");
+
+  return {
+    isNatural,
+    isImportada,
+    isNacional,
+    isPreta: temPreta,
+    isBranca: temBranca,
+    isAzul: temAzul,
+    isCinza: temCinza,
+    isCeramica: temCeramica,
+    isBege: temBege,
+    isVermelha: temVermelha,
+    isVerde: temVerde,
+    isMarrom: temMarrom,
+    fullText
+  };
+}
+
+/**
+ * Retorna os filtros disponíveis dinamicamente com base APENAS nos pedidos existentes.
+ * Se nenhum pedido contiver um item (ex: bobina branca), esse filtro NÃO é retornado!
+ */
+export function calcularFiltrosDisponiveis(pedidos = []) {
+  const contagens = {
+    naturais: 0,
+    importados: 0,
+    nacionais: 0,
+    preta: 0,
+    branca: 0,
+    azul: 0,
+    cinza: 0,
+    ceramica: 0,
+    bege: 0,
+    vermelha: 0,
+    verde: 0,
+    marrom: 0,
+  };
+
+  pedidos.forEach(p => {
+    const info = extrairInfoBobinasPedido(p);
+    if (info.isNatural) contagens.naturais++;
+    if (info.isImportada) contagens.importados++;
+    if (info.isNacional) contagens.nacionais++;
+    if (info.isPreta) contagens.preta++;
+    if (info.isBranca) contagens.branca++;
+    if (info.isAzul) contagens.azul++;
+    if (info.isCinza) contagens.cinza++;
+    if (info.isCeramica) contagens.ceramica++;
+    if (info.isBege) contagens.bege++;
+    if (info.isVermelha) contagens.vermelha++;
+    if (info.isVerde) contagens.verde++;
+    if (info.isMarrom) contagens.marrom++;
+  });
+
+  const filtrosDef = [
+    { key: "naturais", label: "Naturais / Galvalume", icone: "⚪", count: contagens.naturais, corBadge: "bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200" },
+    { key: "importados", label: "Importados (IMP)", icone: "🌐", count: contagens.importados, corBadge: "bg-sky-50 text-sky-800 border-sky-300 dark:bg-sky-950 dark:text-sky-300" },
+    { key: "nacionais", label: "Nacionais (NAC)", icone: "🇧🇷", count: contagens.nacionais, corBadge: "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300" },
+    { key: "preta", label: "Preta", icone: "⚫", count: contagens.preta, corBadge: "bg-neutral-800 text-neutral-100 border-neutral-700" },
+    { key: "branca", label: "Branca", icone: "⚪", count: contagens.branca, corBadge: "bg-slate-50 text-slate-900 border-slate-300" },
+    { key: "azul", label: "Azul", icone: "🔵", count: contagens.azul, corBadge: "bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950 dark:text-blue-200" },
+    { key: "cinza", label: "Cinza / Grafite", icone: "🔘", count: contagens.cinza, corBadge: "bg-stone-200 text-stone-800 border-stone-400 dark:bg-stone-800 dark:text-stone-300" },
+    { key: "ceramica", label: "Cerâmica", icone: "🧱", count: contagens.ceramica, corBadge: "bg-amber-100 text-amber-900 border-amber-400 dark:bg-amber-950 dark:text-amber-200" },
+    { key: "bege", label: "Bege / Areia", icone: "🏜️", count: contagens.bege, corBadge: "bg-orange-100 text-orange-900 border-orange-300 dark:bg-orange-950 dark:text-orange-200" },
+    { key: "vermelha", label: "Vermelha", icone: "🔴", count: contagens.vermelha, corBadge: "bg-red-100 text-red-900 border-red-300 dark:bg-red-950 dark:text-red-200" },
+    { key: "verde", label: "Verde", icone: "🟢", count: contagens.verde, corBadge: "bg-green-100 text-green-900 border-green-300 dark:bg-green-950 dark:text-green-200" },
+    { key: "marrom", label: "Marrom", icone: "🟤", count: contagens.marrom, corBadge: "bg-amber-900 text-amber-100 border-amber-800" },
+  ];
+
+  // FILTRA APENAS OS QUE EXISTEM (count > 0)
+  return filtrosDef.filter(f => f.count > 0);
+}
+
+/**
+ * Checa se um pedido atende a um filtro específico de material
+ */
+export function pedidoAtendeFiltroMaterial(pedido, filtroKey) {
+  if (!filtroKey || filtroKey === "todos") return true;
+  const info = extrairInfoBobinasPedido(pedido);
+  switch (filtroKey) {
+    case "naturais": return Boolean(info.isNatural);
+    case "importados": return Boolean(info.isImportada);
+    case "nacionais": return Boolean(info.isNacional);
+    case "preta": return Boolean(info.isPreta);
+    case "branca": return Boolean(info.isBranca);
+    case "azul": return Boolean(info.isAzul);
+    case "cinza": return Boolean(info.isCinza);
+    case "ceramica": return Boolean(info.isCeramica);
+    case "bege": return Boolean(info.isBege);
+    case "vermelha": return Boolean(info.isVermelha);
+    case "verde": return Boolean(info.isVerde);
+    case "marrom": return Boolean(info.isMarrom);
+    default: return true;
+  }
 }

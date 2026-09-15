@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Circle, ChevronLeft, ChevronRight, ArrowLeft, BarChart2, Plus, Star, Trash2, Edit3, Route, Search, X, Calendar } from "lucide-react";
+import { Circle, ChevronLeft, ChevronRight, ArrowLeft, BarChart2, Plus, Star, Trash2, Edit3, Route, Search, X, Calendar, Filter } from "lucide-react";
 import { format, addDays, subDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -21,7 +21,7 @@ import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, cl
 import { notificarStatus } from "@/lib/biNotificador";
 import { SeletorPrioridadeDropdown, getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
-import { normalizarTextoBusca } from "@/lib/bobinaStatusHelper";
+import { normalizarTextoBusca, calcularFiltrosDisponiveis, pedidoAtendeFiltroMaterial } from "@/lib/bobinaStatusHelper";
 
 const STATUS_LABELS_TELHAS = {
   pendente: "Pendente",
@@ -53,6 +53,7 @@ export default function MaquinaPanel({ maquina }) {
   const navigate = useNavigate();
   const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
   const [termoBusca, setTermoBusca] = useState("");
+  const [filtroMaterial, setFiltroMaterial] = useState("todos");
   const [novoPedidoOpen, setNovoPedidoOpen] = useState(false);
   const [editandoPedido, setEditandoPedido] = useState(null);
   const [user, setUser] = useState(null);
@@ -437,13 +438,36 @@ export default function MaquinaPanel({ maquina }) {
     return false;
   };
 
-  const pedidosFiltrados = useMemo(() => {
+  // Base de pedidos ativos na visão (dia selecionado ou resultado da busca textual)
+  const baseParaFiltros = useMemo(() => {
     const q = termoBusca.trim();
-    if (!q) return pedidosDia;
-    // Quando buscando, varre todos os pedidos da máquina (não apenas o dia selecionado)
-    // Exclui pedidos cancelados da fila de produção
-    return pedidos.filter(p => p.status !== "cancelado" && matchPedidoBusca(p, q));
+    if (q) {
+      return pedidos.filter(p => p.status !== "cancelado" && matchPedidoBusca(p, q));
+    }
+    return pedidosDia;
   }, [pedidosDia, pedidos, termoBusca]);
+
+  // Filtros dinâmicos gerados EXCLUSIVAMENTE a partir dos pedidos que estão atualmente na tela:
+  // Se não existir bobina branca, o botão 'Branca' NÃO aparece!
+  const filtrosDisponiveis = useMemo(() => {
+    return calcularFiltrosDisponiveis(baseParaFiltros);
+  }, [baseParaFiltros]);
+
+  // Auto-reset se o filtro ativo deixar de existir na lista disponível
+  useEffect(() => {
+    if (filtroMaterial !== "todos") {
+      const existe = filtrosDisponiveis.some(f => f.key === filtroMaterial);
+      if (!existe) {
+        setFiltroMaterial("todos");
+      }
+    }
+  }, [filtrosDisponiveis, filtroMaterial]);
+
+  // Pedidos filtrados aplicando busca + filtro de material/bobina
+  const pedidosFiltrados = useMemo(() => {
+    if (!filtroMaterial || filtroMaterial === "todos") return baseParaFiltros;
+    return baseParaFiltros.filter(p => pedidoAtendeFiltroMaterial(p, filtroMaterial));
+  }, [baseParaFiltros, filtroMaterial]);
 
   const ordenados = useMemo(() => {
     const hoje = format(new Date(), "yyyy-MM-dd");
@@ -714,6 +738,75 @@ export default function MaquinaPanel({ maquina }) {
             >
               Limpar busca
             </button>
+          </div>
+        )}
+
+        {/* Filtros Dinâmicos de Bobinas (Aparecem APENAS os itens que realmente existem nos pedidos desta visão) */}
+        {filtrosDisponiveis.length > 0 && (
+          <div className="pt-2 border-t border-border/50 space-y-1.5">
+            <div className="flex items-center justify-between px-0.5">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5 text-primary" />
+                Filtrar por Bobina / Material
+              </span>
+              {filtroMaterial !== "todos" && (
+                <button
+                  type="button"
+                  onClick={() => setFiltroMaterial("todos")}
+                  className="text-[11px] text-primary hover:underline font-semibold cursor-pointer"
+                >
+                  Ver todos ({baseParaFiltros.length})
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none no-scrollbar">
+              {/* Botão Todos */}
+              <button
+                type="button"
+                onClick={() => setFiltroMaterial("todos")}
+                className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5 border ${
+                  filtroMaterial === "todos"
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm font-semibold"
+                    : "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground border-transparent"
+                }`}
+              >
+                <span>Todos</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold leading-none ${
+                  filtroMaterial === "todos"
+                    ? "bg-primary-foreground/25 text-primary-foreground"
+                    : "bg-muted-foreground/15 text-muted-foreground"
+                }`}>
+                  {baseParaFiltros.length}
+                </span>
+              </button>
+
+              {/* Filtros Dinâmicos Presentes nos Pedidos */}
+              {filtrosDisponiveis.map((f) => {
+                const isSelected = filtroMaterial === f.key;
+                return (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setFiltroMaterial(isSelected ? "todos" : f.key)}
+                    className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs transition-all cursor-pointer flex items-center gap-1.5 border ${
+                      isSelected
+                        ? "ring-2 ring-primary ring-offset-1 shadow-sm font-bold " + (f.corBadge || "bg-primary text-primary-foreground border-primary")
+                        : "bg-background hover:bg-muted/70 text-foreground border-border/80 font-medium"
+                    }`}
+                    title={`Filtrar pedidos com bobina ${f.label}`}
+                  >
+                    <span>{f.icone}</span>
+                    <span>{f.label}</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold leading-none ${
+                      isSelected ? "bg-black/15 dark:bg-white/25" : "bg-muted text-muted-foreground"
+                    }`}>
+                      {f.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
