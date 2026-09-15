@@ -33,23 +33,36 @@ export function usePreBaixaBobinas(setor, filiais = null) {
         addReserva(bobinaId, kg, 0, null);
       };
 
-      const addStatus = (bobinaId, maquina, status) => {
+      const addStatus = (bobinaId, maquina, status, numeroPedido = null) => {
         if (!bobinaId) return;
         const existing = statusMap[bobinaId];
         const statusClean = String(status || "").toLowerCase();
         const isProduzindo = ["em_producao", "produzindo", "iniciado"].includes(statusClean);
         const isPausado = statusClean === "pausado";
+        const pedClean = numeroPedido ? String(numeroPedido).replace(/^#/, "").trim() : null;
 
         if (existing) {
           if (isProduzindo) {
-            statusMap[bobinaId] = { maquina, status: "em_producao" };
+            statusMap[bobinaId] = { 
+              maquina, 
+              status: "em_producao", 
+              numero_pedido: pedClean || existing.numero_pedido 
+            };
           } else if (existing.status === "em_producao") {
             return;
           } else if (isPausado && existing.status !== "pausado") {
-            statusMap[bobinaId] = { maquina, status: "pausado" };
+            statusMap[bobinaId] = { 
+              maquina, 
+              status: "pausado", 
+              numero_pedido: pedClean || existing.numero_pedido 
+            };
           }
         } else {
-          statusMap[bobinaId] = { maquina, status: isProduzindo ? "em_producao" : "programado" };
+          statusMap[bobinaId] = { 
+            maquina, 
+            status: isProduzindo ? "em_producao" : (isPausado ? "pausado" : "programado"), 
+            numero_pedido: pedClean 
+          };
         }
       };
 
@@ -146,7 +159,7 @@ export function usePreBaixaBobinas(setor, filiais = null) {
                   status: p.status,
                   data: p.data
                 });
-                addStatus(bSupId, p.maquina || "Produção", p.status);
+                addStatus(bSupId, p.maquina || "Produção", p.status, p.numero_pedido);
               }
               if (bInfId) {
                 const chapa = Number(bobinaById[bInfId]?.chapa || bobinaById[bInfId]?.espessura_mm) || 0.43;
@@ -162,7 +175,7 @@ export function usePreBaixaBobinas(setor, filiais = null) {
                   status: p.status,
                   data: p.data
                 });
-                addStatus(bInfId, p.maquina || "Produção", p.status);
+                addStatus(bInfId, p.maquina || "Produção", p.status, p.numero_pedido);
               }
             });
           } else {
@@ -196,7 +209,7 @@ export function usePreBaixaBobinas(setor, filiais = null) {
                 status: p.status,
                 data: p.data
               });
-              addStatus(bSupId, p.maquina || "Produção", p.status);
+              addStatus(bSupId, p.maquina || "Produção", p.status, p.numero_pedido);
             }
 
             if (bSecId && Number(p.kg_secundaria) > 0) {
@@ -214,7 +227,7 @@ export function usePreBaixaBobinas(setor, filiais = null) {
                 status: p.status,
                 data: p.data
               });
-              addStatus(bSecId, p.maquina || "Produção", p.status);
+              addStatus(bSecId, p.maquina || "Produção", p.status, p.numero_pedido);
             }
 
             if (bInfId) {
@@ -237,7 +250,7 @@ export function usePreBaixaBobinas(setor, filiais = null) {
                 status: p.status,
                 data: p.data
               });
-              addStatus(bInfId, p.maquina || "Produção", p.status);
+              addStatus(bInfId, p.maquina || "Produção", p.status, p.numero_pedido);
             }
           }
         });
@@ -272,7 +285,7 @@ export function usePreBaixaBobinas(setor, filiais = null) {
             status: o.status,
             data: o.data
           });
-          addStatus(bId, "Desbobinadeira", o.status);
+          addStatus(bId, "Desbobinadeira", o.status, o.numero_pedido);
         });
 
         // Ordens de máquina CD com bobina direta (perfiladeira)
@@ -305,7 +318,7 @@ export function usePreBaixaBobinas(setor, filiais = null) {
               status: o.status,
               data: o.data
             });
-            addStatus(bId, o.maquina || "Máquina CD", o.status);
+            addStatus(bId, o.maquina || "Máquina CD", o.status, o.numero_pedido);
           }
         });
       }

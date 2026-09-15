@@ -5,30 +5,44 @@ export function getBobinaStatus(bobina, ordensAtivas = [], statusMap = {}) {
 
   const bId = bobina.id;
 
-  // 1. Checa se o statusMap (do usePreBaixaBobinas) já tem o estado resolvido
+  // 1. Checa se o statusMap (do usePreBaixaBobinas) tem a bobina atualmente INICIADA
   const mapStatus = statusMap[bId];
   if (mapStatus) {
     const nomeAmigavel = formatNomeMaquina(mapStatus.maquina);
-    if (mapStatus.status === "em_producao") {
+    const statusClean = String(mapStatus.status || "").toLowerCase();
+    const isProduzindo = ["em_producao", "produzindo", "iniciado"].includes(statusClean);
+    const isPausado = statusClean === "pausado";
+
+    if (isProduzindo || isPausado) {
+      const pedClean = mapStatus.numero_pedido ? String(mapStatus.numero_pedido).replace(/^#/, "").trim() : "";
+      const prefixoIcone = isPausado ? "⏸️" : "⚡";
+      const textoAcao = isPausado ? "Pausada" : "Iniciada";
+
+      const label = pedClean
+        ? `${prefixoIcone} Fazendo pedido #${pedClean} no ${nomeAmigavel}`
+        : `${prefixoIcone} ${textoAcao} no ${nomeAmigavel}`;
+      const shortLabel = pedClean
+        ? `${prefixoIcone} #${pedClean} · ${nomeAmigavel}`
+        : `${prefixoIcone} ${nomeAmigavel}`;
+
       return {
-        label: `⚡ Em uso no ${nomeAmigavel}`,
-        shortLabel: `⚡ ${nomeAmigavel}`,
-        bgClass: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40",
-        dotColor: "bg-amber-500 animate-pulse",
-        badgeType: "em_uso"
-      };
-    } else {
-      return {
-        label: `📅 Programada no ${nomeAmigavel}`,
-        shortLabel: `📅 Prog. ${nomeAmigavel}`,
-        bgClass: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/40",
-        dotColor: "bg-blue-500",
-        badgeType: "programada"
+        label,
+        shortLabel,
+        bgClass: isPausado
+          ? "bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/40"
+          : "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40",
+        dotColor: isPausado ? "bg-orange-500" : "bg-amber-500 animate-pulse",
+        badgeType: "em_uso",
+        iniciada: true,
+        maquina: nomeAmigavel,
+        numero_pedido: pedClean
       };
     }
+    // NOTA: Se for apenas "programado" / "pendente", NÃO mostramos "Programada na máquina X"!
+    // O usuário solicitou que bobinas apenas programadas exibam seu estado real (Aberta ou Fechada).
   }
 
-  // 2. Busca na lista de ordens ativas recebidas
+  // 2. Busca na lista de ordens ativas se alguma já foi iniciada na máquina
   const isBobinaMatch = (o) => {
     if (o.bobina_id === bId || o.bobina_superior === bId || o.bobina_superior_id === bId || o.bobina_inferior === bId || o.bobina_inferior_id === bId) return true;
     try {
@@ -38,31 +52,34 @@ export function getBobinaStatus(bobina, ordensAtivas = [], statusMap = {}) {
     return false;
   };
 
-  const ordemEmProducao = ordensAtivas.find(o => isBobinaMatch(o) && ["em_producao", "produzindo", "iniciado"].includes(o.status?.toLowerCase()));
+  const ordemEmProducao = ordensAtivas.find(o => isBobinaMatch(o) && ["em_producao", "produzindo", "iniciado", "pausado"].includes(o.status?.toLowerCase()));
 
   if (ordemEmProducao) {
     const maq = ordemEmProducao.maquina || ordemEmProducao.maquina_inicial || "Linha";
     const nomeAmigavel = formatNomeMaquina(maq);
-    return {
-      label: `⚡ Em uso no ${nomeAmigavel}`,
-      shortLabel: `⚡ ${nomeAmigavel}`,
-      bgClass: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40",
-      dotColor: "bg-amber-500 animate-pulse",
-      badgeType: "em_uso"
-    };
-  }
+    const isPausado = ordemEmProducao.status?.toLowerCase() === "pausado";
+    const prefixoIcone = isPausado ? "⏸️" : "⚡";
+    const textoAcao = isPausado ? "Pausada" : "Iniciada";
+    const pedClean = ordemEmProducao.numero_pedido ? String(ordemEmProducao.numero_pedido).replace(/^#/, "").trim() : "";
 
-  const ordemProgramada = ordensAtivas.find(o => isBobinaMatch(o) && ["pendente", "pausado", "programado", "aguardando"].includes(o.status?.toLowerCase()));
+    const label = pedClean
+      ? `${prefixoIcone} Fazendo pedido #${pedClean} no ${nomeAmigavel}`
+      : `${prefixoIcone} ${textoAcao} no ${nomeAmigavel}`;
+    const shortLabel = pedClean
+      ? `${prefixoIcone} #${pedClean} · ${nomeAmigavel}`
+      : `${prefixoIcone} ${nomeAmigavel}`;
 
-  if (ordemProgramada) {
-    const maq = ordemProgramada.maquina || ordemProgramada.maquina_inicial || "Linha";
-    const nomeAmigavel = formatNomeMaquina(maq);
     return {
-      label: `📅 Programada no ${nomeAmigavel}`,
-      shortLabel: `📅 Prog. ${nomeAmigavel}`,
-      bgClass: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/40",
-      dotColor: "bg-blue-500",
-      badgeType: "programada"
+      label,
+      shortLabel,
+      bgClass: isPausado
+        ? "bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/40"
+        : "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40",
+      dotColor: isPausado ? "bg-orange-500" : "bg-amber-500 animate-pulse",
+      badgeType: "em_uso",
+      iniciada: true,
+      maquina: nomeAmigavel,
+      numero_pedido: pedClean
     };
   }
 
