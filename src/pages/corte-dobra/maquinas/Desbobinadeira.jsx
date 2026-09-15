@@ -121,7 +121,11 @@ export default function Desbobinadeira() {
   const ordensDia = useMemo(() => {
     if (buscaPedido.trim()) {
       const q = buscaPedido.toLowerCase().trim();
-      return ordens.filter(o => o.status !== "aguardando_material" && o.status !== "cancelado" && ((o.numero_pedido || "").toLowerCase().includes(q) || (o.bobina_descricao || "").toLowerCase().includes(q)));
+      return ordens.filter(o => o.status !== "aguardando_material" && o.status !== "cancelado" && (
+        (o.numero_pedido || "").toLowerCase().includes(q) || 
+        (o.cliente || "").toLowerCase().includes(q) || 
+        (o.bobina_descricao || "").toLowerCase().includes(q)
+      ));
     }
     const hoje = format(new Date(), "yyyy-MM-dd");
     const isHoje = selectedDay === hoje;
@@ -317,8 +321,8 @@ export default function Desbobinadeira() {
             type="text"
             value={buscaPedido}
             onChange={(e) => { setBuscaPedido(e.target.value); if (e.target.value.trim()) setViewMode("dia"); }}
-            placeholder="Buscar por nº pedido..."
-            className="h-9 pl-8 pr-3 rounded-md border border-input bg-transparent text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring w-52"
+            placeholder="Buscar nº pedido ou cliente..."
+            className="h-9 pl-8 pr-3 rounded-md border border-input bg-transparent text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring w-64"
           />
           {buscaPedido && (
             <button onClick={() => setBuscaPedido("")}

@@ -4,7 +4,8 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Circle, ChevronLeft, ChevronRight, ArrowLeft, BarChart2, Plus, Star, Trash2, Edit3, Route } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Circle, ChevronLeft, ChevronRight, ArrowLeft, BarChart2, Plus, Star, Trash2, Edit3, Route, Search, X, Calendar } from "lucide-react";
 import { format, addDays, subDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -20,6 +21,7 @@ import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, cl
 import { notificarStatus } from "@/lib/biNotificador";
 import { SeletorPrioridadeDropdown, getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
+import { normalizarTextoBusca } from "@/lib/bobinaStatusHelper";
 
 const STATUS_LABELS_TELHAS = {
   pendente: "Pendente",
@@ -50,6 +52,7 @@ const DASH_PATHS = {
 export default function MaquinaPanel({ maquina }) {
   const navigate = useNavigate();
   const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [termoBusca, setTermoBusca] = useState("");
   const [novoPedidoOpen, setNovoPedidoOpen] = useState(false);
   const [editandoPedido, setEditandoPedido] = useState(null);
   const [user, setUser] = useState(null);
@@ -399,20 +402,63 @@ export default function MaquinaPanel({ maquina }) {
     return p.status === "pendente";
   }).length;
 
+  // Função para match de busca: número do pedido (#, dígitos ou texto), cliente, produto/modelo ou obs
+  const matchPedidoBusca = (p, query) => {
+    if (!query) return true;
+    const q = normalizarTextoBusca(query);
+    if (!q) return true;
+
+    // 1. Número do pedido (ex: #299065, 299065, S00299065)
+    const numRaw = normalizarTextoBusca(p.numero_pedido);
+    if (numRaw.includes(q)) return true;
+
+    // Comparação por dígitos limpos
+    const qDigits = q.replace(/\D/g, "");
+    const pDigits = String(p.numero_pedido || "").replace(/\D/g, "");
+    if (qDigits && pDigits && (pDigits.includes(qDigits) || qDigits.includes(pDigits))) {
+      return true;
+    }
+
+    // 2. Nome do cliente
+    const cli = normalizarTextoBusca(p.cliente);
+    if (cli.includes(q)) return true;
+
+    // 3. Produto ou modelo
+    const prod = normalizarTextoBusca(p.produto);
+    const mod = normalizarTextoBusca(p.modelo);
+    if (prod.includes(q) || mod.includes(q)) return true;
+
+    // 4. Observações / Cidade
+    const obs = normalizarTextoBusca(p.observacoes || p.obs);
+    if (obs.includes(q)) return true;
+    const cid = normalizarTextoBusca(p.cidade);
+    if (cid.includes(q)) return true;
+
+    return false;
+  };
+
+  const pedidosFiltrados = useMemo(() => {
+    const q = termoBusca.trim();
+    if (!q) return pedidosDia;
+    // Quando buscando, varre todos os pedidos da máquina (não apenas o dia selecionado)
+    // Exclui pedidos cancelados da fila de produção
+    return pedidos.filter(p => p.status !== "cancelado" && matchPedidoBusca(p, q));
+  }, [pedidosDia, pedidos, termoBusca]);
+
   const ordenados = useMemo(() => {
     const hoje = format(new Date(), "yyyy-MM-dd");
     const order = { em_producao: 0, pausado: 1, pendente: 2, aguardando_colagem: 3, finalizado: 4, cancelado: 5 };
-    return [...pedidosDia].sort((a, b) => {
+    return [...pedidosFiltrados].sort((a, b) => {
       // Prioridade 1 a 5 (P1 é a mais urgente de todas a fazer!)
       const priDiff = getPesoOrdenacaoPrioridade(a) - getPesoOrdenacaoPrioridade(b);
       if (priDiff !== 0) return priDiff;
 
-      const aAtrasado = a.data < hoje ? 0 : 1;
-      const bAtrasado = b.data < hoje ? 0 : 1;
+      const aAtrasado = (a.data && a.data < hoje) ? 0 : 1;
+      const bAtrasado = (b.data && b.data < hoje) ? 0 : 1;
       if (aAtrasado !== bAtrasado) return aAtrasado - bAtrasado;
       return (order[a.status] ?? 2) - (order[b.status] ?? 2);
     });
-  }, [pedidosDia]);
+  }, [pedidosFiltrados]);
 
   const handleSetPrioridade = (pedido, nivel) => {
     const novaPri = Boolean(nivel);
@@ -625,6 +671,53 @@ export default function MaquinaPanel({ maquina }) {
         />
       )}
 
+      {/* Barra de Pesquisa por Pedido ou Cliente */}
+      <div className="bg-card border border-border rounded-xl p-3 shadow-sm space-y-2">
+        <div className="relative flex items-center">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <Input
+            type="text"
+            value={termoBusca}
+            onChange={(e) => setTermoBusca(e.target.value)}
+            placeholder="Pesquisar por número do pedido (#) ou nome do cliente..."
+            className="pl-9 pr-9 h-10 text-sm bg-background/50 focus:bg-background transition-colors"
+          />
+          {termoBusca && (
+            <button
+              type="button"
+              onClick={() => setTermoBusca("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted transition-colors cursor-pointer"
+              title="Limpar pesquisa"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {termoBusca.trim() && (
+          <div className="flex items-center justify-between text-xs px-1 text-muted-foreground">
+            <span>
+              {ordenados.length === 0 ? (
+                <span className="text-amber-600 dark:text-amber-400 font-medium">
+                  Nenhum pedido encontrado para &ldquo;{termoBusca}&rdquo;
+                </span>
+              ) : (
+                <span>
+                  Mostrando <strong>{ordenados.length}</strong> pedido(s) encontrado(s) para &ldquo;<strong>{termoBusca}</strong>&rdquo;
+                </span>
+              )}
+            </span>
+            <button
+              type="button"
+              onClick={() => setTermoBusca("")}
+              className="text-primary hover:underline font-medium cursor-pointer"
+            >
+              Limpar busca
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Lista de pedidos */}
       {isLoading ? (
         <div className="flex justify-center py-16">
@@ -636,43 +729,76 @@ export default function MaquinaPanel({ maquina }) {
             <Circle className="w-6 h-6 text-muted-foreground" />
           </div>
           <div>
-            <p className="font-semibold">Sem pedidos para este dia</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              {diasComPedidos.length > 0
+            <p className="font-semibold">
+              {termoBusca.trim() ? "Nenhum pedido encontrado" : "Sem pedidos para este dia"}
+            </p>
+            <p className="text-sm text-muted-foreground mt-1 max-w-md">
+              {termoBusca.trim()
+                ? `Nenhum pedido na máquina ${maquina} corresponde a "${termoBusca}". Verifique o número ou o cliente.`
+                : diasComPedidos.length > 0
                 ? "Navegue nos dias acima para ver pedidos de outros dias"
                 : "Quando o admin cadastrar pedidos para esta máquina, eles aparecerão aqui"}
             </p>
+            {termoBusca.trim() && (
+              <Button variant="outline" size="sm" onClick={() => setTermoBusca("")} className="mt-3">
+                Limpar busca
+              </Button>
+            )}
           </div>
         </div>
       ) : (
         <div className="space-y-4">
-          {ordenados.map(p => (
-            <div key={p.id}>
-              {podeGerenciar && (
-                <div className="flex justify-end gap-1 mb-1">
-                  {p.status !== "finalizado" && p.status !== "cancelado" && (
-                    <>
-                      <Button size="sm" variant="ghost" className={`text-xs h-6 px-2 ${p.rota ? "text-red-600 font-bold" : "text-muted-foreground"}`} onClick={() => toggleRota(p)}>
-                        <Route className={`w-3 h-3 mr-1 ${p.rota ? "fill-red-500 text-red-500" : ""}`} /> {p.rota ? "Rota" : "Rota"}
-                      </Button>
-                      <SeletorPrioridadeDropdown
-                        pedido={p}
-                        onSelectPrioridade={(nivel) => handleSetPrioridade(p, nivel)}
-                      />
-                    </>
-                  )}
-                  <HistoricoPedidoTelhasButton pedido={p} />
-                  <Button size="sm" variant="ghost" className="text-xs h-6 px-2 text-muted-foreground hover:text-blue-600" onClick={() => setEditandoPedido(p)}>
-                    <Edit3 className="w-3 h-3 mr-1" /> Editar
-                  </Button>
-                  <Button size="sm" variant="ghost" className="text-xs h-6 px-2 text-muted-foreground hover:text-red-600" onClick={() => handleDeletePedido(p)}>
-                    <Trash2 className="w-3 h-3 mr-1" /> Excluir
-                  </Button>
-                </div>
-              )}
-              <PedidoRow pedido={p} onStatusChange={handleStatusChange} onUpdate={handleStatusChange} userRole={user?.role} opRodando={opRodando} maquina={maquina} user={user} filialAtiva={filialAtiva} appendHistoricoFn={(pedido, acao, label, detalhes) => appendHistorico(pedido, acao, label, detalhes)} />
-            </div>
-          ))}
+          {ordenados.map(p => {
+            const dataPedido = p.data || p.data_perfilacao;
+            const ehOutroDia = Boolean(termoBusca.trim() && dataPedido && dataPedido !== selectedDay);
+
+            return (
+              <div key={p.id}>
+                {ehOutroDia && (
+                  <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-1.5 mb-1.5 text-xs text-amber-800 dark:text-amber-300">
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <Calendar className="w-3.5 h-3.5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                      <span>
+                        Agendado para: <strong>{format(new Date(dataPedido + "T12:00:00"), "dd/MM/yyyy (EEEE)", { locale: ptBR })}</strong>
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDay(dataPedido);
+                      }}
+                      className="underline font-semibold hover:text-amber-900 dark:hover:text-amber-100 cursor-pointer ml-2"
+                    >
+                      Ir para este dia
+                    </button>
+                  </div>
+                )}
+                {podeGerenciar && (
+                  <div className="flex justify-end gap-1 mb-1">
+                    {p.status !== "finalizado" && p.status !== "cancelado" && (
+                      <>
+                        <Button size="sm" variant="ghost" className={`text-xs h-6 px-2 ${p.rota ? "text-red-600 font-bold" : "text-muted-foreground"}`} onClick={() => toggleRota(p)}>
+                          <Route className={`w-3 h-3 mr-1 ${p.rota ? "fill-red-500 text-red-500" : ""}`} /> {p.rota ? "Rota" : "Rota"}
+                        </Button>
+                        <SeletorPrioridadeDropdown
+                          pedido={p}
+                          onSelectPrioridade={(nivel) => handleSetPrioridade(p, nivel)}
+                        />
+                      </>
+                    )}
+                    <HistoricoPedidoTelhasButton pedido={p} />
+                    <Button size="sm" variant="ghost" className="text-xs h-6 px-2 text-muted-foreground hover:text-blue-600" onClick={() => setEditandoPedido(p)}>
+                      <Edit3 className="w-3 h-3 mr-1" /> Editar
+                    </Button>
+                    <Button size="sm" variant="ghost" className="text-xs h-6 px-2 text-muted-foreground hover:text-red-600" onClick={() => handleDeletePedido(p)}>
+                      <Trash2 className="w-3 h-3 mr-1" /> Excluir
+                    </Button>
+                  </div>
+                )}
+                <PedidoRow pedido={p} onStatusChange={handleStatusChange} onUpdate={handleStatusChange} userRole={user?.role} opRodando={opRodando} maquina={maquina} user={user} filialAtiva={filialAtiva} appendHistoricoFn={(pedido, acao, label, detalhes) => appendHistorico(pedido, acao, label, detalhes)} />
+              </div>
+            );
+          })}
         </div>
       )}
 
