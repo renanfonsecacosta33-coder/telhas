@@ -8,7 +8,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Menu, ChevronDown, PackageCheck, Factory, Home, ArrowLeftRight } from "lucide-react";
+import { Menu, ChevronDown, PackageCheck, Factory, Home, ArrowLeftRight, Sun, Moon } from "lucide-react";
+import { useTheme } from "@/lib/ThemeContext";
 
 export default function EcosystemHeaderBar({ user, sidebarOpen, onToggleSidebar, children }) {
   const navigate = useNavigate();
@@ -42,7 +43,7 @@ export default function EcosystemHeaderBar({ user, sidebarOpen, onToggleSidebar,
     };
   }
 
-  const ModuloIcon = moduloInfo.icon;
+  const { isDark, toggleTema } = useTheme();
 
   return (
     <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2 shadow-sm relative overflow-hidden">
@@ -86,10 +87,25 @@ export default function EcosystemHeaderBar({ user, sidebarOpen, onToggleSidebar,
         </DropdownMenu>
       </div>
 
-      {/* Direita: Ações customizadas (Chats, Alertas) + FilialSwitcher + UserAvatarButton */}
+      {/* Direita: Ações customizadas (Chats, Alertas) + FilialSwitcher + Alternador de Tema + UserAvatarButton */}
       <div className="flex items-center gap-1.5 sm:gap-2">
         {children}
         <FilialSwitcher />
+
+        {/* Botão Rápido de Alternar Tema (Visão Preta / Visão Clara) */}
+        <button
+          onClick={toggleTema}
+          className="p-2 rounded-xl border border-border bg-card hover:bg-muted text-foreground transition-all duration-200 cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+          title={isDark ? "Mudar para Modo Claro (Visão Clara)" : "Mudar para Modo Escuro (Visão Preta)"}
+          aria-label="Alternar Modo Escuro / Claro"
+        >
+          {isDark ? (
+            <Sun className="w-4 h-4 text-amber-400 animate-in fade-in zoom-in duration-200" />
+          ) : (
+            <Moon className="w-4 h-4 text-slate-700 animate-in fade-in zoom-in duration-200" />
+          )}
+        </button>
+
         <UserAvatarButton size="default" />
       </div>
     </header>

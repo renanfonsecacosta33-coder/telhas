@@ -86,41 +86,41 @@ export default function BobinaQR() {
   const kgAFazer = ordensAFazer.reduce((s, o) => s + (o._kg || 0), 0);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <div className="bg-gray-900 text-white px-4 py-5">
+      <div className="bg-slate-900 text-white px-4 py-5 border-b border-slate-800">
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center gap-2 mb-1">
-            <Package className="w-5 h-5" />
+            <Package className="w-5 h-5 text-teal-400" />
             <h1 className="text-xl font-bold">Bobina {bobina.codigo || ""}</h1>
           </div>
-          <p className="text-sm text-gray-300">{bobina.cor} · {bobina.qualidade}</p>
+          <p className="text-sm text-slate-300">{bobina.cor} · {bobina.qualidade}</p>
         </div>
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
         {/* Resumo de pedidos */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-sm font-bold text-gray-800 flex items-center gap-1.5 mb-3">
-            <ClipboardList className="w-4 h-4" /> Resumo de Pedidos
+        <div className="bg-card rounded-xl border border-border p-4 text-card-foreground shadow-sm">
+          <p className="text-sm font-bold flex items-center gap-1.5 mb-3">
+            <ClipboardList className="w-4 h-4 text-primary" /> Resumo de Pedidos
           </p>
           <div className="grid grid-cols-2 gap-2 text-center">
-            <div className="bg-amber-50 rounded-lg p-2 border border-amber-200">
-              <p className="text-lg font-bold text-amber-700">{ordensAFazer.length}</p>
-              <p className="text-[10px] text-amber-600">A Fazer</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">{pecasAFazer.toLocaleString("pt-BR")} pçs · {kgAFazer.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg</p>
+            <div className="bg-amber-500/10 rounded-lg p-2.5 border border-amber-500/30">
+              <p className="text-lg font-bold text-amber-600 dark:text-amber-400">{ordensAFazer.length}</p>
+              <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">A Fazer</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{pecasAFazer.toLocaleString("pt-BR")} pçs · {kgAFazer.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg</p>
             </div>
-            <div className="bg-emerald-50 rounded-lg p-2 border border-emerald-200">
-              <p className="text-lg font-bold text-emerald-700">{ordensFeitas.length}</p>
-              <p className="text-[10px] text-emerald-600">Feitos</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">{totalPecas.toLocaleString("pt-BR")} pçs · {totalKg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg</p>
+            <div className="bg-emerald-500/10 rounded-lg p-2.5 border border-emerald-500/30">
+              <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{ordensFeitas.length}</p>
+              <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Feitos</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{totalPecas.toLocaleString("pt-BR")} pçs · {totalKg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg</p>
             </div>
           </div>
         </div>
 
         {/* Dados da bobina */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-sm font-bold text-gray-800 mb-3">Informações da Bobina</p>
+        <div className="bg-card rounded-xl border border-border p-4 text-card-foreground shadow-sm">
+          <p className="text-sm font-bold mb-3">Informações da Bobina</p>
           <div className="grid grid-cols-2 gap-3 text-xs">
             <Info icon={<Weight className="w-3 h-3" />} label="Peso Atual" value={`${bobina.peso_kg?.toLocaleString("pt-BR") || "—"} kg`} />
             <Info icon={<Weight className="w-3 h-3" />} label="Peso Inicial" value={`${bobina.peso_inicial?.toLocaleString("pt-BR") || "—"} kg`} />
@@ -134,38 +134,38 @@ export default function BobinaQR() {
             <Info label="Estoque Mín." value={`${bobina.estoque_minimo_kg?.toLocaleString("pt-BR") || "—"} kg`} />
           </div>
           {bobina.reservada && (
-            <div className="mt-3 p-2 rounded-lg bg-purple-50 border border-purple-200 text-xs">
-              <p className="font-semibold text-purple-800">🔒 Reservada — {bobina.reserva_tipo === "inteira" ? "Bobina Inteira" : `${bobina.reserva_kg?.toLocaleString("pt-BR")} kg`}</p>
-              {bobina.reserva_numero_pedido && <p className="text-purple-700">Pedido: {bobina.reserva_numero_pedido}</p>}
-              {bobina.reserva_motivo && <p className="text-purple-700">Motivo: {bobina.reserva_motivo}</p>}
-              {bobina.reserva_autorizado_por && <p className="text-purple-700">Autorizado por: {bobina.reserva_autorizado_por}</p>}
+            <div className="mt-3 p-2.5 rounded-lg bg-purple-500/10 border border-purple-500/30 text-xs">
+              <p className="font-semibold text-purple-700 dark:text-purple-300">🔒 Reservada — {bobina.reserva_tipo === "inteira" ? "Bobina Inteira" : `${bobina.reserva_kg?.toLocaleString("pt-BR")} kg`}</p>
+              {bobina.reserva_numero_pedido && <p className="text-purple-600 dark:text-purple-300">Pedido: {bobina.reserva_numero_pedido}</p>}
+              {bobina.reserva_motivo && <p className="text-purple-600 dark:text-purple-300">Motivo: {bobina.reserva_motivo}</p>}
+              {bobina.reserva_autorizado_por && <p className="text-purple-600 dark:text-purple-300">Autorizado por: {bobina.reserva_autorizado_por}</p>}
             </div>
           )}
           {bobina.observacoes && (
-            <p className="mt-3 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">{bobina.observacoes}</p>
+            <p className="mt-3 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">{bobina.observacoes}</p>
           )}
         </div>
 
         {/* Pedidos a fazer */}
-        <div className="bg-white rounded-xl border-2 border-amber-200 p-4">
-          <p className="text-sm font-bold text-amber-800 mb-3 flex items-center gap-1.5">
+        <div className="bg-card rounded-xl border-2 border-amber-500/40 p-4 text-card-foreground shadow-sm">
+          <p className="text-sm font-bold text-amber-600 dark:text-amber-400 mb-3 flex items-center gap-1.5">
             <ClipboardList className="w-4 h-4" /> Pedidos a Fazer ({ordensAFazer.length})
           </p>
           {ordensAFazer.length === 0 ? (
-            <p className="text-xs text-gray-500 py-2 text-center">Nenhum pedido pendente.</p>
+            <p className="text-xs text-muted-foreground py-2 text-center">Nenhum pedido pendente.</p>
           ) : (
             <div className="space-y-2">
               {ordensAFazer.map((o, i) => (
-                <div key={o.id || i} className="border border-amber-200 rounded-lg p-3 text-xs bg-amber-50/50">
+                <div key={o.id || i} className="border border-amber-500/20 rounded-lg p-3 text-xs bg-amber-500/10">
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <Badge variant="outline" className={`text-[10px] shrink-0 ${STATUS_STYLES[o.status] || ""}`}>{o.status}</Badge>
-                      <span className="font-medium text-gray-800 truncate">{o._label}</span>
+                      <span className="font-medium text-foreground truncate">{o._label}</span>
                     </div>
-                    <span className="text-gray-400 shrink-0">{o.data}</span>
+                    <span className="text-muted-foreground shrink-0">{o.data}</span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-gray-500">
-                    <span className="font-medium text-amber-700">{o._tipo}</span>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-muted-foreground">
+                    <span className="font-medium text-amber-600 dark:text-amber-400">{o._tipo}</span>
                     <span>{o._qtd || 0} pçs</span>
                     {o._kg && <span>{o._kg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg</span>}
                     {o.cliente && <span>· {o.cliente}</span>}
@@ -179,26 +179,26 @@ export default function BobinaQR() {
 
         {/* Solicitações de reserva */}
         {solicitacoesReserva.length > 0 && (
-          <div className="bg-white rounded-xl border-2 border-purple-200 p-4">
-            <p className="text-sm font-bold text-purple-800 mb-3 flex items-center gap-1.5">
+          <div className="bg-card rounded-xl border-2 border-purple-500/40 p-4 text-card-foreground shadow-sm">
+            <p className="text-sm font-bold text-purple-600 dark:text-purple-400 mb-3 flex items-center gap-1.5">
               🔒 Solicitações de Reserva ({solicitacoesReserva.length})
             </p>
             <div className="space-y-2">
               {solicitacoesReserva.map((s, i) => (
-                <div key={s.id || i} className="border border-purple-200 rounded-lg p-3 text-xs bg-purple-50/50">
+                <div key={s.id || i} className="border border-purple-500/20 rounded-lg p-3 text-xs bg-purple-500/10">
                   <div className="flex items-center justify-between gap-2 mb-1">
-                    <Badge variant="outline" className={`text-[10px] ${s.status === "aprovada" ? "bg-emerald-100 text-emerald-700 border-emerald-300" : s.status === "recusada" ? "bg-red-100 text-red-700 border-red-300" : "bg-amber-100 text-amber-700 border-amber-300"}`}>
+                    <Badge variant="outline" className={`text-[10px] ${s.status === "aprovada" ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/40" : s.status === "recusada" ? "bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/40" : "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40"}`}>
                       {s.status}
                     </Badge>
-                    <span className="text-gray-400">{s.reserva_tipo === "inteira" ? "Bobina Inteira" : `${s.reserva_kg?.toLocaleString("pt-BR")} kg`}</span>
+                    <span className="text-muted-foreground">{s.reserva_tipo === "inteira" ? "Bobina Inteira" : `${s.reserva_kg?.toLocaleString("pt-BR")} kg`}</span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-gray-500">
-                    <span className="font-medium text-purple-700">Vendedor: {s.vendedor_nome}</span>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-muted-foreground">
+                    <span className="font-medium text-purple-600 dark:text-purple-400">Vendedor: {s.vendedor_nome}</span>
                     {s.cliente && <span>· {s.cliente}</span>}
                     {s.numero_pedido && <span>· Ped: {s.numero_pedido}</span>}
                   </div>
-                  {s.motivo && <p className="text-gray-500 mt-1">Motivo: {s.motivo}</p>}
-                  {s.resposta_admin && <p className="text-gray-500 mt-1">Admin: {s.resposta_admin}</p>}
+                  {s.motivo && <p className="text-muted-foreground mt-1">Motivo: {s.motivo}</p>}
+                  {s.resposta_admin && <p className="text-muted-foreground mt-1">Admin: {s.resposta_admin}</p>}
                 </div>
               ))}
             </div>
@@ -206,25 +206,25 @@ export default function BobinaQR() {
         )}
 
         {/* Pedidos feitos */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-1.5">
-            <ClipboardList className="w-4 h-4" /> Pedidos Feitos ({ordensFeitas.length})
+        <div className="bg-card rounded-xl border border-border p-4 text-card-foreground shadow-sm">
+          <p className="text-sm font-bold mb-3 flex items-center gap-1.5">
+            <ClipboardList className="w-4 h-4 text-emerald-500" /> Pedidos Feitos ({ordensFeitas.length})
           </p>
           {ordensFeitas.length === 0 ? (
-            <p className="text-xs text-gray-500 py-2 text-center">Nenhum pedido finalizado.</p>
+            <p className="text-xs text-muted-foreground py-2 text-center">Nenhum pedido finalizado.</p>
           ) : (
             <div className="space-y-2">
               {ordensFeitas.map((o, i) => (
-                <div key={o.id || i} className="border border-gray-200 rounded-lg p-3 text-xs">
+                <div key={o.id || i} className="border border-border rounded-lg p-3 text-xs bg-card">
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <Badge variant="outline" className={`text-[10px] shrink-0 ${STATUS_STYLES[o.status] || ""}`}>{o.status}</Badge>
-                      <span className="font-medium text-gray-800 truncate">{o._label}</span>
+                      <span className="font-medium text-foreground truncate">{o._label}</span>
                     </div>
-                    <span className="text-gray-400 shrink-0">{o.data}</span>
+                    <span className="text-muted-foreground shrink-0">{o.data}</span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-gray-500">
-                    <span className="font-medium text-emerald-600">{o._tipo}</span>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-muted-foreground">
+                    <span className="font-medium text-emerald-600 dark:text-emerald-400">{o._tipo}</span>
                     <span>{o._qtd || 0} pçs</span>
                     {o._kg && <span>{o._kg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg</span>}
                     {o.cliente && <span>· {o.cliente}</span>}
@@ -238,12 +238,12 @@ export default function BobinaQR() {
 
         {bobina.anexo_nf_url && (
           <a href={bobina.anexo_nf_url} target="_blank" rel="noopener noreferrer"
-            className="block text-center text-xs py-2 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 font-medium">
+            className="block text-center text-xs py-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
             Ver Nota Fiscal
           </a>
         )}
 
-        <p className="text-center text-[10px] text-gray-400 pt-2 pb-4">
+        <p className="text-center text-[10px] text-muted-foreground pt-2 pb-4">
           AJL Ferro e Aço · Sistema de Gestão de Bobinas
         </p>
       </div>
@@ -253,9 +253,9 @@ export default function BobinaQR() {
 
 function Info({ icon, label, value }) {
   return (
-    <div className="bg-gray-50 rounded-lg p-2">
-      <p className="text-gray-400 mb-0.5 flex items-center gap-1">{icon}{label}</p>
-      <p className="font-semibold text-gray-800">{value}</p>
+    <div className="bg-muted/40 rounded-lg p-2 border border-border/50">
+      <p className="text-muted-foreground mb-0.5 flex items-center gap-1">{icon}{label}</p>
+      <p className="font-semibold text-foreground">{value}</p>
     </div>
   );
 }

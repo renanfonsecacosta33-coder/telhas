@@ -7,6 +7,19 @@
     <meta name="referrer" content="no-referrer" />
     <link rel="manifest" href="/manifest.json" />
     <title>Base44 APP</title>
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('ajl_tema');
+          var isDark = saved === 'escuro' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches) || (saved === 'sistema' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

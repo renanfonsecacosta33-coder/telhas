@@ -6,7 +6,7 @@ const DENSIDADE_ACO = 7.85;
 
 export function HistoricoPanel({ historico, onClear, titulo }) {
   return (
-    <div className="rounded-xl overflow-hidden border border-border shadow-lg bg-white">
+    <div className="rounded-xl overflow-hidden border border-border shadow-lg bg-card text-card-foreground">
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
           <History className="w-4 h-4" />
@@ -24,14 +24,14 @@ export function HistoricoPanel({ historico, onClear, titulo }) {
             <p className="text-xs text-muted-foreground text-center py-6">Nenhum cálculo ainda</p>
           ) : (
             historico.map((h, i) => (
-              <div key={i} className="text-xs border rounded-lg p-2.5 bg-gradient-to-br from-gray-50 to-white hover:shadow-md transition-shadow">
+              <div key={i} className="text-xs border border-border rounded-lg p-2.5 bg-muted/30 hover:bg-muted/60 transition-colors">
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="font-bold text-gray-700">{h.label}</span>
+                  <span className="font-bold text-foreground">{h.label}</span>
                   <span className="text-[10px] text-muted-foreground">{h.data}</span>
                 </div>
-                <div className="text-gray-600 space-y-0.5">
+                <div className="text-muted-foreground space-y-0.5">
                   <div className="font-medium">{h.entrada}</div>
-                  <div className="text-blue-600 font-bold">→ {h.resultado}</div>
+                  <div className="text-blue-600 dark:text-blue-400 font-bold">→ {h.resultado}</div>
                 </div>
               </div>
             ))
@@ -46,8 +46,8 @@ export function CalcCard({ label, children, historico, onClearHistorico }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <div className="lg:col-span-2">
-        <div className="rounded-xl overflow-hidden border border-border shadow-lg bg-white">
-          <div className="bg-gradient-to-r from-gray-900 to-gray-800 text-white px-4 py-3">
+        <div className="rounded-xl overflow-hidden border border-border shadow-lg bg-card text-card-foreground">
+          <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white px-4 py-3">
             <span className="font-bold text-sm tracking-wide">{label}</span>
           </div>
           {children}

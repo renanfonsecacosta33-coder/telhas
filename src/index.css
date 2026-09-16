@@ -81,7 +81,7 @@
 }
 
 /* ── Fallbacks Automáticos Elegantes para Modo Escuro ── */
-.dark .bg-white {
+.dark .bg-white:not(.preserve-light):not(.preserve-light *):not(.etq-container):not(.etq-container *):not(.print-white):not(.print-white *) {
   background-color: #101726 !important;
   color: #f8fafc !important;
 }
@@ -92,6 +92,109 @@
   background-color: #1a2333 !important;
   color: #e2e8f0 !important;
 }
+/* Setor Telhas / Azul */
+.dark .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.14) !important;
+  color: #bfdbfe !important;
+}
+.dark .bg-blue-100 {
+  background-color: rgba(59, 130, 246, 0.22) !important;
+  color: #dbeafe !important;
+}
+.dark .border-blue-200,
+.dark .border-blue-300 {
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+
+/* Setor Corte e Dobra / Laranja */
+.dark .bg-orange-50 {
+  background-color: rgba(249, 115, 22, 0.14) !important;
+  color: #fed7aa !important;
+}
+.dark .bg-orange-100 {
+  background-color: rgba(249, 115, 22, 0.22) !important;
+  color: #ffedd5 !important;
+}
+.dark .border-orange-200,
+.dark .border-orange-300 {
+  border-color: rgba(249, 115, 22, 0.3) !important;
+}
+
+/* Setor Expedição / Teal */
+.dark .bg-teal-50 {
+  background-color: rgba(13, 148, 136, 0.14) !important;
+  color: #99f6e4 !important;
+}
+.dark .bg-teal-100 {
+  background-color: rgba(13, 148, 136, 0.22) !important;
+  color: #ccfbf1 !important;
+}
+.dark .border-teal-200,
+.dark .border-teal-300 {
+  border-color: rgba(13, 148, 136, 0.3) !important;
+}
+
+/* Setor Isopor / Ciano */
+.dark .bg-cyan-50 {
+  background-color: rgba(6, 182, 212, 0.14) !important;
+  color: #a5f3fc !important;
+}
+.dark .bg-cyan-100 {
+  background-color: rgba(6, 182, 212, 0.22) !important;
+  color: #cffafe !important;
+}
+
+/* Status Sucesso / Verde */
+.dark .bg-emerald-50,
+.dark .bg-green-50 {
+  background-color: rgba(16, 185, 129, 0.14) !important;
+  color: #a7f3d0 !important;
+}
+.dark .bg-emerald-100,
+.dark .bg-green-100 {
+  background-color: rgba(16, 185, 129, 0.22) !important;
+  color: #d1fae5 !important;
+}
+.dark .border-green-200,
+.dark .border-green-300,
+.dark .border-emerald-200,
+.dark .border-emerald-300 {
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+/* Alertas & Perigo / Vermelho */
+.dark .bg-red-50 {
+  background-color: rgba(239, 68, 68, 0.14) !important;
+  color: #fecaca !important;
+}
+.dark .bg-red-100 {
+  background-color: rgba(239, 68, 68, 0.22) !important;
+  color: #fee2e2 !important;
+}
+.dark .border-red-200,
+.dark .border-red-300 {
+  border-color: rgba(239, 68, 68, 0.3) !important;
+}
+
+/* Atenção & Pausas / Âmbar e Amarelo */
+.dark .bg-amber-50,
+.dark .bg-yellow-50 {
+  background-color: rgba(245, 158, 11, 0.14) !important;
+  color: #fde68a !important;
+}
+.dark .bg-amber-100,
+.dark .bg-yellow-100 {
+  background-color: rgba(245, 158, 11, 0.22) !important;
+  color: #fef3c7 !important;
+}
+.dark .border-amber-200,
+.dark .border-amber-300,
+.dark .border-yellow-200,
+.dark .border-yellow-300 {
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+/* Roxo & Índigo */
 .dark .bg-purple-50 {
   background-color: rgba(147, 51, 234, 0.14) !important;
   color: #e9d5ff !important;
@@ -100,43 +203,57 @@
   background-color: rgba(147, 51, 234, 0.22) !important;
   color: #f3e8ff !important;
 }
-.dark .bg-blue-50 {
-  background-color: rgba(59, 130, 246, 0.14) !important;
-  color: #bfdbfe !important;
+.dark .border-purple-200,
+.dark .border-purple-300 {
+  border-color: rgba(147, 51, 234, 0.3) !important;
 }
-.dark .bg-emerald-50,
-.dark .bg-green-50 {
-  background-color: rgba(16, 185, 129, 0.14) !important;
-  color: #a7f3d0 !important;
-}
-.dark .bg-red-50 {
-  background-color: rgba(239, 68, 68, 0.14) !important;
-  color: #fecaca !important;
-}
-.dark .bg-amber-50,
-.dark .bg-yellow-50 {
-  background-color: rgba(245, 158, 11, 0.14) !important;
-  color: #fde68a !important;
-}
-.dark .text-slate-900,
-.dark .text-slate-800,
-.dark .text-slate-700,
-.dark .text-gray-900,
-.dark .text-gray-800,
-.dark .text-gray-700 {
+
+/* Textos com alto contraste preservando badges amarelas/claras */
+.dark .text-slate-900:not([class*="bg-yellow"]):not([class*="bg-amber"]):not([class*="bg-lime"]):not(.preserve-light *):not(.etq-container *),
+.dark .text-slate-800:not([class*="bg-yellow"]):not([class*="bg-amber"]):not([class*="bg-lime"]):not(.preserve-light *):not(.etq-container *),
+.dark .text-slate-700:not([class*="bg-yellow"]):not([class*="bg-amber"]):not([class*="bg-lime"]):not(.preserve-light *):not(.etq-container *),
+.dark .text-gray-900:not([class*="bg-yellow"]):not([class*="bg-amber"]):not([class*="bg-lime"]):not(.preserve-light *):not(.etq-container *),
+.dark .text-gray-800:not([class*="bg-yellow"]):not([class*="bg-amber"]):not([class*="bg-lime"]):not(.preserve-light *):not(.etq-container *),
+.dark .text-gray-700:not([class*="bg-yellow"]):not([class*="bg-amber"]):not([class*="bg-lime"]):not(.preserve-light *):not(.etq-container *) {
   color: #f1f5f9 !important;
 }
-.dark .text-slate-600,
-.dark .text-slate-500,
-.dark .text-gray-600,
-.dark .text-gray-500 {
+
+.dark .text-slate-600:not(.preserve-light *):not(.etq-container *),
+.dark .text-slate-500:not(.preserve-light *):not(.etq-container *),
+.dark .text-gray-600:not(.preserve-light *):not(.etq-container *),
+.dark .text-gray-500:not(.preserve-light *):not(.etq-container *) {
   color: #cbd5e1 !important;
 }
+
 .dark .border-slate-200,
 .dark .border-gray-200,
 .dark .border-slate-300,
 .dark .border-gray-300 {
   border-color: #1e293b !important;
+}
+
+/* Preservação estrita para Etiquetas Físicas, QR Codes e Impressões */
+.dark .preserve-light,
+.dark .preserve-light *,
+.dark .etq-container,
+.dark .etq-container *,
+.dark .print-white,
+.dark .print-white * {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border-color: #000000 !important;
+}
+
+/* Proteção de Impressão contra Modo Escuro */
+@media print {
+  html, body, .dark, .dark * {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    border-color: #d1d5db !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
 }
 
 @layer base {

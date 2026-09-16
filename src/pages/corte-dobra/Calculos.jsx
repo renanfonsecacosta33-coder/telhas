@@ -9,7 +9,7 @@ export default function Calculos() {
           <Calculator className="w-6 h-6 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Cálculos de Peso Teórico</h1>
+          <h1 className="text-2xl font-bold text-foreground">Cálculos de Peso Teórico</h1>
           <p className="text-xs text-muted-foreground">Densidade do aço: 7,85 kg/dm³</p>
         </div>
       </div>

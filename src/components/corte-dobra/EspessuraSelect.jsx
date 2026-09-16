@@ -72,8 +72,8 @@ export default function EspessuraSelect({ value, onChange, className = "" }) {
       </button>
 
       {aberto && (
-        <div className="absolute z-50 top-10 left-0 w-full min-w-[280px] bg-white border border-border rounded-xl shadow-xl overflow-hidden">
-          <div className="p-2 border-b border-border">
+        <div className="absolute z-50 top-10 left-0 w-full min-w-[280px] bg-card text-card-foreground border border-border rounded-xl shadow-2xl overflow-hidden">
+          <div className="p-2 border-b border-border bg-card">
             <Input
               autoFocus
               placeholder="Buscar espessura (ex: 1,25, GALV, FF, Slitter...)"
@@ -95,12 +95,12 @@ export default function EspessuraSelect({ value, onChange, className = "" }) {
                       key={`${e.label}_${idx}`}
                       type="button"
                       onClick={() => selecionarEspessura(e)}
-                      className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-muted/50 transition-colors ${isSelected ? "bg-orange-50" : ""}`}
+                      className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-muted/60 transition-colors ${isSelected ? "bg-orange-500/15 text-orange-600 dark:text-orange-400 font-semibold" : "text-foreground"}`}
                     >
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${TIPO_COR[e.tipo] || "bg-gray-100 text-gray-600"}`}>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${TIPO_COR[e.tipo] || "bg-muted text-muted-foreground"}`}>
                         {e.tipo}
                       </span>
-                      <span className={`font-medium ${isSelected ? "text-orange-600" : ""}`}>{e.label}</span>
+                      <span className={`font-medium ${isSelected ? "text-orange-600 dark:text-orange-400" : "text-foreground"}`}>{e.label}</span>
                       {e.origem !== "bobina" && (
                         <span className="text-[10px] text-muted-foreground ml-auto">{ORIGEM_LABEL[e.origem]}</span>
                       )}

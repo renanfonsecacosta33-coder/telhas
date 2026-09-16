@@ -16,8 +16,11 @@ import {
   Search,
   Clock,
   PackageCheck,
-  Inbox
+  Inbox,
+  Sun,
+  Moon
 } from "lucide-react";
+import { useTheme } from "@/lib/ThemeContext";
 import UserAvatarButton from "@/components/UserAvatarButton";
 import GlobalCommandPalette from "@/components/GlobalCommandPalette";
 import AjlCopilot from "@/components/ai/AjlCopilot";
@@ -160,6 +163,7 @@ const ALL_MODULES = [
 
 export default function SeletorSetor() {
   const navigate = useNavigate();
+  const { isDark, toggleTema } = useTheme();
   const [user, setUser] = useState(null);
   const [navegando, setNavegando] = useState(false);
   const [modulesList, setModulesList] = useState(ALL_MODULES);
@@ -324,6 +328,20 @@ export default function SeletorSetor() {
             <Search className="w-4 h-4 text-primary" />
             <span>Busca Rápida</span>
             <kbd className="hidden sm:inline-block bg-slate-100 dark:bg-slate-800 border text-[10px] px-1.5 py-0.5 rounded font-mono">Ctrl+K</kbd>
+          </button>
+
+          {/* Alternador Rápido de Tema (Visão Preta / Visão Clara) */}
+          <button
+            onClick={toggleTema}
+            className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-foreground transition-all duration-200 cursor-pointer shadow-sm hover:scale-105 active:scale-95 flex items-center justify-center shrink-0"
+            title={isDark ? "Mudar para Modo Claro (Visão Clara)" : "Mudar para Modo Escuro (Visão Preta)"}
+            aria-label="Alternar Modo Escuro / Claro"
+          >
+            {isDark ? (
+              <Sun className="w-5 h-5 text-amber-400 animate-in fade-in zoom-in duration-200" />
+            ) : (
+              <Moon className="w-5 h-5 text-slate-700 animate-in fade-in zoom-in duration-200" />
+            )}
           </button>
 
           <UserAvatarButton size="lg" />
