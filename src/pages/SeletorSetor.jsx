@@ -341,7 +341,11 @@ export default function SeletorSetor() {
               selecionarSetor(mod.setorTarget);
             } else if (mod.type === "route") {
               setNavegando(true);
-              navigate(mod.routeTarget);
+              if (mod.key === "app_logistica" && user?.setor === "corte_dobra") {
+                navigate("/corte-dobra/logistica");
+              } else {
+                navigate(mod.routeTarget);
+              }
             } else if (mod.type === "link") {
               window.open(mod.href, "_blank", "noopener,noreferrer");
             }

@@ -24,7 +24,7 @@ const FIXED_NAV = [
   { path: "/cola", label: "Cola", icon: FlaskConical },
   { path: "/estoque", label: "Outros Produtos", icon: Package },
   { path: "/mapa-barracao", label: "Mapa do Barracão", icon: Map },
-  { path: "/corte-dobra/logistica", label: "Logística", icon: Truck },
+  { path: "/logistica", label: "Logística", icon: Truck },
 ];
 
 const MAQUINA_ROUTE_MAP = {

@@ -12,19 +12,25 @@ import RotasEntregaSection from "@/components/logistica/RotasEntregaSection";
 import CargaCard from "@/components/logistica/CargaCard";
 import AuditSidebar from "@/components/logistica/AuditSidebar";
 
-export default function Logistica({ mode = "montagem" }) {
+export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
   const isDespacho = mode === "despacho";
   const [user, setUser] = useState(null);
   const [busca, setBusca] = useState("");
   const [dialogCarga, setDialogCarga] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedTipo, setSelectedTipo] = useState(null);
-  const [tab, setTab] = useState("todos");
+  const [tab, setTab] = useState(defaultTab);
   const [filtroData, setFiltroData] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [mostrarEntregues, setMostrarEntregues] = useState(false);
   const { filialAtiva } = useFilial();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (defaultTab) {
+      setTab(defaultTab);
+    }
+  }, [defaultTab]);
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});

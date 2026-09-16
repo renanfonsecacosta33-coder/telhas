@@ -151,6 +151,8 @@ const AuthenticatedApp = () => {
         <Route path="/cola" element={<Cola />} />
         <Route path="/mapa-barracao" element={<MapaBarracaoTelhas />} />
         <Route path="/dashboard-telhas" element={<DashboardTelhas />} />
+        <Route path="/logistica" element={<Logistica mode="montagem" defaultTab="telhas" />} />
+        <Route path="/telhas/logistica" element={<Logistica mode="montagem" defaultTab="telhas" />} />
       </Route>
       <Route path="/vendedor" element={<VendedorEstoque />} />
       <Route path="/vendedor-dashboard" element={<VendedorDashboard />} />
@@ -158,7 +160,7 @@ const AuthenticatedApp = () => {
       <Route path="/usuarios" element={<GerenciarUsuarios />} />
       <Route path="/admin/usuarios" element={<GerenciarUsuarios />} />
       <Route path="/corte-dobra/usuarios" element={<GerenciarUsuarios />} />
-      <Route path="/logistica" element={<LogisticaStandalone />} />
+      <Route path="/logistica-geral" element={<LogisticaStandalone />} />
       <Route path="/pcp" element={<CentralPCP />} />
       <Route path="/setor" element={<SeletorSetor />} />
       <Route path="/bobina-qr/:id" element={<BobinaQR />} />
@@ -182,9 +184,8 @@ const AuthenticatedApp = () => {
         <Route path="/corte-dobra/maquina/perfiladeira" element={<Perfiladeira />} />
         <Route path="/corte-dobra/maquina/desbobinadeira" element={<Desbobinadeira />} />
         <Route path="/corte-dobra/mapa" element={<MapaBarracao />} />
-        <Route path="/corte-dobra/logistica" element={<Logistica mode="despacho" />} />
+        <Route path="/corte-dobra/logistica" element={<Logistica mode="despacho" defaultTab="cd" />} />
       </Route>
-      <Route path="*" element={<PageNotFound />} />
       <Route element={<AppLayoutExpedicao />}>
         <Route path="/expedicao"             element={<DashboardExpedicao />} />
         <Route path="/expedicao/recebimento" element={<RecebimentoExpedicao />} />
@@ -198,6 +199,7 @@ const AuthenticatedApp = () => {
         <Route path="/expedicao/logistica"   element={<LogisticaExpedicao />} />
       </Route>
       <Route path="/arquivo-rotas" element={<ArquivoRotas />} />
+      <Route path="*" element={<PageNotFound />} />
     </Routes>
     </FilialProvider>
   );
