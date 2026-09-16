@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route, Camera, Scissors, Snowflake, Lock, RotateCcw } from "lucide-react";
+import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route, Camera, Scissors, Snowflake, Lock, RotateCcw, ShoppingCart, User } from "lucide-react";
 import ImageLink from "@/components/ui/ImageLink";
 import RetrabalhoTelhasDialog from "@/components/producao/RetrabalhoTelhasDialog";
 import { format } from "date-fns";
@@ -846,11 +846,27 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
                 </Badge>
               )}
             </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
-              {p.cliente && <span className="font-semibold text-slate-700">{p.cliente}</span>}
-              {p.vendedor && <span className="text-muted-foreground">{p.vendedor}</span>}
-              {p.numero_pedido && <span className="text-muted-foreground font-mono text-xs">#{p.numero_pedido}</span>}
-            </div>
+            {(p.numero_pedido || p.cliente) && (
+              <div className="flex flex-wrap items-center gap-2 my-1.5 p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/80 shadow-xs">
+                {p.numero_pedido && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs sm:text-sm font-black font-mono bg-blue-600 text-white shadow-xs tracking-wide">
+                    <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
+                    #{p.numero_pedido}
+                  </span>
+                )}
+                {p.cliente && (
+                  <div className="inline-flex items-center gap-1.5 text-xs sm:text-sm md:text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                    <User className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                    <span>{p.cliente}</span>
+                  </div>
+                )}
+                {p.vendedor && (
+                  <span className="text-xs text-muted-foreground ml-auto hidden sm:inline">
+                    Vendedor: <strong className="text-foreground">{p.vendedor}</strong>
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
             <p className="text-3xl font-black text-primary leading-none">

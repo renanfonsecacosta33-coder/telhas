@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import {
   Play, Pause, CheckCircle2, Timer, Coffee, Square, Circle,
   AlertCircle, Clock, Camera, Loader2, Layers, Package, ShoppingCart, Trash2, Image as ImageIcon,
-  Edit3, History, Star
+  Edit3, History, Star, User
 } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import { format } from "date-fns";
@@ -419,20 +419,22 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               {o.chapa_origem === "chaparia" ? <Layers className="w-2.5 h-2.5 text-orange-500" /> : <Package className="w-2.5 h-2.5 text-blue-500" />}
               <span className="font-mono">{o.chapa_origem === "chaparia" ? (o.chapa_descricao || "Chapa") : (o.bobina_descricao || o.chapa_descricao || "Bobina")}</span>
             </span>
-            {o.numero_pedido && (
-              <span className="inline-flex items-center gap-1">
-                <span className="text-muted-foreground/70">Pedido:</span>
-                <span className="font-semibold text-foreground font-mono">{o.numero_pedido}</span>
-                {pedidoSeq && (
-                  <span className="ml-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500 text-white">{pedidoSeq}</span>
+            {(o.numero_pedido || o.cliente) && (
+              <div className="inline-flex flex-wrap items-center gap-2 px-2.5 py-1 rounded-md bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/60 my-0.5">
+                {o.numero_pedido && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black font-mono bg-blue-600 text-white shadow-xs">
+                    <ShoppingCart className="w-3 h-3 shrink-0" />
+                    #{o.numero_pedido}
+                    {pedidoSeq && <span className="ml-1 text-[10px] opacity-90">({pedidoSeq})</span>}
+                  </span>
                 )}
-              </span>
-            )}
-            {o.cliente && (
-              <span className="inline-flex items-center gap-1">
-                <span className="text-muted-foreground/70">Cliente:</span>
-                <span className="font-semibold text-foreground">{o.cliente}</span>
-              </span>
+                {o.cliente && (
+                  <span className="inline-flex items-center gap-1 text-xs font-black text-foreground uppercase tracking-tight">
+                    <User className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                    {o.cliente}
+                  </span>
+                )}
+              </div>
             )}
             {o.data_finalizacao && (
               <span className="text-green-600 font-semibold">✓ {format(new Date(o.data_finalizacao + "T12:00:00"), "dd/MM")}</span>
@@ -533,15 +535,36 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               </div>
             )}
 
-            {/* Pedido */}
-            {o.numero_pedido && (
-              <div className={`flex items-center gap-1 ${z.info}`}>
-                <ShoppingCart className="w-3 h-3 text-blue-500" />
-                <span className="font-bold text-blue-700">#{o.numero_pedido}</span>
-                {pedidoSeq && (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500 text-white">{pedidoSeq}</span>
+            {/* Pedido e Cliente em Alto Destaque */}
+            {(o.numero_pedido || o.cliente) && (
+              <div className="flex flex-wrap items-center gap-2 my-1.5 p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/80 shadow-xs">
+                {o.numero_pedido && (
+                  <div className="inline-flex items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs sm:text-sm font-black font-mono bg-blue-600 dark:bg-blue-600 text-white shadow-xs tracking-wider">
+                      <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
+                      #{o.numero_pedido}
+                    </span>
+                    {pedidoSeq && (
+                      <span className="px-1.5 py-0.5 rounded text-xs font-black bg-blue-100 dark:bg-blue-900/80 text-blue-800 dark:text-blue-200 border border-blue-300 dark:border-blue-700 font-mono">
+                        {pedidoSeq}
+                      </span>
+                    )}
+                  </div>
                 )}
-                {o.cliente && <span className="text-muted-foreground">— {o.cliente}</span>}
+                {o.numero_pedido && o.cliente && (
+                  <span className="text-blue-300 dark:text-blue-700 font-bold hidden sm:inline">•</span>
+                )}
+                {o.cliente && (
+                  <div className="inline-flex items-center gap-1.5 text-xs sm:text-sm md:text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                    <User className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                    <span>{o.cliente}</span>
+                  </div>
+                )}
+                {o.vendedor && (
+                  <span className="text-[11px] text-muted-foreground ml-auto hidden sm:inline">
+                    Vend: <strong className="text-foreground">{o.vendedor}</strong>
+                  </span>
+                )}
               </div>
             )}
           </div>

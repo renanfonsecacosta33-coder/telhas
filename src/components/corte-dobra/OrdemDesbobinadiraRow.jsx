@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers, Image as ImageIcon, ScanLine } from "lucide-react";
+import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers, Image as ImageIcon, ScanLine, ShoppingCart, User } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -320,20 +320,22 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground mt-1">
-            {o.numero_pedido && (
-              <span className="inline-flex items-center gap-1">
-                <span className="text-muted-foreground/70">Pedido:</span>
-                <span className="font-semibold text-foreground font-mono">{o.numero_pedido}</span>
-                {pedidoSeq && (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500 text-white">{pedidoSeq}</span>
+            {(o.numero_pedido || o.cliente) && (
+              <div className="inline-flex flex-wrap items-center gap-2 px-2.5 py-1 rounded-md bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/60 my-0.5">
+                {o.numero_pedido && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black font-mono bg-blue-600 text-white shadow-xs">
+                    <ShoppingCart className="w-3 h-3 shrink-0" />
+                    #{o.numero_pedido}
+                    {pedidoSeq && <span className="ml-1 text-[10px] opacity-90">({pedidoSeq})</span>}
+                  </span>
                 )}
-              </span>
-            )}
-            {o.cliente && (
-              <span className="inline-flex items-center gap-1">
-                <span className="text-muted-foreground/70">Cliente:</span>
-                <span className="font-semibold text-foreground">{o.cliente}</span>
-              </span>
+                {o.cliente && (
+                  <span className="inline-flex items-center gap-1 text-xs font-black text-foreground uppercase tracking-tight">
+                    <User className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                    {o.cliente}
+                  </span>
+                )}
+              </div>
             )}
             <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${
               o.destino === "pedido_direto"
@@ -417,22 +419,39 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                 <span className="font-semibold text-emerald-700">≈ {o.kg_estimado.toFixed(1)} kg</span>
               )}
             </div>
+            {/* Pedido e Cliente em Alto Destaque */}
+            {(o.numero_pedido || o.cliente) && (
+              <div className="flex flex-wrap items-center gap-2 my-1.5 p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/80 shadow-xs">
+                {o.numero_pedido && (
+                  <div className="inline-flex items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs sm:text-sm font-black font-mono bg-blue-600 dark:bg-blue-600 text-white shadow-xs tracking-wider">
+                      <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
+                      #{o.numero_pedido}
+                    </span>
+                    {pedidoSeq && (
+                      <span className="px-1.5 py-0.5 rounded text-xs font-black bg-blue-100 dark:bg-blue-900/80 text-blue-800 dark:text-blue-200 border border-blue-300 dark:border-blue-700 font-mono">
+                        {pedidoSeq}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {o.numero_pedido && o.cliente && (
+                  <span className="text-blue-300 dark:text-blue-700 font-bold hidden sm:inline">•</span>
+                )}
+                {o.cliente && (
+                  <div className="inline-flex items-center gap-1.5 text-xs sm:text-sm md:text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                    <User className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                    <span>{o.cliente}</span>
+                  </div>
+                )}
+                {o.vendedor && (
+                  <span className="text-[11px] text-muted-foreground ml-auto hidden sm:inline">
+                    Vend: <strong className="text-foreground">{o.vendedor}</strong>
+                  </span>
+                )}
+              </div>
+            )}
             <div className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 ${z.info} text-muted-foreground mt-1`}>
-              {o.numero_pedido && (
-                <span className="inline-flex items-center gap-1">
-                  <span className="text-muted-foreground/70">Pedido:</span>
-                  <span className="font-semibold text-foreground font-mono">{o.numero_pedido}</span>
-                  {pedidoSeq && (
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500 text-white">{pedidoSeq}</span>
-                  )}
-                </span>
-              )}
-              {o.cliente && (
-                <span className="inline-flex items-center gap-1">
-                  <span className="text-muted-foreground/70">Cliente:</span>
-                  <span className="font-semibold text-foreground">{o.cliente}</span>
-                </span>
-              )}
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${
                 o.destino === "pedido_direto"
                   ? "bg-blue-50 text-blue-700 border-blue-200"

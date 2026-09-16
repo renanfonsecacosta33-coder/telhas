@@ -13,7 +13,9 @@ import {
   Route,
   Camera,
   AlertTriangle,
-  RotateCcw
+  RotateCcw,
+  ShoppingCart,
+  User
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -180,17 +182,31 @@ export default function OrdemCardCD({
             )}
           </div>
 
-          {/* Linha 2: Cliente + Vendedor + Pedido + Destino + Guilhotina */}
+          {/* Linha 2: Pedido e Cliente em Alto Destaque */}
+          {(o.numero_pedido || o.cliente) && (
+            <div className="flex flex-wrap items-center gap-2 my-1.5 p-1.5 px-2.5 rounded-lg bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/80 shadow-xs">
+              {o.numero_pedido && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs sm:text-sm font-black font-mono bg-blue-600 text-white shadow-xs tracking-wider">
+                  <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
+                  #{o.numero_pedido}
+                </span>
+              )}
+              {o.cliente && (
+                <div className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                  <User className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <span>{o.cliente}</span>
+                </div>
+              )}
+              {o.vendedor && (
+                <span className="text-[11px] text-muted-foreground ml-auto hidden sm:inline">
+                  Vend: <strong className="text-foreground">{o.vendedor}</strong>
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Linha 2.5: Destino + Guilhotina + Previsão */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-            {o.cliente && (
-              <span>
-                👤 <span className="text-foreground font-medium">{o.cliente}</span>
-              </span>
-            )}
-            {o.vendedor && <span>🏷 {o.vendedor}</span>}
-            {o.numero_pedido && (
-              <span className="font-semibold text-foreground/80">#{o.numero_pedido}</span>
-            )}
             <span>
               {o.destino === "estoque" ? "🏭 Estoque" : "📦 Pedido Direto"}
             </span>
