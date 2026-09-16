@@ -676,47 +676,54 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
           {!produtoFixo && (
           <div className="space-y-1">
             <Label>Tipo de Peça *</Label>
-            {isPerfiladeira ? (
-              materiaisSlitter.length === 0 ? (
-                <div className="text-sm text-muted-foreground py-2">Selecione uma bobina slitter primeiro</div>
-              ) : (
-                <Select value={form.tipo_peca} onValueChange={handleTipoPeca}>
-                  <SelectTrigger><SelectValue placeholder="Escolha o material..." /></SelectTrigger>
-                  <SelectContent>
-                    {materiaisSlitter.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              )
-            ) : (
-              <Select value={form.tipo_peca} onValueChange={handleTipoPeca}>
-                <SelectTrigger><SelectValue placeholder="Selecione o tipo de peça..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_corte" disabled className="text-xs font-bold text-muted-foreground uppercase">✂️ Corte</SelectItem>
-                  {TIPOS_PECA.filter(t => t.etapa === "corte").map(t => <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>)}
-                  <SelectItem value="_dobra" disabled className="text-xs font-bold text-muted-foreground uppercase">📐 Dobra</SelectItem>
-                  {TIPOS_PECA.filter(t => t.etapa === "dobra").map(t => <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>)}
-                  <SelectItem value="_perf" disabled className="text-xs font-bold text-muted-foreground uppercase">⚙️ Perfiladeira</SelectItem>
-                  {TIPOS_PECA.filter(t => t.etapa === "perfiladeira").map(t => <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>)}
-                  <SelectItem value="_ambas" disabled className="text-xs font-bold text-muted-foreground uppercase">✂️📐 Corte + Dobra</SelectItem>
-                  {TIPOS_PECA.filter(t => t.etapa === "ambas").map(t => <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>)}
-                  {!TIPOS_PECA.some(t => t.label === form.tipo_peca) && form.tipo_peca && (
-                    <SelectItem value={form.tipo_peca}>📌 {form.tipo_peca}</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            )}
-            {!isPerfiladeira && form.tipo_peca && tipoPecaObj && (
-              <div className="bg-muted/50 rounded-lg px-3 py-1.5 text-xs flex items-center gap-2">
-                <span className="text-muted-foreground">Etapa:</span>
-                <span className="font-semibold">{ETAPA_LABELS[etapa]}</span>
+            {isPerfiladeira && materiaisSlitter.length > 0 ? (
+              <div className="space-y-1.5">
+                <Input
+                  placeholder="Digite o tipo de peça / material..."
+                  value={form.tipo_peca}
+                  onChange={e => {
+                    set("tipo_peca", e.target.value);
+                    set("dimensoes_livres", e.target.value);
+                    pesoEditadoManual.current = false;
+                  }}
+                />
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] text-muted-foreground font-semibold">Sugestões da Slitter:</span>
+                  {materiaisSlitter.map(m => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => handleTipoPeca(m)}
+                      className={`text-[10px] px-2 py-0.5 rounded-full border transition-all cursor-pointer ${
+                        form.tipo_peca === m
+                          ? "bg-blue-600 text-white border-blue-600 font-bold"
+                          : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
               </div>
+            ) : (
+              <Input
+                placeholder="Digite o tipo de peça (ex: Blank, Chapa cortada, Rufo, Calha, Dobra...)"
+                value={form.tipo_peca}
+                onChange={e => set("tipo_peca", e.target.value)}
+              />
             )}
           </div>
           )}
 
           <div className="space-y-1">
             <Label>Dimensões / Especificações</Label>
-            <Input placeholder={isPerfiladeira || isMaquinaPadrao ? "Preenchido automaticamente" : "Ex: A=100 B=50 CH=1,25 · 6m"} value={form.dimensoes_livres} onChange={e => set("dimensoes_livres", e.target.value)} readOnly={isPerfiladeira || isMaquinaPadrao} className={isPerfiladeira || isMaquinaPadrao ? "bg-muted" : ""} />
+            <Input
+              placeholder={devObj ? "Preenchido pelo desenvolvimento" : "Ex: A=100 B=50 CH=1,25 · 6m"}
+              value={form.dimensoes_livres}
+              onChange={e => set("dimensoes_livres", e.target.value)}
+              readOnly={Boolean(devObj)}
+              className={devObj ? "bg-muted font-medium" : ""}
+            />
           </div>
 
           <div className="grid grid-cols-3 gap-3">
