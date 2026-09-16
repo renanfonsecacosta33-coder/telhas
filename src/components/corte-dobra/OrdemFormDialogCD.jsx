@@ -921,7 +921,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <Label className="flex items-center gap-1">
-                    <User className="w-4 h-4 text-blue-500" /> Vendedor
+                    <User className="w-4 h-4 text-blue-500" /> Vendedor <span className="text-muted-foreground text-xs font-normal">(opcional)</span>
                   </Label>
                   <button
                     type="button"

@@ -385,7 +385,6 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     if (form.maquina === "CORTE 6M" && devObj?.maquina_dobra && devObj.maquina_dobra !== "PERFILADEIRA" && !form.ordem_dobra_maquina) {
       alert("Selecione a máquina de dobra."); return;
     }
-    if (form.numero_pedido && !form.vendedor?.trim()) { alert("Por favor, selecione ou digite o vendedor responsável."); return; }
 
     // Validação de pré-baixa para bobina direta (não perfiladeira/slitter)
     if (form.chapa_origem === "direto" && !isPerfiladeira && !isDobra && form.bobina_id && form.peso_kg) {
@@ -758,7 +757,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <Label className="flex items-center gap-1">
-                <UserIcon className="w-3.5 h-3.5 text-blue-500" /> Vendedor {form.numero_pedido ? "*" : "(opcional)"}
+                <UserIcon className="w-3.5 h-3.5 text-blue-500" /> Vendedor <span className="text-muted-foreground text-xs font-normal">(opcional)</span>
               </Label>
               {!produtoFixo && (
                 <button
