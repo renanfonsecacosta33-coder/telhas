@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
-import { Layers, Package, Camera, PackageX, Scissors, Lock, Flame, Route, Star } from "lucide-react";
+import { Layers, Package, Camera, PackageX, Scissors, Lock, Flame, Route, Star, User as UserIcon } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import ChapaEstoqueCombobox from "@/components/corte-dobra/ChapaEstoqueCombobox";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
@@ -77,6 +77,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
   const fotoPedidoRef = useRef();
   const fotoPedidoScanRef = useRef();
   const [uploadingFoto, setUploadingFoto] = useState(false);
+  const [modoDigitarVendedor, setModoDigitarVendedor] = useState(false);
 
   const { filialAtiva } = useFilial();
 
@@ -114,11 +115,74 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     enabled: open && (form.chapa_origem === "chaparia" || isDobra),
   });
 
-  const { data: vendedores = [] } = useQuery({
-    queryKey: ["vendedores-list"],
-    queryFn: () => base44.entities.User.filter({ role: "vendedor" }),
+  // Vendedores cadastrados na gestão de Dados de Produção (fonte principal)
+  const { data: dadosVendedores = [] } = useQuery({
+    queryKey: ["dados-producao", "vendedor"],
+    queryFn: () => base44.entities.DadosProducao.filter({ tipo: "vendedor", ativo: true }),
     enabled: open,
   });
+
+  // Usuários com role vendedor (caso existam)
+  const { data: usersVendedores = [] } = useQuery({
+    queryKey: ["users-vendedores-list"],
+    queryFn: () => base44.entities.User.filter({ role: "vendedor" }).catch(() => []),
+    enabled: open,
+  });
+
+  // Vínculo automático com PedidoOdoo pelo numero_pedido
+  const { data: pedidoOdooVinculado = [] } = useQuery({
+    queryKey: ["pedido-odoo-vinculo-cd-maquina", form.numero_pedido],
+    queryFn: async () => {
+      const num = String(form.numero_pedido || "").replace(/^#/, "").trim();
+      if (!num) return [];
+      const res = await base44.entities.PedidoOdoo.filter({ numero_pedido: num }, "-created_date", 5).catch(() => []);
+      if (res.length > 0) return res;
+      return base44.entities.PedidoOdoo.filter({ numero_pedido: `#${num}` }, "-created_date", 5).catch(() => []);
+    },
+    enabled: open && !!form.numero_pedido && String(form.numero_pedido).trim().length > 0,
+  });
+
+  // Auto-preenchimento ao vincular pedido Odoo
+  useEffect(() => {
+    const p = pedidoOdooVinculado?.[0];
+    if (p) {
+      if (p.foto_pedido_url && !form.foto_pedido_url) {
+        set("foto_pedido_url", p.foto_pedido_url);
+      }
+      if (p.vendedor_nome && !form.vendedor) {
+        set("vendedor", p.vendedor_nome);
+      }
+      if (p.cliente_nome && !form.cliente) {
+        set("cliente", p.cliente_nome);
+      }
+    }
+  }, [pedidoOdooVinculado]);
+
+  // Lista consolidada de vendedores para o dropdown (sem duplicatas e com fallback seguro)
+  const listaVendedores = useMemo(() => {
+    const nomes = new Set();
+
+    dadosVendedores.forEach(d => {
+      const v = (d.valor || d.nome || "").trim();
+      if (v) nomes.add(v);
+    });
+
+    usersVendedores.forEach(u => {
+      const v = (u.full_name || u.name || u.email || "").trim();
+      if (v) nomes.add(v);
+    });
+
+    if (form.vendedor && form.vendedor.trim()) {
+      nomes.add(form.vendedor.trim());
+    }
+
+    // Se nenhuma fonte tiver retornado vendedores cadastrados, usa a lista padrão da fábrica
+    if (nomes.size === 0) {
+      ["VERA (PG)", "HUDSON", "BALCÃO", "DIRETO", "INTERNO", "VENDEDOR EXTERNO"].forEach(v => nomes.add(v));
+    }
+
+    return Array.from(nomes).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [dadosVendedores, usersVendedores, form.vendedor]);
 
   useEffect(() => {
     if (!open) return;
@@ -180,6 +244,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         prioridade_nivel: null,
         rota: false,
       });
+      setModoDigitarVendedor(false);
     }
   }, [open, editItem, defaultDate, maquinaProp]);
 
@@ -320,7 +385,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     if (form.maquina === "CORTE 6M" && devObj?.maquina_dobra && devObj.maquina_dobra !== "PERFILADEIRA" && !form.ordem_dobra_maquina) {
       alert("Selecione a máquina de dobra."); return;
     }
-    if (form.numero_pedido && !form.vendedor) { alert("Selecione o vendedor responsável."); return; }
+    if (form.numero_pedido && !form.vendedor?.trim()) { alert("Por favor, selecione ou digite o vendedor responsável."); return; }
 
     // Validação de pré-baixa para bobina direta (não perfiladeira/slitter)
     if (form.chapa_origem === "direto" && !isPerfiladeira && !isDobra && form.bobina_id && form.peso_kg) {
@@ -691,20 +756,63 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
           </div>
 
           <div className="space-y-1">
-            <Label>Vendedor {form.numero_pedido ? "*" : "(opcional)"}</Label>
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-1">
+                <UserIcon className="w-3.5 h-3.5 text-blue-500" /> Vendedor {form.numero_pedido ? "*" : "(opcional)"}
+              </Label>
+              {!produtoFixo && (
+                <button
+                  type="button"
+                  onClick={() => setModoDigitarVendedor(!modoDigitarVendedor)}
+                  className="text-xs text-primary hover:underline font-medium"
+                >
+                  {modoDigitarVendedor ? "← Selecionar da lista" : "✏️ Digitar vendedor"}
+                </button>
+              )}
+            </div>
             {produtoFixo ? (
               <div className="flex items-center justify-between border border-border rounded-md px-3 py-2 bg-muted/60 min-h-[38px] text-xs font-semibold text-foreground">
                 <span className="truncate">{form.vendedor || "Não informado"}</span>
                 <Badge variant="secondary" className="text-[9px] ml-1 shrink-0">Fixo</Badge>
               </div>
+            ) : modoDigitarVendedor ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Digite o nome do vendedor..."
+                  value={form.vendedor}
+                  onChange={e => set("vendedor", e.target.value)}
+                  autoFocus
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setModoDigitarVendedor(false)}
+                  title="Voltar para a lista"
+                  className="shrink-0"
+                >
+                  Lista
+                </Button>
+              </div>
             ) : (
-              <Select value={form.vendedor} onValueChange={v => set("vendedor", v)}>
+              <Select
+                value={form.vendedor}
+                onValueChange={v => {
+                  if (v === "__digitar__") {
+                    setModoDigitarVendedor(true);
+                  } else {
+                    set("vendedor", v);
+                  }
+                }}
+              >
                 <SelectTrigger><SelectValue placeholder="Selecione o vendedor..." /></SelectTrigger>
                 <SelectContent>
-                  {vendedores.length === 0 && <SelectItem value="_empty" disabled>Nenhum vendedor cadastrado</SelectItem>}
-                  {vendedores.map(v => (
-                    <SelectItem key={v.id} value={v.full_name || ""}>{v.full_name || "—"}</SelectItem>
+                  {listaVendedores.map(nome => (
+                    <SelectItem key={nome} value={nome}>{nome}</SelectItem>
                   ))}
+                  <SelectItem value="__digitar__" className="text-primary font-medium border-t border-border mt-1 pt-1">
+                    ✏️ Digitar outro vendedor...
+                  </SelectItem>
                 </SelectContent>
               </Select>
             )}

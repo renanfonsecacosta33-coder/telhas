@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
@@ -103,6 +103,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   const [excluindoOS, setExcluindoOS] = useState(false);
   const [bloqueio, setBloqueio] = useState({ open: false, motivos: [], titulo: "" });
   const [uploadingFoto, setUploadingFoto] = useState(false);
+  const [modoDigitarVendedor, setModoDigitarVendedor] = useState(false);
   const fotoInputRef = useRef();
   const fotoScanRef = useRef();
 
@@ -146,25 +147,73 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     enabled: open,
   });
 
-  const { data: vendedores = [] } = useQuery({
-    queryKey: ["vendedores-list"],
-    queryFn: () => base44.entities.User.filter({ role: "vendedor" }),
+  // Vendedores cadastrados na gestão de Dados de Produção (fonte principal)
+  const { data: dadosVendedores = [] } = useQuery({
+    queryKey: ["dados-producao", "vendedor"],
+    queryFn: () => base44.entities.DadosProducao.filter({ tipo: "vendedor", ativo: true }),
     enabled: open,
   });
 
-  // Vínculo automático: foto do pedido vinda do Odoo (PedidoOdoo.foto_pedido_url)
-  const { data: pedidoOdooVinculado } = useQuery({
+  // Usuários com role vendedor (caso existam)
+  const { data: usersVendedores = [] } = useQuery({
+    queryKey: ["users-vendedores-list"],
+    queryFn: () => base44.entities.User.filter({ role: "vendedor" }).catch(() => []),
+    enabled: open,
+  });
+
+  // Vínculo automático: foto do pedido e dados vindos do Odoo (PedidoOdoo)
+  const { data: pedidoOdooVinculado = [] } = useQuery({
     queryKey: ["pedido-odoo-vinculo", form.numero_pedido],
-    queryFn: () => base44.entities.PedidoOdoo.filter({ numero_pedido: String(form.numero_pedido).trim() }, "-data_recebimento", 5),
+    queryFn: async () => {
+      const num = String(form.numero_pedido || "").replace(/^#/, "").trim();
+      if (!num) return [];
+      const res = await base44.entities.PedidoOdoo.filter({ numero_pedido: num }, "-created_date", 5).catch(() => []);
+      if (res.length > 0) return res;
+      return base44.entities.PedidoOdoo.filter({ numero_pedido: `#${num}` }, "-created_date", 5).catch(() => []);
+    },
     enabled: open && !!form.numero_pedido && String(form.numero_pedido).trim().length > 0,
   });
 
   useEffect(() => {
-    const fotoOdoo = pedidoOdooVinculado?.[0]?.foto_pedido_url;
-    if (fotoOdoo && !form.foto_pedido_url) {
-      set("foto_pedido_url", fotoOdoo);
+    const p = pedidoOdooVinculado?.[0];
+    if (p) {
+      if (p.foto_pedido_url && !form.foto_pedido_url) {
+        set("foto_pedido_url", p.foto_pedido_url);
+      }
+      if (p.vendedor_nome && !form.vendedor) {
+        set("vendedor", p.vendedor_nome);
+      }
+      if (p.cliente_nome && !form.cliente) {
+        set("cliente", p.cliente_nome);
+      }
     }
   }, [pedidoOdooVinculado]);
+
+  // Lista consolidada de vendedores para o dropdown (sem duplicatas e com fallback seguro)
+  const listaVendedores = useMemo(() => {
+    const nomes = new Set();
+
+    dadosVendedores.forEach(d => {
+      const v = (d.valor || d.nome || "").trim();
+      if (v) nomes.add(v);
+    });
+
+    usersVendedores.forEach(u => {
+      const v = (u.full_name || u.name || u.email || "").trim();
+      if (v) nomes.add(v);
+    });
+
+    if (form.vendedor && form.vendedor.trim()) {
+      nomes.add(form.vendedor.trim());
+    }
+
+    // Se nenhuma fonte tiver retornado vendedores cadastrados, usa a lista padrão da fábrica
+    if (nomes.size === 0) {
+      ["VERA (PG)", "HUDSON", "BALCÃO", "DIRETO", "INTERNO", "VENDEDOR EXTERNO"].forEach(v => nomes.add(v));
+    }
+
+    return Array.from(nomes).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [dadosVendedores, usersVendedores, form.vendedor]);
 
   useEffect(() => {
     if (!open) return;
@@ -870,22 +919,61 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
                 </div>
               </div>
               <div className="space-y-1">
-                <Label className="flex items-center gap-1">
-                  <User className="w-4 h-4 text-blue-500" /> Vendedor
-                </Label>
-                <Select value={form.vendedor} onValueChange={v => set("vendedor", v)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione o vendedor..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {vendedores.length === 0 && (
-                      <SelectItem value="_empty" disabled>Nenhum vendedor cadastrado</SelectItem>
-                    )}
-                    {vendedores.map(v => (
-                      <SelectItem key={v.id} value={v.full_name || ""}>{v.full_name || "—"}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-1">
+                    <User className="w-4 h-4 text-blue-500" /> Vendedor
+                  </Label>
+                  <button
+                    type="button"
+                    onClick={() => setModoDigitarVendedor(!modoDigitarVendedor)}
+                    className="text-xs text-primary hover:underline font-medium"
+                  >
+                    {modoDigitarVendedor ? "← Selecionar da lista" : "✏️ Digitar vendedor"}
+                  </button>
+                </div>
+                {modoDigitarVendedor ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="Digite o nome do vendedor..."
+                      value={form.vendedor}
+                      onChange={e => set("vendedor", e.target.value)}
+                      autoFocus
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setModoDigitarVendedor(false)}
+                      title="Voltar para a lista"
+                      className="shrink-0"
+                    >
+                      Lista
+                    </Button>
+                  </div>
+                ) : (
+                  <Select
+                    value={form.vendedor}
+                    onValueChange={v => {
+                      if (v === "__digitar__") {
+                        setModoDigitarVendedor(true);
+                      } else {
+                        set("vendedor", v);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione o vendedor..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {listaVendedores.map(nome => (
+                        <SelectItem key={nome} value={nome}>{nome}</SelectItem>
+                      ))}
+                      <SelectItem value="__digitar__" className="text-primary font-medium border-t border-border mt-1 pt-1">
+                        ✏️ Digitar outro vendedor...
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
