@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import {
   Play, Pause, CheckCircle2, Timer, Coffee, Square, Circle,
   AlertCircle, Clock, Camera, Loader2, Layers, Package, ShoppingCart, Trash2, Image as ImageIcon,
-  Edit3, History, Star, User
+  Edit3, History, Star, User, PackageX
 } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import { format } from "date-fns";
@@ -38,12 +38,13 @@ function formatTempo(segundos) {
 
 function StatusBadge({ status }) {
   const cfg = {
-    pendente:          { label: "Pendente",          Icon: Circle,       color: "bg-slate-100 text-slate-600 border-slate-200" },
-    aguardando_corte:  { label: "Aguard. Corte",     Icon: Clock,        color: "bg-orange-100 text-orange-700 border-orange-200" },
-    em_producao:       { label: "Produzindo",        Icon: Clock,        color: "bg-amber-100 text-amber-700 border-amber-200" },
-    pausado:           { label: "Pausado",           Icon: Pause,        color: "bg-purple-100 text-purple-700 border-purple-200" },
-    finalizado:        { label: "Finalizado",        Icon: CheckCircle2, color: "bg-green-100 text-green-700 border-green-200" },
-    cancelado:         { label: "Cancelado",         Icon: AlertCircle,  color: "bg-red-100 text-red-700 border-red-200" },
+    pendente:            { label: "Pendente",          Icon: Circle,       color: "bg-slate-100 text-slate-600 border-slate-200" },
+    aguardando_material: { label: "Sem Material",      Icon: PackageX,     color: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-700 font-bold" },
+    aguardando_corte:    { label: "Aguard. Corte",     Icon: Clock,        color: "bg-orange-100 text-orange-700 border-orange-200" },
+    em_producao:         { label: "Produzindo",        Icon: Clock,        color: "bg-amber-100 text-amber-700 border-amber-200" },
+    pausado:             { label: "Pausado",           Icon: Pause,        color: "bg-purple-100 text-purple-700 border-purple-200" },
+    finalizado:          { label: "Finalizado",        Icon: CheckCircle2, color: "bg-green-100 text-green-700 border-green-200" },
+    cancelado:           { label: "Cancelado",         Icon: AlertCircle,  color: "bg-red-100 text-red-700 border-red-200" },
   }[status] || { label: status, Icon: Circle, color: "bg-slate-100 text-slate-600" };
   return (
     <Badge className={`border text-xs ${cfg.color}`}>
@@ -416,8 +417,17 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground mt-1">
             <span className="inline-flex items-center gap-0.5">
-              {o.chapa_origem === "chaparia" ? <Layers className="w-2.5 h-2.5 text-orange-500" /> : <Package className="w-2.5 h-2.5 text-blue-500" />}
-              <span className="font-mono">{o.chapa_origem === "chaparia" ? (o.chapa_descricao || "Chapa") : (o.bobina_descricao || o.chapa_descricao || "Bobina")}</span>
+              {o.status === "aguardando_material" || o.material_em_falta ? (
+                <span className="inline-flex items-center gap-1 font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-700 px-2 py-0.5 rounded text-[11px]">
+                  <PackageX className="w-3 h-3 text-amber-600" />
+                  Aguardando Chapa {o.material_espessura ? `(${o.material_espessura}mm)` : ""}{o.material_cor ? ` · ${o.material_cor}` : ""}
+                </span>
+              ) : (
+                <>
+                  {o.chapa_origem === "chaparia" ? <Layers className="w-2.5 h-2.5 text-orange-500" /> : <Package className="w-2.5 h-2.5 text-blue-500" />}
+                  <span className="font-mono">{o.chapa_origem === "chaparia" ? (o.chapa_descricao || "Chapa") : (o.bobina_descricao || o.chapa_descricao || "Bobina")}</span>
+                </>
+              )}
             </span>
             {(o.numero_pedido || o.cliente) && (
               <div className="inline-flex flex-wrap items-center gap-2 px-2.5 py-1 rounded-md bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/60 my-0.5">

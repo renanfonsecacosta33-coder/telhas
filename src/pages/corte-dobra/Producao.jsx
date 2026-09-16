@@ -102,11 +102,23 @@ export default function ProducaoCD() {
   // Mutations outras máquinas
   const createMaq = useMutation({
     mutationFn: (data) => base44.entities.OrdemMaquinaCD.create(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] }); setDialogMaq(false); toast.success("Ordem criada!"); },
+    onSuccess: (_saved, data) => {
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
+      setDialogMaq(false);
+      toast.success(data?.material_em_falta ? "OP criada e enviada para 'OP sem Material'!" : "Ordem criada!");
+    },
+    onError: (err) => {
+      toast.error("Erro ao criar ordem: " + (err?.message || "Falha na operação"));
+      console.error("[createMaq error]:", err);
+    }
   });
   const updateMaq = useMutation({
     mutationFn: ({ id, data }) => base44.entities.OrdemMaquinaCD.update(id, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] }),
+    onError: (err) => {
+      toast.error("Erro ao atualizar ordem: " + (err?.message || "Falha na operação"));
+      console.error("[updateMaq error]:", err);
+    }
   });
   const deleteMaq = useMutation({
     mutationFn: (id) => base44.entities.OrdemMaquinaCD.delete(id),
@@ -319,8 +331,9 @@ export default function ProducaoCD() {
   const openEditMaq = (item) => { setMaquinaAtiva(item.maquina); setEditMaq(item); setDialogMaq(true); };
   const handleSaveMaq = (data) => {
     if (editMaq && !editMaq._presets && editMaq.id) {
-      updateMaq.mutate({ id: editMaq.id, data });
-      setDialogMaq(false);
+      updateMaq.mutate({ id: editMaq.id, data }, {
+        onSuccess: () => setDialogMaq(false),
+      });
     } else {
       createMaq.mutate(data, {
         onSuccess: async () => {
@@ -328,12 +341,12 @@ export default function ProducaoCD() {
           setFilaContext(null);
           if (!ctx) return;
           try {
-            // Atualiza o status do item no itens_json para "em_producao" + máquina
+            // Atualiza o status do item no itens_json para "aguardando_material" ou "em_producao" + máquina
             const itens = getItens(ctx.pedido);
             if (itens[ctx.itemIdx]) {
               itens[ctx.itemIdx] = {
                 ...itens[ctx.itemIdx],
-                status: "em_producao",
+                status: data.material_em_falta ? "aguardando_material" : "em_producao",
                 maquina: data.maquina || "",
               };
               const percentual = computePercentual(itens);

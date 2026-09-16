@@ -17,7 +17,7 @@ function normalizeEspessura(val) {
   return String(val).replace(/\s/g, "").replace(".", ",");
 }
 
-export default function OPSemMaterialTab() {
+export default function OPSemMaterialTab({ maquinaFiltro = null }) {
   const { filialAtiva } = useFilial();
   const queryClient = useQueryClient();
   const [busca, setBusca] = useState("");
@@ -159,10 +159,13 @@ export default function OPSemMaterialTab() {
 
   // Lista unificada
   const listaUnificada = useMemo(() => {
-    const items = [
+    let items = [
       ...opsDesb.map(o => ({ ...o, _tipo: "desb", _entidade: "bobina" })),
       ...opsMaq.map(o => ({ ...o, _tipo: "maq", _entidade: o.maquina?.includes("CORTE") || o.maquina?.includes("DOBRA") ? "chapa" : "bobina" })),
     ];
+    if (maquinaFiltro) {
+      items = items.filter(o => o._tipo === "maq" && o.maquina === maquinaFiltro);
+    }
     if (!busca.trim()) return items;
     const q = busca.toLowerCase();
     return items.filter(o =>
@@ -171,7 +174,7 @@ export default function OPSemMaterialTab() {
       (o.material_espessura || "").toLowerCase().includes(q) ||
       (o.material_cor || "").toLowerCase().includes(q)
     );
-  }, [opsDesb, opsMaq, busca]);
+  }, [opsDesb, opsMaq, busca, maquinaFiltro]);
 
   // Detecta quando material fica disponível e dispara alerta TOP
   const prevDisponiveisRef = useRef(null);

@@ -3,13 +3,14 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Search, AlertTriangle, X, Star, Layers } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Search, AlertTriangle, X, Star, Layers, PackageX } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import OrdemMaquinaFormDialog from "@/components/corte-dobra/OrdemMaquinaFormDialog.jsx";
 import OrdemMaquinaRow from "@/components/corte-dobra/OrdemMaquinaRow.jsx";
 import RetrabalhoDialog from "@/components/corte-dobra/RetrabalhoDialog";
+import OPSemMaterialTab from "@/components/corte-dobra/OPSemMaterialTab";
 import { useFilial } from "@/contexts/FilialContext";
 import FiltroChapa from "@/components/corte-dobra/FiltroChapa";
 import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
@@ -76,6 +77,11 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const ordensDaMaquina = useMemo(
     () => ordens.filter(o => o.maquina === maquinaId && o.status !== "cancelado"),
     [ordens, maquinaId]
+  );
+
+  const ordensSemMaterial = useMemo(
+    () => ordensDaMaquina.filter(o => o.status === "aguardando_material" || o.material_em_falta),
+    [ordensDaMaquina]
   );
 
   // Mapa de sequência de pedidos: para cada ordem com numero_pedido repetido,
@@ -149,10 +155,12 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const updateMaq = useMutation({
     mutationFn: ({ id, data }) => base44.entities.OrdemMaquinaCD.update(id, data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] }); },
+    onError: (err) => { toast.error("Erro ao atualizar ordem: " + (err?.message || "Falha na operação")); },
   });
   const createMaq = useMutation({
     mutationFn: (data) => base44.entities.OrdemMaquinaCD.create(data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] }); },
+    onError: (err) => { toast.error("Erro ao criar ordem: " + (err?.message || "Falha na operação")); },
   });
 
   // Prioridade 1 a 5: P1 e P2 exigem autorização do gestor
@@ -175,38 +183,50 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   };
 
   const handleSave = async (data) => {
-    if (editItem && !editItem._presets && editItem.id) {
-      updateMaq.mutate({ id: editItem.id, data });
-      setDialog(false);
-    } else {
-      const saved = await createMaq.mutateAsync(data);
-      toast.success("Ordem criada!");
-      // Se for CORTE 3M ou CORTE 6M e gerou dobra, criar ordem de dobra vinculada
-      if (data.ordem_dobra_maquina && data.chapa_cd_id) {
-        await base44.entities.OrdemMaquinaCD.create({
-          data: data.data,
-          maquina: data.ordem_dobra_maquina,
-          tipo_peca: data.tipo_peca,
-          dimensoes_livres: data.dimensoes_livres,
-          quantidade: data.quantidade,
-          peso_kg: data.peso_kg,
-          numero_pedido: data.numero_pedido,
-          cliente: data.cliente,
-          chapa_cd_id: data.chapa_cd_id,
-          chapa_descricao: data.chapa_descricao,
-          chapa_origem: "chaparia",
-          desenvolvimento_id: data.desenvolvimento_id,
-          desenvolvimento_descricao: data.desenvolvimento_descricao,
-          ordem_corte_id: saved.id,
-          status: "aguardando_corte",
-          foto_pedido_url: data.foto_pedido_url || null,
-          foto_material_url: data.foto_material_url || null,
-          observacoes: `Gerado automaticamente do ${data.maquina}`,
-        });
-        queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
-        toast.success("Ordem de dobra vinculada criada!");
+    try {
+      if (editItem && !editItem._presets && editItem.id) {
+        await updateMaq.mutateAsync({ id: editItem.id, data });
+        toast.success("Ordem atualizada!");
+        setDialog(false);
+      } else {
+        const saved = await createMaq.mutateAsync(data);
+        toast.success(data.material_em_falta ? "OP criada e enviada para 'OP sem Material'!" : "Ordem criada!");
+        // Se for CORTE 3M ou CORTE 6M e gerou dobra, criar ordem de dobra vinculada
+        if (data.ordem_dobra_maquina && data.chapa_cd_id) {
+          try {
+            await base44.entities.OrdemMaquinaCD.create({
+              data: data.data,
+              maquina: data.ordem_dobra_maquina,
+              unidade: data.unidade,
+              tipo_peca: data.tipo_peca,
+              dimensoes_livres: data.dimensoes_livres,
+              quantidade: data.quantidade,
+              peso_kg: data.peso_kg,
+              numero_pedido: data.numero_pedido,
+              cliente: data.cliente,
+              vendedor: data.vendedor,
+              chapa_cd_id: data.chapa_cd_id,
+              chapa_descricao: data.chapa_descricao,
+              chapa_origem: "chaparia",
+              desenvolvimento_id: data.desenvolvimento_id || undefined,
+              desenvolvimento_descricao: data.desenvolvimento_descricao,
+              ordem_corte_id: saved.id,
+              status: "aguardando_corte",
+              foto_pedido_url: data.foto_pedido_url || null,
+              foto_material_url: data.foto_material_url || null,
+              observacoes: `Gerado automaticamente do ${data.maquina}`,
+            });
+            queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
+            toast.success("Ordem de dobra vinculada criada!");
+          } catch (eDobra) {
+            console.error("Erro ao criar dobra vinculada:", eDobra);
+          }
+        }
+        setDialog(false);
       }
-      setDialog(false);
+    } catch (err) {
+      console.error("Erro ao salvar ordem:", err);
+      toast.error("Erro ao salvar ordem: " + (err?.message || "Verifique os dados informados"));
     }
   };
 
@@ -363,6 +383,20 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
         <Button variant={viewMode === "dia" ? "default" : "outline"} size="sm" onClick={() => setViewMode("dia")}>
           Dia — {format(new Date(selectedDay + "T12:00:00"), "dd/MM", { locale: ptBR })}
         </Button>
+        <Button
+          variant={viewMode === "sem_material" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setViewMode("sem_material")}
+          className={`gap-1.5 ${viewMode === "sem_material" ? "bg-amber-500 hover:bg-amber-600 border-0 text-white font-bold" : ordensSemMaterial.length > 0 ? "border-amber-400 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40" : ""}`}
+        >
+          <PackageX className="w-3.5 h-3.5" />
+          OP sem Material
+          {ordensSemMaterial.length > 0 && (
+            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-600 text-white leading-none">
+              {ordensSemMaterial.length}
+            </span>
+          )}
+        </Button>
         <Button variant="outline" size="sm" onClick={() => { setSelectedDay(format(new Date(), "yyyy-MM-dd")); setCurrentWeek(new Date()); setViewMode("dia"); }} className="gap-1">
           <Calendar className="w-3 h-3" /> Hoje
         </Button>
@@ -400,6 +434,8 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
         </div>
+      ) : viewMode === "sem_material" ? (
+        <OPSemMaterialTab maquinaFiltro={maquinaId} />
       ) : viewMode === "semana" ? (
         /* VISÃO SEMANA */
         <div className="space-y-3">
