@@ -65,6 +65,13 @@
       "type": "object",
       "description": "Preferências de layout personalizadas do usuário (ex: modo compacto, exibição de cards)",
       "additionalProperties": true
+    },
+    "filiais_permitidas": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Lista de filiais/lojas que o usuário tem permissão para visualizar e alternar. Se vazio/nulo e admin/super_admin, tem acesso global."
     }
   }
 }

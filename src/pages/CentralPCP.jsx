@@ -56,12 +56,31 @@ export default function CentralPCP() {
   const [pedidosExpandidos, setPedidosExpandidos] = useState(() => new Set());
   const [modoVisao, setModoVisao] = useState("agrupado");
 
-  // Central PCP por Loja / Filial
+  // Central PCP por Loja / Filial e Permissões de Usuário
   const filialCtx = useFilial();
   const filialAtiva = filialCtx?.filialAtiva || "Matriz AJL";
+
+  const filiaisPcpExibidas = useMemo(() => {
+    if (!filialCtx?.filiaisPermitidas || filialCtx.filiaisPermitidas.length === 0) {
+      return FILIAIS_PCP;
+    }
+    return FILIAIS_PCP.filter(f => filialCtx.filiaisPermitidas.includes(f.id));
+  }, [filialCtx?.filiaisPermitidas]);
+
+  const temAcessoGlobalCentrais = !filialCtx?.filiaisPermitidas || filialCtx.filiaisPermitidas.length > 1;
+
   const [lojaSelecionada, setLojaSelecionada] = useState(() => {
     return localStorage.getItem("pcp_loja_selecionada") || "todas";
   });
+
+  // Garante que o usuário com acesso restrito não fique em "todas" ou em loja não permitida
+  useEffect(() => {
+    if (!temAcessoGlobalCentrais && filiaisPcpExibidas.length === 1) {
+      setLojaSelecionada(filiaisPcpExibidas[0].id);
+    } else if (lojaSelecionada !== "todas" && !filiaisPcpExibidas.some(f => f.id === lojaSelecionada)) {
+      setLojaSelecionada(temAcessoGlobalCentrais ? "todas" : (filiaisPcpExibidas[0]?.id || "Matriz AJL"));
+    }
+  }, [temAcessoGlobalCentrais, filiaisPcpExibidas, lojaSelecionada]);
 
   const handleMudarLoja = (lojaId) => {
     setLojaSelecionada(lojaId);
@@ -1294,29 +1313,31 @@ export default function CentralPCP() {
               Central PCP:
             </span>
 
-            {/* Aba Todas as Centrais */}
-            <button
-              type="button"
-              onClick={() => handleMudarLoja("todas")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                lojaSelecionada === "todas"
-                  ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm"
-                  : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"
-              }`}
-            >
-              <Globe className="w-3.5 h-3.5" />
-              <span>Todas as Centrais</span>
-              <Badge className={`text-[10px] px-1.5 py-0 leading-tight ${
-                lojaSelecionada === "todas"
-                  ? "bg-white/25 dark:bg-slate-900/30 text-white dark:text-slate-900"
-                  : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-              }`}>
-                {statsLoja.todas}
-              </Badge>
-            </button>
+            {/* Aba Todas as Centrais (Apenas se tiver acesso global a mais de 1 filial) */}
+            {temAcessoGlobalCentrais && (
+              <button
+                type="button"
+                onClick={() => handleMudarLoja("todas")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                  lojaSelecionada === "todas"
+                    ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm"
+                    : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5" />
+                <span>Todas as Centrais</span>
+                <Badge className={`text-[10px] px-1.5 py-0 leading-tight ${
+                  lojaSelecionada === "todas"
+                    ? "bg-white/25 dark:bg-slate-900/30 text-white dark:text-slate-900"
+                    : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                }`}>
+                  {statsLoja.todas}
+                </Badge>
+              </button>
+            )}
 
-            {/* Abas das 4 Filiais */}
-            {FILIAIS_PCP.map((f) => {
+            {/* Abas das Filiais Autorizadas */}
+            {filiaisPcpExibidas.map((f) => {
               const count = statsLoja[f.id] || 0;
               const ativa = lojaSelecionada === f.id;
               return (

@@ -52,7 +52,7 @@ const ZOOM_CFG = {
   grande:   { card: "p-5",   title: "text-lg", info: "text-base", badge: "text-sm", cronText: "text-base", cronLabel: "text-sm", cronPad: "px-4 py-2.5", btn: "h-10 text-sm", obs: "text-sm py-2", gap: "gap-2.5", mb: "mb-3" },
 };
 
-export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "normal", ordens = [], pedidoSeq, bobinaCustoMap = {}, user }) {
+export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "normal", ordens = [], pedidoSeq, bobinaCustoMap = {}, user, chapaVinculada, onGerarChapa }) {
   const z = ZOOM_CFG[zoom] || ZOOM_CFG.normal;
   const [pauseDialog, setPauseDialog] = useState(false);
   const [pauseMotivo, setPauseMotivo] = useState("");
@@ -344,6 +344,24 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
             }`}>
               {o.destino === "pedido_direto" ? "📦 Pedido direto" : "🏭 Estoque"}
             </span>
+            {o.destino === "estoque" && (
+              chapaVinculada ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 font-mono">
+                  📦 {chapaVinculada.codigo} no Estoque
+                </span>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  type="button"
+                  onClick={() => onGerarChapa?.(o.id)}
+                  className="h-5 px-2 text-[10px] gap-1 bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-400 hover:bg-amber-500/20 font-bold"
+                  title="A chapa ainda não foi registrada na Chaparia. Clique para gerar agora."
+                >
+                  ⚠️ Gerar Chapa no Estoque
+                </Button>
+              )
+            )}
             {o.guilhotina && (
               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border bg-orange-50 text-orange-700 border-orange-200">
                 🔪 {o.guilhotina}{o.tamanho_corte_guilhotina ? ` — ${o.tamanho_corte_guilhotina}mm` : ""}

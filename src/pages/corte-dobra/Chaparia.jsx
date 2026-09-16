@@ -443,6 +443,50 @@ export default function Chaparia() {
     onSuccess: () => qc.invalidateQueries(["chapas-cd"]),
   });
 
+  // Reconciliação Automática: busca OPs da Desbobinadeira finalizadas que ainda não geraram registro em ChapaCD
+  const [sincronizandoDesb, setSincronizandoDesb] = useState(false);
+  const handleSincronizarDesbobinadeira = async (silencioso = false) => {
+    try {
+      setSincronizandoDesb(true);
+      const ordensFin = await base44.entities.OrdemDesbobinadeira.filter({
+        unidade: filialAtiva,
+        status: "finalizado"
+      }, "-data_finalizacao", 100);
+
+      const todasChapas = await base44.entities.ChapaCD.filter({ unidade: filialAtiva }, "-created_date", 500);
+      const ordensComChapa = new Set(todasChapas.map(c => c.ordem_id).filter(Boolean));
+
+      const pendentes = ordensFin.filter(o => !ordensComChapa.has(o.id));
+
+      if (pendentes.length > 0) {
+        let criadas = 0;
+        for (const o of pendentes) {
+          try {
+            const res = await base44.functions.invoke("descontarEstoqueDesbobinadeira", { ordem_id: o.id });
+            if (res?.data?.chapa) criadas++;
+          } catch (e) {
+            console.error("Erro ao conciliar ordem desb:", o.id, e);
+          }
+        }
+        if (criadas > 0) {
+          toast.success(`🎉 ${criadas} nova(s) chapa(s) sincronizada(s) da Desbobinadeira para a Chaparia!`);
+          qc.invalidateQueries(["chapas-cd"]);
+          qc.invalidateQueries(["chapas-cd-global-codigos"]);
+        }
+      } else if (!silencioso) {
+        toast.success("Estoque de chaparia já sincronizado com a Desbobinadeira!");
+      }
+    } catch (err) {
+      console.error("Falha na sincronização desbobinadeira -> chaparia:", err);
+    } finally {
+      setSincronizandoDesb(false);
+    }
+  };
+
+  useEffect(() => {
+    handleSincronizarDesbobinadeira(true);
+  }, [filialAtiva]);
+
   const [limpandoDuplicadas, setLimpandoDuplicadas] = useState(false);
 
   const createMut = useMutation({
@@ -534,7 +578,39 @@ export default function Chaparia() {
   };
 
   const filtradas = chapas.filter(c => {
-    const matchBusca = !busca || [c.codigo, c.bobina_descricao, c.numero_pedido, c.cliente, c.material, c.qualidade].some(v => v?.toLowerCase().includes(busca.toLowerCase()));
+    const termoBusca = (busca || "").trim().toLowerCase();
+    const termoBuscaNorm = termoBusca.replace(",", ".");
+    
+    let matchBusca = true;
+    if (termoBusca) {
+      const espStr = c.espessura_mm != null ? String(c.espessura_mm).toLowerCase() : "";
+      const espVirgula = espStr.replace(".", ",");
+      const compStr = c.comprimento_mm != null ? String(c.comprimento_mm) : "";
+      const largStr = c.largura_mm != null ? String(c.largura_mm) : "";
+      
+      const campos = [
+        c.codigo,
+        c.bobina_descricao,
+        c.numero_pedido,
+        c.cliente,
+        c.material,
+        c.qualidade,
+        c.nf,
+        c.origem,
+        c.ordem_id,
+        espStr,
+        espVirgula,
+        compStr,
+        largStr
+      ];
+      
+      matchBusca = campos.some(v => {
+        if (!v) return false;
+        const s = String(v).toLowerCase();
+        return s.includes(termoBusca) || s.includes(termoBuscaNorm);
+      });
+    }
+
     const matchStatus = filtroStatus === "todos" || c.status === filtroStatus || (filtroStatus === "disponivel" && !c.status);
     const matchDestino = filtroDestino === "todos" || c.destino === filtroDestino;
     const matchQualidade = filtroQualidade === "todos" || c.qualidade === filtroQualidade;
@@ -581,8 +657,19 @@ export default function Chaparia() {
           <p className="text-sm text-muted-foreground">Estoque de chapas — Desbobinadeira e entrada manual</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries(["chapas-cd"])} className="gap-1">
-            <RefreshCw className="w-4 h-4" /> Atualizar
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={sincronizandoDesb}
+            onClick={() => {
+              qc.invalidateQueries(["chapas-cd"]);
+              qc.invalidateQueries(["chapas-cd-global-codigos"]);
+              handleSincronizarDesbobinadeira(false);
+            }}
+            className="gap-1"
+          >
+            <RefreshCw className={`w-4 h-4 ${sincronizandoDesb ? "animate-spin text-amber-500" : ""}`} />
+            {sincronizandoDesb ? "Sincronizando..." : "Atualizar & Sincronizar"}
           </Button>
           <Button size="sm" onClick={() => setShowForm(true)} className="gap-1">
             <Plus className="w-4 h-4" /> Nova Chapa

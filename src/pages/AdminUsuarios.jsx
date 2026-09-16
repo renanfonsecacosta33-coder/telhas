@@ -170,6 +170,7 @@ export default function AdminUsuarios() {
       role: editUser.role,
       setor: editUser.setor || "telhas",
       unidade: editUser.unidade || "",
+      filiais_permitidas: editUser.filiais_permitidas || [],
       maquina: serializeMaquinas(editUser.maquinas || []),
       gerencia: editUser.gerencia || false,
       permitido_central_alertas: editUser.permitido_central_alertas || false,
@@ -189,6 +190,15 @@ export default function AdminUsuarios() {
       const maquinas = u.maquinas || [];
       const exists = maquinas.includes(m);
       return { ...u, maquinas: exists ? maquinas.filter(x => x !== m) : [...maquinas, m] };
+    });
+  };
+
+  const toggleFilial = (filialNome) => {
+    setEditUser(u => {
+      const atuais = u.filiais_permitidas || [];
+      const exists = atuais.includes(filialNome);
+      const novo = exists ? atuais.filter(f => f !== filialNome) : [...atuais, filialNome];
+      return { ...u, filiais_permitidas: novo };
     });
   };
 
@@ -346,6 +356,7 @@ export default function AdminUsuarios() {
                         setEditUser({ 
                           ...u, 
                           maquinas: userMaquinas,
+                          filiais_permitidas: Array.isArray(u.filiais_permitidas) ? u.filiais_permitidas : [],
                           permissions: u.permissions || { ...DEFAULT_PERMISSIONS }
                         });
                         setActiveTab("perfil");
@@ -397,6 +408,17 @@ export default function AdminUsuarios() {
                           {u.gerencia && (
                             <Badge className="border text-xs bg-amber-100 text-amber-700 border-amber-200">
                               Gerência
+                            </Badge>
+                          )}
+                          {u.filiais_permitidas && u.filiais_permitidas.length > 0 ? (
+                            u.filiais_permitidas.map(fp => (
+                              <Badge key={fp} variant="outline" className="text-[10px] bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300">
+                                🏬 {fp.replace(" AJL", "")}
+                              </Badge>
+                            ))
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300">
+                              🌐 Todas Filiais
                             </Badge>
                           )}
                         </div>
@@ -454,6 +476,7 @@ export default function AdminUsuarios() {
                             setEditUser({ 
                               ...u, 
                               maquinas: userMaquinas,
+                              filiais_permitidas: Array.isArray(u.filiais_permitidas) ? u.filiais_permitidas : [],
                               permissions: u.permissions || { ...DEFAULT_PERMISSIONS }
                             });
                             setActiveTab("perfil");
@@ -619,17 +642,76 @@ export default function AdminUsuarios() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label>Unidade de Trabalho</Label>
+                    <Label>Unidade Principal de Trabalho</Label>
                     <Select 
                       value={editUser.unidade || "todas"} 
                       onValueChange={v => setEditUser(u => ({ ...u, unidade: v === "todas" ? "" : v }))}
                     >
                       <SelectTrigger><SelectValue placeholder="Selecione a unidade" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="todas">Todas as Unidades</SelectItem>
+                        <SelectItem value="todas">Todas as Unidades (Padrão)</SelectItem>
                         {UNIDADES.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  {/* Filiais Autorizadas (Central PCP e Visualização) */}
+                  <div className="space-y-2 pt-2 border-t border-border/50">
+                    <div className="flex items-center justify-between">
+                      <Label className="flex items-center gap-2 text-sm font-semibold">
+                        <Building className="w-4 h-4 text-primary" />
+                        Filiais Permitidas (Central PCP & Header)
+                      </Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Escolha quais filiais/lojas este usuário pode visualizar e alternar no sistema.
+                    </p>
+
+                    <div className="bg-card/40 rounded-xl p-3 border border-border/60 space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                        <div className="space-y-0.5">
+                          <Label className="text-xs font-semibold">Acesso Global (Todas as Filiais)</Label>
+                          <p className="text-[11px] text-muted-foreground">Pode ver e alternar entre todas as filiais</p>
+                        </div>
+                        <Switch
+                          checked={!editUser.filiais_permitidas || editUser.filiais_permitidas.length === 0}
+                          onCheckedChange={(isGlobal) => {
+                            if (isGlobal) {
+                              setEditUser(u => ({ ...u, filiais_permitidas: [] }));
+                            } else {
+                              setEditUser(u => ({ ...u, filiais_permitidas: [u.unidade || "Matriz AJL"] }));
+                            }
+                          }}
+                        />
+                      </div>
+
+                      {editUser.filiais_permitidas && editUser.filiais_permitidas.length > 0 && (
+                        <div className="space-y-1.5">
+                          <p className="text-[11px] font-medium text-slate-500">Filiais Específicas com Acesso Liberado:</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {UNIDADES.map(filial => {
+                              const permitida = (editUser.filiais_permitidas || []).includes(filial);
+                              return (
+                                <label
+                                  key={filial}
+                                  className={`flex items-center gap-2 p-2 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
+                                    permitida 
+                                      ? "bg-primary/10 border-primary text-primary" 
+                                      : "bg-muted/30 border-border hover:bg-muted/60 text-muted-foreground"
+                                  }`}
+                                >
+                                  <Checkbox
+                                    checked={permitida}
+                                    onCheckedChange={() => toggleFilial(filial)}
+                                  />
+                                  <span>{filial}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Seleção de Máquinas por Operador */}

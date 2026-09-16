@@ -84,6 +84,20 @@ export default function Desbobinadeira() {
     return m;
   }, [bobinasCusto]);
 
+  // Consulta de chapas geradas no estoque da Chaparia para validação cruzada
+  const { data: chapasDoEstoque = [] } = useQuery({
+    queryKey: ["chapas-cd", filialAtiva],
+    queryFn: () => base44.entities.ChapaCD.filter({ unidade: filialAtiva }, "-created_date", 500),
+    refetchInterval: 15000,
+  });
+  const chapaMapPorOrdem = useMemo(() => {
+    const map = {};
+    chapasDoEstoque.forEach(c => {
+      if (c.ordem_id) map[c.ordem_id] = c;
+    });
+    return map;
+  }, [chapasDoEstoque]);
+
   // Mapa de sequência de pedidos: para cada ordem com numero_pedido,
   // calcula "1/3", "2/3", etc. com base na ordem de criação — cruzando
   // Desbobinadeira + todas as máquinas CD (excluindo cancelados)
@@ -152,9 +166,47 @@ export default function Desbobinadeira() {
   }, [ordens, selectedDay, buscaPedido]);
 
   const updateOrdem = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.OrdemDesbobinadeira.update(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] }),
+    mutationFn: async ({ id, data }) => {
+      const res = await base44.entities.OrdemDesbobinadeira.update(id, data);
+      // Se a ordem foi finalizada, aciona a criação de ChapaCD e o desconto na Bobina
+      if (data?.status === "finalizado") {
+        try {
+          const funcRes = await base44.functions.invoke("descontarEstoqueDesbobinadeira", { ordem_id: id });
+          if (funcRes?.data?.chapa?.codigo) {
+            toast.success(`🎉 Chapa ${funcRes.data.chapa.codigo} gerada e enviada para o estoque da Chaparia!`);
+          }
+        } catch (eFunc) {
+          console.error("Aviso ao processar baixa na desbobinadeira:", eFunc);
+        }
+      }
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
+      queryClient.invalidateQueries({ queryKey: ["chapas-cd"] });
+      queryClient.invalidateQueries({ queryKey: ["chapas-cd-global-codigos"] });
+      queryClient.invalidateQueries({ queryKey: ["bobinas-cd-ativas"] });
+    },
   });
+
+  const handleGerarChapaManual = async (ordemId) => {
+    try {
+      const toastId = toast.loading("Gerando chapa no estoque da Chaparia...");
+      const res = await base44.functions.invoke("descontarEstoqueDesbobinadeira", { ordem_id: ordemId });
+      toast.dismiss(toastId);
+      if (res?.data?.chapa?.codigo) {
+        toast.success(`🎉 Chapa ${res.data.chapa.codigo} gerada com sucesso na Chaparia!`);
+      } else {
+        toast.success("Estoque de chaparia sincronizado!");
+      }
+      queryClient.invalidateQueries({ queryKey: ["chapas-cd"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
+      queryClient.invalidateQueries({ queryKey: ["bobinas-cd-ativas"] });
+    } catch (err) {
+      toast.error("Erro ao gerar chapa: " + (err?.message || String(err)));
+    }
+  };
+
   const deleteOrdem = useMutation({
     mutationFn: (id) => base44.entities.OrdemDesbobinadeira.delete(id),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] }); toast.success("Ordem excluída!"); },
@@ -405,7 +457,18 @@ export default function Desbobinadeira() {
                   <div className="p-4 space-y-3">
                     {ordensDoDia.map(o => (
                       <div key={o.id}>
-                        <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} pedidoSeq={pedidoSeqMap[o.id]} bobinaCustoMap={bobinaCustoMap} user={user} />
+                        <OrdemDesbobinadiraRow
+                          ordem={o}
+                          onUpdate={(id, data) => updateOrdem.mutate({ id, data })}
+                          onDelete={(id) => deleteOrdem.mutate(id)}
+                          isGestor={isGestor}
+                          ordens={ordens}
+                          pedidoSeq={pedidoSeqMap[o.id]}
+                          bobinaCustoMap={bobinaCustoMap}
+                          user={user}
+                          chapaVinculada={chapaMapPorOrdem[o.id]}
+                          onGerarChapa={handleGerarChapaManual}
+                        />
                         {isGestor && (
                           <div className="flex justify-end mt-1 gap-1">
                             {o.status !== "finalizado" && o.status !== "cancelado" && (
@@ -462,7 +525,18 @@ export default function Desbobinadeira() {
             <div className="p-4 space-y-3">
               {ordensDiaFiltradas.map(o => (
                 <div key={o.id}>
-                  <OrdemDesbobinadiraRow ordem={o} onUpdate={(id, data) => updateOrdem.mutate({ id, data })} onDelete={(id) => deleteOrdem.mutate(id)} isGestor={isGestor} ordens={ordens} pedidoSeq={pedidoSeqMap[o.id]} bobinaCustoMap={bobinaCustoMap} user={user} />
+                  <OrdemDesbobinadiraRow
+                    ordem={o}
+                    onUpdate={(id, data) => updateOrdem.mutate({ id, data })}
+                    onDelete={(id) => deleteOrdem.mutate(id)}
+                    isGestor={isGestor}
+                    ordens={ordens}
+                    pedidoSeq={pedidoSeqMap[o.id]}
+                    bobinaCustoMap={bobinaCustoMap}
+                    user={user}
+                    chapaVinculada={chapaMapPorOrdem[o.id]}
+                    onGerarChapa={handleGerarChapaManual}
+                  />
                   {isGestor && (
                     <div className="flex justify-end mt-1 gap-1">
                       {o.status !== "finalizado" && o.status !== "cancelado" && (

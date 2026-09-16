@@ -152,7 +152,6 @@ const AuthenticatedApp = () => {
         <Route path="/cola" element={<Cola />} />
         <Route path="/mapa-barracao" element={<MapaBarracaoTelhas />} />
         <Route path="/dashboard-telhas" element={<DashboardTelhas />} />
-        <Route path="/logistica" element={<Logistica mode="montagem" defaultTab="telhas" />} />
         <Route path="/telhas/logistica" element={<Logistica mode="montagem" defaultTab="telhas" />} />
       </Route>
       <Route path="/vendedor" element={<VendedorEstoque />} />
@@ -161,6 +160,7 @@ const AuthenticatedApp = () => {
       <Route path="/usuarios" element={<GerenciarUsuarios />} />
       <Route path="/admin/usuarios" element={<GerenciarUsuarios />} />
       <Route path="/corte-dobra/usuarios" element={<GerenciarUsuarios />} />
+      <Route path="/logistica" element={<LogisticaStandalone />} />
       <Route path="/logistica-geral" element={<LogisticaStandalone />} />
       <Route path="/pcp" element={<CentralPCP />} />
       <Route path="/setor" element={<SeletorSetor />} />

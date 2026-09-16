@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export default function FilialSwitcher() {
-  const { filialAtiva, trocarFilial, podeTrocarFilial } = useFilial();
+  const { filialAtiva, trocarFilial, podeTrocarFilial, filiaisPermitidas = FILIAIS } = useFilial();
 
   if (!podeTrocarFilial) {
     return (
@@ -35,7 +35,7 @@ export default function FilialSwitcher() {
       <DropdownMenuContent align="end" className="w-52">
         <DropdownMenuLabel>Trocar de Filial</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {FILIAIS.map((f) => (
+        {filiaisPermitidas.map((f) => (
           <DropdownMenuItem
             key={f}
             onClick={() => trocarFilial(f)}
