@@ -14,6 +14,8 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend
 } from "recharts";
 import FilaPCPCorteDobra from "@/components/pcp/FilaPCPCorteDobra";
+import { useFilial } from "@/contexts/FilialContext";
+import RotasEntregaSection from "@/components/logistica/RotasEntregaSection";
 
 // Máquinas do CD
 const MAQUINAS_CD = [
@@ -34,6 +36,7 @@ function formatTempo(seg) {
 }
 
 export default function DashboardCD() {
+  const { filialAtiva } = useFilial();
   const hoje = format(new Date(), "yyyy-MM-dd");
   const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
   const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -149,6 +152,9 @@ export default function DashboardCD() {
           )}
         </div>
       )}
+
+      {/* Rotas de Entrega — Corte e Dobra */}
+      <RotasEntregaSection departamento="corte_dobra" filialAtiva={filialAtiva} title="Rotas de Entrega — IA" compact />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

@@ -159,6 +159,12 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
             {rota.embarque_date && <span>Embarque: <b>{rota.embarque_date}</b></span>}
             {dataCriacao && <span>· {dataCriacao}</span>}
           </div>
+          {(rota.motorista_nome || rota.placa) && (
+            <div className="flex items-center gap-2 mt-1 text-xs font-semibold text-foreground">
+              <span>👤 Motorista: <b>{rota.motorista_nome || "—"}</b></span>
+              {rota.placa && <span>· 🚛 Placa: <b>{rota.placa}</b></span>}
+            </div>
+          )}
           {/* Badges de Investigação Dinâmica nos 2 Barracões */}
           <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
             {resumoBarracoes.telhas > 0 && (
@@ -242,7 +248,7 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
         fotosJson={rota.fotos_caminhao_traseira_json}
       />
 
-      {/* Tabela detalhada de pedidos da rota com Barracão dinâmico e Foto por Pedido */}
+      {/* Tabela detalhada de pedidos da rota com Barracão dinâmico, Observações e Foto por Pedido */}
       {itensFiltrados.length > 0 && (
         <div className="max-h-60 overflow-y-auto rounded-md border border-border">
           <table className="w-full text-xs">
@@ -252,6 +258,7 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
                 <th className="text-left p-1.5 font-semibold">Pedido</th>
                 <th className="text-left p-1.5 font-semibold">Cliente</th>
                 <th className="text-left p-1.5 font-semibold">Barracão / Status</th>
+                <th className="text-left p-1.5 font-semibold">Observação</th>
                 <th className="text-left p-1.5 font-semibold hidden sm:table-cell">Bairro</th>
                 <th className="text-left p-1.5 font-semibold">Valor</th>
                 <th className="text-center p-1.5 font-semibold">Fotos do Pedido</th>
@@ -259,18 +266,25 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
             </thead>
             <tbody>
               {itensFiltrados.map((it, idx) => {
-                const info = getInfoPedido(it.numero_pedido);
+                const info = getInfoPedido(it.numero_pedido, it.observacao, rota.titulo);
                 return (
                   <tr key={idx} className="border-t border-border hover:bg-muted/30 transition-colors">
                     <td className="p-1.5 text-muted-foreground">{it.ordem}</td>
                     <td className="p-1.5 font-bold">{it.numero_pedido}</td>
-                    <td className="p-1.5 truncate max-w-[110px]" title={it.cliente}>{it.cliente}</td>
+                    <td className="p-1.5 truncate max-w-[120px]" title={it.cliente}>
+                      <span className="font-medium">{it.cliente}</span>
+                      {(it.vendedor || it.pagamento) && (
+                        <span className="block text-[10px] text-muted-foreground truncate">
+                          {[it.vendedor && `Vend: ${it.vendedor}`, it.pagamento && `Pg: ${it.pagamento}`].filter(Boolean).join(" · ")}
+                        </span>
+                      )}
+                    </td>
                     <td className="p-1.5 whitespace-nowrap">
                       <div className="flex flex-col gap-0.5">
                         <select
-                          value={it.barracao_sugerido || info.barracao || "aguardando"}
+                          value={it.barracao_sugerido || info?.barracao || "aguardando"}
                           onChange={(e) => alterarBarracaoPedido(it.numero_pedido, e.target.value)}
-                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded border cursor-pointer outline-none transition-colors ${info.barracaoBadgeClass}`}
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded border cursor-pointer outline-none transition-colors ${info?.barracaoBadgeClass || ""}`}
                           title="Clique para alterar o barracão deste pedido"
                         >
                           <option value="telhas">🏠 Telhas</option>
@@ -278,7 +292,7 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
                           <option value="ambos">📦 Ambos os Barracões</option>
                           <option value="aguardando">⏳ Aguardando Entrada</option>
                         </select>
-                        {info.statusGeralLabel && (
+                        {info?.statusGeralLabel && (
                           <span className="text-[10px] text-muted-foreground font-medium">
                             {info.statusGeralLabel}
                             {info.maquinasTelhas?.length > 0 && ` (${info.maquinasTelhas.join(",")})`}
@@ -286,6 +300,15 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
                           </span>
                         )}
                       </div>
+                    </td>
+                    <td className="p-1.5 max-w-[170px]">
+                      {it.observacao ? (
+                        <span className="inline-flex items-center gap-1 font-semibold text-amber-900 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5 text-[10px] leading-tight">
+                          📌 {it.observacao}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-[10px]">—</span>
+                      )}
                     </td>
                     <td className="p-1.5 truncate max-w-[80px] hidden sm:table-cell">{it.bairro}</td>
                     <td className="p-1.5 font-medium">{it.valor}</td>
@@ -323,11 +346,16 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
         </div>
       )}
 
-      {/* OBS */}
-      {rota.observacao && (
-        <div className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
-          <StickyNote className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-          <span className="whitespace-pre-wrap">{rota.observacao}</span>
+      {/* OBS — Observações da Carga e Rota */}
+      {(rota.observacao || rota.nota_geral) && (
+        <div className="flex items-start gap-1.5 text-xs text-amber-900 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 rounded-md p-2">
+          <StickyNote className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-600" />
+          <div className="space-y-0.5">
+            {rota.observacao && <p className="whitespace-pre-wrap font-semibold">📝 {rota.observacao}</p>}
+            {rota.nota_geral && rota.nota_geral !== rota.observacao && (
+              <p className="whitespace-pre-wrap text-muted-foreground italic text-[11px]">Nota: {rota.nota_geral}</p>
+            )}
+          </div>
         </div>
       )}
 

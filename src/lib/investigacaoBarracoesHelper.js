@@ -8,12 +8,43 @@ import { base44 } from "@/api/base44Client";
 export function limparNumeroPedido(num) {
   if (!num) return "";
   const raw = String(num).trim().toUpperCase();
-  const digits = raw.replace(/\D/g, "");
+  // Se contiver sufixo como -01, /1, .1, extrai os dígitos principais
+  const semSufixo = raw.replace(/[-/.][0-9]{1,3}$/, "");
+  const digits = semSufixo.replace(/\D/g, "");
   if (digits) {
     const semZeros = digits.replace(/^0+/, "");
     return semZeros || digits;
   }
+  const digitsAll = raw.replace(/\D/g, "");
+  if (digitsAll) {
+    const semZeros = digitsAll.replace(/^0+/, "");
+    return semZeros || digitsAll;
+  }
   return raw.replace(/^#/, "").trim();
+}
+
+/**
+ * Retorna todas as chaves possíveis para indexação e busca:
+ * ex: "298249-01" -> ["298249", "29824901"]
+ */
+export function extrairChavesPedido(num) {
+  if (!num) return [];
+  const raw = String(num).trim().toUpperCase();
+  const chaves = new Set();
+
+  const c1 = limparNumeroPedido(num);
+  if (c1) chaves.add(c1);
+
+  const digitsAll = raw.replace(/\D/g, "");
+  if (digitsAll) {
+    const semZeros = digitsAll.replace(/^0+/, "");
+    chaves.add(semZeros || digitsAll);
+  }
+
+  const rawClean = raw.replace(/^#/, "").trim();
+  if (rawClean) chaves.add(rawClean);
+
+  return Array.from(chaves);
 }
 
 /**
@@ -26,6 +57,14 @@ export function processarMapaBarracoes({
   pedidosOdoo = [],
 }) {
   const mapa = {};
+
+  const registrarNoMapa = (item, chaves) => {
+    chaves.forEach((k) => {
+      if (!mapa[k]) {
+        mapa[k] = item;
+      }
+    });
+  };
 
   // 1. Processa pedidos de Telhas (OPs nas máquinas perfiladeiras)
   pedidosTelhas.forEach((p) => {
@@ -236,6 +275,17 @@ export function processarMapaBarracoes({
     }
   });
 
+  // Indexa aliases em chaves secundárias (ex: 29824901 e 298249)
+  const todasEntradas = Object.entries(mapa);
+  todasEntradas.forEach(([k, item]) => {
+    const aliases = extrairChavesPedido(item.numero_original);
+    aliases.forEach((alias) => {
+      if (!mapa[alias]) {
+        mapa[alias] = item;
+      }
+    });
+  });
+
   return mapa;
 }
 
@@ -281,32 +331,86 @@ export function useInvestigacaoBarracoes(filialAtiva) {
 
   const mapa = query.data || {};
 
-  const getInfoPedido = (numPedido) => {
-    const chave = limparNumeroPedido(numPedido);
-    if (!chave) return null;
+  const getInfoPedido = (numPedido, obsTexto = "", tituloRota = "") => {
+    const chaves = extrairChavesPedido(numPedido);
+    if (!chaves.length) return null;
 
-    if (mapa[chave]) return mapa[chave];
+    let encontrado = null;
+    for (const k of chaves) {
+      if (mapa[k]) {
+        encontrado = mapa[k];
+        break;
+      }
+    }
 
-    const digits = chave.replace(/\D/g, "");
-    if (digits) {
-      for (const [k, v] of Object.entries(mapa)) {
-        if (k.includes(digits) || digits.includes(k)) {
-          return v;
+    if (!encontrado) {
+      const digits = (chaves[0] || "").replace(/\D/g, "");
+      if (digits) {
+        for (const [k, v] of Object.entries(mapa)) {
+          if (k.includes(digits) || digits.includes(k)) {
+            encontrado = v;
+            break;
+          }
         }
       }
     }
 
+    if (encontrado && (encontrado.temTelhas || encontrado.temCD)) {
+      return encontrado;
+    }
+
+    // Inferência por observação se não encontrado no mapa ainda
+    const textoAnalise = ((obsTexto || "") + " " + (tituloRota || "")).toLowerCase();
+    const temCDObs = /(corte|dobra|chaparia|chapa|calha|rufo|slitter|perfil|barra|tubo|cantoneira|desbobin)/i.test(textoAnalise);
+    const temTelhasObs = /(telha|sandu[ií]|eps|isopor|manta|cumeeir|ondulad|coloni|bandej|bobininha|perfiladeir)/i.test(textoAnalise);
+
+    let barracao = "aguardando";
+    let barracaoLabel = "Aguardando Entrada";
+    let barracaoIcon = "⏳";
+    let barracaoBadgeClass = "bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300";
+    let statusGeralLabel = "⏳ Aguardando Entrada";
+
+    if (temCDObs && temTelhasObs) {
+      barracao = "ambos";
+      barracaoLabel = "Ambos os Barracões";
+      barracaoIcon = "📦";
+      barracaoBadgeClass = "bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-950 dark:text-purple-300";
+      statusGeralLabel = "⏳ Aguardando Entrada (Ambos)";
+    } else if (temCDObs) {
+      barracao = "corte_dobra";
+      barracaoLabel = "Corte & Dobra";
+      barracaoIcon = "🏗️";
+      barracaoBadgeClass = "bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-950 dark:text-orange-300";
+      statusGeralLabel = "⏳ Aguardando Entrada (C&D)";
+    } else if (temTelhasObs) {
+      barracao = "telhas";
+      barracaoLabel = "Telhas";
+      barracaoIcon = "🏠";
+      barracaoBadgeClass = "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950 dark:text-blue-300";
+      statusGeralLabel = "⏳ Aguardando Entrada (Telhas)";
+    }
+
+    if (encontrado) {
+      return {
+        ...encontrado,
+        barracao: encontrado.barracao !== "aguardando" ? encontrado.barracao : barracao,
+        barracaoLabel: encontrado.barracao !== "aguardando" ? encontrado.barracaoLabel : barracaoLabel,
+        barracaoIcon: encontrado.barracao !== "aguardando" ? encontrado.barracaoIcon : barracaoIcon,
+        barracaoBadgeClass: encontrado.barracao !== "aguardando" ? encontrado.barracaoBadgeClass : barracaoBadgeClass,
+      };
+    }
+
     return {
-      chave,
+      chave: chaves[0],
       numero_original: numPedido,
-      temTelhas: false,
-      temCD: false,
-      barracao: "aguardando",
-      barracaoLabel: "Aguardando Entrada",
-      barracaoIcon: "⏳",
-      barracaoBadgeClass: "bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300",
+      temTelhas: temTelhasObs,
+      temCD: temCDObs,
+      barracao,
+      barracaoLabel,
+      barracaoIcon,
+      barracaoBadgeClass,
       statusGeral: "aguardando",
-      statusGeralLabel: "⏳ Aguardando Entrada",
+      statusGeralLabel,
       statusGeralBadge: "bg-slate-100 text-slate-700 border-slate-300",
       maquinasTelhas: [],
       maquinasCD: [],

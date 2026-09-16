@@ -68,6 +68,7 @@ export default function RotaArquivadaCard({ rota }) {
                 <th className="text-left p-1.5 font-semibold w-6">#</th>
                 <th className="text-left p-1.5 font-semibold">Pedido</th>
                 <th className="text-left p-1.5 font-semibold">Cliente</th>
+                <th className="text-left p-1.5 font-semibold">Observação</th>
                 <th className="text-left p-1.5 font-semibold">Valor</th>
               </tr>
             </thead>
@@ -77,6 +78,15 @@ export default function RotaArquivadaCard({ rota }) {
                   <td className="p-1.5 text-muted-foreground">{it.ordem}</td>
                   <td className="p-1.5 font-semibold">{it.numero_pedido}</td>
                   <td className="p-1.5 truncate max-w-[120px]">{it.cliente}</td>
+                  <td className="p-1.5 max-w-[150px]">
+                    {it.observacao ? (
+                      <span className="inline-flex items-center gap-1 font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 text-[10px]">
+                        📌 {it.observacao}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-[10px]">—</span>
+                    )}
+                  </td>
                   <td className="p-1.5 font-medium">{it.valor}</td>
                 </tr>
               ))}

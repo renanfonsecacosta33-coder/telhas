@@ -74,6 +74,7 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
       setParsed(parsed);
       if (parsed.motorista_nome) setMotorista(parsed.motorista_nome);
       if (parsed.placa) setPlaca(parsed.placa.toUpperCase());
+      if (parsed.nota_geral && !obs) setObs(parsed.nota_geral);
       toast.success(`${parsed.itens?.length || 0} pedidos lidos da imagem pela IA!`);
     } catch (e) {
       toast.error("Erro ao ler imagem com IA: " + (e?.message || ""));
@@ -175,7 +176,7 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
               <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
               <div>
                 <p className="text-sm font-semibold text-blue-700">IA lendo a imagem...</p>
-                <p className="text-xs text-blue-600">Extraindo pedidos, clientes e valores da rota de entrega.</p>
+                <p className="text-xs text-blue-600">Extraindo pedidos, clientes, valores e observações da rota de entrega.</p>
               </div>
             </div>
           )}
@@ -186,13 +187,14 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
               <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
                   <p className="font-bold text-sm">{parsed.titulo || "Rota de Entrega"}</p>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                     {parsed.entrega_date && <span>📅 Entrega: <b>{parsed.entrega_date}</b></span>}
                     {parsed.embarque_date && <span>🚚 Embarque: <b>{parsed.embarque_date}</b></span>}
                     {parsed.total_valor && <span>💰 Total: <b>{parsed.total_valor}</b></span>}
+                    {parsed.motorista_nome && <span>👤 Motorista: <b>{parsed.motorista_nome}</b></span>}
                   </div>
                 </div>
-                <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
+                <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 font-bold">
                   {parsed.itens?.length || 0} pedidos
                 </Badge>
               </div>
@@ -221,20 +223,28 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
                 <table className="w-full text-xs">
                   <thead className="bg-muted sticky top-0">
                     <tr>
-                      <th className="text-left p-1.5 font-semibold">#</th>
+                      <th className="text-left p-1.5 font-semibold w-6">#</th>
                       <th className="text-left p-1.5 font-semibold">Pedido</th>
                       <th className="text-left p-1.5 font-semibold">Cliente</th>
                       <th className="text-left p-1.5 font-semibold">Barracão</th>
+                      <th className="text-left p-1.5 font-semibold">Observação</th>
                       <th className="text-left p-1.5 font-semibold hidden sm:table-cell">Bairro</th>
                       <th className="text-left p-1.5 font-semibold">Valor</th>
                     </tr>
                   </thead>
                   <tbody>
                     {parsed.itens?.map((it, idx) => (
-                      <tr key={idx} className="border-t border-border">
+                      <tr key={idx} className="border-t border-border hover:bg-muted/40 transition-colors">
                         <td className="p-1.5 text-muted-foreground">{it.ordem}</td>
-                        <td className="p-1.5 font-semibold">{it.numero_pedido}</td>
-                        <td className="p-1.5 truncate max-w-[110px]">{it.cliente}</td>
+                        <td className="p-1.5 font-bold">{it.numero_pedido}</td>
+                        <td className="p-1.5 truncate max-w-[120px]" title={it.cliente}>
+                          <span className="font-medium">{it.cliente}</span>
+                          {(it.vendedor || it.pagamento) && (
+                            <span className="block text-[10px] text-muted-foreground truncate">
+                              {[it.vendedor && `Vend: ${it.vendedor}`, it.pagamento && `Pg: ${it.pagamento}`].filter(Boolean).join(" · ")}
+                            </span>
+                          )}
+                        </td>
                         <td className="p-1.5">
                           <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
                             it.barracao_sugerido === "telhas"
@@ -251,6 +261,15 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
                             {(!it.barracao_sugerido || it.barracao_sugerido === "aguardando") && "⏳ Aguardando"}
                           </span>
                         </td>
+                        <td className="p-1.5 max-w-[160px]">
+                          {it.observacao ? (
+                            <span className="inline-flex items-center gap-1 font-semibold text-amber-900 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5 text-[10px] leading-tight">
+                              📌 {it.observacao}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-[10px]">—</span>
+                          )}
+                        </td>
                         <td className="p-1.5 truncate max-w-[80px] hidden sm:table-cell">{it.bairro}</td>
                         <td className="p-1.5 font-medium">{it.valor}</td>
                       </tr>
@@ -259,7 +278,7 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
                 </table>
               </div>
               {parsed.nota_geral && (
-                <p className="text-xs text-muted-foreground italic">📝 {parsed.nota_geral}</p>
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-1.5 font-medium">📝 Nota da folha: {parsed.nota_geral}</p>
               )}
             </div>
           )}
