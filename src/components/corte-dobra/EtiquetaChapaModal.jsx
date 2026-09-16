@@ -315,7 +315,7 @@ export default function EtiquetaChapaModal({ open, onClose, chapa, bobina }) {
 
             {/* Rodapé industrial */}
             <div style={{ borderTop: "1.5px solid #000", paddingTop: "3px", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "7px", fontWeight: 800, textTransform: "uppercase", color: "#222" }}>
-              <span>VALIDAÇÃO OBRIGATÓRIA DA ETIQUETA AO INICIAR GUILHOTINA</span>
+              <span>IDENTIFICAÇÃO DE CHAPA — CORTE & DOBRA</span>
               <span>AJL INDÚSTRIA</span>
             </div>
           </div>

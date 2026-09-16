@@ -177,14 +177,6 @@ export default function ProducaoCD() {
   };
 
   const handleStatusChangeMaq = async (ordem, novoStatus) => {
-    if (novoStatus === "em_producao") {
-      const isGuilhotina = ordem.maquina === "CORTE 3M" || ordem.maquina === "CORTE 6M";
-      if (isGuilhotina) {
-        setOrdemValidandoChapa(ordem);
-        setValidacaoChapaOpen(true);
-        return;
-      }
-    }
     const dataUpdate = { status: novoStatus };
     if (novoStatus === "em_producao" && !ordem.inicio_producao_ts) {
       dataUpdate.inicio_producao_ts = new Date().toISOString();

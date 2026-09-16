@@ -197,10 +197,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
         return;
       }
     }
-    if (isGuilhotina) {
-      setValidacaoChapaDialog(true);
-      return;
-    }
+    // Validação de foto de etiqueta da chapa para guilhotinas desativada a pedido
     doIniciar();
   };
 
@@ -256,8 +253,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
   const confirmarBloqueio = () => {
     setBloqueioDialog(false);
     if (acaoPendente === "iniciar") {
-      if (isGuilhotina) setValidacaoChapaDialog(true);
-      else doIniciar();
+      doIniciar();
     }
     else if (acaoPendente === "retomar") doRetomar();
     setAcaoPendente(null);
@@ -840,8 +836,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               <Button className="bg-amber-500 hover:bg-amber-600 gap-1" onClick={() => {
                 setPrioridadeDialog(false);
                 setOrdemPrioritaria(null);
-                if (isGuilhotina) setValidacaoChapaDialog(true);
-                else doIniciar();
+                doIniciar();
               }}>
                 <Star className="w-4 h-4" /> Autorizar início
               </Button>
