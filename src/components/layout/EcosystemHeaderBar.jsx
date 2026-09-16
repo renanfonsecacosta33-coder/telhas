@@ -7,8 +7,7 @@ import {
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Menu, ChevronDown, PackageCheck, Factory, Home, ArrowLeftRight, Sun, Moon } from "lucide-react";
+import { ChevronDown, PackageCheck, Factory, Home, ArrowLeftRight, Sun, Moon } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 
 export default function EcosystemHeaderBar({ user, sidebarOpen, onToggleSidebar, children }) {
@@ -43,6 +42,7 @@ export default function EcosystemHeaderBar({ user, sidebarOpen, onToggleSidebar,
     };
   }
 
+  const ModuloIcon = moduloInfo.icon;
   const { isDark, toggleTema } = useTheme();
 
   return (
