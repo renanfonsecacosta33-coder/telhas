@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { Truck, Eye, Factory, Layers, PackageCheck, DollarSign, StickyNote, RefreshCw, Loader2, Trash2 } from "lucide-react";
+import { Truck, Eye, Factory, Layers, PackageCheck, DollarSign, StickyNote, RefreshCw, Loader2, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import ImageViewer from "@/components/ui/ImageViewer";
 import RotaCarregamentoSlot from "@/components/logistica/RotaCarregamentoSlot";
@@ -11,6 +11,7 @@ import { parseRotaImage } from "@/lib/rotaParser";
 import { useInvestigacaoBarracoes } from "@/lib/investigacaoBarracoesHelper";
 import FotoPedidoButton from "@/components/logistica/FotoPedidoButton";
 import RotaTraseiraCaminhaoSlot from "@/components/logistica/RotaTraseiraCaminhaoSlot";
+import EditarRotaDialog from "@/components/logistica/EditarRotaDialog";
 
 const DEP_LABEL = { telhas: "Telhas", corte_dobra: "Corte e Dobra", expedicao: "Expedição" };
 const DEP_COLOR = {
@@ -23,6 +24,7 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
   const [viewerUrl, setViewerUrl] = useState(null);
   const [viewerName, setViewerName] = useState("");
   const [replacingRota, setReplacingRota] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const editRotaRef = useRef(null);
   const queryClient = useQueryClient();
 
@@ -189,9 +191,19 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
             )}
           </div>
         </div>
-        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 shrink-0 font-bold">
-          {itens.length} {itens.length === 1 ? "pedido" : "pedidos"}
-        </Badge>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setEditDialogOpen(true)}
+            className="h-7 w-7 rounded-md bg-primary/10 text-primary hover:bg-primary/20 flex items-center justify-center transition-colors"
+            title="Editar rota"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 font-bold">
+            {itens.length} {itens.length === 1 ? "pedido" : "pedidos"}
+          </Badge>
+        </div>
       </div>
 
       {/* Imagem da rota + carregamento por barracão */}
@@ -377,6 +389,7 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
       <input ref={editRotaRef} type="file" accept="image/*" className="hidden"
         onChange={(e) => handleReplaceRota(e.target.files?.[0])} />
       <ImageViewer url={viewerUrl} name={viewerName} open={!!viewerUrl} onClose={() => setViewerUrl(null)} />
+      <EditarRotaDialog open={editDialogOpen} onOpenChange={setEditDialogOpen} rota={rota} />
     </div>
   );
 }
