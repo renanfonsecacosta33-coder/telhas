@@ -14,11 +14,14 @@ import {
 } from "@/lib/pedidoOdooHelper";
 import { formatDataBR, slaDiasPorCategoria, diasUteisRestantes } from "@/lib/sla";
 import { notificarStatus } from "@/lib/biNotificador";
+import { useFilial } from "@/contexts/FilialContext";
 
 export default function FilaPCPTelhas({ onNovaOrdem }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [atualizando, setAtualizando] = useState(null);
+  const filialCtx = useFilial();
+  const filialAtiva = filialCtx?.filialAtiva;
 
   const { data: pedidos = [], isLoading } = useQuery({
     queryKey: ["pedidos-odoo-telhas"],
@@ -33,9 +36,10 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
     refetchInterval: 10000
   });
 
-  // Apenas pedidos distribuídos/em produção com itens de telha
+  // Apenas pedidos distribuídos/em produção com itens de telha da filial ativa
   const fila = pedidos
     .filter(p => ["distribuido", "em_producao"].includes(p.status_pcp))
+    .filter(p => !filialAtiva || filialAtiva === "todas" || (p.unidade || "Matriz AJL") === filialAtiva)
     .filter(p => itensPorGrupo(getItens(p), "telha").length > 0)
     .sort((a, b) => new Date(a.data_recebimento || 0) - new Date(b.data_recebimento || 0));
 

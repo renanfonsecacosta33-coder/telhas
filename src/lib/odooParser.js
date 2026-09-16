@@ -4,6 +4,7 @@
 
 import { normalizarImagemBase64 } from "@/lib/imagemBase64";
 import { classGrupo } from "@/lib/pedidoOdooHelper";
+import { rotearUnidadeProducao, normalizarLojaVenda } from "@/lib/roteamentoPCP";
 
 const CATEGORIA_MAP = {
   // Telhas
@@ -131,6 +132,18 @@ export function parseWebhookPayload(rawJson) {
       if (aVal) anexosExtras[`anexo_${i}_url`] = aVal;
     }
 
+    const rawEmpresa = p.empresa || p.company_name || p.company || p.empresa_vendedor || p.vendedor_empresa || p.company_id?.[1] || "";
+    const vendedorNome = p.vendedor_nome || p.vendedor || p.user_id?.[1] || p.salesman || "";
+    const loja_venda = normalizarLojaVenda(rawEmpresa, vendedorNome);
+    const roteamento = rotearUnidadeProducao({
+      lojaVenda: loja_venda,
+      itensTelha: telhaCount,
+      itensCd: cdCount,
+      itensFrisada: frisadaCount,
+      itens
+    });
+    const unidadeFinal = p.unidade && p.unidade !== "Matriz AJL" ? p.unidade : roteamento.unidade;
+
     result.push({
       odoo_id: String(p.odoo_id || p.id || ""),
       of_odoo_id: String(p.of_odoo_id || p.odoo_id || p.id || ""),
@@ -138,7 +151,9 @@ export function parseWebhookPayload(rawJson) {
       nova_of: Boolean(p.nova_of),
       numero_pedido: String(numero),
       cliente_nome: p.cliente_nome || p.cliente || p.partner_name || p.partner_id?.[1] || "",
-      vendedor_nome: p.vendedor_nome || p.vendedor || p.user_id?.[1] || p.salesman || "",
+      vendedor_nome: vendedorNome,
+      empresa_venda: String(rawEmpresa),
+      loja_venda,
       foto_pedido_url: foto_pedido_url || anexo_1_url || anexosExtras.anexo_1_url || "",
       anexo_1_url: anexo_1_url || foto_pedido_url || anexosExtras.anexo_1_url || "",
       anexo_2_url: anexo_2_url || anexosExtras.anexo_2_url || "",
@@ -148,7 +163,7 @@ export function parseWebhookPayload(rawJson) {
       descricao: p.descricao || "",
       data_entrega: p.data_entrega || "",
       data_recebimento: p.data_recebimento || p.date_order || new Date().toISOString(),
-      unidade: p.unidade || "Matriz AJL",
+      unidade: unidadeFinal,
       itens,
       itens_telha_count: telhaCount,
       itens_cd_count: cdCount,

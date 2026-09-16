@@ -9,7 +9,8 @@ import { useToast } from "@/components/ui/use-toast";
 import {
   Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send,
   Factory, Scissors, Wind, Layers, AlertTriangle, CheckCircle2, Star,
-  ChevronDown, ChevronUp, Calendar, Filter, X, Clock, Trash2, CheckSquare, Square
+  ChevronDown, ChevronUp, Calendar, Filter, X, Clock, Trash2, CheckSquare, Square,
+  Building2, ArrowRightLeft, Store, Globe
 } from "lucide-react";
 import {
   AlertDialog,
@@ -27,6 +28,9 @@ import PedidoOdooDetalheDialog from "@/components/pcp/PedidoOdooDetalheDialog";
 import WebhookSimulatorDialog from "@/components/pcp/WebhookSimulatorDialog";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
+import TransferirLojaDialog from "@/components/pcp/TransferirLojaDialog";
+import { useFilial } from "@/contexts/FilialContext";
+import { FILIAIS_PCP } from "@/lib/roteamentoPCP";
 import { calcularDataPrometidaSLA, toISODate, slaDiasPorCategoria, diasUteisRestantes, formatDataBR } from "@/lib/sla";
 import { parseItensPedido } from "@/lib/regrasFabrica";
 import { notificarStatus } from "@/lib/biNotificador";
@@ -51,6 +55,24 @@ export default function CentralPCP() {
   const [pedidoPrioridadePendente, setPedidoPrioridadePendente] = useState(null);
   const [pedidosExpandidos, setPedidosExpandidos] = useState(() => new Set());
   const [modoVisao, setModoVisao] = useState("agrupado");
+
+  // Central PCP por Loja / Filial
+  const filialCtx = useFilial();
+  const filialAtiva = filialCtx?.filialAtiva || "Matriz AJL";
+  const [lojaSelecionada, setLojaSelecionada] = useState(() => {
+    return localStorage.getItem("pcp_loja_selecionada") || "todas";
+  });
+
+  const handleMudarLoja = (lojaId) => {
+    setLojaSelecionada(lojaId);
+    localStorage.setItem("pcp_loja_selecionada", lojaId);
+  };
+
+  // Modal de Transferência de Loja entre Centrais PCP
+  const [modalTransferir, setModalTransferir] = useState({
+    aberto: false,
+    pedidos: []
+  });
 
   // Filtros de Data
   const [filtroDataPreset, setFiltroDataPreset] = useState("todas"); // "todas" | "hoje" | "amanha" | "semana" | "atrasados" | "personalizada"
@@ -802,14 +824,41 @@ export default function CentralPCP() {
     return false;
   };
 
+  // Contadores de pedidos ativos por Loja / Filial
+  const statsLoja = useMemo(() => {
+    const contagens = {
+      todas: pedidos.filter(p => !isPedidoConcluido(p)).length,
+      "Matriz AJL": 0,
+      "Pinhais": 0,
+      "Ivaiporã": 0,
+      "Ponta Grossa": 0,
+    };
+    pedidos.forEach(p => {
+      if (isPedidoConcluido(p)) return;
+      const un = p.unidade || "Matriz AJL";
+      if (contagens[un] !== undefined) {
+        contagens[un]++;
+      } else {
+        contagens["Matriz AJL"]++;
+      }
+    });
+    return contagens;
+  }, [pedidos, pedidosProducao, ordensCD]);
+
+  // Pedidos pertencentes à Central PCP selecionada (ou todos se 'todas')
+  const pedidosDaLoja = useMemo(() => {
+    if (lojaSelecionada === "todas") return pedidos;
+    return pedidos.filter(p => (p.unidade || "Matriz AJL") === lojaSelecionada);
+  }, [pedidos, lojaSelecionada]);
+
   const stats = {
-    total: pedidos.length,
-    ativos: pedidos.filter(p => !isPedidoConcluido(p)).length,
-    pendentes: pedidos.filter(p => p.status_pcp === "pendente_distribuicao" && !isPedidoConcluido(p)).length,
-    distribuidos: pedidos.filter(p => p.status_pcp === "distribuido" && !isPedidoConcluido(p)).length,
-    em_producao: pedidos.filter(p => p.status_pcp === "em_producao" && !isPedidoConcluido(p)).length,
-    concluidos: pedidos.filter(p => isPedidoConcluido(p)).length,
-    atrasados: pedidos.filter(p => diasUteisRestantes(p.data_entrega) < 0 && !isPedidoConcluido(p)).length
+    total: pedidosDaLoja.length,
+    ativos: pedidosDaLoja.filter(p => !isPedidoConcluido(p)).length,
+    pendentes: pedidosDaLoja.filter(p => p.status_pcp === "pendente_distribuicao" && !isPedidoConcluido(p)).length,
+    distribuidos: pedidosDaLoja.filter(p => p.status_pcp === "distribuido" && !isPedidoConcluido(p)).length,
+    em_producao: pedidosDaLoja.filter(p => p.status_pcp === "em_producao" && !isPedidoConcluido(p)).length,
+    concluidos: pedidosDaLoja.filter(p => isPedidoConcluido(p)).length,
+    atrasados: pedidosDaLoja.filter(p => diasUteisRestantes(p.data_entrega) < 0 && !isPedidoConcluido(p)).length
   };
 
   const FILTROS = [
@@ -825,7 +874,7 @@ export default function CentralPCP() {
   const statsMaterial = useMemo(() => {
     let comMaterial = 0;
     let semMaterial = 0;
-    pedidos.forEach(p => {
+    pedidosDaLoja.forEach(p => {
       const diag = verificarEstoquePedido(p, estoqueContext);
       if (diag.statusGeral === "ok" || diag.statusGeral === "desbobinar") {
         comMaterial++;
@@ -834,10 +883,10 @@ export default function CentralPCP() {
       }
     });
     return { comMaterial, semMaterial };
-  }, [pedidos, estoqueContext]);
+  }, [pedidosDaLoja, estoqueContext]);
 
   // Filtros + busca
-  const pedidosFiltrados = pedidos.filter(p => {
+  const pedidosFiltrados = pedidosDaLoja.filter(p => {
     const concluido = isPedidoConcluido(p);
 
     if (filtro === "ativos") {
@@ -1206,7 +1255,7 @@ export default function CentralPCP() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+      <header className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-xs">
         <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <Button variant="ghost" size="icon" onClick={() => navigate("/setor")} className="shrink-0">
@@ -1218,7 +1267,7 @@ export default function CentralPCP() {
                 Central PCP
               </h1>
               <p className="text-[11px] sm:text-xs text-slate-500 hidden sm:block">
-                Aba Mãe · Integração Odoo ERP · Fila FIFO de pedidos industriais
+                Aba Mãe · Integração Odoo ERP · Roteamento Industrial por Loja
               </p>
             </div>
           </div>
@@ -1234,6 +1283,71 @@ export default function CentralPCP() {
               <span className="hidden sm:inline">Receber / Simular Webhook Odoo</span>
               <span className="sm:hidden">Webhook</span>
             </Button>
+          </div>
+        </div>
+
+        {/* Barra de Seleção de Central PCP por Loja / Filial */}
+        <div className="px-4 sm:px-6 py-2 bg-slate-50/90 dark:bg-slate-900/90 border-t border-slate-200/70 dark:border-slate-800/70 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 shrink-0 flex items-center gap-1.5 mr-1">
+              <Building2 className="w-3.5 h-3.5 text-orange-500" />
+              Central PCP:
+            </span>
+
+            {/* Aba Todas as Centrais */}
+            <button
+              type="button"
+              onClick={() => handleMudarLoja("todas")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                lojaSelecionada === "todas"
+                  ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm"
+                  : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>Todas as Centrais</span>
+              <Badge className={`text-[10px] px-1.5 py-0 leading-tight ${
+                lojaSelecionada === "todas"
+                  ? "bg-white/25 dark:bg-slate-900/30 text-white dark:text-slate-900"
+                  : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+              }`}>
+                {statsLoja.todas}
+              </Badge>
+            </button>
+
+            {/* Abas das 4 Filiais */}
+            {FILIAIS_PCP.map((f) => {
+              const count = statsLoja[f.id] || 0;
+              const ativa = lojaSelecionada === f.id;
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => handleMudarLoja(f.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                    ativa
+                      ? "bg-orange-500 text-white shadow-sm ring-1 ring-orange-400"
+                      : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/80"
+                  }`}
+                >
+                  <span>{f.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-extrabold ${
+                    ativa
+                      ? "bg-white/20 text-white"
+                      : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="hidden md:flex items-center gap-2 text-xs text-slate-500">
+            <span className="text-[11px] text-slate-400">Exibindo Fila de:</span>
+            <Badge variant="outline" className="text-xs font-bold border-orange-300 dark:border-orange-800 text-orange-600 dark:text-orange-400">
+              {lojaSelecionada === "todas" ? "Visão Global (Todas as Fábricas)" : `Fábrica: ${lojaSelecionada}`}
+            </Badge>
           </div>
         </div>
       </header>
@@ -1581,6 +1695,23 @@ export default function CentralPCP() {
                   </Button>
                 )}
 
+                {/* Transferir Selecionados de Central PCP / Filial */}
+                {selecionados.size > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={distribuindo || excluindo}
+                    onClick={() => {
+                      const lista = pedidos.filter(p => selecionados.has(p.id));
+                      setModalTransferir({ aberto: true, pedidos: lista });
+                    }}
+                    className="border-indigo-400 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-xs h-8 gap-1.5 font-bold"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5 text-indigo-500" />
+                    Transferir Loja ({selecionados.size})
+                  </Button>
+                )}
+
                 {/* Distribuir TODOS os Pendentes da fila */}
                 {selecionados.size === 0 && pedidosFiltrados.filter(p => p.status_pcp === "pendente_distribuicao").length > 0 && (
                   <Button
@@ -1736,6 +1867,8 @@ export default function CentralPCP() {
                     onRetirarFila={handleRetirarFila}
                     onTogglePrioridade={handleTogglePrioridade}
                     onSetPrioridade={handleSetPrioridade}
+                    onTransferir={(p) => setModalTransferir({ aberto: true, pedidos: [p] })}
+                    onTransferirGrupo={(g) => setModalTransferir({ aberto: true, pedidos: g.ofs || [] })}
                     estoqueContext={estoqueContext}
                   />
                 ))}
@@ -1757,6 +1890,7 @@ export default function CentralPCP() {
                     onRetirarFila={handleRetirarFila}
                     onTogglePrioridade={handleTogglePrioridade}
                     onSetPrioridade={handleSetPrioridade}
+                    onTransferir={(ped) => setModalTransferir({ aberto: true, pedidos: [ped] })}
                     estoqueContext={estoqueContext}
                   />
                 ))}
@@ -1820,6 +1954,8 @@ export default function CentralPCP() {
                           onRetirarFila={handleRetirarFila}
                           onTogglePrioridade={handleTogglePrioridade}
                           onSetPrioridade={handleSetPrioridade}
+                          onTransferir={(p) => setModalTransferir({ aberto: true, pedidos: [p] })}
+                          onTransferirGrupo={(g) => setModalTransferir({ aberto: true, pedidos: g.ofs || [] })}
                           estoqueContext={estoqueContext}
                         />
                       ))}
@@ -1841,6 +1977,7 @@ export default function CentralPCP() {
                           onRetirarFila={handleRetirarFila}
                           onTogglePrioridade={handleTogglePrioridade}
                           onSetPrioridade={handleSetPrioridade}
+                          onTransferir={(ped) => setModalTransferir({ aberto: true, pedidos: [ped] })}
                           estoqueContext={estoqueContext}
                         />
                       ))}
@@ -1868,6 +2005,7 @@ export default function CentralPCP() {
         onToggleItem={handleToggleItem}
         onProgramarItem={handleProgramarItem}
         onProgramarTodosItens={handleProgramarTodosItens}
+        onTransferir={(p) => setModalTransferir({ aberto: true, pedidos: [p] })}
         estoqueContext={estoqueContext}
         onAtualizado={() => {
           queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
@@ -1891,6 +2029,16 @@ export default function CentralPCP() {
         open={webhookOpen}
         onOpenChange={setWebhookOpen}
         onReceber={handleReceberWebhook}
+      />
+      <TransferirLojaDialog
+        open={modalTransferir.aberto}
+        onOpenChange={(aberto) => setModalTransferir(prev => ({ ...prev, aberto }))}
+        pedidos={modalTransferir.pedidos}
+        onSuccess={() => {
+          setSelecionados(new Set());
+          setPedidoSelecionado(null);
+          setDetalheOpen(false);
+        }}
       />
 
       {/* Modal Seguro de Confirmação de Exclusão (Lote, Grupo ou Individual) */}

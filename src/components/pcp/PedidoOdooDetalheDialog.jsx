@@ -7,7 +7,7 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Zap, Factory, Scissors, Wind, Tag, Ruler, Package, CheckCircle2, Trash2, ImageIcon, ExternalLink, Star, ShieldAlert, Undo2, RotateCcw, RefreshCw, Disc, AlertTriangle, Layers } from "lucide-react";
+import { Zap, Factory, Scissors, Wind, Tag, Ruler, Package, CheckCircle2, Trash2, ImageIcon, ExternalLink, Star, ShieldAlert, Undo2, RotateCcw, RefreshCw, Disc, AlertTriangle, Layers, Building2, ArrowRightLeft, Store } from "lucide-react";
 import { formatDataBR, slaDiasPorCategoria } from "@/lib/sla";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
@@ -27,7 +27,7 @@ import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMat
 export default function PedidoOdooDetalheDialog({
   pedido, open, onOpenChange, onDistribuir, distribuindo,
   onExcluirOS, onRetirarFila, onTogglePrioridade, onSetPrioridade, onToggleItem,
-  onDevolverPCP, showTracking = false, progressoReal, onAtualizado,
+  onDevolverPCP, onTransferir, showTracking = false, progressoReal, onAtualizado,
   onProgramarItem, onProgramarTodosItens,
   estoqueContext = null
 }) {
@@ -264,6 +264,56 @@ export default function PedidoOdooDetalheDialog({
               <p className="text-[10px] text-slate-400 uppercase font-semibold">SLA</p>
               <p className="font-medium text-orange-600 dark:text-orange-400 whitespace-nowrap">{sla} dias úteis</p>
             </div>
+          </div>
+
+          {/* Localização Comercial e Unidade Fabril de Produção */}
+          <div className="flex items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-1.5 text-xs">
+                <Store className="w-4 h-4 text-slate-400 shrink-0" />
+                <span className="text-slate-500">Loja de Venda:</span>
+                <Badge variant="outline" className="font-bold text-xs bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100">
+                  {pedido.loja_venda || "Matriz AJL"}
+                </Badge>
+                {pedido.empresa_venda && pedido.empresa_venda !== pedido.loja_venda && (
+                  <span className="text-[10px] text-slate-400 hidden md:inline truncate max-w-[180px]" title={pedido.empresa_venda}>
+                    ({pedido.empresa_venda})
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 text-xs">
+                <Building2 className="w-4 h-4 text-orange-500 shrink-0" />
+                <span className="text-slate-500">Fábrica (PCP):</span>
+                <Badge className="font-bold text-xs bg-orange-500 text-white">
+                  {pedido.unidade || "Matriz AJL"}
+                </Badge>
+              </div>
+
+              {pedido.loja_venda && pedido.unidade && pedido.loja_venda !== pedido.unidade && (
+                <Badge variant="outline" className="text-[10px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200">
+                  🔄 Roteado de {pedido.loja_venda}
+                </Badge>
+              )}
+
+              {pedido.unidade_transferida_de && (
+                <Badge variant="outline" className="text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200" title={pedido.motivo_transferencia}>
+                  ↔️ De {pedido.unidade_transferida_de}
+                </Badge>
+              )}
+            </div>
+
+            {onTransferir && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onTransferir(pedido)}
+                className="gap-1.5 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-xs font-bold shrink-0 ml-auto"
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5 text-indigo-500" />
+                Transferir Fábrica
+              </Button>
+            )}
           </div>
 
           {/* SLA Countdown (Regra 6) */}

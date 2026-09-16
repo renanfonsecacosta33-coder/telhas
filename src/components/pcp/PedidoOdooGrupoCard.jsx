@@ -3,7 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   ChevronDown, ChevronUp, Layers, User, Calendar, Zap, Send,
-  Star, CheckCircle2, AlertTriangle, Factory, Clock, Trash2
+  Star, CheckCircle2, AlertTriangle, Factory, Clock, Trash2,
+  Building2, ArrowRightLeft, Store
 } from "lucide-react";
 import { formatDataBR } from "@/lib/sla";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
@@ -29,6 +30,8 @@ export default function PedidoOdooGrupoCard({
   onToggleSelectGrupo,
   onDistribuir,
   onDistribuirGrupo,
+  onTransferir,
+  onTransferirGrupo,
   onClickPedido,
   onDelete,
   onDeleteGrupo,
@@ -102,6 +105,10 @@ export default function PedidoOdooGrupoCard({
       analises: allAnalises
     };
   }, [statusEstoqueGrupo, grupo]);
+
+  const lojaVendaDoGrupo = grupo.loja_venda || ofs[0]?.loja_venda || "";
+  const unidadeDoGrupo = grupo.unidade || ofs[0]?.unidade || "Matriz AJL";
+  const isAlgumaTransferida = ofs.some(p => Boolean(p.unidade_transferida_de));
 
   // Manipulador de distribuição em lote de todas as pendentes deste pedido
   const handleDistribuirTodas = (e) => {
@@ -193,9 +200,26 @@ export default function PedidoOdooGrupoCard({
                     🌬️ {contagemSetores.frisada} Frisada{contagemSetores.frisada > 1 ? "s" : ""}
                   </Badge>
                 )}
-                {grupo.unidade && (
-                  <Badge variant="secondary" className="text-[11px]">
-                    {grupo.unidade}
+                {lojaVendaDoGrupo && (
+                  <Badge variant="outline" className="text-[10px] bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 gap-1 py-0 font-semibold">
+                    <Store className="w-2.5 h-2.5 text-slate-400" />
+                    <span>Venda: {lojaVendaDoGrupo}</span>
+                  </Badge>
+                )}
+                {unidadeDoGrupo && (
+                  <Badge variant="outline" className="text-[10px] bg-orange-50/60 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800 gap-1 py-0 font-semibold">
+                    <Building2 className="w-2.5 h-2.5 text-orange-500" />
+                    <span>PCP: {unidadeDoGrupo}</span>
+                  </Badge>
+                )}
+                {lojaVendaDoGrupo && unidadeDoGrupo && lojaVendaDoGrupo !== unidadeDoGrupo && (
+                  <Badge variant="outline" className="text-[9px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200/80 gap-0.5 py-0" title={`Vendido em ${lojaVendaDoGrupo} direcionado para fabricação em ${unidadeDoGrupo}`}>
+                    🔄 Roteado
+                  </Badge>
+                )}
+                {isAlgumaTransferida && (
+                  <Badge variant="outline" className="text-[9px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200/80 gap-0.5 py-0">
+                    ↔️ Transferido
                   </Badge>
                 )}
                 {statusEstoqueGrupo && (
@@ -300,6 +324,20 @@ export default function PedidoOdooGrupoCard({
                 </Button>
               )}
 
+              {onTransferirGrupo && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTransferirGrupo(grupo);
+                  }}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition-colors border border-slate-200 dark:border-slate-700 hover:border-indigo-300 h-8 w-8 flex items-center justify-center shrink-0"
+                  title={`Transferir Pedido #${grupo.numero_pedido} (${totalOfs} OFs) para outra filial`}
+                >
+                  <ArrowRightLeft className="w-3.5 h-3.5" />
+                </button>
+              )}
+
               {onDeleteGrupo && (
                 <button
                   type="button"
@@ -360,6 +398,7 @@ export default function PedidoOdooGrupoCard({
                 selecionado={selecionados.has(p.id)}
                 onToggleSelect={onToggleSelect}
                 onDistribuir={onDistribuir}
+                onTransferir={onTransferir}
                 onClick={() => onClickPedido && onClickPedido(p)}
                 onDelete={onDelete}
                 onRetirarFila={onRetirarFila}

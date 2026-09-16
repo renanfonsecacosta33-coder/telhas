@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Calendar, User, Tag, Layers, Factory, Scissors, Wind, Trash2, Star, ShieldAlert,
   Undo2, RefreshCw, Zap, CheckCircle2, ChevronDown, ChevronUp, Home,
-  AlertTriangle, Clock, Disc
+  AlertTriangle, Clock, Disc, Building2, ArrowRightLeft, Store
 } from "lucide-react";
 import {
   formatDataBR,
@@ -75,7 +75,7 @@ const STATUS_PCP = {
 export default function PedidoOdooCard({
   pedido, onClick, onDelete, onRetirarFila, onTogglePrioridade, onSetPrioridade,
   progressoReal, pedidosProducao = [], ordensCD = [],
-  selecionado = false, onToggleSelect, onDistribuir,
+  selecionado = false, onToggleSelect, onDistribuir, onTransferir,
   defaultMinimizado, compacto = false, dentroDeGrupo = false,
   estoqueContext = null
 }) {
@@ -290,6 +290,16 @@ export default function PedidoOdooCard({
             >
               <RefreshCw className={`w-3 h-3 ${sincronizando ? "animate-spin" : ""}`} />
             </button>
+            {onTransferir && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onTransferir(pedido); }}
+                title="Transferir para outra Central PCP / Filial"
+                className="p-1 rounded text-indigo-500 hover:text-indigo-600 hover:bg-indigo-500/10 transition-colors"
+              >
+                <ArrowRightLeft className="w-3 h-3" />
+              </button>
+            )}
             {(onSetPrioridade || onTogglePrioridade) && (
               <div onClick={(e) => e.stopPropagation()}>
                 <SeletorPrioridadeDropdown
@@ -440,6 +450,16 @@ export default function PedidoOdooCard({
             >
               <RefreshCw className={`w-3.5 h-3.5 ${sincronizando ? "animate-spin" : ""}`} />
             </button>
+            {onTransferir && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onTransferir(pedido); }}
+                title="Transferir para outra Central PCP / Filial"
+                className="p-1 rounded-md text-indigo-500 hover:text-indigo-600 hover:bg-indigo-500/10 transition-colors"
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5" />
+              </button>
+            )}
             {(onSetPrioridade || onTogglePrioridade) && (
               <div onClick={(e) => e.stopPropagation()}>
                 <SeletorPrioridadeDropdown
@@ -502,9 +522,35 @@ export default function PedidoOdooCard({
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-        <User className="w-3 h-3" />
-        <span className="truncate">{pedido.vendedor_nome || "—"}</span>
+      <div className="flex items-center justify-between gap-2 flex-wrap text-[11px] text-slate-500 dark:text-slate-400">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <User className="w-3 h-3 shrink-0" />
+          <span className="truncate">{pedido.vendedor_nome || "—"}</span>
+        </div>
+
+        {/* Informações de Loja de Venda e Fábrica de Produção */}
+        <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+          {pedido.loja_venda && (
+            <Badge variant="outline" className="text-[10px] font-semibold bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 gap-1 py-0">
+              <Store className="w-2.5 h-2.5 text-slate-400" />
+              <span>Venda: {pedido.loja_venda}</span>
+            </Badge>
+          )}
+          <Badge variant="outline" className="text-[10px] font-semibold bg-orange-50/60 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800 gap-1 py-0">
+            <Building2 className="w-2.5 h-2.5 text-orange-500" />
+            <span>PCP: {pedido.unidade || "Matriz AJL"}</span>
+          </Badge>
+          {pedido.loja_venda && pedido.unidade && pedido.loja_venda !== pedido.unidade && (
+            <Badge variant="outline" className="text-[9px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200/80 gap-0.5 py-0" title={`Vendido em ${pedido.loja_venda} direcionado para produção em ${pedido.unidade}`}>
+              🔄 Roteado
+            </Badge>
+          )}
+          {pedido.unidade_transferida_de && (
+            <Badge variant="outline" className="text-[9px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200/80 gap-0.5 py-0" title={`Transferido de ${pedido.unidade_transferida_de}. Motivo: ${pedido.motivo_transferencia || 'Transferência manual'}`}>
+              ↔️ De {pedido.unidade_transferida_de}
+            </Badge>
+          )}
+        </div>
       </div>
 
       {/* SLA Countdown (Regra 6) */}

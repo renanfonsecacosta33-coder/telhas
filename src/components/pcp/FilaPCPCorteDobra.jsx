@@ -16,11 +16,14 @@ import {
 } from "@/lib/pedidoOdooHelper";
 import { formatDataBR, diasUteisRestantes } from "@/lib/sla";
 import { notificarStatus } from "@/lib/biNotificador";
+import { useFilial } from "@/contexts/FilialContext";
 
 export default function FilaPCPCorteDobra({ onNovaOrdem }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [atualizando, setAtualizando] = useState(null);
+  const filialCtx = useFilial();
+  const filialAtiva = filialCtx?.filialAtiva;
 
   const { data: pedidos = [], isLoading } = useQuery({
     queryKey: ["pedidos-odoo-cd"],
@@ -40,9 +43,10 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
     refetchInterval: 10000
   });
 
-  // Pedidos distribuídos/em produção com itens de CD
+  // Pedidos distribuídos/em produção com itens de CD da filial ativa
   const fila = pedidos
     .filter(p => ["distribuido", "em_producao"].includes(p.status_pcp))
+    .filter(p => !filialAtiva || filialAtiva === "todas" || (p.unidade || "Matriz AJL") === filialAtiva)
     .filter(p => getItens(p).some(i => classGrupo(i) === "cd"));
 
   // Agrupar itens de CD por espessura (bitola) para otimizar setup de bobina

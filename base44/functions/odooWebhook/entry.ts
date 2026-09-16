@@ -173,6 +173,56 @@ function sanitizarItemOdoo(it: any): any {
   return { ...it, observacao: resto, descricao: resto };
 }
 
+// ── Helpers de Roteamento Industrial Central PCP ──────────────────
+function normalizarLojaVenda(empresaRaw: any, vendedorNome: any = ""): string {
+  const raw = String(empresaRaw || "").trim().toLowerCase();
+  const vend = String(vendedorNome || "").trim().toLowerCase();
+  const combinado = `${raw} ${vend}`;
+
+  if (combinado.includes("pinhais")) return "Pinhais";
+  if (combinado.includes("ivaipora") || combinado.includes("ivaiporã") || /\bivp\b/.test(combinado)) return "Ivaiporã";
+  if (combinado.includes("ponta grossa") || combinado.includes("pontagrossa") || /\bpg\b/.test(combinado) || combinado.includes("ajl pg")) return "Ponta Grossa";
+  if (combinado.includes("matriz") || combinado.includes("atacadista") || combinado.includes("ferragens e ferramentas") || combinado.includes("ferramentas") || combinado.includes("comercio")) return "Matriz AJL";
+  return "Matriz AJL";
+}
+
+function rotearUnidadeProducao(params: {
+  lojaVenda: string;
+  itensTelha: number;
+  itensCd: number;
+  itensFrisada: number;
+}): { unidade: string; lojaVenda: string; motivo: string } {
+  const { lojaVenda, itensTelha, itensCd, itensFrisada } = params;
+  const loja = normalizarLojaVenda(lojaVenda);
+
+  // REGRA 1: Se é frisada SEMPRE é na MATRIZ
+  if (itensFrisada > 0) {
+    return { unidade: "Matriz AJL", lojaVenda: loja, motivo: "Frisadas fabricadas exclusivamente na Matriz AJL" };
+  }
+
+  // REGRA 2: Corte & Dobra puro
+  if (itensCd > 0 && itensTelha === 0) {
+    if (loja === "Ivaiporã") {
+      return { unidade: "Ivaiporã", lojaVenda: "Ivaiporã", motivo: "C&D Ivaiporã fabricado em Ivaiporã" };
+    }
+    return { unidade: "Matriz AJL", lojaVenda: loja, motivo: `C&D vendido em ${loja} direcionado à Matriz AJL` };
+  }
+
+  // REGRA 3: Telha
+  if (itensTelha > 0) {
+    if (loja === "Pinhais") {
+      return { unidade: "Pinhais", lojaVenda: "Pinhais", motivo: "Telhas perfiladas em Pinhais" };
+    }
+    if (loja === "Ivaiporã") {
+      return { unidade: "Ivaiporã", lojaVenda: "Ivaiporã", motivo: "Telhas perfiladas em Ivaiporã" };
+    }
+    return { unidade: "Matriz AJL", lojaVenda: loja, motivo: `Telhas vendidas em ${loja} direcionadas à Matriz AJL` };
+  }
+
+  if (loja === "Ivaiporã") return { unidade: "Ivaiporã", lojaVenda: "Ivaiporã", motivo: "Produção direcionada a Ivaiporã" };
+  return { unidade: "Matriz AJL", lojaVenda: loja, motivo: "Produção na Matriz AJL" };
+}
+
 export default async function(req: Request): Promise<Response> {
   try {
     // ── 1. Ler corpo da requisição (POST direto do Odoo) ──
@@ -347,6 +397,36 @@ export default async function(req: Request): Promise<Response> {
 
     const progressoInicial = body?.progresso_inicial != null ? Number(body.progresso_inicial) : 0;
 
+    // ── Extração da Empresa/Loja de Venda e Roteamento Industrial ──
+    const rawEmpresa = (
+      body?.empresa ||
+      body?.company_name ||
+      body?.empresa_vendedor ||
+      body?.vendedor_empresa ||
+      (Array.isArray(body?.company_id) ? body?.company_id[1] : body?.company_id) ||
+      body?.company ||
+      ""
+    ).toString().trim();
+
+    const vendedorNome = (body?.vendedor_nome || existingRec?.vendedor_nome || "").toString().trim();
+    const lojaVenda = normalizarLojaVenda(rawEmpresa || existingRec?.empresa_venda || existingRec?.loja_venda, vendedorNome);
+
+    // Roteamento industrial estrito da AJL
+    const roteamento = rotearUnidadeProducao({
+      lojaVenda,
+      itensTelha,
+      itensCd: Math.max(itensCd, 0),
+      itensFrisada
+    });
+
+    // Se a ordem já foi transferida manualmente pelo PCP, respeita a filial de destino da transferência
+    let unidadeCalculada = roteamento.unidade;
+    if (existingRec?.unidade_transferida_de) {
+      unidadeCalculada = existingRec.unidade;
+    } else if (body?.unidade && body?.unidade !== "Matriz AJL") {
+      unidadeCalculada = body.unidade;
+    }
+
     const record: Record<string, any> = {
       numero_pedido: numeroPedido,
       odoo_id: ofId || existingRec?.odoo_id || "",
@@ -370,7 +450,9 @@ export default async function(req: Request): Promise<Response> {
       descricao: body?.descricao ?? existingRec?.descricao ?? "",
       nova_of: isNovaOf,
       data_entrega: body?.data_entrega ?? existingRec?.data_entrega ?? "",
-      unidade: body?.unidade ?? existingRec?.unidade ?? "Matriz AJL",
+      unidade: unidadeCalculada,
+      empresa_venda: rawEmpresa || existingRec?.empresa_venda || "",
+      loja_venda: lojaVenda || existingRec?.loja_venda || "Matriz AJL",
       prioridade: body?.prioridade ?? existingRec?.prioridade ?? false,
       itens_json: itensJsonStr,
       total_itens: mergedItems.length,

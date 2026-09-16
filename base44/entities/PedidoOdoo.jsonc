@@ -104,7 +104,27 @@
         "Ponta Grossa"
       ],
       "default": "Matriz AJL",
-      "description": "Unidade/filial"
+      "description": "Unidade/filial fabril de produção responsável pelo pedido"
+    },
+    "empresa_venda": {
+      "type": "string",
+      "description": "Nome bruto da Empresa de Venda no Odoo (ex: AJL - Pinhais, AJL COMERCIO ATACADISTA...)"
+    },
+    "loja_venda": {
+      "type": "string",
+      "description": "Loja comercial de origem da venda normalizada (Matriz AJL, Pinhais, Ivaiporã, Ponta Grossa)"
+    },
+    "unidade_transferida_de": {
+      "type": "string",
+      "description": "Unidade anterior caso a ordem tenha sido transferida manualmente entre filiais pelo PCP"
+    },
+    "motivo_transferencia": {
+      "type": "string",
+      "description": "Motivo da transferência manual entre filiais registrado pelo encarregado do PCP"
+    },
+    "historico_transferencias": {
+      "type": "string",
+      "description": "JSON array com histórico de auditoria de transferências [{ data, de, para, usuario, motivo }]"
     },
     "status_pcp": {
       "type": "string",
