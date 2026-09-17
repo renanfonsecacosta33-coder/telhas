@@ -23,6 +23,7 @@ import { SeletorPrioridadeDropdown, getPesoOrdenacaoPrioridade } from "@/lib/pri
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
 import { normalizarTextoBusca, calcularFiltrosDisponiveis, pedidoAtendeFiltroMaterial } from "@/lib/bobinaStatusHelper";
 import TimerProducao from "@/components/producao/TimerProducao";
+import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
 
 const STATUS_LABELS_TELHAS = {
   pendente: "Pendente",
@@ -617,6 +618,14 @@ export default function MaquinaPanel({ maquina }) {
           )}
         </div>
       </div>
+
+      {/* Monitor de Ociosidade e Setup da Máquina */}
+      <MonitorOciosidadeMaquina
+        maquinaNome={maquina}
+        setor="telhas"
+        isProduzindo={!!opRodando}
+        user={user}
+      />
 
       {/* Cronômetro e Metas em Tempo Real da OP em Produção */}
       {opRodando && (

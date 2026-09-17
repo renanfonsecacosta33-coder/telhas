@@ -19,6 +19,7 @@ import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import { getPesoOrdenacaoPrioridade, SeletorPrioridadeDropdown } from "@/lib/prioridadeHelper";
 import TimerProducao from "@/components/producao/TimerProducao";
+import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
 
 export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const { filialAtiva } = useFilial();
@@ -325,6 +326,14 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
           </Button>
         )}
       </div>
+
+      {/* Monitor de Ociosidade e Setup da Máquina */}
+      <MonitorOciosidadeMaquina
+        maquinaNome={maquinaLabel || maquinaId}
+        setor="corte_dobra"
+        isProduzindo={!!opRodandoCD}
+        user={user}
+      />
 
       {/* Cronômetro e Metas em Tempo Real da OP em Produção */}
       {opRodandoCD && (

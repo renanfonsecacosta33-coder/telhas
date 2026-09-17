@@ -131,3 +131,54 @@ export function speakSolicitacaoPendente(maquina) {
     window.speechSynthesis.speak(utter);
   } catch {}
 }
+
+// Sirene industrial alta para chão de fábrica (alerta de ociosidade)
+export function playSireneFabrica() {
+  const ctx = getCtx();
+  if (!ctx) return;
+  try {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sawtooth"; // Som áspero e potente de sirene
+    gain.gain.setValueAtTime(0.45, ctx.currentTime);
+
+    const now = ctx.currentTime;
+    // Ciclo 1 de subida e descida de sirene
+    osc.frequency.setValueAtTime(500, now);
+    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.4);
+    osc.frequency.exponentialRampToValueAtTime(500, now + 0.8);
+    // Ciclo 2
+    osc.frequency.exponentialRampToValueAtTime(1300, now + 1.2);
+    osc.frequency.exponentialRampToValueAtTime(500, now + 1.6);
+    // Ciclo 3
+    osc.frequency.exponentialRampToValueAtTime(1400, now + 2.0);
+    osc.frequency.exponentialRampToValueAtTime(400, now + 2.4);
+
+    gain.gain.setValueAtTime(0.45, now + 2.0);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 2.5);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 2.5);
+  } catch {}
+}
+
+// Voz alta alertando máquina ociosa no expediente
+export function speakAlertaMaquinaOciosa(maquina, minutos = 3) {
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+  try {
+    window.speechSynthesis.cancel();
+    const maqLabel = String(maquina || "da fábrica").replace("-", " ");
+    const frase = `Atenção operador! A máquina ${maqLabel} está parada sem produzir há mais de ${minutos} minutos! Inicie uma ordem de produção ou registre o setup imediatamente!`;
+    const utter = new SpeechSynthesisUtterance(frase);
+    utter.lang = "pt-BR";
+    utter.rate = 1.05;
+    utter.volume = 1.0;
+    utter.pitch = 1.1;
+    const voices = window.speechSynthesis.getVoices();
+    const ptVoice = voices.find(v => v.lang?.startsWith("pt"));
+    if (ptVoice) utter.voice = ptVoice;
+    window.speechSynthesis.speak(utter);
+  } catch {}
+}
