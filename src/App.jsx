@@ -33,6 +33,7 @@ import Cumeeira from '@/pages/maquinas/Cumeeira';
 import Colagem from '@/pages/maquinas/Colagem';
 import CorteEPS from '@/pages/maquinas/CorteEPS';
 import DashboardProducao from '@/pages/DashboardProducao';
+import DashboardEstoque from '@/pages/DashboardEstoque';
 import DashboardTP40 from '@/pages/maquinas/DashboardTP40';
 import DashboardTP25 from '@/pages/maquinas/DashboardTP25';
 import DashboardOndulada from '@/pages/maquinas/DashboardOndulada';
@@ -153,8 +154,10 @@ const AuthenticatedApp = () => {
         <Route path="/cola" element={<Cola />} />
         <Route path="/mapa-barracao" element={<MapaBarracaoTelhas />} />
         <Route path="/dashboard-telhas" element={<DashboardTelhas />} />
+        <Route path="/estoque-dashboard" element={<DashboardEstoque />} />
         <Route path="/telhas/logistica" element={<Logistica mode="montagem" defaultTab="telhas" />} />
       </Route>
+      <Route path="/painel-estoque" element={<DashboardEstoque />} />
       <Route path="/vendedor" element={<VendedorEstoque />} />
       <Route path="/vendedor-dashboard" element={<VendedorDashboard />} />
       <Route path="/painel-admin" element={<PainelAdministrativo />} />
@@ -170,6 +173,7 @@ const AuthenticatedApp = () => {
         <Route path="/corte-dobra" element={<DashboardCorteDobraCompleto />} />
         <Route path="/corte-dobra/producao" element={<ProducaoCD />} />
         <Route path="/corte-dobra/bobinas" element={<BobinasCD />} />
+        <Route path="/corte-dobra/estoque-dashboard" element={<DashboardEstoque />} />
         <Route path="/corte-dobra/chaparia" element={<Chaparia />} />
         <Route path="/corte-dobra/epi" element={<EPI />} />
         <Route path="/corte-dobra/alertas" element={<CentralAlertas />} />

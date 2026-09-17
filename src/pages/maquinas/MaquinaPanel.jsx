@@ -22,6 +22,7 @@ import { notificarStatus } from "@/lib/biNotificador";
 import { SeletorPrioridadeDropdown, getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
 import { normalizarTextoBusca, calcularFiltrosDisponiveis, pedidoAtendeFiltroMaterial } from "@/lib/bobinaStatusHelper";
+import TimerProducao from "@/components/producao/TimerProducao";
 
 const STATUS_LABELS_TELHAS = {
   pendente: "Pendente",
@@ -616,6 +617,15 @@ export default function MaquinaPanel({ maquina }) {
           )}
         </div>
       </div>
+
+      {/* Cronômetro e Metas em Tempo Real da OP em Produção */}
+      {opRodando && (
+        <TimerProducao
+          ordem={opRodando}
+          maquinaNome={maquina}
+          tipoSetor="telhas"
+        />
+      )}
 
       {/* Navegação de dia */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">

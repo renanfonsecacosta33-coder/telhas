@@ -18,7 +18,8 @@ import {
   PackageCheck,
   Inbox,
   Sun,
-  Moon
+  Moon,
+  Layers
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import UserAvatarButton from "@/components/UserAvatarButton";
@@ -104,6 +105,17 @@ const ALL_MODULES = [
     iconBg: "bg-blue-500/10 shadow-blue-900/20",
     type: "route",
     routeTarget: "/vendedor"
+  },
+  {
+    key: "app_estoque_espessura",
+    title: "Estoque por Espessura",
+    description: "Saldo por espessura, níveis mínimos e alertas compras",
+    icon: <Layers className="w-6 h-6 sm:w-7 sm:h-7 text-teal-400" />,
+    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
+    borderColor: "border-slate-700/50 hover:border-teal-500/50",
+    iconBg: "bg-teal-500/10 shadow-teal-900/20",
+    type: "route",
+    routeTarget: "/painel-estoque"
   },
   {
     key: "app_painel_vendedor",

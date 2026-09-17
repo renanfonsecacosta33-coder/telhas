@@ -18,6 +18,7 @@ import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedien
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import { getPesoOrdenacaoPrioridade, SeletorPrioridadeDropdown } from "@/lib/prioridadeHelper";
+import TimerProducao from "@/components/producao/TimerProducao";
 
 export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const { filialAtiva } = useFilial();
@@ -239,6 +240,11 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const totalSemana = ordensSemana.length;
   const finalizadasSemana = ordensSemana.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
 
+  // OP rodando em produção agora nesta máquina
+  const opRodandoCD = useMemo(() => {
+    return ordensSemana.find(o => o.data === selectedDay && o.status === "em_producao") || ordensSemana.find(o => o.status === "em_producao");
+  }, [ordensSemana, selectedDay]);
+
   // Espessuras disponíveis (extraídas das ordens da semana)
   const espessurasDisponiveis = useMemo(() => {
     const set = new Set();
@@ -319,6 +325,15 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
           </Button>
         )}
       </div>
+
+      {/* Cronômetro e Metas em Tempo Real da OP em Produção */}
+      {opRodandoCD && (
+        <TimerProducao
+          ordem={opRodandoCD}
+          maquinaNome={maquinaLabel}
+          tipoSetor="corte_dobra"
+        />
+      )}
 
       {/* Navegação semana */}
       <div className="bg-card border border-border rounded-xl p-4">
