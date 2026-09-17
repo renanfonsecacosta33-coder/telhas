@@ -23,6 +23,8 @@ import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson } f
 import { notificarStatus } from "@/lib/biNotificador";
 import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
+import KanbanBoard from "@/components/producao/KanbanBoard";
+import IniciarOpOperadoresDialog from "@/components/producao/IniciarOpOperadoresDialog";
 import { extrairCroquiPedido } from "@/lib/croquiExtractor";
 
 const MAQUINAS_OUTRAS = [
@@ -56,9 +58,51 @@ export default function ProducaoCD() {
   const [filaContext, setFilaContext] = useState(null);
   const [validacaoChapaOpen, setValidacaoChapaOpen] = useState(false);
   const [ordemValidandoChapa, setOrdemValidandoChapa] = useState(null);
+  const [operadoresDialogOpen, setOperadoresDialogOpen] = useState(false);
+  const [ordemParaOperadores, setOrdemParaOperadores] = useState(null);
 
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
+
+  const handleStatusChangeKanban = async (item, novoStatus) => {
+    if (novoStatus === "em_producao") {
+      setOrdemParaOperadores(item);
+      setOperadoresDialogOpen(true);
+      return;
+    }
+    try {
+      const isDesb = !item.maquina || item.maquina === "DESBOBINADEIRA";
+      const entity = isDesb ? base44.entities.OrdemDesbobinadeira : base44.entities.OrdemMaquinaCD;
+      const patch = { status: novoStatus };
+      if (novoStatus === "finalizado") {
+        patch.data_finalizacao = new Date().toISOString();
+      }
+      await entity.update(item.id, patch);
+      queryClient.invalidateQueries({ queryKey: ["ordens-cd"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
+      toast.success(`Status alterado para \${novoStatus}!`);
+    } catch (e) {
+      toast.error("Erro ao alterar status: " + (e?.message || ""));
+    }
+  };
+
+  const handleConfirmarOperadores = async (operadores) => {
+    if (!ordemParaOperadores) return;
+    try {
+      const isDesb = !ordemParaOperadores.maquina || ordemParaOperadores.maquina === "DESBOBINADEIRA";
+      const entity = isDesb ? base44.entities.OrdemDesbobinadeira : base44.entities.OrdemMaquinaCD;
+      await entity.update(ordemParaOperadores.id, {
+        status: "em_producao",
+        inicio_producao_ts: new Date().toISOString(),
+        operadores_json: JSON.stringify(operadores)
+      });
+      queryClient.invalidateQueries({ queryKey: ["ordens-cd"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
+      toast.success(`OP iniciada com \${operadores.length} operador(es)!`);
+    } catch (e) {
+      toast.error("Erro ao iniciar OP: " + (e?.message || ""));
+    }
+  };
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
@@ -579,6 +623,14 @@ export default function ProducaoCD() {
             className={viewMode === "dia" ? "bg-orange-500 hover:bg-orange-600 border-0" : ""}>
             Visão Dia — {format(new Date(selectedDay + "T12:00:00"), "dd/MM", { locale: ptBR })}
           </Button>
+          <Button
+            variant={viewMode === "kanban" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("kanban")}
+            className={`gap-1 ${viewMode === "kanban" ? "bg-indigo-600 hover:bg-indigo-700 border-0 text-white font-bold" : ""}`}
+          >
+            <Layers className="w-3.5 h-3.5" /> Visão Kanban
+          </Button>
           <Button variant={viewMode === "sem_material" ? "default" : "outline"} size="sm" onClick={() => setViewMode("sem_material")}
             className={`gap-1 ${viewMode === "sem_material" ? "bg-amber-500 hover:bg-amber-600 border-0 text-white" : ""}`}>
             <PackageX className="w-3 h-3" /> OP sem Material
@@ -632,6 +684,19 @@ export default function ProducaoCD() {
         <ExpedicaoTab tipo="cd" filialAtiva={filialAtiva} />
       ) : viewMode === "fila_pcp" ? (
         <FilaPCPCorteDobra onNovaOrdem={(pedido, item) => openNewFromFila(pedido, item)} />
+      ) : viewMode === "kanban" ? (
+        <KanbanBoard
+          itens={[...ordensDiaOrdenadas, ...ordensMaqDia]}
+          tipoSetor="corte_dobra"
+          onStatusChange={handleStatusChangeKanban}
+          onOpenDetails={(item) => {
+            if (!item.maquina || item.maquina === "DESBOBINADEIRA") {
+              openEditDesb(item);
+            } else {
+              openEditMaq(item);
+            }
+          }}
+        />
       ) : (
         // ── VISÃO DIA ──
         <div className="space-y-4">
@@ -735,6 +800,15 @@ export default function ProducaoCD() {
         ordem={ordemValidandoChapa}
         onAprovado={handleEtiquetaChapaAprovadaProducao}
         isGestor={isGestor}
+      />
+
+      {/* Dialog para Seleção de Operadores ao Iniciar OP */}
+      <IniciarOpOperadoresDialog
+        open={operadoresDialogOpen}
+        onOpenChange={setOperadoresDialogOpen}
+        ordem={ordemParaOperadores}
+        maquinaNome={ordemParaOperadores?.maquina || "DESBOBINADEIRA"}
+        onConfirm={handleConfirmarOperadores}
       />
     </div>
   );

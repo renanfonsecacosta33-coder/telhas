@@ -19,7 +19,8 @@ import {
   Inbox,
   Sun,
   Moon,
-  Layers
+  Layers,
+  Trophy
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import UserAvatarButton from "@/components/UserAvatarButton";
@@ -116,6 +117,17 @@ const ALL_MODULES = [
     iconBg: "bg-teal-500/10 shadow-teal-900/20",
     type: "route",
     routeTarget: "/painel-estoque"
+  },
+  {
+    key: "app_performance_operadores",
+    title: "Performance Operadores",
+    description: "Ranking, produtividade, pódio e metas da equipe",
+    icon: <Trophy className="w-6 h-6 sm:w-7 sm:h-7 text-yellow-400" />,
+    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
+    borderColor: "border-slate-700/50 hover:border-yellow-500/50",
+    iconBg: "bg-yellow-500/10 shadow-yellow-900/20",
+    type: "route",
+    routeTarget: "/ranking-operadores"
   },
   {
     key: "app_painel_vendedor",

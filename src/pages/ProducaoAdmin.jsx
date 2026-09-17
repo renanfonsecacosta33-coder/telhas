@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, TrendingUp, Trash2, Star, Truck, Inbox, Target, ShieldAlert } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, TrendingUp, Trash2, Star, Truck, Inbox, Target, ShieldAlert, Layers, Trophy } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Link } from "react-router-dom";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
@@ -20,6 +20,7 @@ import OPImpressao from "@/components/producao/OPImpressao";
 import { useFilial } from "@/contexts/FilialContext";
 import ExpedicaoTab from "@/components/logistica/ExpedicaoTab";
 import FilaPCPTelhas from "@/components/pcp/FilaPCPTelhas";
+import KanbanBoard from "@/components/producao/KanbanBoard";
 import { prepararPresetNovaOrdemTelhas, getItens, computePercentual, statusPcpPorPercentual, buildItensJson } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
@@ -135,6 +136,20 @@ export default function ProducaoAdmin() {
 
   const togglePrioridade = (p) => {
     updateMutation.mutate({ id: p.id, data: { prioridade: !p.prioridade } });
+  };
+
+  const handleStatusChangeKanban = async (pedido, novoStatus) => {
+    try {
+      const patch = { status: novoStatus };
+      if (novoStatus === "finalizado") {
+        patch.data_finalizacao = format(new Date(), "yyyy-MM-dd");
+      }
+      await base44.entities.Pedido.update(pedido.id, patch);
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      toast.success(`Status alterado para ${novoStatus}!`);
+    } catch (e) {
+      toast.error("Erro ao alterar status: " + (e?.message || ""));
+    }
   };
 
   const confirmarDelete = (id) => {
@@ -278,6 +293,14 @@ export default function ProducaoAdmin() {
 
         {/* Separador visual */}
         <div className="w-px bg-border mx-1 self-stretch" />
+
+        <Link
+          to="/performance-operadores"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all text-amber-600 dark:text-amber-400 hover:bg-card hover:text-amber-500 hover:shadow font-semibold"
+        >
+          <Trophy className="w-4 h-4 text-amber-500" />
+          Ranking Equipe
+        </Link>
 
         <Link
           to="/dashboard-performance"
@@ -432,8 +455,8 @@ export default function ProducaoAdmin() {
         </div>
       </div>
 
-      {/* Toggle visão semana / dia */}
-      <div className="flex items-center gap-2">
+      {/* Toggle visão semana / dia / kanban */}
+      <div className="flex items-center gap-2 flex-wrap">
         <Button
           variant={viewMode === "semana" ? "default" : "outline"}
           size="sm"
@@ -447,6 +470,15 @@ export default function ProducaoAdmin() {
           onClick={() => setViewMode("dia")}
         >
           Visão Dia — {format(new Date(selectedDay + "T12:00:00"), "dd/MM", { locale: ptBR })}
+        </Button>
+        <Button
+          variant={viewMode === "kanban" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setViewMode("kanban")}
+          className={`gap-1 ${viewMode === "kanban" ? "bg-indigo-600 hover:bg-indigo-700 text-white font-bold border-0" : ""}`}
+        >
+          <Layers className="w-3.5 h-3.5" />
+          Visão Kanban
         </Button>
         <Button
           variant="outline"
@@ -463,6 +495,16 @@ export default function ProducaoAdmin() {
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
         </div>
+      ) : viewMode === "kanban" ? (
+        <KanbanBoard
+          itens={pedidosDia}
+          tipoSetor="telhas"
+          onStatusChange={handleStatusChangeKanban}
+          onOpenDetails={(pedido) => {
+            setEditItem(pedido);
+            setDialogOpen(true);
+          }}
+        />
       ) : viewMode === "semana" ? (
         // Visão Semana — resumo por dia
         <div className="space-y-3">

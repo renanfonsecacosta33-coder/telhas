@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import {
   Play, Pause, CheckCircle2, Timer, Coffee, Square, Circle,
   AlertCircle, Clock, Camera, Loader2, Layers, Package, ShoppingCart, Trash2, Image as ImageIcon,
-  Edit3, History, Star, User, PackageX
+  Edit3, History, Star, User, Users, PackageX
 } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import { format } from "date-fns";
@@ -21,6 +21,7 @@ import DualPhotoGallery from "@/components/corte-dobra/DualPhotoGallery";
 import CorChapaDot, { extractEspessuraFromDesc } from "@/components/corte-dobra/CorChapaDot";
 import AproveitamentoDialog from "@/components/corte-dobra/AproveitamentoDialog";
 import ValidacaoEtiquetaChapaDialog from "@/components/corte-dobra/ValidacaoEtiquetaChapaDialog";
+import IniciarOpOperadoresDialog from "@/components/producao/IniciarOpOperadoresDialog";
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
 import ApontamentoOpButton from "@/components/producao/ApontamentoOpButton";
 import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo } from "@/lib/pedidoOdooHelper";
@@ -94,6 +95,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
 
   const isGuilhotina = o.maquina === "CORTE 3M" || o.maquina === "CORTE 6M";
   const [validacaoChapaDialog, setValidacaoChapaDialog] = useState(false);
+  const [operadoresDialogOpen, setOperadoresDialogOpen] = useState(false);
 
   useEffect(() => {
     const iv = setInterval(() => setTick(t => t + 1), 1000);
@@ -133,7 +135,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
     return false;
   };
 
-  const doIniciar = async (fotoUrl = null, motivo = null, statusValidacao = null) => {
+  const doIniciar = async (fotoUrl = null, motivo = null, statusValidacao = null, operadores = null) => {
     const inicioTs = new Date().toISOString();
     const updatePayload = { status: "em_producao", inicio_producao_ts: inicioTs };
     if (fotoUrl) {
@@ -143,6 +145,10 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
       }
       updatePayload.validacao_etiqueta_chapa_status = statusValidacao || "aprovado";
       updatePayload.validacao_etiqueta_chapa_motivo = motivo || null;
+    }
+    if (operadores && Array.isArray(operadores)) {
+      updatePayload.operadores_json = JSON.stringify(operadores);
+      updatePayload.operador = operadores.map(op => op.nome || op).join(", ");
     }
     onUpdate(o.id, updatePayload);
     if (o.numero_pedido) {
@@ -198,8 +204,12 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
         return;
       }
     }
-    // Validação de foto de etiqueta da chapa para guilhotinas desativada a pedido
-    doIniciar();
+    // Abre seleção de operadores da máquina
+    setOperadoresDialogOpen(true);
+  };
+
+  const handleConfirmarOperadores = (operadores) => {
+    doIniciar(null, null, null, operadores);
   };
 
   const handleEtiquetaChapaAprovada = (fotoUrl, motivo, statusValidacao) => {
@@ -518,6 +528,11 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               )}
               <StatusBadge status={o.status} />
               <PrioridadeBadge pedido={o} />
+              {o.operador && (
+                <Badge variant="outline" className="text-xs bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300 flex items-center gap-1 font-medium">
+                  <Users className="w-3 h-3 text-indigo-500" /> {o.operador}
+                </Badge>
+              )}
               {!getPrioridadeNivel(o) && o.prioridade && (
                 <Badge className="bg-amber-500 text-white border-amber-600 animate-pulse text-xs">
                   <Star className="w-3 h-3 mr-0.5 fill-white" /> PRIORIDADE
@@ -885,6 +900,15 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
         ordem={o}
         onAprovado={handleEtiquetaChapaAprovada}
         isGestor={isGestor}
+      />
+
+      {/* Dialog Seleção Multi-Operador para Início da OP */}
+      <IniciarOpOperadoresDialog
+        open={operadoresDialogOpen}
+        onOpenChange={setOperadoresDialogOpen}
+        ordem={o}
+        maquinaNome={o.maquina}
+        onConfirm={handleConfirmarOperadores}
       />
     </>
   );

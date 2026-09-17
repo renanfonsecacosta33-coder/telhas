@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route, Camera, Scissors, Snowflake, Lock, RotateCcw, ShoppingCart, User } from "lucide-react";
+import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route, Camera, Scissors, Snowflake, Lock, RotateCcw, ShoppingCart, User, Users } from "lucide-react";
 import ImageLink from "@/components/ui/ImageLink";
 import RetrabalhoTelhasDialog from "@/components/producao/RetrabalhoTelhasDialog";
 import { format } from "date-fns";
@@ -13,6 +13,7 @@ import ValidacaoEtiquetaTelhasDialog from "@/components/producao/ValidacaoEtique
 import ConfirmarInicioDialog from "@/components/producao/ConfirmarInicioDialog";
 import ConferirBobinaItemDialog from "@/components/producao/ConferirBobinaItemDialog";
 import FinalizarItemVariacaoDialog from "@/components/producao/FinalizarItemVariacaoDialog";
+import IniciarOpOperadoresDialog from "@/components/producao/IniciarOpOperadoresDialog";
 import { playFinishSound, speakOpFinalizada, playAlertSound } from "@/lib/sounds";
 import { useFilial } from "@/contexts/FilialContext";
 import { useQuery } from "@tanstack/react-query";
@@ -161,6 +162,8 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
   const [uploadingFotoColagemEps, setUploadingFotoColagemEps] = useState(false);
   const [conferirBobinaModal, setConferirBobinaModal] = useState({ open: false, item: null, index: 0 });
   const [finalizarItemModal, setFinalizarItemModal] = useState({ open: false, item: null, index: 0 });
+  const [operadoresDialogOpen, setOperadoresDialogOpen] = useState(false);
+  const [pendingColagemUpdates, setPendingColagemUpdates] = useState(null);
   const intervalRef = useRef(null);
 
   // Lista de bobinas para conferência nos itens de múltiplas medidas
@@ -231,13 +234,13 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
     }
     setValidarEpsColagemOpen(false);
     const updates = {
-      inicio_producao_ts: new Date().toISOString(),
       ...(fotoColagemEpsUrl ? { foto_colagem_eps_url: fotoColagemEpsUrl } : {}),
     };
     if (appendHistoricoFn) {
       Object.assign(updates, appendHistoricoFn(p, "inicio_colagem_validado", pularFoto ? "Iniciou colagem (modo direto)" : "Validou EPS e iniciou colagem"));
     }
-    onStatusChange(p, "em_producao", updates);
+    setPendingColagemUpdates(updates);
+    setOperadoresDialogOpen(true);
   };
 
   // Tick a cada segundo para atualizar cronômetro ao vivo
@@ -329,10 +332,21 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
       setValidarEpsColagemOpen(true);
       return;
     }
+    setPendingColagemUpdates(null);
+    setOperadoresDialogOpen(true);
+  };
+
+  const handleConfirmarOperadores = (operadores) => {
     const updates = {
       inicio_producao_ts: new Date().toISOString(),
+      ...(pendingColagemUpdates || {}),
     };
+    if (operadores && Array.isArray(operadores)) {
+      updates.operadores_json = JSON.stringify(operadores);
+      updates.operador = operadores.map(op => op.nome || op).join(", ");
+    }
     onStatusChange(p, "em_producao", updates);
+    setPendingColagemUpdates(null);
     if (temVariacoes) {
       toast.success("Pedido pré-iniciado! Os múltiplos itens foram liberados para início e conferência individual.");
     }
@@ -531,13 +545,12 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
 
   const handleEtiquetaAprovada = (fotoUrl, motivo) => {
     setValidacaoEtiquetaOpen(false);
-    const updates = {
-      inicio_producao_ts: new Date().toISOString(),
+    setPendingColagemUpdates({
       foto_etiqueta_bobina_url: fotoUrl,
       validacao_etiqueta_status: "aprovado",
       validacao_etiqueta_motivo: motivo,
-    };
-    onStatusChange(p, "em_producao", updates);
+    });
+    setOperadoresDialogOpen(true);
   };
 
   const handlePausar = () => {
@@ -828,6 +841,11 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
                     </Badge>
                   )}
                 </>
+              )}
+              {p.operador && (
+                <Badge variant="outline" className="text-xs bg-slate-50 text-slate-700 border-slate-300 flex items-center gap-1 font-medium">
+                  <Users className="w-3 h-3 text-indigo-500" /> {p.operador}
+                </Badge>
               )}
               {temEpsReal && (
                 <Badge className={`text-xs gap-1 border font-semibold ${
@@ -1735,6 +1753,15 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog Seleção Multi-Operador para Início da OP */}
+      <IniciarOpOperadoresDialog
+        open={operadoresDialogOpen}
+        onOpenChange={setOperadoresDialogOpen}
+        ordem={p}
+        maquinaNome={p.maquina || maquina}
+        onConfirm={handleConfirmarOperadores}
+      />
     </>
   );
 }
