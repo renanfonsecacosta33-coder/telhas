@@ -155,12 +155,13 @@ const AuthenticatedApp = () => {
         <Route path="/cola" element={<Cola />} />
         <Route path="/mapa-barracao" element={<MapaBarracaoTelhas />} />
         <Route path="/dashboard-telhas" element={<DashboardTelhas />} />
-        <Route path="/estoque-dashboard" element={<DashboardEstoque />} />
+        <Route path="/estoque-dashboard" element={<DashboardEstoque setorInicial="telhas" backUrl="/producao" backLabel="Voltar para Telhas" />} />
+        <Route path="/telhas/estoque-dashboard" element={<DashboardEstoque setorInicial="telhas" backUrl="/producao" backLabel="Voltar para Telhas" />} />
         <Route path="/performance-operadores" element={<PerformanceOperadores />} />
         <Route path="/telhas/logistica" element={<Logistica mode="montagem" defaultTab="telhas" />} />
       </Route>
       <Route path="/ranking-operadores" element={<PerformanceOperadores />} />
-      <Route path="/painel-estoque" element={<DashboardEstoque />} />
+      <Route path="/painel-estoque" element={<DashboardEstoque setorInicial="todos" backUrl="/setor" backLabel="Voltar ao Início" />} />
       <Route path="/vendedor" element={<VendedorEstoque />} />
       <Route path="/vendedor-dashboard" element={<VendedorDashboard />} />
       <Route path="/painel-admin" element={<PainelAdministrativo />} />
@@ -176,7 +177,7 @@ const AuthenticatedApp = () => {
         <Route path="/corte-dobra" element={<DashboardCorteDobraCompleto />} />
         <Route path="/corte-dobra/producao" element={<ProducaoCD />} />
         <Route path="/corte-dobra/bobinas" element={<BobinasCD />} />
-        <Route path="/corte-dobra/estoque-dashboard" element={<DashboardEstoque />} />
+        <Route path="/corte-dobra/estoque-dashboard" element={<DashboardEstoque setorInicial="corte_dobra" backUrl="/corte-dobra/producao" backLabel="Voltar para Corte e Dobra" />} />
         <Route path="/corte-dobra/performance-operadores" element={<PerformanceOperadores />} />
         <Route path="/corte-dobra/chaparia" element={<Chaparia />} />
         <Route path="/corte-dobra/epi" element={<EPI />} />

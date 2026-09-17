@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -631,6 +632,11 @@ export default function ProducaoCD() {
           >
             <Layers className="w-3.5 h-3.5" /> Visão Kanban
           </Button>
+          <Link to="/corte-dobra/estoque-dashboard">
+            <Button variant="outline" size="sm" className="gap-1 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-700 hover:bg-teal-50 dark:hover:bg-teal-950/40">
+              <Layers className="w-3.5 h-3.5 text-teal-500" /> Estoque por Espessura
+            </Button>
+          </Link>
           <Button variant={viewMode === "sem_material" ? "default" : "outline"} size="sm" onClick={() => setViewMode("sem_material")}
             className={`gap-1 ${viewMode === "sem_material" ? "bg-amber-500 hover:bg-amber-600 border-0 text-white" : ""}`}>
             <PackageX className="w-3 h-3" /> OP sem Material

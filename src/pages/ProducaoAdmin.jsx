@@ -303,6 +303,14 @@ export default function ProducaoAdmin() {
         </Link>
 
         <Link
+          to="/estoque-dashboard"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all text-teal-600 dark:text-teal-400 hover:bg-card hover:text-teal-500 hover:shadow font-semibold"
+        >
+          <Layers className="w-4 h-4 text-teal-500" />
+          Estoque por Espessura
+        </Link>
+
+        <Link
           to="/dashboard-performance"
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all text-muted-foreground hover:bg-card hover:text-foreground hover:shadow"
         >
@@ -480,6 +488,12 @@ export default function ProducaoAdmin() {
           <Layers className="w-3.5 h-3.5" />
           Visão Kanban
         </Button>
+        <Link to="/estoque-dashboard">
+          <Button variant="outline" size="sm" className="gap-1 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-700 hover:bg-teal-50 dark:hover:bg-teal-950/40">
+            <Layers className="w-3.5 h-3.5 text-teal-500" />
+            Estoque por Espessura
+          </Button>
+        </Link>
         <Button
           variant="outline"
           size="sm"

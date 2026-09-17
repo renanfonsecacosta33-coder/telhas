@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFilial } from "@/contexts/FilialContext";
@@ -20,7 +21,8 @@ import {
   ChevronRight,
   ShieldAlert,
   Download,
-  Info
+  Info,
+  ArrowLeft
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -70,11 +72,47 @@ function fmtKg(num) {
   return Number(num).toLocaleString("pt-BR", { maximumFractionDigits: 0 });
 }
 
-export default function DashboardEstoque() {
+export default function DashboardEstoque({ setorInicial = null, backUrl = null, backLabel = null }) {
   const { filialAtiva } = useFilial();
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  const [setorFiltro, setSetorFiltro] = useState("todos"); // todos | telhas | corte_dobra
+  // Detecta se a tela foi chamada pelo setor de Corte e Dobra ou Telhas
+  const isCD = setorInicial === "corte_dobra" || location.pathname.includes("corte-dobra");
+  const isTelhas = setorInicial === "telhas" || location.pathname.includes("telhas") || location.pathname === "/estoque-dashboard";
+
+  const [setorFiltro, setSetorFiltro] = useState(() => {
+    if (setorInicial) return setorInicial;
+    if (isCD) return "corte_dobra";
+    if (isTelhas) return "telhas";
+    return "todos";
+  });
+
+  useEffect(() => {
+    if (setorInicial) {
+      setSetorFiltro(setorInicial);
+    } else if (location.pathname.includes("corte-dobra")) {
+      setSetorFiltro("corte_dobra");
+    } else if (location.pathname.includes("telhas") || location.pathname === "/estoque-dashboard") {
+      setSetorFiltro("telhas");
+    }
+  }, [setorInicial, location.pathname]);
+
+  const handleVoltar = () => {
+    if (backUrl) {
+      navigate(backUrl);
+    } else if (isCD) {
+      navigate("/corte-dobra/producao");
+    } else if (isTelhas) {
+      navigate("/producao");
+    } else if (window.history.length > 2) {
+      navigate(-1);
+    } else {
+      navigate("/setor");
+    }
+  };
+
   const [busca, setBusca] = useState("");
   const [somenteCriticos, setSomenteCriticos] = useState(false);
   const [selectedEspessuraModal, setSelectedEspessuraModal] = useState(null);
@@ -120,7 +158,7 @@ export default function DashboardEstoque() {
       try {
         const query = {};
         if (filialAtiva) query.unidade = filialAtiva;
-        return await base44.entities.ChapaCD.filter(query, "-data_corte", 500);
+        return await base44.entities.ChapaCD.filter(query, "-quantidade_disponivel", 500);
       } catch {
         return [];
       }
@@ -151,7 +189,8 @@ export default function DashboardEstoque() {
 
     // 1. Processar Bobinas
     bobinas.forEach((b) => {
-      if (setorFiltro !== "todos" && b.setor !== setorFiltro) return;
+      const bobinaSetor = b.setor || "telhas";
+      if (setorFiltro !== "todos" && bobinaSetor !== setorFiltro) return;
       const esp = normalizeEspessura(b.chapa || b.espessura_utilizada || b.espessura_real);
       if (!mapa[esp]) {
         mapa[esp] = {
@@ -330,7 +369,36 @@ export default function DashboardEstoque() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto font-sans pb-12">
+    <div className="space-y-4 max-w-7xl mx-auto font-sans pb-12">
+      {/* Barra de Navegação Superior / Voltar */}
+      <div className="flex items-center justify-between gap-3 pt-1">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleVoltar}
+          className="gap-2 text-xs font-bold border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 shadow-xs cursor-pointer h-9 px-3"
+        >
+          <ArrowLeft className="w-4 h-4 text-foreground" />
+          {backLabel || (isCD ? "Voltar para Corte e Dobra" : isTelhas ? "Voltar para Telhas" : "Voltar ao Início")}
+        </Button>
+
+        <div className="flex items-center gap-2">
+          {isCD ? (
+            <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border border-orange-500/30 font-bold text-xs py-1 px-3">
+              ✂️ Setor Corte & Dobra
+            </Badge>
+          ) : isTelhas ? (
+            <Badge className="bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 font-bold text-xs py-1 px-3">
+              🏗️ Setor Barracão Telhas
+            </Badge>
+          ) : (
+            <Badge className="bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30 font-bold text-xs py-1 px-3">
+              🌐 Todos os Setores (Geral)
+            </Badge>
+          )}
+        </div>
+      </div>
+
       {/* Header Principal */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card border border-border rounded-2xl p-5 sm:p-6 shadow-xs">
         <div>
@@ -340,7 +408,11 @@ export default function DashboardEstoque() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground flex items-center gap-2">
-                Estoque Inteligente por Espessura
+                {isCD
+                  ? "Estoque por Espessura — Corte & Dobra"
+                  : isTelhas
+                  ? "Estoque por Espessura — Telhas"
+                  : "Estoque Inteligente por Espessura"}
                 {totais.criticosCount > 0 && (
                   <Badge variant="destructive" className="text-xs px-2 py-0.5 animate-pulse font-bold">
                     {totais.criticosCount} críticas
@@ -348,7 +420,11 @@ export default function DashboardEstoque() {
                 )}
               </h1>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Monitoramento por espessura em tempo real para nunca deixar zerar
+                {isCD
+                  ? "Monitoramento de chapas cortadas, bobinas e slitters dedicados a corte e dobra"
+                  : isTelhas
+                  ? "Monitoramento de bobinas em pátio para perfilação de telhas, cumeeiras e bandejas"
+                  : "Monitoramento por espessura em tempo real para nunca deixar zerar"}
               </p>
             </div>
           </div>

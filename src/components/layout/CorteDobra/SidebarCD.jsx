@@ -13,6 +13,7 @@ const NAV = [
   { path: "/corte-dobra/catalogo", label: "Catálogo", icon: BookOpen },
   { path: "/corte-dobra/desenvolvimento", label: "Desenvolvimento", icon: Calculator },
   { path: "/corte-dobra/producao", label: "Produção Geral", icon: Factory },
+  { path: "/corte-dobra/estoque-dashboard", label: "Estoque por Espessura", icon: Layers },
   { path: "/corte-dobra/retalhos", label: "Retalhos", icon: Scissors },
   { path: "/corte-dobra/calculos", label: "Cálculos", icon: FlaskConical },
   { path: "/corte-dobra/bobinas", label: "Bobinas", icon: Circle },
