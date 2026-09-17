@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { FILIAIS_PCP } from "@/lib/roteamentoPCP";
 import { getItens, classGrupo } from "@/lib/pedidoOdooHelper";
+import { criarNotificacao } from "@/lib/notificacoesHelper";
 
 export default function TransferirLojaDialog({
   open,
@@ -152,6 +153,18 @@ export default function TransferirLojaDialog({
         });
 
         sucessos++;
+      }
+
+      // Notificar a filial de destino em tempo real
+      if (sucessos > 0) {
+        criarNotificacao({
+          titulo: `🔁 Transferência recebida: ${sucessos} item(ns)`,
+          mensagem: `${sucessos} item(ns) transferido(s) de ${deOnde} para ${novaUnidade}. ${motivo ? "Motivo: " + motivo.trim() : ""}`,
+          tipo: "transferencia",
+          unidade: novaUnidade,
+          link: "/pcp",
+          autor_nome: usuario || "PCP"
+        });
       }
 
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });

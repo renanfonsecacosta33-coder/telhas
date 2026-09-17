@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { criarNotificacao } from "@/lib/notificacoesHelper";
 import {
   Save,
   Loader2,
@@ -103,6 +104,24 @@ export default function EditarRotaDialog({ open, onOpenChange, rota }) {
       });
       queryClient.invalidateQueries({ queryKey: ["rotas-entrega"] });
       queryClient.invalidateQueries({ queryKey: ["rotas-arquivadas"] });
+
+      // Se status foi para carregado, em_transito ou expedido, notifica a equipe
+      if (status !== rota.status && (status === "carregado" || status === "em_transito" || status === "expedido")) {
+        const statusMap = {
+          carregado: "🚛 Rota Carregada",
+          em_transito: "🚚 Rota em Trânsito",
+          expedido: "✅ Rota Expedida / Finalizada"
+        };
+        criarNotificacao({
+          titulo: `${statusMap[status] || "Rota Atualizada"}: ${titulo}`,
+          mensagem: `A rota "${titulo}" foi alterada para ${status}. Motorista: ${motoristaNome || "—"} | Placa: ${placa || "—"}.`,
+          tipo: "rota",
+          unidade: rota.unidade || "Todas",
+          link: "/logistica",
+          autor_nome: "Logística"
+        });
+      }
+
       toast.success("Rota atualizada com sucesso!");
       onOpenChange(false);
     } catch (e) {

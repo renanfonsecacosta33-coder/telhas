@@ -1,0 +1,72 @@
+{
+  "name": "Notificacao",
+  "type": "object",
+  "properties": {
+    "usuario_destino": {
+      "type": "string",
+      "default": "todos",
+      "description": "ID do usuário destinatário, papel ('admin', 'encarregado', 'vendedor') ou 'todos'"
+    },
+    "unidade": {
+      "type": "string",
+      "enum": [
+        "Matriz AJL",
+        "Pinhais",
+        "Ivaiporã",
+        "Ponta Grossa",
+        "Todas"
+      ],
+      "default": "Todas",
+      "description": "Filial relacionada à notificação ou 'Todas'"
+    },
+    "titulo": {
+      "type": "string",
+      "description": "Título breve da notificação"
+    },
+    "mensagem": {
+      "type": "string",
+      "description": "Texto descritivo detalhado da notificação"
+    },
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "pedido_odoo",
+        "rota",
+        "estoque_minimo",
+        "transferencia",
+        "reserva",
+        "producao",
+        "sistema"
+      ],
+      "default": "sistema",
+      "description": "Categoria da notificação para estilização de ícones e filtros"
+    },
+    "lida": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se a notificação já foi visualizada/lida"
+    },
+    "link": {
+      "type": "string",
+      "description": "URL interna para navegação direta ao clicar (ex: /pcp, /logistica)"
+    },
+    "data_hora": {
+      "type": "string",
+      "description": "Timestamp ISO da criação da notificação"
+    },
+    "autor_nome": {
+      "type": "string",
+      "description": "Nome do autor ou 'Sistema / IA' que gerou a notificação"
+    }
+  },
+  "required": [
+    "titulo",
+    "mensagem"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

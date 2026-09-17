@@ -4,6 +4,7 @@ import { ArrowLeft, Truck, PackageCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import UserAvatarButton from "@/components/UserAvatarButton";
+import NotificationBell from "@/components/NotificationBell";
 import Logistica from "@/pages/corte-dobra/Logistica";
 
 export default function LogisticaStandalone() {
@@ -46,6 +47,7 @@ export default function LogisticaStandalone() {
         </div>
 
         <div className="flex items-center gap-2">
+          <NotificationBell />
           <UserAvatarButton size="sm" />
         </div>
       </header>

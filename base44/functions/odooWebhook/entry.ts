@@ -477,6 +477,20 @@ export default async function(req: Request): Promise<Response> {
       result = await db.entities.PedidoOdoo.update(existingRec.id, record);
     } else {
       result = await db.entities.PedidoOdoo.create(record);
+      try {
+        await db.entities.Notificacao.create({
+          titulo: `📦 Novo Pedido Odoo #${numeroPedido}`,
+          mensagem: `Cliente: ${record.cliente_nome || "—"} | Loja: ${record.loja_venda || "—"} | Filial de Destino: ${record.unidade}.`,
+          tipo: "pedido_odoo",
+          unidade: record.unidade || "Todas",
+          link: "/pcp",
+          autor_nome: "Odoo ERP",
+          data_hora: nowIso,
+          lida: false
+        });
+      } catch (e) {
+        console.warn("Falha ao registrar Notificacao para odooWebhook:", e);
+      }
     }
 
     return Response.json({

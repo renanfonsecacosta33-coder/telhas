@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import UserAvatarButton from "@/components/UserAvatarButton";
+import NotificationBell from "@/components/NotificationBell";
 import GlobalCommandPalette from "@/components/GlobalCommandPalette";
 import AjlCopilot from "@/components/ai/AjlCopilot";
 import { cn } from "@/lib/utils";
@@ -329,6 +330,9 @@ export default function SeletorSetor() {
             <span>Busca Rápida</span>
             <kbd className="hidden sm:inline-block bg-slate-100 dark:bg-slate-800 border text-[10px] px-1.5 py-0.5 rounded font-mono">Ctrl+K</kbd>
           </button>
+
+          {/* Central de Notificações */}
+          <NotificationBell user={user} />
 
           {/* Alternador Rápido de Tema (Visão Preta / Visão Clara) */}
           <button

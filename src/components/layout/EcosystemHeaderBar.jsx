@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import FilialSwitcher from "@/components/FilialSwitcher";
 import UserAvatarButton from "@/components/UserAvatarButton";
+import NotificationBell from "@/components/NotificationBell";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger
@@ -87,9 +88,10 @@ export default function EcosystemHeaderBar({ user, sidebarOpen, onToggleSidebar,
         </DropdownMenu>
       </div>
 
-      {/* Direita: Ações customizadas (Chats, Alertas) + FilialSwitcher + Alternador de Tema + UserAvatarButton */}
+      {/* Direita: Ações customizadas (Chats, Alertas) + Notificações + FilialSwitcher + Alternador de Tema + UserAvatarButton */}
       <div className="flex items-center gap-1.5 sm:gap-2">
         {children}
+        <NotificationBell user={user} />
         <FilialSwitcher />
 
         {/* Botão Rápido de Alternar Tema (Visão Preta / Visão Clara) */}

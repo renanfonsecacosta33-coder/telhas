@@ -1,12 +1,17 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="https://base44.com/logo_v2.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="referrer" content="no-referrer" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="AJL Fábricas" />
     <link rel="manifest" href="/manifest.json" />
-    <title>Base44 APP</title>
+    <title>AJL Fábricas — Telhas & Corte e Dobra</title>
     <script>
       (function() {
         try {
@@ -18,6 +23,17 @@
             document.documentElement.classList.remove('dark');
           }
         } catch (e) {}
+
+        // Service Worker registration for PWA
+        if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+          window.addEventListener('load', function() {
+            navigator.serviceWorker.register('/sw.js').then(function(reg) {
+              console.log('✅ PWA Service Worker registrado com sucesso');
+            }).catch(function(err) {
+              console.warn('PWA Service Worker registration skipped:', err);
+            });
+          });
+        }
       })();
     </script>
   </head>
