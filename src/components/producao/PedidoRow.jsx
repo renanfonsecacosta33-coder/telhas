@@ -20,6 +20,7 @@ import { useQuery } from "@tanstack/react-query";
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
 import { toast } from "sonner";
 import { PrioridadeBadge } from "@/lib/prioridadeHelper";
+import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco";
 
 const PRODUTO_BG = {
   "TELHA":               "border-l-blue-400",
@@ -172,6 +173,18 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
     queryFn: () => base44.entities.Bobina.list(),
     staleTime: 60000,
   });
+
+  // Bobina principal da OP para extração de detalhes técnicos e origem
+  const bobinaPrincipalObj = useMemo(() => {
+    if (!todasBobinas || !todasBobinas.length) return null;
+    const targetId = p.bobina_superior_id || p.bobina_superior;
+    if (!targetId) return null;
+    return todasBobinas.find(b =>
+      b.id === targetId ||
+      b.codigo === targetId ||
+      (b.codigo && String(targetId).toUpperCase().includes(String(b.codigo).toUpperCase()))
+    ) || null;
+  }, [todasBobinas, p.bobina_superior_id, p.bobina_superior]);
 
   // Parse variações de telhas para verificar se todos os itens estão finalizados
   let _variacoesTelhas = [];
@@ -1039,6 +1052,19 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
                             </span>
                           ) : null}
 
+                          {/* Selo Nacional vs Importado no Item */}
+                          {(() => {
+                            const bobItem = todasBobinas.find(b => b.id === v.bobina_id || b.codigo === v.bobina_id) || bobinaPrincipalObj;
+                            return (
+                              <BadgeOrigemAco
+                                bobina={bobItem}
+                                bobinaTexto={v.bobina_desc || p.bobina_superior}
+                                origemExigida={p.origem_exigida}
+                                size="sm"
+                              />
+                            );
+                          })()}
+
                           {v.bobina_inf_desc && (
                             <span className="text-indigo-700 bg-indigo-50 border border-indigo-200 text-[11px] font-semibold px-2 py-0.5 rounded-md">
                               Bobina Inf.: {v.bobina_inf_desc}
@@ -1138,9 +1164,20 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
         })()}
 
         {/* Detalhes técnicos */}
-        <div className="flex flex-wrap gap-2 mb-3">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
           {p.bobina_superior && (
-            <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full">Bobina: {p.bobina_superior}</span>
+            <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs px-2.5 py-0.5 rounded-full font-medium border border-slate-200 dark:border-slate-700">
+              Bobina: {p.bobina_superior}
+            </span>
+          )}
+          {/* Selo Nacional vs Importado destacado */}
+          {(p.bobina_superior || p.bobina_superior_id || p.origem_exigida) && (
+            <BadgeOrigemAco
+              bobina={bobinaPrincipalObj}
+              bobinaTexto={p.bobina_superior}
+              origemExigida={p.origem_exigida}
+              size="default"
+            />
           )}
           {p.bobina_secundaria && (
             <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-semibold border border-blue-200">

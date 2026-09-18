@@ -98,6 +98,9 @@ const DEFAULT_PERMISSIONS = {
   layout_compacto: false,
 };
 
+import NovoOperadorModal from "@/components/usuarios/NovoOperadorModal";
+import { UserCheck } from "lucide-react";
+
 export default function AdminUsuarios() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -110,6 +113,8 @@ export default function AdminUsuarios() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("operador");
   const [inviting, setInviting] = useState(false);
+
+  const [novoOperadorOpen, setNovoOperadorOpen] = useState(false);
 
   const [editOpen, setEditOpen] = useState(false);
   const [editUser, setEditUser] = useState(null);
@@ -247,10 +252,20 @@ export default function AdminUsuarios() {
           </div>
         </div>
 
-        <Button onClick={() => setInviteOpen(true)} className="gap-2 shadow-sm shrink-0">
-          <UserPlus className="w-4 h-4" />
-          Convidar Usuário
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            onClick={() => setNovoOperadorOpen(true)}
+            className="gap-2 shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            <UserCheck className="w-4 h-4" />
+            Cadastrar Operador
+          </Button>
+
+          <Button variant="outline" onClick={() => setInviteOpen(true)} className="gap-2 shadow-sm">
+            <UserPlus className="w-4 h-4" />
+            Convidar Usuário
+          </Button>
+        </div>
       </div>
 
       {/* Cards explicativos de Papéis com contadores */}
@@ -884,6 +899,12 @@ export default function AdminUsuarios() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Modal de Cadastro Rápido de Operador */}
+      <NovoOperadorModal
+        open={novoOperadorOpen}
+        onOpenChange={setNovoOperadorOpen}
+      />
     </div>
   );
 }

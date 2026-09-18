@@ -1,0 +1,78 @@
+{
+  "name": "EntregaEPI",
+  "type": "object",
+  "properties": {
+    "nome_colaborador": {
+      "type": "string",
+      "description": "Nome completo do colaborador que recebeu o EPI"
+    },
+    "setor": {
+      "type": "string",
+      "enum": [
+        "telhas",
+        "corte_dobra",
+        "expedicao",
+        "manutencao",
+        "geral"
+      ],
+      "default": "corte_dobra",
+      "description": "Setor do trabalhador"
+    },
+    "unidade": {
+      "type": "string",
+      "enum": [
+        "Matriz AJL",
+        "Pinhais",
+        "Ivaiporã",
+        "Ponta Grossa"
+      ],
+      "default": "Matriz AJL",
+      "description": "Unidade / Filial onde ocorreu a entrega"
+    },
+    "tipo_epi": {
+      "type": "string",
+      "description": "Descrição do Equipamento de Proteção Individual entregue"
+    },
+    "numero_ca": {
+      "type": "string",
+      "description": "Número do Certificado de Aprovação do MTE (CA)"
+    },
+    "quantidade": {
+      "type": "number",
+      "default": 1,
+      "description": "Quantidade entregue"
+    },
+    "data_entrega": {
+      "type": "string",
+      "description": "Data em que o EPI foi entregue ao colaborador (YYYY-MM-DD)"
+    },
+    "validade_dias": {
+      "type": "number",
+      "default": 60,
+      "description": "Prazo estimado de vida útil do EPI em dias"
+    },
+    "data_prevista_troca": {
+      "type": "string",
+      "description": "Data limite prevista para troca do equipamento"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ativo",
+        "vencido",
+        "trocado",
+        "devolvido"
+      ],
+      "default": "ativo",
+      "description": "Status atual do EPI entregue"
+    },
+    "entregue_por": {
+      "type": "string",
+      "description": "Nome do encarregado ou técnico de segurança que realizou a entrega"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observações adicionais ou motivo de substituição"
+    }
+  }
+}

@@ -16,11 +16,15 @@ import {
   Zap,
   BarChart2,
   Calendar,
-  Sparkles
+  Sparkles,
+  UserPlus,
+  UserCheck,
+  Factory
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import NovoOperadorModal from "@/components/usuarios/NovoOperadorModal";
 import {
   ResponsiveContainer,
   BarChart,
@@ -40,6 +44,7 @@ export default function PerformanceOperadores() {
   const [periodo, setPeriodo] = useState("mes"); // hoje | semana | mes
   const [setorFiltro, setSetorFiltro] = useState("todos"); // todos | telhas | corte_dobra
   const [busca, setBusca] = useState("");
+  const [novoOperadorOpen, setNovoOperadorOpen] = useState(false);
 
   // 1. Buscar apontamentos e ordens finalizadas de telhas
   const { data: pedidosTelhas = [], isLoading: loadingTelhas } = useQuery({
@@ -91,11 +96,26 @@ export default function PerformanceOperadores() {
     equipe.forEach((u) => {
       if (setorFiltro !== "todos" && u.setor && u.setor !== setorFiltro) return;
       const nome = u.full_name || u.email;
+      let maqArray = [];
+      try {
+        if (Array.isArray(u.maquinas)) maqArray = u.maquinas;
+        else if (typeof u.maquina === "string") {
+          try {
+            const p = JSON.parse(u.maquina);
+            if (Array.isArray(p)) maqArray = p;
+            else maqArray = [u.maquina];
+          } catch {
+            maqArray = [u.maquina];
+          }
+        }
+      } catch {}
+
       mapa[nome] = {
         id: u.id,
         nome,
         role: u.role || "operador",
         setor: u.setor || "Geral",
+        maquinasCadastradas: maqArray,
         totalOps: 0,
         totalPecasOuMetros: 0,
         totalSegundos: 0,
@@ -233,38 +253,50 @@ export default function PerformanceOperadores() {
           </div>
         </div>
 
-        {/* Filtro Setor */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-          <button
-            onClick={() => setSetorFiltro("todos")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              setorFiltro === "todos"
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
-            }`}
+        {/* Ações e Filtro Setor */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            onClick={() => setNovoOperadorOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 text-xs shadow-xs"
           >
-            Todos
-          </button>
-          <button
-            onClick={() => setSetorFiltro("telhas")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              setorFiltro === "telhas"
-                ? "bg-blue-600 text-white"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
-            }`}
-          >
-            🏗️ Telhas
-          </button>
-          <button
-            onClick={() => setSetorFiltro("corte_dobra")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              setorFiltro === "corte_dobra"
-                ? "bg-orange-600 text-white"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
-            }`}
-          >
-            ✂️ Corte & Dobra
-          </button>
+            <UserPlus className="w-3.5 h-3.5" />
+            Cadastrar Operador
+          </Button>
+
+          {/* Filtro Setor */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+            <button
+              onClick={() => setSetorFiltro("todos")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                setorFiltro === "todos"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+            >
+              Todos
+            </button>
+            <button
+              onClick={() => setSetorFiltro("telhas")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                setorFiltro === "telhas"
+                  ? "bg-blue-600 text-white"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+            >
+              🏗️ Telhas
+            </button>
+            <button
+              onClick={() => setSetorFiltro("corte_dobra")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                setorFiltro === "corte_dobra"
+                  ? "bg-orange-600 text-white"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+            >
+              ✂️ Corte & Dobra
+            </button>
+          </div>
         </div>
       </div>
 
@@ -390,6 +422,7 @@ export default function PerformanceOperadores() {
               <tr>
                 <th className="py-3 px-4">Posição</th>
                 <th className="py-3 px-4">Operador</th>
+                <th className="py-3 px-4">Máquinas</th>
                 <th className="py-3 px-4">Setor</th>
                 <th className="py-3 px-4 text-center">OPs Prontas</th>
                 <th className="py-3 px-4 text-center">Volume Total</th>
@@ -399,7 +432,7 @@ export default function PerformanceOperadores() {
             <tbody className="divide-y divide-border font-medium">
               {filtrados.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-muted-foreground">
+                  <td colSpan={7} className="py-8 text-center text-muted-foreground">
                     Nenhum operador encontrado.
                   </td>
                 </tr>
@@ -411,6 +444,23 @@ export default function PerformanceOperadores() {
                     </td>
                     <td className="py-3 px-4 font-bold text-foreground">
                       {op.nome}
+                    </td>
+                    <td className="py-3 px-4">
+                      {op.maquinasCadastradas && op.maquinasCadastradas.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {op.maquinasCadastradas.map((m) => (
+                            <Badge
+                              key={m}
+                              variant="outline"
+                              className="text-[10px] py-0 px-1.5 font-medium border-emerald-500/30 text-emerald-700 dark:text-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/20"
+                            >
+                              {m}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-[11px]">—</span>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-muted-foreground">
                       {op.setor}
@@ -431,6 +481,13 @@ export default function PerformanceOperadores() {
           </table>
         </div>
       </div>
+
+      {/* Modal para cadastrar operador direto */}
+      <NovoOperadorModal
+        open={novoOperadorOpen}
+        onOpenChange={setNovoOperadorOpen}
+        defaultSetor={setorFiltro === "corte_dobra" ? "corte_dobra" : "telhas"}
+      />
     </div>
   );
 }

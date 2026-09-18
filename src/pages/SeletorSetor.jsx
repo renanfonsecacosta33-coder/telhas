@@ -20,7 +20,10 @@ import {
   Sun,
   Moon,
   Layers,
-  Trophy
+  Trophy,
+  Building2,
+  Calendar,
+  FileText
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import UserAvatarButton from "@/components/UserAvatarButton";
@@ -128,6 +131,39 @@ const ALL_MODULES = [
     iconBg: "bg-yellow-500/10 shadow-yellow-900/20",
     type: "route",
     routeTarget: "/ranking-operadores"
+  },
+  {
+    key: "app_dashboard_executivo",
+    title: "Dashboard Executivo",
+    description: "Consolidação ao vivo das 4 filiais (Visão CEO)",
+    icon: <Building2 className="w-6 h-6 sm:w-7 sm:h-7 text-teal-400" />,
+    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
+    borderColor: "border-slate-700/50 hover:border-teal-500/50",
+    iconBg: "bg-teal-500/10 shadow-teal-900/20",
+    type: "route",
+    routeTarget: "/dashboard-executivo"
+  },
+  {
+    key: "app_calendario_entregas",
+    title: "Calendário Entregas",
+    description: "Visão mensal/semanal de rotas, frota e conflitos",
+    icon: <Calendar className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-400" />,
+    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
+    borderColor: "border-slate-700/50 hover:border-emerald-500/50",
+    iconBg: "bg-emerald-500/10 shadow-emerald-900/20",
+    type: "route",
+    routeTarget: "/calendario-entregas"
+  },
+  {
+    key: "app_relatorios_gerenciais",
+    title: "Relatórios em PDF",
+    description: "Emissão oficial de produção, estoque e expedição",
+    icon: <FileText className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400" />,
+    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
+    borderColor: "border-slate-700/50 hover:border-blue-500/50",
+    iconBg: "bg-blue-500/10 shadow-blue-900/20",
+    type: "route",
+    routeTarget: "/relatorios"
   },
   {
     key: "app_painel_vendedor",

@@ -92,7 +92,41 @@ export default function MonitorOciosidadeMaquina({
     }
   }, [isProduzindo, maquinaNome]);
 
-  // Tick a cada 1 segundo
+// Helper para verificar se o usuário é operador e pertence a esta máquina
+function isOperadorDestaMaquina(usuario, maquinaNome = "") {
+  if (!usuario) return false;
+  // Apenas quem tem perfil 'operador' escuta o alarme sonoro
+  if (usuario.role !== "operador") return false;
+
+  const maqNorm = String(maquinaNome || "").toUpperCase().replace(/[\s\-_]/g, "");
+  if (!maqNorm) return false;
+
+  let maquinasDoUser = [];
+  try {
+    if (Array.isArray(usuario.maquinas)) {
+      maquinasDoUser = usuario.maquinas;
+    } else if (typeof usuario.maquina === "string") {
+      try {
+        const parsed = JSON.parse(usuario.maquina);
+        if (Array.isArray(parsed)) maquinasDoUser = parsed;
+        else maquinasDoUser = [usuario.maquina];
+      } catch {
+        maquinasDoUser = [usuario.maquina];
+      }
+    }
+  } catch {
+    maquinasDoUser = usuario.maquina ? [usuario.maquina] : [];
+  }
+
+  // Comparações flexíveis: "TP-25" === "TP 25", "DESBOBINADEIRA" inclui "DESBOBINAD", etc.
+  return maquinasDoUser.some((m) => {
+    const uNorm = String(m || "").toUpperCase().replace(/[\s\-_]/g, "");
+    if (!uNorm) return false;
+    return uNorm === maqNorm || maqNorm.includes(uNorm) || uNorm.includes(maqNorm);
+  });
+}
+
+// Tick a cada 1 segundo
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(interval);
@@ -114,11 +148,17 @@ export default function MonitorOciosidadeMaquina({
   // 4. Passou de 3 minutos (180s) sem atividade
   const isOciosaCritica = emExpediente && !isProduzindo && !setupAtivo && tempoSemAtividadeSeg >= TOLERANCIA_OCIOSIDADE_SEG;
 
-  // Controle de Sirene & Voz
+  // Verifica se o usuário atual é operador desta máquina específica
+  const isOperadorAlvo = isOperadorDestaMaquina(user, maquinaNome);
+
+  // Controle de Sirene & Voz (EXECUTADO EXCLUSIVAMENTE PARA O OPERADOR DESTA MÁQUINA)
   const lastSoundAlertRef = useRef(0);
 
   useEffect(() => {
     if (!isOciosaCritica) return;
+
+    // Regra estrita: Os sinais sonoros e sirene só tocam para quem no cadastro é operador com esta máquina selecionada!
+    if (!isOperadorAlvo) return;
 
     // Verificar se está silenciado temporariamente
     if (silenciadoAte && Date.now() < silenciadoAte) return;
@@ -133,7 +173,7 @@ export default function MonitorOciosidadeMaquina({
         speakAlertaMaquinaOciosa(maquinaNome, minutosOciosa);
       }, 1800);
     }
-  }, [isOciosaCritica, tempoSemAtividadeSeg, maquinaNome, silenciadoAte, tick]);
+  }, [isOciosaCritica, isOperadorAlvo, tempoSemAtividadeSeg, maquinaNome, silenciadoAte, tick]);
 
   const handleSilenciarTemporario = () => {
     const doisMinutos = Date.now() + 120000;
@@ -231,7 +271,11 @@ export default function MonitorOciosidadeMaquina({
             </div>
 
             <div className="flex items-center gap-2 flex-wrap justify-end">
-              {silenciado ? (
+              {!isOperadorAlvo ? (
+                <Badge variant="outline" className="text-xs text-muted-foreground border-rose-300 dark:border-rose-800 bg-white/60 dark:bg-slate-900/60" title="Apenas operadores com esta máquina selecionada no cadastro escutam a sirene">
+                  <VolumeX className="w-3 h-3 mr-1 text-slate-400" /> Som restrito ao operador da máquina
+                </Badge>
+              ) : silenciado ? (
                 <Badge variant="outline" className="text-xs text-muted-foreground border-rose-300">
                   <VolumeX className="w-3 h-3 mr-1" /> Sirene pausada
                 </Badge>

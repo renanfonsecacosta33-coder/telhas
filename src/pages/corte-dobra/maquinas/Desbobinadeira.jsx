@@ -17,6 +17,7 @@ import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import { getPesoOrdenacaoPrioridade, SeletorPrioridadeDropdown } from "@/lib/prioridadeHelper";
+import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
 
 export default function Desbobinadeira() {
   const { filialAtiva } = useFilial();
@@ -252,6 +253,11 @@ export default function Desbobinadeira() {
   const totalSemana = ordensSemana.length;
   const finalizadasSemana = ordensSemana.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
 
+  // OP rodando em produção agora nesta máquina
+  const opRodando = useMemo(() => {
+    return ordens.find(o => o.status === "em_producao");
+  }, [ordens]);
+
   // Espessuras disponíveis (extraídas das ordens da semana)
   const espessurasDisponiveis = useMemo(() => {
     const set = new Set();
@@ -323,6 +329,14 @@ export default function Desbobinadeira() {
           </Button>
         )}
       </div>
+
+      {/* Monitor de Ociosidade e Setup da Máquina */}
+      <MonitorOciosidadeMaquina
+        maquinaNome="Desbobinadeira"
+        setor="corte_dobra"
+        isProduzindo={!!opRodando}
+        user={user}
+      />
 
       {/* Navegação semana */}
       <div className="bg-card border border-border rounded-xl p-4">

@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Layers, AlertTriangle, Play, Weight, Palette, Ruler } from "lucide-react";
+import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco";
 
 export default function ConferirBobinaItemDialog({
   open,
@@ -86,14 +87,22 @@ export default function ConferirBobinaItemDialog({
 
         {/* Bobina Superior / Principal deste Item */}
         <div className="border-2 border-blue-400 bg-blue-50/70 rounded-xl p-3.5 space-y-2">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <span className="text-xs font-black uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
               <Weight className="w-4 h-4 text-blue-700" />
               Bobina do Item {itemIndex + 1}
             </span>
-            <Badge className="bg-blue-600 text-white text-xs font-mono font-bold">
-              {codSup}
-            </Badge>
+            <div className="flex items-center gap-1.5">
+              <BadgeOrigemAco
+                bobina={bobinaSup}
+                bobinaTexto={corSup}
+                origemExigida={pedido?.origem_exigida}
+                size="sm"
+              />
+              <Badge className="bg-blue-600 text-white text-xs font-mono font-bold">
+                {codSup}
+              </Badge>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2 text-xs">

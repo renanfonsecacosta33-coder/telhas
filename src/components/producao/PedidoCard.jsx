@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
 import { PrioridadeBadge } from "@/lib/prioridadeHelper";
+import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco";
 
 const STATUS_CONFIG = {
   pendente: { label: "Pendente", icon: Circle, badge: "bg-gray-100 text-gray-700 border-gray-200" },
@@ -50,7 +51,16 @@ export default function PedidoCard({ pedido: p, maquinaCores, onEdit, onDelete, 
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground mt-0.5">
             {p.rvm_superior && <span>RVM: {p.rvm_superior}{p.rvm_inferior ? ` / ${p.rvm_inferior}` : ""}</span>}
             {p.eps && <span>EPS: {p.eps}</span>}
-            {p.bobina_superior && <span>Boba: {p.bobina_superior}</span>}
+            {p.bobina_superior && (
+              <span className="flex items-center gap-1.5">
+                <span>Bob: {p.bobina_superior}</span>
+                <BadgeOrigemAco
+                  bobinaTexto={p.bobina_superior}
+                  origemExigida={p.origem_exigida}
+                  size="sm"
+                />
+              </span>
+            )}
             {p.kg_total > 0 && <span>{p.kg_total}kg</span>}
             {p.data_prevista && <span>Prev: {format(new Date(p.data_prevista + "T12:00:00"), "dd/MM", { locale: ptBR })}</span>}
           </div>

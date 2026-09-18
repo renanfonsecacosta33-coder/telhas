@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Factory, Calendar, Wrench, Download, ZoomIn, ZoomOut, Maximize2, Search, AlertTriangle, X, PackageX, Truck, Inbox } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Factory, Calendar, Wrench, Download, ZoomIn, ZoomOut, Maximize2, Search, AlertTriangle, X, PackageX, Truck, Inbox, Layers } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";

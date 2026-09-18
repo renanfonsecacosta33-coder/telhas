@@ -11,6 +11,7 @@ import NovaCargaDialog from "@/components/logistica/NovaCargaDialog";
 import RotasEntregaSection from "@/components/logistica/RotasEntregaSection";
 import CargaCard from "@/components/logistica/CargaCard";
 import AuditSidebar from "@/components/logistica/AuditSidebar";
+import CalendarioEntregas from "@/components/logistica/CalendarioEntregas";
 
 export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
   const isDespacho = mode === "despacho";
@@ -296,10 +297,20 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
         >
           <Layers className="w-4 h-4" /> Corte e Dobra
         </button>
+        <button
+          onClick={() => setTab("calendario")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${tab === "calendario" ? "border-primary text-primary font-bold" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+        >
+          <Calendar className="w-4 h-4 text-emerald-500" /> Calendário de Entregas
+        </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {tab === "calendario" ? (
+        <CalendarioEntregas filial={filialAtiva} />
+      ) : (
+        <>
+          {/* Stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-card border border-border rounded-xl p-4">
           <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
             <Package className="w-3.5 h-3.5" /> Pedidos Agrupados
@@ -446,8 +457,10 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
           </div>
         )}
         </div>
+        </>
+      )}
 
-        <NovaCargaDialog open={dialogCarga} onClose={() => setDialogCarga(false)} filialAtiva={filialAtiva} />
+      <NovaCargaDialog open={dialogCarga} onClose={() => setDialogCarga(false)} filialAtiva={filialAtiva} />
       <AuditSidebar open={!!selectedItem} onClose={() => setSelectedItem(null)} item={selectedItem} tipo={selectedTipo} />
     </div>
   );

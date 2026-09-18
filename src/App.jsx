@@ -76,6 +76,9 @@ import Logistica from '@/pages/corte-dobra/Logistica';
 import LogisticaStandalone from '@/pages/Logistica';
 import CentralAlertas from '@/pages/corte-dobra/CentralAlertas';
 import CentralPCP from '@/pages/CentralPCP';
+import CalendarioLogisticaPage from '@/pages/CalendarioLogisticaPage';
+import DashboardExecutivo from '@/pages/DashboardExecutivo';
+import RelatoriosGerenciais from '@/pages/RelatoriosGerenciais';
 
 // Expedição
 import AppLayoutExpedicao from '@/components/layout/Expedicao/AppLayoutExpedicao';
@@ -173,6 +176,9 @@ const AuthenticatedApp = () => {
       <Route path="/pcp" element={<CentralPCP />} />
       <Route path="/setor" element={<SeletorSetor />} />
       <Route path="/bobina-qr/:id" element={<BobinaQR />} />
+      <Route path="/calendario-entregas" element={<CalendarioLogisticaPage />} />
+      <Route path="/dashboard-executivo" element={<DashboardExecutivo />} />
+      <Route path="/relatorios" element={<RelatoriosGerenciais />} />
       <Route element={<AppLayoutCD />}>
         <Route path="/corte-dobra" element={<DashboardCorteDobraCompleto />} />
         <Route path="/corte-dobra/producao" element={<ProducaoCD />} />

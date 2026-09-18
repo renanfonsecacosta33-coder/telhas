@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import QRCode from "qrcode";
 import ApontamentosEtapaPanel from "@/components/producao/ApontamentosEtapaPanel";
+import { detectarOrigemAco } from "@/components/producao/BadgeOrigemAco";
 
 function detectTipo(p) {
   if (!p) return "telhas";
@@ -75,6 +76,16 @@ export default function OPImpressao({ open, onClose, pedido }) {
               <Row label="Comprimento" value={pedido.metragem_mm ? `${pedido.metragem_mm} mm` : "—"} />
               <Row label="Total Linear" value={metragemTotal !== "0.00" ? `${metragemTotal} m` : "—"} />
               <Row label="Bobina" value={pedido.bobina_superior || "—"} />
+              {(() => {
+                const ori = detectarOrigemAco({ bobinaTexto: pedido.bobina_superior, origemExigida: pedido.origem_exigida });
+                return (
+                  <Row
+                    label="Origem do Aço"
+                    value={`${ori.isImportado ? "🌐 Importado" : "🇧🇷 Nacional"}${ori.detalhe ? ` (${ori.detalhe})` : ""}`}
+                    bold
+                  />
+                );
+              })()}
               {pedido.eps && <Row label="EPS" value={pedido.eps} />}
             </div>
           </div>
