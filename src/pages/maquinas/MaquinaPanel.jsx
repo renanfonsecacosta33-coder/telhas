@@ -25,6 +25,7 @@ import TimerProducao from "@/components/producao/TimerProducao";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
 import { isOperadorDestaMaquina } from "@/lib/somPermissaoHelper";
 import { salvarCacheLocal, obterCacheLocal, enfileirarAcaoOffline } from "@/lib/offlineStorage";
+import { calcularMetrosPedido } from "@/lib/metrosHelper";
 
 const STATUS_LABELS_TELHAS = {
   pendente: "Pendente",
