@@ -25,13 +25,16 @@ import {
   Calendar,
   FileText,
   Camera,
-  ShieldCheck
+  ShieldCheck,
+  Download,
+  Smartphone
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import UserAvatarButton from "@/components/UserAvatarButton";
 import NotificationBell from "@/components/NotificationBell";
 import GlobalCommandPalette from "@/components/GlobalCommandPalette";
 import AjlCopilot from "@/components/ai/AjlCopilot";
+import ComoInstalarModal from "@/components/pwa/ComoInstalarModal";
 import { cn } from "@/lib/utils";
 
 const ALL_MODULES = [
@@ -253,6 +256,7 @@ export default function SeletorSetor() {
   const [navegando, setNavegando] = useState(false);
   const [modulesList, setModulesList] = useState(ALL_MODULES);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [comoInstalarOpen, setComoInstalarOpen] = useState(false);
 
   // Estados de Drag and Drop (Suporta Desktop e Touch)
   const [draggedIndex, setDraggedIndex] = useState(null);
@@ -415,6 +419,16 @@ export default function SeletorSetor() {
             <kbd className="hidden sm:inline-block bg-slate-100 dark:bg-slate-800 border text-[10px] px-1.5 py-0.5 rounded font-mono">Ctrl+K</kbd>
           </button>
 
+          {/* Botão de Instalar Aplicativo */}
+          <button
+            onClick={() => setComoInstalarOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 rounded-xl shadow-xs hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-all cursor-pointer shrink-0"
+            title="Como instalar o aplicativo na máquina ou computador"
+          >
+            <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden sm:inline">Instalar App</span>
+          </button>
+
           {/* Central de Notificações */}
           <NotificationBell user={user} />
 
@@ -490,6 +504,7 @@ export default function SeletorSetor() {
 
       <GlobalCommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
       <AjlCopilot />
+      <ComoInstalarModal open={comoInstalarOpen} onOpenChange={setComoInstalarOpen} />
     </div>
   );
 }
