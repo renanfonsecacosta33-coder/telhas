@@ -18,6 +18,7 @@ import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useFilial } from "@/contexts/FilialContext";
+import { registrarAuditoria } from "@/lib/auditHelper";
 
 const MAQUINAS_TELHAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM", "CORTE DE EPS"];
 const MAQUINAS_CD = ["CORTE 3M", "CORTE 6M", "DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M", "PERFILADEIRA", "DESBOBINADEIRA"];
@@ -96,6 +97,15 @@ export default function NovoOperadorModal({
       queryClient.invalidateQueries({ queryKey: ["users"] });
       queryClient.invalidateQueries({ queryKey: ["equipe-operadores-dialog"] });
       queryClient.invalidateQueries({ queryKey: ["perf-equipe"] });
+
+      registrarAuditoria({
+        acao: "criacao",
+        entidade: "User",
+        registroId: novoUsuario?.id,
+        registroIdentificador: nomeLimpo,
+        detalhes: `Cadastrou novo operador ${nomeLimpo} no setor ${setor}${maquinas.length > 0 ? ` (Máquinas: ${maquinas.join(", ")})` : ""}`,
+        unidade
+      });
 
       if (onSuccess) {
         onSuccess(novoUsuario);

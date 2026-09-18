@@ -3,7 +3,8 @@ import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { Truck, Eye, Factory, Layers, PackageCheck, DollarSign, StickyNote, RefreshCw, Loader2, Trash2, Pencil } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Truck, Eye, Factory, Layers, PackageCheck, DollarSign, StickyNote, RefreshCw, Loader2, Trash2, Pencil, Camera } from "lucide-react";
 import { toast } from "sonner";
 import ImageViewer from "@/components/ui/ImageViewer";
 import RotaCarregamentoSlot from "@/components/logistica/RotaCarregamentoSlot";
@@ -259,6 +260,20 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
         rotaId={rota.id}
         fotosJson={rota.fotos_caminhao_traseira_json}
       />
+
+      {/* Botão de Auditoria Fotográfica Sequencial (5 Etapas) */}
+      <Link
+        to={`/timeline-carregamento?rotaId=${rota.id}`}
+        className="flex items-center justify-between gap-2 w-full py-2 px-3 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-all font-semibold text-xs shadow-xs group"
+      >
+        <div className="flex items-center gap-2">
+          <Camera className="w-4 h-4 text-primary shrink-0 transition-transform group-hover:scale-110" />
+          <span>📸 Timeline de Carregamento & Amarração (5 Etapas)</span>
+        </div>
+        <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded font-mono font-bold">
+          Vistoria ➔
+        </span>
+      </Link>
 
       {/* Tabela detalhada de pedidos da rota com Barracão dinâmico, Observações e Foto por Pedido */}
       {itensFiltrados.length > 0 && (

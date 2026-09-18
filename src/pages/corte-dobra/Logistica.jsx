@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Truck, Plus, Package, Search, X, Loader2, Factory, Layers, CheckCircle, Calendar, Filter, ChevronDown, ChevronRight, PackageCheck } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Truck, Plus, Package, Search, X, Loader2, Factory, Layers, CheckCircle, Calendar, Filter, ChevronDown, ChevronRight, PackageCheck, Camera } from "lucide-react";
 import { useFilial } from "@/contexts/FilialContext";
 import NovaCargaDialog from "@/components/logistica/NovaCargaDialog";
 import RotasEntregaSection from "@/components/logistica/RotasEntregaSection";
@@ -270,11 +271,18 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
           </h1>
           <p className="text-sm text-muted-foreground">Agrupamento de cargas e carregamento de caminhões</p>
         </div>
-        {!isDespacho && (
-          <Button onClick={() => setDialogCarga(true)} className="gap-2">
-            <Plus className="w-4 h-4" /> Nova Carga
-          </Button>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link to="/timeline-carregamento">
+            <Button variant="outline" className="gap-2 border-primary/40 text-primary hover:bg-primary/10">
+              <Camera className="w-4 h-4" /> Timeline de Carregamento (5 Etapas)
+            </Button>
+          </Link>
+          {!isDespacho && (
+            <Button onClick={() => setDialogCarga(true)} className="gap-2">
+              <Plus className="w-4 h-4" /> Nova Carga
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Tabs Barracões */}

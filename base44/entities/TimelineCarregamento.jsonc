@@ -1,0 +1,90 @@
+{
+  "name": "TimelineCarregamento",
+  "type": "object",
+  "properties": {
+    "rota_id": {
+      "type": "string",
+      "description": "ID da RotaEntrega vinculada"
+    },
+    "carga_id": {
+      "type": "string",
+      "description": "ID da Carga vinculada (se aplicável)"
+    },
+    "unidade": {
+      "type": "string",
+      "enum": [
+        "Matriz AJL",
+        "Pinhais",
+        "Ivaiporã",
+        "Ponta Grossa"
+      ],
+      "default": "Matriz AJL",
+      "description": "Unidade de expedição"
+    },
+    "placa_veiculo": {
+      "type": "string",
+      "description": "Placa do caminhão de entrega"
+    },
+    "motorista_nome": {
+      "type": "string",
+      "description": "Nome do motorista responsável pela carga"
+    },
+    "operador_patio": {
+      "type": "string",
+      "description": "Operador que realizou a vistoria e o registro fotográfico"
+    },
+    "etapa": {
+      "type": "string",
+      "enum": [
+        "1_veiculo_vazio",
+        "2_camada_inferior",
+        "3_telhas_amarrados",
+        "4_cintas_amarracao",
+        "5_lona_placa"
+      ],
+      "default": "1_veiculo_vazio",
+      "description": "Etapa sequencial do carregamento"
+    },
+    "etapa_label": {
+      "type": "string",
+      "description": "Título amigável da etapa (ex: 1. Caminhão Vazio / Forração)"
+    },
+    "foto_url": {
+      "type": "string",
+      "description": "URL da foto registrada em alta resolução"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observações sobre o estado da carga, amarração ou assoalho"
+    },
+    "status_conformidade": {
+      "type": "string",
+      "enum": [
+        "conforme",
+        "ressalva",
+        "corrigido"
+      ],
+      "default": "conforme",
+      "description": "Status de conformidade técnica da amarração e empilhamento"
+    },
+    "data_registro": {
+      "type": "string",
+      "description": "Timestamp ISO do momento do registro"
+    }
+  },
+  "required": [
+    "rota_id",
+    "etapa",
+    "foto_url"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

@@ -23,7 +23,9 @@ import {
   Trophy,
   Building2,
   Calendar,
-  FileText
+  FileText,
+  Camera,
+  ShieldCheck
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import UserAvatarButton from "@/components/UserAvatarButton";
@@ -219,6 +221,28 @@ const ALL_MODULES = [
     iconBg: "bg-purple-500/10 shadow-purple-900/20",
     type: "route",
     routeTarget: "/usuarios"
+  },
+  {
+    key: "app_timeline_carregamento",
+    title: "Timeline Carregamento",
+    description: "Auditoria 5 etapas com fotos e amarração de carga",
+    icon: <Camera className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-400" />,
+    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
+    borderColor: "border-slate-700/50 hover:border-emerald-500/50",
+    iconBg: "bg-emerald-500/10 shadow-emerald-900/20",
+    type: "route",
+    routeTarget: "/timeline-carregamento"
+  },
+  {
+    key: "app_auditoria",
+    title: "Auditoria Central",
+    description: "Trilha de auditoria global e rastreabilidade de ações",
+    icon: <ShieldCheck className="w-6 h-6 sm:w-7 sm:h-7 text-cyan-400" />,
+    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
+    borderColor: "border-slate-700/50 hover:border-cyan-500/50",
+    iconBg: "bg-cyan-500/10 shadow-cyan-900/20",
+    type: "route",
+    routeTarget: "/auditoria"
   }
 ];
 

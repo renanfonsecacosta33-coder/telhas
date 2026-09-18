@@ -23,6 +23,7 @@ import { playSireneFabrica, speakAlertaMaquinaOciosa } from "@/lib/sounds";
 import SetupMaquinaModal from "./SetupMaquinaModal";
 import { toast } from "sonner";
 import { isOperadorDestaMaquina } from "@/lib/somPermissaoHelper";
+import { registrarAuditoria } from "@/lib/auditHelper";
 
 function formatSegundos(sec) {
   const s = Math.max(0, Math.floor(sec || 0));
@@ -64,11 +65,20 @@ export default function MonitorOciosidadeMaquina({
     }
   });
 
-  // Salvar setup no localStorage
+  // Salvar setup no localStorage e registrar na Auditoria
   const handleIniciarSetup = (dados) => {
     setSetupAtivo(dados);
     localStorage.setItem(storageKeySetup, JSON.stringify(dados));
     setSilenciadoAte(null);
+
+    registrarAuditoria({
+      usuario: user,
+      acao: "setup",
+      entidade: "Setup",
+      registroIdentificador: maquinaNome,
+      detalhes: `Iniciou ${dados.tipoTitulo} na máquina ${maquinaNome}${dados.bobinaCodigo ? ` · Bobina: ${dados.bobinaCodigo}` : ""}`,
+      unidade: user?.unidade
+    });
   };
 
   const handleConcluirSetup = () => {
@@ -78,6 +88,15 @@ export default function MonitorOciosidadeMaquina({
     setUltimaAtividadeTs(agoraTs);
     localStorage.setItem(storageKeyUltimaAtividade, new Date(agoraTs).toISOString());
     toast.success(`Setup na máquina ${maquinaNome} concluído com sucesso!`);
+
+    registrarAuditoria({
+      usuario: user,
+      acao: "setup",
+      entidade: "Setup",
+      registroIdentificador: maquinaNome,
+      detalhes: `Concluiu setup e liberou a máquina ${maquinaNome} para produção`,
+      unidade: user?.unidade
+    });
   };
 
   // Se a máquina estiver produzindo uma OP, atualiza a última atividade e limpa setup

@@ -58,6 +58,8 @@ import BobinasCD from '@/pages/corte-dobra/Bobinas';
 import Chaparia from '@/pages/corte-dobra/Chaparia';
 import EPI from '@/pages/corte-dobra/EPI';
 import DesenvolvimentoCD from '@/pages/corte-dobra/Desenvolvimento';
+import AuditoriaPage from '@/pages/AuditoriaPage';
+import TimelineCarregamentoPage from '@/pages/TimelineCarregamentoPage';
 import CatalogoCD from '@/pages/corte-dobra/Catalogo';
 import RetalhosCD from '@/pages/corte-dobra/Retalhos';
 import SlitterPage from '@/pages/corte-dobra/Slitter';
@@ -179,6 +181,8 @@ const AuthenticatedApp = () => {
       <Route path="/calendario-entregas" element={<CalendarioLogisticaPage />} />
       <Route path="/dashboard-executivo" element={<DashboardExecutivo />} />
       <Route path="/relatorios" element={<RelatoriosGerenciais />} />
+      <Route path="/auditoria" element={<AuditoriaPage />} />
+      <Route path="/timeline-carregamento" element={<TimelineCarregamentoPage />} />
       <Route element={<AppLayoutCD />}>
         <Route path="/corte-dobra" element={<DashboardCorteDobraCompleto />} />
         <Route path="/corte-dobra/producao" element={<ProducaoCD />} />

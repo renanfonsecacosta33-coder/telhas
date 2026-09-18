@@ -1,0 +1,100 @@
+{
+  "name": "AuditLog",
+  "type": "object",
+  "properties": {
+    "unidade": {
+      "type": "string",
+      "enum": [
+        "Matriz AJL",
+        "Pinhais",
+        "Ivaiporã",
+        "Ponta Grossa"
+      ],
+      "default": "Matriz AJL",
+      "description": "Filial onde ocorreu o evento auditado"
+    },
+    "usuario_nome": {
+      "type": "string",
+      "description": "Nome do operador ou gestor que executou a ação"
+    },
+    "usuario_email": {
+      "type": "string",
+      "description": "Email ou identificador de acesso do usuário"
+    },
+    "usuario_role": {
+      "type": "string",
+      "description": "Perfil de acesso: operador, admin, encarregado, vendedor, etc."
+    },
+    "acao": {
+      "type": "string",
+      "enum": [
+        "criacao",
+        "edicao",
+        "status",
+        "exclusao",
+        "setup",
+        "transferencia",
+        "aprovacao",
+        "login",
+        "cancelamento"
+      ],
+      "default": "status",
+      "description": "Tipo de evento executado"
+    },
+    "entidade": {
+      "type": "string",
+      "enum": [
+        "Pedido",
+        "OrdemMaquinaCD",
+        "OrdemDesbobinadeira",
+        "Bobina",
+        "RotaEntrega",
+        "User",
+        "Setup",
+        "EntregaEPI",
+        "ChapaCD",
+        "Outro"
+      ],
+      "default": "Pedido",
+      "description": "Entidade de dados afetada"
+    },
+    "registro_id": {
+      "type": "string",
+      "description": "ID interno do registro no banco"
+    },
+    "registro_identificador": {
+      "type": "string",
+      "description": "Código legível para operadores e gestores (ex: #299371, TE0137, TP-25)"
+    },
+    "detalhes": {
+      "type": "string",
+      "description": "Descrição clara e humana do evento ocorrido"
+    },
+    "dados_anteriores": {
+      "type": "string",
+      "description": "JSON string com estado anterior (opcional)"
+    },
+    "dados_novos": {
+      "type": "string",
+      "description": "JSON string com estado posterior (opcional)"
+    },
+    "data_hora": {
+      "type": "string",
+      "description": "Timestamp ISO da ocorrência"
+    }
+  },
+  "required": [
+    "acao",
+    "detalhes"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": {
+      "user_condition": {
+        "role": "super_admin"
+      }
+    }
+  }
+}
