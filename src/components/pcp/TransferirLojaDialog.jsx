@@ -109,10 +109,11 @@ export default function TransferirLojaDialog({
 
       const itensParaTransferir = todosItensDoPedido.filter(p => itensSelecionados.has(p.id));
       let sucessos = 0;
+      let deOnde = "";
 
       for (const p of itensParaTransferir) {
         if (!p.id) continue;
-        const deOnde = p.unidade || "Matriz AJL";
+        deOnde = p.unidade || "Matriz AJL";
         if (deOnde === novaUnidade) continue;
 
         // Histórico de Transferências estruturado

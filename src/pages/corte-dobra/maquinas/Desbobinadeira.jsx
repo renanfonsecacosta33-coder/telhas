@@ -18,6 +18,7 @@ import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedien
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
 import TimerProducao from "@/components/producao/TimerProducao";
+import { getPesoOrdenacaoPrioridade, SeletorPrioridadeDropdown } from "@/lib/prioridadeHelper";
 
 export default function Desbobinadeira() {
   const { filialAtiva } = useFilial();
