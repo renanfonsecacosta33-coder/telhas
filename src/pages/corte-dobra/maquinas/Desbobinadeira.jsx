@@ -16,8 +16,8 @@ import FiltroChapa from "@/components/corte-dobra/FiltroChapa";
 import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
-import { getPesoOrdenacaoPrioridade, SeletorPrioridadeDropdown } from "@/lib/prioridadeHelper";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
+import TimerProducao from "@/components/producao/TimerProducao";
 
 export default function Desbobinadeira() {
   const { filialAtiva } = useFilial();
@@ -337,6 +337,15 @@ export default function Desbobinadeira() {
         isProduzindo={!!opRodando}
         user={user}
       />
+
+      {/* Cronômetro e Metas em Tempo Real da OP em Produção na Desbobinadeira */}
+      {opRodando && (
+        <TimerProducao
+          ordem={opRodando}
+          maquinaNome="Desbobinadeira"
+          tipoSetor="corte_dobra"
+        />
+      )}
 
       {/* Navegação semana */}
       <div className="bg-card border border-border rounded-xl p-4">
