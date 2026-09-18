@@ -19,12 +19,16 @@ import {
   Sparkles,
   UserPlus,
   UserCheck,
-  Factory
+  Factory,
+  UserX,
+  EyeOff
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import NovoOperadorModal from "@/components/usuarios/NovoOperadorModal";
+import RemoverOperadorDialog from "@/components/usuarios/RemoverOperadorDialog";
+import GerenciarOperadoresOcultosModal from "@/components/usuarios/GerenciarOperadoresOcultosModal";
 import {
   ResponsiveContainer,
   BarChart,
@@ -45,6 +49,9 @@ export default function PerformanceOperadores() {
   const [setorFiltro, setSetorFiltro] = useState("todos"); // todos | telhas | corte_dobra
   const [busca, setBusca] = useState("");
   const [novoOperadorOpen, setNovoOperadorOpen] = useState(false);
+  const [removerOperadorTarget, setRemoverOperadorTarget] = useState(null);
+  const [gerenciarOcultosOpen, setGerenciarOcultosOpen] = useState(false);
+  const [apenasComMaquinaOuOps, setApenasComMaquinaOuOps] = useState(false);
 
   // 1. Buscar apontamentos e ordens finalizadas de telhas
   const { data: pedidosTelhas = [], isLoading: loadingTelhas } = useQuery({
@@ -88,12 +95,18 @@ export default function PerformanceOperadores() {
 
   const isLoading = loadingTelhas || loadingCD;
 
+  // Usuários que foram retirados da lista de operadores
+  const usuariosOcultos = useMemo(() => {
+    return (equipe || []).filter((u) => u.nao_operador);
+  }, [equipe]);
+
   // Processar e tabular métricas por operador
   const rankingOperadores = useMemo(() => {
     const mapa = {};
 
-    // Inicializar com a equipe cadastrada
+    // Inicializar com a equipe cadastrada (ignorando quem não é operador)
     equipe.forEach((u) => {
+      if (u.nao_operador) return;
       if (setorFiltro !== "todos" && u.setor && u.setor !== setorFiltro) return;
       const nome = u.full_name || u.email;
       let maqArray = [];
@@ -133,7 +146,6 @@ export default function PerformanceOperadores() {
         } catch {}
 
         if (listaOps.length === 0 && p.vendedor) {
-          // Fallback se não preenchido
           listaOps = ["Equipe Telhas"];
         }
 
@@ -141,6 +153,8 @@ export default function PerformanceOperadores() {
         const seg = Number(p.tempo_producao_seg || 1200);
 
         listaOps.forEach((opNome) => {
+          const isOculto = usuariosOcultos.some(u => (u.full_name === opNome || u.email === opNome));
+          if (isOculto) return;
           if (!mapa[opNome]) {
             mapa[opNome] = {
               id: opNome,
@@ -178,6 +192,8 @@ export default function PerformanceOperadores() {
         const seg = Number(o.tempo_producao_seg || 900);
 
         listaOps.forEach((opNome) => {
+          const isOculto = usuariosOcultos.some(u => (u.full_name === opNome || u.email === opNome));
+          if (isOculto) return;
           if (!mapa[opNome]) {
             mapa[opNome] = {
               id: opNome,
@@ -209,16 +225,19 @@ export default function PerformanceOperadores() {
       })
       .filter((item) => item.totalOps > 0 || !item.nome.startsWith("Equipe"))
       .sort((a, b) => b.totalOps - a.totalOps || b.totalPecasOuMetros - a.totalPecasOuMetros);
-  }, [pedidosTelhas, ordensCD, equipe, setorFiltro]);
+  }, [pedidosTelhas, ordensCD, equipe, setorFiltro, usuariosOcultos]);
 
   const filtrados = useMemo(() => {
     return rankingOperadores.filter((item) => {
+      if (apenasComMaquinaOuOps && item.maquinasCadastradas.length === 0 && item.totalOps === 0) {
+        return false;
+      }
       if (busca.trim()) {
         return item.nome.toLowerCase().includes(busca.toLowerCase().trim());
       }
       return true;
     });
-  }, [rankingOperadores, busca]);
+  }, [rankingOperadores, busca, apenasComMaquinaOuOps]);
 
   const top3 = filtrados.slice(0, 3);
 
@@ -405,14 +424,40 @@ export default function PerformanceOperadores() {
             <h2 className="text-sm font-bold text-foreground">Classificação Geral da Fábrica</h2>
             <p className="text-xs text-muted-foreground">Listagem de toda a equipe e produtividade</p>
           </div>
-          <div className="relative w-full sm:w-60">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar operador..."
-              className="pl-8 h-8 text-xs"
-            />
+          <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+            {usuariosOcultos.length > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setGerenciarOcultosOpen(true)}
+                className="h-8 text-xs gap-1.5 border-dashed hover:border-primary text-muted-foreground hover:text-foreground"
+                title="Ver e restaurar usuários que foram tirados da lista de operadores"
+              >
+                <EyeOff className="w-3.5 h-3.5 text-amber-500" />
+                <span>Ocultos ({usuariosOcultos.length})</span>
+              </Button>
+            )}
+
+            <Button
+              size="sm"
+              variant={apenasComMaquinaOuOps ? "secondary" : "ghost"}
+              onClick={() => setApenasComMaquinaOuOps(!apenasComMaquinaOuOps)}
+              className="h-8 text-xs gap-1.5 border border-border"
+              title="Ocultar usuários sem máquinas configuradas e com 0 produção"
+            >
+              <Filter className="w-3.5 h-3.5" />
+              <span>{apenasComMaquinaOuOps ? "Apenas com Máquina / Produtivos" : "Exibir Todos"}</span>
+            </Button>
+
+            <div className="relative w-full sm:w-60">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar operador..."
+                className="pl-8 h-8 text-xs"
+              />
+            </div>
           </div>
         </div>
 
@@ -427,12 +472,13 @@ export default function PerformanceOperadores() {
                 <th className="py-3 px-4 text-center">OPs Prontas</th>
                 <th className="py-3 px-4 text-center">Volume Total</th>
                 <th className="py-3 px-4 text-center">Tempo Médio</th>
+                <th className="py-3 px-4 text-center">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border font-medium">
               {filtrados.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="py-8 text-center text-muted-foreground">
                     Nenhum operador encontrado.
                   </td>
                 </tr>
@@ -474,6 +520,18 @@ export default function PerformanceOperadores() {
                     <td className="py-3 px-4 text-center text-muted-foreground font-mono">
                       {op.mediaMinutosPorOp > 0 ? `${op.mediaMinutosPorOp} min` : "—"}
                     </td>
+                    <td className="py-3 px-4 text-center">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setRemoverOperadorTarget(op)}
+                        className="h-7 px-2.5 text-xs text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 gap-1.5 rounded-lg border border-transparent hover:border-red-200 dark:hover:border-red-900/50 transition-colors"
+                        title={`Tirar ${op.nome} da lista de operadores`}
+                      >
+                        <UserX className="w-3.5 h-3.5 text-red-500" />
+                        <span className="font-semibold text-[11px]">Tirar</span>
+                      </Button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -487,6 +545,20 @@ export default function PerformanceOperadores() {
         open={novoOperadorOpen}
         onOpenChange={setNovoOperadorOpen}
         defaultSetor={setorFiltro === "corte_dobra" ? "corte_dobra" : "telhas"}
+      />
+
+      {/* Modal para tirar quem não é operador da lista */}
+      <RemoverOperadorDialog
+        open={!!removerOperadorTarget}
+        onOpenChange={(v) => !v && setRemoverOperadorTarget(null)}
+        operador={removerOperadorTarget}
+      />
+
+      {/* Modal para gerenciar e restaurar usuários ocultados */}
+      <GerenciarOperadoresOcultosModal
+        open={gerenciarOcultosOpen}
+        onOpenChange={setGerenciarOcultosOpen}
+        usuariosOcultos={usuariosOcultos}
       />
     </div>
   );

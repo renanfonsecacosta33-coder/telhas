@@ -72,6 +72,11 @@
         "type": "string"
       },
       "description": "Lista de filiais/lojas que o usuário tem permissão para visualizar e alternar. Se vazio/nulo e admin/super_admin, tem acesso global."
+    },
+    "nao_operador": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se verdadeiro, oculta o usuário da lista e ranking de operadores de fábrica"
     }
   }
 }

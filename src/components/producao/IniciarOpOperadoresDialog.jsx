@@ -71,7 +71,7 @@ export default function IniciarOpOperadoresDialog({
     queryFn: async () => {
       try {
         const list = await base44.entities.User.list("-full_name", 100);
-        return list;
+        return (list || []).filter(u => !u.nao_operador);
       } catch {
         return [];
       }
