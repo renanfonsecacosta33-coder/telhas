@@ -61,6 +61,11 @@ export async function sincronizarFilaOffline(options = {}) {
           if (base44.entities[targetEntity]) {
             await base44.entities[targetEntity].create(dados);
           }
+        } else if (tipo === "GENERIC_DELETE" || tipo === "ORDEM_CD_DELETE") {
+          const targetEntity = entidade || "OrdemMaquinaCD";
+          if (base44.entities[targetEntity] && registroId) {
+            await base44.entities[targetEntity].delete(registroId);
+          }
         } else if (tipo === "AUDITORIA") {
           if (base44.entities.AuditLog) {
             await base44.entities.AuditLog.create(dados);

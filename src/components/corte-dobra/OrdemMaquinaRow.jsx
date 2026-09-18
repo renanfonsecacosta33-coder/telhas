@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import {
   Play, Pause, CheckCircle2, Timer, Coffee, Square, Circle,
   AlertCircle, Clock, Camera, Loader2, Layers, Package, ShoppingCart, Trash2, Image as ImageIcon,
-  Edit3, History, Star, User, Users, PackageX
+  Edit3, History, Star, User, Users, PackageX, AlertTriangle, Ban
 } from "lucide-react";
+import { registrarAuditoria } from "@/lib/auditHelper";
 import UploadButton from "@/components/ui/UploadButton";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -96,6 +97,8 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
   const isGuilhotina = o.maquina === "CORTE 3M" || o.maquina === "CORTE 6M";
   const [validacaoChapaDialog, setValidacaoChapaDialog] = useState(false);
   const [operadoresDialogOpen, setOperadoresDialogOpen] = useState(false);
+  const [confirmarExclusaoOpen, setConfirmarExclusaoOpen] = useState(false);
+  const [confirmarCancelarOpen, setConfirmarCancelarOpen] = useState(false);
 
   useEffect(() => {
     const iv = setInterval(() => setTick(t => t + 1), 1000);
@@ -716,9 +719,47 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               ↩ Reabrir
             </Button>
           )}
-          {isGestor && o.status === "pendente" && (
-            <Button size="sm" variant="outline" className={`${z.btn} text-red-500 border-red-200`}
-              onClick={() => onUpdate(o.id, { status: "cancelado" })}>Cancelar</Button>
+          {/* Se a ordem NÃO estiver finalizada e NÃO estiver cancelada: botão Cancelar disponível */}
+          {o.status !== "finalizado" && o.status !== "cancelado" && (
+            <Button
+              size="sm"
+              variant="outline"
+              className={`${z.btn} text-red-500 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/40`}
+              onClick={() => setConfirmarCancelarOpen(true)}
+              title="Cancelar esta ordem de produção"
+            >
+              Cancelar
+            </Button>
+          )}
+
+          {/* Se a ordem ESTÁ cancelada: exibe Reativar e o botão EXCLUIR */}
+          {o.status === "cancelado" && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-red-600 font-semibold italic mr-1 flex items-center gap-1">
+                <Ban className="w-3.5 h-3.5" /> Cancelada
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className={`gap-1 ${z.btn} text-slate-700 border-slate-300 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800`}
+                onClick={() => {
+                  onUpdate(o.id, { status: "pendente" });
+                  toast.success(`OP #${o.numero_pedido || o.id} reativada para Pendente!`);
+                }}
+                title="Voltar status para Pendente"
+              >
+                ↩ Reativar
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                className={`gap-1 ${z.btn} bg-red-600 hover:bg-red-700 text-white font-bold shadow-sm`}
+                onClick={() => setConfirmarExclusaoOpen(true)}
+                title="Excluir ordem permanentemente da fábrica"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Excluir
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -910,6 +951,116 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
         maquinaNome={o.maquina}
         onConfirm={handleConfirmarOperadores}
       />
+
+      {/* Modal de Confirmação para CANCELAR ordem */}
+      <Dialog open={confirmarCancelarOpen} onOpenChange={setConfirmarCancelarOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-amber-600 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+              Cancelar Ordem de Produção?
+            </DialogTitle>
+            <DialogDescription>
+              A ordem de produção será alterada para o status <strong>Cancelada</strong>.
+              Após cancelar, o botão de <strong>Excluir Definitivamente</strong> ficará liberado.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-3 bg-muted rounded-lg text-xs space-y-1.5 border border-border">
+            <p><strong className="text-foreground">OP:</strong> #{o.numero_pedido || o.id}</p>
+            <p><strong className="text-foreground">Cliente:</strong> {o.cliente || "—"}</p>
+            <p><strong className="text-foreground">Peça / Chapa:</strong> {o.tipo_peca || o.chapa_descricao || "—"}</p>
+            <p><strong className="text-foreground">Quantidade:</strong> {o.quantidade || 1} pç</p>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setConfirmarCancelarOpen(false)}>
+              Voltar
+            </Button>
+            <Button
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
+              onClick={() => {
+                setConfirmarCancelarOpen(false);
+                onUpdate(o.id, { status: "cancelado" });
+                try {
+                  registrarAuditoria({
+                    usuario: user,
+                    acao: "status",
+                    entidade: "OrdemMaquinaCD",
+                    registroId: o.id,
+                    registroIdentificador: `#${o.numero_pedido || o.id}`,
+                    detalhes: `Cancelou ordem na máquina ${o.maquina}`,
+                    unidade: o.unidade || user?.unidade
+                  });
+                } catch {}
+                toast.warning(`OP #${o.numero_pedido || o.id} cancelada. Botão Excluir liberado.`);
+              }}
+            >
+              Sim, Cancelar Ordem
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Confirmação para EXCLUIR DEFINITIVAMENTE (Apenas ordens canceladas) */}
+      <Dialog open={confirmarExclusaoOpen} onOpenChange={setConfirmarExclusaoOpen}>
+        <DialogContent className="sm:max-w-md border-red-200 dark:border-red-900">
+          <DialogHeader>
+            <DialogTitle className="text-red-600 flex items-center gap-2 font-bold">
+              <Trash2 className="w-5 h-5 text-red-600 shrink-0" />
+              Excluir Ordem Definitivamente?
+            </DialogTitle>
+            <DialogDescription className="text-red-600/90 font-medium">
+              Atenção: Esta ordem cancelada será apagada permanentemente do sistema da fábrica. Esta ação não poderá ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-3 bg-red-50 dark:bg-red-950/40 rounded-lg text-xs space-y-1.5 border border-red-200 dark:border-red-900 text-red-900 dark:text-red-200">
+            <p><strong>OP:</strong> #{o.numero_pedido || o.id}</p>
+            <p><strong>Cliente:</strong> {o.cliente || "—"}</p>
+            <p><strong>Peça:</strong> {o.tipo_peca || o.chapa_descricao || "—"}</p>
+            <p><strong>Status Atual:</strong> Cancelada</p>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setConfirmarExclusaoOpen(false)}>
+              Manter Cancelada
+            </Button>
+            <Button
+              variant="destructive"
+              className="bg-red-600 hover:bg-red-700 text-white font-bold gap-1 shadow-md"
+              onClick={async () => {
+                setConfirmarExclusaoOpen(false);
+                try {
+                  try {
+                    registrarAuditoria({
+                      usuario: user,
+                      acao: "exclusao",
+                      entidade: "OrdemMaquinaCD",
+                      registroId: o.id,
+                      registroIdentificador: `#${o.numero_pedido || o.id}`,
+                      detalhes: `Excluiu definitivamente a OP cancelada #${o.numero_pedido || o.id} da máquina ${o.maquina}`,
+                      unidade: o.unidade || user?.unidade
+                    });
+                  } catch {}
+
+                  if (typeof onDelete === "function") {
+                    await onDelete(o.id);
+                  } else {
+                    await base44.entities.OrdemMaquinaCD.delete(o.id);
+                    toast.success(`OP #${o.numero_pedido || o.id} excluída com sucesso!`);
+                  }
+                } catch (err) {
+                  console.error("Erro ao excluir OP:", err);
+                  toast.error("Erro ao excluir ordem.");
+                }
+              }}
+            >
+              <Trash2 className="w-4 h-4" /> Sim, Excluir Definitivamente
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

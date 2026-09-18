@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Search, AlertTriangle, X, Star, Layers, PackageX } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Search, AlertTriangle, X, Star, Layers, PackageX, Ban, Trash2 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -91,9 +91,19 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     refetchInterval: 10000,
   });
 
-  const ordensDaMaquina = useMemo(
-    () => ordens.filter(o => o.maquina === maquinaId && o.status !== "cancelado"),
+  const todasOrdensDaMaquina = useMemo(
+    () => ordens.filter(o => o.maquina === maquinaId),
     [ordens, maquinaId]
+  );
+
+  const ordensDaMaquina = useMemo(
+    () => todasOrdensDaMaquina.filter(o => o.status !== "cancelado"),
+    [todasOrdensDaMaquina]
+  );
+
+  const ordensCanceladasDaMaquina = useMemo(
+    () => todasOrdensDaMaquina.filter(o => o.status === "cancelado"),
+    [todasOrdensDaMaquina]
   );
 
   const ordensSemMaterial = useMemo(
@@ -169,6 +179,19 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     });
   }, [ordensDaMaquina, selectedDay, buscaPedido]);
 
+  const ordensDiaCanceladas = useMemo(() => {
+    if (buscaPedido.trim()) {
+      const q = buscaPedido.toLowerCase().trim();
+      return ordensCanceladasDaMaquina.filter(o =>
+        (o.numero_pedido || "").toLowerCase().includes(q) ||
+        (o.cliente || "").toLowerCase().includes(q) ||
+        (o.tipo_peca || "").toLowerCase().includes(q) ||
+        (o.chapa_descricao || "").toLowerCase().includes(q)
+      );
+    }
+    return ordensCanceladasDaMaquina.filter(o => o.data === selectedDay);
+  }, [ordensCanceladasDaMaquina, selectedDay, buscaPedido]);
+
   const updateMaq = useMutation({
     mutationFn: async ({ id, data }) => {
       if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -207,6 +230,38 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     mutationFn: (data) => base44.entities.OrdemMaquinaCD.create(data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] }); },
     onError: (err) => { toast.error("Erro ao criar ordem: " + (err?.message || "Falha na operação")); },
+  });
+  const deleteMaq = useMutation({
+    mutationFn: async (id) => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        throw new Error("OFFLINE_TRIGGERED");
+      }
+      return await base44.entities.OrdemMaquinaCD.delete(id);
+    },
+    onError: async (error, id) => {
+      try {
+        await enfileirarAcaoOffline({
+          tipo: "GENERIC_DELETE",
+          entidade: "OrdemMaquinaCD",
+          registroId: id,
+          descricao: `Exclusão definitiva OP CD #${id}`
+        });
+        queryClient.setQueryData(["ordens-maquina-cd", filialAtiva], (antigos) => {
+          if (!antigos || !Array.isArray(antigos)) return antigos;
+          return antigos.filter(o => o.id !== id);
+        });
+        toast.info("Modo Offline: Exclusão salva localmente!", {
+          description: "Será removida da nuvem assim que a internet voltar."
+        });
+      } catch (errLocal) {
+        console.error("Erro ao excluir offline:", errLocal);
+        toast.error("Erro ao excluir ordem.");
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
+      toast.success("Ordem excluída definitivamente com sucesso!");
+    },
   });
 
   // Prioridade 1 a 5: P1 e P2 exigem autorização do gestor
@@ -465,6 +520,20 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
             </span>
           )}
         </Button>
+        <Button
+          variant={viewMode === "canceladas" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setViewMode("canceladas")}
+          className={`gap-1.5 ${viewMode === "canceladas" ? "bg-red-600 hover:bg-red-700 border-0 text-white font-bold" : ordensCanceladasDaMaquina.length > 0 ? "border-red-300 text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40" : "text-muted-foreground"}`}
+        >
+          <Ban className="w-3.5 h-3.5" />
+          Canceladas
+          {ordensCanceladasDaMaquina.length > 0 && (
+            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-600 text-white leading-none">
+              {ordensCanceladasDaMaquina.length}
+            </span>
+          )}
+        </Button>
         <Button variant="outline" size="sm" onClick={() => { setSelectedDay(format(new Date(), "yyyy-MM-dd")); setCurrentWeek(new Date()); setViewMode("dia"); }} className="gap-1">
           <Calendar className="w-3 h-3" /> Hoje
         </Button>
@@ -543,7 +612,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
                       return (ord[a.status] ?? 3) - (ord[b.status] ?? 3);
                     }).map(o => (
                       <div key={o.id}>
-                        <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} ordens={ordensDaMaquina} pedidoSeq={pedidoSeqMap[o.id]} user={user} />
+                        <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} onDelete={(id) => deleteMaq.mutate(id)} isGestor={isGestor} ordens={todasOrdensDaMaquina} pedidoSeq={pedidoSeqMap[o.id]} user={user} />
                         {isGestor && (
                           <div className="flex justify-end mt-1 gap-1">
                             {o.status !== "finalizado" && o.status !== "cancelado" && (
@@ -569,6 +638,45 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
             );
           })}
         </div>
+      ) : viewMode === "canceladas" ? (
+        /* VISÃO CANCELADAS */
+        <div className="bg-card border border-red-200 dark:border-red-900 rounded-xl overflow-hidden shadow-sm">
+          <div className="px-4 py-3 bg-red-50/60 dark:bg-red-950/20 flex items-center justify-between border-b border-red-200 dark:border-red-900">
+            <div className="flex items-center gap-2">
+              <Ban className="w-4 h-4 text-red-600" />
+              <span className="font-bold text-sm text-red-700 dark:text-red-300">
+                Ordens Canceladas ({ordensCanceladasDaMaquina.length})
+              </span>
+              <span className="text-xs text-muted-foreground hidden sm:inline">
+                — As ordens canceladas podem ser excluídas permanentemente ou reativadas
+              </span>
+            </div>
+          </div>
+
+          {ordensCanceladasDaMaquina.length === 0 ? (
+            <div className="px-4 py-12 flex flex-col items-center gap-2 text-center">
+              <Ban className="w-10 h-10 text-muted-foreground/30" />
+              <p className="text-sm font-medium text-muted-foreground">Nenhuma ordem cancelada nesta máquina.</p>
+              <p className="text-xs text-muted-foreground">Para excluir uma ordem, primeiro clique em Cancelar nela.</p>
+            </div>
+          ) : (
+            <div className="p-4 space-y-3">
+              {ordensCanceladasDaMaquina.map(o => (
+                <div key={o.id} className="opacity-95">
+                  <OrdemMaquinaRow
+                    ordem={o}
+                    onUpdate={(id, data) => updateMaq.mutate({ id, data })}
+                    onDelete={(id) => deleteMaq.mutate(id)}
+                    isGestor={isGestor}
+                    ordens={todasOrdensDaMaquina}
+                    pedidoSeq={pedidoSeqMap[o.id]}
+                    user={user}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       ) : (
         /* VISÃO DIA */
         <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -585,7 +693,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
               </Button>
             )}
           </div>
-          {ordensDiaFiltradas.length === 0 ? (
+          {ordensDiaFiltradas.length === 0 && ordensDiaCanceladas.length === 0 ? (
             <div className="px-4 py-12 flex flex-col items-center gap-3">
               <Factory className="w-10 h-10 text-muted-foreground/20" />
               <p className="text-sm text-muted-foreground">Nenhuma ordem para este dia</p>
@@ -599,7 +707,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
             <div className="p-4 space-y-3">
               {ordensDiaFiltradas.map(o => (
                 <div key={o.id}>
-                  <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} isGestor={isGestor} ordens={ordensDaMaquina} pedidoSeq={pedidoSeqMap[o.id]} user={user} />
+                  <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} onDelete={(id) => deleteMaq.mutate(id)} isGestor={isGestor} ordens={todasOrdensDaMaquina} pedidoSeq={pedidoSeqMap[o.id]} user={user} />
                   {isGestor && (
                     <div className="flex justify-end mt-1 gap-1">
                       {o.status !== "finalizado" && o.status !== "cancelado" && (
@@ -620,6 +728,33 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
                   )}
                 </div>
               ))}
+
+              {/* Seção das Ordens Canceladas no Dia Selecionado */}
+              {ordensDiaCanceladas.length > 0 && (
+                <div className="mt-8 pt-4 border-t-2 border-dashed border-red-200 dark:border-red-950">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Ban className="w-4 h-4 text-red-600" />
+                    <span className="text-xs font-bold text-red-600 uppercase tracking-wider">
+                      Canceladas do Dia ({ordensDiaCanceladas.length}) — Prontas para Excluir
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    {ordensDiaCanceladas.map(o => (
+                      <div key={o.id} className="opacity-90">
+                        <OrdemMaquinaRow
+                          ordem={o}
+                          onUpdate={(id, data) => updateMaq.mutate({ id, data })}
+                          onDelete={(id) => deleteMaq.mutate(id)}
+                          isGestor={isGestor}
+                          ordens={todasOrdensDaMaquina}
+                          pedidoSeq={pedidoSeqMap[o.id]}
+                          user={user}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

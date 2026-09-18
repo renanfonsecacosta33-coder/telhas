@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers, Image as ImageIcon, ScanLine, ShoppingCart, User } from "lucide-react";
+import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers, Image as ImageIcon, ScanLine, ShoppingCart, User, AlertTriangle, Ban } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -69,6 +69,8 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
   const fotoInputRef = useRef();
   const fotoScanRef = useRef();
   const [validacaoDialog, setValidacaoDialog] = useState(false);
+  const [confirmarExclusaoOpen, setConfirmarExclusaoOpen] = useState(false);
+  const [confirmarCancelarOpen, setConfirmarCancelarOpen] = useState(false);
 
   useEffect(() => {
     const iv = setInterval(() => setTick(t => t + 1), 1000);
@@ -581,11 +583,47 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
           {o.status === "finalizado" && !isGestor && (
             <span className={`${z.obs} text-muted-foreground italic`}>Finalizado — bloqueado</span>
           )}
-          {isGestor && (
-            <Button size="sm" variant="outline" className={`gap-1 ${z.btn} text-red-600 border-red-300 hover:bg-red-50`}
-              onClick={() => { if (window.confirm("Excluir esta ordem? Esta ação não pode ser desfeita.")) onDelete(o.id); }}>
-              <Trash2 className="w-3 h-3" /> Excluir
+          {/* Se a ordem NÃO estiver finalizada e NÃO estiver cancelada: botão Cancelar disponível */}
+          {o.status !== "finalizado" && o.status !== "cancelado" && (
+            <Button
+              size="sm"
+              variant="outline"
+              className={`${z.btn} text-red-500 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/40`}
+              onClick={() => setConfirmarCancelarOpen(true)}
+              title="Cancelar esta ordem da desbobinadeira"
+            >
+              Cancelar
             </Button>
+          )}
+
+          {/* Se a ordem ESTÁ cancelada: exibe Reativar e o botão EXCLUIR */}
+          {o.status === "cancelado" && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-red-600 font-semibold italic mr-1 flex items-center gap-1">
+                <Ban className="w-3.5 h-3.5" /> Cancelada
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className={`gap-1 ${z.btn} text-slate-700 border-slate-300 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800`}
+                onClick={() => {
+                  onUpdate(o.id, { status: "pendente" });
+                  toast.success(`OP #${o.numero_pedido || o.id} reativada para Pendente!`);
+                }}
+                title="Voltar status para Pendente"
+              >
+                ↩ Reativar
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                className={`gap-1 ${z.btn} bg-red-600 hover:bg-red-700 text-white font-bold shadow-sm`}
+                onClick={() => setConfirmarExclusaoOpen(true)}
+                title="Excluir ordem permanentemente da fábrica"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Excluir
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -727,6 +765,93 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
             </Button>
             <Button onClick={handleConfirmarFinalizacao} className="bg-green-600 hover:bg-green-700 text-white border-0 gap-1.5">
               <CheckCircle2 className="w-4 h-4" /> Confirmar Peso Real
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Confirmação para CANCELAR ordem Desbobinadeira */}
+      <Dialog open={confirmarCancelarOpen} onOpenChange={setConfirmarCancelarOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-amber-600 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+              Cancelar Ordem da Desbobinadeira?
+            </DialogTitle>
+            <DialogDescription>
+              A ordem de desbobinamento será marcada como <strong>Cancelada</strong>.
+              Após cancelar, o botão de <strong>Excluir Definitivamente</strong> ficará liberado.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-3 bg-muted rounded-lg text-xs space-y-1.5 border border-border">
+            <p><strong className="text-foreground">OP:</strong> #{o.numero_pedido || o.id}</p>
+            <p><strong className="text-foreground">Cliente:</strong> {o.cliente || "—"}</p>
+            <p><strong className="text-foreground">Bobina:</strong> {o.bobina_codigo || "—"}</p>
+            <p><strong className="text-foreground">Quantidade / Peso:</strong> {o.quantidade || 1} pç ({o.kg_estimado || 0} kg)</p>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setConfirmarCancelarOpen(false)}>
+              Voltar
+            </Button>
+            <Button
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
+              onClick={() => {
+                setConfirmarCancelarOpen(false);
+                onUpdate(o.id, { status: "cancelado" });
+                toast.warning(`OP #${o.numero_pedido || o.id} cancelada. Botão Excluir liberado.`);
+              }}
+            >
+              Sim, Cancelar Ordem
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Confirmação para EXCLUIR DEFINITIVAMENTE (Apenas ordens canceladas) */}
+      <Dialog open={confirmarExclusaoOpen} onOpenChange={setConfirmarExclusaoOpen}>
+        <DialogContent className="sm:max-w-md border-red-200 dark:border-red-900">
+          <DialogHeader>
+            <DialogTitle className="text-red-600 flex items-center gap-2 font-bold">
+              <Trash2 className="w-5 h-5 text-red-600 shrink-0" />
+              Excluir Ordem Definitivamente?
+            </DialogTitle>
+            <DialogDescription className="text-red-600/90 font-medium">
+              Atenção: Esta ordem cancelada será apagada permanentemente do sistema da fábrica. Esta ação não poderá ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-3 bg-red-50 dark:bg-red-950/40 rounded-lg text-xs space-y-1.5 border border-red-200 dark:border-red-900 text-red-900 dark:text-red-200">
+            <p><strong>OP:</strong> #{o.numero_pedido || o.id}</p>
+            <p><strong>Cliente:</strong> {o.cliente || "—"}</p>
+            <p><strong>Bobina:</strong> {o.bobina_codigo || "—"}</p>
+            <p><strong>Status Atual:</strong> Cancelada</p>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setConfirmarExclusaoOpen(false)}>
+              Manter Cancelada
+            </Button>
+            <Button
+              variant="destructive"
+              className="bg-red-600 hover:bg-red-700 text-white font-bold gap-1 shadow-md"
+              onClick={async () => {
+                setConfirmarExclusaoOpen(false);
+                try {
+                  if (typeof onDelete === "function") {
+                    await onDelete(o.id);
+                  } else {
+                    await base44.entities.OrdemDesbobinadeira.delete(o.id);
+                    toast.success(`OP #${o.numero_pedido || o.id} excluída com sucesso!`);
+                  }
+                } catch (err) {
+                  console.error("Erro ao excluir OP:", err);
+                  toast.error("Erro ao excluir ordem.");
+                }
+              }}
+            >
+              <Trash2 className="w-4 h-4" /> Sim, Excluir Definitivamente
             </Button>
           </DialogFooter>
         </DialogContent>

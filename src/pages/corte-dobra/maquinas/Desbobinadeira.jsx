@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Layers, AlertTriangle, Search, X, Star } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Layers, AlertTriangle, Search, X, Star, Ban, Trash2 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -169,6 +169,23 @@ export default function Desbobinadeira() {
       return (ord[a.status] ?? 2) - (ord[b.status] ?? 2);
     });
   }, [ordens, selectedDay, buscaPedido]);
+
+  const ordensCanceladasDesb = useMemo(
+    () => ordens.filter(o => o.status === "cancelado"),
+    [ordens]
+  );
+
+  const ordensDiaCanceladas = useMemo(() => {
+    if (buscaPedido.trim()) {
+      const q = buscaPedido.toLowerCase().trim();
+      return ordensCanceladasDesb.filter(o =>
+        (o.numero_pedido || "").toLowerCase().includes(q) ||
+        (o.cliente || "").toLowerCase().includes(q) ||
+        (o.bobina_descricao || "").toLowerCase().includes(q)
+      );
+    }
+    return ordensCanceladasDesb.filter(o => o.data === selectedDay);
+  }, [ordensCanceladasDesb, selectedDay, buscaPedido]);
 
   const updateOrdem = useMutation({
     mutationFn: async ({ id, data }) => {
@@ -584,6 +601,36 @@ export default function Desbobinadeira() {
                   )}
                 </div>
               ))}
+
+              {/* Seção das Ordens Canceladas no Dia Selecionado */}
+              {ordensDiaCanceladas.length > 0 && (
+                <div className="mt-8 pt-4 border-t-2 border-dashed border-red-200 dark:border-red-950">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Ban className="w-4 h-4 text-red-600" />
+                    <span className="text-xs font-bold text-red-600 uppercase tracking-wider">
+                      Canceladas do Dia ({ordensDiaCanceladas.length}) — Prontas para Excluir
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    {ordensDiaCanceladas.map(o => (
+                      <div key={o.id} className="opacity-90">
+                        <OrdemDesbobinadiraRow
+                          ordem={o}
+                          onUpdate={(id, data) => updateOrdem.mutate({ id, data })}
+                          onDelete={(id) => deleteOrdem.mutate(id)}
+                          isGestor={isGestor}
+                          ordens={ordens}
+                          pedidoSeq={pedidoSeqMap[o.id]}
+                          bobinaCustoMap={bobinaCustoMap}
+                          user={user}
+                          chapaVinculada={chapaMapPorOrdem[o.id]}
+                          onGerarChapa={handleGerarChapaManual}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
