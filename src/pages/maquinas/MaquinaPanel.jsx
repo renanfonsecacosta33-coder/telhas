@@ -20,10 +20,10 @@ import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedien
 import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo, detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import { SeletorPrioridadeDropdown, getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
-import { calcularMetrosPedido } from "@/lib/metrosHelper";
 import { normalizarTextoBusca, calcularFiltrosDisponiveis, pedidoAtendeFiltroMaterial } from "@/lib/bobinaStatusHelper";
 import TimerProducao from "@/components/producao/TimerProducao";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
+import { isOperadorDestaMaquina } from "@/lib/somPermissaoHelper";
 
 const STATUS_LABELS_TELHAS = {
   pendente: "Pendente",
@@ -148,7 +148,8 @@ export default function MaquinaPanel({ maquina }) {
       // Só toca som para pedidos pendentes que são NOVOS nesta máquina
       // (não toca para pedidos que vieram de outra máquina já em produção/colagem)
       const trulyNew = newOrders.filter(p => p.status === "pendente");
-      if (trulyNew.length > 0) {
+      // Sinais sonoros da máquina só chegam para o operador cadastrado nesta máquina específica!
+      if (trulyNew.length > 0 && isOperadorDestaMaquina(user, maquina)) {
         playAlertSound();
         trulyNew.forEach(p => {
           speakNovaOp(p.maquina, p.numero_pedido);

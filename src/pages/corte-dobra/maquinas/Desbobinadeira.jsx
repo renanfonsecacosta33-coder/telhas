@@ -14,11 +14,10 @@ import { useFilial } from "@/contexts/FilialContext";
 import { playAlertSound } from "@/lib/sounds";
 import FiltroChapa from "@/components/corte-dobra/FiltroChapa";
 import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
-import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
-import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
 import TimerProducao from "@/components/producao/TimerProducao";
 import { getPesoOrdenacaoPrioridade, SeletorPrioridadeDropdown } from "@/lib/prioridadeHelper";
+import { isOperadorDestaMaquina } from "@/lib/somPermissaoHelper";
 
 export default function Desbobinadeira() {
   const { filialAtiva } = useFilial();
@@ -54,17 +53,19 @@ export default function Desbobinadeira() {
     refetchInterval: 10000,
   });
 
-  // Som de alerta quando nova OP é criada
+  // Som de alerta quando nova OP é criada (apenas para o operador da Desbobinadeira)
   const prevIdsRef = useRef(null);
   useEffect(() => {
     if (!ordens.length) return;
     const currentIds = new Set(ordens.map(o => o.id));
     if (prevIdsRef.current !== null) {
       const hasNew = [...currentIds].some(id => !prevIdsRef.current.has(id));
-      if (hasNew) playAlertSound();
+      if (hasNew && isOperadorDestaMaquina(user, "Desbobinadeira")) {
+        playAlertSound();
+      }
     }
     prevIdsRef.current = currentIds;
-  }, [ordens]);
+  }, [ordens, user]);
 
   // Busca também as OPs das máquinas CD (guilhotina, dobra, etc.) para
   // calcular a sequência do pedido cruzando todos os setores

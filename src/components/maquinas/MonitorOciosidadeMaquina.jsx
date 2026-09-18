@@ -22,6 +22,7 @@ import {
 import { playSireneFabrica, speakAlertaMaquinaOciosa } from "@/lib/sounds";
 import SetupMaquinaModal from "./SetupMaquinaModal";
 import { toast } from "sonner";
+import { isOperadorDestaMaquina } from "@/lib/somPermissaoHelper";
 
 function formatSegundos(sec) {
   const s = Math.max(0, Math.floor(sec || 0));
@@ -91,40 +92,6 @@ export default function MonitorOciosidadeMaquina({
       }
     }
   }, [isProduzindo, maquinaNome]);
-
-// Helper para verificar se o usuário é operador e pertence a esta máquina
-function isOperadorDestaMaquina(usuario, maquinaNome = "") {
-  if (!usuario) return false;
-  // Apenas quem tem perfil 'operador' escuta o alarme sonoro
-  if (usuario.role !== "operador") return false;
-
-  const maqNorm = String(maquinaNome || "").toUpperCase().replace(/[\s\-_]/g, "");
-  if (!maqNorm) return false;
-
-  let maquinasDoUser = [];
-  try {
-    if (Array.isArray(usuario.maquinas)) {
-      maquinasDoUser = usuario.maquinas;
-    } else if (typeof usuario.maquina === "string") {
-      try {
-        const parsed = JSON.parse(usuario.maquina);
-        if (Array.isArray(parsed)) maquinasDoUser = parsed;
-        else maquinasDoUser = [usuario.maquina];
-      } catch {
-        maquinasDoUser = [usuario.maquina];
-      }
-    }
-  } catch {
-    maquinasDoUser = usuario.maquina ? [usuario.maquina] : [];
-  }
-
-  // Comparações flexíveis: "TP-25" === "TP 25", "DESBOBINADEIRA" inclui "DESBOBINAD", etc.
-  return maquinasDoUser.some((m) => {
-    const uNorm = String(m || "").toUpperCase().replace(/[\s\-_]/g, "");
-    if (!uNorm) return false;
-    return uNorm === maqNorm || maqNorm.includes(uNorm) || uNorm.includes(maqNorm);
-  });
-}
 
 // Tick a cada 1 segundo
   useEffect(() => {
