@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFilial } from "@/contexts/FilialContext";
 import {
@@ -22,7 +23,8 @@ import {
   Factory,
   UserX,
   EyeOff,
-  RefreshCw
+  RefreshCw,
+  ArrowLeft
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +47,7 @@ import {
 const CORES_PODIO = ["#eab308", "#94a3b8", "#b45309", "#3b82f6", "#10b981", "#8b5cf6"];
 
 export default function PerformanceOperadores() {
+  const navigate = useNavigate();
   const { filialAtiva } = useFilial();
   const [periodo, setPeriodo] = useState("mes"); // hoje | semana | mes
   const [setorFiltro, setSetorFiltro] = useState("todos"); // todos | telhas | corte_dobra
@@ -284,7 +287,23 @@ export default function PerformanceOperadores() {
       {/* Header */}
       <div className="bg-card border border-border rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-yellow-600 text-white flex items-center justify-center shadow-md shadow-amber-500/20">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => {
+              if (window.history.length > 1) {
+                navigate(-1);
+              } else {
+                navigate("/setor");
+              }
+            }}
+            className="h-10 w-10 rounded-xl shrink-0 border-border hover:border-primary hover:text-primary transition-colors"
+            title="Voltar ao menu anterior"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-yellow-600 text-white flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
             <Trophy className="w-6 h-6" />
           </div>
           <div>
