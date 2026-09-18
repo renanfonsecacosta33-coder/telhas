@@ -10,6 +10,8 @@ import { ThemeProvider } from '@/lib/ThemeContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
 import { FilialProvider } from '@/contexts/FilialContext';
+import { OfflineProvider } from '@/contexts/OfflineContext';
+import OfflineStatusBar from '@/components/offline/OfflineStatusBar';
 import SupabaseRealtimeSync from '@/components/SupabaseRealtimeSync';
 import AutoRefreshInactivity from '@/components/AutoRefreshInactivity';
 import AppLayout from '@/components/layout/AppLayout';
@@ -231,12 +233,15 @@ function App() {
     <ThemeProvider>
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
-        <Router>
-          <AuthenticatedApp />
-        </Router>
-        <Toaster />
-        <SonnerToaster />
-        <PwaInstallPrompt />
+        <OfflineProvider>
+          <OfflineStatusBar />
+          <Router>
+            <AuthenticatedApp />
+          </Router>
+          <Toaster />
+          <SonnerToaster />
+          <PwaInstallPrompt />
+        </OfflineProvider>
       </QueryClientProvider>
     </AuthProvider>
     </ThemeProvider>

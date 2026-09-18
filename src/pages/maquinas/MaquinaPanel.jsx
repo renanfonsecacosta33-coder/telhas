@@ -24,6 +24,7 @@ import { normalizarTextoBusca, calcularFiltrosDisponiveis, pedidoAtendeFiltroMat
 import TimerProducao from "@/components/producao/TimerProducao";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
 import { isOperadorDestaMaquina } from "@/lib/somPermissaoHelper";
+import { salvarCacheLocal, obterCacheLocal, enfileirarAcaoOffline } from "@/lib/offlineStorage";
 
 const STATUS_LABELS_TELHAS = {
   pendente: "Pendente",
@@ -92,7 +93,21 @@ export default function MaquinaPanel({ maquina }) {
 
   const { data: todosPedidos = [], isLoading } = useQuery({
     queryKey: ["pedidos", filialAtiva],
-    queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva }, "-data", 500),
+    queryFn: async () => {
+      try {
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          const cacheOffline = await obterCacheLocal(`pedidos_${filialAtiva}`);
+          if (cacheOffline) return cacheOffline;
+        }
+        const res = await base44.entities.Pedido.filter({ unidade: filialAtiva }, "-data", 500);
+        salvarCacheLocal(`pedidos_${filialAtiva}`, res).catch(() => {});
+        return res;
+      } catch (fetchErr) {
+        const cacheOffline = await obterCacheLocal(`pedidos_${filialAtiva}`);
+        if (cacheOffline) return cacheOffline;
+        throw fetchErr;
+      }
+    },
     refetchInterval: 10000,
   });
 
@@ -160,7 +175,38 @@ export default function MaquinaPanel({ maquina }) {
   }, [pedidos]);
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.Pedido.update(id, data),
+    mutationFn: async ({ id, data }) => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        throw new Error("OFFLINE_TRIGGERED");
+      }
+      return await base44.entities.Pedido.update(id, data);
+    },
+    onError: async (error, variables) => {
+      // Salva na fila offline com fallback para envio em segundo plano
+      try {
+        await enfileirarAcaoOffline({
+          tipo: "PEDIDO_UPDATE",
+          entidade: "Pedido",
+          registroId: variables.id,
+          dados: variables.data,
+          descricao: `Pedido #${variables.data?.numero_pedido || variables.id} -> ${variables.data?.status || 'atualizado'}`
+        });
+
+        // Atualização otimista na memória para a UI atualizar instantaneamente
+        queryClient.setQueryData(["pedidos", filialAtiva], (antigos) => {
+          if (!antigos || !Array.isArray(antigos)) return antigos;
+          return antigos.map(p => p.id === variables.id ? { ...p, ...variables.data } : p);
+        });
+
+        toast.info("Modo Offline: Apontamento salvo no tablet!", {
+          description: "Será enviado para a nuvem assim que o Wi-Fi restabelecer.",
+          duration: 4000
+        });
+      } catch (errLocal) {
+        console.error("Falha ao salvar offline:", errLocal);
+        toast.error("Erro ao registrar apontamento.");
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
       queryClient.invalidateQueries({ queryKey: ["pre-baixa-bobinas-v2"] });

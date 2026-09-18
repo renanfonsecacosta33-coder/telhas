@@ -20,6 +20,7 @@ import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import { getPesoOrdenacaoPrioridade, SeletorPrioridadeDropdown } from "@/lib/prioridadeHelper";
 import TimerProducao from "@/components/producao/TimerProducao";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
+import { salvarCacheLocal, obterCacheLocal, enfileirarAcaoOffline } from "@/lib/offlineStorage";
 
 export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const { filialAtiva } = useFilial();
@@ -64,7 +65,21 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
 
   const { data: ordens = [], isLoading } = useQuery({
     queryKey: ["ordens-maquina-cd", filialAtiva],
-    queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva }, "-data", 500),
+    queryFn: async () => {
+      try {
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          const cacheOffline = await obterCacheLocal(`ordens_cd_${filialAtiva}`);
+          if (cacheOffline) return cacheOffline;
+        }
+        const res = await base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva }, "-data", 500);
+        salvarCacheLocal(`ordens_cd_${filialAtiva}`, res).catch(() => {});
+        return res;
+      } catch (fetchErr) {
+        const cacheOffline = await obterCacheLocal(`ordens_cd_${filialAtiva}`);
+        if (cacheOffline) return cacheOffline;
+        throw fetchErr;
+      }
+    },
     refetchInterval: 10000,
   });
 
@@ -155,9 +170,38 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   }, [ordensDaMaquina, selectedDay, buscaPedido]);
 
   const updateMaq = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.OrdemMaquinaCD.update(id, data),
+    mutationFn: async ({ id, data }) => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        throw new Error("OFFLINE_TRIGGERED");
+      }
+      return await base44.entities.OrdemMaquinaCD.update(id, data);
+    },
+    onError: async (error, variables) => {
+      try {
+        await enfileirarAcaoOffline({
+          tipo: "ORDEM_CD_UPDATE",
+          entidade: "OrdemMaquinaCD",
+          registroId: variables.id,
+          dados: variables.data,
+          descricao: `OP CD #${variables.data?.numero_pedido || variables.id} -> ${variables.data?.status || 'atualizado'}`
+        });
+
+        // Atualização otimista na memória para a UI atualizar instantaneamente
+        queryClient.setQueryData(["ordens-maquina-cd", filialAtiva], (antigos) => {
+          if (!antigos || !Array.isArray(antigos)) return antigos;
+          return antigos.map(o => o.id === variables.id ? { ...o, ...variables.data } : o);
+        });
+
+        toast.info("Modo Offline: Ordem salva no tablet!", {
+          description: "Será enviada à nuvem automaticamente assim que o Wi-Fi voltar.",
+          duration: 4000
+        });
+      } catch (errLocal) {
+        console.error("Falha ao salvar offline em CD:", errLocal);
+        toast.error("Erro ao registrar ordem.");
+      }
+    },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] }); },
-    onError: (err) => { toast.error("Erro ao atualizar ordem: " + (err?.message || "Falha na operação")); },
   });
   const createMaq = useMutation({
     mutationFn: (data) => base44.entities.OrdemMaquinaCD.create(data),

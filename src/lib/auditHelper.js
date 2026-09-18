@@ -38,8 +38,26 @@ export async function registrarAuditoria({
       data_hora: new Date().toISOString()
     };
 
-    // Salva na entidade AuditLog
-    await base44.entities.AuditLog.create(payload);
+    // Salva na entidade AuditLog online ou enfileira se estiver offline
+    try {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        throw new Error("Offline");
+      }
+      await base44.entities.AuditLog.create(payload);
+    } catch (saveErr) {
+      // Enfileira offline para envio posterior
+      try {
+        const { enfileirarAcaoOffline } = await import("./offlineStorage");
+        await enfileirarAcaoOffline({
+          tipo: "AUDITORIA",
+          entidade: "AuditLog",
+          dados: payload,
+          descricao: `Auditoria: ${acao} em ${entidade}`
+        });
+      } catch (queueErr) {
+        console.warn("Erro ao salvar auditoria offline:", queueErr);
+      }
+    }
   } catch (err) {
     console.warn("Aviso ao registrar auditoria no sistema:", err);
   }

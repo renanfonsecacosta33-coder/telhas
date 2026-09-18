@@ -1,5 +1,5 @@
 // Service Worker — AJL Fábricas PWA
-const CACHE_NAME = 'ajl-fabricas-v2';
+const CACHE_NAME = 'ajl-fabricas-v3-offline';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
