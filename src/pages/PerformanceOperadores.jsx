@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFilial } from "@/contexts/FilialContext";
 import {
   Trophy,
@@ -21,7 +21,8 @@ import {
   UserCheck,
   Factory,
   UserX,
-  EyeOff
+  EyeOff,
+  RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,11 +48,22 @@ export default function PerformanceOperadores() {
   const { filialAtiva } = useFilial();
   const [periodo, setPeriodo] = useState("mes"); // hoje | semana | mes
   const [setorFiltro, setSetorFiltro] = useState("todos"); // todos | telhas | corte_dobra
+  const queryClient = useQueryClient();
   const [busca, setBusca] = useState("");
   const [novoOperadorOpen, setNovoOperadorOpen] = useState(false);
   const [removerOperadorTarget, setRemoverOperadorTarget] = useState(null);
   const [gerenciarOcultosOpen, setGerenciarOcultosOpen] = useState(false);
-  const [apenasComMaquinaOuOps, setApenasComMaquinaOuOps] = useState(false);
+  // Por padrão ativado: esconde automaticamente contas de escritório/vendedores sem máquina e sem OPs
+  const [apenasComMaquinaOuOps, setApenasComMaquinaOuOps] = useState(true);
+  const [atualizando, setAtualizando] = useState(false);
+
+  const handleAtualizarDados = async () => {
+    setAtualizando(true);
+    await queryClient.invalidateQueries({ queryKey: ["perf-pedidos-telhas"] });
+    await queryClient.invalidateQueries({ queryKey: ["perf-ordens-cd"] });
+    await queryClient.invalidateQueries({ queryKey: ["perf-equipe"] });
+    setTimeout(() => setAtualizando(false), 500);
+  };
 
   // 1. Buscar apontamentos e ordens finalizadas de telhas
   const { data: pedidosTelhas = [], isLoading: loadingTelhas } = useQuery({
@@ -95,9 +107,25 @@ export default function PerformanceOperadores() {
 
   const isLoading = loadingTelhas || loadingCD;
 
-  // Usuários que foram retirados da lista de operadores
+  // Usuários que foram retirados da lista de operadores (Banco + LocalStorage)
   const usuariosOcultos = useMemo(() => {
-    return (equipe || []).filter((u) => u.nao_operador);
+    let ocultosLocais = [];
+    try {
+      ocultosLocais = JSON.parse(localStorage.getItem("ajl_operadores_ocultos") || "[]");
+    } catch {}
+
+    const doBanco = (equipe || []).filter((u) => u.nao_operador);
+    const nomesJaAdicionados = new Set(doBanco.map(u => u.full_name || u.email));
+
+    ocultosLocais.forEach(nome => {
+      if (!nomesJaAdicionados.has(nome)) {
+        const uEquipe = (equipe || []).find(u => u.full_name === nome || u.email === nome);
+        if (uEquipe) doBanco.push(uEquipe);
+        else doBanco.push({ id: nome, full_name: nome, role: "Outro", setor: "Ocultado" });
+      }
+    });
+
+    return doBanco;
   }, [equipe]);
 
   // Processar e tabular métricas por operador
@@ -106,9 +134,9 @@ export default function PerformanceOperadores() {
 
     // Inicializar com a equipe cadastrada (ignorando quem não é operador)
     equipe.forEach((u) => {
-      if (u.nao_operador) return;
-      if (setorFiltro !== "todos" && u.setor && u.setor !== setorFiltro) return;
       const nome = u.full_name || u.email;
+      if (u.nao_operador || usuariosOcultos.some(o => o.full_name === nome || o.email === nome)) return;
+      if (setorFiltro !== "todos" && u.setor && u.setor !== setorFiltro) return;
       let maqArray = [];
       try {
         if (Array.isArray(u.maquinas)) maqArray = u.maquinas;
@@ -276,8 +304,20 @@ export default function PerformanceOperadores() {
         <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
+            variant="outline"
+            onClick={handleAtualizarDados}
+            disabled={atualizando}
+            className="gap-1.5 text-xs h-8 border-border hover:border-primary"
+            title="Recarregar dados da fábrica"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${atualizando ? "animate-spin text-primary" : ""}`} />
+            <span>Atualizar</span>
+          </Button>
+
+          <Button
+            size="sm"
             onClick={() => setNovoOperadorOpen(true)}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 text-xs shadow-xs"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 text-xs shadow-xs h-8"
           >
             <UserPlus className="w-3.5 h-3.5" />
             Cadastrar Operador
@@ -440,13 +480,17 @@ export default function PerformanceOperadores() {
 
             <Button
               size="sm"
-              variant={apenasComMaquinaOuOps ? "secondary" : "ghost"}
+              variant={apenasComMaquinaOuOps ? "default" : "outline"}
               onClick={() => setApenasComMaquinaOuOps(!apenasComMaquinaOuOps)}
-              className="h-8 text-xs gap-1.5 border border-border"
-              title="Ocultar usuários sem máquinas configuradas e com 0 produção"
+              className={`h-8 text-xs gap-1.5 font-bold ${
+                apenasComMaquinaOuOps 
+                  ? "bg-primary text-primary-foreground shadow-xs" 
+                  : "border-border text-muted-foreground hover:text-foreground"
+              }`}
+              title="Alternar entre ver apenas operadores com máquina/produção ou toda a lista"
             >
               <Filter className="w-3.5 h-3.5" />
-              <span>{apenasComMaquinaOuOps ? "Apenas com Máquina / Produtivos" : "Exibir Todos"}</span>
+              <span>{apenasComMaquinaOuOps ? "✓ Apenas Operadores Ativos" : "Exibindo Todos (Inc. Escritório)"}</span>
             </Button>
 
             <div className="relative w-full sm:w-60">

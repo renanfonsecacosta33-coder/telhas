@@ -31,17 +31,45 @@ export default function RemoverOperadorDialog({
   const handleConfirmar = async () => {
     setRemovendo(true);
     try {
-      // 1. Atualizar no Base44 definindo nao_operador = true
-      await base44.entities.User.update(operador.id, {
-        nao_operador: true,
-        role: novoCargo
-      });
+      let targetUserId = operador.id;
+
+      // Se id não for um ID padrão de entidade, tenta localizar por nome ou email
+      try {
+        await base44.entities.User.update(targetUserId, {
+          nao_operador: true,
+          role: novoCargo
+        });
+      } catch (errFirst) {
+        // Fallback: buscar por full_name ou email
+        const encontrados = await base44.entities.User.filter({
+          $or: [
+            { full_name: operador.nome },
+            { email: operador.nome }
+          ]
+        });
+        if (encontrados && encontrados.length > 0) {
+          targetUserId = encontrados[0].id;
+          await base44.entities.User.update(targetUserId, {
+            nao_operador: true,
+            role: novoCargo
+          });
+        }
+      }
+
+      // Salvar também em localStorage para efeito instantâneo no navegador
+      try {
+        const ocultosLocais = JSON.parse(localStorage.getItem("ajl_operadores_ocultos") || "[]");
+        if (!ocultosLocais.includes(operador.nome)) {
+          ocultosLocais.push(operador.nome);
+          localStorage.setItem("ajl_operadores_ocultos", JSON.stringify(ocultosLocais));
+        }
+      } catch {}
 
       // 2. Registrar na Auditoria
       registrarAuditoria({
         acao: "edicao",
         entidade: "User",
-        registroId: operador.id,
+        registroId: targetUserId,
         registroIdentificador: operador.nome,
         detalhes: `Removeu "${operador.nome}" da lista de operadores de fábrica (Redefinido para cargo: ${novoCargo})`
       });
