@@ -184,7 +184,8 @@ export default function PerformanceOperadores() {
         const seg = Number(p.tempo_producao_seg || 1200);
 
         listaOps.forEach((opNome) => {
-          const isOculto = usuariosOcultos.some(u => (u.full_name === opNome || u.email === opNome));
+          if (!opNome) return;
+          const isOculto = (usuariosOcultos || []).some(u => (u?.full_name === opNome || u?.email === opNome));
           if (isOculto) return;
           if (!mapa[opNome]) {
             mapa[opNome] = {
@@ -192,6 +193,7 @@ export default function PerformanceOperadores() {
               nome: opNome,
               role: "operador",
               setor: "Telhas",
+              maquinasCadastradas: [],
               totalOps: 0,
               totalPecasOuMetros: 0,
               totalSegundos: 0,
@@ -223,7 +225,8 @@ export default function PerformanceOperadores() {
         const seg = Number(o.tempo_producao_seg || 900);
 
         listaOps.forEach((opNome) => {
-          const isOculto = usuariosOcultos.some(u => (u.full_name === opNome || u.email === opNome));
+          if (!opNome) return;
+          const isOculto = (usuariosOcultos || []).some(u => (u?.full_name === opNome || u?.email === opNome));
           if (isOculto) return;
           if (!mapa[opNome]) {
             mapa[opNome] = {
@@ -231,6 +234,7 @@ export default function PerformanceOperadores() {
               nome: opNome,
               role: "operador",
               setor: "Corte e Dobra",
+              maquinasCadastradas: [],
               totalOps: 0,
               totalPecasOuMetros: 0,
               totalSegundos: 0,
@@ -250,35 +254,39 @@ export default function PerformanceOperadores() {
         const mediaMin = item.totalOps > 0 ? Math.round(item.totalSegundos / item.totalOps / 60) : 0;
         return {
           ...item,
+          maquinasCadastradas: item.maquinasCadastradas || [],
           mediaMinutosPorOp: mediaMin,
-          maquinasCount: item.maquinasUsadas.size
+          maquinasCount: item.maquinasUsadas ? item.maquinasUsadas.size : 0
         };
       })
-      .filter((item) => item.totalOps > 0 || !item.nome.startsWith("Equipe"))
+      .filter((item) => item.totalOps > 0 || !(item.nome || "").startsWith("Equipe"))
       .sort((a, b) => b.totalOps - a.totalOps || b.totalPecasOuMetros - a.totalPecasOuMetros);
   }, [pedidosTelhas, ordensCD, equipe, setorFiltro, usuariosOcultos]);
 
   const filtrados = useMemo(() => {
-    return rankingOperadores.filter((item) => {
-      if (apenasComMaquinaOuOps && item.maquinasCadastradas.length === 0 && item.totalOps === 0) {
+    return (rankingOperadores || []).filter((item) => {
+      const temMaquinas = (item?.maquinasCadastradas || []).length > 0;
+      const temProducao = (item?.totalOps || 0) > 0;
+      if (apenasComMaquinaOuOps && !temMaquinas && !temProducao) {
         return false;
       }
       if (busca.trim()) {
-        return item.nome.toLowerCase().includes(busca.toLowerCase().trim());
+        const nomeLower = (item?.nome || "").toLowerCase();
+        return nomeLower.includes(busca.toLowerCase().trim());
       }
       return true;
     });
   }, [rankingOperadores, busca, apenasComMaquinaOuOps]);
 
-  const top3 = filtrados.slice(0, 3);
+  const top3 = (filtrados || []).slice(0, 3);
 
   // Dados para o gráfico de barras
   const chartData = useMemo(() => {
-    return filtrados.slice(0, 8).map((op) => ({
-      name: op.nome.split(" ")[0],
-      totalOps: op.totalOps,
-      producao: op.totalPecasOuMetros,
-      mediaMinutos: op.mediaMinutosPorOp
+    return (filtrados || []).slice(0, 8).map((op) => ({
+      name: (op?.nome || "Op").split(" ")[0] || "Op",
+      totalOps: op?.totalOps || 0,
+      producao: op?.totalPecasOuMetros || 0,
+      mediaMinutos: op?.mediaMinutosPorOp || 0
     }));
   }, [filtrados]);
 
