@@ -1163,22 +1163,42 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
           );
         })()}
 
-        {/* Detalhes técnicos */}
-        <div className="flex flex-wrap items-center gap-2 mb-3">
-          {p.bobina_superior && (
-            <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs px-2.5 py-0.5 rounded-full font-medium border border-slate-200 dark:border-slate-700">
-              Bobina: {p.bobina_superior}
-            </span>
-          )}
-          {/* Selo Nacional vs Importado destacado */}
-          {(p.bobina_superior || p.bobina_superior_id || p.origem_exigida) && (
+        {/* Bloco de Destaque da Bobina & Procedência do Aço (Nacional vs Importado) */}
+        {(p.bobina_superior || p.bobina_superior_id || p.origem_exigida) && (
+          <div className="w-full bg-slate-50/90 dark:bg-slate-900/80 border-2 border-slate-200 dark:border-slate-700/80 rounded-2xl p-3 sm:p-4 mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                <Layers className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+                    Bobina de Produção
+                  </span>
+                  <span className="font-mono font-black text-sm text-foreground bg-white dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                    {p.bobina_superior || "Bobina não definida"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
+                  <span>Cor / RVM: <strong className="text-foreground">{p.rvm_superior || "Natural"}</strong></span>
+                  {p.espessura_exigida && <span>Espessura: <strong className="text-foreground">{p.espessura_exigida} mm</strong></span>}
+                  {p.kg_superior > 0 && <span>Peso: <strong className="text-foreground">{p.kg_superior} kg</strong></span>}
+                </div>
+              </div>
+            </div>
+
+            {/* SELO GIGANTE E CLARO: AÇO NACIONAL VS IMPORTADO */}
             <BadgeOrigemAco
               bobina={bobinaPrincipalObj}
               bobinaTexto={p.bobina_superior}
               origemExigida={p.origem_exigida}
-              size="default"
+              size="destaque"
             />
-          )}
+          </div>
+        )}
+
+        {/* Detalhes técnicos complementares */}
+        <div className="flex flex-wrap items-center gap-2 mb-3">
           {p.bobina_secundaria && (
             <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-semibold border border-blue-200">
               2ª Bobina: {p.bobina_secundaria} ({p.kg_secundaria || 0}kg)
