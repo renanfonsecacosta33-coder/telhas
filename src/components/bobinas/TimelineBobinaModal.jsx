@@ -53,12 +53,64 @@ export default function TimelineBobinaModal({ open, onClose, bobina }) {
   const { data: logs = [], isLoading: loadingLogs } = useQuery({
     queryKey: ["timeline-logs", bobina.id, bobina.codigo],
     queryFn: async () => {
-      const allLogs = await base44.entities.AuditLog.list("-created_date", 500);
-      return allLogs.filter(l => 
-        (l.registro_id && l.registro_id === bobina.id) ||
-        (l.registro_identificador && l.registro_identificador.toUpperCase() === (bobina.codigo || "").toUpperCase()) ||
-        (l.detalhes && l.detalhes.toUpperCase().includes((bobina.codigo || "").toUpperCase()))
-      );
+      try {
+        const [logsPorId, logsPorCod, logsRecentes] = await Promise.all([
+          base44.entities.AuditLog.filter({ registro_id: bobina.id }, "-created_date", 100).catch(() => []),
+          bobina.codigo ? base44.entities.AuditLog.filter({ registro_identificador: bobina.codigo }, "-created_date", 100).catch(() => []) : [],
+          base44.entities.AuditLog.list("-created_date", 300).catch(() => [])
+        ]);
+
+        const map = new Map();
+        [...logsPorId, ...logsPorCod, ...logsRecentes].forEach(l => {
+          if (!l || !l.id) return;
+          const match = (l.registro_id && l.registro_id === bobina.id) ||
+            (l.registro_identificador && l.registro_identificador.toUpperCase() === (bobina.codigo || "").toUpperCase()) ||
+            (l.detalhes && l.detalhes.toUpperCase().includes((bobina.codigo || "").toUpperCase()));
+          if (match) {
+            map.set(l.id, l);
+          }
+        });
+        return Array.from(map.values());
+      } catch (err) {
+        console.warn("Erro ao buscar logs da timeline:", err);
+        return [];
+      }
+    },
+    enabled: open && !!bobina.id
+  });
+
+  // Busca pedidos de Telhas que usaram essa bobina
+  const { data: pedidosTelhas = [] } = useQuery({
+    queryKey: ["timeline-pedidos-telhas", bobina.id, bobina.codigo],
+    queryFn: async () => {
+      try {
+        const [porSup, porInf, recentes] = await Promise.all([
+          base44.entities.Pedido.filter({ bobina_superior_id: bobina.id }, "-data", 100).catch(() => []),
+          base44.entities.Pedido.filter({ bobina_inferior_id: bobina.id }, "-data", 100).catch(() => []),
+          base44.entities.Pedido.list("-data", 300).catch(() => [])
+        ]);
+
+        const map = new Map();
+        [...porSup, ...porInf, ...recentes].forEach(p => {
+          if (!p || !p.id) return;
+          const matchSup = p.bobina_superior_id === bobina.id || (bobina.codigo && p.bobina_superior && String(p.bobina_superior).includes(bobina.codigo));
+          const matchInf = p.bobina_inferior_id === bobina.id || (bobina.codigo && p.bobina_inferior && String(p.bobina_inferior).includes(bobina.codigo));
+          const matchSec = p.bobina_secundaria_id === bobina.id || p.bobina_id === bobina.id;
+          const matchVar = p.variacoes_telhas && (p.variacoes_telhas.includes(bobina.id) || (bobina.codigo && p.variacoes_telhas.includes(bobina.codigo)));
+
+          if (matchSup || matchInf || matchSec || matchVar) {
+            map.set(p.id, {
+              ...p,
+              _posicao: matchSup ? "Superior" : (matchInf ? "Inferior" : "Telhas"),
+            });
+          }
+        });
+
+        return Array.from(map.values());
+      } catch (e) {
+        console.warn("Erro ao buscar pedidos da bobina na timeline:", e);
+        return [];
+      }
     },
     enabled: open && !!bobina.id
   });
@@ -98,7 +150,44 @@ export default function TimelineBobinaModal({ open, onClose, bobina }) {
       });
     }
 
-    // 2. Evento de reserva (se reservada)
+    // 2. Evento de alteração/ajuste no servidor (detecta edições anteriores ao AuditLog ou diretas no banco)
+    if (bobina.updated_date && bobina.created_date) {
+      const createdMs = new Date(bobina.created_date).getTime();
+      const updatedMs = new Date(bobina.updated_date).getTime();
+      // Mais de 15 segundos de diferença indica alteração posterior à criação
+      if (updatedMs - createdMs > 15000) {
+        // Verifica se já existe um log de auditoria explícito próximo ao updated_date
+        const temLogAudit = logs.some(l => {
+          const logMs = new Date(l.data_hora || l.created_date || 0).getTime();
+          return Math.abs(logMs - updatedMs) < 60000;
+        });
+
+        if (!temLogAudit) {
+          const pesoMudou = bobina.peso_inicial && bobina.peso_kg && Number(bobina.peso_inicial) !== Number(bobina.peso_kg);
+          const dif = pesoMudou ? Number(bobina.peso_kg) - Number(bobina.peso_inicial) : 0;
+          
+          let detalhesModificacao = "Bobina atualizada e dados salvos no sistema.";
+          if (pesoMudou) {
+            detalhesModificacao = `Peso alterado de ${Number(bobina.peso_inicial).toLocaleString("pt-BR")} kg para ${Number(bobina.peso_kg).toLocaleString("pt-BR")} kg (ajuste/consumo direto de ${dif > 0 ? `+${dif.toLocaleString("pt-BR")}` : dif.toLocaleString("pt-BR")} kg).`;
+          }
+          if (bobina.observacoes) {
+            detalhesModificacao += ` Observação: "${bobina.observacoes}".`;
+          }
+
+          lista.push({
+            tipo: "EDICAO",
+            titulo: pesoMudou ? "Ajuste Manual de Peso / Alteração Cadastral" : "Alteração de Cadastro",
+            data_hora: bobina.updated_date,
+            usuario: bobina.updated_by || bobina.last_modified_by || bobina.created_by || "Operador / Sistema",
+            icone: History,
+            cor: "text-amber-700 bg-amber-100 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300",
+            detalhes: detalhesModificacao
+          });
+        }
+      }
+    }
+
+    // 3. Evento de reserva (se reservada)
     if (bobina.reservada) {
       const dataHoraReserva = bobina.reserva_data_hora || (bobina.reserva_data ? `${bobina.reserva_data}T12:00:00Z` : bobina.updated_date);
       lista.push({
@@ -112,7 +201,7 @@ export default function TimelineBobinaModal({ open, onClose, bobina }) {
       });
     }
 
-    // 3. Evento de arquivamento (se encerrada)
+    // 4. Evento de arquivamento (se encerrada)
     if (bobina.arquivada) {
       lista.push({
         tipo: "ARQUIVAMENTO",
@@ -125,7 +214,7 @@ export default function TimelineBobinaModal({ open, onClose, bobina }) {
       });
     }
 
-    // 4. Logs de auditoria específicos
+    // 5. Logs de auditoria específicos
     logs.forEach(l => {
       lista.push({
         tipo: "AUDITORIA",
@@ -138,7 +227,27 @@ export default function TimelineBobinaModal({ open, onClose, bobina }) {
       });
     });
 
-    // 5. Ordens de Desbobinadeira
+    // 6. Ordens de Produção de Telhas (Pedido)
+    pedidosTelhas.forEach(p => {
+      const kgUsado = p._posicao === "Inferior" 
+        ? (p.kg_inferior || (p.kg_total ? p.kg_total / 2 : 0))
+        : (p.kg_superior || p.kg_total || 0);
+
+      const metrosUsado = p.metros || p.quantidade_telhas || 0;
+      const statusLabel = p.status ? String(p.status).toUpperCase() : "PRODUÇÃO";
+
+      lista.push({
+        tipo: "PRODUCAO",
+        titulo: `Produção de Telhas · Pedido #${p.numero_pedido || p.id?.slice(-5)}`,
+        data_hora: p.data_producao || p.updated_date || (p.data ? `${p.data}T12:00:00Z` : p.created_date),
+        usuario: p.operador_nome || p.usuario_nome || p.created_by || "Operador",
+        icone: Factory,
+        cor: "text-emerald-700 bg-emerald-50 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300",
+        detalhes: `Cliente: ${p.cliente || 'Consumidor'} · Produto: ${p.produto || 'Telha'} (${p._posicao || 'Telhas'}). Consumo: ${Number(kgUsado).toLocaleString("pt-BR")} kg (${metrosUsado} m/peças). Máquina: ${p.maquina || 'TP-40'} · Status: ${statusLabel}.`
+      });
+    });
+
+    // 7. Ordens de Desbobinadeira
     ordensDesbob.forEach(o => {
       lista.push({
         tipo: "PRODUCAO",
@@ -151,7 +260,7 @@ export default function TimelineBobinaModal({ open, onClose, bobina }) {
       });
     });
 
-    // 6. Ordens de Corte e Dobra
+    // 8. Ordens de Corte e Dobra
     ordensCD.forEach(o => {
       lista.push({
         tipo: "PRODUCAO",
@@ -172,7 +281,7 @@ export default function TimelineBobinaModal({ open, onClose, bobina }) {
     });
 
     return lista;
-  }, [bobina, logs, ordensDesbob, ordensCD]);
+  }, [bobina, logs, pedidosTelhas, ordensDesbob, ordensCD]);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -210,11 +319,11 @@ export default function TimelineBobinaModal({ open, onClose, bobina }) {
               Chapa: <strong>{bobina.chapa} mm</strong>
             </span>
             <span className="bg-background border border-border px-2 py-1 rounded">
-              Peso Atual: <strong>{Number(bobina.peso_kg || 0).toLocaleString("pt-BR")} kg</strong>
+              Peso Atual: <strong className="text-primary">{Number(bobina.peso_kg || 0).toLocaleString("pt-BR")} kg</strong>
             </span>
             {bobina.peso_inicial && (
               <span className="bg-background border border-border px-2 py-1 rounded text-muted-foreground">
-                Peso Inicial: {Number(bobina.peso_inicial).toLocaleString("pt-BR")} kg
+                Peso Inicial: <strong>{Number(bobina.peso_inicial).toLocaleString("pt-BR")} kg</strong>
               </span>
             )}
             <span className="bg-background border border-border px-2 py-1 rounded">
@@ -223,6 +332,16 @@ export default function TimelineBobinaModal({ open, onClose, bobina }) {
             {bobina.nf && (
               <span className="bg-background border border-border px-2 py-1 rounded">
                 NF: <strong>{bobina.nf}</strong>
+              </span>
+            )}
+            {bobina.created_date && (
+              <span className="bg-muted/40 border border-border px-2 py-1 rounded text-[11px] text-muted-foreground">
+                Cadastrada em: <strong>{formatarDataHora(bobina.created_date)}</strong> {bobina.created_by ? `(${bobina.created_by})` : ''}
+              </span>
+            )}
+            {bobina.updated_date && bobina.updated_date !== bobina.created_date && (
+              <span className="bg-amber-500/10 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700 px-2 py-1 rounded text-[11px]">
+                Última Alteração: <strong>{formatarDataHora(bobina.updated_date)}</strong> {bobina.updated_by || bobina.last_modified_by ? `(${bobina.updated_by || bobina.last_modified_by})` : ''}
               </span>
             )}
           </div>

@@ -133,6 +133,26 @@ export function gerarDescricaoAlteracoesBobina(anterior = {}, novo = {}) {
     alteracoes.push(novo.arquivada ? `Bobina arquivada` : `Bobina desarquivada / retornada ao estoque`);
   }
 
+  // Observações
+  if (anterior.observacoes !== undefined && novo.observacoes !== undefined && String(anterior.observacoes || "").trim() !== String(novo.observacoes || "").trim()) {
+    alteracoes.push(`Observações alteradas de "${anterior.observacoes || '—'}" para "${novo.observacoes || '—'}"`);
+  }
+
+  // Metragem
+  if (anterior.metragem !== undefined && novo.metragem !== undefined && Number(anterior.metragem) !== Number(novo.metragem)) {
+    alteracoes.push(`Metragem alterada de ${anterior.metragem} m para ${novo.metragem} m`);
+  }
+
+  // Largura
+  if (anterior.largura_mm !== undefined && novo.largura_mm !== undefined && Number(anterior.largura_mm) !== Number(novo.largura_mm)) {
+    alteracoes.push(`Largura alterada de ${anterior.largura_mm} mm para ${novo.largura_mm} mm`);
+  }
+
+  // Sub-código
+  if (anterior.sub_cod !== undefined && novo.sub_cod !== undefined && anterior.sub_cod !== novo.sub_cod) {
+    alteracoes.push(`Sub-código alterado para "${novo.sub_cod || '—'}"`);
+  }
+
   return alteracoes;
 }
 

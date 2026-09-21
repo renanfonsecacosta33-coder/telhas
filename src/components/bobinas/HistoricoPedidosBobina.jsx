@@ -31,7 +31,41 @@ export default function HistoricoPedidosBobina({ bobina }) {
     enabled: !!bobina.id,
   });
 
-  const isLoading = loadingDesbob || loadingMaquina;
+  const { data: pedidosTelhas = [], isLoading: loadingTelhas } = useQuery({
+    queryKey: ["historico-bobina-telhas", bobina.id, bobina.codigo],
+    queryFn: async () => {
+      try {
+        const [porSup, porInf, recentes] = await Promise.all([
+          base44.entities.Pedido.filter({ bobina_superior_id: bobina.id }, "-data", 100).catch(() => []),
+          base44.entities.Pedido.filter({ bobina_inferior_id: bobina.id }, "-data", 100).catch(() => []),
+          base44.entities.Pedido.list("-data", 300).catch(() => [])
+        ]);
+
+        const map = new Map();
+        [...porSup, ...porInf, ...recentes].forEach(p => {
+          if (!p || !p.id) return;
+          const matchSup = p.bobina_superior_id === bobina.id || (bobina.codigo && p.bobina_superior && String(p.bobina_superior).includes(bobina.codigo));
+          const matchInf = p.bobina_inferior_id === bobina.id || (bobina.codigo && p.bobina_inferior && String(p.bobina_inferior).includes(bobina.codigo));
+          const matchSec = p.bobina_secundaria_id === bobina.id || p.bobina_id === bobina.id;
+          const matchVar = p.variacoes_telhas && (p.variacoes_telhas.includes(bobina.id) || (bobina.codigo && p.variacoes_telhas.includes(bobina.codigo)));
+
+          if (matchSup || matchInf || matchSec || matchVar) {
+            map.set(p.id, {
+              ...p,
+              _posicao: matchSup ? "Superior" : (matchInf ? "Inferior" : "Telhas"),
+            });
+          }
+        });
+
+        return Array.from(map.values());
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!bobina.id,
+  });
+
+  const isLoading = loadingDesbob || loadingMaquina || loadingTelhas;
 
   const todasOrdens = [
     ...(ordensDesbob || []).map(o => ({
@@ -48,14 +82,31 @@ export default function HistoricoPedidosBobina({ bobina }) {
       _qtd: o.quantidade,
       _kg: o.peso_kg,
     })),
+    ...(pedidosTelhas || []).map(p => {
+      const kgUsado = p._posicao === "Inferior" 
+        ? (p.kg_inferior || (p.kg_total ? p.kg_total / 2 : 0))
+        : (p.kg_superior || p.kg_total || 0);
+
+      const qtdPecas = Number(p.quantidade_telhas) || Number(p.metros) || 1;
+
+      return {
+        ...p,
+        _tipo: `Telhas (${p.maquina || 'TP40'})`,
+        _label: `Pedido #${p.numero_pedido || p.id?.slice(-5)}: ${p.cliente || 'Cliente'} - ${p.produto || 'Telha'} (${p._posicao})`,
+        _qtd: qtdPecas,
+        _kg: Number(kgUsado) || 0,
+        status: p.status || "finalizado",
+        data: p.data || p.created_date?.split("T")[0]
+      };
+    }),
   ].sort((a, b) => (b.data || "").localeCompare(a.data || ""));
 
   const totalKgConsumido = todasOrdens
-    .filter(o => o.status === "finalizado")
+    .filter(o => o.status === "finalizado" || o.status === "Finalizada")
     .reduce((s, o) => s + (o._kg || 0), 0);
 
   const totalPecas = todasOrdens
-    .filter(o => o.status === "finalizado")
+    .filter(o => o.status === "finalizado" || o.status === "Finalizada")
     .reduce((s, o) => s + (o._qtd || 0), 0);
 
   return (
