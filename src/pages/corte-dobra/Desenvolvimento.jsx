@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Calculator, Plus, Search, CheckCircle2, Clock, AlertTriangle,
-  ChevronDown, ChevronUp, Layers, Ruler, Settings, ShoppingCart, Eye, BarChart2, Scissors
+  ChevronDown, ChevronUp, Layers, Ruler, Settings, ShoppingCart, Eye, BarChart2, Scissors, Printer
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import DesenvolvimentoFormDialog from "@/components/corte-dobra/DesenvolvimentoFormDialog";
 import AproveitamentoBlank from "@/components/corte-dobra/AproveitamentoBlank";
 import OtimizadorCorte from "@/components/corte-dobra/OtimizadorCorte/OtimizadorCorte";
+import FichaTecnicaImpressaoModal from "@/components/corte-dobra/FichaTecnicaImpressaoModal";
 
 const STATUS_CONFIG = {
   rascunho:    { label: "Rascunho",     className: "bg-slate-100 text-slate-600 border-slate-200",  icon: Clock },
@@ -31,6 +32,7 @@ export default function DesenvolvimentoCD() {
   const [aba, setAba] = useState("lista"); // "lista" | "aproveitamento" | "otimizador"
   const [devAproveitamento, setDevAproveitamento] = useState(null);
   const [devOtimizador, setDevOtimizador] = useState(null);
+  const [fichaDev, setFichaDev] = useState(null);
   const queryClient = useQueryClient();
 
   const { data: desenvolvimentos = [], isLoading } = useQuery({
@@ -205,6 +207,9 @@ export default function DesenvolvimentoCD() {
                     </p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    <Button size="sm" variant="ghost" className="h-8 text-xs gap-1 text-slate-700 hover:text-foreground" onClick={() => setFichaDev(dev)}>
+                      <Printer className="w-3.5 h-3.5 text-slate-500" /> Ficha
+                    </Button>
                     <Button size="sm" variant="ghost" className="h-8 text-xs gap-1" onClick={() => { setEditItem(dev); setDialogOpen(true); }}>
                       <Eye className="w-3.5 h-3.5" /> Editar
                     </Button>
@@ -271,6 +276,10 @@ export default function DesenvolvimentoCD() {
                           <CheckCircle2 className="w-3 h-3" /> Aprovar Desenvolvimento
                         </Button>
                       )}
+                      <Button size="sm" variant="outline" className="gap-1 text-xs border-slate-300 text-slate-700 hover:bg-slate-100"
+                        onClick={() => setFichaDev(dev)}>
+                        <Printer className="w-3 h-3 text-slate-600" /> Imprimir Ficha Técnica
+                      </Button>
                       <Button size="sm" variant="outline" className="gap-1 text-xs border-orange-200 text-orange-700 hover:bg-orange-50"
                         onClick={() => { setDevAproveitamento(dev); setAba("aproveitamento"); }}>
                         <BarChart2 className="w-3 h-3" /> Aproveitamento
@@ -294,6 +303,12 @@ export default function DesenvolvimentoCD() {
         onClose={() => { setDialogOpen(false); setEditItem(null); }}
         onSave={handleSave}
         editItem={editItem}
+      />
+
+      <FichaTecnicaImpressaoModal
+        open={!!fichaDev}
+        onClose={() => setFichaDev(null)}
+        dev={fichaDev}
       />
     </div>
   );

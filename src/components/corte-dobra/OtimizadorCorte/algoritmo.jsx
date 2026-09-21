@@ -161,18 +161,44 @@ export function otimizarCorte(pecas, chapas, opcoes = {}) {
     }
 
     if (pecasNaChapa.length > 0) {
-      // Calcula área usada
+      // Identifica retalhos a partir dos nós livres da guilhotina
+      const retalhos = [];
+      nosLivres.forEach((no, nIdx) => {
+        if (no.w > 0 && no.h > 0) {
+          const area = no.w * no.h;
+          // Retalho útil se tiver ao menos 100mm num lado e 40mm no outro, com área >= 10.000 mm²
+          const ehUtil = (no.w >= 100 && no.h >= 40) || (no.w >= 40 && no.h >= 100);
+          retalhos.push({
+            id: `ret_${chapaIdx}_${nIdx}`,
+            x: Math.round(no.x),
+            y: Math.round(no.y),
+            w: Math.round(no.w),
+            h: Math.round(no.h),
+            area,
+            ehUtil,
+          });
+        }
+      });
+
+      // Calcula área usada e retalhos
       const area_total = comp_chapa * larg_chapa;
       const area_usada = pecasNaChapa.reduce((s, p) => s + p.w * p.h, 0);
+      const area_retalhos_uteis = retalhos.filter(r => r.ehUtil).reduce((s, r) => s + r.area, 0);
+      const area_sucata = Math.max(0, area_total - area_usada - area_retalhos_uteis);
       const aproveitamento = area_total > 0 ? (area_usada / area_total) * 100 : 0;
+      const aproveitamento_com_retalhos = area_total > 0 ? ((area_usada + area_retalhos_uteis) / area_total) * 100 : 0;
 
       chapasUsadas.push({
         chapa: { ...chapa },
         pecas: pecasNaChapa,
+        retalhos,
         area_total,
         area_usada,
+        area_retalhos_uteis,
+        area_sucata,
         area_desperdicada: area_total - area_usada,
         aproveitamento: aproveitamento.toFixed(1),
+        aproveitamento_com_retalhos: aproveitamento_com_retalhos.toFixed(1),
         n_cortes: estimarCortes(pecasNaChapa),
       });
     }
@@ -189,6 +215,8 @@ export function otimizarCorte(pecas, chapas, opcoes = {}) {
   // Stats globais
   const area_total_global = chapasUsadas.reduce((s, c) => s + c.area_total, 0);
   const area_usada_global = chapasUsadas.reduce((s, c) => s + c.area_usada, 0);
+  const area_retalhos_global = chapasUsadas.reduce((s, c) => s + (c.area_retalhos_uteis || 0), 0);
+  const area_sucata_global = chapasUsadas.reduce((s, c) => s + (c.area_sucata || 0), 0);
   const total_cortes = chapasUsadas.reduce((s, c) => s + c.n_cortes, 0);
 
   const stats = {
@@ -198,9 +226,14 @@ export function otimizarCorte(pecas, chapas, opcoes = {}) {
     nao_couberam: naoCouberam.length,
     area_total_mm2: area_total_global,
     area_usada_mm2: area_usada_global,
+    area_retalhos_mm2: area_retalhos_global,
+    area_sucata_mm2: area_sucata_global,
     area_desperdicada_mm2: area_total_global - area_usada_global,
     aproveitamento_geral: area_total_global > 0
       ? ((area_usada_global / area_total_global) * 100).toFixed(1)
+      : "0.0",
+    aproveitamento_com_retalhos: area_total_global > 0
+      ? (((area_usada_global + area_retalhos_global) / area_total_global) * 100).toFixed(1)
       : "0.0",
     total_cortes,
   };

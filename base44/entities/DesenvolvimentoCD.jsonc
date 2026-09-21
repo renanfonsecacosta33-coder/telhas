@@ -76,6 +76,10 @@
       "type": "string",
       "description": "JSON com detalhes de cada dobra [{angulo, raio, deducao, ba}]"
     },
+    "abas_json": {
+      "type": "string",
+      "description": "JSON com dimensões em mm de cada aba do perfil [25, 50, 25...]"
+    },
     "sequencia_dobras": {
       "type": "string",
       "description": "Sequ\u00eancia de dobras recomendada para evitar colis\u00e3o"
