@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Layers, Eye, Ruler, RotateCw, ZoomIn, ZoomOut, Maximize2, Compass
+  Layers, Eye, Ruler, RotateCw, ZoomIn, ZoomOut, Maximize2, Compass, Move, Sparkles
 } from "lucide-react";
 
 /**
@@ -136,11 +136,15 @@ export default function CroquiPeca2D({
   nomePeca = "Peça Dobrada",
   larguraPlanificada = 100,
   comprimento_mm = 3000,
+  onUpdateAba = null,
   className = "",
 }) {
   const [modoVisualizacao, setModoVisualizacao] = useState("perfil"); // "perfil" | "planificado"
   const [zoom, setZoom] = useState(1);
   const [rotacaoGraus, setRotacaoGraus] = useState(0);
+
+  // Estado de arrasto interativo
+  const [dragState, setDragState] = useState(null);
 
   // Dimensões fixas do canvas em pixels de tela
   const CANVAS_W = 660;
@@ -160,7 +164,7 @@ export default function CroquiPeca2D({
     };
   }, [abas, dobras, rotacaoGraus]);
 
-  // Fator de escala dinâmico para preencher 75% da tela sem distorcer
+  // Fator de escala dinâmico para preencher ~75% da tela sem distorcer
   const scale = useMemo(() => {
     const marginX = 140; // margem para acomodar cotas
     const marginY = 100;
@@ -190,6 +194,61 @@ export default function CroquiPeca2D({
     }, "");
   }, [pontosScreen]);
 
+  // ── Handlers de Arrastar Interativo ──
+  const handlePointerDown = useCallback((e, abaIdx, tipo = "cota") => {
+    if (!onUpdateAba) return;
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+
+    const p1 = pontosScreen[abaIdx];
+    const p2 = pontosScreen[abaIdx + 1];
+    if (!p1 || !p2) return;
+
+    const dx = p2.sx - p1.sx;
+    const dy = p2.sy - p1.sy;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+
+    setDragState({
+      abaIdx,
+      tipo,
+      pointerId: e.pointerId,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startValue: Number(abas[abaIdx]) || 10,
+      dirX: dx / len,
+      dirY: dy / len,
+      isReversed: tipo === "tip_start",
+    });
+  }, [onUpdateAba, pontosScreen, abas]);
+
+  const handlePointerMove = useCallback((e) => {
+    if (!dragState || !onUpdateAba) return;
+    const deltaX = e.clientX - dragState.startClientX;
+    const deltaY = e.clientY - dragState.startClientY;
+
+    // Projeta o movimento do mouse na direção do segmento da aba
+    let proj = deltaX * dragState.dirX + deltaY * dragState.dirY;
+    if (dragState.isReversed) {
+      proj = -proj;
+    }
+
+    const deltaMm = proj / scale;
+    const novoValor = Math.max(5, Math.round(dragState.startValue + deltaMm));
+
+    if (novoValor !== abas[dragState.abaIdx]) {
+      onUpdateAba(dragState.abaIdx, novoValor);
+    }
+  }, [dragState, onUpdateAba, scale, abas]);
+
+  const handlePointerUp = useCallback((e) => {
+    if (dragState) {
+      try {
+        e.currentTarget.releasePointerCapture(dragState.pointerId);
+      } catch {}
+      setDragState(null);
+    }
+  }, [dragState]);
+
   return (
     <div className={`bg-slate-900 text-white rounded-xl border border-slate-800 p-4 shadow-xl flex flex-col ${className}`}>
       {/* Barra de Ferramentas / Controles Superiores */}
@@ -202,6 +261,12 @@ export default function CroquiPeca2D({
           <Badge variant="outline" className="text-[10px] bg-slate-800 text-sky-400 border-sky-500/30 font-mono">
             Espessura: {espessura_mm || 1.5} mm
           </Badge>
+          {onUpdateAba && (
+            <Badge className="bg-orange-500/20 text-orange-300 border border-orange-500/30 text-[10px] gap-1 hidden sm:flex">
+              <Move className="w-3 h-3 text-orange-400" />
+              Arraste as cotas ou pontas para alterar medidas
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5">
@@ -271,7 +336,12 @@ export default function CroquiPeca2D({
       </div>
 
       {/* Área Gráfica SVG */}
-      <div className="relative w-full h-72 sm:h-80 bg-[#0b1120] rounded-xl border border-slate-800 overflow-hidden flex items-center justify-center select-none shadow-inner">
+      <div
+        className="relative w-full h-72 sm:h-80 bg-[#0b1120] rounded-xl border border-slate-800 overflow-hidden flex items-center justify-center select-none shadow-inner"
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
         {/* Grade técnica milimétrica (Blueprint Grid) */}
         <div
           className="absolute inset-0 opacity-15 pointer-events-none"
@@ -282,8 +352,16 @@ export default function CroquiPeca2D({
           }}
         />
 
+        {/* Indicador flutuante de arrasto ativo */}
+        {dragState && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-orange-600/90 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg border border-orange-400 flex items-center gap-1.5 animate-pulse">
+            <Move className="w-3.5 h-3.5" />
+            <span>Arrastando Aba {dragState.abaIdx + 1}: {abas[dragState.abaIdx]} mm</span>
+          </div>
+        )}
+
         {modoVisualizacao === "perfil" ? (
-          /* ── MODO 1: PERFIL DOBRADO COM COTAS TÉCNICAS PROFISSIONAIS ── */
+          /* ── MODO 1: PERFIL DOBRADO INTERATIVO COM ARRASTO ── */
           <svg
             viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
             className="w-full h-full max-h-full"
@@ -335,10 +413,11 @@ export default function CroquiPeca2D({
               className="drop-shadow-[0_0_10px_rgba(56,189,248,0.5)]"
             />
 
-            {/* Cotas Técnicas de Cada Aba (Dimension Lines) */}
+            {/* Cotas Técnicas de Cada Aba (Arrastáveis!) */}
             {pontosScreen.slice(0, -1).map((p1, idx) => {
               const p2 = pontosScreen[idx + 1];
               const comp = abas[idx] || 0;
+              const isDraggingThis = dragState?.abaIdx === idx;
 
               // Vetores do segmento
               const dx = p2.sx - p1.sx;
@@ -389,40 +468,104 @@ export default function CroquiPeca2D({
                     y1={c1y}
                     x2={c2x}
                     y2={c2y}
-                    stroke="#f97316"
-                    strokeWidth="1.2"
+                    stroke={isDraggingThis ? "#f97316" : "#fb923c"}
+                    strokeWidth={isDraggingThis ? 2 : 1.2}
                     markerStart="url(#cota-arrow-start)"
                     markerEnd="url(#cota-arrow-end)"
                   />
 
-                  {/* Badge da Cota com Dimensão (Ex: 25 mm) */}
-                  <g transform={`translate(${midX}, ${midY})`}>
+                  {/* Badge da Cota com Dimensão (CLICÁVEL E ARRASTÁVEL!) */}
+                  <g
+                    transform={`translate(${midX}, ${midY})`}
+                    className="cursor-ew-resize group"
+                    onPointerDown={(e) => handlePointerDown(e, idx, "cota")}
+                  >
                     <rect
-                      x={-22}
-                      y={-10}
-                      width={44}
-                      height={20}
-                      rx={4}
-                      fill="#0f172a"
-                      stroke="#f97316"
-                      strokeWidth="1"
-                      className="shadow-md"
+                      x={-24}
+                      y={-12}
+                      width={48}
+                      height={24}
+                      rx={6}
+                      fill={isDraggingThis ? "#c2410c" : "#0f172a"}
+                      stroke={isDraggingThis ? "#ffffff" : "#f97316"}
+                      strokeWidth={isDraggingThis ? 2 : 1.2}
+                      className="shadow-lg transition-colors group-hover:fill-slate-800 group-hover:stroke-orange-400"
                     />
                     <text
                       x={0}
-                      y={4}
+                      y={4.5}
                       textAnchor="middle"
                       fill="#ffffff"
                       fontSize="11"
-                      fontWeight="bold"
+                      fontWeight="black"
                       fontFamily="monospace"
+                      className="pointer-events-none"
                     >
                       {comp}
                     </text>
+                    {/* Pequeno ícone de arraste indicando interatividade */}
+                    <circle cx={18} cy={-8} r={3} fill="#f97316" className="animate-ping opacity-75" />
+                    <circle cx={18} cy={-8} r={2.5} fill="#f97316" />
                   </g>
                 </g>
               );
             })}
+
+            {/* Handle Arrastável na Ponta da Primeira Aba (P0) */}
+            {pontosScreen.length > 0 && onUpdateAba && (
+              <g
+                className="cursor-move group"
+                onPointerDown={(e) => handlePointerDown(e, 0, "tip_start")}
+              >
+                <circle
+                  cx={pontosScreen[0].sx}
+                  cy={pontosScreen[0].sy}
+                  r={8}
+                  fill="#f97316"
+                  stroke="#ffffff"
+                  strokeWidth="2"
+                  className="shadow-md transition-transform group-hover:scale-125 group-active:scale-110"
+                />
+                <circle
+                  cx={pontosScreen[0].sx}
+                  cy={pontosScreen[0].sy}
+                  r={14}
+                  fill="none"
+                  stroke="#f97316"
+                  strokeWidth="1.5"
+                  strokeDasharray="3,3"
+                  className="animate-spin opacity-60"
+                />
+              </g>
+            )}
+
+            {/* Handle Arrastável na Ponta da Última Aba (P_last) */}
+            {pontosScreen.length > 1 && onUpdateAba && (
+              <g
+                className="cursor-move group"
+                onPointerDown={(e) => handlePointerDown(e, abas.length - 1, "tip_end")}
+              >
+                <circle
+                  cx={pontosScreen[pontosScreen.length - 1].sx}
+                  cy={pontosScreen[pontosScreen.length - 1].sy}
+                  r={8}
+                  fill="#f97316"
+                  stroke="#ffffff"
+                  strokeWidth="2"
+                  className="shadow-md transition-transform group-hover:scale-125 group-active:scale-110"
+                />
+                <circle
+                  cx={pontosScreen[pontosScreen.length - 1].sx}
+                  cy={pontosScreen[pontosScreen.length - 1].sy}
+                  r={14}
+                  fill="none"
+                  stroke="#f97316"
+                  strokeWidth="1.5"
+                  strokeDasharray="3,3"
+                  className="animate-spin opacity-60"
+                />
+              </g>
+            )}
 
             {/* Marcadores de Vértices de Dobra (D1, D2...) com Ângulos */}
             {pontosScreen.slice(1, -1).map((p, idx) => {
