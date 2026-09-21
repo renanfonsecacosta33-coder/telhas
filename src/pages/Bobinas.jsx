@@ -16,7 +16,7 @@ import PainelTransferencias from "@/components/bobinas/PainelTransferencias";
 import PreBaixaDetalhesDialog from "@/components/bobinas/PreBaixaDetalhesDialog";
 import { useFilial } from "@/contexts/FilialContext";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
-import { exportarPlanilhaBobinasOdoo } from "@/lib/exportarBobinasHelper";
+import { getTimestampArquivamento, matchBobinaBuscaData, matchBobinaFiltroDataExata, compararBobinasTelhas, matchBobinaBuscaGeral } from "@/lib/bobinaStatusHelper";
 import ExportarBobinasDialog from "@/components/bobinas/ExportarBobinasDialog";
 
 const statusColors = {
