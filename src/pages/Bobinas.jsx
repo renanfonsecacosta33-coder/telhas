@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, AlertTriangle, Package, Weight, Archive, X, Loader2, Layers, Calendar, Download } from "lucide-react";
+import { Plus, Search, AlertTriangle, Package, Weight, Archive, X, Loader2, Layers, Calendar, Download, History } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import BobinaFormDialog from "@/components/bobinas/BobinaFormDialog";
@@ -18,6 +18,7 @@ import { useFilial } from "@/contexts/FilialContext";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 import { getTimestampArquivamento, matchBobinaBuscaData, matchBobinaFiltroDataExata, compararBobinasTelhas, matchBobinaBuscaGeral } from "@/lib/bobinaStatusHelper";
 import ExportarBobinasDialog from "@/components/bobinas/ExportarBobinasDialog";
+import HistoricoReservasDialog from "@/components/bobinas/HistoricoReservasDialog";
 
 const statusColors = {
   "Aberta": "bg-green-500/10 text-green-700 border-green-300",
@@ -155,6 +156,7 @@ export default function Bobinas() {
   };
 
   const [exportarDialogOpen, setExportarDialogOpen] = useState(false);
+  const [historicoReservasOpen, setHistoricoReservasOpen] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -168,6 +170,15 @@ export default function Bobinas() {
           <p className="text-sm text-muted-foreground">Bobinas de aço para produção de telhas</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={() => setHistoricoReservasOpen(true)}
+            className="gap-2 border-purple-500/40 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/30"
+            title="Ver histórico e carimbo de data e hora de todas as reservas"
+          >
+            <History className="w-4 h-4" />
+            Histórico Reservas
+          </Button>
           <Button
             variant="outline"
             onClick={() => setExportarDialogOpen(true)}
@@ -389,6 +400,7 @@ export default function Bobinas() {
       <BobinaFormDialog open={dialogOpen} onClose={() => { setDialogOpen(false); setEditItem(null); }} editItem={editItem} />
       <DeleteConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} onConfirm={() => deleteMutation.mutate(deleteItem.id)} itemName={deleteItem ? `${deleteItem.cor} - ${deleteItem.chapa}` : ""} />
       <ExportarBobinasDialog open={exportarDialogOpen} onOpenChange={setExportarDialogOpen} setorInicial="telhas" />
+      <HistoricoReservasDialog open={historicoReservasOpen} onOpenChange={setHistoricoReservasOpen} setorFiltro="telhas" />
     </div>
   );
 }

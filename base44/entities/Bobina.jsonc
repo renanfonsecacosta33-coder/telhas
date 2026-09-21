@@ -208,6 +208,14 @@
     "reserva_data": {
       "type": "string",
       "description": "Data em que a reserva foi feita"
+    },
+    "reserva_data_hora": {
+      "type": "string",
+      "description": "Timestamp ISO completo com data e hora exata em que a reserva foi registrada"
+    },
+    "reserva_usuario": {
+      "type": "string",
+      "description": "Nome ou email do usuário que efetuou a reserva no sistema"
     }
   },
   "required": [

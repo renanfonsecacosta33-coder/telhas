@@ -38,6 +38,7 @@ function AvaliarDialog({ solicitacao, onClose }) {
       // Se aprovada, efetiva a reserva no item correspondente
       if (decisao === "aprovada") {
         const entityName = solicitacao.item_tipo === "chapa" ? "ChapaCD" : solicitacao.item_tipo === "slitter" ? "Slitter" : "Bobina";
+        const dataHoraAgora = new Date().toISOString();
         await base44.entities[entityName].update(solicitacao.bobina_id, {
           reservada: true,
           reserva_tipo: solicitacao.reserva_tipo,
@@ -45,7 +46,20 @@ function AvaliarDialog({ solicitacao, onClose }) {
           reserva_numero_pedido: solicitacao.numero_pedido,
           reserva_motivo: solicitacao.motivo,
           reserva_autorizado_por: adminNome,
-          reserva_data: new Date().toISOString().split("T")[0],
+          reserva_data: dataHoraAgora.split("T")[0],
+          reserva_data_hora: dataHoraAgora,
+          reserva_usuario: adminNome,
+        });
+
+        const { registrarAuditoria } = await import("@/lib/auditHelper");
+        registrarAuditoria({
+          usuario: { full_name: adminNome },
+          acao: "aprovacao",
+          entidade: entityName,
+          registroId: solicitacao.bobina_id,
+          registroIdentificador: solicitacao.bobina_descricao || "",
+          detalhes: `Solicitação de reserva aprovada por ${adminNome} para o cliente ${solicitacao.cliente || "N/A"} (Pedido: ${solicitacao.numero_pedido || "N/A"}). Motivo: ${solicitacao.motivo || "N/A"}`,
+          unidade: solicitacao.unidade || "Matriz AJL"
         });
       }
 

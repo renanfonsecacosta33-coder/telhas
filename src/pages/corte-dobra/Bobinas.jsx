@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Archive, AlertTriangle, Package, Weight, X, Loader2, Calendar, Download } from "lucide-react";
+import { Plus, Search, Archive, AlertTriangle, Package, Weight, X, Loader2, Calendar, Download, History } from "lucide-react";
 import { toast } from "sonner";
 import BobinaFormDialogCD from "@/components/corte-dobra/BobinaFormDialogCD";
 import DeleteConfirmDialog from "@/components/stock/DeleteConfirmDialog";
@@ -18,6 +18,7 @@ import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 import { getTimestampArquivamento, matchBobinaBuscaData, matchBobinaFiltroDataExata } from "@/lib/bobinaStatusHelper";
 import { exportarPlanilhaBobinasOdoo } from "@/lib/exportarBobinasHelper";
 import ExportarBobinasDialog from "@/components/bobinas/ExportarBobinasDialog";
+import HistoricoReservasDialog from "@/components/bobinas/HistoricoReservasDialog";
 
 export default function BobinasCD() {
   const { filialAtiva } = useFilial();
@@ -211,6 +212,7 @@ export default function BobinasCD() {
   };
 
   const [exportarDialogOpen, setExportarDialogOpen] = useState(false);
+  const [historicoReservasOpen, setHistoricoReservasOpen] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -224,6 +226,15 @@ export default function BobinasCD() {
           <p className="text-sm text-muted-foreground">Estoque de bobinas do setor de Corte e Dobra</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={() => setHistoricoReservasOpen(true)}
+            className="gap-2 border-purple-500/40 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/30"
+            title="Ver histórico e carimbo de data e hora de todas as reservas"
+          >
+            <History className="w-4 h-4" />
+            Histórico Reservas
+          </Button>
           <Button
             variant="outline"
             onClick={() => setExportarDialogOpen(true)}
@@ -408,6 +419,7 @@ export default function BobinasCD() {
         itemName={deleteItem ? `${deleteItem.cor} - ${deleteItem.chapa}` : ""}
       />
       <ExportarBobinasDialog open={exportarDialogOpen} onOpenChange={setExportarDialogOpen} setorInicial="corte_dobra" />
+      <HistoricoReservasDialog open={historicoReservasOpen} onOpenChange={setHistoricoReservasOpen} setorFiltro="corte_dobra" />
     </div>
   );
 }

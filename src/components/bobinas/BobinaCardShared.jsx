@@ -327,12 +327,52 @@ export default function BobinaCard({
           <div className="mt-3 pt-3 border-t border-border space-y-3">
             {/* Info reserva completa */}
             {bobina.reservada && (
-              <div className="rounded-lg bg-purple-50 border border-purple-200 p-3 space-y-1 text-xs">
-                <p className="font-semibold text-purple-800 flex items-center gap-1"><Lock className="w-3 h-3" />Detalhes da Reserva</p>
-                {bobina.reserva_motivo && <p className="text-purple-700"><span className="text-muted-foreground">Motivo:</span> {bobina.reserva_motivo}</p>}
-                {bobina.reserva_numero_pedido && <p className="text-purple-700"><span className="text-muted-foreground">Pedido:</span> {bobina.reserva_numero_pedido}</p>}
-                {bobina.reserva_autorizado_por && <p className="text-purple-700"><span className="text-muted-foreground">Autorizado por:</span> {bobina.reserva_autorizado_por}</p>}
-                {bobina.reserva_data && <p className="text-purple-700"><span className="text-muted-foreground">Data:</span> {bobina.reserva_data}</p>}
+              <div className="rounded-lg bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 p-3 space-y-1.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold text-purple-800 dark:text-purple-300 flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5" />Detalhes da Reserva
+                  </p>
+                  <span className="text-[11px] font-semibold text-purple-700 bg-purple-100 dark:bg-purple-900/50 px-2 py-0.5 rounded">
+                    {bobina.reserva_tipo === "inteira" ? "Bobina Inteira" : `Parcial: ${bobina.reserva_kg} kg`}
+                  </span>
+                </div>
+                {bobina.reserva_motivo && <p className="text-purple-700 dark:text-purple-300"><span className="text-muted-foreground">Motivo:</span> <strong>{bobina.reserva_motivo}</strong></p>}
+                {bobina.reserva_numero_pedido && <p className="text-purple-700 dark:text-purple-300"><span className="text-muted-foreground">Pedido:</span> <strong>{bobina.reserva_numero_pedido}</strong></p>}
+                {bobina.reserva_autorizado_por && <p className="text-purple-700 dark:text-purple-300"><span className="text-muted-foreground">Autorizado por:</span> <strong>{bobina.reserva_autorizado_por}</strong></p>}
+                {bobina.reserva_usuario && <p className="text-purple-700 dark:text-purple-300"><span className="text-muted-foreground">Registrado por:</span> {bobina.reserva_usuario}</p>}
+                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-purple-200/70 dark:border-purple-800/50 text-[11px]">
+                  <span className="text-purple-800 dark:text-purple-300 font-medium flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-purple-600" />
+                    Data e Hora do Registro: <strong>{(() => {
+                      if (bobina.reserva_data_hora) {
+                        try {
+                          const d = new Date(bobina.reserva_data_hora);
+                          if (!isNaN(d.getTime())) return d.toLocaleString("pt-BR");
+                        } catch {}
+                      }
+                      if (bobina.updated_date && bobina.reserva_data) {
+                        try {
+                          const d = new Date(bobina.updated_date);
+                          const isoDate = bobina.updated_date.split("T")[0];
+                          if (isoDate === bobina.reserva_data && !isNaN(d.getTime())) {
+                            return d.toLocaleString("pt-BR");
+                          }
+                        } catch {}
+                      }
+                      if (bobina.reserva_data) {
+                        const p = bobina.reserva_data.split("-");
+                        if (p.length === 3) return `${p[2]}/${p[1]}/${p[0]}`;
+                        return bobina.reserva_data;
+                      }
+                      return "—";
+                    })()}</strong>
+                  </span>
+                  {bobina.updated_date && (
+                    <span className="text-muted-foreground text-[10px]">
+                      (Atualizado no servidor: {new Date(bobina.updated_date).toLocaleString("pt-BR")})
+                    </span>
+                  )}
+                </div>
               </div>
             )}
 

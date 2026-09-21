@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
 import UploadButton from "@/components/ui/UploadButton";
 import ImageLink from "@/components/ui/ImageLink";
+import { useAuth } from "@/lib/AuthContext";
+import { registrarAuditoria } from "@/lib/auditHelper";
 
 const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "GL (IMP)"];
 
@@ -28,6 +30,7 @@ const BLANK_FORM = (codigoCD) => ({
 });
 
 export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, proximoNumero, saving }) {
+  const { user } = useAuth();
   const [form, setForm] = useState(BLANK_FORM("CD0001"));
   const [uploadingNF, setUploadingNF] = useState(false);
   const [uploadingCert, setUploadingCert] = useState(false);
@@ -142,7 +145,32 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
       reserva_motivo: form.reservada ? form.reserva_motivo : undefined,
       reserva_autorizado_por: form.reservada ? form.reserva_autorizado_por : undefined,
       reserva_data: form.reservada ? (form.reserva_data || new Date().toISOString().split("T")[0]) : undefined,
+      reserva_data_hora: form.reservada ? (editItem?.reserva_data_hora || new Date().toISOString()) : undefined,
+      reserva_usuario: form.reservada ? (editItem?.reserva_usuario || user?.full_name || user?.email || "Usuário") : undefined,
     };
+
+    // Auditoria de reserva
+    if (form.reservada && !editItem?.reservada) {
+      registrarAuditoria({
+        usuario: user,
+        acao: "edicao",
+        entidade: "Bobina",
+        registroId: editItem?.id || "",
+        registroIdentificador: payload.codigo || "",
+        detalhes: `Reserva efetuada na bobina ${payload.codigo || ""}: ${payload.reserva_tipo === "inteira" ? "Bobina Inteira" : `Parcial (${payload.reserva_kg} kg)`}. Motivo: ${payload.reserva_motivo || "N/A"}. Autorizado por: ${payload.reserva_autorizado_por || "N/A"}.`,
+        unidade: payload.unidade || "Matriz AJL"
+      });
+    } else if (!form.reservada && editItem?.reservada) {
+      registrarAuditoria({
+        usuario: user,
+        acao: "edicao",
+        entidade: "Bobina",
+        registroId: editItem?.id || "",
+        registroIdentificador: payload.codigo || "",
+        detalhes: `Reserva da bobina ${payload.codigo || ""} foi liberada.`,
+        unidade: payload.unidade || "Matriz AJL"
+      });
+    }
 
     // Remove campos vazios, undefined e null para evitar erro de validação no banco
     Object.keys(payload).forEach(k => {

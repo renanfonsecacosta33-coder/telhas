@@ -13,6 +13,8 @@ import UploadButton from "@/components/ui/UploadButton";
 import ImageViewer from "@/components/ui/ImageViewer";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFilial } from "@/contexts/FilialContext";
+import { useAuth } from "@/lib/AuthContext";
+import { registrarAuditoria } from "@/lib/auditHelper";
 
 const STATUS_OPTIONS = [
   "Aberta", "Fechada", "Finalizada", "Na TP40", "Na BOBININHA",
@@ -22,6 +24,7 @@ const STATUS_OPTIONS = [
 const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "GL (IMP)"];
 
 export default function BobinaFormDialog({ open, onClose, editItem }) {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
   const [form, setForm] = useState({
@@ -192,6 +195,8 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
       p.reserva_motivo = form.reserva_motivo || undefined;
       p.reserva_autorizado_por = form.reserva_autorizado_por || undefined;
       p.reserva_data = form.reserva_data || new Date().toISOString().split("T")[0];
+      p.reserva_data_hora = editItem?.reserva_data_hora || new Date().toISOString();
+      p.reserva_usuario = editItem?.reserva_usuario || user?.full_name || user?.email || "Usuário";
       if (form.reserva_tipo === "parcial" && form.reserva_kg) {
         p.reserva_kg = Number(form.reserva_kg);
       }
@@ -210,6 +215,8 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
       delete p.reserva_motivo;
       delete p.reserva_autorizado_por;
       delete p.reserva_data;
+      delete p.reserva_data_hora;
+      delete p.reserva_usuario;
     }
 
     return p;
@@ -229,6 +236,29 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
     setSaving(true);
     try {
       const payload = buildPayload();
+
+      // Auditoria de reserva
+      if (form.reservada && !editItem?.reservada) {
+        registrarAuditoria({
+          usuario: user,
+          acao: "edicao",
+          entidade: "Bobina",
+          registroId: editItem?.id || "",
+          registroIdentificador: payload.codigo || "",
+          detalhes: `Reserva efetuada na bobina ${payload.codigo || ""}: ${payload.reserva_tipo === "inteira" ? "Bobina Inteira" : `Parcial (${payload.reserva_kg} kg)`}. Motivo: ${payload.reserva_motivo || "N/A"}. Autorizado por: ${payload.reserva_autorizado_por || "N/A"}.`,
+          unidade: payload.unidade || "Matriz AJL"
+        });
+      } else if (!form.reservada && editItem?.reservada) {
+        registrarAuditoria({
+          usuario: user,
+          acao: "edicao",
+          entidade: "Bobina",
+          registroId: editItem?.id || "",
+          registroIdentificador: payload.codigo || "",
+          detalhes: `Reserva da bobina ${payload.codigo || ""} foi liberada.`,
+          unidade: payload.unidade || "Matriz AJL"
+        });
+      }
 
       // Timeout de 20 segundos para evitar travamento infinito
       const timeoutPromise = new Promise((_, reject) =>
