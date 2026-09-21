@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,15 +6,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from "@/api/base44Client";
-import { Paperclip, FileCheck, X, Loader2, ShieldCheck } from "lucide-react";
+import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Layers } from "lucide-react";
 import { toast } from "sonner";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
 import UploadButton from "@/components/ui/UploadButton";
 import ImageViewer from "@/components/ui/ImageViewer";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useFilial } from "@/contexts/FilialContext";
 import { useAuth } from "@/lib/AuthContext";
 import { auditarModificacaoBobina } from "@/lib/auditHelper";
+import BobinaModeloCombobox from "@/components/bobinas/BobinaModeloCombobox";
 
 const STATUS_OPTIONS = [
   "Aberta", "Fechada", "Finalizada", "Na TP40", "Na BOBININHA",
@@ -44,6 +45,7 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
   const [confirmarSemCert, setConfirmarSemCert] = useState(false);
   const [erros, setErros] = useState({});
   const [viewer, setViewer] = useState({ open: false, url: "", name: "" });
+  const [bobinaModeloId, setBobinaModeloId] = useState("");
   const formTopRef = useRef();
   const nfInputRef = useRef();
   const nfCameraRef = useRef();
@@ -52,9 +54,41 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
   const fotoCorInputRef = useRef();
   const fotoCorCameraRef = useRef();
 
+  // Busca todas as bobinas da fábrica para servir como modelo e sugestões
+  const { data: todasBobinas = [] } = useQuery({
+    queryKey: ["todas-bobinas-modelo"],
+    queryFn: () => base44.entities.Bobina.list("-created_date", 2000),
+    enabled: open,
+    staleTime: 60000,
+  });
+
+  // Extrai listas únicas ordenadas de cores, chapas e fornecedores
+  const listaCores = useMemo(() => {
+    const s = new Set();
+    todasBobinas.forEach(b => { if (b?.cor?.trim()) s.add(b.cor.trim()); });
+    return Array.from(s).sort();
+  }, [todasBobinas]);
+
+  const listaChapas = useMemo(() => {
+    const s = new Set();
+    todasBobinas.forEach(b => {
+      if (b?.chapa !== undefined && b?.chapa !== null && String(b.chapa).trim()) {
+        s.add(String(b.chapa).trim());
+      }
+    });
+    return Array.from(s).sort();
+  }, [todasBobinas]);
+
+  const listaFornecedores = useMemo(() => {
+    const s = new Set();
+    todasBobinas.forEach(b => { if (b?.fornecedor?.trim()) s.add(b.fornecedor.trim()); });
+    return Array.from(s).sort();
+  }, [todasBobinas]);
+
   useEffect(() => {
     setErros({});
     if (editItem) {
+      setBobinaModeloId(editItem.id || editItem.codigo || "");
       setForm({
         cor: editItem.cor || "",
         chapa: editItem.chapa || "",
@@ -90,6 +124,7 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
         reserva_data: editItem.reserva_data || "",
       });
     } else {
+      setBobinaModeloId("");
       setForm({
         cor: "", chapa: "", qualidade: "", origem: "Nacional", sub_cod: "", largura_mm: "", peso_kg: "", peso_inicial: "",
         metragem: "", codigo: "Gerando...", nf: "", custo: "", status: "", fornecedor: "",
@@ -114,6 +149,36 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
     const esp = parseFloat(String(chapa).replace(",", ".")) / 1000;
     if (p > 0 && l > 0 && esp > 0) return Math.round(p / (l * esp * 7850));
     return "";
+  };
+
+  const handleSelecionarModelo = (bobina) => {
+    if (!bobina) return;
+    setBobinaModeloId(bobina.id || bobina.codigo || "");
+
+    const novaLargura = bobina.largura_mm !== undefined && bobina.largura_mm !== null ? String(bobina.largura_mm) : form.largura_mm;
+    const novaChapa = bobina.chapa !== undefined && bobina.chapa !== null ? String(bobina.chapa) : form.chapa;
+    const novaMetragem = calcMetragem(form.peso_kg, novaLargura, novaChapa);
+
+    setForm(f => ({
+      ...f,
+      cor: bobina.cor || f.cor,
+      chapa: novaChapa,
+      qualidade: bobina.qualidade || f.qualidade,
+      origem: bobina.origem || f.origem || "Nacional",
+      sub_cod: bobina.sub_cod || f.sub_cod,
+      largura_mm: novaLargura,
+      metragem: novaMetragem || f.metragem,
+      custo: bobina.custo !== undefined && bobina.custo !== null ? String(bobina.custo) : f.custo,
+      fornecedor: bobina.fornecedor || f.fornecedor,
+      estoque_minimo_kg: bobina.estoque_minimo_kg !== undefined && bobina.estoque_minimo_kg !== null ? String(bobina.estoque_minimo_kg) : f.estoque_minimo_kg,
+      consumo_diario_kg: bobina.consumo_diario_kg !== undefined && bobina.consumo_diario_kg !== null ? String(bobina.consumo_diario_kg) : f.consumo_diario_kg,
+    }));
+
+    toast.success(`Especificações da bobina ${bobina.codigo || ""} copiadas com sucesso!`);
+  };
+
+  const handleLimparModelo = () => {
+    setBobinaModeloId("");
   };
 
   const handlePesoChange = (val) => {
@@ -301,14 +366,47 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
           <DialogTitle>{editItem ? "Editar Bobina" : "Nova Bobina"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2" ref={formTopRef}>
+          {/* Seletor de Bobina Existente como Modelo para preenchimento rápido */}
+          {!editItem && (
+            <div className="space-y-1.5 p-3 rounded-lg border border-primary/30 bg-primary/5 shadow-xs">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-primary flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5" />
+                  Preencher com base em bobina existente (Modelo)
+                </Label>
+                <span className="text-[10px] text-muted-foreground">Opcional</span>
+              </div>
+              <BobinaModeloCombobox
+                bobinas={todasBobinas}
+                selectedId={bobinaModeloId}
+                onSelect={handleSelecionarModelo}
+                onClear={handleLimparModelo}
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Selecione uma bobina existente para copiar especificações (cor, chapa, qualidade, medidas e fornecedor) mantendo o novo código.
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Cor / RVM</Label>
-              <Input placeholder="Ex: Galvanizado, Branco, Natural..." value={form.cor} onChange={e => set("cor", e.target.value)} />
+              <Input
+                list="lista-cores-telhas"
+                placeholder="Ex: Galvanizado, Branco, Natural..."
+                value={form.cor}
+                onChange={e => set("cor", e.target.value)}
+              />
             </div>
             <div className="space-y-1">
               <Label className={erros.chapa ? "text-destructive" : ""}>Chapa *</Label>
-              <Input placeholder="Ex: 0,43" value={form.chapa} onChange={e => { handleChapaChange(e.target.value); setErros(e => ({...e, chapa: undefined})); }} className={erros.chapa ? "border-destructive ring-destructive" : ""} />
+              <Input
+                list="lista-chapas-telhas"
+                placeholder="Ex: 0,43"
+                value={form.chapa}
+                onChange={e => { handleChapaChange(e.target.value); setErros(e => ({...e, chapa: undefined})); }}
+                className={erros.chapa ? "border-destructive ring-destructive" : ""}
+              />
               {erros.chapa && <p className="text-xs text-destructive">{erros.chapa}</p>}
             </div>
           </div>
@@ -376,7 +474,12 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Fornecedor</Label>
-              <Input placeholder="Ex: Arcelormittal" value={form.fornecedor} onChange={e => set("fornecedor", e.target.value)} />
+              <Input
+                list="lista-fornecedores-telhas"
+                placeholder="Ex: Arcelormittal"
+                value={form.fornecedor}
+                onChange={e => set("fornecedor", e.target.value)}
+              />
             </div>
             <div className="space-y-1">
               <Label>Custo (R$/kg)</Label>
@@ -529,6 +632,17 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
 
           {/* Reserva */}
           <ReservaPanel form={form} onChange={setForm} />
+
+          {/* Datalists com sugestões automáticas baseadas em todas as bobinas */}
+          <datalist id="lista-cores-telhas">
+            {listaCores.map(c => <option key={c} value={c} />)}
+          </datalist>
+          <datalist id="lista-chapas-telhas">
+            {listaChapas.map(c => <option key={c} value={c} />)}
+          </datalist>
+          <datalist id="lista-fornecedores-telhas">
+            {listaFornecedores.map(f => <option key={f} value={f} />)}
+          </datalist>
 
         </div>
 
