@@ -7,28 +7,62 @@ import { format } from "date-fns";
  *
  * @param {Object} options
  * @param {"todos" | "telhas" | "corte_dobra"} [options.setor="todos"] - Filtrar por setor ou exportar tudo
- * @param {boolean} [options.apenasAtivas=false] - Se true, ignora bobinas arquivadas
+ * @param {"todas" | "ativas" | "arquivadas"} [options.status="todas"] - Filtrar por status das bobinas
+ * @param {boolean} [options.apenasAtivas=false] - Retrocompatibilidade (se true, status="ativas")
  * @param {string} [options.filial="todas"] - Filtrar por filial ou exportar todas
+ * @param {Array} [options.dadosPrecarregados=null] - Lista de bobinas já carregadas na memória (opcional)
  */
-export async function exportarPlanilhaBobinasOdoo({ setor = "todos", apenasAtivas = false, filial = "todas" } = {}) {
-  // 1. Busca bobinas
-  let filtro = {};
+export async function exportarPlanilhaBobinasOdoo({
+  setor = "todos",
+  status = "todas",
+  apenasAtivas = false,
+  filial = "todas",
+  dadosPrecarregados = null
+} = {}) {
+  let statusFinal = status;
+  if (apenasAtivas && status === "todas") {
+    statusFinal = "ativas";
+  }
+
+  let lista = dadosPrecarregados;
+
+  // 1. Se não recebeu dados já em memória, busca no Base44
+  if (!lista || !Array.isArray(lista)) {
+    let filtro = {};
+    if (setor && setor !== "todos") {
+      filtro.setor = setor;
+    }
+    if (filial && filial !== "todas") {
+      filtro.unidade = filial;
+    }
+    lista = await base44.entities.Bobina.filter(filtro, "codigo", 4000);
+  }
+
+  // 2. Aplica filtros na lista
+  let bobinasFiltradas = lista || [];
+
+  // Filtro de setor (caso tenha vindo de dadosPrecarregados gerais)
   if (setor && setor !== "todos") {
-    filtro.setor = setor;
+    bobinasFiltradas = bobinasFiltradas.filter(b => b.setor === setor);
   }
+
+  // Filtro de filial
   if (filial && filial !== "todas") {
-    filtro.unidade = filial;
+    bobinasFiltradas = bobinasFiltradas.filter(b => (b.unidade || "Matriz AJL") === filial);
   }
 
-  const lista = await base44.entities.Bobina.filter(filtro, "codigo", 3000);
-
-  const bobinasFiltradas = apenasAtivas ? lista.filter(b => !b.arquivada) : lista;
+  // Filtro de status (ativas vs arquivadas)
+  if (statusFinal === "ativas") {
+    bobinasFiltradas = bobinasFiltradas.filter(b => !b.arquivada);
+  } else if (statusFinal === "arquivadas") {
+    bobinasFiltradas = bobinasFiltradas.filter(b => b.arquivada);
+  }
 
   if (!bobinasFiltradas || bobinasFiltradas.length === 0) {
-    throw new Error("Nenhuma bobina encontrada para exportar.");
+    throw new Error("Nenhuma bobina encontrada com os filtros selecionados para exportação.");
   }
 
-  // 2. Colunas padronizadas para o Odoo / Estoque
+  // 3. Colunas padronizadas para o Odoo / Estoque
   const cabecalho = [
     "ID Base44",
     "Código da Bobina",
@@ -110,7 +144,7 @@ export async function exportarPlanilhaBobinasOdoo({ setor = "todos", apenasAtiva
     linhas.push(linha.join(";"));
   }
 
-  // 3. Monta o Blob com BOM UTF-8 (\uFEFF) para garantir caracteres acentuados no Excel do Windows
+  // 4. Monta o Blob com BOM UTF-8 (\uFEFF) para garantir caracteres acentuados no Excel do Windows
   const csvContent = "\uFEFF" + linhas.join("\r\n");
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
@@ -118,13 +152,15 @@ export async function exportarPlanilhaBobinasOdoo({ setor = "todos", apenasAtiva
   a.href = url;
   
   const dataHoje = format(new Date(), "dd-MM-yyyy");
-  const sufixoSetor = setor === "todos" ? "todas_as_bobinas" : setor;
-  a.download = `bobinas_ajl_${sufixoSetor}_${dataHoje}.csv`;
+  const descSetor = setor === "todos" ? "ambos_setores" : (setor === "telhas" ? "telhas" : "corte_dobra");
+  const descStatus = statusFinal === "ativas" ? "ativas" : (statusFinal === "arquivadas" ? "arquivadas" : "todas");
+  const nomeArquivo = `bobinas_ajl_${descSetor}_${descStatus}_${dataHoje}.csv`;
   
+  a.download = nomeArquivo;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 
-  return { total: bobinasFiltradas.length };
+  return { total: bobinasFiltradas.length, nomeArquivo };
 }

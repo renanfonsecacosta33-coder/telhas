@@ -17,6 +17,7 @@ import { useFilial } from "@/contexts/FilialContext";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 import { getTimestampArquivamento, matchBobinaBuscaData, matchBobinaFiltroDataExata } from "@/lib/bobinaStatusHelper";
 import { exportarPlanilhaBobinasOdoo } from "@/lib/exportarBobinasHelper";
+import ExportarBobinasDialog from "@/components/bobinas/ExportarBobinasDialog";
 
 export default function BobinasCD() {
   const { filialAtiva } = useFilial();
@@ -209,19 +210,7 @@ export default function BobinasCD() {
     setFilterAlerta(false);
   };
 
-  const [exportando, setExportando] = useState(false);
-
-  const handleExportarOdoo = async () => {
-    setExportando(true);
-    try {
-      const res = await exportarPlanilhaBobinasOdoo({ setor: "todos", apenasAtivas: false });
-      toast.success(`${res.total} bobinas exportadas com sucesso para a planilha do Odoo!`);
-    } catch (e) {
-      toast.error(e.message || "Erro ao exportar planilha.");
-    } finally {
-      setExportando(false);
-    }
-  };
+  const [exportarDialogOpen, setExportarDialogOpen] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -237,13 +226,12 @@ export default function BobinasCD() {
         <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="outline"
-            onClick={handleExportarOdoo}
-            disabled={exportando}
+            onClick={() => setExportarDialogOpen(true)}
             className="gap-2 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-            title="Exportar planilha de todas as bobinas do Base44 para parear no Odoo"
+            title="Exportar planilha de bobinas do Base44 para parear no Odoo"
           >
-            {exportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            {exportando ? "Exportando..." : "Exportar Planilha (Odoo)"}
+            <Download className="w-4 h-4" />
+            Exportar Planilha (Odoo)
           </Button>
           <Button onClick={() => { setEditItem(null); refetchCodigos(); setDialogOpen(true); }} className="gap-2">
             <Plus className="w-4 h-4" /> Nova Bobina
@@ -419,6 +407,7 @@ export default function BobinasCD() {
         onConfirm={() => deleteMutation.mutate(deleteItem.id)}
         itemName={deleteItem ? `${deleteItem.cor} - ${deleteItem.chapa}` : ""}
       />
+      <ExportarBobinasDialog open={exportarDialogOpen} onOpenChange={setExportarDialogOpen} setorInicial="corte_dobra" />
     </div>
   );
 }
