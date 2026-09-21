@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,10 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from "@/api/base44Client";
-import { Paperclip, FileCheck, ShieldCheck, X, Loader2 } from "lucide-react";
+import { Paperclip, FileCheck, ShieldCheck, X, Loader2, Sparkles, AlertTriangle, Camera } from "lucide-react";
+import { toast } from "sonner";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
 import UploadButton from "@/components/ui/UploadButton";
 import ImageLink from "@/components/ui/ImageLink";
+import { lerNotaFiscalChapa, encontrarItensPorNF } from "@/lib/nfReader";
 
 export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo, isSaving = false, chapasExistentes = [] }) {
   const [salvandoLocal, setSalvandoLocal] = useState(false);
@@ -79,18 +81,75 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo, 
     }
   }, [open, proximoCodigo]);
 
-  const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
+  const [lendoNF, setLendoNF] = useState(false);
+
+  // 🔒 Detecta se a NF já existe em outras chapas cadastradas
+  const chapasMesmaNF = useMemo(() => {
+    return encontrarItensPorNF(chapasExistentes, form.nf);
+  }, [chapasExistentes, form.nf]);
+
+  const temDuplicidadeNF = chapasMesmaNF.length > 0;
+
+  const handleProcessarNF = async (file) => {
+    if (!file) return;
+    setLendoNF(true);
+    setUploadingNF(true);
+    try {
+      toast.info("Processando imagem da Nota Fiscal com IA...", { duration: 3500 });
+      const { file_url, file_name, dados } = await lerNotaFiscalChapa(file);
+
+      setForm(f => ({
+        ...f,
+        anexo_nf_url: file_url,
+        anexo_nf_nome: file_name,
+        nf: dados.numero_nf ? String(dados.numero_nf) : f.nf,
+        comprimento_mm: dados.comprimento_mm ? String(dados.comprimento_mm) : f.comprimento_mm,
+        largura_mm: dados.largura_mm ? String(dados.largura_mm) : f.largura_mm,
+        espessura_mm: dados.espessura_mm ? String(dados.espessura_mm) : f.espessura_mm,
+        material: dados.material || f.material,
+        qualidade: dados.qualidade || f.qualidade,
+        quantidade_total: dados.quantidade_total ? String(dados.quantidade_total) : f.quantidade_total,
+        peso_kg: dados.peso_kg ? String(dados.peso_kg) : f.peso_kg,
+        cliente: dados.cliente || f.cliente,
+        numero_pedido: dados.numero_pedido || f.numero_pedido,
+        data_corte: dados.data_emissao || f.data_corte,
+      }));
+
+      toast.success(`Nota Fiscal ${dados.numero_nf || ""} lida com sucesso! Dados preenchidos pela IA.`);
+
+      // Alerta de duplicidade se a NF já constar em chapas existentes
+      if (dados.numero_nf) {
+        const duplicadas = encontrarItensPorNF(chapasExistentes, dados.numero_nf);
+        if (duplicadas.length > 0) {
+          toast.error(
+            `⚠️ Atenção: A Nota Fiscal ${dados.numero_nf} já possui ${duplicadas.length} chapa(s) cadastrada(s) no sistema!`,
+            { duration: 9000 }
+          );
+        }
+      }
+    } catch (err) {
+      console.error("Erro ao processar NF de chapa com IA:", err);
+      try {
+        const { file_url } = await base44.integrations.Core.UploadFile({ file });
+        setForm(f => ({ ...f, anexo_nf_url: file_url, anexo_nf_nome: file.name }));
+      } catch {}
+      toast.warning("Arquivo anexado, mas não foi possível extrair todos os dados automaticamente.");
+    } finally {
+      setLendoNF(false);
+      setUploadingNF(false);
+    }
+  };
 
   const handleUpload = async (file, tipo) => {
     if (!file) return;
-    if (tipo === "nf") setUploadingNF(true);
-    else setUploadingCF(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    if (tipo === "nf") {
-      setForm(f => ({ ...f, anexo_nf_url: file_url, anexo_nf_nome: file.name }));
-      setUploadingNF(false);
-    } else {
+    if (tipo === "nf") return handleProcessarNF(file);
+    setUploadingCF(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
       setForm(f => ({ ...f, anexo_cf_url: file_url, anexo_cf_nome: file.name }));
+    } catch {
+      toast.error("Erro ao enviar certificado.");
+    } finally {
       setUploadingCF(false);
     }
   };
@@ -158,11 +217,58 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo, 
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] sm:max-w-xl md:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nova Chapa Manual</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
+
+          {/* Card de Leitura de Nota Fiscal por IA */}
+          <div className="rounded-xl border-2 border-dashed border-emerald-500/40 bg-emerald-500/5 p-3.5 space-y-2.5 shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-xs sm:text-sm font-bold text-foreground">
+                  Preencher Automático por Foto da NF (IA)
+                </h4>
+                <p className="text-[11px] text-muted-foreground">
+                  Tire a foto ou anexe o DANFE para a IA extrair espessura, medidas, quantidade, peso e NF.
+                </p>
+              </div>
+            </div>
+
+            {lendoNF ? (
+              <div className="flex items-center justify-center gap-2.5 py-3 px-4 rounded-lg bg-emerald-100/60 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 text-xs font-semibold animate-pulse">
+                <Loader2 className="w-4 h-4 animate-spin text-emerald-600 shrink-0" />
+                <span>Lendo Nota Fiscal e preenchendo medidas da chapa com IA...</span>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row items-center gap-2 pt-0.5">
+                <input ref={nfCameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleProcessarNF(e.target.files[0])} />
+                <input ref={nfInputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={e => handleProcessarNF(e.target.files[0])} />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => nfCameraRef.current?.click()}
+                  className="w-full sm:w-1/2 bg-background hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs h-9 gap-1.5 font-medium cursor-pointer"
+                >
+                  <Camera className="w-4 h-4 text-emerald-600" />
+                  Tirar Foto da NF
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => nfInputRef.current?.click()}
+                  className="w-full sm:w-1/2 bg-background hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs h-9 gap-1.5 font-medium cursor-pointer"
+                >
+                  <Paperclip className="w-4 h-4 text-emerald-600" />
+                  Anexar Arquivo/PDF
+                </Button>
+              </div>
+            )}
+          </div>
 
           {/* Código + Data */}
           <div className="grid grid-cols-2 gap-3">
@@ -206,10 +312,10 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo, 
           {/* Espessura */}
           <div className="space-y-1">
             <Label>Espessura (mm)</Label>
-            <Input type="number" step="0.01" placeholder="Ex: 4,75" value={form.espessura_mm} onChange={e => set("espessura_mm", e.target.value)} />
+            <Input type="number" step="0.01" placeholder="Ex: 0.95" value={form.espessura_mm} onChange={e => set("espessura_mm", e.target.value)} />
           </div>
 
-          {/* Dimensões */}
+          {/* Comprimento + Largura */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Comprimento (mm) *</Label>
@@ -233,10 +339,48 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo, 
             </div>
           </div>
 
-          {/* NF */}
-          <div className="space-y-1">
-            <Label>NF (Nota Fiscal)</Label>
-            <Input placeholder="Ex: 123456" value={form.nf} onChange={e => set("nf", e.target.value)} />
+          {/* NF com Alerta em Vermelho de Duplicidade */}
+          <div className={`space-y-1 rounded-xl p-2.5 transition-colors ${
+            temDuplicidadeNF ? "border-2 border-red-500/70 bg-red-500/10 dark:bg-red-950/25" : ""
+          }`}>
+            <div className="flex items-center justify-between">
+              <Label className={temDuplicidadeNF ? "text-red-600 dark:text-red-400 font-extrabold flex items-center gap-1" : ""}>
+                {temDuplicidadeNF && <AlertTriangle className="w-3.5 h-3.5 text-red-600 animate-bounce" />}
+                NF (Nota Fiscal)
+              </Label>
+              {temDuplicidadeNF && (
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-red-600 text-white shadow-xs animate-pulse">
+                  Alerta: NF Duplicada
+                </span>
+              )}
+            </div>
+            <Input
+              placeholder="Ex: 123456"
+              value={form.nf}
+              onChange={e => set("nf", e.target.value)}
+              className={temDuplicidadeNF ? "border-red-500 border-2 bg-red-500/15 dark:bg-red-950/40 text-red-900 dark:text-red-100 font-bold focus-visible:ring-red-500" : ""}
+            />
+
+            {/* Caixa Vermelha de Alerta */}
+            {temDuplicidadeNF && (
+              <div className="rounded-lg border-2 border-red-500/80 bg-red-500/15 dark:bg-red-950/50 p-2.5 space-y-1.5 shadow-xs mt-1 animate-in fade-in-50 duration-200">
+                <div className="flex items-center gap-1.5 font-black text-xs text-red-700 dark:text-red-300">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-red-600" />
+                  <span>Opa! Estamos em duplicidade de NF!</span>
+                </div>
+                <p className="text-[11px] text-red-900 dark:text-red-200">
+                  A NF <strong>{form.nf}</strong> já consta cadastrada em <strong>{chapasMesmaNF.length}</strong> chapa(s) existente(s):
+                </p>
+                <div className="flex flex-wrap gap-1 pt-0.5">
+                  {chapasMesmaNF.map((c, idx) => (
+                    <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-600 text-white font-mono text-[10px] font-bold">
+                      <span>{c.codigo}</span>
+                      {c.quantidade_total && <span className="font-normal text-red-100">({c.quantidade_total} un)</span>}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Destino */}

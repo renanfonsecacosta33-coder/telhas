@@ -162,12 +162,237 @@ export function compararNFs(nf1, nf2) {
 }
 
 /**
- * Busca na lista de bobinas existentes se já há alguma cadastrada com a mesma NF
+ * Busca na lista de itens existentes (bobinas, chapas, slitters, colas, isopores) se já há algum cadastrado com a mesma NF
  */
-export function encontrarBobinasPorNF(todasBobinas = [], nf = "", bobinaIdAtual = null) {
+export function encontrarItensPorNF(lista = [], nf = "", itemIdAtual = null) {
   if (!nf || !String(nf).trim()) return [];
-  return todasBobinas.filter(b => {
-    if (bobinaIdAtual && (b.id === bobinaIdAtual || b.codigo === bobinaIdAtual)) return false;
-    return compararNFs(b.nf, nf);
+  return lista.filter(item => {
+    if (!item) return false;
+    if (itemIdAtual && (item.id === itemIdAtual || item.codigo === itemIdAtual)) return false;
+    return compararNFs(item.nf || item.lote, nf);
   });
+}
+
+export const encontrarBobinasPorNF = encontrarItensPorNF;
+
+/**
+ * Lê Nota Fiscal de Chaparia (Corte & Dobra) via IA Multimodal
+ */
+export async function lerNotaFiscalChapa(file) {
+  const rawFile = file?.target?.files?.[0] || file;
+  if (!rawFile) throw new Error("Arquivo de Nota Fiscal não fornecido");
+
+  const { file_url } = await base44.integrations.Core.UploadFile({ file: rawFile });
+
+  const prompt = `Você é um assistente especialista em leitura de Notas Fiscais Eletrônicas (DANFE) de chapas metálicas, aço plano e chaparia de corte e dobra.
+Analise a imagem da Nota Fiscal e extraia com precisão os dados fiscais e as medidas das chapas:
+- "numero_nf": Número da NF (ex: 5041, 12345).
+- "fornecedor": Nome ou Razão Social do emitente/fornecedor.
+- "data_emissao": Data de emissão no formato AAAA-MM-DD.
+- "comprimento_mm": Comprimento da chapa em milímetros (ex: 3000, 2000, 6000).
+- "largura_mm": Largura da chapa em milímetros (ex: 1200, 1000, 1500).
+- "espessura_mm": Espessura da chapa em milímetros (ex: 0.43, 0.50, 0.65, 0.95, 1.25, 2.00).
+- "material": Tipo ou descrição do material (ex: "Chapa lisa", "Chapa xadrez", "Galvalume", "Galvanizada", "Fina a Frio").
+- "qualidade": Sigla de qualidade do aço, se houver: "GV", "PP", "FF", "FQ", "GL (IMP)".
+- "quantidade_total": Quantidade total de peças ou chapas faturadas.
+- "peso_kg": Peso líquido total em kg (se vier em Toneladas, multiplique por 1000).
+- "cliente": Destinatário se for faturamento para cliente específico.
+- "numero_pedido": Número do pedido de compra/venda mencionado na NF.`;
+
+  const jsonSchema = {
+    type: "object",
+    properties: {
+      numero_nf: { type: "string" },
+      fornecedor: { type: "string" },
+      data_emissao: { type: "string" },
+      comprimento_mm: { type: "number" },
+      largura_mm: { type: "number" },
+      espessura_mm: { type: "number" },
+      material: { type: "string" },
+      qualidade: { type: "string", enum: ["GV", "PP", "FF", "FQ", "GL (IMP)"] },
+      quantidade_total: { type: "number" },
+      peso_kg: { type: "number" },
+      cliente: { type: "string" },
+      numero_pedido: { type: "string" }
+    },
+    required: ["numero_nf", "fornecedor"]
+  };
+
+  const resposta = await base44.integrations.Core.InvokeLLM({
+    prompt,
+    file_urls: [file_url],
+    response_json_schema: jsonSchema
+  });
+
+  return {
+    file_url,
+    file_name: rawFile.name || "NotaFiscal_Chapa.jpg",
+    dados: resposta || {}
+  };
+}
+
+/**
+ * Lê Nota Fiscal de Slitter / Fitas de Aço via IA Multimodal
+ */
+export async function lerNotaFiscalSlitter(file) {
+  const rawFile = file?.target?.files?.[0] || file;
+  if (!rawFile) throw new Error("Arquivo de Nota Fiscal não fornecido");
+
+  const { file_url } = await base44.integrations.Core.UploadFile({ file: rawFile });
+
+  const prompt = `Você é um assistente especialista em leitura de Notas Fiscais Eletrônicas (DANFE) de tiras/fitas de aço e bobinas slitter.
+Analise a imagem da Nota Fiscal e extraia com precisão os dados do produto siderúrgico:
+- "numero_nf": Número da NF (ex: 5041).
+- "fornecedor": Nome ou Razão Social do emitente/fornecedor.
+- "data_emissao": Data de emissão no formato AAAA-MM-DD.
+- "peso_kg": Peso em quilogramas (se estiver em Toneladas, multiplique por 1000).
+- "largura_mm": Largura da tira em milímetros (ex: 75, 100, 150, 200, 300, etc.).
+- "espessura_mm": Espessura do aço em milímetros (ex: 0.43, 0.50, 0.65, 0.95, 1.25).
+- "qualidade": Qualidade do aço: "GV", "PP", "FF", "FQ", "GL (IMP)".
+- "origem": "Nacional" ou "Importado".
+- "materiais_producao": Descrição do perfil ou material (ex: "75x40 / 68x30 / 100x40").
+- "lote": Número do lote de fabricação ou corrida.`;
+
+  const jsonSchema = {
+    type: "object",
+    properties: {
+      numero_nf: { type: "string" },
+      fornecedor: { type: "string" },
+      data_emissao: { type: "string" },
+      peso_kg: { type: "number" },
+      largura_mm: { type: "number" },
+      espessura_mm: { type: "number" },
+      qualidade: { type: "string", enum: ["GV", "PP", "FF", "FQ", "GL (IMP)"] },
+      origem: { type: "string", enum: ["Nacional", "Importado"] },
+      materiais_producao: { type: "string" },
+      lote: { type: "string" }
+    },
+    required: ["numero_nf", "fornecedor"]
+  };
+
+  const resposta = await base44.integrations.Core.InvokeLLM({
+    prompt,
+    file_urls: [file_url],
+    response_json_schema: jsonSchema
+  });
+
+  return {
+    file_url,
+    file_name: rawFile.name || "NotaFiscal_Slitter.jpg",
+    dados: resposta || {}
+  };
+}
+
+/**
+ * Lê Nota Fiscal de Cola / Adesivo Industrial via IA Multimodal
+ */
+export async function lerNotaFiscalCola(file) {
+  const rawFile = file?.target?.files?.[0] || file;
+  if (!rawFile) throw new Error("Arquivo de Nota Fiscal não fornecido");
+
+  const { file_url } = await base44.integrations.Core.UploadFile({ file: rawFile });
+
+  const prompt = `Você é um assistente especialista em leitura de Notas Fiscais Eletrônicas (DANFE) de colas e adesivos para telhas termoacústicas (PUR, Termofusível, Base Água, Poliuretano).
+Analise a imagem da Nota Fiscal e extraia com precisão:
+- "numero_nf": Número da NF.
+- "fornecedor": Razão social do fornecedor da cola.
+- "data_emissao": Data de emissão no formato AAAA-MM-DD.
+- "tipo": Tipo de cola identificado: "Cola Termofusível", "Cola PUR", "Cola Base Água", "Cola Poliuretano" ou "Outro".
+- "tambores_qtd": Quantidade de tambores (se faturado em tambores, bombonas ou barris).
+- "tambor_peso_kg": Peso de cada tambor em kg (padrão é 200kg se for tambor padrão).
+- "sacos_qtd": Quantidade de sacos ou pacotes se faturado em sacos.
+- "custo_tambor": Valor unitário do tambor ou custo total dividido pela quantidade.
+- "lote": Número do lote do fabricante.
+- "data_validade": Data de validade mencionada (AAAA-MM-DD).`;
+
+  const jsonSchema = {
+    type: "object",
+    properties: {
+      numero_nf: { type: "string" },
+      fornecedor: { type: "string" },
+      data_emissao: { type: "string" },
+      tipo: {
+        type: "string",
+        enum: ["Cola Termofusível", "Cola PUR", "Cola Base Água", "Cola Poliuretano", "Outro"]
+      },
+      tambores_qtd: { type: "number" },
+      tambor_peso_kg: { type: "number" },
+      sacos_qtd: { type: "number" },
+      custo_tambor: { type: "number" },
+      lote: { type: "string" },
+      data_validade: { type: "string" }
+    },
+    required: ["numero_nf", "fornecedor"]
+  };
+
+  const resposta = await base44.integrations.Core.InvokeLLM({
+    prompt,
+    file_urls: [file_url],
+    response_json_schema: jsonSchema
+  });
+
+  return {
+    file_url,
+    file_name: rawFile.name || "NotaFiscal_Cola.jpg",
+    dados: resposta || {}
+  };
+}
+
+/**
+ * Lê Nota Fiscal de Isopor / EPS para Telhas Térmicas via IA Multimodal
+ */
+export async function lerNotaFiscalIsopor(file) {
+  const rawFile = file?.target?.files?.[0] || file;
+  if (!rawFile) throw new Error("Arquivo de Nota Fiscal não fornecido");
+
+  const { file_url } = await base44.integrations.Core.UploadFile({ file: rawFile });
+
+  const prompt = `Você é um assistente especialista em leitura de Notas Fiscais Eletrônicas (DANFE) de EPS / Isopor e núcleos isolantes para telhas sanduíche e termoacústicas.
+Analise a imagem da Nota Fiscal e extraia com precisão:
+- "numero_nf": Número da NF.
+- "fornecedor": Razão social do fornecedor de EPS.
+- "data_emissao": Data de emissão no formato AAAA-MM-DD.
+- "tipo": Modelo de perfil compatível com a telha:
+  "EPS - TP 40", "EPS - TP 25", "EPS - TP 40 BANDEJA", "EPS - COLONIAL", "EPS - COLONIAL BANDEJA" ou "EPS - ONDULADO".
+- "espessura_mm": Espessura do núcleo em milímetros (ex: 30, 40, 50, 60, 100).
+- "quantidade": Quantidade de barras/unidades de 2 metros.
+- "metragem_total": Metragem linear total em metros (quantidade × 2).
+- "lote": Lote de fabricação se informado.`;
+
+  const jsonSchema = {
+    type: "object",
+    properties: {
+      numero_nf: { type: "string" },
+      fornecedor: { type: "string" },
+      data_emissao: { type: "string" },
+      tipo: {
+        type: "string",
+        enum: [
+          "EPS - TP 25",
+          "EPS - TP 40",
+          "EPS - TP 40 BANDEJA",
+          "EPS - COLONIAL",
+          "EPS - COLONIAL BANDEJA",
+          "EPS - ONDULADO"
+        ]
+      },
+      espessura_mm: { type: "number" },
+      quantidade: { type: "number" },
+      metragem_total: { type: "number" },
+      lote: { type: "string" }
+    },
+    required: ["numero_nf", "fornecedor"]
+  };
+
+  const resposta = await base44.integrations.Core.InvokeLLM({
+    prompt,
+    file_urls: [file_url],
+    response_json_schema: jsonSchema
+  });
+
+  return {
+    file_url,
+    file_name: rawFile.name || "NotaFiscal_Isopor.jpg",
+    dados: resposta || {}
+  };
 }

@@ -26,9 +26,25 @@
       "type": "number",
       "description": "Metragem total em metros (cada unidade = 2m)"
     },
+    "nf": {
+      "type": "string",
+      "description": "Número da Nota Fiscal"
+    },
+    "fornecedor": {
+      "type": "string",
+      "description": "Fornecedor do EPS / Isopor"
+    },
+    "anexo_nf_url": {
+      "type": "string",
+      "description": "URL do anexo da NF"
+    },
+    "anexo_nf_nome": {
+      "type": "string",
+      "description": "Nome do arquivo da NF"
+    },
     "observacoes": {
       "type": "string",
-      "description": "Observa\u00e7\u00f5es adicionais"
+      "description": "Observações adicionais"
     }
   },
   "required": [
