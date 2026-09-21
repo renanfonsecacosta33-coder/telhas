@@ -19,8 +19,11 @@ import { getTimestampArquivamento, matchBobinaBuscaData, matchBobinaFiltroDataEx
 import { exportarPlanilhaBobinasOdoo } from "@/lib/exportarBobinasHelper";
 import ExportarBobinasDialog from "@/components/bobinas/ExportarBobinasDialog";
 import HistoricoReservasDialog from "@/components/bobinas/HistoricoReservasDialog";
+import { auditarModificacaoBobina } from "@/lib/auditHelper";
+import { useAuth } from "@/lib/AuthContext";
 
 export default function BobinasCD() {
+  const { user } = useAuth();
   const { filialAtiva } = useFilial();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
@@ -81,6 +84,12 @@ export default function BobinasCD() {
 
       const result = await base44.entities.Bobina.create(data);
       if (!result || !result.id) throw new Error("Resposta inesperada do servidor");
+      auditarModificacaoBobina({
+        usuario: user,
+        bobinaNova: result,
+        acaoTipo: "criacao",
+        detalheCustom: `Bobina CD ${result?.codigo} cadastrada no estoque. (Peso: ${result?.peso_kg || 0} kg, Chapa: ${result?.chapa || "—"} mm, Unidade: ${result?.unidade || "—"})`
+      });
       return result;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas-cd"] }); queryClient.refetchQueries({ queryKey: ["bobinas-cd"] }); setDialogOpen(false); toast.success("Bobina adicionada!"); },
@@ -95,7 +104,17 @@ export default function BobinasCD() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.Bobina.update(id, data),
+    mutationFn: async ({ id, data }) => {
+      const bAntiga = bobinas.find(b => b.id === id) || editItem;
+      const res = await base44.entities.Bobina.update(id, data);
+      auditarModificacaoBobina({
+        usuario: user,
+        bobinaAnterior: bAntiga,
+        bobinaNova: { ...bAntiga, ...data },
+        acaoTipo: "edicao"
+      });
+      return res;
+    },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas-cd"] }); queryClient.refetchQueries({ queryKey: ["bobinas-cd"] }); setDialogOpen(false); setEditItem(null); toast.success("Bobina atualizada!"); },
     onError: (err) => {
       console.error("Erro ao atualizar bobina CD:", err);
@@ -108,15 +127,35 @@ export default function BobinasCD() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => base44.entities.Bobina.delete(id),
+    mutationFn: async (id) => {
+      const b = bobinas.find(item => item.id === id) || deleteItem;
+      await base44.entities.Bobina.delete(id);
+      auditarModificacaoBobina({
+        usuario: user,
+        bobinaAnterior: b,
+        acaoTipo: "exclusao",
+        detalheCustom: `Bobina ${b?.codigo || id} foi excluída do sistema. (Peso: ${b?.peso_kg || 0} kg, Chapa: ${b?.chapa || "—"} mm, NF: ${b?.nf || "—"})`
+      });
+    },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bobinas-cd"] }); queryClient.refetchQueries({ queryKey: ["bobinas-cd"] }); setDeleteItem(null); toast.success("Bobina excluída!"); },
   });
 
   const arquivarMutation = useMutation({
-    mutationFn: ({ id, arquivada }) => base44.entities.Bobina.update(id, {
-      arquivada,
-      data_encerramento: arquivada ? new Date().toISOString().split("T")[0] : null,
-    }),
+    mutationFn: async ({ id, arquivada }) => {
+      const b = bobinas.find(item => item.id === id);
+      const res = await base44.entities.Bobina.update(id, {
+        arquivada,
+        data_encerramento: arquivada ? new Date().toISOString().split("T")[0] : null,
+      });
+      auditarModificacaoBobina({
+        usuario: user,
+        bobinaAnterior: b,
+        bobinaNova: { ...b, arquivada },
+        acaoTipo: arquivada ? "status" : "edicao",
+        detalheCustom: arquivada ? `Bobina ${b?.codigo || id} foi arquivada.` : `Bobina ${b?.codigo || id} foi restaurada para estoque ativo.`
+      });
+      return res;
+    },
     onSuccess: (_, { arquivada }) => {
       queryClient.invalidateQueries({ queryKey: ["bobinas-cd"] });
       queryClient.refetchQueries({ queryKey: ["bobinas-cd"] });

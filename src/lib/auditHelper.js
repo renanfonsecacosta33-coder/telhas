@@ -64,6 +64,126 @@ export async function registrarAuditoria({
 }
 
 /**
+ * Compara dois objetos de bobina e retorna uma descrição detalhada em texto do que foi modificado.
+ */
+export function gerarDescricaoAlteracoesBobina(anterior = {}, novo = {}) {
+  const alteracoes = [];
+
+  // Peso
+  if (anterior.peso_kg !== undefined && novo.peso_kg !== undefined && Number(anterior.peso_kg) !== Number(novo.peso_kg)) {
+    const dif = Number(novo.peso_kg) - Number(anterior.peso_kg);
+    alteracoes.push(`Peso alterado de ${Number(anterior.peso_kg).toLocaleString("pt-BR")} kg para ${Number(novo.peso_kg).toLocaleString("pt-BR")} kg (${dif > 0 ? `+${dif.toLocaleString("pt-BR")}` : dif.toLocaleString("pt-BR")} kg)`);
+  }
+
+  // Status
+  if (anterior.status && novo.status && anterior.status !== novo.status) {
+    alteracoes.push(`Status alterado de "${anterior.status}" para "${novo.status}"`);
+  }
+
+  // Chapa
+  if (anterior.chapa !== undefined && novo.chapa !== undefined && anterior.chapa !== novo.chapa) {
+    alteracoes.push(`Chapa alterada de ${anterior.chapa} mm para ${novo.chapa} mm`);
+  }
+
+  // Cor / RVM
+  if (anterior.cor !== undefined && novo.cor !== undefined && anterior.cor !== novo.cor) {
+    alteracoes.push(`Cor alterada de "${anterior.cor || 'Sem cor'}" para "${novo.cor || 'Sem cor'}"`);
+  }
+
+  // Qualidade
+  if (anterior.qualidade !== undefined && novo.qualidade !== undefined && anterior.qualidade !== novo.qualidade) {
+    alteracoes.push(`Qualidade alterada de ${anterior.qualidade || '—'} para ${novo.qualidade || '—'}`);
+  }
+
+  // Fornecedor
+  if (anterior.fornecedor !== undefined && novo.fornecedor !== undefined && anterior.fornecedor !== novo.fornecedor) {
+    alteracoes.push(`Fornecedor alterado de "${anterior.fornecedor || '—'}" para "${novo.fornecedor || '—'}"`);
+  }
+
+  // NF
+  if (anterior.nf !== undefined && novo.nf !== undefined && anterior.nf !== novo.nf) {
+    alteracoes.push(`NF alterada de "${anterior.nf || '—'}" para "${novo.nf || '—'}"`);
+  }
+
+  // Custo
+  if (anterior.custo !== undefined && novo.custo !== undefined && Number(anterior.custo) !== Number(novo.custo)) {
+    alteracoes.push(`Custo/kg alterado de R$ ${Number(anterior.custo).toFixed(2)} para R$ ${Number(novo.custo).toFixed(2)}`);
+  }
+
+  // Reserva
+  if (!anterior.reservada && novo.reservada) {
+    const tipo = novo.reserva_tipo === "parcial" ? `Parcial (${novo.reserva_kg} kg)` : "Bobina Inteira";
+    alteracoes.push(`Reserva efetuada: ${tipo}. Motivo: ${novo.reserva_motivo || 'N/A'}. Autorizado por: ${novo.reserva_autorizado_por || 'N/A'}${novo.reserva_numero_pedido ? ` (Pedido: ${novo.reserva_numero_pedido})` : ''}`);
+  } else if (anterior.reservada && !novo.reservada) {
+    alteracoes.push(`Reserva liberada / cancelada`);
+  } else if (anterior.reservada && novo.reservada) {
+    if (anterior.reserva_motivo !== novo.reserva_motivo) {
+      alteracoes.push(`Motivo da reserva alterado para "${novo.reserva_motivo || ''}"`);
+    }
+    if (anterior.reserva_autorizado_por !== novo.reserva_autorizado_por) {
+      alteracoes.push(`Autorizador da reserva alterado para "${novo.reserva_autorizado_por || ''}"`);
+    }
+    if (anterior.reserva_numero_pedido !== novo.reserva_numero_pedido) {
+      alteracoes.push(`Pedido da reserva alterado para "${novo.reserva_numero_pedido || ''}"`);
+    }
+  }
+
+  // Arquivada
+  if (anterior.arquivada !== undefined && novo.arquivada !== undefined && anterior.arquivada !== novo.arquivada) {
+    alteracoes.push(novo.arquivada ? `Bobina arquivada` : `Bobina desarquivada / retornada ao estoque`);
+  }
+
+  return alteracoes;
+}
+
+/**
+ * Registra auditoria automática para qualquer alteração em bobinas
+ */
+export async function auditarModificacaoBobina({
+  usuario = null,
+  bobinaAnterior = null,
+  bobinaNova = null,
+  acaoTipo = "edicao",
+  detalheCustom = null
+}) {
+  try {
+    const identificador = bobinaNova?.codigo || bobinaAnterior?.codigo || "Bobina";
+    const regId = bobinaNova?.id || bobinaAnterior?.id || "";
+    const unidade = bobinaNova?.unidade || bobinaAnterior?.unidade || "Matriz AJL";
+
+    let detalhes = detalheCustom;
+    if (!detalhes) {
+      if (acaoTipo === "criacao") {
+        detalhes = `Nova bobina cadastrada: ${identificador} (${bobinaNova?.cor || 'Sem cor'} · ${bobinaNova?.chapa || ''}mm · ${Number(bobinaNova?.peso_kg || 0).toLocaleString("pt-BR")} kg). NF: ${bobinaNova?.nf || '—'}, Fornecedor: ${bobinaNova?.fornecedor || '—'}.`;
+      } else if (acaoTipo === "exclusao") {
+        detalhes = `Bobina excluída do sistema: ${identificador}.`;
+      } else {
+        const alteracoes = gerarDescricaoAlteracoesBobina(bobinaAnterior, bobinaNova);
+        if (alteracoes.length === 0) {
+          detalhes = `Bobina ${identificador} atualizada no cadastro.`;
+        } else {
+          detalhes = `Alterações na bobina ${identificador}: ${alteracoes.join("; ")}.`;
+        }
+      }
+    }
+
+    await registrarAuditoria({
+      usuario,
+      acao: acaoTipo,
+      entidade: "Bobina",
+      registroId: regId,
+      registroIdentificador: identificador,
+      detalhes,
+      dadosAnteriores: bobinaAnterior,
+      dadosNovos: bobinaNova,
+      unidade
+    });
+  } catch (err) {
+    console.warn("Erro ao auditar modificação de bobina:", err);
+  }
+}
+
+/**
  * Retorna cores e rótulos para cada tipo de ação de auditoria
  */
 export const ACAO_CONFIG = {

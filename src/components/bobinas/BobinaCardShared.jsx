@@ -4,12 +4,13 @@ import { Button } from "@/components/ui/button";
 import {
   Pencil, Trash2, Archive, ArchiveRestore, AlertTriangle, Clock,
   Weight, Ruler, CalendarDays, FileCheck, ShieldCheck,
-  ChevronDown, ChevronUp, Lock, LockOpen, Camera, Tag
+  ChevronDown, ChevronUp, Lock, LockOpen, Camera, Tag, History
 } from "lucide-react";
 import EtiquetaBTW from "@/components/bobinas/EtiquetaBTW";
 import HistoricoPedidosBobina from "@/components/bobinas/HistoricoPedidosBobina";
 import TransferenciaDialog from "@/components/bobinas/TransferenciaDialog";
 import ImageViewer from "@/components/ui/ImageViewer";
+import TimelineBobinaModal from "@/components/bobinas/TimelineBobinaModal";
 import { useFilial } from "@/contexts/FilialContext";
 import { ArrowLeftRight } from "lucide-react";
 import { formatarDataArquivamento } from "@/lib/bobinaStatusHelper";
@@ -105,6 +106,7 @@ export default function BobinaCard({
   const [expandido, setExpandido] = useState(false);
   const [showEtiqueta, setShowEtiqueta] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
+  const [showTimeline, setShowTimeline] = useState(false);
   const [viewer, setViewer] = useState({ open: false, url: "", name: "" });
   const { filialAtiva } = useFilial();
   const pctUso = getPorcentagemUso(bobina);
@@ -196,6 +198,15 @@ export default function BobinaCard({
                 <ArchiveRestore className="w-4 h-4" />
               </Button>
             )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/40"
+              title="Histórico e Auditoria desta Bobina (Criação, Alterações e Horários)"
+              onClick={() => setShowTimeline(true)}
+            >
+              <History className="w-4 h-4" />
+            </Button>
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(bobina)}>
               <Pencil className="w-4 h-4" />
             </Button>
@@ -392,8 +403,16 @@ export default function BobinaCard({
             {/* Histórico de pedidos */}
             <HistoricoPedidosBobina bobina={bobina} />
 
-            {/* Etiqueta BTW + Transferência */}
+            {/* Etiqueta BTW + Transferência + Histórico */}
             <div className="pt-1 flex gap-2 flex-wrap">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 text-xs border-purple-300 text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/40"
+                onClick={() => setShowTimeline(true)}
+              >
+                <History className="w-3.5 h-3.5" /> Histórico & Auditoria
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
@@ -447,6 +466,12 @@ export default function BobinaCard({
         onClose={() => setViewer({ open: false, url: "", name: "" })}
         url={viewer.url}
         name={viewer.name}
+      />
+
+      <TimelineBobinaModal
+        open={showTimeline}
+        onClose={() => setShowTimeline(false)}
+        bobina={bobina}
       />
     </div>
   );

@@ -14,7 +14,7 @@ import ImageViewer from "@/components/ui/ImageViewer";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFilial } from "@/contexts/FilialContext";
 import { useAuth } from "@/lib/AuthContext";
-import { registrarAuditoria } from "@/lib/auditHelper";
+import { auditarModificacaoBobina } from "@/lib/auditHelper";
 
 const STATUS_OPTIONS = [
   "Aberta", "Fechada", "Finalizada", "Na TP40", "Na BOBININHA",
@@ -237,29 +237,6 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
     try {
       const payload = buildPayload();
 
-      // Auditoria de reserva
-      if (form.reservada && !editItem?.reservada) {
-        registrarAuditoria({
-          usuario: user,
-          acao: "edicao",
-          entidade: "Bobina",
-          registroId: editItem?.id || "",
-          registroIdentificador: payload.codigo || "",
-          detalhes: `Reserva efetuada na bobina ${payload.codigo || ""}: ${payload.reserva_tipo === "inteira" ? "Bobina Inteira" : `Parcial (${payload.reserva_kg} kg)`}. Motivo: ${payload.reserva_motivo || "N/A"}. Autorizado por: ${payload.reserva_autorizado_por || "N/A"}.`,
-          unidade: payload.unidade || "Matriz AJL"
-        });
-      } else if (!form.reservada && editItem?.reservada) {
-        registrarAuditoria({
-          usuario: user,
-          acao: "edicao",
-          entidade: "Bobina",
-          registroId: editItem?.id || "",
-          registroIdentificador: payload.codigo || "",
-          detalhes: `Reserva da bobina ${payload.codigo || ""} foi liberada.`,
-          unidade: payload.unidade || "Matriz AJL"
-        });
-      }
-
       // Timeout de 20 segundos para evitar travamento infinito
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error("Tempo limite excedido ao salvar. Verifique sua conexão.")), 20000)
@@ -267,6 +244,12 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
 
       if (editItem) {
         await Promise.race([base44.entities.Bobina.update(editItem.id, payload), timeoutPromise]);
+        auditarModificacaoBobina({
+          usuario: user,
+          bobinaAnterior: editItem,
+          bobinaNova: { ...editItem, ...payload },
+          acaoTipo: "edicao"
+        });
         toast.success("Bobina atualizada!");
       } else {
         // 🔒 TRAVA ANTI-DUPLICATA: verifica códigos existentes antes de criar
@@ -287,6 +270,11 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
         if (!result || !result.id) {
           throw new Error("Resposta inválida do servidor — a bobina pode não ter sido criada.");
         }
+        auditarModificacaoBobina({
+          usuario: user,
+          bobinaNova: result,
+          acaoTipo: "criacao"
+        });
         toast.success("Bobina adicionada!");
       }
       queryClient.invalidateQueries({ queryKey: ["bobinas"] });
