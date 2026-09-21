@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from "@/api/base44Client";
-import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera, Layers } from "lucide-react";
+import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Camera, Layers, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
 import UploadButton from "@/components/ui/UploadButton";
@@ -15,6 +15,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { registrarAuditoria } from "@/lib/auditHelper";
 import { useQuery } from "@tanstack/react-query";
 import BobinaModeloCombobox from "@/components/bobinas/BobinaModeloCombobox";
+import { lerNotaFiscalBobina } from "@/lib/nfReader";
 
 const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "GL (IMP)"];
 
@@ -156,20 +157,80 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
     setBobinaModeloId("");
   };
 
+  const [lendoNF, setLendoNF] = useState(false);
+
+  const handleProcessarNF = async (file) => {
+    if (!file) return;
+    setLendoNF(true);
+    setUploadingNF(true);
+    try {
+      toast.info("Processando imagem da Nota Fiscal com IA...", { duration: 3500 });
+      const { file_url, file_name, dados } = await lerNotaFiscalBobina(file);
+
+      const novaLargura = dados.largura_mm ? String(dados.largura_mm) : form.largura_mm;
+      const novaChapa = dados.chapa ? String(dados.chapa) : form.chapa;
+      const novoPeso = dados.peso_liquido_kg
+        ? String(dados.peso_liquido_kg)
+        : (dados.peso_bruto_kg ? String(dados.peso_bruto_kg) : form.peso_kg);
+      const novoPesoInicial = dados.peso_bruto_kg
+        ? String(dados.peso_bruto_kg)
+        : (dados.peso_liquido_kg ? String(dados.peso_liquido_kg) : form.peso_inicial);
+
+      setForm(f => ({
+        ...f,
+        anexo_nf_url: file_url,
+        anexo_nf_nome: file_name,
+        nf: dados.numero_nf ? String(dados.numero_nf) : f.nf,
+        fornecedor: dados.fornecedor || f.fornecedor,
+        data_recebimento: dados.data_emissao || f.data_recebimento,
+        chapa: novaChapa || f.chapa,
+        espessura_real: dados.chapa ? String(dados.chapa) : f.espessura_real,
+        espessura_utilizada: dados.chapa ? String(dados.chapa) : f.espessura_utilizada,
+        largura_mm: novaLargura || f.largura_mm,
+        cor: dados.cor || f.cor,
+        qualidade: dados.qualidade || f.qualidade,
+        peso_kg: novoPeso || f.peso_kg,
+        peso_inicial: novoPesoInicial || f.peso_inicial,
+        custo: dados.custo_kg !== undefined && dados.custo_kg !== null ? String(dados.custo_kg) : f.custo,
+        sub_cod: dados.sub_cod || f.sub_cod,
+      }));
+
+      toast.success(
+        `Nota Fiscal ${dados.numero_nf || ""} lida com sucesso! Dados preenchidos pela IA.`,
+        { duration: 6000 }
+      );
+    } catch (err) {
+      console.error("Erro ao processar NF com IA:", err);
+      try {
+        const { file_url } = await base44.integrations.Core.UploadFile({ file });
+        setForm(f => ({ ...f, anexo_nf_url: file_url, anexo_nf_nome: file.name }));
+      } catch {}
+      toast.warning("Arquivo da NF anexado, mas não foi possível extrair todos os dados automaticamente. Complete os campos se necessário.");
+    } finally {
+      setLendoNF(false);
+      setUploadingNF(false);
+    }
+  };
+
   const handleUpload = async (file, tipo) => {
     if (!file) return;
-    if (tipo === "nf") setUploadingNF(true);
-    else if (tipo === "cert") setUploadingCert(true);
-    else setUploadingFoto(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
     if (tipo === "nf") {
-      setForm(f => ({ ...f, anexo_nf_url: file_url, anexo_nf_nome: file.name }));
-      setUploadingNF(false);
-    } else if (tipo === "cert") {
-      setForm(f => ({ ...f, anexo_cert_url: file_url, anexo_cert_nome: file.name }));
+      return handleProcessarNF(file);
+    }
+    if (tipo === "cert") setUploadingCert(true);
+    else setUploadingFoto(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      if (tipo === "cert") {
+        setForm(f => ({ ...f, anexo_cert_url: file_url, anexo_cert_nome: file.name }));
+        setUploadingCert(false);
+      } else {
+        setForm(f => ({ ...f, foto_adicional_url: file_url, foto_adicional_nome: file.name }));
+        setUploadingFoto(false);
+      }
+    } catch (e) {
+      toast.error("Erro ao enviar arquivo");
       setUploadingCert(false);
-    } else {
-      setForm(f => ({ ...f, foto_adicional_url: file_url, foto_adicional_nome: file.name }));
       setUploadingFoto(false);
     }
   };
@@ -251,6 +312,72 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
           <DialogTitle>{editItem ? "Editar Bobina" : "Nova Bobina — Corte e Dobra"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2" ref={formTopRef}>
+
+          {/* Card de Leitura de Nota Fiscal por IA */}
+          {!editItem && (
+            <div className="rounded-xl border-2 border-dashed border-emerald-500/40 bg-emerald-500/5 p-3.5 space-y-2.5 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      Preencher Automático por Foto da NF (IA)
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground">
+                      Tire a foto ou anexe o DANFE para preencher todos os dados sozinho.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {lendoNF ? (
+                <div className="flex items-center justify-center gap-2 py-3 px-4 rounded-lg bg-emerald-100/60 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 text-xs font-medium animate-pulse">
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                  <span>Lendo Nota Fiscal e preenchendo campos com IA...</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 pt-0.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => nfCameraRef.current?.click()}
+                    className="flex-1 bg-background hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs h-9 gap-1.5 font-medium"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                    Tirar Foto da NF
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => nfInputRef.current?.click()}
+                    className="flex-1 bg-background hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs h-9 gap-1.5 font-medium"
+                  >
+                    <Paperclip className="w-3.5 h-3.5 text-emerald-600" />
+                    Anexar Foto ou PDF
+                  </Button>
+                </div>
+              )}
+
+              {form.anexo_nf_url && !lendoNF && (
+                <div className="flex items-center gap-2 rounded-md bg-emerald-100/70 dark:bg-emerald-950/60 px-2.5 py-1.5 text-[11px] text-emerald-800 dark:text-emerald-200">
+                  <FileCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="truncate flex-1 font-medium">{form.anexo_nf_nome || "NF carregada"}</span>
+                  <a
+                    href={form.anexo_nf_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline text-[10px] text-emerald-700 hover:text-emerald-900 shrink-0"
+                  >
+                    Visualizar NF
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Seletor de Bobina Existente como Modelo para preenchimento rápido */}
           {!editItem && (
