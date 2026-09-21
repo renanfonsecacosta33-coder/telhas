@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Search, AlertTriangle, X, Star, Layers, PackageX, Ban, Trash2 } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Search, AlertTriangle, X, Star, Layers, PackageX, Ban, Trash2, History, FileText } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -21,6 +21,7 @@ import { getPesoOrdenacaoPrioridade, SeletorPrioridadeDropdown } from "@/lib/pri
 import TimerProducao from "@/components/producao/TimerProducao";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
 import { salvarCacheLocal, obterCacheLocal, enfileirarAcaoOffline } from "@/lib/offlineStorage";
+import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERelatorioMaquinaModal";
 
 export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const { filialAtiva } = useFilial();
@@ -37,6 +38,8 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const [ordemRetrabalho, setOrdemRetrabalho] = useState(null);
   const [senhaGestorOpen, setSenhaGestorOpen] = useState(false);
   const [prioridadePendente, setPrioridadePendente] = useState(null);
+  const [modalHistoricoOpen, setModalHistoricoOpen] = useState(false);
+  const [modalHistoricoTab, setModalHistoricoTab] = useState("relatorio");
 
   const queryClient = useQueryClient();
 
@@ -419,11 +422,39 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
           </h1>
           <p className="text-sm text-muted-foreground">Ordens de produção — Corte e Dobra</p>
         </div>
-        {isGestor && (
-          <Button onClick={() => openNew(selectedDay)} className="gap-2">
-            <Plus className="w-4 h-4" /> Nova Ordem
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs h-9 border-border bg-card shadow-xs"
+            onClick={() => {
+              setModalHistoricoTab("historico");
+              setModalHistoricoOpen(true);
+            }}
+          >
+            <History className="w-4 h-4 text-purple-600" />
+            Histórico da Máquina
           </Button>
-        )}
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs h-9 border-border bg-card shadow-xs"
+            onClick={() => {
+              setModalHistoricoTab("relatorio");
+              setModalHistoricoOpen(true);
+            }}
+          >
+            <FileText className="w-4 h-4 text-blue-600" />
+            Relatório Diário
+          </Button>
+
+          {isGestor && (
+            <Button onClick={() => openNew(selectedDay)} className="gap-2 h-9">
+              <Plus className="w-4 h-4" /> Nova Ordem
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Monitor de Ociosidade e Setup da Máquina */}
@@ -816,6 +847,15 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
             setPrioridadePendente(null);
           }
         }}
+      />
+
+      {/* Modal de Histórico e Relatórios Diários da Máquina */}
+      <HistoricoERelatorioMaquinaModal
+        open={modalHistoricoOpen}
+        onClose={() => setModalHistoricoOpen(false)}
+        maquinaNome={maquinaLabel || maquinaId}
+        setor="corte_dobra"
+        initialTab={modalHistoricoTab}
       />
     </div>
   );

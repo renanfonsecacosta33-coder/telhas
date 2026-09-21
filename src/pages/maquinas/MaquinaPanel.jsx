@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Circle, ChevronLeft, ChevronRight, ArrowLeft, BarChart2, Plus, Star, Trash2, Edit3, Route, Search, X, Calendar, Filter } from "lucide-react";
+import { Circle, ChevronLeft, ChevronRight, ArrowLeft, BarChart2, Plus, Star, Trash2, Edit3, Route, Search, X, Calendar, Filter, History, FileText } from "lucide-react";
 import { format, addDays, subDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ import { HistoricoPedidoTelhasButton } from "@/components/producao/HistoricoPedi
 import PainelSolicitacoesProducao from "@/components/producao/PainelSolicitacoesProducao";
 import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
+import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERelatorioMaquinaModal";
 import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo, detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import { SeletorPrioridadeDropdown, getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
@@ -61,6 +62,8 @@ export default function MaquinaPanel({ maquina }) {
   const [novoPedidoOpen, setNovoPedidoOpen] = useState(false);
   const [editandoPedido, setEditandoPedido] = useState(null);
   const [user, setUser] = useState(null);
+  const [modalHistoricoOpen, setModalHistoricoOpen] = useState(false);
+  const [modalHistoricoTab, setModalHistoricoTab] = useState("relatorio");
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
 
@@ -630,22 +633,49 @@ export default function MaquinaPanel({ maquina }) {
           <ArrowLeft className="w-4 h-4" />
           Voltar para Produção
         </Button>
-        {!isOperador && (
-          <div className="flex items-center gap-2">
-            {DASH_PATHS[maquina] && (
-              <Link to={DASH_PATHS[maquina]}>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <BarChart2 className="w-4 h-4" />
-                  Dashboard
-                </Button>
-              </Link>
-            )}
-            <Button size="sm" className="gap-2" onClick={() => setNovoPedidoOpen(true)}>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs h-9 bg-card shadow-xs"
+            onClick={() => {
+              setModalHistoricoTab("historico");
+              setModalHistoricoOpen(true);
+            }}
+          >
+            <History className="w-4 h-4 text-purple-600" />
+            Histórico da Máquina
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs h-9 bg-card shadow-xs"
+            onClick={() => {
+              setModalHistoricoTab("relatorio");
+              setModalHistoricoOpen(true);
+            }}
+          >
+            <FileText className="w-4 h-4 text-blue-600" />
+            Relatório Diário
+          </Button>
+
+          {!isOperador && DASH_PATHS[maquina] && (
+            <Link to={DASH_PATHS[maquina]}>
+              <Button variant="outline" size="sm" className="gap-2 h-9">
+                <BarChart2 className="w-4 h-4" />
+                Dashboard
+              </Button>
+            </Link>
+          )}
+
+          {!isOperador && (
+            <Button size="sm" className="gap-2 h-9" onClick={() => setNovoPedidoOpen(true)}>
               <Plus className="w-4 h-4" />
               Novo Pedido
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Header máquina */}
@@ -972,6 +1002,15 @@ export default function MaquinaPanel({ maquina }) {
       />
 
       <ChatFloatingButton canal_id={maquina} canal_label={maquina} currentUser={user} />
+
+      {/* Modal de Histórico e Relatórios Diários da Máquina */}
+      <HistoricoERelatorioMaquinaModal
+        open={modalHistoricoOpen}
+        onClose={() => setModalHistoricoOpen(false)}
+        maquinaNome={maquina}
+        setor="telhas"
+        initialTab={modalHistoricoTab}
+      />
     </div>
   );
 }
