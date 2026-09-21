@@ -167,3 +167,151 @@ export default function CalculadoraForcaDobra({
     </div>
   );
 }
+
+/**
+ * Especialista Técnico em Dobra de Chapas:
+ * Analisa cada aba, cada dobra, as distâncias e as restrições mecânicas da máquina
+ */
+export function analisarViabilidadeDobra({
+  abas = [],
+  dobras = [],
+  espessura_mm = 1.5,
+  comprimento_mm = 3000,
+  material = "Aço galvanizado",
+  maquinaNome = "DOBRA FUNDO 6M",
+}) {
+  const params = calcularParametrosDobra({ espessura_mm, comprimento_mm, material });
+  const { vRecomendado, abaMinimaMm, tonsTotal } = params;
+  const maquinaConfig = MAQUINAS_DOBRADEIRAS[maquinaNome] || { capacidadeTons: 150, comprimentoMaxMm: 6200 };
+
+  const erros = [];
+  const avisos = [];
+  const sucessos = [];
+  const statusPorAba = {}; // abaIdx -> { valido: boolean, motivo?: string }
+  const statusPorDobra = {}; // dobraIdx -> { valido: boolean, motivo?: string }
+
+  // 1. Checagem de comprimento da barra vs capacidade da máquina
+  const compReal = Number(comprimento_mm) || 3000;
+  if (compReal > maquinaConfig.comprimentoMaxMm) {
+    erros.push({
+      tipo: "erro",
+      titulo: "Comprimento excede a mesa da máquina",
+      msg: `A peça (${compReal} mm) ultrapassa o comprimento útil da mesa da ${maquinaNome} (máx: ${maquinaConfig.comprimentoMaxMm} mm).`,
+    });
+  }
+
+  // 2. Checagem de Tonelagem vs Máquina
+  if (tonsTotal > maquinaConfig.capacidadeTons) {
+    erros.push({
+      tipo: "erro",
+      titulo: "Força excede a dobradeira",
+      msg: `Força necessária (${tonsTotal} t) ultrapassa a capacidade máxima da ${maquinaNome} (${maquinaConfig.capacidadeTons} t). Risco de quebra ou desarme da máquina!`,
+    });
+  } else if (tonsTotal > maquinaConfig.capacidadeTons * 0.85) {
+    avisos.push({
+      tipo: "aviso",
+      titulo: "Carga alta na dobradeira",
+      msg: `Operação próxima do limite da máquina (${((tonsTotal / maquinaConfig.capacidadeTons) * 100).toFixed(0)}% de carga). Recomenda-se aumentar a matriz V.`,
+    });
+  }
+
+  // 3. Checagem de Aba Mínima (para cada aba)
+  // A aba precisa apoiar nos dois lados do canal V da matriz
+  abas.forEach((abaVal, i) => {
+    const compAba = Number(abaVal) || 0;
+    if (compAba < abaMinimaMm) {
+      statusPorAba[i] = {
+        valido: false,
+        motivo: `Aba ${i + 1} (${compAba} mm) é menor que a aba mínima (${abaMinimaMm} mm) para a matriz V${vRecomendado}. A chapa vai cair dentro do canal V!`,
+      };
+      erros.push({
+        tipo: "erro",
+        abaIdx: i,
+        titulo: `Aba ${i + 1} muito curta (${compAba} mm)`,
+        msg: `Aba ${i + 1} tem apenas ${compAba} mm, mas a matriz V${vRecomendado} exige no mínimo ${abaMinimaMm} mm de apoio para não escorregar.`,
+      });
+    } else {
+      statusPorAba[i] = { valido: true };
+    }
+  });
+
+  // 4. Checagem de Distância Mínima entre Dobras Consecutivas
+  // Se duas dobras estão muito próximas, a dobra anterior colide com a matriz V
+  const distanciaMinimaEntreDobras = Math.ceil(vRecomendado * 0.85);
+  for (let i = 0; i < dobras.length; i++) {
+    const abaEntreDobras = Number(abas[i + 1]) || 0;
+    if (i < dobras.length - 1 && abaEntreDobras < distanciaMinimaEntreDobras) {
+      statusPorDobra[i] = {
+        valido: false,
+        motivo: `Distância entre dobra D${i + 1} e D${i + 2} (${abaEntreDobras} mm) é muito estreita para o canal V${vRecomendado} (mínimo: ${distanciaMinimaEntreDobras} mm).`,
+      };
+      avisos.push({
+        tipo: "aviso",
+        dobraIdx: i,
+        titulo: `Dobras D${i + 1} e D${i + 2} muito próximas`,
+        msg: `A aba intermediária (${abaEntreDobras} mm) pode colidir com a lateral da matriz V${vRecomendado} (recomendado mín. ${distanciaMinimaEntreDobras} mm).`,
+      });
+    } else {
+      if (!statusPorDobra[i]) statusPorDobra[i] = { valido: true };
+    }
+  }
+
+  // 5. Checagem de Ângulos (Bainha e Ângulos Fechados)
+  dobras.forEach((d, i) => {
+    const ang = Number(d.angulo) || 90;
+    if (ang > 140) {
+      avisos.push({
+        tipo: "aviso",
+        dobraIdx: i,
+        titulo: `Dobra D${i + 1} (${ang}°) — Bainha / Esmagamento`,
+        msg: `Ângulo obtuso de ${ang}°. Exige dois passos de conformação: dobra preliminar a 30° e posterior esmagamento em matriz de bainha.`,
+      });
+    } else if (ang < 30) {
+      erros.push({
+        tipo: "erro",
+        dobraIdx: i,
+        titulo: `Dobra D${i + 1} com ângulo excessivamente agudo (${ang}°)`,
+        msg: `Ângulo de ${ang}° não pode ser feito no ar com punção padrão. Requer ferramental especial pontiagudo de 28°.`,
+      });
+    }
+  });
+
+  // 6. Checagem de Perfil Profundo (Colisão no Corpo do Punção)
+  if (abas.length >= 3 && dobras.length >= 2) {
+    const base = Number(abas[1]) || 0;
+    const lateral1 = Number(abas[0]) || 0;
+    const lateral2 = Number(abas[2]) || 0;
+    if (base > 0 && (lateral1 > base * 2.0 || lateral2 > base * 2.0)) {
+      avisos.push({
+        tipo: "aviso",
+        titulo: "Perfil com abas laterais profundas",
+        msg: `As abas laterais (${Math.max(lateral1, lateral2)} mm) são muito altas em relação à base (${base} mm). Risco de colisão no avental/punção reto. Recomendado punção pescoço de ganso.`,
+      });
+    }
+  }
+
+  const ehDobravel = erros.length === 0;
+  const status = erros.length > 0 ? "inviavel" : avisos.length > 0 ? "aviso" : "ok";
+
+  if (ehDobravel && avisos.length === 0) {
+    sucessos.push({
+      tipo: "sucesso",
+      titulo: "100% Viável para Produção",
+      msg: `Todas as medidas atendem perfeitamente aos parâmetros da matriz V${vRecomendado}.`,
+    });
+  }
+
+  return {
+    ehDobravel,
+    status,
+    erros,
+    avisos,
+    sucessos,
+    statusPorAba,
+    statusPorDobra,
+    params,
+    vRecomendado,
+    abaMinimaMm,
+    tonsTotal,
+  };
+}

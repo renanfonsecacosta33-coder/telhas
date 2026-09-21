@@ -329,7 +329,7 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
               </div>
             </div>
 
-            {/* Visualizador Croqui 2D Interativo com Arrastar */}
+            {/* Visualizador Croqui 2D Interativo com Especialista em Dobra */}
             <CroquiPeca2D
               abas={abas}
               dobras={dobras}
@@ -337,6 +337,8 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
               nomePeca={form.nome_peca}
               larguraPlanificada={comprimentoFinal || 100}
               comprimento_mm={parseFloat(form.comprimento_final_mm) || 3000}
+              material={form.material}
+              maquinaNome={form.maquina_dobra}
               onUpdateAba={handleUpdateAba}
               className="mb-4"
             />

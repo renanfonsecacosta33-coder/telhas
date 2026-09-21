@@ -2,8 +2,10 @@ import React, { useState, useMemo, useRef, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Layers, Eye, Ruler, RotateCw, ZoomIn, ZoomOut, Maximize2, Compass, Move, Sparkles
+  Layers, Eye, Ruler, RotateCw, ZoomIn, ZoomOut, Maximize2, Compass, Move, Sparkles,
+  AlertTriangle, CheckCircle2, XCircle, Wrench, ShieldAlert, ChevronDown, ChevronUp, Info
 } from "lucide-react";
+import { analisarViabilidadeDobra } from "./CalculadoraForcaDobra";
 
 /**
  * Predefinições geométricas de perfis industriais comuns da AJL
@@ -136,15 +138,30 @@ export default function CroquiPeca2D({
   nomePeca = "Peça Dobrada",
   larguraPlanificada = 100,
   comprimento_mm = 3000,
+  material = "Aço galvanizado",
+  maquinaNome = "DOBRA FUNDO 6M",
   onUpdateAba = null,
   className = "",
 }) {
   const [modoVisualizacao, setModoVisualizacao] = useState("perfil"); // "perfil" | "planificado"
   const [zoom, setZoom] = useState(1);
   const [rotacaoGraus, setRotacaoGraus] = useState(0);
+  const [mostrarParecer, setMostrarParecer] = useState(true);
 
   // Estado de arrasto interativo
   const [dragState, setDragState] = useState(null);
+
+  // Análise em tempo real do Especialista em Dobra
+  const analise = useMemo(() => {
+    return analisarViabilidadeDobra({
+      abas,
+      dobras,
+      espessura_mm,
+      comprimento_mm,
+      material,
+      maquinaNome,
+    });
+  }, [abas, dobras, espessura_mm, comprimento_mm, material, maquinaNome]);
 
   // Dimensões fixas do canvas em pixels de tela
   const CANVAS_W = 660;
@@ -253,19 +270,34 @@ export default function CroquiPeca2D({
     <div className={`bg-slate-900 text-white rounded-xl border border-slate-800 p-4 shadow-xl flex flex-col ${className}`}>
       {/* Barra de Ferramentas / Controles Superiores */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3 mb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
-            Croqui Técnico CAD 2D
-          </span>
-          <Badge variant="outline" className="text-[10px] bg-slate-800 text-sky-400 border-sky-500/30 font-mono">
-            Espessura: {espessura_mm || 1.5} mm
-          </Badge>
-          {onUpdateAba && (
-            <Badge className="bg-orange-500/20 text-orange-300 border border-orange-500/30 text-[10px] gap-1 hidden sm:flex">
-              <Move className="w-3 h-3 text-orange-400" />
-              Arraste as cotas ou pontas para alterar medidas
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Badge de Viabilidade do Especialista em Dobra */}
+          {analise.status === "inviavel" ? (
+            <Badge className="bg-red-500/20 text-red-400 border border-red-500 font-bold gap-1 animate-pulse">
+              <XCircle className="w-3.5 h-3.5 text-red-500" />
+              NÃO DÁ PRA DOBRAR ({analise.erros.length} erro)
             </Badge>
+          ) : analise.status === "aviso" ? (
+            <Badge className="bg-amber-500/20 text-amber-300 border border-amber-500 font-bold gap-1">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+              DOBRÁVEL C/ ATENÇÃO ({analise.avisos.length} aviso)
+            </Badge>
+          ) : (
+            <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500 font-bold gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              100% DOBRÁVEL NA MÁQUINA
+            </Badge>
+          )}
+
+          <Badge variant="outline" className="text-[10px] bg-slate-800 text-sky-400 border-sky-500/30 font-mono">
+            e = {espessura_mm || 1.5} mm · Matriz V{analise.vRecomendado}
+          </Badge>
+
+          {onUpdateAba && (
+            <span className="text-[11px] text-slate-400 hidden lg:inline flex items-center gap-1">
+              <Move className="w-3 h-3 text-orange-400 inline" />
+              Arraste as cotas ou pontas para ajustar medidas
+            </span>
           )}
         </div>
 
@@ -361,7 +393,7 @@ export default function CroquiPeca2D({
         )}
 
         {modoVisualizacao === "perfil" ? (
-          /* ── MODO 1: PERFIL DOBRADO INTERATIVO COM ARRASTO ── */
+          /* ── MODO 1: PERFIL DOBRADO INTERATIVO COM DIAGNÓSTICO VISUAL ── */
           <svg
             viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
             className="w-full h-full max-h-full"
@@ -391,6 +423,30 @@ export default function CroquiPeca2D({
               >
                 <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f97316" />
               </marker>
+
+              {/* Setas em vermelho para erros */}
+              <marker
+                id="cota-arrow-end-err"
+                viewBox="0 0 10 10"
+                refX="7"
+                refY="5"
+                markerWidth="5"
+                markerHeight="5"
+                orient="auto"
+              >
+                <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#ef4444" />
+              </marker>
+              <marker
+                id="cota-arrow-start-err"
+                viewBox="0 0 10 10"
+                refX="1"
+                refY="5"
+                markerWidth="5"
+                markerHeight="5"
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#ef4444" />
+              </marker>
             </defs>
 
             {/* Chapa de Aço (Traço Principal com Espessura Real) */}
@@ -413,11 +469,33 @@ export default function CroquiPeca2D({
               className="drop-shadow-[0_0_10px_rgba(56,189,248,0.5)]"
             />
 
-            {/* Cotas Técnicas de Cada Aba (Arrastáveis!) */}
+            {/* Destaque em VERMELHO para abas inválidas (menores que a aba mínima) */}
+            {pontosScreen.slice(0, -1).map((p1, idx) => {
+              const p2 = pontosScreen[idx + 1];
+              const ehInvalido = analise.statusPorAba[idx]?.valido === false;
+              if (!ehInvalido) return null;
+
+              return (
+                <line
+                  key={`err-line-${idx}`}
+                  x1={p1.sx}
+                  y1={p1.sy}
+                  x2={p2.sx}
+                  y2={p2.sy}
+                  stroke="#ef4444"
+                  strokeWidth={Math.max(4, Math.min(10, Number(espessura_mm) * scale))}
+                  strokeLinecap="round"
+                  className="animate-pulse drop-shadow-[0_0_8px_rgba(239,68,68,0.9)]"
+                />
+              );
+            })}
+
+            {/* Cotas Técnicas de Cada Aba (Arrastáveis e com Feedback de Viabilidade) */}
             {pontosScreen.slice(0, -1).map((p1, idx) => {
               const p2 = pontosScreen[idx + 1];
               const comp = abas[idx] || 0;
               const isDraggingThis = dragState?.abaIdx === idx;
+              const ehInvalido = analise.statusPorAba[idx]?.valido === false;
 
               // Vetores do segmento
               const dx = p2.sx - p1.sx;
@@ -448,7 +526,7 @@ export default function CroquiPeca2D({
                     y1={p1.sy + ny * 5}
                     x2={p1.sx + nx * (distCota + 6)}
                     y2={p1.sy + ny * (distCota + 6)}
-                    stroke="#64748b"
+                    stroke={ehInvalido ? "#ef4444" : "#64748b"}
                     strokeWidth="1"
                     strokeDasharray="2,2"
                   />
@@ -457,7 +535,7 @@ export default function CroquiPeca2D({
                     y1={p2.sy + ny * 5}
                     x2={p2.sx + nx * (distCota + 6)}
                     y2={p2.sy + ny * (distCota + 6)}
-                    stroke="#64748b"
+                    stroke={ehInvalido ? "#ef4444" : "#64748b"}
                     strokeWidth="1"
                     strokeDasharray="2,2"
                   />
@@ -468,10 +546,10 @@ export default function CroquiPeca2D({
                     y1={c1y}
                     x2={c2x}
                     y2={c2y}
-                    stroke={isDraggingThis ? "#f97316" : "#fb923c"}
-                    strokeWidth={isDraggingThis ? 2 : 1.2}
-                    markerStart="url(#cota-arrow-start)"
-                    markerEnd="url(#cota-arrow-end)"
+                    stroke={ehInvalido ? "#ef4444" : isDraggingThis ? "#f97316" : "#fb923c"}
+                    strokeWidth={ehInvalido || isDraggingThis ? 2 : 1.2}
+                    markerStart={ehInvalido ? "url(#cota-arrow-start-err)" : "url(#cota-arrow-start)"}
+                    markerEnd={ehInvalido ? "url(#cota-arrow-end-err)" : "url(#cota-arrow-end)"}
                   />
 
                   {/* Badge da Cota com Dimensão (CLICÁVEL E ARRASTÁVEL!) */}
@@ -486,16 +564,16 @@ export default function CroquiPeca2D({
                       width={48}
                       height={24}
                       rx={6}
-                      fill={isDraggingThis ? "#c2410c" : "#0f172a"}
-                      stroke={isDraggingThis ? "#ffffff" : "#f97316"}
-                      strokeWidth={isDraggingThis ? 2 : 1.2}
-                      className="shadow-lg transition-colors group-hover:fill-slate-800 group-hover:stroke-orange-400"
+                      fill={ehInvalido ? "#7f1d1d" : isDraggingThis ? "#c2410c" : "#0f172a"}
+                      stroke={ehInvalido ? "#ef4444" : isDraggingThis ? "#ffffff" : "#f97316"}
+                      strokeWidth={ehInvalido || isDraggingThis ? 2 : 1.2}
+                      className="shadow-lg transition-colors group-hover:fill-slate-800"
                     />
                     <text
                       x={0}
                       y={4.5}
                       textAnchor="middle"
-                      fill="#ffffff"
+                      fill={ehInvalido ? "#fca5a5" : "#ffffff"}
                       fontSize="11"
                       fontWeight="black"
                       fontFamily="monospace"
@@ -503,9 +581,22 @@ export default function CroquiPeca2D({
                     >
                       {comp}
                     </text>
-                    {/* Pequeno ícone de arraste indicando interatividade */}
-                    <circle cx={18} cy={-8} r={3} fill="#f97316" className="animate-ping opacity-75" />
-                    <circle cx={18} cy={-8} r={2.5} fill="#f97316" />
+
+                    {/* Alerta de erro na cota */}
+                    {ehInvalido && (
+                      <g transform="translate(0, -18)">
+                        <circle cx={0} cy={0} r={7} fill="#ef4444" stroke="#ffffff" strokeWidth="1" />
+                        <text x={0} y={3} textAnchor="middle" fill="#ffffff" fontSize="9" fontWeight="black">!</text>
+                      </g>
+                    )}
+
+                    {/* Indicador de arraste em peças válidas */}
+                    {!ehInvalido && (
+                      <>
+                        <circle cx={18} cy={-8} r={3} fill="#f97316" className="animate-ping opacity-75" />
+                        <circle cx={18} cy={-8} r={2.5} fill="#f97316" />
+                      </>
+                    )}
                   </g>
                 </g>
               );
@@ -521,7 +612,7 @@ export default function CroquiPeca2D({
                   cx={pontosScreen[0].sx}
                   cy={pontosScreen[0].sy}
                   r={8}
-                  fill="#f97316"
+                  fill={analise.statusPorAba[0]?.valido === false ? "#ef4444" : "#f97316"}
                   stroke="#ffffff"
                   strokeWidth="2"
                   className="shadow-md transition-transform group-hover:scale-125 group-active:scale-110"
@@ -531,7 +622,7 @@ export default function CroquiPeca2D({
                   cy={pontosScreen[0].sy}
                   r={14}
                   fill="none"
-                  stroke="#f97316"
+                  stroke={analise.statusPorAba[0]?.valido === false ? "#ef4444" : "#f97316"}
                   strokeWidth="1.5"
                   strokeDasharray="3,3"
                   className="animate-spin opacity-60"
@@ -549,7 +640,7 @@ export default function CroquiPeca2D({
                   cx={pontosScreen[pontosScreen.length - 1].sx}
                   cy={pontosScreen[pontosScreen.length - 1].sy}
                   r={8}
-                  fill="#f97316"
+                  fill={analise.statusPorAba[abas.length - 1]?.valido === false ? "#ef4444" : "#f97316"}
                   stroke="#ffffff"
                   strokeWidth="2"
                   className="shadow-md transition-transform group-hover:scale-125 group-active:scale-110"
@@ -559,7 +650,7 @@ export default function CroquiPeca2D({
                   cy={pontosScreen[pontosScreen.length - 1].sy}
                   r={14}
                   fill="none"
-                  stroke="#f97316"
+                  stroke={analise.statusPorAba[abas.length - 1]?.valido === false ? "#ef4444" : "#f97316"}
                   strokeWidth="1.5"
                   strokeDasharray="3,3"
                   className="animate-spin opacity-60"
@@ -571,6 +662,7 @@ export default function CroquiPeca2D({
             {pontosScreen.slice(1, -1).map((p, idx) => {
               const dobra = dobras[idx];
               const ang = dobra?.angulo || 90;
+              const dobraAviso = analise.statusPorDobra[idx]?.valido === false;
 
               return (
                 <g key={`dobra-marker-${idx}`} className="select-none">
@@ -579,7 +671,7 @@ export default function CroquiPeca2D({
                     cx={p.sx}
                     cy={p.sy}
                     r={9}
-                    fill="#ea580c"
+                    fill={dobraAviso ? "#d97706" : "#ea580c"}
                     stroke="#ffffff"
                     strokeWidth="2"
                     className="drop-shadow-md"
@@ -604,14 +696,14 @@ export default function CroquiPeca2D({
                       height={16}
                       rx={8}
                       fill="#1e293b"
-                      stroke="#f97316"
+                      stroke={dobraAviso ? "#f59e0b" : "#f97316"}
                       strokeWidth="0.8"
                     />
                     <text
                       x={12}
                       y={4}
                       textAnchor="middle"
-                      fill="#fb923c"
+                      fill={dobraAviso ? "#fbbf24" : "#fb923c"}
                       fontSize="9"
                       fontWeight="bold"
                     >
@@ -671,6 +763,73 @@ export default function CroquiPeca2D({
         )}
       </div>
 
+      {/* ── PAINEL DO ESPECIALISTA EM DOBRA EM TEMPO REAL ── */}
+      <div className="mt-3 bg-slate-800/80 border border-slate-700/80 rounded-xl p-3 space-y-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Wrench className="w-4 h-4 text-orange-400" />
+            <span className="text-xs font-black uppercase tracking-wider text-slate-200">
+              Parecer Técnico do Especialista em Dobra
+            </span>
+            <span className="text-[11px] text-slate-400 font-mono">
+              (Canal V: <strong>V{analise.vRecomendado} mm</strong> · Aba Mínima Exigida: <strong>{analise.abaMinimaMm} mm</strong>)
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMostrarParecer(!mostrarParecer)}
+            className="text-xs text-slate-400 hover:text-white flex items-center gap-1"
+          >
+            {mostrarParecer ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+
+        {mostrarParecer && (
+          <div className="space-y-2 pt-1 border-t border-slate-700/60">
+            {/* Erros impeditivos */}
+            {analise.erros.map((err, i) => (
+              <div
+                key={`err-${i}`}
+                className="bg-red-500/10 border border-red-500/40 rounded-lg p-2.5 flex items-start gap-2.5 text-xs"
+              >
+                <XCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <span className="font-bold text-red-300">{err.titulo}</span>
+                  <p className="text-[11px] text-red-200/90 mt-0.5">{err.msg}</p>
+                </div>
+              </div>
+            ))}
+
+            {/* Avisos de atenção e setup */}
+            {analise.avisos.map((av, i) => (
+              <div
+                key={`av-${i}`}
+                className="bg-amber-500/10 border border-amber-500/40 rounded-lg p-2.5 flex items-start gap-2.5 text-xs"
+              >
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <span className="font-bold text-amber-300">{av.titulo}</span>
+                  <p className="text-[11px] text-amber-200/90 mt-0.5">{av.msg}</p>
+                </div>
+              </div>
+            ))}
+
+            {/* Tudo 100% OK */}
+            {analise.ehDobravel && analise.avisos.length === 0 && (
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2.5 flex items-center gap-2.5 text-xs">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <div>
+                  <span className="font-bold text-emerald-300">Todas as medidas são 100% viáveis para dobra!</span>
+                  <p className="text-[11px] text-emerald-200/80">
+                    Apoio nos dois ombros do canal V{analise.vRecomendado} garantido. Força estimada de {analise.tonsTotal} t dentro da capacidade da {maquinaNome}.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Métricas Inferiores */}
       <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
         <div className="bg-slate-800/80 rounded-lg p-2.5 border border-slate-700/80">
@@ -686,8 +845,8 @@ export default function CroquiPeca2D({
           <p className="text-base font-black text-emerald-400 font-mono mt-0.5">{espessura_mm} mm</p>
         </div>
         <div className="bg-slate-800/80 rounded-lg p-2.5 border border-slate-700/80">
-          <p className="text-[10px] text-slate-400 uppercase font-semibold">Comprimento Barra</p>
-          <p className="text-base font-black text-purple-400 font-mono mt-0.5">{comprimento_mm} mm</p>
+          <p className="text-[10px] text-slate-400 uppercase font-semibold">Força Estimada</p>
+          <p className="text-base font-black text-purple-400 font-mono mt-0.5">{analise.tonsTotal} t</p>
         </div>
       </div>
     </div>
