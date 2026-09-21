@@ -112,7 +112,7 @@ export default function BobinaModeloCombobox({
           )}
         </div>
 
-        <PopoverContent className="w-[380px] sm:w-[460px] p-0 shadow-lg" align="start">
+        <PopoverContent className="w-[90vw] sm:w-[600px] md:w-[720px] p-0 shadow-2xl" align="start">
           <Command shouldFilter={false}>
             <CommandInput
               placeholder="Buscar por código, cor, chapa, fornecedor..."

@@ -307,70 +307,68 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] sm:max-w-2xl md:max-w-4xl lg:max-w-5xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{editItem ? "Editar Bobina" : "Nova Bobina — Corte e Dobra"}</DialogTitle>
+          <DialogTitle className="text-xl font-bold">{editItem ? "Editar Bobina" : "Nova Bobina — Corte e Dobra"}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-2" ref={formTopRef}>
+        <div className="space-y-5 py-2" ref={formTopRef}>
 
           {/* Card de Leitura de Nota Fiscal por IA */}
           {!editItem && (
-            <div className="rounded-xl border-2 border-dashed border-emerald-500/40 bg-emerald-500/5 p-3.5 space-y-2.5 shadow-xs">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+            <div className="rounded-xl border-2 border-dashed border-emerald-500/40 bg-emerald-500/5 p-4 space-y-3 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
                     <Sparkles className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <h4 className="text-sm font-bold text-foreground flex items-center gap-1.5">
                       Preencher Automático por Foto da NF (IA)
                     </h4>
-                    <p className="text-[11px] text-muted-foreground">
-                      Tire a foto ou anexe o DANFE para preencher todos os dados sozinho.
+                    <p className="text-xs text-muted-foreground">
+                      Tire a foto ou anexe o DANFE para a inteligência artificial preencher as características, medidas, pesos e fornecedor.
                     </p>
                   </div>
                 </div>
               </div>
 
               {lendoNF ? (
-                <div className="flex items-center justify-center gap-2 py-3 px-4 rounded-lg bg-emerald-100/60 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 text-xs font-medium animate-pulse">
-                  <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                <div className="flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-lg bg-emerald-100/60 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 text-xs font-semibold animate-pulse">
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-600 shrink-0" />
                   <span>Lendo Nota Fiscal e preenchendo campos com IA...</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 pt-0.5">
+                <div className="flex flex-col sm:flex-row items-center gap-2.5 pt-0.5">
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
                     onClick={() => nfCameraRef.current?.click()}
-                    className="flex-1 bg-background hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs h-9 gap-1.5 font-medium"
+                    className="w-full sm:w-1/2 bg-background hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs h-10 gap-2 font-medium"
                   >
-                    <Camera className="w-3.5 h-3.5 text-emerald-600" />
-                    Tirar Foto da NF
+                    <Camera className="w-4 h-4 text-emerald-600" />
+                    Tirar Foto da NF (Câmera)
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
                     onClick={() => nfInputRef.current?.click()}
-                    className="flex-1 bg-background hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs h-9 gap-1.5 font-medium"
+                    className="w-full sm:w-1/2 bg-background hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs h-10 gap-2 font-medium"
                   >
-                    <Paperclip className="w-3.5 h-3.5 text-emerald-600" />
-                    Anexar Foto ou PDF
+                    <Paperclip className="w-4 h-4 text-emerald-600" />
+                    Anexar Arquivo ou PDF da NF
                   </Button>
                 </div>
               )}
 
               {form.anexo_nf_url && !lendoNF && (
-                <div className="flex items-center gap-2 rounded-md bg-emerald-100/70 dark:bg-emerald-950/60 px-2.5 py-1.5 text-[11px] text-emerald-800 dark:text-emerald-200">
-                  <FileCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <div className="flex items-center gap-2 rounded-md bg-emerald-100/70 dark:bg-emerald-950/60 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-200">
+                  <FileCheck className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span className="truncate flex-1 font-medium">{form.anexo_nf_nome || "NF carregada"}</span>
                   <a
                     href={form.anexo_nf_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="underline text-[10px] text-emerald-700 hover:text-emerald-900 shrink-0"
+                    className="underline text-xs text-emerald-700 hover:text-emerald-900 font-medium shrink-0"
                   >
                     Visualizar NF
                   </a>
@@ -381,13 +379,13 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
 
           {/* Seletor de Bobina Existente como Modelo para preenchimento rápido */}
           {!editItem && (
-            <div className="space-y-1.5 p-3 rounded-lg border border-primary/30 bg-primary/5 shadow-xs">
+            <div className="space-y-1.5 p-3.5 rounded-xl border border-primary/30 bg-primary/5 shadow-xs">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-semibold text-primary flex items-center gap-1.5">
                   <Layers className="w-3.5 h-3.5" />
                   Preencher com base em bobina existente (Modelo)
                 </Label>
-                <span className="text-[10px] text-muted-foreground">Opcional</span>
+                <span className="text-[11px] text-muted-foreground">Opcional</span>
               </div>
               <BobinaModeloCombobox
                 bobinas={todasBobinas}
@@ -395,136 +393,130 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
                 onSelect={handleSelecionarModelo}
                 onClear={handleLimparModelo}
               />
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-[11px] text-muted-foreground">
                 Selecione uma bobina existente para copiar especificações (cor, chapa, espessuras, largura e fornecedor) mantendo o novo código.
               </p>
             </div>
           )}
 
-          {/* Código + Data */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Código (auto)</Label>
-              <Input value={form.codigo} onChange={e => set("codigo", e.target.value)} className="font-mono bg-muted/40" />
-            </div>
-            <div className="space-y-1">
-              <Label>Data de Recebimento</Label>
-              <Input type="date" value={form.data_recebimento} onChange={e => set("data_recebimento", e.target.value)} />
-            </div>
-          </div>
-
-          {/* NF + Fornecedor */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>NF</Label>
-              <Input placeholder="Número da NF" value={form.nf} onChange={e => set("nf", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Fornecedor</Label>
-              <Input
-                list="lista-fornecedores-cd"
-                placeholder="Ex: Arcelormittal"
-                value={form.fornecedor}
-                onChange={e => set("fornecedor", e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Qualidade + Chapa */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Qualidade</Label>
-              <Select value={form.qualidade} onValueChange={v => set("qualidade", v)}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>{QUALIDADE_OPTIONS.map(q => <SelectItem key={q} value={q}>{q}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className={erros.chapa ? "text-destructive" : ""}>Chapa *</Label>
-              <Input
-                list="lista-chapas-cd"
-                placeholder="1200"
-                value={form.chapa}
-                onChange={e => { set("chapa", e.target.value); setErros(e2 => ({...e2, chapa: undefined})); }}
-                className={erros.chapa ? "border-destructive ring-destructive" : ""}
-              />
-              {erros.chapa && <p className="text-xs text-destructive">{erros.chapa}</p>}
+          {/* Seção 1: Características & Espessuras */}
+          <div className="rounded-xl border border-border/80 bg-muted/20 p-3.5 space-y-3">
+            <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Características & Espessuras</h5>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+              <div className="space-y-1">
+                <Label className={erros.chapa ? "text-destructive" : ""}>Chapa *</Label>
+                <Input
+                  list="lista-chapas-cd"
+                  placeholder="Ex: 0,43"
+                  value={form.chapa}
+                  onChange={e => { set("chapa", e.target.value); setErros(e2 => ({...e2, chapa: undefined})); }}
+                  className={erros.chapa ? "border-destructive ring-destructive" : ""}
+                />
+                {erros.chapa && <p className="text-xs text-destructive">{erros.chapa}</p>}
+              </div>
+              <div className="space-y-1">
+                <Label>Qualidade</Label>
+                <Select value={form.qualidade} onValueChange={v => set("qualidade", v)}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>{QUALIDADE_OPTIONS.map(q => <SelectItem key={q} value={q}>{q}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Cor</Label>
+                <Input
+                  list="lista-cores-cd"
+                  placeholder="Ex: Galvanizado, Branco..."
+                  value={form.cor}
+                  onChange={e => set("cor", e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Espessura Real (NF)</Label>
+                <Input placeholder="Ex: 0,43" value={form.espessura_real} onChange={e => set("espessura_real", e.target.value)} />
+                <p className="text-[10px] text-muted-foreground">Espessura literal da nota fiscal</p>
+              </div>
+              <div className="space-y-1">
+                <Label>Espessura Utilizada (Comercial)</Label>
+                <Input placeholder="Ex: 0,43 / 0,50" value={form.espessura_utilizada} onChange={e => set("espessura_utilizada", e.target.value)} />
+                <p className="text-[10px] text-muted-foreground">Espessura que o vendedor visualiza</p>
+              </div>
+              <div className="space-y-1">
+                <Label>SUB. COD (Substituto)</Label>
+                <Input placeholder="Opcional" value={form.sub_cod} onChange={e => set("sub_cod", e.target.value)} />
+              </div>
             </div>
           </div>
 
-          {/* Espessura Real + Utilizada */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Qualidade da Bobina</Label>
-              <Input placeholder="1200" value={form.espessura_real} onChange={e => set("espessura_real", e.target.value)} />
-              <p className="text-[10px] text-muted-foreground">Espessura literal da nota fiscal</p>
-            </div>
-            <div className="space-y-1">
-              <Label>Espessura Utilizada</Label>
-              <Input placeholder="Ex: 0,43 / 0,50" value={form.espessura_utilizada} onChange={e => set("espessura_utilizada", e.target.value)} />
-              <p className="text-[10px] text-muted-foreground">Espessura(s) que o vendedor vê</p>
-            </div>
-          </div>
-
-          {/* SUB. COD */}
-          <div className="space-y-1">
-            <Label>SUB. COD (Código Substituto)</Label>
-            <Input placeholder="Opcional" value={form.sub_cod} onChange={e => set("sub_cod", e.target.value)} />
-          </div>
-
-          {/* Cor */}
-          <div className="space-y-1">
-            <Label>Cor</Label>
-            <Input
-              list="lista-cores-cd"
-              placeholder="Ex: Galvanizado, Zincado, Pintado Branco..."
-              value={form.cor}
-              onChange={e => set("cor", e.target.value)}
-            />
-          </div>
-
-          {/* Largura + Custo */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Largura (mm)</Label>
-              <Input type="number" placeholder="Ex: 1200" value={form.largura_mm} onChange={e => set("largura_mm", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Custo (R$/kg)</Label>
-              <Input type="number" placeholder="0.00" value={form.custo} onChange={e => set("custo", e.target.value)} />
+          {/* Seção 2: Medidas e Pesos */}
+          <div className="rounded-xl border border-border/80 bg-muted/20 p-3.5 space-y-3">
+            <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Medidas & Pesos</h5>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              <div className="space-y-1">
+                <Label>Largura (mm)</Label>
+                <Input type="number" placeholder="Ex: 1200" value={form.largura_mm} onChange={e => set("largura_mm", e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Peso Atual (kg)</Label>
+                <Input type="number" placeholder="0" value={form.peso_kg} onChange={e => set("peso_kg", e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Peso Inicial (kg)</Label>
+                <Input type="number" placeholder="0" value={form.peso_inicial} onChange={e => set("peso_inicial", e.target.value)} />
+              </div>
             </div>
           </div>
 
-          {/* Peso atual + Peso inicial */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Peso Atual (kg)</Label>
-              <Input type="number" placeholder="0" value={form.peso_kg} onChange={e => set("peso_kg", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Peso Inicial (kg)</Label>
-              <Input type="number" placeholder="0" value={form.peso_inicial} onChange={e => set("peso_inicial", e.target.value)} />
+          {/* Seção 3: Fiscal, Fornecedor e Valores */}
+          <div className="rounded-xl border border-border/80 bg-muted/20 p-3.5 space-y-3">
+            <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Identificação, NF & Fornecedor</h5>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
+              <div className="space-y-1">
+                <Label>Código (auto)</Label>
+                <Input value={form.codigo} onChange={e => set("codigo", e.target.value)} className="font-mono bg-muted/40 font-bold text-primary" />
+              </div>
+              <div className="space-y-1">
+                <Label>Número da NF</Label>
+                <Input placeholder="Número da NF" value={form.nf} onChange={e => set("nf", e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Fornecedor</Label>
+                <Input
+                  list="lista-fornecedores-cd"
+                  placeholder="Ex: ArcelorMittal, CSN..."
+                  value={form.fornecedor}
+                  onChange={e => set("fornecedor", e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Custo (R$/kg)</Label>
+                <Input type="number" placeholder="0.00" value={form.custo} onChange={e => set("custo", e.target.value)} />
+              </div>
             </div>
           </div>
 
-          {/* Estoque mínimo + Consumo diário */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Estoque Mínimo (kg)</Label>
-              <Input type="number" placeholder="Ex: 500" value={form.estoque_minimo_kg} onChange={e => set("estoque_minimo_kg", e.target.value)} />
-              <p className="text-[10px] text-muted-foreground">Alerta quando abaixo deste valor</p>
+          {/* Seção 4: Recebimento, Gestão de Estoque e Observações */}
+          <div className="rounded-xl border border-border/80 bg-muted/20 p-3.5 space-y-3">
+            <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Estoque & Recebimento</h5>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              <div className="space-y-1">
+                <Label>Data de Recebimento</Label>
+                <Input type="date" value={form.data_recebimento} onChange={e => set("data_recebimento", e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Estoque Mínimo (kg)</Label>
+                <Input type="number" placeholder="Ex: 500" value={form.estoque_minimo_kg} onChange={e => set("estoque_minimo_kg", e.target.value)} />
+                <p className="text-[10px] text-muted-foreground">Alerta quando abaixo deste valor</p>
+              </div>
+              <div className="space-y-1">
+                <Label>Consumo Diário Estimado (kg)</Label>
+                <Input type="number" placeholder="Ex: 80" value={form.consumo_diario_kg} onChange={e => set("consumo_diario_kg", e.target.value)} />
+                <p className="text-[10px] text-muted-foreground">Previsão de término do estoque</p>
+              </div>
+              <div className="sm:col-span-3 space-y-1">
+                <Label>Observações</Label>
+                <Textarea placeholder="Anotações adicionais..." value={form.observacoes} onChange={e => set("observacoes", e.target.value)} rows={2} />
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label>Consumo Diário Estimado (kg)</Label>
-              <Input type="number" placeholder="Ex: 80" value={form.consumo_diario_kg} onChange={e => set("consumo_diario_kg", e.target.value)} />
-              <p className="text-[10px] text-muted-foreground">Para calcular previsão de acabar</p>
-            </div>
-          </div>
-
-          {/* Observações */}
-          <div className="space-y-1">
-            <Label>Observações</Label>
-            <Textarea placeholder="Anotações adicionais..." value={form.observacoes} onChange={e => set("observacoes", e.target.value)} rows={2} />
           </div>
 
           {/* Anexos */}
