@@ -146,3 +146,28 @@ Se a nota tiver apenas 1 bobina simples, o array 'bobinas' deve conter exatament
     dados: resposta || {}
   };
 }
+
+/**
+ * Compara dois números de Nota Fiscal de forma inteligente, tolerando
+ * zeros à esquerda, pontos, traços e espaços (ex: "000.005.041" === "5041").
+ */
+export function compararNFs(nf1, nf2) {
+  if (!nf1 || !nf2) return false;
+  const s1 = String(nf1).trim();
+  const s2 = String(nf2).trim();
+  if (s1.toLowerCase() === s2.toLowerCase()) return true;
+  const d1 = s1.replace(/\D/g, "").replace(/^0+/, "");
+  const d2 = s2.replace(/\D/g, "").replace(/^0+/, "");
+  return Boolean(d1 && d2 && d1 === d2);
+}
+
+/**
+ * Busca na lista de bobinas existentes se já há alguma cadastrada com a mesma NF
+ */
+export function encontrarBobinasPorNF(todasBobinas = [], nf = "", bobinaIdAtual = null) {
+  if (!nf || !String(nf).trim()) return [];
+  return todasBobinas.filter(b => {
+    if (bobinaIdAtual && (b.id === bobinaIdAtual || b.codigo === bobinaIdAtual)) return false;
+    return compararNFs(b.nf, nf);
+  });
+}

@@ -1,7 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Layers, ArrowRight, CheckCircle2, Loader2, X, FileText } from "lucide-react";
+import { Sparkles, Layers, ArrowRight, CheckCircle2, Loader2, X, FileText, AlertTriangle } from "lucide-react";
 
 /**
  * Card exibido quando a Nota Fiscal analisada pela IA contém mais de uma bobina
@@ -16,14 +16,37 @@ export default function MultiplasBobinasNFCard({
   onSelecionarIndividual,
   onDescartar,
   salvandoEmLote = false,
+  bobinasExistentesMesmaNF = [],
 }) {
   if (!dadosNF || !dadosNF.bobinas || dadosNF.bobinas.length <= 1) return null;
 
   const totalBobinas = dadosNF.bobinas.length;
   const pesoTotal = dadosNF.bobinas.reduce((acc, b) => acc + (Number(b.peso_kg) || 0), 0);
+  const temDuplicidade = bobinasExistentesMesmaNF && bobinasExistentesMesmaNF.length > 0;
 
   return (
-    <div className="rounded-xl border-2 border-emerald-500/50 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-background p-4 sm:p-5 space-y-4 shadow-md animate-in fade-in-50 slide-in-from-top-2 duration-300">
+    <div className={`rounded-xl border-2 p-4 sm:p-5 space-y-4 shadow-md animate-in fade-in-50 slide-in-from-top-2 duration-300 ${
+      temDuplicidade
+        ? "border-red-500/70 bg-gradient-to-br from-red-500/15 via-red-500/5 to-background"
+        : "border-emerald-500/50 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-background"
+    }`}>
+      {/* Alerta de Duplicidade se a NF já tiver bobinas no estoque */}
+      {temDuplicidade && (
+        <div className="rounded-xl border-2 border-red-500 bg-red-600 text-white p-3 shadow-md space-y-1.5 animate-pulse">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+            <h5 className="text-sm font-black tracking-wide uppercase">
+              ⚠️ Alerta: Esta Nota Fiscal já possui bobinas no sistema!
+            </h5>
+          </div>
+          <p className="text-xs text-red-100">
+            Foram encontradas <strong>{bobinasExistentesMesmaNF.length} bobina(s)</strong> cadastradas com esta mesma NF:{" "}
+            <strong>{bobinasExistentesMesmaNF.map(b => b.codigo).join(", ")}</strong>.
+            Verifique antes de salvar para não cadastrar as mesmas bobinas em duplicidade!
+          </p>
+        </div>
+      )}
+
       {/* Cabeçalho */}
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">

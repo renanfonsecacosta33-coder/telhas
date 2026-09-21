@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from "@/api/base44Client";
-import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Layers, Camera, Sparkles } from "lucide-react";
+import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Layers, Camera, Sparkles, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
 import UploadButton from "@/components/ui/UploadButton";
@@ -16,7 +16,7 @@ import { useFilial } from "@/contexts/FilialContext";
 import { useAuth } from "@/lib/AuthContext";
 import { auditarModificacaoBobina } from "@/lib/auditHelper";
 import BobinaModeloCombobox from "@/components/bobinas/BobinaModeloCombobox";
-import { lerNotaFiscalBobina } from "@/lib/nfReader";
+import { lerNotaFiscalBobina, encontrarBobinasPorNF } from "@/lib/nfReader";
 import MultiplasBobinasNFCard from "@/components/bobinas/MultiplasBobinasNFCard";
 
 const STATUS_OPTIONS = [
@@ -86,6 +86,13 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
     todasBobinas.forEach(b => { if (b?.fornecedor?.trim()) s.add(b.fornecedor.trim()); });
     return Array.from(s).sort();
   }, [todasBobinas]);
+
+  // 🔒 Detecta se a NF informada já existe em outras bobinas do sistema
+  const bobinasMesmaNF = useMemo(() => {
+    return encontrarBobinasPorNF(todasBobinas, form.nf, editItem?.id);
+  }, [todasBobinas, form.nf, editItem]);
+
+  const temDuplicidadeNF = bobinasMesmaNF.length > 0;
 
   useEffect(() => {
     setErros({});
@@ -267,6 +274,17 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
           `Nota Fiscal ${dados.numero_nf || ""} lida com sucesso! Dados preenchidos pela IA.`,
           { duration: 6000 }
         );
+      }
+
+      // ⚠️ Alerta sonoro/visual caso a NF lida já exista no banco
+      if (dados.numero_nf) {
+        const nfsExistentes = encontrarBobinasPorNF(todasBobinas, dados.numero_nf, editItem?.id);
+        if (nfsExistentes.length > 0) {
+          toast.error(
+            `⚠️ Atenção: A Nota Fiscal ${dados.numero_nf} já possui ${nfsExistentes.length} bobina(s) cadastrada(s) no sistema!`,
+            { duration: 9000 }
+          );
+        }
       }
     } catch (err) {
       console.error("Erro ao processar NF com IA:", err);
@@ -553,6 +571,7 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
               onSelecionarIndividual={handleSelecionarIndividual}
               onDescartar={() => setDadosMultiplasBobinas(null)}
               salvandoEmLote={salvandoLote}
+              bobinasExistentesMesmaNF={bobinasMesmaNF}
             />
           )}
 
@@ -720,17 +739,44 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
           </div>
 
           {/* Seção 3: Dados Fiscais, Fornecedor e Custos */}
-          <div className="rounded-xl border border-border/80 bg-muted/20 p-3.5 space-y-3">
-            <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Identificação, NF & Fornecedor</h5>
+          <div className={`rounded-xl border p-3.5 space-y-3 transition-colors ${
+            temDuplicidadeNF
+              ? "border-red-500/70 bg-red-500/10 dark:bg-red-950/20"
+              : "border-border/80 bg-muted/20"
+          }`}>
+            <div className="flex items-center justify-between">
+              <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Identificação, NF & Fornecedor
+              </h5>
+              {temDuplicidadeNF && (
+                <span className="flex items-center gap-1 text-[11px] font-black uppercase px-2 py-0.5 rounded-full bg-red-600 text-white shadow-xs animate-pulse">
+                  <AlertTriangle className="w-3 h-3" />
+                  Alerta: NF Duplicada
+                </span>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
               <div className="space-y-1">
                 <Label>Código (auto)</Label>
                 <Input placeholder="Auto" value={form.codigo} onChange={e => set("codigo", e.target.value)} className="font-mono bg-muted/40 font-bold text-primary" />
               </div>
+
               <div className="space-y-1">
-                <Label>Número da NF</Label>
-                <Input placeholder="Número da NF" value={form.nf} onChange={e => set("nf", e.target.value)} />
+                <div className="flex items-center justify-between">
+                  <Label className={temDuplicidadeNF ? "text-red-600 dark:text-red-400 font-extrabold flex items-center gap-1" : ""}>
+                    {temDuplicidadeNF && <AlertTriangle className="w-3.5 h-3.5 text-red-600 animate-bounce" />}
+                    Número da NF
+                  </Label>
+                </div>
+                <Input
+                  placeholder="Número da NF"
+                  value={form.nf}
+                  onChange={e => set("nf", e.target.value)}
+                  className={temDuplicidadeNF ? "border-red-500 border-2 bg-red-500/15 dark:bg-red-950/40 text-red-900 dark:text-red-100 font-bold focus-visible:ring-red-500" : ""}
+                />
               </div>
+
               <div className="space-y-1">
                 <Label>Fornecedor</Label>
                 <Input
@@ -745,6 +791,39 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
                 <Input type="number" placeholder="0.00" value={form.custo} onChange={e => set("custo", e.target.value)} />
               </div>
             </div>
+
+            {/* Aviso Chamativo em Vermelho de NF Duplicada */}
+            {temDuplicidadeNF && (
+              <div className="rounded-lg border-2 border-red-500/80 bg-red-500/15 dark:bg-red-950/50 p-3 space-y-2 shadow-xs animate-in fade-in-50 slide-in-from-top-1 duration-200">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                  </div>
+                  <h6 className="text-xs sm:text-sm font-black text-red-700 dark:text-red-300">
+                    Opa! Estamos em duplicidade de NF!
+                  </h6>
+                </div>
+                <p className="text-xs text-red-900 dark:text-red-200 font-medium">
+                  A Nota Fiscal <strong>{form.nf}</strong> já foi cadastrada anteriormente no sistema em <strong>{bobinasMesmaNF.length} bobina(s)</strong>:
+                </p>
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {bobinasMesmaNF.map((b, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-red-600 text-white font-mono text-xs font-bold shadow-xs"
+                    >
+                      <span>{b.codigo}</span>
+                      <span className="text-red-100 font-normal">
+                        ({Number(b.peso_kg || 0).toLocaleString("pt-BR")} kg{b.chapa ? ` · ch ${b.chapa}` : ""}{b.unidade ? ` · ${b.unidade}` : ""})
+                      </span>
+                    </span>
+                  ))}
+                </div>
+                <p className="text-[10px] text-red-600 dark:text-red-400">
+                  * Se a NF possuir mais de uma bobina física faturada junta, certifique-se de que não está cadastrando a mesma bobina repetida.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Seção 4: Recebimento, Gestão de Estoque e Observações */}
