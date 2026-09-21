@@ -11,6 +11,7 @@ import {
   Calculator, Plus, Trash2, AlertTriangle, CheckCircle2, Info,
   Wrench, Layers, Sparkles, Compass
 } from "lucide-react";
+import { toast } from "sonner";
 import EspessuraSelect from "./EspessuraSelect";
 import CroquiPeca2D, { PRESETS_PERFIL } from "./CroquiPeca2D";
 import CalculadoraForcaDobra from "./CalculadoraForcaDobra";
@@ -137,9 +138,8 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
       ...d,
       raio: form.raio_dobra_mm || "1.5",
     })));
-    if (!form.nome_peca) {
-      set("nome_peca", preset.nome);
-    }
+    set("nome_peca", preset.nome);
+    toast.info(`Predefinição "${preset.nome}" aplicada com ${preset.abasPadrao.length} abas e ${preset.dobrasPadrao.length} dobra(s)!`);
   };
 
   // ── Gerenciamento de Abas e Dobras ──

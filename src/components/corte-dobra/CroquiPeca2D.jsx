@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Layers, Eye, Ruler, RotateCw, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import {
+  Layers, Eye, Ruler, RotateCw, ZoomIn, ZoomOut, Maximize2, Compass
+} from "lucide-react";
 
 /**
- * Predefinições geométricas de perfis comuns da AJL
+ * Predefinições geométricas de perfis industriais comuns da AJL
  */
 export const PRESETS_PERFIL = [
   {
@@ -12,9 +14,10 @@ export const PRESETS_PERFIL = [
     nome: "Perfil U Simples",
     categoria: "Estrutural",
     abasPadrao: [25, 50, 25],
+    anguloInicial: -90, // Começa descendo flange esquerdo
     dobrasPadrao: [
-      { angulo: 90, direcao: "cima", descricao: "Aba 1" },
-      { angulo: 90, direcao: "cima", descricao: "Aba 2" },
+      { angulo: 90, direcao: "cima", descricao: "Flange esquerdo" },
+      { angulo: 90, direcao: "cima", descricao: "Flange direito" },
     ],
   },
   {
@@ -22,11 +25,12 @@ export const PRESETS_PERFIL = [
     nome: "Perfil C Enrijecido",
     categoria: "Estrutural",
     abasPadrao: [15, 40, 75, 40, 15],
+    anguloInicial: 90, // Começa subindo no enrijecedor superior
     dobrasPadrao: [
-      { angulo: 90, direcao: "dentro", descricao: "Enrijecedor 1" },
-      { angulo: 90, direcao: "cima", descricao: "Aba 1" },
-      { angulo: 90, direcao: "cima", descricao: "Alma" },
-      { angulo: 90, direcao: "dentro", descricao: "Aba 2" },
+      { angulo: 90, direcao: "baixo", descricao: "Enrijecedor sup." },
+      { angulo: 90, direcao: "baixo", descricao: "Flange superior" },
+      { angulo: 90, direcao: "baixo", descricao: "Alma principal" },
+      { angulo: 90, direcao: "baixo", descricao: "Flange inferior" },
     ],
   },
   {
@@ -34,31 +38,34 @@ export const PRESETS_PERFIL = [
     nome: "Cantoneira / Perfil L",
     categoria: "Cantoneira",
     abasPadrao: [50, 50],
+    anguloInicial: -90, // Desce vertical
     dobrasPadrao: [
-      { angulo: 90, direcao: "cima", descricao: "Dobra 90°" },
+      { angulo: 90, direcao: "cima", descricao: "Dobra central 90°" },
     ],
   },
   {
     id: "rufo_pingadeira",
     nome: "Rufo com Pingadeira",
     categoria: "Cobertura",
-    abasPadrao: [15, 120, 40, 15],
+    abasPadrao: [15, 120, 50, 15],
+    anguloInicial: -45,
     dobrasPadrao: [
-      { angulo: 135, direcao: "fora", descricao: "Bainha/Pingadeira" },
-      { angulo: 90, direcao: "baixo", descricao: "Parede" },
-      { angulo: 90, direcao: "fora", descricao: "Gota final" },
+      { angulo: 135, direcao: "cima", descricao: "Bainha/Pingadeira" },
+      { angulo: 90, direcao: "baixo", descricao: "Parede principal" },
+      { angulo: 90, direcao: "cima", descricao: "Aba fixação" },
     ],
   },
   {
     id: "perfil_cartola",
     nome: "Perfil Cartola (Ômega)",
     categoria: "Estrutural",
-    abasPadrao: [20, 30, 40, 30, 20],
+    abasPadrao: [20, 35, 50, 35, 20],
+    anguloInicial: 0,
     dobrasPadrao: [
-      { angulo: 90, direcao: "cima", descricao: "Aba base esq" },
-      { angulo: 90, direcao: "cima", descricao: "Lateral esq" },
+      { angulo: 90, direcao: "cima", descricao: "Aba base esq." },
+      { angulo: 90, direcao: "baixo", descricao: "Lateral esq." },
       { angulo: 90, direcao: "baixo", descricao: "Topo" },
-      { angulo: 90, direcao: "baixo", descricao: "Lateral dir" },
+      { angulo: 90, direcao: "cima", descricao: "Lateral dir." },
     ],
   },
   {
@@ -66,23 +73,24 @@ export const PRESETS_PERFIL = [
     nome: "Perfil Z",
     categoria: "Estrutural",
     abasPadrao: [25, 60, 25],
+    anguloInicial: 180,
     dobrasPadrao: [
-      { angulo: 90, direcao: "cima", descricao: "Aba sup" },
-      { angulo: 90, direcao: "baixo", descricao: "Aba inf" },
+      { angulo: 90, direcao: "cima", descricao: "Aba superior" },
+      { angulo: 90, direcao: "baixo", descricao: "Alma vertical" },
     ],
   },
 ];
 
 /**
- * Constrói os pontos 2D (x, y) de um perfil de chapa baseado em abas e ângulos relativos
+ * Constrói os pontos 2D (x, y) no plano milimétrico (CAD space)
  */
-function calcularPontosPerfil(abas = [], dobras = [], espessura = 1.5) {
+function calcularPontosPerfil(abas = [], dobras = [], startAngleDeg = 0) {
   if (!abas || abas.length === 0) return { pontos: [], minX: 0, maxX: 100, minY: 0, maxY: 100 };
 
   const pontos = [];
   let curX = 0;
   let curY = 0;
-  let curAngleDeg = 0; // Começa apontando para a direita (0°)
+  let curAngleDeg = startAngleDeg;
 
   pontos.push({ x: curX, y: curY, dobraIndex: null, comprimento: abas[0] || 0 });
 
@@ -103,13 +111,13 @@ function calcularPontosPerfil(abas = [], dobras = [], espessura = 1.5) {
 
     if (dobra) {
       const ang = Number(dobra.angulo) || 90;
-      // Direção da dobra (positivo gira para cima / sentido anti-horário, negativo para baixo)
-      const sentido = dobra.direcao === "baixo" || dobra.direcao === "dentro" ? -1 : 1;
+      // Direção da dobra (cima/dentro = gira anti-horário; baixo/fora = gira horário)
+      const sentido = dobra.direcao === "baixo" || dobra.direcao === "fora" ? -1 : 1;
       curAngleDeg += (180 - ang) * sentido;
     }
   }
 
-  // Encontrar limites para centralização automática (Bounding Box)
+  // Bounding box em milímetros
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   pontos.forEach((p) => {
     if (p.x < minX) minX = p.x;
@@ -130,53 +138,81 @@ export default function CroquiPeca2D({
   comprimento_mm = 3000,
   className = "",
 }) {
-  const [modoVisualizacao, setModoVisualizacao] = useState("perfil"); // "perfil" ou "planificado"
+  const [modoVisualizacao, setModoVisualizacao] = useState("perfil"); // "perfil" | "planificado"
   const [zoom, setZoom] = useState(1);
+  const [rotacaoGraus, setRotacaoGraus] = useState(0);
 
-  const { pontos, minX, maxX, minY, maxY } = useMemo(() => {
-    return calcularPontosPerfil(abas, dobras, espessura_mm);
-  }, [abas, dobras, espessura_mm]);
+  // Dimensões fixas do canvas em pixels de tela
+  const CANVAS_W = 660;
+  const CANVAS_H = 340;
 
-  // Dimensões do SVG com padding
-  const padding = 45;
-  const widthReal = Math.max(80, maxX - minX);
-  const heightReal = Math.max(80, maxY - minY);
-  const viewBoxX = minX - padding;
-  const viewBoxY = minY - padding;
-  const viewBoxW = widthReal + padding * 2;
-  const viewBoxH = heightReal + padding * 2;
+  // Calcula pontos no plano CAD milimétrico
+  const { pontosMm, shapeW, shapeH, centerMmX, centerMmY } = useMemo(() => {
+    const { pontos, minX, maxX, minY, maxY } = calcularPontosPerfil(abas, dobras, rotacaoGraus);
+    const w = Math.max(1, maxX - minX);
+    const h = Math.max(1, maxY - minY);
+    return {
+      pontosMm: pontos,
+      shapeW: w,
+      shapeH: h,
+      centerMmX: (minX + maxX) / 2,
+      centerMmY: (minY + maxY) / 2,
+    };
+  }, [abas, dobras, rotacaoGraus]);
 
-  // Path SVG da linha central
+  // Fator de escala dinâmico para preencher 75% da tela sem distorcer
+  const scale = useMemo(() => {
+    const marginX = 140; // margem para acomodar cotas
+    const marginY = 100;
+    const availW = CANVAS_W - marginX;
+    const availH = CANVAS_H - marginY;
+    const s = Math.min(availW / shapeW, availH / shapeH) * zoom;
+    return Math.max(0.5, Math.min(s, 6.0));
+  }, [shapeW, shapeH, zoom]);
+
+  // Transforma coordenadas de milímetros para pixels de tela (SVG pixel space)
+  const pontosScreen = useMemo(() => {
+    const centerX = CANVAS_W / 2;
+    const centerY = CANVAS_H / 2;
+
+    return pontosMm.map((p) => ({
+      ...p,
+      sx: centerX + (p.x - centerMmX) * scale,
+      sy: centerY - (p.y - centerMmY) * scale, // Invertido: Y positivo para cima
+    }));
+  }, [pontosMm, centerMmX, centerMmY, scale]);
+
+  // Path SVG suave da linha de centro
   const pathD = useMemo(() => {
-    if (pontos.length === 0) return "";
-    return pontos.reduce((acc, p, idx) => {
-      return idx === 0 ? `M ${p.x.toFixed(2)} ${p.y.toFixed(2)}` : `${acc} L ${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
+    if (pontosScreen.length === 0) return "";
+    return pontosScreen.reduce((acc, p, idx) => {
+      return idx === 0 ? `M ${p.sx.toFixed(1)} ${p.sy.toFixed(1)}` : `${acc} L ${p.sx.toFixed(1)} ${p.sy.toFixed(1)}`;
     }, "");
-  }, [pontos]);
+  }, [pontosScreen]);
 
   return (
-    <div className={`bg-slate-900 text-white rounded-xl border border-slate-800 p-4 shadow-lg flex flex-col ${className}`}>
-      {/* Barra de Ferramentas / Cabeçalho do Croqui */}
+    <div className={`bg-slate-900 text-white rounded-xl border border-slate-800 p-4 shadow-xl flex flex-col ${className}`}>
+      {/* Barra de Ferramentas / Controles Superiores */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3 mb-3">
         <div className="flex items-center gap-2">
           <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-            Croqui Técnico 2D Interativo
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+            Croqui Técnico CAD 2D
           </span>
-          <Badge variant="outline" className="text-[10px] bg-slate-800/80 text-orange-400 border-orange-500/30">
-            e = {espessura_mm || 1.5} mm
+          <Badge variant="outline" className="text-[10px] bg-slate-800 text-sky-400 border-sky-500/30 font-mono">
+            Espessura: {espessura_mm || 1.5} mm
           </Badge>
         </div>
 
         <div className="flex items-center gap-1.5">
           {/* Alternar Perfil Dobrado vs Blank Planificado */}
-          <div className="flex bg-slate-800 rounded-lg p-0.5 border border-slate-700">
+          <div className="flex bg-slate-800/90 rounded-lg p-0.5 border border-slate-700">
             <button
               type="button"
               onClick={() => setModoVisualizacao("perfil")}
-              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+              className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
                 modoVisualizacao === "perfil"
-                  ? "bg-orange-500 text-white shadow"
+                  ? "bg-orange-500 text-white shadow-sm"
                   : "text-slate-400 hover:text-white"
               }`}
             >
@@ -185,9 +221,9 @@ export default function CroquiPeca2D({
             <button
               type="button"
               onClick={() => setModoVisualizacao("planificado")}
-              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+              className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
                 modoVisualizacao === "planificado"
-                  ? "bg-orange-500 text-white shadow"
+                  ? "bg-orange-500 text-white shadow-sm"
                   : "text-slate-400 hover:text-white"
               }`}
             >
@@ -195,183 +231,270 @@ export default function CroquiPeca2D({
             </button>
           </div>
 
-          {/* Controles de Zoom */}
+          {/* Girar 90° */}
           <button
             type="button"
-            onClick={() => setZoom((z) => Math.min(2, z + 0.15))}
-            className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-white"
+            onClick={() => setRotacaoGraus((r) => (r + 90) % 360)}
+            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs flex items-center gap-1"
+            title="Girar visualização 90°"
+          >
+            <RotateCw className="w-3.5 h-3.5 text-orange-400" />
+            <span className="text-[10px] hidden sm:inline">Girar</span>
+          </button>
+
+          {/* Zoom */}
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.min(2.5, z + 0.2))}
+            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700"
             title="Aumentar Zoom"
           >
             <ZoomIn className="w-3.5 h-3.5" />
           </button>
           <button
             type="button"
-            onClick={() => setZoom((z) => Math.max(0.6, z - 0.15))}
-            className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-white"
+            onClick={() => setZoom((z) => Math.max(0.5, z - 0.2))}
+            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700"
             title="Diminuir Zoom"
           >
             <ZoomOut className="w-3.5 h-3.5" />
           </button>
           <button
             type="button"
-            onClick={() => setZoom(1)}
-            className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-white"
-            title="Resetar Zoom"
+            onClick={() => { setZoom(1); setRotacaoGraus(0); }}
+            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700"
+            title="Resetar Enquadramento"
           >
             <Maximize2 className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* Área de Desenho SVG */}
-      <div className="relative w-full h-64 sm:h-72 bg-gradient-to-b from-slate-950 to-slate-900 rounded-lg border border-slate-800/80 overflow-hidden flex items-center justify-center select-none">
-        {/* Grade técnica sutil de fundo (Grid) */}
+      {/* Área Gráfica SVG */}
+      <div className="relative w-full h-72 sm:h-80 bg-[#0b1120] rounded-xl border border-slate-800 overflow-hidden flex items-center justify-center select-none shadow-inner">
+        {/* Grade técnica milimétrica (Blueprint Grid) */}
         <div
-          className="absolute inset-0 opacity-20 pointer-events-none"
+          className="absolute inset-0 opacity-15 pointer-events-none"
           style={{
             backgroundImage:
-              "linear-gradient(to right, #334155 1px, transparent 1px), linear-gradient(to bottom, #334155 1px, transparent 1px)",
-            backgroundSize: "20px 20px",
+              "linear-gradient(to right, #38bdf8 1px, transparent 1px), linear-gradient(to bottom, #38bdf8 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
           }}
         />
 
         {modoVisualizacao === "perfil" ? (
-          /* Visualização do Perfil Dobrado em Corte Transversal */
-          <div
-            className="w-full h-full flex items-center justify-center p-2 transition-transform duration-200"
-            style={{ transform: `scale(${zoom})` }}
+          /* ── MODO 1: PERFIL DOBRADO COM COTAS TÉCNICAS PROFISSIONAIS ── */
+          <svg
+            viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
+            className="w-full h-full max-h-full"
+            style={{ display: "block" }}
           >
-            <svg
-              viewBox={`${viewBoxX} ${viewBoxY} ${viewBoxW} ${viewBoxH}`}
-              className="w-full h-full max-h-full"
-              style={{ overflow: "visible" }}
-            >
-              <defs>
-                {/* Marcador de seta para cotas */}
-                <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#f97316" />
-                </marker>
-              </defs>
+            <defs>
+              {/* Ponta de seta para linha de cota */}
+              <marker
+                id="cota-arrow-end"
+                viewBox="0 0 10 10"
+                refX="7"
+                refY="5"
+                markerWidth="5"
+                markerHeight="5"
+                orient="auto"
+              >
+                <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f97316" />
+              </marker>
+              <marker
+                id="cota-arrow-start"
+                viewBox="0 0 10 10"
+                refX="1"
+                refY="5"
+                markerWidth="5"
+                markerHeight="5"
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f97316" />
+              </marker>
+            </defs>
 
-              {/* Linha externa da chapa (espessura realista) */}
-              <path
-                d={pathD}
-                fill="none"
-                stroke="#38bdf8"
-                strokeWidth={Math.max(2.5, Number(espessura_mm) * 1.5)}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="drop-shadow-[0_0_8px_rgba(56,189,248,0.4)]"
-              />
+            {/* Chapa de Aço (Traço Principal com Espessura Real) */}
+            <path
+              d={pathD}
+              fill="none"
+              stroke="#0284c7"
+              strokeWidth={Math.max(4, Math.min(10, Number(espessura_mm) * scale * 0.8))}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity={0.4}
+            />
+            <path
+              d={pathD}
+              fill="none"
+              stroke="#38bdf8"
+              strokeWidth={Math.max(2.5, Math.min(7, Number(espessura_mm) * scale * 0.5))}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="drop-shadow-[0_0_10px_rgba(56,189,248,0.5)]"
+            />
 
-              {/* Segmentos e Cotas de cada Aba */}
-              {pontos.slice(0, -1).map((p1, idx) => {
-                const p2 = pontos[idx + 1];
-                const midX = (p1.x + p2.x) / 2;
-                const midY = (p1.y + p2.y) / 2;
-                const comp = abas[idx] || 0;
+            {/* Cotas Técnicas de Cada Aba (Dimension Lines) */}
+            {pontosScreen.slice(0, -1).map((p1, idx) => {
+              const p2 = pontosScreen[idx + 1];
+              const comp = abas[idx] || 0;
 
-                // Deslocamento da cota para fora do traço
-                const dx = p2.x - p1.x;
-                const dy = p2.y - p1.y;
-                const len = Math.sqrt(dx * dx + dy * dy) || 1;
-                const nx = -dy / len;
-                const ny = dx / len;
-                const cotaDist = 16;
+              // Vetores do segmento
+              const dx = p2.sx - p1.sx;
+              const dy = p2.sy - p1.sy;
+              const len = Math.sqrt(dx * dx + dy * dy) || 1;
 
-                return (
-                  <g key={`aba-${idx}`}>
-                    {/* Linha guia de cota */}
-                    <line
-                      x1={midX + nx * 4}
-                      y1={midY + ny * 4}
-                      x2={midX + nx * cotaDist}
-                      y2={midY + ny * cotaDist}
-                      stroke="#64748b"
-                      strokeWidth="0.8"
-                      strokeDasharray="2,2"
-                    />
+              // Vetor normal apontando para fora do segmento
+              const nx = -dy / len;
+              const ny = dx / len;
 
-                    {/* Texto com a medida da Aba */}
+              // Distância da linha de cota em pixels
+              const distCota = 28;
+
+              // Coordenadas da cota
+              const c1x = p1.sx + nx * distCota;
+              const c1y = p1.sy + ny * distCota;
+              const c2x = p2.sx + nx * distCota;
+              const c2y = p2.sy + ny * distCota;
+
+              const midX = (c1x + c2x) / 2;
+              const midY = (c1y + c2y) / 2;
+
+              return (
+                <g key={`cota-aba-${idx}`} className="select-none">
+                  {/* Linhas de chamada (extension lines) */}
+                  <line
+                    x1={p1.sx + nx * 5}
+                    y1={p1.sy + ny * 5}
+                    x2={p1.sx + nx * (distCota + 6)}
+                    y2={p1.sy + ny * (distCota + 6)}
+                    stroke="#64748b"
+                    strokeWidth="1"
+                    strokeDasharray="2,2"
+                  />
+                  <line
+                    x1={p2.sx + nx * 5}
+                    y1={p2.sy + ny * 5}
+                    x2={p2.sx + nx * (distCota + 6)}
+                    y2={p2.sy + ny * (distCota + 6)}
+                    stroke="#64748b"
+                    strokeWidth="1"
+                    strokeDasharray="2,2"
+                  />
+
+                  {/* Linha de cota principal com setas */}
+                  <line
+                    x1={c1x}
+                    y1={c1y}
+                    x2={c2x}
+                    y2={c2y}
+                    stroke="#f97316"
+                    strokeWidth="1.2"
+                    markerStart="url(#cota-arrow-start)"
+                    markerEnd="url(#cota-arrow-end)"
+                  />
+
+                  {/* Badge da Cota com Dimensão (Ex: 25 mm) */}
+                  <g transform={`translate(${midX}, ${midY})`}>
                     <rect
-                      x={midX + nx * cotaDist - 16}
-                      y={midY + ny * cotaDist - 9}
-                      width="32"
-                      height="18"
-                      rx="4"
+                      x={-22}
+                      y={-10}
+                      width={44}
+                      height={20}
+                      rx={4}
                       fill="#0f172a"
                       stroke="#f97316"
                       strokeWidth="1"
+                      className="shadow-md"
                     />
                     <text
-                      x={midX + nx * cotaDist}
-                      y={midY + ny * cotaDist + 4}
+                      x={0}
+                      y={4}
                       textAnchor="middle"
                       fill="#ffffff"
-                      fontSize="10"
+                      fontSize="11"
                       fontWeight="bold"
+                      fontFamily="monospace"
                     >
                       {comp}
                     </text>
                   </g>
-                );
-              })}
+                </g>
+              );
+            })}
 
-              {/* Marcadores de Dobra (D1, D2, D3...) */}
-              {pontos.slice(1, -1).map((p, idx) => {
-                const dobra = dobras[idx];
-                const ang = dobra?.angulo || 90;
+            {/* Marcadores de Vértices de Dobra (D1, D2...) com Ângulos */}
+            {pontosScreen.slice(1, -1).map((p, idx) => {
+              const dobra = dobras[idx];
+              const ang = dobra?.angulo || 90;
 
-                return (
-                  <g key={`dobra-node-${idx}`}>
-                    {/* Círculo indicador no vértice da dobra */}
-                    <circle cx={p.x} cy={p.y} r="6" fill="#f97316" stroke="#ffffff" strokeWidth="1.5" />
+              return (
+                <g key={`dobra-marker-${idx}`} className="select-none">
+                  {/* Círculo indicador na dobra */}
+                  <circle
+                    cx={p.sx}
+                    cy={p.sy}
+                    r={9}
+                    fill="#ea580c"
+                    stroke="#ffffff"
+                    strokeWidth="2"
+                    className="drop-shadow-md"
+                  />
+                  <text
+                    x={p.sx}
+                    y={p.sy + 3.5}
+                    textAnchor="middle"
+                    fill="#ffffff"
+                    fontSize="9"
+                    fontWeight="black"
+                  >
+                    D{idx + 1}
+                  </text>
+
+                  {/* Pill com o ângulo da dobra */}
+                  <g transform={`translate(${p.sx + 14}, ${p.sy - 14})`}>
+                    <rect
+                      x={-4}
+                      y={-8}
+                      width={32}
+                      height={16}
+                      rx={8}
+                      fill="#1e293b"
+                      stroke="#f97316"
+                      strokeWidth="0.8"
+                    />
                     <text
-                      x={p.x}
-                      y={p.y + 3.5}
+                      x={12}
+                      y={4}
                       textAnchor="middle"
-                      fill="#ffffff"
-                      fontSize="8"
-                      fontWeight="black"
-                    >
-                      {idx + 1}
-                    </text>
-
-                    {/* Badge de Ângulo */}
-                    <text
-                      x={p.x + 12}
-                      y={p.y - 10}
                       fill="#fb923c"
-                      fontSize="10"
+                      fontSize="9"
                       fontWeight="bold"
                     >
                       {ang}°
                     </text>
                   </g>
-                );
-              })}
-            </svg>
-          </div>
+                </g>
+              );
+            })}
+          </svg>
         ) : (
-          /* Visualização do Blank Planificado (Chapa Desdobrada) */
-          <div
-            className="w-full h-full flex flex-col items-center justify-center p-4 transition-transform duration-200"
-            style={{ transform: `scale(${zoom})` }}
-          >
-            <div className="w-full max-w-lg bg-slate-800/80 border-2 border-emerald-500/70 rounded-md p-4 relative shadow-2xl">
-              <div className="text-center mb-3">
-                <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
-                  Faixa Planificada (Blank para Corte na Guilhotina)
+          /* ── MODO 2: BLANK PLANIFICADO (FAIXA ESTICADA) ── */
+          <div className="w-full h-full flex flex-col items-center justify-center p-6">
+            <div className="w-full max-w-xl bg-slate-900/90 border border-slate-700 rounded-xl p-5 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Ruler className="w-4 h-4 text-emerald-500" />
+                  Blank Desenvolvido para Corte na Guilhotina
                 </span>
-                <p className="text-[11px] text-slate-400">
-                  Largura total a ser cortada:{" "}
-                  <strong className="text-emerald-300 font-mono text-sm">{larguraPlanificada || abas.reduce((a, b) => a + (Number(b) || 0), 0)} mm</strong>{" "}
-                  × Comprimento: <strong className="text-emerald-300 font-mono">{comprimento_mm} mm</strong>
-                </p>
+                <Badge className="bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-xs font-mono">
+                  Largura: {larguraPlanificada} mm
+                </Badge>
               </div>
 
-              {/* Faixa com as linhas de dobra pontilhadas */}
-              <div className="h-20 w-full bg-slate-900 border border-slate-700 rounded flex relative overflow-hidden items-center">
+              {/* Barra Planificada com Linhas de Dobra */}
+              <div className="h-20 w-full bg-slate-950 border-2 border-emerald-500/80 rounded-lg flex relative overflow-hidden shadow-inner">
                 {abas.map((aba, i) => {
                   const total = abas.reduce((acc, v) => acc + (Number(v) || 0), 0) || 1;
                   const pct = ((Number(aba) || 0) / total) * 100;
@@ -379,12 +502,15 @@ export default function CroquiPeca2D({
                     <div
                       key={i}
                       style={{ width: `${pct}%` }}
-                      className="h-full border-r border-dashed border-amber-400/80 relative flex flex-col items-center justify-center px-1 text-center group hover:bg-slate-800/50"
+                      className="h-full border-r border-dashed border-amber-400/80 relative flex flex-col items-center justify-center px-1 text-center group hover:bg-slate-800/60 transition-colors"
                     >
-                      <span className="text-[10px] text-slate-400 uppercase font-bold">Aba {i + 1}</span>
-                      <span className="text-xs font-black text-amber-300">{aba} mm</span>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold">Aba {i + 1}</span>
+                      <span className="text-xs font-black text-amber-300 font-mono">{aba} mm</span>
                       {i < abas.length - 1 && (
-                        <div className="absolute -right-2.5 top-1 z-10 bg-amber-500 text-black text-[9px] font-black px-1 rounded-full shadow">
+                        <div
+                          className="absolute -right-3 top-1 z-10 bg-orange-500 text-white text-[9px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-md border border-slate-900"
+                          title={`Dobra D${i + 1}`}
+                        >
                           D{i + 1}
                         </div>
                       )}
@@ -392,28 +518,33 @@ export default function CroquiPeca2D({
                   );
                 })}
               </div>
+
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span>Comprimento de corte: <strong className="text-white">{comprimento_mm} mm</strong></span>
+                <span>Área do blank: <strong className="text-emerald-400">{((larguraPlanificada * comprimento_mm) / 1e6).toFixed(3)} m²</strong></span>
+              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Rodapé informativo com dimensões e legenda */}
+      {/* Métricas Inferiores */}
       <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-        <div className="bg-slate-800/60 rounded-lg p-2 border border-slate-800">
-          <p className="text-[10px] text-slate-400 uppercase">Largura Planificada</p>
-          <p className="text-sm font-bold text-orange-400">{larguraPlanificada} mm</p>
+        <div className="bg-slate-800/80 rounded-lg p-2.5 border border-slate-700/80">
+          <p className="text-[10px] text-slate-400 uppercase font-semibold">Largura Planificada</p>
+          <p className="text-base font-black text-orange-400 font-mono mt-0.5">{larguraPlanificada} mm</p>
         </div>
-        <div className="bg-slate-800/60 rounded-lg p-2 border border-slate-800">
-          <p className="text-[10px] text-slate-400 uppercase">Qtd. de Dobras</p>
-          <p className="text-sm font-bold text-sky-400">{dobras.length} dobra(s)</p>
+        <div className="bg-slate-800/80 rounded-lg p-2.5 border border-slate-700/80">
+          <p className="text-[10px] text-slate-400 uppercase font-semibold">Qtd. de Dobras</p>
+          <p className="text-base font-black text-sky-400 font-mono mt-0.5">{dobras.length} dobra(s)</p>
         </div>
-        <div className="bg-slate-800/60 rounded-lg p-2 border border-slate-800">
-          <p className="text-[10px] text-slate-400 uppercase">Espessura Chapa</p>
-          <p className="text-sm font-bold text-emerald-400">{espessura_mm} mm</p>
+        <div className="bg-slate-800/80 rounded-lg p-2.5 border border-slate-700/80">
+          <p className="text-[10px] text-slate-400 uppercase font-semibold">Espessura Chapa</p>
+          <p className="text-base font-black text-emerald-400 font-mono mt-0.5">{espessura_mm} mm</p>
         </div>
-        <div className="bg-slate-800/60 rounded-lg p-2 border border-slate-800">
-          <p className="text-[10px] text-slate-400 uppercase">Comprimento Barra</p>
-          <p className="text-sm font-bold text-purple-400">{comprimento_mm} mm</p>
+        <div className="bg-slate-800/80 rounded-lg p-2.5 border border-slate-700/80">
+          <p className="text-[10px] text-slate-400 uppercase font-semibold">Comprimento Barra</p>
+          <p className="text-base font-black text-purple-400 font-mono mt-0.5">{comprimento_mm} mm</p>
         </div>
       </div>
     </div>
