@@ -13,9 +13,11 @@ import UploadButton from "@/components/ui/UploadButton";
 import ImageLink from "@/components/ui/ImageLink";
 import { useAuth } from "@/lib/AuthContext";
 import { registrarAuditoria } from "@/lib/auditHelper";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useFilial } from "@/contexts/FilialContext";
 import BobinaModeloCombobox from "@/components/bobinas/BobinaModeloCombobox";
 import { lerNotaFiscalBobina } from "@/lib/nfReader";
+import MultiplasBobinasNFCard from "@/components/bobinas/MultiplasBobinasNFCard";
 
 const QUALIDADE_OPTIONS = ["GV", "PP", "FF", "FQ", "GL (IMP)"];
 
@@ -34,6 +36,8 @@ const BLANK_FORM = (codigoCD) => ({
 
 export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, proximoNumero, saving }) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { filialAtiva } = useFilial();
   const [form, setForm] = useState(BLANK_FORM("CD0001"));
   const [bobinaModeloId, setBobinaModeloId] = useState("");
   const [uploadingNF, setUploadingNF] = useState(false);
@@ -42,6 +46,8 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
   const [semCertAssinatura, setSemCertAssinatura] = useState("");
   const [confirmarSemCert, setConfirmarSemCert] = useState(false);
   const [erros, setErros] = useState({});
+  const [dadosMultiplasBobinas, setDadosMultiplasBobinas] = useState(null);
+  const [salvandoLote, setSalvandoLote] = useState(false);
   const formTopRef = useRef();
   const nfInputRef = useRef();
   const nfCameraRef = useRef();
@@ -84,6 +90,7 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
   useEffect(() => {
     if (!open) return;
     setErros({});
+    setDadosMultiplasBobinas(null);
     if (editItem) {
       setBobinaModeloId(editItem.id || editItem.codigo || "");
       setForm({
@@ -163,18 +170,22 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
     if (!file) return;
     setLendoNF(true);
     setUploadingNF(true);
+    setDadosMultiplasBobinas(null);
     try {
       toast.info("Processando imagem da Nota Fiscal com IA...", { duration: 3500 });
       const { file_url, file_name, dados } = await lerNotaFiscalBobina(file);
 
-      const novaLargura = dados.largura_mm ? String(dados.largura_mm) : form.largura_mm;
-      const novaChapa = dados.chapa ? String(dados.chapa) : form.chapa;
-      const novoPeso = dados.peso_liquido_kg
-        ? String(dados.peso_liquido_kg)
-        : (dados.peso_bruto_kg ? String(dados.peso_bruto_kg) : form.peso_kg);
-      const novoPesoInicial = dados.peso_bruto_kg
-        ? String(dados.peso_bruto_kg)
-        : (dados.peso_liquido_kg ? String(dados.peso_liquido_kg) : form.peso_inicial);
+      const temMultiplas = dados.bobinas && dados.bobinas.length > 1;
+      const primeiraBobina = (dados.bobinas && dados.bobinas[0]) || {};
+
+      const novaLargura = primeiraBobina.largura_mm
+        ? String(primeiraBobina.largura_mm)
+        : (dados.largura_mm_padrao ? String(dados.largura_mm_padrao) : (dados.largura_mm ? String(dados.largura_mm) : form.largura_mm));
+      const novaChapa = primeiraBobina.chapa || dados.chapa_padrao || dados.chapa || form.chapa;
+      const novoPeso = primeiraBobina.peso_kg
+        ? String(primeiraBobina.peso_kg)
+        : (dados.peso_liquido_total_kg ? String(dados.peso_liquido_total_kg) : (dados.peso_liquido_kg ? String(dados.peso_liquido_kg) : form.peso_kg));
+      const novoPesoInicial = primeiraBobina.peso_inicial || primeiraBobina.peso_kg || novoPeso;
 
       setForm(f => ({
         ...f,
@@ -184,21 +195,33 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
         fornecedor: dados.fornecedor || f.fornecedor,
         data_recebimento: dados.data_emissao || f.data_recebimento,
         chapa: novaChapa || f.chapa,
-        espessura_real: dados.chapa ? String(dados.chapa) : f.espessura_real,
-        espessura_utilizada: dados.chapa ? String(dados.chapa) : f.espessura_utilizada,
+        espessura_real: novaChapa || f.espessura_real,
+        espessura_utilizada: novaChapa || f.espessura_utilizada,
         largura_mm: novaLargura || f.largura_mm,
-        cor: dados.cor || f.cor,
-        qualidade: dados.qualidade || f.qualidade,
+        cor: primeiraBobina.cor || dados.cor_padrao || dados.cor || f.cor,
+        qualidade: primeiraBobina.qualidade || dados.qualidade_padrao || dados.qualidade || f.qualidade,
         peso_kg: novoPeso || f.peso_kg,
-        peso_inicial: novoPesoInicial || f.peso_inicial,
-        custo: dados.custo_kg !== undefined && dados.custo_kg !== null ? String(dados.custo_kg) : f.custo,
-        sub_cod: dados.sub_cod || f.sub_cod,
+        peso_inicial: String(novoPesoInicial) || f.peso_inicial,
+        custo: primeiraBobina.custo_kg !== undefined && primeiraBobina.custo_kg !== null
+          ? String(primeiraBobina.custo_kg)
+          : (dados.custo_kg_padrao !== undefined && dados.custo_kg_padrao !== null
+              ? String(dados.custo_kg_padrao)
+              : (dados.custo_kg !== undefined && dados.custo_kg !== null ? String(dados.custo_kg) : f.custo)),
+        sub_cod: primeiraBobina.lote || dados.sub_cod || f.sub_cod,
       }));
 
-      toast.success(
-        `Nota Fiscal ${dados.numero_nf || ""} lida com sucesso! Dados preenchidos pela IA.`,
-        { duration: 6000 }
-      );
+      if (temMultiplas) {
+        setDadosMultiplasBobinas({ ...dados, file_url, file_name });
+        toast.success(
+          `Foram detectadas ${dados.bobinas.length} bobinas na NF ${dados.numero_nf || ""}! Escolha a opção recomendada de cadastro em lote.`,
+          { duration: 8000 }
+        );
+      } else {
+        toast.success(
+          `Nota Fiscal ${dados.numero_nf || ""} lida com sucesso! Dados preenchidos pela IA.`,
+          { duration: 6000 }
+        );
+      }
     } catch (err) {
       console.error("Erro ao processar NF com IA:", err);
       try {
@@ -210,6 +233,113 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
       setLendoNF(false);
       setUploadingNF(false);
     }
+  };
+
+  const handleCadastrarLote = async (bobinas) => {
+    if (!bobinas || !bobinas.length || !dadosMultiplasBobinas) return;
+    setSalvandoLote(true);
+
+    try {
+      // 🔒 Busca bobinas de corte e dobra para gerar a sequência de códigos CD únicos
+      const listaAtualizada = await base44.entities.Bobina.filter({ setor: "corte_dobra" }, "codigo", 2000);
+      const numeros = listaAtualizada
+        .map(b => b.codigo)
+        .filter(c => c && /^CD\d{4}$/i.test(c))
+        .map(c => parseInt(c.slice(2)));
+      let proximoNum = numeros.length > 0 ? Math.max(...numeros) + 1 : 1;
+
+      const criadas = [];
+
+      for (let i = 0; i < bobinas.length; i++) {
+        const b = bobinas[i];
+        const codigoBobina = `CD${String(proximoNum++).padStart(4, "0")}`;
+        const chapa = b.chapa || dadosMultiplasBobinas.chapa_padrao || form.chapa || "";
+        const largura = b.largura_mm ? Number(b.largura_mm) : (dadosMultiplasBobinas.largura_mm_padrao || Number(form.largura_mm) || undefined);
+        const peso = Number(b.peso_kg || 0);
+        const pesoInicial = Number(b.peso_inicial || b.peso_kg || 0);
+        const custo = b.custo_kg ? Number(b.custo_kg) : (dadosMultiplasBobinas.custo_kg_padrao ? Number(dadosMultiplasBobinas.custo_kg_padrao) : (form.custo ? Number(form.custo) : undefined));
+
+        const payload = {
+          codigo: codigoBobina,
+          setor: "corte_dobra",
+          unidade: filialAtiva || "Matriz AJL",
+          cor: b.cor || dadosMultiplasBobinas.cor_padrao || form.cor || "Galvanizado",
+          chapa: String(chapa),
+          espessura_real: String(chapa),
+          espessura_utilizada: String(chapa),
+          qualidade: b.qualidade || dadosMultiplasBobinas.qualidade_padrao || form.qualidade || "GV",
+          largura_mm: largura,
+          peso_kg: peso,
+          peso_inicial: pesoInicial,
+          nf: dadosMultiplasBobinas.numero_nf ? String(dadosMultiplasBobinas.numero_nf) : (form.nf || undefined),
+          fornecedor: dadosMultiplasBobinas.fornecedor || form.fornecedor || undefined,
+          custo: custo,
+          data_recebimento: dadosMultiplasBobinas.data_emissao || form.data_recebimento || new Date().toISOString().slice(0, 10),
+          sub_cod: b.lote || b.sub_cod || undefined,
+          anexo_nf_url: dadosMultiplasBobinas.file_url || form.anexo_nf_url || undefined,
+          anexo_nf_nome: dadosMultiplasBobinas.file_name || form.anexo_nf_nome || undefined,
+          reservada: false,
+          estoque_minimo_kg: 500,
+          consumo_diario_kg: form.consumo_diario_kg ? Number(form.consumo_diario_kg) : undefined,
+          observacoes: form.observacoes || `Entrada em lote via NF ${dadosMultiplasBobinas.numero_nf || ""}${b.lote ? ` · Lote ${b.lote}` : ""}`,
+        };
+
+        // Remove campos undefined/null/vazios
+        Object.keys(payload).forEach(k => {
+          if (payload[k] === "" || payload[k] === undefined || payload[k] === null) delete payload[k];
+        });
+
+        const res = await base44.entities.Bobina.create(payload);
+        if (res && res.id) {
+          criadas.push(res);
+          registrarAuditoria({
+            usuario: user,
+            acao: "criacao",
+            entidade: "Bobina",
+            registroId: res.id,
+            registroIdentificador: res.codigo,
+            detalhes: `Criação em lote via NF ${dadosMultiplasBobinas.numero_nf || ""}: ${res.codigo} (${res.peso_kg} kg, chapa ${res.chapa})`,
+            unidade: res.unidade || "Matriz AJL"
+          });
+        }
+      }
+
+      toast.success(
+        `🎉 ${criadas.length} bobinas cadastradas com sucesso em lote! (${criadas.map(c => c.codigo).join(", ")})`,
+        { duration: 8000 }
+      );
+      queryClient.invalidateQueries({ queryKey: ["bobinas"] });
+      onClose();
+    } catch (err) {
+      console.error("Erro ao cadastrar lote de bobinas:", err);
+      toast.error("Ocorreu um erro ao salvar o lote. Tente novamente ou cadastre individualmente.");
+    } finally {
+      setSalvandoLote(false);
+    }
+  };
+
+  const handleSelecionarIndividual = (b, idx) => {
+    const chapa = b.chapa || dadosMultiplasBobinas?.chapa_padrao || form.chapa;
+    const largura = b.largura_mm ? String(b.largura_mm) : (dadosMultiplasBobinas?.largura_mm_padrao ? String(dadosMultiplasBobinas.largura_mm_padrao) : form.largura_mm);
+    const peso = String(b.peso_kg || 0);
+    const pesoInicial = String(b.peso_inicial || b.peso_kg || 0);
+
+    setForm(f => ({
+      ...f,
+      sub_cod: b.lote || b.sub_cod || f.sub_cod,
+      peso_kg: peso,
+      peso_inicial: pesoInicial,
+      largura_mm: largura,
+      chapa: chapa,
+      espessura_real: chapa,
+      espessura_utilizada: chapa,
+      cor: b.cor || dadosMultiplasBobinas?.cor_padrao || f.cor,
+      qualidade: b.qualidade || dadosMultiplasBobinas?.qualidade_padrao || f.qualidade,
+      custo: b.custo_kg ? String(b.custo_kg) : (dadosMultiplasBobinas?.custo_kg_padrao ? String(dadosMultiplasBobinas.custo_kg_padrao) : f.custo),
+    }));
+
+    setDadosMultiplasBobinas(null);
+    toast.success(`Bobina #${idx + 1} (${Number(b.peso_kg).toLocaleString("pt-BR")} kg) carregada no formulário!`);
   };
 
   const handleUpload = async (file, tipo) => {
@@ -312,6 +442,17 @@ export default function BobinaFormDialogCD({ open, onClose, onSave, editItem, pr
           <DialogTitle className="text-xl font-bold">{editItem ? "Editar Bobina" : "Nova Bobina — Corte e Dobra"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-5 py-2" ref={formTopRef}>
+
+          {/* Card de Múltiplas Bobinas Detectadas na NF */}
+          {!editItem && dadosMultiplasBobinas && (
+            <MultiplasBobinasNFCard
+              dadosNF={dadosMultiplasBobinas}
+              onCadastrarEmLote={handleCadastrarLote}
+              onSelecionarIndividual={handleSelecionarIndividual}
+              onDescartar={() => setDadosMultiplasBobinas(null)}
+              salvandoEmLote={salvandoLote}
+            />
+          )}
 
           {/* Card de Leitura de Nota Fiscal por IA */}
           {!editItem && (
