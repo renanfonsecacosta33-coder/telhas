@@ -270,58 +270,24 @@ export default function EtiquetaBTW({ bobina, onClose }) {
       </html>
     `;
 
-    toast.info("Enviando para a impressora...");
+    toast.info("Abrindo janela de impressão para a Elgin...");
 
-    // Tentativa 1: Iframe invisível (mais confiável em navegadores modernos)
-    try {
-      let iframe = document.getElementById("elgin-print-iframe");
-      if (iframe) iframe.remove();
-
-      iframe = document.createElement("iframe");
-      iframe.id = "elgin-print-iframe";
-      iframe.style.position = "fixed";
-      iframe.style.top = "-9999px";
-      iframe.style.left = "-9999px";
-      iframe.style.width = "100mm";
-      iframe.style.height = pageH;
-      iframe.style.border = "0";
-      document.body.appendChild(iframe);
-
-      const doc = iframe.contentWindow.document;
-      doc.open();
-      doc.write(fullHtml);
-      doc.close();
-
-      setTimeout(() => {
-        try {
-          iframe.contentWindow.focus();
-          iframe.contentWindow.print();
-        } catch (e) {
-          console.warn("Iframe print blocked, falling back to window.open", e);
-          fallbackWindowPrint(fullHtml);
-        }
-      }, 350);
-    } catch (err) {
-      console.warn("Erro ao criar iframe:", err);
-      fallbackWindowPrint(fullHtml);
-    }
-  };
-
-  const fallbackWindowPrint = (html) => {
     const janela = window.open("", "_blank", "width=850,height=750");
     if (!janela) {
-      toast.error("O navegador bloqueou a janela. Baixe o PDF pelo botão ao lado!");
+      toast.error("O navegador bloqueou a janela. Por favor, permita pop-ups ou clique em 'Baixar PDF'!");
       return;
     }
     janela.document.open();
-    janela.document.write(html);
+    janela.document.write(fullHtml);
     janela.document.close();
     janela.focus();
+
     setTimeout(() => {
       try {
+        janela.focus();
         janela.print();
       } catch (e) {
-        console.error(e);
+        console.error("Erro ao imprimir:", e);
       }
     }, 450);
   };
@@ -507,50 +473,51 @@ export default function EtiquetaBTW({ bobina, onClose }) {
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "2px solid #000", paddingBottom: "6px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     <div style={{
-                      width: "36px", height: "36px", background: "#000", color: "#fff",
+                      width: "36px", height: "36px", border: "2.5px solid #000", color: "#000",
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      fontWeight: 900, fontSize: "20px", borderRadius: "4px"
+                      fontWeight: 900, fontSize: "22px", borderRadius: "4px"
                     }}>
                       A
                     </div>
                     <div>
-                      <div style={{ fontSize: "16px", fontWeight: 900, letterSpacing: "1px", lineHeight: 1.1 }}>
+                      <div style={{ fontSize: "16px", fontWeight: 900, letterSpacing: "1px", lineHeight: 1.1, color: "#000" }}>
                         AJL FERRO &amp; AÇO
                       </div>
-                      <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#444", letterSpacing: "0.5px" }}>
+                      <div style={{ fontSize: "8.5px", fontWeight: 800, color: "#000", letterSpacing: "0.5px" }}>
                         SISTEMA DE RASTREABILIDADE
                       </div>
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: "8px", color: "#666", fontWeight: 600 }}>ENTRADA EM</div>
-                    <div style={{ fontSize: "11px", fontWeight: 800 }}>{dataExib}</div>
+                    <div style={{ fontSize: "8px", color: "#000", fontWeight: 700 }}>ENTRADA EM</div>
+                    <div style={{ fontSize: "12px", fontWeight: 900, color: "#000" }}>{dataExib}</div>
                   </div>
                 </div>
 
-                {/* Bloco Gigante do Código da Bobina */}
+                {/* Bloco Gigante do Código da Bobina (Linhas pretas puras) */}
                 <div style={{
                   margin: "8px 0 6px 0",
-                  background: "#000",
-                  color: "#fff",
-                  padding: "8px 10px",
+                  border: "3px solid #000",
+                  background: "#fff",
+                  color: "#000",
+                  padding: "6px 10px",
                   borderRadius: "4px",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between"
                 }}>
                   <div>
-                    <div style={{ fontSize: "9px", letterSpacing: "1px", opacity: 0.85, fontWeight: 700 }}>
+                    <div style={{ fontSize: "9.5px", letterSpacing: "1px", fontWeight: 900, color: "#000" }}>
                       CÓDIGO DA BOBINA
                     </div>
-                    <div style={{ fontSize: "38px", fontWeight: 900, lineHeight: 1, letterSpacing: "-1px" }}>
+                    <div style={{ fontSize: "42px", fontWeight: 900, lineHeight: 1, letterSpacing: "-1px", color: "#000" }}>
                       {codigo}
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: "9px", opacity: 0.85, fontWeight: 700 }}>SUB. CÓD.</div>
-                    <div style={{ fontSize: "16px", fontWeight: 900 }}>{subCod}</div>
-                    <div style={{ fontSize: "9px", fontWeight: 800, background: "#fff", color: "#000", padding: "1px 6px", borderRadius: "2px", marginTop: "2px" }}>
+                    <div style={{ fontSize: "9px", fontWeight: 900, color: "#000" }}>SUB. CÓD.</div>
+                    <div style={{ fontSize: "18px", fontWeight: 900, color: "#000" }}>{subCod}</div>
+                    <div style={{ fontSize: "10px", fontWeight: 900, border: "1.5px solid #000", color: "#000", padding: "1px 6px", borderRadius: "2px", marginTop: "2px", display: "inline-block" }}>
                       {qualidade}
                     </div>
                   </div>
@@ -601,14 +568,14 @@ export default function EtiquetaBTW({ bobina, onClose }) {
                   </div>
 
                   {/* Linha 4: Pesos (Destaque Principal de Chão de Fábrica) */}
-                  <div style={{ display: "flex", background: "#f8f8f8" }}>
-                    <div style={{ flex: 1, padding: "6px 8px", borderRight: "1.5px solid #000" }}>
-                      <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#555" }}>PESO BRUTO (INICIAL)</div>
-                      <div style={{ fontSize: "16px", fontWeight: 900, color: "#000" }}>{pesoBruto}</div>
+                  <div style={{ display: "flex", borderTop: "2px solid #000", background: "#fff" }}>
+                    <div style={{ flex: 1, padding: "6px 8px", borderRight: "2px solid #000" }}>
+                      <div style={{ fontSize: "9px", fontWeight: 800, color: "#000" }}>PESO BRUTO (INICIAL)</div>
+                      <div style={{ fontSize: "17px", fontWeight: 900, color: "#000" }}>{pesoBruto}</div>
                     </div>
-                    <div style={{ flex: 1.2, padding: "6px 8px", background: "#f0f0f0" }}>
-                      <div style={{ fontSize: "8.5px", fontWeight: 800, color: "#000" }}>PESO LÍQUIDO (ESTOQUE)</div>
-                      <div style={{ fontSize: "20px", fontWeight: 900, color: "#000" }}>{pesoAtual}</div>
+                    <div style={{ flex: 1.2, padding: "6px 8px" }}>
+                      <div style={{ fontSize: "9px", fontWeight: 900, color: "#000" }}>PESO LÍQUIDO (ESTOQUE)</div>
+                      <div style={{ fontSize: "22px", fontWeight: 900, color: "#000" }}>{pesoAtual}</div>
                     </div>
                   </div>
                 </div>
