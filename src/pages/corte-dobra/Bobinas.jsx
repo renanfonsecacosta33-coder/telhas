@@ -193,6 +193,19 @@ export default function BobinasCD() {
     return matchSearch && matchAlerta && matchQualidade && matchFornecedor && matchData;
   });
 
+  const getCustoBobina = (b) => {
+    const raw = b.custo ?? b.custo_kg;
+    if (raw !== undefined && raw !== null && raw !== "") {
+      const num = typeof raw === "number" ? raw : parseFloat(String(raw).replace(",", "."));
+      if (!isNaN(num) && num > 0) return num;
+    }
+    if (b.custo_total && b.peso_kg && Number(b.peso_kg) > 0) {
+      const num = Number(b.custo_total) / Number(b.peso_kg);
+      if (!isNaN(num) && num > 0) return num;
+    }
+    return null;
+  };
+
   // Ordenação inteligente (Prioriza data de arquivamento quando visualizando arquivadas)
   const sorted = [...filtered].sort((a, b) => {
     if (showArquivadas) {
@@ -208,6 +221,28 @@ export default function BobinasCD() {
         return parseFloat((a.chapa || "0").replace(",", ".")) - parseFloat((b.chapa || "0").replace(",", "."));
       } else if (ordenacao === "espessura_desc") {
         return parseFloat((b.chapa || "0").replace(",", ".")) - parseFloat((a.chapa || "0").replace(",", "."));
+      } else if (ordenacao === "custo_asc") {
+        const ca = getCustoBobina(a);
+        const cb = getCustoBobina(b);
+        if (ca !== null && cb !== null) {
+          if (ca !== cb) return ca - cb;
+        } else if (ca !== null) {
+          return -1;
+        } else if (cb !== null) {
+          return 1;
+        }
+        return (a.codigo || "").localeCompare(b.codigo || "", undefined, { numeric: true });
+      } else if (ordenacao === "custo_desc") {
+        const ca = getCustoBobina(a);
+        const cb = getCustoBobina(b);
+        if (ca !== null && cb !== null) {
+          if (ca !== cb) return cb - ca;
+        } else if (ca !== null) {
+          return -1;
+        } else if (cb !== null) {
+          return 1;
+        }
+        return (a.codigo || "").localeCompare(b.codigo || "", undefined, { numeric: true });
       } else {
         // Padrão em arquivadas: Mais recentes primeiro (ordem por data de arquivamento)
         const da = getTimestampArquivamento(a);
@@ -236,6 +271,30 @@ export default function BobinasCD() {
         const da = a.data_recebimento ? new Date(a.data_recebimento).getTime() : 0;
         const db = b.data_recebimento ? new Date(b.data_recebimento).getTime() : 0;
         return da - db;
+      }
+      if (ordenacao === "custo_asc") {
+        const ca = getCustoBobina(a);
+        const cb = getCustoBobina(b);
+        if (ca !== null && cb !== null) {
+          if (ca !== cb) return ca - cb;
+        } else if (ca !== null) {
+          return -1;
+        } else if (cb !== null) {
+          return 1;
+        }
+        return (a.codigo || "").localeCompare(b.codigo || "", undefined, { numeric: true });
+      }
+      if (ordenacao === "custo_desc") {
+        const ca = getCustoBobina(a);
+        const cb = getCustoBobina(b);
+        if (ca !== null && cb !== null) {
+          if (ca !== cb) return cb - ca;
+        } else if (ca !== null) {
+          return -1;
+        } else if (cb !== null) {
+          return 1;
+        }
+        return (a.codigo || "").localeCompare(b.codigo || "", undefined, { numeric: true });
       }
     }
     return 0;
@@ -390,6 +449,8 @@ export default function BobinasCD() {
                   <SelectItem value="codigo_desc">Código ↓</SelectItem>
                   <SelectItem value="espessura_asc">Espessura ↑</SelectItem>
                   <SelectItem value="espessura_desc">Espessura ↓</SelectItem>
+                  <SelectItem value="custo_asc">Menor custo</SelectItem>
+                  <SelectItem value="custo_desc">Maior custo</SelectItem>
                 </>
               ) : (
                 <>
@@ -400,6 +461,8 @@ export default function BobinasCD() {
                   <SelectItem value="codigo_desc">Código ↓</SelectItem>
                   <SelectItem value="espessura_asc">Espessura ↑</SelectItem>
                   <SelectItem value="espessura_desc">Espessura ↓</SelectItem>
+                  <SelectItem value="custo_asc">Menor custo</SelectItem>
+                  <SelectItem value="custo_desc">Maior custo</SelectItem>
                 </>
               )}
             </SelectContent>

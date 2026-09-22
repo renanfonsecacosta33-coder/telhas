@@ -113,7 +113,8 @@ export default function BobinaCard({
   const pctRestante = pctUso !== null ? 100 - pctUso : null;
   const diasRestantes = getPrevisaoAcabar(bobina);
   const alerta = getAlertaNivel(bobina);
-  const custoTotal = bobina.custo && bobina.peso_kg ? bobina.custo * bobina.peso_kg : null;
+  const custoKg = bobina.custo ?? bobina.custo_kg;
+  const custoTotal = custoKg && bobina.peso_kg ? Number(custoKg) * Number(bobina.peso_kg) : (bobina.custo_total || null);
 
   const infoStatus = getStatusBadge(statusInfo, bobina);
 
@@ -389,7 +390,7 @@ export default function BobinaCard({
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
               {bobina.nf && <div><span className="text-muted-foreground">NF:</span> <strong>{bobina.nf}</strong></div>}
-              {bobina.custo && <div><span className="text-muted-foreground">Custo/kg:</span> <strong>R$ {Number(bobina.custo).toFixed(2)}</strong></div>}
+              {custoKg && <div><span className="text-muted-foreground">Custo/kg:</span> <strong>R$ {Number(custoKg).toFixed(2)}</strong></div>}
               {custoTotal && <div><span className="text-muted-foreground">Valor estoque:</span> <strong>R$ {custoTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</strong></div>}
               {bobina.consumo_diario_kg && <div><span className="text-muted-foreground">Consumo/dia:</span> <strong>{bobina.consumo_diario_kg} kg</strong></div>}
               {bobina.setor !== "corte_dobra" && bobina.metragem_restante && <div><span className="text-muted-foreground">Metr. restante:</span> <strong>{bobina.metragem_restante} m</strong></div>}
