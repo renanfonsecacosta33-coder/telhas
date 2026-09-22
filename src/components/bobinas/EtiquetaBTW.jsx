@@ -219,7 +219,8 @@ export default function EtiquetaBTW({ bobina, onClose }) {
 
     const pageW = "100mm";
     const pageH = tamanho === "100x150" ? "150mm" : tamanho === "100x75" ? "75mm" : "50mm";
-    const wrapperH = tamanho === "100x150" ? "144mm" : tamanho === "100x75" ? "71mm" : "46mm";
+    // Altura calculada estritamente para NUNCA estourar a página térmica e evitar quebra em 2 folhas
+    const wrapperH = tamanho === "100x150" ? "134mm" : tamanho === "100x75" ? "67mm" : "44mm";
 
     const fullHtml = `
       <!DOCTYPE html>
@@ -241,24 +242,34 @@ export default function EtiquetaBTW({ bobina, onClose }) {
             }
             html, body {
               width: ${pageW} !important;
-              height: ${pageH} !important;
+              height: ${wrapperH} !important;
+              max-height: ${wrapperH} !important;
               margin: 0 !important;
               padding: 0 !important;
-              background: #fff !important;
-              color: #000 !important;
+              background: #ffffff !important;
+              color: #000000 !important;
               font-family: Arial, Helvetica, sans-serif !important;
               display: flex !important;
               flex-direction: column !important;
               align-items: center !important;
               justify-content: flex-start !important;
+              overflow: hidden !important;
+              page-break-after: avoid !important;
+              break-after: avoid !important;
             }
             .etq-print-wrapper {
-              width: 96mm !important;
+              width: 95mm !important;
               height: ${wrapperH} !important;
-              margin: 2mm auto 0 auto !important;
+              max-height: ${wrapperH} !important;
+              margin: 1.5mm auto 0 auto !important;
               box-sizing: border-box !important;
               display: flex !important;
               flex-direction: column !important;
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+              page-break-after: avoid !important;
+              break-after: avoid !important;
+              overflow: hidden !important;
             }
           </style>
         </head>
@@ -468,142 +479,142 @@ export default function EtiquetaBTW({ bobina, onClose }) {
             {/* FORMATO 100x150 mm (TAMANHO INDUSTRIAL - ROLO DA ELGIN) */}
             {/* ============================================================ */}
             {tamanho === "100x150" ? (
-              <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: "6px" }}>
+              <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: "4px", boxSizing: "border-box", overflow: "hidden" }}>
                 {/* Cabeçalho */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "2px solid #000", paddingBottom: "6px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "2px solid #000", paddingBottom: "4px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                     <div style={{
-                      width: "36px", height: "36px", border: "2.5px solid #000", color: "#000",
+                      width: "30px", height: "30px", border: "2px solid #000", color: "#000",
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      fontWeight: 900, fontSize: "22px", borderRadius: "4px"
+                      fontWeight: 900, fontSize: "18px", borderRadius: "3px"
                     }}>
                       A
                     </div>
                     <div>
-                      <div style={{ fontSize: "16px", fontWeight: 900, letterSpacing: "1px", lineHeight: 1.1, color: "#000" }}>
+                      <div style={{ fontSize: "15px", fontWeight: 900, letterSpacing: "0.5px", lineHeight: 1.1, color: "#000" }}>
                         AJL FERRO &amp; AÇO
                       </div>
-                      <div style={{ fontSize: "8.5px", fontWeight: 800, color: "#000", letterSpacing: "0.5px" }}>
+                      <div style={{ fontSize: "8px", fontWeight: 800, color: "#000", letterSpacing: "0.5px" }}>
                         SISTEMA DE RASTREABILIDADE
                       </div>
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: "8px", color: "#000", fontWeight: 700 }}>ENTRADA EM</div>
-                    <div style={{ fontSize: "12px", fontWeight: 900, color: "#000" }}>{dataExib}</div>
+                    <div style={{ fontSize: "7.5px", color: "#000", fontWeight: 700 }}>ENTRADA EM</div>
+                    <div style={{ fontSize: "11px", fontWeight: 900, color: "#000" }}>{dataExib}</div>
                   </div>
                 </div>
 
-                {/* Bloco Gigante do Código da Bobina (Linhas pretas puras) */}
+                {/* Bloco Gigante do Código da Bobina */}
                 <div style={{
-                  margin: "8px 0 6px 0",
-                  border: "3px solid #000",
+                  margin: "4px 0 4px 0",
+                  border: "2.5px solid #000",
                   background: "#fff",
                   color: "#000",
-                  padding: "6px 10px",
-                  borderRadius: "4px",
+                  padding: "4px 8px",
+                  borderRadius: "3px",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between"
                 }}>
                   <div>
-                    <div style={{ fontSize: "9.5px", letterSpacing: "1px", fontWeight: 900, color: "#000" }}>
+                    <div style={{ fontSize: "8.5px", letterSpacing: "0.5px", fontWeight: 900, color: "#000" }}>
                       CÓDIGO DA BOBINA
                     </div>
-                    <div style={{ fontSize: "42px", fontWeight: 900, lineHeight: 1, letterSpacing: "-1px", color: "#000" }}>
+                    <div style={{ fontSize: "36px", fontWeight: 900, lineHeight: 1, letterSpacing: "-1px", color: "#000" }}>
                       {codigo}
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: "9px", fontWeight: 900, color: "#000" }}>SUB. CÓD.</div>
-                    <div style={{ fontSize: "18px", fontWeight: 900, color: "#000" }}>{subCod}</div>
-                    <div style={{ fontSize: "10px", fontWeight: 900, border: "1.5px solid #000", color: "#000", padding: "1px 6px", borderRadius: "2px", marginTop: "2px", display: "inline-block" }}>
+                    <div style={{ fontSize: "8.5px", fontWeight: 900, color: "#000" }}>SUB. CÓD.</div>
+                    <div style={{ fontSize: "16px", fontWeight: 900, color: "#000" }}>{subCod}</div>
+                    <div style={{ fontSize: "9.5px", fontWeight: 900, border: "1.5px solid #000", color: "#000", padding: "1px 5px", borderRadius: "2px", marginTop: "2px", display: "inline-block" }}>
                       {qualidade}
                     </div>
                   </div>
                 </div>
 
                 {/* Grid Técnico Industrial */}
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", border: "1.5px solid #000", borderRadius: "3px", overflow: "hidden" }}>
+                <div style={{ display: "flex", flexDirection: "column", border: "1.5px solid #000", borderRadius: "3px", overflow: "hidden" }}>
                   {/* Linha 1: Dimensões + Chapa Real */}
                   <div style={{ display: "flex", borderBottom: "1.5px solid #000" }}>
-                    <div style={{ flex: 1, padding: "5px 8px", borderRight: "1.5px solid #000" }}>
-                      <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#555" }}>DIMENSÕES / LARGURA</div>
-                      <div style={{ fontSize: "17px", fontWeight: 900, color: "#000" }}>{dim}</div>
+                    <div style={{ flex: 1, padding: "3px 6px", borderRight: "1.5px solid #000" }}>
+                      <div style={{ fontSize: "8px", fontWeight: 700, color: "#000" }}>DIMENSÕES / LARGURA</div>
+                      <div style={{ fontSize: "15px", fontWeight: 900, color: "#000" }}>{dim}</div>
                     </div>
-                    <div style={{ flex: 1, padding: "5px 8px" }}>
-                      <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#555" }}>CHAPA REAL (ESPESSURA)</div>
-                      <div style={{ fontSize: "17px", fontWeight: 900, color: "#000" }}>{chapaReal} mm</div>
+                    <div style={{ flex: 1, padding: "3px 6px" }}>
+                      <div style={{ fontSize: "8px", fontWeight: 700, color: "#000" }}>CHAPA REAL (ESPESSURA)</div>
+                      <div style={{ fontSize: "15px", fontWeight: 900, color: "#000" }}>{chapaReal} mm</div>
                     </div>
                   </div>
 
                   {/* Linha 2: Cor / Chapa Utilizada + Qualidade */}
                   <div style={{ display: "flex", borderBottom: "1.5px solid #000" }}>
-                    <div style={{ flex: 1, padding: "5px 8px", borderRight: "1.5px solid #000" }}>
-                      <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#555" }}>
+                    <div style={{ flex: 1, padding: "3px 6px", borderRight: "1.5px solid #000" }}>
+                      <div style={{ fontSize: "8px", fontWeight: 700, color: "#000" }}>
                         {isCorteDobra ? "CHAPA UTILIZADA" : "COR DA BOBINA"}
                       </div>
-                      <div style={{ fontSize: "15px", fontWeight: 900, color: "#000" }}>
+                      <div style={{ fontSize: "14px", fontWeight: 900, color: "#000" }}>
                         {isCorteDobra ? chapaUtilizada : corBobina}
                       </div>
                     </div>
-                    <div style={{ flex: 1, padding: "5px 8px" }}>
-                      <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#555" }}>QUALIDADE / MATÉRIA-PRIMA</div>
-                      <div style={{ fontSize: "15px", fontWeight: 900, color: "#000" }}>{qualidade}</div>
+                    <div style={{ flex: 1, padding: "3px 6px" }}>
+                      <div style={{ fontSize: "8px", fontWeight: 700, color: "#000" }}>QUALIDADE / MATÉRIA-PRIMA</div>
+                      <div style={{ fontSize: "14px", fontWeight: 900, color: "#000" }}>{qualidade}</div>
                     </div>
                   </div>
 
                   {/* Linha 3: Fornecedor + NF Origem */}
                   <div style={{ display: "flex", borderBottom: "1.5px solid #000" }}>
-                    <div style={{ flex: 1.3, padding: "5px 8px", borderRight: "1.5px solid #000", overflow: "hidden" }}>
-                      <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#555" }}>FORNECEDOR / USINA</div>
-                      <div style={{ fontSize: "13px", fontWeight: 900, color: "#000", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div style={{ flex: 1.3, padding: "3px 6px", borderRight: "1.5px solid #000", overflow: "hidden" }}>
+                      <div style={{ fontSize: "8px", fontWeight: 700, color: "#000" }}>FORNECEDOR / USINA</div>
+                      <div style={{ fontSize: "12px", fontWeight: 900, color: "#000", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {fornecedor}
                       </div>
                     </div>
-                    <div style={{ flex: 0.9, padding: "5px 8px" }}>
-                      <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#555" }}>NF DE ORIGEM</div>
-                      <div style={{ fontSize: "15px", fontWeight: 900, color: "#000" }}>{nfOrigem}</div>
+                    <div style={{ flex: 0.9, padding: "3px 6px" }}>
+                      <div style={{ fontSize: "8px", fontWeight: 700, color: "#000" }}>NF DE ORIGEM</div>
+                      <div style={{ fontSize: "14px", fontWeight: 900, color: "#000" }}>{nfOrigem}</div>
                     </div>
                   </div>
 
-                  {/* Linha 4: Pesos (Destaque Principal de Chão de Fábrica) */}
-                  <div style={{ display: "flex", borderTop: "2px solid #000", background: "#fff" }}>
-                    <div style={{ flex: 1, padding: "6px 8px", borderRight: "2px solid #000" }}>
-                      <div style={{ fontSize: "9px", fontWeight: 800, color: "#000" }}>PESO BRUTO (INICIAL)</div>
-                      <div style={{ fontSize: "17px", fontWeight: 900, color: "#000" }}>{pesoBruto}</div>
+                  {/* Linha 4: Pesos */}
+                  <div style={{ display: "flex", borderTop: "1.5px solid #000", background: "#fff" }}>
+                    <div style={{ flex: 1, padding: "4px 6px", borderRight: "1.5px solid #000" }}>
+                      <div style={{ fontSize: "8px", fontWeight: 800, color: "#000" }}>PESO BRUTO (INICIAL)</div>
+                      <div style={{ fontSize: "16px", fontWeight: 900, color: "#000" }}>{pesoBruto}</div>
                     </div>
-                    <div style={{ flex: 1.2, padding: "6px 8px" }}>
-                      <div style={{ fontSize: "9px", fontWeight: 900, color: "#000" }}>PESO LÍQUIDO (ESTOQUE)</div>
-                      <div style={{ fontSize: "22px", fontWeight: 900, color: "#000" }}>{pesoAtual}</div>
+                    <div style={{ flex: 1.2, padding: "4px 6px" }}>
+                      <div style={{ fontSize: "8px", fontWeight: 900, color: "#000" }}>PESO LÍQUIDO (ESTOQUE)</div>
+                      <div style={{ fontSize: "19px", fontWeight: 900, color: "#000" }}>{pesoAtual}</div>
                     </div>
                   </div>
                 </div>
 
-                {/* Bloco Inferior: QR Code de Rastreamento + Metadados */}
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "8px", padding: "6px", border: "1.5px solid #000", borderRadius: "3px" }}>
-                  <div style={{ width: "90px", height: "90px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {/* Bloco Inferior: QR Code de Rastreamento */}
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px", padding: "4px", border: "1.5px solid #000", borderRadius: "3px" }}>
+                  <div style={{ width: "68px", height: "68px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {qrUrl ? (
-                      <img src={qrUrl} alt="QR Code" style={{ width: "86px", height: "86px", display: "block" }} />
+                      <img src={qrUrl} alt="QR Code" style={{ width: "64px", height: "64px", display: "block" }} />
                     ) : (
-                      <div style={{ fontSize: "9px", textAlign: "center" }}>Carregando QR...</div>
+                      <div style={{ fontSize: "8px", textAlign: "center" }}>QR Code</div>
                     )}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: "12px", fontWeight: 900, color: "#000" }}>
+                    <div style={{ fontSize: "11px", fontWeight: 900, color: "#000" }}>
                       RASTREABILIDADE DIGITAL
                     </div>
-                    <div style={{ fontSize: "8.5px", color: "#444", marginTop: "2px", lineHeight: 1.3 }}>
+                    <div style={{ fontSize: "8px", color: "#222", marginTop: "1px", lineHeight: 1.2 }}>
                       Bipe com a câmera do celular ou leitor 2D para consultar histórico, OPs vinculadas e consumo desta bobina.
                     </div>
-                    <div style={{ marginTop: "4px", fontSize: "9px", fontWeight: 800, color: "#000" }}>
+                    <div style={{ marginTop: "2px", fontSize: "8.5px", fontWeight: 900, color: "#000" }}>
                       SETOR: {setorLabel}
                     </div>
                   </div>
                 </div>
 
                 {/* Rodapé da Etiqueta */}
-                <div style={{ marginTop: "auto", paddingTop: "4px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "8px", color: "#666", fontWeight: 600 }}>
+                <div style={{ marginTop: "auto", paddingTop: "3px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "7.5px", color: "#333", fontWeight: 700 }}>
                   <span>AJL FERRO &amp; AÇO — SISTEMA DE FÁBRICAS</span>
                   <span>Emissão: {hoje} {horaAtual}</span>
                 </div>
