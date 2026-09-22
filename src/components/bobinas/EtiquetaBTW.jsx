@@ -1,6 +1,8 @@
 import React, { useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 import { Button } from "@/components/ui/button";
 import {
   Printer,
@@ -14,7 +16,11 @@ import {
   ChevronUp,
   Settings,
   Sparkles,
-  Maximize2
+  Maximize2,
+  Download,
+  AlertTriangle,
+  RefreshCw,
+  Loader2
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -23,7 +29,7 @@ import { toast } from "sonner";
 /**
  * Etiqueta BTW / Industrial para Bobinas
  * Otimizada para Impressoras Térmicas (Elgin L42PRO, Zebra, Argox)
- * Suporta formatos 100x150 mm (Padrão Elgin / Foto real), 100x75 mm e 100x50 mm.
+ * Suporta impressão direta via Iframe, janela pop-up, download em PDF de alta resolução e exportação ZPL.
  */
 export default function EtiquetaBTW({ bobina, onClose }) {
   const printRef = useRef(null);
@@ -33,38 +39,40 @@ export default function EtiquetaBTW({ bobina, onClose }) {
   const [qrUrl, setQrUrl] = useState("");
   const [copiedZpl, setCopiedZpl] = useState(false);
   const [showGuiaElgin, setShowGuiaElgin] = useState(false);
+  const [showDiagnostico, setShowDiagnostico] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const hoje = format(new Date(), "dd/MM/yyyy", { locale: ptBR });
   const horaAtual = format(new Date(), "HH:mm", { locale: ptBR });
-  const dataExib = bobina.data_recebimento
+  const dataExib = bobina?.data_recebimento
     ? format(new Date(bobina.data_recebimento), "dd/MM/yyyy", { locale: ptBR })
     : hoje;
 
-  const dim = bobina.largura_mm ? `${bobina.largura_mm} mm` : "—";
+  const dim = bobina?.largura_mm ? `${bobina.largura_mm} mm` : "—";
 
-  const pesoAtual = bobina.peso_kg != null
+  const pesoAtual = bobina?.peso_kg != null
     ? `${Number(bobina.peso_kg).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 1 })} kg`
     : "—";
 
-  const pesoBruto = bobina.peso_inicial != null
+  const pesoBruto = bobina?.peso_inicial != null
     ? `${Number(bobina.peso_inicial).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 1 })} kg`
     : pesoAtual;
 
-  const chapaReal = bobina.chapa || "—";
-  const corBobina = bobina.cor || "—";
-  const isCorteDobra = bobina.setor === "corte_dobra";
-  const chapaUtilizada = bobina.espessura_utilizada || bobina.chapa || "—";
-  const fornecedor = (bobina.fornecedor || "").trim() || "NÃO INFORMADO";
-  const nfOrigem = bobina.nf || "—";
-  const qualidade = bobina.qualidade || bobina.espessura_real || "GV";
-  const codigo = bobina.codigo || "BOBINA";
-  const subCod = bobina.sub_cod || "—";
+  const chapaReal = bobina?.chapa || "—";
+  const corBobina = bobina?.cor || "—";
+  const isCorteDobra = bobina?.setor === "corte_dobra";
+  const chapaUtilizada = bobina?.espessura_utilizada || bobina?.chapa || "—";
+  const fornecedor = (bobina?.fornecedor || "").trim() || "NÃO INFORMADO";
+  const nfOrigem = bobina?.nf || "—";
+  const qualidade = bobina?.qualidade || bobina?.espessura_real || "GV";
+  const codigo = bobina?.codigo || "BOBINA";
+  const subCod = bobina?.sub_cod || "—";
   const setorLabel = isCorteDobra ? "CORTE E DOBRA" : "TELHAS METÁLICAS";
 
   // Gerar QR Code apontando para o rastreio da bobina
   useEffect(() => {
     const baseUrl = window.location.origin;
-    const trackingUrl = `${baseUrl}/bobina-qr/${bobina.id || bobina.codigo}`;
+    const trackingUrl = `${baseUrl}/bobina-qr/${bobina?.id || bobina?.codigo || "0"}`;
     QRCode.toDataURL(trackingUrl, {
       width: 280,
       margin: 1,
@@ -114,7 +122,7 @@ export default function EtiquetaBTW({ bobina, onClose }) {
 ^FO430,625^A0N,20,20^FDPESO LIQUIDO ATUAL^FS
 ^FO430,660^A0N,44,44^FD${pesoAtual}^FS
 ^FO50,740^GB700,2,2^FS
-^FO70,760^BQN,2,7^FDQA,https://fabricas.base44.app/bobina-qr/${bobina.id || codigo}^FS
+^FO70,760^BQN,2,7^FDQA,https://fabricas.base44.app/bobina-qr/${bobina?.id || codigo}^FS
 ^FO320,770^A0N,26,26^FDRASTREABILIDADE DIGITAL^FS
 ^FO320,810^A0N,20,20^FDEscaneie com smartphone ou PDA^FS
 ^FO320,840^A0N,20,20^FDpara historico de consumo e OPs^FS
@@ -125,7 +133,6 @@ export default function EtiquetaBTW({ bobina, onClose }) {
 ^XZ`;
     }
 
-    // 100x75 mm
     return `^XA
 ^PW800
 ^LL600
@@ -138,7 +145,7 @@ export default function EtiquetaBTW({ bobina, onClose }) {
 ^FO50,215^A0N,22,22^FDFORNECEDOR: ${fornecedor.slice(0, 26)}^FS
 ^FO50,245^A0N,24,24^FDNF: ${nfOrigem} | PESO ATUAL: ${pesoAtual}^FS
 ^FO50,285^GB700,2,2^FS
-^FO50,305^BQN,2,6^FDQA,https://fabricas.base44.app/bobina-qr/${bobina.id || codigo}^FS
+^FO50,305^BQN,2,6^FDQA,https://fabricas.base44.app/bobina-qr/${bobina?.id || codigo}^FS
 ^FO250,320^A0N,24,24^FDBOBINA RASTREADA POR QR^FS
 ^FO250,355^A0N,20,20^FDLote: ${codigo} | NF: ${nfOrigem}^FS
 ^FO250,390^A0N,20,20^FDEmissao: ${hoje}^FS
@@ -155,22 +162,66 @@ export default function EtiquetaBTW({ bobina, onClose }) {
     setTimeout(() => setCopiedZpl(false), 2500);
   };
 
+  const handleDownloadZpl = () => {
+    const zpl = gerarZpl();
+    const blob = new Blob([zpl], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Etiqueta_${codigo}_${tamanho}.zpl`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("Arquivo .ZPL baixado para envio direto!");
+  };
+
+  // Gerar PDF direto (100% à prova de bloqueador de pop-ups e driver do navegador)
+  const handleDownloadPdf = async () => {
+    const el = printRef.current;
+    if (!el) return;
+    setDownloadingPdf(true);
+    toast.info("Gerando PDF em alta definição para a Elgin...");
+
+    try {
+      const canvas = await html2canvas(el, {
+        scale: 3,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdfW = 100;
+      const pdfH = tamanho === "100x150" ? 150 : tamanho === "100x75" ? 75 : 50;
+
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: [pdfW, pdfH]
+      });
+
+      pdf.addImage(imgData, "PNG", 0, 0, pdfW, pdfH);
+      pdf.save(`Etiqueta_${codigo}_${tamanho}.pdf`);
+      toast.success("PDF baixado! Você pode abrir e imprimir na Elgin.");
+    } catch (err) {
+      console.error("Erro ao gerar PDF da etiqueta:", err);
+      toast.error("Erro ao gerar PDF.");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  // Impressão Robusta: Tenta via Iframe Invisível primeiro (zero bloqueador de popup), com fallback para Janela Nova
   const handlePrint = () => {
     const el = printRef.current;
     if (!el) return;
 
     const pageW = "100mm";
     const pageH = tamanho === "100x150" ? "150mm" : tamanho === "100x75" ? "75mm" : "50mm";
+    const wrapperH = tamanho === "100x150" ? "144mm" : tamanho === "100x75" ? "71mm" : "46mm";
 
-    const janela = window.open("", "_blank", "width=850,height=750");
-    if (!janela) {
-      alert("O bloqueador de pop-ups impediu a impressão. Permita pop-ups para este site e clique novamente em Imprimir.");
-      return;
-    }
-
-    const htmlContent = el.innerHTML;
-
-    janela.document.write(`
+    const fullHtml = `
       <!DOCTYPE html>
       <html lang="pt-BR">
         <head>
@@ -203,7 +254,7 @@ export default function EtiquetaBTW({ bobina, onClose }) {
             }
             .etq-print-wrapper {
               width: 96mm !important;
-              height: ${tamanho === "100x150" ? "144mm" : tamanho === "100x75" ? "71mm" : "46mm"} !important;
+              height: ${wrapperH} !important;
               margin: 2mm auto 0 auto !important;
               box-sizing: border-box !important;
               display: flex !important;
@@ -211,14 +262,68 @@ export default function EtiquetaBTW({ bobina, onClose }) {
             }
           </style>
         </head>
-        <body onload="window.focus(); window.print();">
+        <body>
           <div class="etq-print-wrapper">
-            ${htmlContent}
+            ${el.innerHTML}
           </div>
         </body>
       </html>
-    `);
+    `;
+
+    toast.info("Enviando para a impressora...");
+
+    // Tentativa 1: Iframe invisível (mais confiável em navegadores modernos)
+    try {
+      let iframe = document.getElementById("elgin-print-iframe");
+      if (iframe) iframe.remove();
+
+      iframe = document.createElement("iframe");
+      iframe.id = "elgin-print-iframe";
+      iframe.style.position = "fixed";
+      iframe.style.top = "-9999px";
+      iframe.style.left = "-9999px";
+      iframe.style.width = "100mm";
+      iframe.style.height = pageH;
+      iframe.style.border = "0";
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow.document;
+      doc.open();
+      doc.write(fullHtml);
+      doc.close();
+
+      setTimeout(() => {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        } catch (e) {
+          console.warn("Iframe print blocked, falling back to window.open", e);
+          fallbackWindowPrint(fullHtml);
+        }
+      }, 350);
+    } catch (err) {
+      console.warn("Erro ao criar iframe:", err);
+      fallbackWindowPrint(fullHtml);
+    }
+  };
+
+  const fallbackWindowPrint = (html) => {
+    const janela = window.open("", "_blank", "width=850,height=750");
+    if (!janela) {
+      toast.error("O navegador bloqueou a janela. Baixe o PDF pelo botão ao lado!");
+      return;
+    }
+    janela.document.open();
+    janela.document.write(html);
     janela.document.close();
+    janela.focus();
+    setTimeout(() => {
+      try {
+        janela.print();
+      } catch (e) {
+        console.error(e);
+      }
+    }, 450);
   };
 
   return createPortal(
@@ -251,7 +356,7 @@ export default function EtiquetaBTW({ bobina, onClose }) {
         <div className="px-5 py-2.5 bg-muted/40 border-b border-border flex flex-wrap items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
-              <Maximize2 className="w-3.5 h-3.5" /> Tamanho do Rolo:
+              <Maximize2 className="w-3.5 h-3.5" /> Rolo:
             </span>
             <div className="inline-flex rounded-lg border border-border bg-background p-0.5">
               <button
@@ -291,18 +396,61 @@ export default function EtiquetaBTW({ bobina, onClose }) {
             </div>
           </div>
 
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowGuiaElgin(!showGuiaElgin)}
-            className="h-7 text-xs gap-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40"
-          >
-            <Settings className="w-3.5 h-3.5" />
-            Configurar Elgin no Windows & Chrome
-            {showGuiaElgin ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowDiagnostico(!showDiagnostico)}
+              className="h-7 text-xs gap-1.5 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              Não imprimiu? Diagnóstico
+              {showDiagnostico ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowGuiaElgin(!showGuiaElgin)}
+              className="h-7 text-xs gap-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              Configurar Elgin
+              {showGuiaElgin ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </Button>
+          </div>
         </div>
+
+        {/* Diagnóstico Rápido: Se a impressora não responder fisicamente */}
+        {showDiagnostico && (
+          <div className="px-5 py-3 bg-amber-50/90 dark:bg-amber-950/40 border-b border-amber-300 dark:border-amber-900 text-xs text-amber-950 dark:text-amber-100 space-y-2 shrink-0 animate-in fade-in-50">
+            <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-300">
+              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              Checklist de 1 minuto: O que fazer se a Elgin não puxar a etiqueta:
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
+              <div className="bg-background p-2.5 rounded-lg border border-amber-200 dark:border-amber-800 space-y-1">
+                <strong className="text-amber-800 dark:text-amber-300 block">1. Fila de impressão travada:</strong>
+                <p className="text-muted-foreground leading-relaxed">
+                  Se a etiqueta anterior deu erro, ela fica presa na fila do Windows. Aperte <kbd className="bg-muted px-1 rounded">Win+R</kbd>, digite <code className="font-bold">control printers</code>, abra a <strong>ELGIN L42PRO</strong> e clique em <em>"Cancelar todos os documentos"</em>.
+                </p>
+              </div>
+              <div className="bg-background p-2.5 rounded-lg border border-amber-200 dark:border-amber-800 space-y-1">
+                <strong className="text-amber-800 dark:text-amber-300 block">2. Luz do LED da Elgin:</strong>
+                <p className="text-muted-foreground leading-relaxed">
+                  Se o LED estiver <strong>Vermelho piscando</strong>, a impressora travou no sensor. Feche bem a tampa e <strong>segure o botão FEED por 3 segundos</strong> até ela calibrar o papel e a luz ficar <strong>Verde fixa</strong>.
+                </p>
+              </div>
+              <div className="bg-background p-2.5 rounded-lg border border-amber-200 dark:border-amber-800 space-y-1">
+                <strong className="text-amber-800 dark:text-amber-300 block">3. Baixar em PDF (Alternativa 100%):</strong>
+                <p className="text-muted-foreground leading-relaxed">
+                  Clique no botão <strong>"Baixar PDF"</strong> no rodapé. Você pode abrir o PDF no Adobe Acrobat ou Edge e mandar imprimir direto na Elgin sem depender de pop-up.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Guia Rápido Elgin (Acordeão) */}
         {showGuiaElgin && (
@@ -582,8 +730,8 @@ export default function EtiquetaBTW({ bobina, onClose }) {
         </div>
 
         {/* Rodapé com Ações */}
-        <div className="p-4 border-t border-border bg-card flex flex-wrap items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-2">
+        <div className="p-4 border-t border-border bg-card flex flex-wrap items-center justify-between gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button
               type="button"
               variant="outline"
@@ -600,13 +748,45 @@ export default function EtiquetaBTW({ bobina, onClose }) {
               ) : (
                 <>
                   <FileCode className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Copiar Código ZPL (Elgin)</span>
+                  <span>Copiar ZPL</span>
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadZpl}
+              className="gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+              title="Baixar arquivo .ZPL para envio direto à impressora"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Baixar .ZPL</span>
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={handleDownloadPdf}
+              disabled={downloadingPdf}
+              className="gap-1.5 text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+              title="Baixar em arquivo PDF (alternativa infalível)"
+            >
+              {downloadingPdf ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Gerando PDF...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                  <span>Baixar PDF ({tamanho})</span>
                 </>
               )}
             </Button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 ml-auto">
             <Button variant="outline" size="sm" onClick={onClose}>
               Fechar
             </Button>
