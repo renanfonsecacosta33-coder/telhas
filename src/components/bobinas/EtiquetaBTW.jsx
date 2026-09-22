@@ -1,106 +1,220 @@
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
+import QRCode from "qrcode";
 import { Button } from "@/components/ui/button";
-import { Printer, X } from "lucide-react";
+import {
+  Printer,
+  X,
+  Copy,
+  Check,
+  FileCode,
+  QrCode,
+  Info,
+  ChevronDown,
+  ChevronUp,
+  Settings,
+  Sparkles,
+  Maximize2
+} from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
 
 /**
- * Etiqueta para bobinas — layout atualizado com Chapa Real / Chapa Utilizada.
+ * Etiqueta BTW / Industrial para Bobinas
+ * Otimizada para Impressoras Térmicas (Elgin L42PRO, Zebra, Argox)
+ * Suporta formatos 100x150 mm (Padrão Elgin / Foto real), 100x75 mm e 100x50 mm.
  */
 export default function EtiquetaBTW({ bobina, onClose }) {
   const printRef = useRef(null);
+  const [tamanho, setTamanho] = useState(() => {
+    return localStorage.getItem("ajl_etiqueta_tamanho") || "100x150";
+  });
+  const [qrUrl, setQrUrl] = useState("");
+  const [copiedZpl, setCopiedZpl] = useState(false);
+  const [showGuiaElgin, setShowGuiaElgin] = useState(false);
 
-  const hoje = format(new Date(), "dd/MM", { locale: ptBR });
+  const hoje = format(new Date(), "dd/MM/yyyy", { locale: ptBR });
+  const horaAtual = format(new Date(), "HH:mm", { locale: ptBR });
   const dataExib = bobina.data_recebimento
-    ? bobina.data_recebimento.slice(5).replace("-", "/")
+    ? format(new Date(bobina.data_recebimento), "dd/MM/yyyy", { locale: ptBR })
     : hoje;
 
-  const dim = bobina.largura_mm ? String(bobina.largura_mm) : "—";
+  const dim = bobina.largura_mm ? `${bobina.largura_mm} mm` : "—";
 
   const pesoAtual = bobina.peso_kg != null
-    ? bobina.peso_kg.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })
+    ? `${Number(bobina.peso_kg).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 1 })} kg`
     : "—";
 
   const pesoBruto = bobina.peso_inicial != null
-    ? bobina.peso_inicial.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })
+    ? `${Number(bobina.peso_inicial).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 1 })} kg`
     : pesoAtual;
 
   const chapaReal = bobina.chapa || "—";
   const corBobina = bobina.cor || "—";
   const isCorteDobra = bobina.setor === "corte_dobra";
   const chapaUtilizada = bobina.espessura_utilizada || bobina.chapa || "—";
-  const fornecedor = (bobina.fornecedor || "").trim() || "—";
+  const fornecedor = (bobina.fornecedor || "").trim() || "NÃO INFORMADO";
+  const nfOrigem = bobina.nf || "—";
+  const qualidade = bobina.qualidade || bobina.espessura_real || "GV";
+  const codigo = bobina.codigo || "BOBINA";
+  const subCod = bobina.sub_cod || "—";
+  const setorLabel = isCorteDobra ? "CORTE E DOBRA" : "TELHAS METÁLICAS";
+
+  // Gerar QR Code apontando para o rastreio da bobina
+  useEffect(() => {
+    const baseUrl = window.location.origin;
+    const trackingUrl = `${baseUrl}/bobina-qr/${bobina.id || bobina.codigo}`;
+    QRCode.toDataURL(trackingUrl, {
+      width: 280,
+      margin: 1,
+      errorCorrectionLevel: "M",
+      color: { dark: "#000000", light: "#ffffff" }
+    })
+      .then(setQrUrl)
+      .catch((err) => console.error("Erro ao gerar QR da bobina:", err));
+  }, [bobina]);
+
+  const handleMudarTamanho = (novoTamanho) => {
+    setTamanho(novoTamanho);
+    localStorage.setItem("ajl_etiqueta_tamanho", novoTamanho);
+  };
+
+  // Código ZPL nativo para impressoras térmicas (Elgin L42PRO / Zebra / Argox)
+  const gerarZpl = () => {
+    if (tamanho === "100x150") {
+      return `^XA
+^PW800
+^LL1200
+^FO30,30^GB740,1140,4^FS
+^FO50,50^A0N,32,32^FDAJL FERRO E ACO^FS
+^FO50,88^A0N,18,18^FDSISTEMA INDUSTRIAL - ${setorLabel}^FS
+^FO520,50^A0N,20,20^FDRECEBIDO EM:^FS
+^FO520,78^A0N,24,24^FD${dataExib}^FS
+^FO50,120^GB700,3,3^FS
+^FO50,140^GB700,120,120^FS
+^FO70,165^A0N,75,75^FR^FD${codigo}^FS
+^FO50,280^A0N,22,22^FDSUB-COD: ${subCod} | QUALIDADE: ${qualidade}^FS
+^FO50,315^GB700,2,2^FS
+^FO50,335^A0N,24,24^FDDIMENSOES / LARGURA:^FS
+^FO350,330^A0N,34,34^FD${dim}^FS
+^FO50,385^A0N,24,24^FDCHAPA REAL (ESPESSURA):^FS
+^FO350,380^A0N,34,34^FD${chapaReal} mm^FS
+^FO50,435^A0N,24,24^FD${isCorteDobra ? "CHAPA UTILIZADA:" : "COR DA BOBINA:"}^FS
+^FO350,430^A0N,34,34^FD${isCorteDobra ? chapaUtilizada : corBobina}^FS
+^FO50,485^A0N,24,24^FDFORNECEDOR / USINA:^FS
+^FO350,485^A0N,26,26^FD${fornecedor.slice(0, 24)}^FS
+^FO50,535^A0N,24,24^FDNOTA FISCAL ORIGEM:^FS
+^FO350,530^A0N,34,34^FD${nfOrigem}^FS
+^FO50,585^GB700,2,2^FS
+^FO50,610^GB340,110,2^FS
+^FO70,625^A0N,20,20^FDPESO BRUTO INICIAL^FS
+^FO70,660^A0N,38,38^FD${pesoBruto}^FS
+^FO410,610^GB340,110,3^FS
+^FO430,625^A0N,20,20^FDPESO LIQUIDO ATUAL^FS
+^FO430,660^A0N,44,44^FD${pesoAtual}^FS
+^FO50,740^GB700,2,2^FS
+^FO70,760^BQN,2,7^FDQA,https://fabricas.base44.app/bobina-qr/${bobina.id || codigo}^FS
+^FO320,770^A0N,26,26^FDRASTREABILIDADE DIGITAL^FS
+^FO320,810^A0N,20,20^FDEscaneie com smartphone ou PDA^FS
+^FO320,840^A0N,20,20^FDpara historico de consumo e OPs^FS
+^FO320,880^A0N,22,22^FDLOTE INTERNO: ${codigo}^FS
+^FO50,1050^GB700,2,2^FS
+^FO50,1070^A0N,18,18^FDAJL FERRO E ACO - ETIQUETA TERMICA ELGIN L42PRO^FS
+^FO50,1095^A0N,16,16^FDEmissao: ${hoje} as ${horaAtual}^FS
+^XZ`;
+    }
+
+    // 100x75 mm
+    return `^XA
+^PW800
+^LL600
+^FO30,20^GB740,560,3^FS
+^FO50,35^A0N,30,30^FDAJL FERRO E ACO - ${setorLabel}^FS
+^FO50,75^A0N,55,55^FD${codigo}^FS
+^FO50,140^GB700,2,2^FS
+^FO50,155^A0N,22,22^FDDIMENSAO: ${dim} | CHAPA: ${chapaReal} mm^FS
+^FO50,185^A0N,22,22^FD${isCorteDobra ? "CHAPA UTIL:" : "COR:"} ${isCorteDobra ? chapaUtilizada : corBobina} | QUAL: ${qualidade}^FS
+^FO50,215^A0N,22,22^FDFORNECEDOR: ${fornecedor.slice(0, 26)}^FS
+^FO50,245^A0N,24,24^FDNF: ${nfOrigem} | PESO ATUAL: ${pesoAtual}^FS
+^FO50,285^GB700,2,2^FS
+^FO50,305^BQN,2,6^FDQA,https://fabricas.base44.app/bobina-qr/${bobina.id || codigo}^FS
+^FO250,320^A0N,24,24^FDBOBINA RASTREADA POR QR^FS
+^FO250,355^A0N,20,20^FDLote: ${codigo} | NF: ${nfOrigem}^FS
+^FO250,390^A0N,20,20^FDEmissao: ${hoje}^FS
+^FO50,520^GB700,2,2^FS
+^FO50,535^A0N,16,16^FDAJL FERRO E ACO - ELGIN L42PRO^FS
+^XZ`;
+  };
+
+  const handleCopyZpl = () => {
+    const code = gerarZpl();
+    navigator.clipboard.writeText(code);
+    setCopiedZpl(true);
+    toast.success("Código ZPL copiado! Compatível com Elgin L42PRO e Zebra.");
+    setTimeout(() => setCopiedZpl(false), 2500);
+  };
 
   const handlePrint = () => {
-    const conteudo = printRef.current?.innerHTML;
-    const janela = window.open("", "_blank", "width=700,height=500");
+    const el = printRef.current;
+    if (!el) return;
+
+    const pageW = "100mm";
+    const pageH = tamanho === "100x150" ? "150mm" : tamanho === "100x75" ? "75mm" : "50mm";
+
+    const janela = window.open("", "_blank", "width=850,height=750");
     if (!janela) {
-      alert("O bloqueador de pop-ups impediu a abertura da etiqueta. Permita pop-ups para este site e tente novamente.");
+      alert("O bloqueador de pop-ups impediu a impressão. Permita pop-ups para este site e clique novamente em Imprimir.");
       return;
     }
+
+    const htmlContent = el.innerHTML;
+
     janela.document.write(`
       <!DOCTYPE html>
-      <html>
+      <html lang="pt-BR">
         <head>
           <meta charset="utf-8" />
-          <title>Etiqueta ${bobina.codigo || ""}</title>
+          <title>Etiqueta ${codigo} - Elgin L42PRO</title>
           <style>
-            @page { size: 101.6mm 76.2mm; margin: 0; }
-            * { box-sizing: border-box; margin: 0; padding: 0; }
-            body {
-              font-family: Arial, sans-serif; background: white;
-              width: 101.6mm; height: 76.2mm;
-              display: flex; align-items: center; justify-content: center;
+            @page {
+              size: ${pageW} ${pageH};
+              margin: 0mm !important;
             }
-            .etq {
-              width: 96mm; height: 70mm;
-              border: 2pt solid #000;
-              display: flex; flex-direction: column;
-              background: white; overflow: hidden;
+            * {
+              box-sizing: border-box !important;
+              margin: 0;
+              padding: 0;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
-            .hdr {
-              display: flex; align-items: center; justify-content: space-between;
-              padding: 3pt 5pt; border-bottom: 1.5pt solid #000; gap: 4pt;
+            html, body {
+              width: ${pageW} !important;
+              height: ${pageH} !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #fff !important;
+              color: #000 !important;
+              font-family: Arial, Helvetica, sans-serif !important;
+              display: flex !important;
+              flex-direction: column !important;
+              align-items: center !important;
+              justify-content: flex-start !important;
             }
-            .cod { font-size: 24pt; font-weight: 900; color: #000; line-height: 1; letter-spacing: -0.5pt; }
-            .logo { display: flex; flex-direction: column; align-items: center; justify-content: center; }
-            .logo-s { font-size: 14pt; font-weight: 900; color: #000; line-height: 1; }
-            .logo-m { font-size: 10pt; font-weight: 900; color: #000; line-height: 1; letter-spacing: 1pt; }
-            .logo-sub { font-size: 5pt; color: #000; letter-spacing: 0.3pt; text-transform: uppercase; }
-            .sub-row {
-              display: flex; align-items: center;
-              border-bottom: 0.75pt solid #000; padding: 2pt 5pt; gap: 4pt;
+            .etq-print-wrapper {
+              width: 96mm !important;
+              height: ${tamanho === "100x150" ? "144mm" : tamanho === "100x75" ? "71mm" : "46mm"} !important;
+              margin: 2mm auto 0 auto !important;
+              box-sizing: border-box !important;
+              display: flex !important;
+              flex-direction: column !important;
             }
-            .sub-lbl { font-size: 7pt; font-weight: 600; color: #000; }
-            .sub-val { font-size: 7.5pt; font-weight: 700; color: #000; }
-            .grid { flex: 1; display: flex; flex-direction: column; }
-            .row { display: flex; border-bottom: 0.75pt solid #000; flex: 1; min-height: 0; }
-            .row:last-child { border-bottom: none; }
-            .cell {
-              display: flex; align-items: center; padding: 2pt 5pt;
-              font-size: 8pt; color: #000; white-space: nowrap;
-            }
-            .cell-lbl {
-              background: #f5f5f5; min-width: 22mm; font-weight: 700;
-              border-right: 0.75pt solid #000; font-size: 7.5pt;
-            }
-            .cell-val { flex: 1; font-weight: 700; font-size: 9.5pt; }
-            .cell-peso {
-              border-left: 0.75pt solid #000; flex-direction: column;
-              align-items: flex-start; min-width: 24mm; font-size: 6.5pt; font-weight: 600;
-            }
-            .cell-peso span { font-size: 10pt; font-weight: 900; }
-            .ftr {
-              display: flex; border-top: 1.5pt solid #000; padding: 3pt 5pt;
-              align-items: center; justify-content: space-between; gap: 4pt;
-            }
-            .ftr-item { font-size: 7.5pt; color: #000; }
-            .ftr-item strong { font-size: 10pt; font-weight: 900; }
           </style>
         </head>
-        <body onload="window.print(); window.close();">
-          ${conteudo}
+        <body onload="window.focus(); window.print();">
+          <div class="etq-print-wrapper">
+            ${htmlContent}
+          </div>
         </body>
       </html>
     `);
@@ -108,136 +222,404 @@ export default function EtiquetaBTW({ bobina, onClose }) {
   };
 
   return createPortal(
-    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-bold text-lg">Etiqueta</h3>
-            <p className="text-xs text-muted-foreground">Prévia da etiqueta para impressão</p>
-          </div>
-          <Button variant="ghost" size="icon" onClick={onClose}><X className="w-4 h-4" /></Button>
-        </div>
-
-        <div className="flex justify-center">
-          <div ref={printRef} style={{ fontFamily: "Arial, sans-serif" }}>
-            <div style={{
-              width: "384px", height: "280px", border: "2px solid #000",
-              display: "flex", flexDirection: "column", background: "white", overflow: "hidden"
-            }}>
-              {/* Header */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 8px", borderBottom: "1.5px solid #000" }}>
-                <div style={{ fontSize: "38px", fontWeight: 900, color: "#000", lineHeight: 1, letterSpacing: "-1px" }}>
-                  {bobina.codigo || "—"}
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                  <div style={{ fontSize: "22px", fontWeight: 900, color: "#000", lineHeight: 1 }}>🛡</div>
-                  <div style={{ fontSize: "14px", fontWeight: 900, color: "#000", lineHeight: 1, letterSpacing: "2px" }}>AJL</div>
-                  <div style={{ fontSize: "7px", color: "#000", letterSpacing: "0.5px", textTransform: "uppercase" }}>Ferro e Aço</div>
-                </div>
-              </div>
-
-              {/* Sub. Cód. row */}
-              <div style={{ display: "flex", alignItems: "center", borderBottom: "0.75px solid #000", padding: "2px 8px", gap: "6px" }}>
-                <span style={{ fontSize: "10px", fontWeight: 600 }}>Sub. Cód.:</span>
-                <span style={{ fontSize: "11px", fontWeight: 700 }}>{bobina.sub_cod || "—"}</span>
-                <span style={{ marginLeft: "auto", fontSize: "10px", fontWeight: 600 }}>
-                  Qualidade: {bobina.espessura_real || bobina.qualidade || "—"}
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div className="bg-background border border-border rounded-2xl shadow-2xl max-w-2xl w-full max-h-[96vh] flex flex-col overflow-hidden animate-in fade-in-50 zoom-in-95 duration-150">
+        {/* Header Modal */}
+        <div className="px-5 py-3.5 border-b border-border flex items-center justify-between bg-card shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
+              🏷️
+            </div>
+            <div>
+              <h3 className="font-bold text-base leading-tight flex items-center gap-2">
+                Etiqueta Industrial da Bobina
+                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 font-mono font-bold">
+                  {codigo}
                 </span>
-                <span style={{ fontSize: "10px", fontWeight: 700, marginLeft: "8px" }}>{dataExib}</span>
-              </div>
-
-              {/* Grid principal */}
-              <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                {/* Dimensões + Peso atual */}
-                <div style={{ display: "flex", borderBottom: "0.75px solid #000", flex: 1 }}>
-                  <div style={{ padding: "3px 8px", fontSize: "11px", background: "#f5f5f5", minWidth: "82px", display: "flex", alignItems: "center", borderRight: "0.75px solid #000", fontWeight: 700 }}>
-                    Dimensões
-                  </div>
-                  <div style={{ padding: "3px 8px", fontSize: "15px", fontWeight: 900, color: "#000", flex: 1, display: "flex", alignItems: "center" }}>
-                    {dim}
-                  </div>
-                  <div style={{ padding: "3px 8px", fontSize: "10px", borderLeft: "0.75px solid #000", minWidth: "90px", display: "flex", flexDirection: "column", justifyContent: "center", fontWeight: 600 }}>
-                    Peso atual:
-                    <span style={{ fontSize: "14px", fontWeight: 900 }}>{pesoAtual}</span>
-                  </div>
-                </div>
-
-                {/* Chapa Real */}
-                <div style={{ display: "flex", borderBottom: "0.75px solid #000", flex: 1 }}>
-                  <div style={{ padding: "3px 8px", fontSize: "11px", background: "#f5f5f5", minWidth: "82px", display: "flex", alignItems: "center", borderRight: "0.75px solid #000", fontWeight: 700 }}>
-                    Chapa Real
-                  </div>
-                  <div style={{ padding: "3px 8px", fontSize: "15px", fontWeight: 900, color: "#000", flex: 1, display: "flex", alignItems: "center" }}>
-                    {chapaReal}
-                  </div>
-                </div>
-
-                {/* COR (Telhas) / CHAPA UTILIZADA (Corte e Dobra) */}
-                <div style={{ display: "flex", borderBottom: "0.75px solid #000", flex: 1 }}>
-                  <div style={{ padding: "3px 8px", fontSize: "11px", background: "#f5f5f5", minWidth: "82px", display: "flex", alignItems: "center", borderRight: "0.75px solid #000", fontWeight: 700 }}>
-                    {isCorteDobra ? "CHAPA UTIL." : "COR"}
-                  </div>
-                  <div style={{ padding: "3px 8px", fontSize: "15px", fontWeight: 900, color: "#000", flex: 1, display: "flex", alignItems: "center" }}>
-                    {isCorteDobra ? chapaUtilizada : corBobina}
-                  </div>
-                </div>
-
-                {/* FORNECEDOR */}
-                <div style={{ display: "flex", borderBottom: "0.75px solid #000", flex: 1 }}>
-                  <div style={{ padding: "3px 8px", fontSize: "11px", background: "#f5f5f5", minWidth: "82px", display: "flex", alignItems: "center", borderRight: "0.75px solid #000", fontWeight: 700 }}>
-                    FORNECEDOR
-                  </div>
-                  <div style={{
-                    padding: "3px 8px",
-                    fontSize: fornecedor.length > 20 ? "13px" : "15px",
-                    fontWeight: 900,
-                    color: "#000",
-                    flex: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    textTransform: "uppercase",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap"
-                  }}>
-                    {fornecedor}
-                  </div>
-                </div>
-
-                {/* NF Origem */}
-                <div style={{ display: "flex", flex: 1 }}>
-                  <div style={{ padding: "3px 8px", fontSize: "11px", background: "#f5f5f5", minWidth: "82px", display: "flex", alignItems: "center", borderRight: "0.75px solid #000", fontWeight: 700 }}>
-                    NF ORIGEM
-                  </div>
-                  <div style={{ padding: "3px 8px", fontSize: "15px", fontWeight: 900, color: "#000", flex: 1, display: "flex", alignItems: "center" }}>
-                    {bobina.nf || "—"}
-                  </div>
-                </div>
-              </div>
-
-              {/* Rodapé */}
-              <div style={{ display: "flex", borderTop: "1.5px solid #000", padding: "4px 8px", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ fontSize: "11px", color: "#000" }}>
-                  Peso Bruto: <strong style={{ fontSize: "14px", fontWeight: 900 }}>{pesoBruto}</strong>
-                </div>
-                <div style={{ fontSize: "11px", color: "#000" }}>
-                  Peso Líquido: <strong style={{ fontSize: "14px", fontWeight: 900 }}>{pesoAtual}</strong>
-                </div>
-              </div>
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Otimizada para Elgin L42PRO Full, Zebra e impressoras térmicas
+              </p>
             </div>
           </div>
-        </div>
-
-        <div className="flex gap-3 justify-end">
-          <Button variant="outline" onClick={onClose}>Fechar</Button>
-          <Button className="gap-2 bg-black hover:bg-gray-800" onClick={handlePrint}>
-            <Printer className="w-4 h-4" /> Imprimir / Baixar
+          <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full">
+            <X className="w-4 h-4" />
           </Button>
         </div>
 
-        <p className="text-xs text-center text-muted-foreground">
-          Tamanho de impressão: 101,6 × 76,2 mm (4" × 3")
-        </p>
+        {/* Barra de Seleção de Tamanho */}
+        <div className="px-5 py-2.5 bg-muted/40 border-b border-border flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+              <Maximize2 className="w-3.5 h-3.5" /> Tamanho do Rolo:
+            </span>
+            <div className="inline-flex rounded-lg border border-border bg-background p-0.5">
+              <button
+                type="button"
+                onClick={() => handleMudarTamanho("100x150")}
+                className={`px-3 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${
+                  tamanho === "100x150"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                100 × 150 mm
+                <span className="text-[10px] opacity-80 font-normal">(Sua Elgin)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleMudarTamanho("100x75")}
+                className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                  tamanho === "100x75"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                100 × 75 mm
+              </button>
+              <button
+                type="button"
+                onClick={() => handleMudarTamanho("100x50")}
+                className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                  tamanho === "100x50"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                100 × 50 mm
+              </button>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowGuiaElgin(!showGuiaElgin)}
+            className="h-7 text-xs gap-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+          >
+            <Settings className="w-3.5 h-3.5" />
+            Configurar Elgin no Windows & Chrome
+            {showGuiaElgin ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          </Button>
+        </div>
+
+        {/* Guia Rápido Elgin (Acordeão) */}
+        {showGuiaElgin && (
+          <div className="px-5 py-3 bg-blue-50/80 dark:bg-blue-950/30 border-b border-blue-200 dark:border-blue-900 text-xs text-blue-950 dark:text-blue-100 space-y-2 shrink-0 animate-in fade-in-50">
+            <div className="flex items-center gap-1.5 font-bold text-blue-800 dark:text-blue-300">
+              <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              Instruções para a etiqueta sair perfeita na ELGIN L42PRO:
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+              <div className="bg-background/80 p-2.5 rounded-lg border border-blue-200/60 dark:border-blue-800/40 space-y-1">
+                <strong className="text-blue-700 dark:text-blue-300 block">1. Na janela de impressão do Chrome:</strong>
+                <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground">
+                  <li>Destino: <strong>ELGIN L42PRO FULL</strong></li>
+                  <li>Clique em <strong>Mais definições</strong></li>
+                  <li>Margens: selecione <strong>Nenhuma</strong> <span className="text-red-600 dark:text-red-400 font-bold">(OBRIGATÓRIO)</span></li>
+                  <li>Cabeçalhos e rodapés: <strong>DESMARCADO</strong></li>
+                  <li>Escala: <strong>100%</strong> ou <strong>Ajustar à área imprimível</strong></li>
+                </ul>
+              </div>
+              <div className="bg-background/80 p-2.5 rounded-lg border border-blue-200/60 dark:border-blue-800/40 space-y-1">
+                <strong className="text-blue-700 dark:text-blue-300 block">2. No Driver da Elgin (Windows):</strong>
+                <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground">
+                  <li>Painel de Controle → Impressoras → Elgin L42PRO</li>
+                  <li>Preferências de Impressão → <strong>Configurar Página</strong></li>
+                  <li>Defina Largura: <strong>100 mm</strong> / Altura: <strong>150 mm</strong></li>
+                  <li>Aba Estoque / Mídia: <strong>Etiqueta com Espaçamento (Gap)</strong></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Área Visual da Etiqueta (Preview) */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex justify-center bg-slate-100/70 dark:bg-slate-900/50">
+          <div
+            ref={printRef}
+            className="bg-white text-black shadow-xl rounded-sm transition-all duration-200 overflow-hidden"
+            style={{
+              width: "380px",
+              height: tamanho === "100x150" ? "570px" : tamanho === "100x75" ? "285px" : "190px",
+              border: "3px solid #000",
+              display: "flex",
+              flexDirection: "column",
+              boxSizing: "border-box",
+              fontFamily: "Arial, Helvetica, sans-serif"
+            }}
+          >
+            {/* ============================================================ */}
+            {/* FORMATO 100x150 mm (TAMANHO INDUSTRIAL - ROLO DA ELGIN) */}
+            {/* ============================================================ */}
+            {tamanho === "100x150" ? (
+              <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: "6px" }}>
+                {/* Cabeçalho */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "2px solid #000", paddingBottom: "6px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div style={{
+                      width: "36px", height: "36px", background: "#000", color: "#fff",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontWeight: 900, fontSize: "20px", borderRadius: "4px"
+                    }}>
+                      A
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "16px", fontWeight: 900, letterSpacing: "1px", lineHeight: 1.1 }}>
+                        AJL FERRO &amp; AÇO
+                      </div>
+                      <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#444", letterSpacing: "0.5px" }}>
+                        SISTEMA DE RASTREABILIDADE
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: "8px", color: "#666", fontWeight: 600 }}>ENTRADA EM</div>
+                    <div style={{ fontSize: "11px", fontWeight: 800 }}>{dataExib}</div>
+                  </div>
+                </div>
+
+                {/* Bloco Gigante do Código da Bobina */}
+                <div style={{
+                  margin: "8px 0 6px 0",
+                  background: "#000",
+                  color: "#fff",
+                  padding: "8px 10px",
+                  borderRadius: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between"
+                }}>
+                  <div>
+                    <div style={{ fontSize: "9px", letterSpacing: "1px", opacity: 0.85, fontWeight: 700 }}>
+                      CÓDIGO DA BOBINA
+                    </div>
+                    <div style={{ fontSize: "38px", fontWeight: 900, lineHeight: 1, letterSpacing: "-1px" }}>
+                      {codigo}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: "9px", opacity: 0.85, fontWeight: 700 }}>SUB. CÓD.</div>
+                    <div style={{ fontSize: "16px", fontWeight: 900 }}>{subCod}</div>
+                    <div style={{ fontSize: "9px", fontWeight: 800, background: "#fff", color: "#000", padding: "1px 6px", borderRadius: "2px", marginTop: "2px" }}>
+                      {qualidade}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Grid Técnico Industrial */}
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", border: "1.5px solid #000", borderRadius: "3px", overflow: "hidden" }}>
+                  {/* Linha 1: Dimensões + Chapa Real */}
+                  <div style={{ display: "flex", borderBottom: "1.5px solid #000" }}>
+                    <div style={{ flex: 1, padding: "5px 8px", borderRight: "1.5px solid #000" }}>
+                      <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#555" }}>DIMENSÕES / LARGURA</div>
+                      <div style={{ fontSize: "17px", fontWeight: 900, color: "#000" }}>{dim}</div>
+                    </div>
+                    <div style={{ flex: 1, padding: "5px 8px" }}>
+                      <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#555" }}>CHAPA REAL (ESPESSURA)</div>
+                      <div style={{ fontSize: "17px", fontWeight: 900, color: "#000" }}>{chapaReal} mm</div>
+                    </div>
+                  </div>
+
+                  {/* Linha 2: Cor / Chapa Utilizada + Qualidade */}
+                  <div style={{ display: "flex", borderBottom: "1.5px solid #000" }}>
+                    <div style={{ flex: 1, padding: "5px 8px", borderRight: "1.5px solid #000" }}>
+                      <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#555" }}>
+                        {isCorteDobra ? "CHAPA UTILIZADA" : "COR DA BOBINA"}
+                      </div>
+                      <div style={{ fontSize: "15px", fontWeight: 900, color: "#000" }}>
+                        {isCorteDobra ? chapaUtilizada : corBobina}
+                      </div>
+                    </div>
+                    <div style={{ flex: 1, padding: "5px 8px" }}>
+                      <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#555" }}>QUALIDADE / MATÉRIA-PRIMA</div>
+                      <div style={{ fontSize: "15px", fontWeight: 900, color: "#000" }}>{qualidade}</div>
+                    </div>
+                  </div>
+
+                  {/* Linha 3: Fornecedor + NF Origem */}
+                  <div style={{ display: "flex", borderBottom: "1.5px solid #000" }}>
+                    <div style={{ flex: 1.3, padding: "5px 8px", borderRight: "1.5px solid #000", overflow: "hidden" }}>
+                      <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#555" }}>FORNECEDOR / USINA</div>
+                      <div style={{ fontSize: "13px", fontWeight: 900, color: "#000", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {fornecedor}
+                      </div>
+                    </div>
+                    <div style={{ flex: 0.9, padding: "5px 8px" }}>
+                      <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#555" }}>NF DE ORIGEM</div>
+                      <div style={{ fontSize: "15px", fontWeight: 900, color: "#000" }}>{nfOrigem}</div>
+                    </div>
+                  </div>
+
+                  {/* Linha 4: Pesos (Destaque Principal de Chão de Fábrica) */}
+                  <div style={{ display: "flex", background: "#f8f8f8" }}>
+                    <div style={{ flex: 1, padding: "6px 8px", borderRight: "1.5px solid #000" }}>
+                      <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#555" }}>PESO BRUTO (INICIAL)</div>
+                      <div style={{ fontSize: "16px", fontWeight: 900, color: "#000" }}>{pesoBruto}</div>
+                    </div>
+                    <div style={{ flex: 1.2, padding: "6px 8px", background: "#f0f0f0" }}>
+                      <div style={{ fontSize: "8.5px", fontWeight: 800, color: "#000" }}>PESO LÍQUIDO (ESTOQUE)</div>
+                      <div style={{ fontSize: "20px", fontWeight: 900, color: "#000" }}>{pesoAtual}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bloco Inferior: QR Code de Rastreamento + Metadados */}
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "8px", padding: "6px", border: "1.5px solid #000", borderRadius: "3px" }}>
+                  <div style={{ width: "90px", height: "90px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {qrUrl ? (
+                      <img src={qrUrl} alt="QR Code" style={{ width: "86px", height: "86px", display: "block" }} />
+                    ) : (
+                      <div style={{ fontSize: "9px", textAlign: "center" }}>Carregando QR...</div>
+                    )}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: "12px", fontWeight: 900, color: "#000" }}>
+                      RASTREABILIDADE DIGITAL
+                    </div>
+                    <div style={{ fontSize: "8.5px", color: "#444", marginTop: "2px", lineHeight: 1.3 }}>
+                      Bipe com a câmera do celular ou leitor 2D para consultar histórico, OPs vinculadas e consumo desta bobina.
+                    </div>
+                    <div style={{ marginTop: "4px", fontSize: "9px", fontWeight: 800, color: "#000" }}>
+                      SETOR: {setorLabel}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rodapé da Etiqueta */}
+                <div style={{ marginTop: "auto", paddingTop: "4px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "8px", color: "#666", fontWeight: 600 }}>
+                  <span>AJL FERRO &amp; AÇO — SISTEMA DE FÁBRICAS</span>
+                  <span>Emissão: {hoje} {horaAtual}</span>
+                </div>
+              </div>
+            ) : tamanho === "100x75" ? (
+              /* ============================================================ */
+              /* FORMATO 100x75 mm (COMPACTO MÉDIO) */
+              /* ============================================================ */
+              <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: "5px" }}>
+                {/* Header compacto */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1.5px solid #000", paddingBottom: "3px" }}>
+                  <div style={{ fontSize: "28px", fontWeight: 900, color: "#000", lineHeight: 1 }}>
+                    {codigo}
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: "11px", fontWeight: 900 }}>AJL FERRO &amp; AÇO</div>
+                    <div style={{ fontSize: "8px", color: "#555" }}>{qualidade} | {dataExib}</div>
+                  </div>
+                </div>
+
+                {/* Grid 100x75 */}
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", marginTop: "4px", border: "1px solid #000" }}>
+                  <div style={{ display: "flex", borderBottom: "1px solid #000", flex: 1 }}>
+                    <div style={{ flex: 1, padding: "2px 5px", borderRight: "1px solid #000", background: "#f8f8f8" }}>
+                      <span style={{ fontSize: "7.5px", fontWeight: 700, color: "#555" }}>DIMENSÕES: </span>
+                      <strong style={{ fontSize: "12px" }}>{dim}</strong>
+                    </div>
+                    <div style={{ flex: 1, padding: "2px 5px" }}>
+                      <span style={{ fontSize: "7.5px", fontWeight: 700, color: "#555" }}>CHAPA: </span>
+                      <strong style={{ fontSize: "12px" }}>{chapaReal} mm</strong>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", borderBottom: "1px solid #000", flex: 1 }}>
+                    <div style={{ flex: 1, padding: "2px 5px", borderRight: "1px solid #000" }}>
+                      <span style={{ fontSize: "7.5px", fontWeight: 700, color: "#555" }}>COR/UTIL: </span>
+                      <strong style={{ fontSize: "11px" }}>{isCorteDobra ? chapaUtilizada : corBobina}</strong>
+                    </div>
+                    <div style={{ flex: 1, padding: "2px 5px" }}>
+                      <span style={{ fontSize: "7.5px", fontWeight: 700, color: "#555" }}>NF ORIGEM: </span>
+                      <strong style={{ fontSize: "12px" }}>{nfOrigem}</strong>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", borderBottom: "1px solid #000", flex: 1 }}>
+                    <div style={{ flex: 1, padding: "2px 5px" }}>
+                      <span style={{ fontSize: "7.5px", fontWeight: 700, color: "#555" }}>FORNECEDOR: </span>
+                      <strong style={{ fontSize: "11px" }}>{fornecedor}</strong>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", background: "#f0f0f0", flex: 1.2, alignItems: "center" }}>
+                    <div style={{ flex: 1, padding: "3px 5px", borderRight: "1px solid #000" }}>
+                      <span style={{ fontSize: "7.5px", fontWeight: 700 }}>PESO BRUTO: </span>
+                      <strong style={{ fontSize: "12px" }}>{pesoBruto}</strong>
+                    </div>
+                    <div style={{ flex: 1, padding: "3px 5px" }}>
+                      <span style={{ fontSize: "7.5px", fontWeight: 800 }}>PESO LÍQUIDO: </span>
+                      <strong style={{ fontSize: "14px" }}>{pesoAtual}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* QR mini */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "4px" }}>
+                  <div style={{ fontSize: "7.5px", color: "#555" }}>
+                    Rastreabilidade Digital AJL — {setorLabel}
+                  </div>
+                  {qrUrl && <img src={qrUrl} alt="QR" style={{ width: "32px", height: "32px" }} />}
+                </div>
+              </div>
+            ) : (
+              /* ============================================================ */
+              /* FORMATO 100x50 mm (ULTRA COMPACTO) */
+              /* ============================================================ */
+              <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: "4px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1.5px solid #000" }}>
+                  <div style={{ fontSize: "24px", fontWeight: 900 }}>{codigo}</div>
+                  <div style={{ fontSize: "12px", fontWeight: 900 }}>AJL FERRO &amp; AÇO</div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px", fontSize: "9px", marginTop: "3px" }}>
+                  <div>Largura: <strong>{dim}</strong></div>
+                  <div>Chapa: <strong>{chapaReal} mm</strong></div>
+                  <div>Cor: <strong>{isCorteDobra ? chapaUtilizada : corBobina}</strong></div>
+                  <div>NF: <strong>{nfOrigem}</strong></div>
+                </div>
+                <div style={{ marginTop: "auto", display: "flex", justifyContent: "space-between", background: "#000", color: "#fff", padding: "2px 6px", borderRadius: "2px" }}>
+                  <span style={{ fontSize: "9px", fontWeight: 700 }}>PESO ATUAL:</span>
+                  <strong style={{ fontSize: "12px" }}>{pesoAtual}</strong>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Rodapé com Ações */}
+        <div className="p-4 border-t border-border bg-card flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleCopyZpl}
+              className="gap-1.5 text-xs font-semibold"
+              title="Copiar código ZPL para BarTender ou utilitário da Elgin"
+            >
+              {copiedZpl ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-emerald-600 font-bold">ZPL Copiado!</span>
+                </>
+              ) : (
+                <>
+                  <FileCode className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Copiar Código ZPL (Elgin)</span>
+                </>
+              )}
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={onClose}>
+              Fechar
+            </Button>
+            <Button
+              size="sm"
+              onClick={handlePrint}
+              className="gap-2 bg-primary text-primary-foreground font-bold hover:opacity-90 shadow-md"
+            >
+              <Printer className="w-4 h-4" />
+              Imprimir na Elgin ({tamanho})
+            </Button>
+          </div>
+        </div>
       </div>
     </div>,
     document.body
