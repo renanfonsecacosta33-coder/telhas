@@ -22,9 +22,17 @@ import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
 import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERelatorioMaquinaModal";
 
-export default function Desbobinadeira() {
+export function getMaquinaOrdemDesb(ordem) {
+  if (!ordem) return "DESBOBINADEIRA 01";
+  const m = String(ordem.maquina || ordem.maquina_inicial || "").toUpperCase();
+  if (m.includes("02") || m.includes("2")) return "DESBOBINADEIRA 02";
+  return "DESBOBINADEIRA 01";
+}
+
+export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) {
   const { filialAtiva } = useFilial();
   const [user, setUser] = useState(null);
+  const [maquinaAtiva, setMaquinaAtiva] = useState(maquinaPadrao || "DESBOBINADEIRA 01");
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
   const [viewMode, setViewMode] = useState("dia");
@@ -48,29 +56,55 @@ export default function Desbobinadeira() {
   const maquinaDoUsuario = user?.maquina;
   const isOperadorRestrito = user && !isGestor;
 
+  useEffect(() => {
+    if (maquinaPadrao) {
+      setMaquinaAtiva(maquinaPadrao);
+    }
+  }, [maquinaPadrao]);
+
+  // Se o usuário for operador restrito e tiver máquina definida, ajusta para a máquina dele
+  useEffect(() => {
+    if (user && isOperadorRestrito && !maquinaPadrao && maquinaDoUsuario) {
+      const maqNorm = String(maquinaDoUsuario).toUpperCase();
+      if (maqNorm.includes("02") || maqNorm.includes("2")) {
+        setMaquinaAtiva("DESBOBINADEIRA 02");
+      } else {
+        setMaquinaAtiva("DESBOBINADEIRA 01");
+      }
+    }
+  }, [user, isOperadorRestrito, maquinaDoUsuario, maquinaPadrao]);
+
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
   const diasDaSemana = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
-  const { data: ordens = [], isLoading } = useQuery({
+  const { data: todasOrdens = [], isLoading } = useQuery({
     queryKey: ["ordens-desbobinadeira", filialAtiva],
     queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva }, "-data", 500),
     refetchInterval: 10000,
   });
 
-  // Som de alerta quando nova OP é criada (apenas para o operador da Desbobinadeira)
+  // Filtra as ordens para a máquina ativa (Desbobinadeira 01 ou 02)
+  const ordens = useMemo(() => {
+    return todasOrdens.filter(o => getMaquinaOrdemDesb(o) === maquinaAtiva);
+  }, [todasOrdens, maquinaAtiva]);
+
+  const totalOps01 = useMemo(() => todasOrdens.filter(o => getMaquinaOrdemDesb(o) === "DESBOBINADEIRA 01" && o.status !== "cancelado").length, [todasOrdens]);
+  const totalOps02 = useMemo(() => todasOrdens.filter(o => getMaquinaOrdemDesb(o) === "DESBOBINADEIRA 02" && o.status !== "cancelado").length, [todasOrdens]);
+
+  // Som de alerta quando nova OP é criada (apenas para o operador da Desbobinadeira correspondente)
   const prevIdsRef = useRef(null);
   useEffect(() => {
     if (!ordens.length) return;
     const currentIds = new Set(ordens.map(o => o.id));
     if (prevIdsRef.current !== null) {
       const hasNew = [...currentIds].some(id => !prevIdsRef.current.has(id));
-      if (hasNew && isOperadorDestaMaquina(user, "Desbobinadeira")) {
+      if (hasNew && isOperadorDestaMaquina(user, maquinaAtiva)) {
         playAlertSound();
       }
     }
     prevIdsRef.current = currentIds;
-  }, [ordens, user]);
+  }, [ordens, user, maquinaAtiva]);
 
   // Busca também as OPs das máquinas CD (guilhotina, dobra, etc.) para
   // calcular a sequência do pedido cruzando todos os setores
@@ -269,7 +303,15 @@ export default function Desbobinadeira() {
   };
 
   const openNew = (date = null) => {
-    setEditItem(date ? { _presets: { data: date } } : null);
+    setEditItem({
+      _presets: {
+        data: date || selectedDay,
+        maquina_inicial: maquinaAtiva,
+        maquina: maquinaAtiva,
+      },
+      maquina_inicial: maquinaAtiva,
+      maquina: maquinaAtiva,
+    });
     setDialog(true);
   };
   const openEdit = (item) => { setEditItem(item); setDialog(true); };
@@ -323,8 +365,20 @@ export default function Desbobinadeira() {
     );
   }
 
-  // Operador de outra máquina
-  if (user && isOperadorRestrito && maquinaDoUsuario && maquinaDoUsuario !== "DESBOBINADEIRA") {
+  // Validação de acesso do operador à máquina ativa
+  const temAcessoAMaquina = !user || isGestor || (() => {
+    const maqNorm = String(maquinaDoUsuario || "").toUpperCase().replace(/[\s\-_]/g, "");
+    if (!maqNorm) return false;
+    if (maquinaAtiva === "DESBOBINADEIRA 01") {
+      return maqNorm.includes("01") || maqNorm.includes("1") || maqNorm === "DESBOBINADEIRA";
+    }
+    if (maquinaAtiva === "DESBOBINADEIRA 02") {
+      return maqNorm.includes("02") || maqNorm.includes("2");
+    }
+    return true;
+  })();
+
+  if (user && isOperadorRestrito && !temAcessoAMaquina) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
         <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
@@ -338,14 +392,67 @@ export default function Desbobinadeira() {
 
   return (
     <div className="space-y-6">
+      {/* Seletor de Desbobinadeiras (Abas Superiores) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card border border-border p-3 rounded-2xl shadow-xs">
+        <div className="flex items-center gap-2 p-1 bg-muted/60 dark:bg-muted/30 rounded-xl border border-border/70 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setMaquinaAtiva("DESBOBINADEIRA 01")}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              maquinaAtiva === "DESBOBINADEIRA 01"
+                ? "bg-orange-500 text-white shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-background/70"
+            }`}
+          >
+            <Factory className="w-3.5 h-3.5" />
+            <span>Desbobinadeira 01</span>
+            <Badge className={`text-[9px] px-1 py-0 h-4 font-semibold ${maquinaAtiva === "DESBOBINADEIRA 01" ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"}`}>
+              até 3,00mm
+            </Badge>
+            <span className={`text-[10px] font-mono px-1.5 py-0 rounded-full font-bold ${maquinaAtiva === "DESBOBINADEIRA 01" ? "bg-black/20 text-white" : "bg-muted text-muted-foreground"}`}>
+              {totalOps01} OP{totalOps01 !== 1 ? "s" : ""}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMaquinaAtiva("DESBOBINADEIRA 02")}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              maquinaAtiva === "DESBOBINADEIRA 02"
+                ? "bg-amber-600 text-white shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-background/70"
+            }`}
+          >
+            <Factory className="w-3.5 h-3.5" />
+            <span>Desbobinadeira 02</span>
+            <Badge className={`text-[9px] px-1 py-0 h-4 font-semibold ${maquinaAtiva === "DESBOBINADEIRA 02" ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"}`}>
+              até 4,75mm
+            </Badge>
+            <span className={`text-[10px] font-mono px-1.5 py-0 rounded-full font-bold ${maquinaAtiva === "DESBOBINADEIRA 02" ? "bg-black/20 text-white" : "bg-muted text-muted-foreground"}`}>
+              {totalOps02} OP{totalOps02 !== 1 ? "s" : ""}
+            </span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Layers className="w-3.5 h-3.5 text-orange-500" />
+          <span>Filtro de capacidade ativo: <strong>{maquinaAtiva === "DESBOBINADEIRA 02" ? "bobinas até 4,75 mm" : "bobinas até 3,00 mm"}</strong></span>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Factory className="w-6 h-6 text-orange-500" />
-            Desbobinadeira
+            {maquinaAtiva === "DESBOBINADEIRA 02" ? "Desbobinadeira 02" : "Desbobinadeira 01"}
+            <Badge variant="outline" className={`text-xs font-semibold ${maquinaAtiva === "DESBOBINADEIRA 02" ? "border-amber-400 text-amber-800 bg-amber-50 dark:bg-amber-950/40" : "border-orange-300 text-orange-700 bg-orange-50 dark:bg-orange-950/30"}`}>
+              {maquinaAtiva === "DESBOBINADEIRA 02" ? "Capacidade: até 4,75 mm" : "Capacidade: até 3,00 mm"}
+            </Badge>
           </h1>
-          <p className="text-sm text-muted-foreground">Ordens de produção — Corte e Dobra</p>
+          <p className="text-sm text-muted-foreground">
+            {maquinaAtiva === "DESBOBINADEIRA 02" ? "Desbobinamento reforçado para bobinas pesadas até 4,75 mm" : "Desbobinamento para bobinas de até 3,00 mm"} — Corte e Dobra
+          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button
@@ -384,7 +491,7 @@ export default function Desbobinadeira() {
 
       {/* Monitor de Ociosidade e Setup da Máquina */}
       <MonitorOciosidadeMaquina
-        maquinaNome="Desbobinadeira"
+        maquinaNome={maquinaAtiva}
         setor="corte_dobra"
         isProduzindo={!!opRodando}
         user={user}
@@ -394,7 +501,7 @@ export default function Desbobinadeira() {
       {opRodando && (
         <TimerProducao
           ordem={opRodando}
-          maquinaNome="Desbobinadeira"
+          maquinaNome={maquinaAtiva}
           tipoSetor="corte_dobra"
         />
       )}
@@ -668,7 +775,7 @@ export default function Desbobinadeira() {
       )}
 
       <FinalizarExpedienteButton
-        maquina="DESBOBINADEIRA"
+        maquina={maquinaAtiva}
         setor="corte_dobra"
         pedidosAtivos={ordensDia.filter(o => o.status === "em_producao" || o.status === "pausado")}
         filialAtiva={filialAtiva}
@@ -698,6 +805,7 @@ export default function Desbobinadeira() {
         onSave={handleSave}
         editItem={editItem && !editItem._presets ? editItem : null}
         defaultDate={editItem?._presets?.data || selectedDay}
+        defaultMaquina={maquinaAtiva}
         isGestor={isGestor}
       />
 
@@ -708,13 +816,17 @@ export default function Desbobinadeira() {
         onCreate={() => queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] })}
       />
 
-      <ChatFloatingButton canal_id="DESBOBINADEIRA" canal_label="Desbobinadeira" currentUser={user} />
+      <ChatFloatingButton
+        canal_id={maquinaAtiva === "DESBOBINADEIRA 02" ? "DESBOBINADEIRA_02" : "DESBOBINADEIRA"}
+        canal_label={maquinaAtiva === "DESBOBINADEIRA 02" ? "Desbobinadeira 02" : "Desbobinadeira 01"}
+        currentUser={user}
+      />
 
       {/* Modal de Histórico e Relatórios Diários da Máquina */}
       <HistoricoERelatorioMaquinaModal
         open={modalHistoricoOpen}
         onClose={() => setModalHistoricoOpen(false)}
-        maquinaNome="Desbobinadeira"
+        maquinaNome={maquinaAtiva}
         setor="corte_dobra"
         initialTab={modalHistoricoTab}
       />

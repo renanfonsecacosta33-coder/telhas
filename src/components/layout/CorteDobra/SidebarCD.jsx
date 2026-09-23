@@ -31,7 +31,8 @@ const MAQUINAS_NAV = [
   { path: "/corte-dobra/maquina/dobra-fundo-6m", label: "Dobradeira Fundo 6m" },
   { path: "/corte-dobra/maquina/dobra-inicio-6m", label: "Dobradeira Início 6m" },
   { path: "/corte-dobra/maquina/perfiladeira", label: "Perfiladeira" },
-  { path: "/corte-dobra/maquina/desbobinadeira", label: "Desbobinadeira" },
+  { path: "/corte-dobra/maquina/desbobinadeira-1", label: "Desbobinadeira 01" },
+  { path: "/corte-dobra/maquina/desbobinadeira-2", label: "Desbobinadeira 02" },
 ];
 
 const ADMIN_NAV = [
@@ -63,7 +64,9 @@ export default function SidebarCD({ isOpen, onToggle }) {
     "DOBRA FUNDO 6M": "/corte-dobra/maquina/dobra-fundo-6m",
     "DOBRA INICIO 6M": "/corte-dobra/maquina/dobra-inicio-6m",
     "PERFILADEIRA": "/corte-dobra/maquina/perfiladeira",
-    "DESBOBINADEIRA": "/corte-dobra/maquina/desbobinadeira",
+    "DESBOBINADEIRA 01": "/corte-dobra/maquina/desbobinadeira-1",
+    "DESBOBINADEIRA 02": "/corte-dobra/maquina/desbobinadeira-2",
+    "DESBOBINADEIRA": "/corte-dobra/maquina/desbobinadeira-1",
   };
 
   function parseMaquinas(maquina) {

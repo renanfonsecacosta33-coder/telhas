@@ -206,6 +206,8 @@ const AuthenticatedApp = () => {
         <Route path="/corte-dobra/maquina/dobra-inicio-6m" element={<DobraInicio6m />} />
         <Route path="/corte-dobra/maquina/perfiladeira" element={<Perfiladeira />} />
         <Route path="/corte-dobra/maquina/desbobinadeira" element={<Desbobinadeira />} />
+        <Route path="/corte-dobra/maquina/desbobinadeira-1" element={<Desbobinadeira maquinaPadrao="DESBOBINADEIRA 01" />} />
+        <Route path="/corte-dobra/maquina/desbobinadeira-2" element={<Desbobinadeira maquinaPadrao="DESBOBINADEIRA 02" />} />
         <Route path="/corte-dobra/mapa" element={<MapaBarracao />} />
         <Route path="/corte-dobra/logistica" element={<Logistica mode="despacho" defaultTab="cd" />} />
       </Route>

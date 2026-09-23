@@ -72,7 +72,7 @@ export default function ProducaoCD() {
       return;
     }
     try {
-      const isDesb = !item.maquina || item.maquina === "DESBOBINADEIRA";
+      const isDesb = !item.maquina || item.maquina === "DESBOBINADEIRA" || item.maquina?.startsWith?.("DESBOBINADEIRA");
       const entity = isDesb ? base44.entities.OrdemDesbobinadeira : base44.entities.OrdemMaquinaCD;
       const patch = { status: novoStatus };
       if (novoStatus === "finalizado") {
@@ -81,7 +81,7 @@ export default function ProducaoCD() {
       await entity.update(item.id, patch);
       queryClient.invalidateQueries({ queryKey: ["ordens-cd"] });
       queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
-      toast.success(`Status alterado para \${novoStatus}!`);
+      toast.success(`Status alterado para ${novoStatus}!`);
     } catch (e) {
       toast.error("Erro ao alterar status: " + (e?.message || ""));
     }
@@ -90,7 +90,7 @@ export default function ProducaoCD() {
   const handleConfirmarOperadores = async (operadores) => {
     if (!ordemParaOperadores) return;
     try {
-      const isDesb = !ordemParaOperadores.maquina || ordemParaOperadores.maquina === "DESBOBINADEIRA";
+      const isDesb = !ordemParaOperadores.maquina || ordemParaOperadores.maquina === "DESBOBINADEIRA" || ordemParaOperadores.maquina?.startsWith?.("DESBOBINADEIRA");
       const entity = isDesb ? base44.entities.OrdemDesbobinadeira : base44.entities.OrdemMaquinaCD;
       await entity.update(ordemParaOperadores.id, {
         status: "em_producao",
@@ -311,7 +311,7 @@ export default function ProducaoCD() {
   const openEditDesb = (item) => { setEditDesb(item); setDialogDesb(true); };
   const handleSaveDesb = (data) => {
     // Se a máquina inicial não for Desbobinadeira, criar como OrdemMaquinaCD
-    if (data.maquina_inicial && data.maquina_inicial !== "DESBOBINADEIRA") {
+    if (data.maquina_inicial && !data.maquina_inicial.startsWith("DESBOBINADEIRA")) {
       const maqData = {
         ...data,
         maquina: data.maquina_inicial,
@@ -521,7 +521,7 @@ export default function ProducaoCD() {
       );
     }
     // Operador de outra máquina tentando acessar esta página geral
-    const maquinasCD = ["CORTE 3M", "DOBRA 3M", "CORTE 6M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M", "PERFILADEIRA", "DESBOBINADEIRA"];
+    const maquinasCD = ["CORTE 3M", "DOBRA 3M", "CORTE 6M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M", "PERFILADEIRA", "DESBOBINADEIRA 01", "DESBOBINADEIRA 02", "DESBOBINADEIRA"];
     if (!maquinasCD.includes(maquinaDoUsuario)) {
       return (
         <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -696,7 +696,7 @@ export default function ProducaoCD() {
           tipoSetor="corte_dobra"
           onStatusChange={handleStatusChangeKanban}
           onOpenDetails={(item) => {
-            if (!item.maquina || item.maquina === "DESBOBINADEIRA") {
+            if (!item.maquina || item.maquina === "DESBOBINADEIRA" || item.maquina?.startsWith?.("DESBOBINADEIRA")) {
               openEditDesb(item);
             } else {
               openEditMaq(item);
@@ -714,7 +714,7 @@ export default function ProducaoCD() {
           </div>
 
           {/* ── DESBOBINADEIRA ── */}
-          {(isGestor || !maquinaDoUsuario || maquinaDoUsuario === "DESBOBINADEIRA") && (
+          {(isGestor || !maquinaDoUsuario || maquinaDoUsuario === "DESBOBINADEIRA" || maquinaDoUsuario?.startsWith?.("DESBOBINADEIRA")) && (
             <MaquinaBloco
               label="DESBOBINADEIRA"
               cor="bg-orange-100 text-orange-800 border-orange-200"

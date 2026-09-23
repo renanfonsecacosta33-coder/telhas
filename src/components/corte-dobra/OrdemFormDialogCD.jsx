@@ -23,13 +23,20 @@ import { validarBobina, filtrarBobinasCompativeis } from "@/lib/bobinaValidation
 import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
 
 const MAQUINAS_INICIAIS = [
-  { id: "DESBOBINADEIRA", label: "Desbobinadeira", icon: Layers },
+  { id: "DESBOBINADEIRA 01", label: "Desbobinadeira 01 (até 3,00mm)", icon: Layers },
+  { id: "DESBOBINADEIRA 02", label: "Desbobinadeira 02 (até 4,75mm)", icon: Layers },
   { id: "CORTE 3M", label: "Guilhotina 3m", icon: Wrench },
   { id: "CORTE 6M", label: "Guilhotina 6m", icon: Wrench },
   { id: "DOBRA 3M", label: "Dobradeira 3m", icon: Wrench },
   { id: "DOBRA FUNDO 6M", label: "Dobradeira 6m (Fundo)", icon: Wrench },
   { id: "DOBRA INICIO 6M", label: "Dobradeira 6m (Início)", icon: Wrench },
 ];
+
+function getEspessuraNumeroBobina(b) {
+  if (!b) return 0;
+  const str = String(b.espessura_utilizada || b.chapa || b.espessura_real || b.espessura_mm || "").replace(",", ".").replace(/[^\d.]/g, "");
+  return parseFloat(str) || 0;
+}
 
 function labelBobina(b) {
   const parts = [];
@@ -71,10 +78,10 @@ function calcKgEstimado(bobina, comprimento_mm, quantidade) {
   return larg * comp * esp * qtd * 0.00000785;
 }
 
-export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, defaultDate, isGestor }) {
+export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, defaultDate, isGestor, defaultMaquina = "DESBOBINADEIRA 01" }) {
   const [form, setForm] = useState({
     data: format(new Date(), "yyyy-MM-dd"),
-    maquina_inicial: "DESBOBINADEIRA",
+    maquina_inicial: defaultMaquina || "DESBOBINADEIRA 01",
     bobina_id: "",
     chapa_cd_id: "",
     tipo_peca: "",
@@ -110,10 +117,15 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   const { filialAtiva } = useFilial();
   const { toast } = useToast();
 
+  const isDesb02 = form.maquina_inicial === "DESBOBINADEIRA 02";
+  const isDesb01 = form.maquina_inicial === "DESBOBINADEIRA 01" || form.maquina_inicial === "DESBOBINADEIRA";
+  const isDesbobinadeiraAtiva = isDesb01 || isDesb02 || form.maquina_inicial?.startsWith?.("DESBOBINADEIRA");
+  const limiteEspessuraBobina = isDesb02 ? 4.75 : (isDesb01 ? 3.00 : null);
+
   const { data: bobinas = [] } = useQuery({
     queryKey: ["bobinas-cd-ativas", filialAtiva],
     queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false, unidade: filialAtiva }),
-    enabled: open && form.maquina_inicial === "DESBOBINADEIRA",
+    enabled: open && isDesbobinadeiraAtiva,
   });
 
   const filiaisHook = filialAtiva === "todas" ? null : [filialAtiva];
@@ -121,11 +133,33 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   const { data: tolerancias = [] } = useTolerancias();
   const reqValidacao = { espessuraExigida: form.espessura_exigida, origemExigida: form.origem_exigida, tolerancias };
   const temReqOdoo = !!(form.espessura_exigida || (form.origem_exigida && form.origem_exigida !== "ambas"));
-  const bobinasCompativeis = filtrarBobinasCompativeis(bobinas, reqValidacao);
+
+  // Filtro de capacidade estrita de chão de fábrica:
+  // Desbobinadeira 01 suporta bobinas de até 3,00mm (bobinas > 3,00mm NÃO aparecem)
+  // Desbobinadeira 02 suporta bobinas de até 4,75mm (bobinas > 4,75mm NÃO aparecem)
+  const bobinasFiltradasPorCapacidade = useMemo(() => {
+    if (!isDesbobinadeiraAtiva || limiteEspessuraBobina === null) return bobinas;
+    return bobinas.filter(b => {
+      const esp = getEspessuraNumeroBobina(b);
+      if (!esp) return true;
+      return esp <= (limiteEspessuraBobina + 0.005);
+    });
+  }, [bobinas, isDesbobinadeiraAtiva, limiteEspessuraBobina]);
+
+  const bobinasCompativeis = filtrarBobinasCompativeis(bobinasFiltradasPorCapacidade, reqValidacao);
 
   const handleBobinaChange = (bobinaId) => {
     const b = bobinas.find(x => x.id === bobinaId);
     if (b) {
+      const esp = getEspessuraNumeroBobina(b);
+      if (limiteEspessuraBobina && esp > (limiteEspessuraBobina + 0.005)) {
+        setBloqueio({
+          open: true,
+          titulo: `Espessura excede a capacidade da ${form.maquina_inicial}!`,
+          motivos: [`A ${form.maquina_inicial} suporta bobinas de até ${limiteEspessuraBobina.toFixed(2).replace(".", ",")} mm. A bobina selecionada tem ${b.chapa || esp} mm.`],
+        });
+        return;
+      }
       const res = validarBobina(b, reqValidacao);
       if (!res.ok) {
         setBloqueio({ open: true, titulo: "Espessura da bobina incompatível com o pedido Odoo!", motivos: [res.detail] });
@@ -138,7 +172,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   const { data: chapasDisponiveis = [] } = useQuery({
     queryKey: ["chapas-cd-form-dinamico", filialAtiva],
     queryFn: () => base44.entities.ChapaCD.filter({ unidade: filialAtiva }),
-    enabled: open && form.maquina_inicial !== "DESBOBINADEIRA",
+    enabled: open && !isDesbobinadeiraAtiva,
   });
 
   const { data: todasOrdens = [] } = useQuery({
@@ -217,10 +251,16 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
 
   useEffect(() => {
     if (!open) return;
+    const resolverMaq = (m) => {
+      if (!m) return defaultMaquina === "DESBOBINADEIRA" ? "DESBOBINADEIRA 01" : (defaultMaquina || "DESBOBINADEIRA 01");
+      if (m === "DESBOBINADEIRA") return "DESBOBINADEIRA 01";
+      return m;
+    };
+
     if (editItem) {
       setForm({
         data: editItem.data || format(new Date(), "yyyy-MM-dd"),
-        maquina_inicial: editItem.maquina_inicial || "DESBOBINADEIRA",
+        maquina_inicial: resolverMaq(editItem.maquina_inicial || editItem.maquina),
         bobina_id: editItem.bobina_id || "",
         chapa_cd_id: editItem.chapa_cd_id || "",
         tipo_peca: editItem.tipo_peca || "",
@@ -249,7 +289,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     } else {
       setForm({
         data: defaultDate || format(new Date(), "yyyy-MM-dd"),
-        maquina_inicial: "DESBOBINADEIRA",
+        maquina_inicial: resolverMaq(defaultMaquina),
         bobina_id: "",
         chapa_cd_id: "",
         tipo_peca: "",
@@ -276,10 +316,10 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         vendedor: "",
       });
     }
-  }, [open, editItem, defaultDate]);
+  }, [open, editItem, defaultDate, defaultMaquina]);
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
-  const isDesbobinadeira = form.maquina_inicial === "DESBOBINADEIRA";
+  const isDesbobinadeira = isDesbobinadeiraAtiva;
   const bobinaObj = bobinas.find(b => b.id === form.bobina_id);
   const chapaObj = chapasDisponiveis.find(c => c.id === form.chapa_cd_id);
   const chapasFiltradas = chapasDisponiveis.filter(c => c.status === "disponivel" || c.status === "parcial");
@@ -365,9 +405,12 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     const bobinaSnap = bobinaObj ? labelBobina(bobinaObj) : "";
     const chapaSnap = chapaObj ? `${chapaObj.bobina_descricao || ""} · ${chapaObj.comprimento_mm}mm` : "";
     const isMaterialEmFalta = form.material_em_falta;
+    const maqFinal = form.maquina_inicial === "DESBOBINADEIRA" ? "DESBOBINADEIRA 01" : form.maquina_inicial;
 
     const data = {
       ...form,
+      maquina: isDesbobinadeira ? maqFinal : (form.maquina || form.maquina_inicial),
+      maquina_inicial: maqFinal,
       bobina_descricao: isDesbobinadeira ? bobinaSnap : "",
       espessura_utilizada: bobinaObj?.espessura_utilizada || bobinaObj?.chapa || "",
       comprimento_mm: Number(form.comprimento_mm) || 0,
@@ -423,8 +466,11 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     if (form.destino === "pedido_direto" && !form.numero_pedido) { alert("Informe o número do pedido."); return; }
     if (excedePeso) {
       alert(`⚠️ Material insuficiente!\n\nBobina: ${bobinaObj?.codigo || '—'}\nPeso atual: ${pesoBobina.toFixed(1)} kg\nPré-baixa (OPs ativas): ${preReservadoKg.toFixed(1)} kg\nDisponível: ${pesoDisponivel.toFixed(1)} kg\nNecessário: ${kgEstimado.toFixed(1)} kg\n\nA OP será criada como "OP sem Material".`);
+      const maqFinal = form.maquina_inicial === "DESBOBINADEIRA" ? "DESBOBINADEIRA 01" : form.maquina_inicial;
       onSave({
         ...form,
+        maquina: isDesbobinadeira ? maqFinal : (form.maquina || form.maquina_inicial),
+        maquina_inicial: maqFinal,
         material_em_falta: true,
         material_espessura: bobinaObj?.espessura_utilizada || bobinaObj?.chapa || "",
         material_cor: bobinaObj?.cor || "",
@@ -560,9 +606,16 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
             </div>
           ) : isDesbobinadeira ? (
           <div className="space-y-2">
-            <Label className="flex items-center gap-1">
-              <Package className="w-4 h-4 text-blue-500" /> Bobina do Estoque *
-            </Label>
+            <div className="flex items-center justify-between flex-wrap gap-1">
+              <Label className="flex items-center gap-1">
+                <Package className="w-4 h-4 text-blue-500" /> Bobina do Estoque *
+              </Label>
+              {limiteEspessuraBobina && (
+                <span className="text-[11px] font-semibold text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800 rounded px-2 py-0.5">
+                  Capacidade {form.maquina_inicial}: até {limiteEspessuraBobina.toFixed(2).replace(".", ",")} mm
+                </span>
+              )}
+            </div>
             <Select value={form.bobina_id} onValueChange={handleBobinaChange}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Selecione a bobina..." />

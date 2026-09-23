@@ -51,7 +51,9 @@ export default function AppLayoutCD() {
       "DOBRA FUNDO 6M": "/corte-dobra/maquina/dobra-fundo-6m",
       "DOBRA INICIO 6M": "/corte-dobra/maquina/dobra-inicio-6m",
       "PERFILADEIRA": "/corte-dobra/maquina/perfiladeira",
-      "DESBOBINADEIRA": "/corte-dobra/maquina/desbobinadeira",
+      "DESBOBINADEIRA 01": "/corte-dobra/maquina/desbobinadeira-1",
+      "DESBOBINADEIRA 02": "/corte-dobra/maquina/desbobinadeira-2",
+      "DESBOBINADEIRA": "/corte-dobra/maquina/desbobinadeira-1",
     };
     function parseMaquinas(maquina) {
       if (!maquina) return [];

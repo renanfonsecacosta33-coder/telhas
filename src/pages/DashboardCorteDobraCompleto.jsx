@@ -43,7 +43,8 @@ function formatTempo(seg) {
 
 const MAQUINAS_COMPLETO = [
   ...MAQUINAS_CD,
-  { id: "DESBOBINADEIRA", label: "Desbobinadeira", color: "bg-orange-600", hex: "#ea580c", path: "/corte-dobra/producao" },
+  { id: "DESBOBINADEIRA 01", label: "Desbobinadeira 01", color: "bg-orange-600", hex: "#ea580c", path: "/corte-dobra/maquina/desbobinadeira-1" },
+  { id: "DESBOBINADEIRA 02", label: "Desbobinadeira 02", color: "bg-amber-600", hex: "#d97706", path: "/corte-dobra/maquina/desbobinadeira-2" },
 ];
 
 export default function DashboardCorteDobraCompleto() {
@@ -104,7 +105,13 @@ export default function DashboardCorteDobraCompleto() {
     else if (preset === "mes") { setFiltroInicio(mesStart); setFiltroFim(hoje); }
   };
 
-  const todasOrdens = useMemo(() => [...ordens, ...ordensDesb.map(o => ({ ...o, maquina: "DESBOBINADEIRA", tipo_peca: o.bobina_descricao || "Corte", _desb: true }))], [ordens, ordensDesb]);
+  const todasOrdens = useMemo(() => [
+    ...ordens,
+    ...ordensDesb.map(o => {
+      const maq = (o.maquina === "DESBOBINADEIRA 02" || o.maquina_inicial === "DESBOBINADEIRA 02") ? "DESBOBINADEIRA 02" : "DESBOBINADEIRA 01";
+      return { ...o, maquina: maq, tipo_peca: o.bobina_descricao || "Corte", _desb: true };
+    })
+  ], [ordens, ordensDesb]);
 
   // Filtra por máquina selecionada (null = todas)
   const ordensBase = useMemo(() => maquinaSel ? todasOrdens.filter(o => o.maquina === maquinaSel) : todasOrdens, [todasOrdens, maquinaSel]);
@@ -143,7 +150,7 @@ export default function DashboardCorteDobraCompleto() {
 
   // Por máquina hoje
   const porMaquinaPeriodo = useMemo(() => {
-    const maqList = [...MAQUINAS_CD, { id: "DESBOBINADEIRA", label: "Desbobinadeira", color: "bg-orange-600", hex: "#ea580c", path: "/corte-dobra/producao" }];
+    const maqList = MAQUINAS_COMPLETO;
     return maqList.map(m => {
       const os = ordensPeriodo.filter(o => o.maquina === m.id);
       return {

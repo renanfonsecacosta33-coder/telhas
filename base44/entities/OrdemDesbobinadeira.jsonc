@@ -20,8 +20,18 @@
     },
     "maquina_inicial": {
       "type": "string",
-      "description": "M\u00e1quina inicial escolhida no formul\u00e1rio din\u00e2mico (ex: DESBOBINADEIRA, CORTE 3M, DOBRA 3M...)",
-      "default": "DESBOBINADEIRA"
+      "description": "Máquina inicial escolhida no formulário dinâmico (ex: DESBOBINADEIRA 01, DESBOBINADEIRA 02, CORTE 3M, DOBRA 3M...)",
+      "default": "DESBOBINADEIRA 01"
+    },
+    "maquina": {
+      "type": "string",
+      "enum": [
+        "DESBOBINADEIRA 01",
+        "DESBOBINADEIRA 02",
+        "DESBOBINADEIRA"
+      ],
+      "default": "DESBOBINADEIRA 01",
+      "description": "Máquina responsável: DESBOBINADEIRA 01 (bobinas até 3,00mm) ou DESBOBINADEIRA 02 (bobinas até 4,75mm)"
     },
     "bobina_id": {
       "type": "string",
