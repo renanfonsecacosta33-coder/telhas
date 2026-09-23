@@ -7,9 +7,9 @@ import {
   Weight, FileCheck, ShieldCheck, Lock, Printer
 } from "lucide-react";
 import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import ImageLink from "@/components/ui/ImageLink";
 import CorChapaDot, { extractEspessuraFromDesc } from "@/components/corte-dobra/CorChapaDot";
+import SmartImage from "@/components/ui/SmartImage";
 
 function StatusBadge({ status, destino, numeroPedido, origem }) {
   if (status === "consumido") return <Badge className="bg-slate-100 text-slate-600 border-slate-200 border text-xs">Consumido</Badge>;
@@ -201,13 +201,14 @@ export default function ChapaCard({
               <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
                 <Camera className="w-3.5 h-3.5" /> Foto de finalização
               </p>
-              <ImageLink url={chapa.foto_finalizacao_url} name="Finalização"
-                className="relative block w-full max-w-xs rounded-lg overflow-hidden border border-border cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all">
-                <img src={chapa.foto_finalizacao_url} alt="Finalização" className="w-full h-32 object-cover" />
-                <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition-colors flex items-center justify-center">
-                  <Camera className="w-6 h-6 text-white opacity-0 hover:opacity-100 transition-opacity" />
-                </div>
-              </ImageLink>
+              <div className="w-full max-w-xs">
+                <SmartImage
+                  src={chapa.foto_finalizacao_url}
+                  alt="Finalização"
+                  className="w-full h-32 rounded-lg border border-border"
+                  clickable={true}
+                />
+              </div>
             </div>
           )}
 
@@ -220,10 +221,12 @@ export default function ChapaCard({
               <div className="flex flex-wrap gap-3">
                 {fotosHistorico.map((h, i) => (
                   <div key={i} className="space-y-1">
-                    <ImageLink url={h.anexo_url} name={h.motivo || "Histórico"}
-                      className="relative block w-24 h-24 rounded-lg overflow-hidden border border-border cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all">
-                      <img src={h.anexo_url} alt={h.motivo || "Histórico"} className="w-full h-full object-cover" />
-                    </ImageLink>
+                    <SmartImage
+                      src={h.anexo_url}
+                      alt={h.motivo || "Histórico"}
+                      className="w-24 h-24 rounded-lg border border-border"
+                      clickable={true}
+                    />
                     <p className="text-[10px] text-muted-foreground max-w-[96px] truncate" title={h.motivo}>
                       {h.motivo || "—"}
                     </p>

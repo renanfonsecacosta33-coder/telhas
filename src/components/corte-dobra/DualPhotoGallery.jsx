@@ -1,71 +1,51 @@
-import React, { useState } from "react";
+import React from "react";
 import { Image as ImageIcon, FileText } from "lucide-react";
+import SmartImage from "@/components/ui/SmartImage";
 import ImageLink from "@/components/ui/ImageLink";
-
-function SafeImage({ src, alt, className }) {
-  const [error, setError] = useState(false);
-  if (error || !src) {
-    return (
-      <div className="w-full h-full min-h-[112px] flex flex-col items-center justify-center bg-slate-100 text-slate-400 gap-1 p-2">
-        <ImageIcon className="w-6 h-6" />
-        <span className="text-[10px] font-medium text-center">Sem imagem disponível</span>
-      </div>
-    );
-  }
-  return (
-    <img 
-      src={src} 
-      alt={alt} 
-      className={className} 
-      onError={() => setError(true)} 
-    />
-  );
-}
 
 /**
  * Exibe fotos lado a lado: Foto do Pedido (PED), Foto do Material (MAT) e Foto de Finalização (FIN).
- * A foto do material só aparece quando não há foto de finalização (OP ainda não finalizada na Guilhotina).
+ * Utiliza SmartImage para renderização ultrarrápida com lazy loading, skeleton e normalização de URLs/Base64.
  */
 export default function DualPhotoGallery({ fotoPedidoUrl, fotoMaterialUrl, fotoFinalizacaoUrl, z = "normal", labelMaterial }) {
   const labelCls = z === "compacto" ? "text-[9px] px-1.5 py-0.5" : z === "grande" ? "text-xs px-2.5 py-1" : "text-[10px] px-2 py-0.5";
-  const hImg = z === "compacto" ? "max-h-28" : z === "grande" ? "max-h-52" : "max-h-40";
+  const hImg = z === "compacto" ? "h-28" : z === "grande" ? "h-52" : "h-40";
 
   const hasPedido = !!fotoPedidoUrl;
-  // Mostra a foto do material apenas se não houver foto de finalização (evita redundância)
   const showMaterial = !!fotoMaterialUrl && !fotoFinalizacaoUrl;
   const hasFinal = !!fotoFinalizacaoUrl;
 
   if (!hasPedido && !showMaterial && !hasFinal) return null;
 
   const photos = [];
-  if (hasPedido) photos.push({ url: fotoPedidoUrl, label: "Foto do Pedido", borderCls: "border-blue-300", badgeCls: "bg-blue-600 text-white" });
-  if (showMaterial) photos.push({ url: fotoMaterialUrl, label: labelMaterial || "Foto do Material", borderCls: "border-orange-300", badgeCls: "bg-orange-600 text-white" });
-  if (hasFinal) photos.push({ url: fotoFinalizacaoUrl, label: "Foto Finalização", borderCls: "border-green-300", badgeCls: "bg-green-600 text-white" });
+  if (hasPedido) photos.push({ url: fotoPedidoUrl, label: "Foto do Pedido", borderCls: "border-blue-300 dark:border-blue-700", badgeCls: "bg-blue-600 text-white" });
+  if (showMaterial) photos.push({ url: fotoMaterialUrl, label: labelMaterial || "Foto do Material", borderCls: "border-orange-300 dark:border-orange-700", badgeCls: "bg-orange-600 text-white" });
+  if (hasFinal) photos.push({ url: fotoFinalizacaoUrl, label: "Foto Finalização", borderCls: "border-green-300 dark:border-green-700", badgeCls: "bg-green-600 text-white" });
 
   const single = photos.length === 1;
   const gridCls = photos.length === 3 ? "grid-cols-3" : "grid-cols-2";
 
   const renderPhotoBlock = (p, i) => {
-    const isPdf = p.url?.toLowerCase().endsWith(".pdf") || p.url?.toLowerCase().includes(".pdf?");
     return (
-    <div key={i} className={`relative rounded-lg overflow-hidden border-2 ${single ? "w-full" : "flex-1"} ${p.borderCls}`}>
-      <ImageLink url={p.url} name={p.label} className="block">
-        {isPdf ? (
-          <div className={`w-full ${hImg} min-h-[112px] flex items-center justify-center bg-muted`}>
-            <FileText className="w-10 h-10 text-muted-foreground" />
-          </div>
-        ) : (
-          <SafeImage src={p.url} alt={p.label} className={`w-full ${hImg} object-cover`} />
-        )}
-      </ImageLink>
-      <div className={`absolute top-1.5 left-1.5 ${labelCls} font-bold rounded-full flex items-center gap-0.5 ${p.badgeCls}`}>
-        {isPdf ? <FileText className="w-3 h-3" /> : <ImageIcon className="w-3 h-3" />} {p.label}
+      <div key={i} className={`relative rounded-xl overflow-hidden border-2 shadow-sm ${single ? "w-full" : "flex-1"} ${p.borderCls}`}>
+        <SmartImage
+          src={p.url}
+          alt={p.label}
+          className={`w-full ${hImg}`}
+          imgClassName="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+          clickable={true}
+        />
+        <div className={`absolute top-1.5 left-1.5 ${labelCls} font-bold rounded-full flex items-center gap-0.5 shadow pointer-events-none z-10 ${p.badgeCls}`}>
+          <ImageIcon className="w-3 h-3" /> {p.label}
+        </div>
+        <ImageLink
+          url={p.url}
+          name={p.label}
+          className="absolute bottom-1.5 right-1.5 bg-black/70 hover:bg-black/90 text-white text-[10px] font-semibold px-2 py-1 rounded-lg transition-colors flex items-center gap-1 z-10 backdrop-blur-sm"
+        >
+          <ImageIcon className="w-3 h-3" /> Ampliar
+        </ImageLink>
       </div>
-      <ImageLink url={p.url} name={p.label}
-        className="absolute bottom-1.5 right-1.5 bg-black/60 text-white text-[10px] px-2 py-1 rounded-lg hover:bg-black/80 transition-colors flex items-center gap-0.5">
-        <ImageIcon className="w-3 h-3" /> Ampliar
-      </ImageLink>
-    </div>
     );
   };
 

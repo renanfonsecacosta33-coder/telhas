@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import ChatPanel from "@/components/chat/ChatPanel";
 import { useAuth } from "@/lib/AuthContext";
+import SmartImage from "@/components/ui/SmartImage";
 
 const STATUS_LABELS = {
   pendente: { label: "Pendente", color: "bg-slate-100 text-slate-700" },
@@ -39,14 +40,17 @@ function OpRow({ op, index }) {
 
 function PhotoBlock({ url, label, icon: Icon }) {
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer" className="group block">
-      <div className="relative rounded-lg overflow-hidden border-2 border-border group-hover:border-primary/50 transition-colors">
-        <img src={url} alt={label} className="w-full h-32 object-cover" />
-        <div className="absolute top-1.5 left-1.5 text-[10px] font-bold rounded-full flex items-center gap-0.5 bg-black/70 text-white px-2 py-0.5">
-          <Icon className="w-3 h-3" /> {label}
-        </div>
+    <div className="relative rounded-lg overflow-hidden border-2 border-border group hover:border-primary/50 transition-colors">
+      <SmartImage
+        src={url}
+        alt={label}
+        className="w-full h-32"
+        clickable={true}
+      />
+      <div className="absolute top-1.5 left-1.5 text-[10px] font-bold rounded-full flex items-center gap-0.5 bg-black/70 text-white px-2 py-0.5 pointer-events-none z-10">
+        <Icon className="w-3 h-3" /> {label}
       </div>
-    </a>
+    </div>
   );
 }
 

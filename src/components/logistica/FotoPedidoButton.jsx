@@ -6,6 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import ImageViewer from "@/components/ui/ImageViewer";
+import SmartImage from "@/components/ui/SmartImage";
+import { comprimirImagemParaUpload } from "@/lib/compressImage";
 
 export default function FotoPedidoButton({ rotaId, numeroPedido, cliente, fotosPedidosJson }) {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -47,7 +49,8 @@ export default function FotoPedidoButton({ rotaId, numeroPedido, cliente, fotosP
 
     setUploading(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const fileOtimizado = await comprimirImagemParaUpload(file);
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
       const agora = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
       const novaFoto = {
         url: file_url,
@@ -93,8 +96,8 @@ export default function FotoPedidoButton({ rotaId, numeroPedido, cliente, fotosP
             className="inline-flex items-center gap-1.5 p-0.5 pr-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 transition-all cursor-pointer group"
             title={`Ver fotos do pedido #${chave} (${fotosDoPedido.length})`}
           >
-            <div className="relative w-6 h-6 rounded overflow-hidden bg-muted shrink-0 border border-emerald-500/40">
-              <img src={fotoPrincipal.url} alt="pedido" className="w-full h-full object-cover" />
+            <div className="relative w-6 h-6 rounded overflow-hidden shrink-0 border border-emerald-500/40">
+              <SmartImage src={fotoPrincipal.url} alt="pedido" className="w-full h-full" clickable={false} />
             </div>
             <span className="text-[11px] font-bold">
               📸 {fotosDoPedido.length} {fotosDoPedido.length === 1 ? "foto" : "fotos"}
@@ -130,8 +133,8 @@ export default function FotoPedidoButton({ rotaId, numeroPedido, cliente, fotosP
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-64 overflow-y-auto p-1">
                 {fotosDoPedido.map((f, idx) => (
                   <div key={idx} className="relative group rounded-lg overflow-hidden border border-border bg-muted aspect-square">
-                    <img src={f.url} alt={`Pedido ${chave} - foto ${idx + 1}`} className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <SmartImage src={f.url} alt={`Pedido ${chave} - foto ${idx + 1}`} className="w-full h-full" clickable={false} />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 z-20">
                       <button
                         type="button"
                         onClick={() => { setViewerUrl(f.url); setViewerName(`Pedido #${chave} - Foto ${idx + 1}`); }}

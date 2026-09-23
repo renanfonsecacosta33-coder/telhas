@@ -20,6 +20,8 @@ import DualPhotoGallery from "@/components/corte-dobra/DualPhotoGallery";
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
 import ApontamentoOpButton from "@/components/producao/ApontamentoOpButton";
 import { PrioridadeBadge } from "@/lib/prioridadeHelper";
+import SmartImage from "@/components/ui/SmartImage";
+import { comprimirImagemParaUpload } from "@/lib/compressImage";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -193,7 +195,8 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
     if (!file) return;
     setUploadingFoto(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const fileOtimizado = await comprimirImagemParaUpload(file);
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
       setTempFotoUrl(file_url);
       setPesoRealLido(Math.round(o.kg_estimado || 0).toString());
       setConfirmarPesoDialog(true);
@@ -281,28 +284,34 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
             </div>
             <div className="flex items-center gap-2">
               {o.foto_pedido_url && (
-                <ImageLink url={o.foto_pedido_url} name="Foto do Pedido" className="flex-shrink-0 block">
-                  <div className="relative">
-                    <img src={o.foto_pedido_url} alt="Foto do pedido" className="w-10 h-10 object-cover rounded border-2 border-blue-400" />
-                    <span className="absolute -top-1 -left-1 bg-blue-600 text-white text-[8px] font-bold px-1 rounded-full leading-tight">PED</span>
-                  </div>
-                </ImageLink>
+                <SmartImage
+                  src={o.foto_pedido_url}
+                  alt="Foto do pedido"
+                  className="w-10 h-10 border-2 border-blue-400 shrink-0"
+                  showBadge
+                  badgeText="PED"
+                  badgeColor="bg-blue-600"
+                />
               )}
               {o.foto_finalizacao_url && (
-                <ImageLink url={o.foto_finalizacao_url} name="Foto de Finalização" className="flex-shrink-0 block">
-                  <div className="relative">
-                    <img src={o.foto_finalizacao_url} alt="Finalização" className="w-10 h-10 object-cover rounded border-2 border-green-400" />
-                    <span className="absolute -top-1 -left-1 bg-green-600 text-white text-[8px] font-bold px-1 rounded-full leading-tight">FIN</span>
-                  </div>
-                </ImageLink>
+                <SmartImage
+                  src={o.foto_finalizacao_url}
+                  alt="Finalização"
+                  className="w-10 h-10 border-2 border-green-400 shrink-0"
+                  showBadge
+                  badgeText="FIN"
+                  badgeColor="bg-green-600"
+                />
               )}
               {o.foto_etiqueta_bobina_url && (
-                <ImageLink url={o.foto_etiqueta_bobina_url} name="Etiqueta da Bobina" className="flex-shrink-0 block">
-                  <div className="relative">
-                    <img src={o.foto_etiqueta_bobina_url} alt="Etiqueta da bobina" className="w-10 h-10 object-cover rounded border-2 border-orange-400" />
-                    <span className="absolute -top-1 -left-1 bg-orange-600 text-white text-[8px] font-bold px-1 rounded-full leading-tight">ETIQ</span>
-                  </div>
-                </ImageLink>
+                <SmartImage
+                  src={o.foto_etiqueta_bobina_url}
+                  alt="Etiqueta da bobina"
+                  className="w-10 h-10 border-2 border-orange-400 shrink-0"
+                  showBadge
+                  badgeText="ETIQ"
+                  badgeColor="bg-orange-600"
+                />
               )}
               {o.numero_pedido && <HistoricoPedidoButton numeroPedido={o.numero_pedido} size="sm" />}
               <ApontamentoOpButton ordem={o} ordem_tipo="desbobinadeira" label="Assinar" className="h-6 px-2 text-[10px] gap-1 text-orange-600 border-orange-300 hover:bg-orange-50" />

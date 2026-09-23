@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { RotateCw, Download, X, ZoomIn, ZoomOut, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
-import { isPdfUrl } from "@/lib/imagemBase64";
+import { RotateCw, Download, X, ZoomIn, ZoomOut, Loader2, ChevronLeft, ChevronRight, AlertCircle, RefreshCw } from "lucide-react";
+import { isPdfUrl, normalizarImagemBase64 } from "@/lib/imagemBase64";
 
 /**
  * Lightweight full-screen image viewer — opens instantly (no Radix Dialog animation),
@@ -12,10 +12,16 @@ export default function ImageViewer({ url, name, images = [], initialIndex = 0, 
   // Normaliza lista de imagens
   const listaImagens = useMemo(() => {
     if (images && images.length > 0) {
-      return images.map(img => typeof img === "string" ? { url: img, name: name || "Imagem" } : { url: img.url || img.src, name: img.name || img.label || name || "Imagem" });
+      return images.map(img => {
+        const rawUrl = typeof img === "string" ? img : (img.url || img.src);
+        return {
+          url: normalizarImagemBase64(rawUrl),
+          name: (typeof img === "object" ? (img.name || img.label) : null) || name || "Imagem",
+        };
+      });
     }
     if (url) {
-      return [{ url, name: name || "Imagem" }];
+      return [{ url: normalizarImagemBase64(url), name: name || "Imagem" }];
     }
     return [];
   }, [images, url, name]);
@@ -200,7 +206,14 @@ export default function ImageViewer({ url, name, images = [], initialIndex = 0, 
             src={urlAtual}
             alt={nomeAtual || "Imagem"}
             referrerPolicy="no-referrer"
+            decoding="async"
             onLoad={() => setLoaded(true)}
+            onError={(e) => {
+              if (e.currentTarget.src && e.currentTarget.src.includes("/web/content/")) {
+                e.currentTarget.src = e.currentTarget.src.replace("/web/content/", "/web/image/");
+              }
+              setLoaded(true);
+            }}
             className={`max-w-none transition-opacity duration-150 ${loaded ? "opacity-100" : "opacity-0 absolute"}`}
             style={{
               transform: `rotate(${rotacao}deg) scale(${zoom})`,

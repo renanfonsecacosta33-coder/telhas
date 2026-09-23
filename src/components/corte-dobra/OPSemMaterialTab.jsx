@@ -11,6 +11,7 @@ import { playMaterialDisponivelSound, speakMaterialDisponivel } from "@/lib/soun
 import { useTolerancias } from "@/hooks/useTolerancias";
 import { validarBobina } from "@/lib/bobinaValidation";
 import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
+import SmartImage from "@/components/ui/SmartImage";
 
 function normalizeEspessura(val) {
   if (!val) return "";
@@ -489,9 +490,12 @@ export default function OPSemMaterialTab({ maquinaFiltro = null }) {
                         <p className="text-emerald-700">Produzida pela OP {d.id?.slice(-5)} · {d.quantidade || 0} chapas cortadas.</p>
                       </div>
                       {d.foto_finalizacao_url && (
-                        <a href={d.foto_finalizacao_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
-                          <img src={d.foto_finalizacao_url} alt="Chapa desbobinada" className="w-16 h-16 object-cover rounded-md border-2 border-emerald-400 hover:scale-105 transition-transform" />
-                        </a>
+                        <SmartImage
+                          src={d.foto_finalizacao_url}
+                          alt="Chapa desbobinada"
+                          className="w-16 h-16 rounded-md border-2 border-emerald-400 shrink-0 hover:scale-105 transition-transform"
+                          clickable={true}
+                        />
                       )}
                     </div>
                   ))}

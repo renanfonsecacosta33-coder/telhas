@@ -1,6 +1,5 @@
-// Suporte nativo a imagens e documentos Base64 enviados pelo Odoo.
-// O Odoo pode enviar o croqui/foto do pedido como uma string Base64 pura
-// (sem o prefixo data:image/...). Este módulo normaliza para exibição no <img>.
+// Suporte nativo a imagens e documentos Base64 enviados pelo Odoo e integrações externas.
+// Normaliza formatos, converte URLs de anexo para visualização inline e otimiza links.
 
 const DATA_IMAGE_PREFIX = "data:image/";
 
@@ -22,10 +21,6 @@ export function isPdfUrl(url) {
 
 /**
  * Verifica se uma string parece ser uma imagem Base64 (com ou sem prefixo).
- * Aceita:
- *  - "data:image/png;base64,...."
- *  - "/9j/4AAQSkZJRg..." (Base64 puro de JPEG, começa com /9j/)
- *  - "iVBORw0KGgo..." (Base64 puro de PNG, começa com iVBOR)
  */
 export function isBase64Image(str) {
   if (typeof str !== "string" || !str) return false;
@@ -39,39 +34,57 @@ export function isBase64Image(str) {
 
 /**
  * Normaliza uma string de imagem para uso direto no atributo src do <img>.
- * - Se for URL normal (http/https), retorna como está.
- * - Se for caminho relativo do Odoo (/web/content, /web/image...), prefixa com o domínio.
- * - Se começa com "data:", limpa quebras e espaços do Base64 interno e retorna pronto com o MIME original.
- * - Se é uma string Base64 pura (sem prefixo), identifica o MIME pelos magic bytes e monta data URI limpo.
- * - Caso contrário (vazio/nulo), retorna "".
+ * - Converte URLs do Odoo (/web/content/ -> /web/image/) para visualização inline
+ * - Remove download=true que força download em vez de renderização
+ * - Otimiza links do Google Drive para thumbnails rápidos
+ * - Normaliza strings Base64 puras adicionando os magic bytes corretos
  */
 export function normalizarImagemBase64(raw) {
   if (!raw) return "";
   let str = String(raw).trim();
   if (!str) return "";
 
-  // 1. URL pública HTTP/HTTPS
-  if (/^https?:\/\//i.test(str)) {
-    // Se for URL do Odoo apontando para /web/content/, converte para /web/image/
-    // No Odoo, /web/content/ envia 'Content-Disposition: attachment' (download) que quebra miniaturas <img>.
-    // Já /web/image/ envia 'Content-Disposition: inline', permitindo exibição direta de miniaturas!
-    if (str.includes("odoo.com/web/content/")) {
-      return str.replace("/web/content/", "/web/image/");
+  // 1. Google Drive: converte link de visualização em thumbnail ultrarrápido
+  if (str.includes("drive.google.com/file/d/")) {
+    const match = str.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if (match && match[1]) {
+      return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1600`;
     }
-    return str;
   }
 
-  // 2. Caminho relativo do Odoo
+  // 2. URL pública HTTP/HTTPS
+  if (/^https?:\/\//i.test(str)) {
+    let url = str.trim();
+
+    // Se for URL do Odoo apontando para /web/content/, converte para /web/image/
+    // No Odoo, /web/content/ envia 'Content-Disposition: attachment' (download) que quebra <img>.
+    // Já /web/image/ envia 'Content-Disposition: inline', permitindo exibição direta e com cache de CDN!
+    if (url.includes("/web/content/")) {
+      url = url.replace("/web/content/", "/web/image/");
+    } else if (url.includes("/web/content?")) {
+      url = url.replace("/web/content?", "/web/image?");
+    }
+
+    // Remove parâmetros que forçam download
+    url = url.replace(/([?&])download=true(&|$)/, "$1").replace(/[?&]$/, "");
+
+    return url;
+  }
+
+  // 3. Caminho relativo do Odoo
   if (str.startsWith("/web/") || str.startsWith("web/")) {
     const limpo = str.startsWith("/") ? str.slice(1) : str;
     let url = `https://ajlferroeaco.odoo.com/${limpo}`;
     if (url.includes("/web/content/")) {
       url = url.replace("/web/content/", "/web/image/");
+    } else if (url.includes("/web/content?")) {
+      url = url.replace("/web/content?", "/web/image?");
     }
+    url = url.replace(/([?&])download=true(&|$)/, "$1").replace(/[?&]$/, "");
     return url;
   }
 
-  // 3. Já tem prefixo data: (data:image/... ou data:application/pdf...)
+  // 4. Já tem prefixo data: (data:image/... ou data:application/pdf...)
   if (str.startsWith("data:")) {
     const commaIdx = str.indexOf(",");
     if (commaIdx > 0) {
@@ -82,15 +95,16 @@ export function normalizarImagemBase64(raw) {
     return str;
   }
 
-  // 4. Base64 puro (sem prefixo data:)
+  // 5. Base64 puro (sem prefixo data:)
   const clean = str.replace(/\s+/g, "");
-  if (clean.length >= 64 && /^[A-Za-z0-9+/=]+$/.test(clean)) {
+  if (clean.length >= 40 && /^[A-Za-z0-9+/=]+$/.test(clean)) {
     if (clean.startsWith("/9j/")) return `data:image/jpeg;base64,${clean}`;
     if (clean.startsWith("iVBORw0KGgo")) return `data:image/png;base64,${clean}`;
     if (clean.startsWith("R0lGOD")) return `data:image/gif;base64,${clean}`;
     if (clean.startsWith("UklGR")) return `data:image/webp;base64,${clean}`;
     if (clean.startsWith("JVBER")) return `data:application/pdf;base64,${clean}`;
-    return `data:image/png;base64,${clean}`;
+    // Fallback padrão para JPEG
+    return `data:image/jpeg;base64,${clean}`;
   }
 
   return str;

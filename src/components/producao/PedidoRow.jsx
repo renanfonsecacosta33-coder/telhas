@@ -18,9 +18,10 @@ import { playFinishSound, speakOpFinalizada, playAlertSound } from "@/lib/sounds
 import { useFilial } from "@/contexts/FilialContext";
 import { useQuery } from "@tanstack/react-query";
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
-import { toast } from "sonner";
 import { PrioridadeBadge } from "@/lib/prioridadeHelper";
 import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco";
+import SmartImage from "@/components/ui/SmartImage";
+import { comprimirImagemParaUpload } from "@/lib/compressImage";
 
 const PRODUTO_BG = {
   "TELHA":               "border-l-blue-400",
@@ -231,7 +232,8 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
     if (!file) return;
     setUploadingFotoColagemEps(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const fileOtimizado = await comprimirImagemParaUpload(file);
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
       setFotoColagemEpsUrl(file_url);
     } catch {
       alert("Erro ao enviar foto de validação do EPS.");
@@ -641,7 +643,8 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
     if (!file) return;
     setUploadingFoto(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const fileOtimizado = await comprimirImagemParaUpload(file);
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
       setFotoFinalizacaoUrl(file_url);
     } catch (err) {
       alert("Erro ao enviar foto: " + (err.message || ""));
@@ -1254,21 +1257,12 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
         {/* Foto da OP física */}
         {p.foto_pedido_url && (
           <div className="mb-3">
-            {p.foto_pedido_url.toLowerCase().endsWith(".pdf") ? (
-              <ImageLink url={p.foto_pedido_url} name="OP Física" className="block">
-                <div className="flex items-center gap-2 border-2 border-primary/30 rounded-lg px-3 py-2 cursor-pointer hover:bg-accent transition-colors w-fit">
-                  <FileText className="w-8 h-8 text-primary" />
-                  <div className="text-xs">
-                    <p className="font-semibold text-foreground">OP Física (PDF)</p>
-                    <p className="text-muted-foreground">Toque para abrir</p>
-                  </div>
-                </div>
-              </ImageLink>
-            ) : (
-              <ImageLink url={p.foto_pedido_url} name="OP Física" className="block">
-                <img src={p.foto_pedido_url} alt="OP Física" className="w-28 h-28 object-cover rounded-lg border-2 border-primary/30 cursor-pointer" />
-              </ImageLink>
-            )}
+            <SmartImage
+              src={p.foto_pedido_url}
+              alt="OP Física"
+              className="w-32 h-32 rounded-lg border-2 border-primary/30"
+              clickable={true}
+            />
           </div>
         )}
 

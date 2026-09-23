@@ -13,6 +13,7 @@ import {
   Ruler, Hammer, ClipboardList, Truck, PlayCircle, Hourglass,
   CircleDot, Calendar, DollarSign, ScanLine
 } from "lucide-react";
+import SmartImage from "@/components/ui/SmartImage";
 
 const MAQUINA_INFO = {
   "DESBOBINADEIRA": { label: "Desbobinadeira", hex: "#ea580c", icon: Factory, short: "Desbob.", ordem: 1 },
@@ -699,12 +700,17 @@ function TimeBlock({ label, seg, icon: Icon, color }) {
 
 function PhotoThumb({ url, label, color, icon: Icon }) {
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer" className="relative group">
-      <img src={url} alt={label} className={`w-14 h-14 object-cover rounded-lg border-2 ${color}`} />
-      <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-black/70 text-white text-[8px] px-1.5 py-0.5 rounded-full whitespace-nowrap flex items-center gap-0.5">
+    <div className="relative group shrink-0">
+      <SmartImage
+        src={url}
+        alt={label}
+        className={`w-14 h-14 rounded-lg border-2 ${color}`}
+        clickable={true}
+      />
+      <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-black/80 text-white text-[8px] px-1.5 py-0.5 rounded-full whitespace-nowrap flex items-center gap-0.5 pointer-events-none z-10">
         <Icon className="w-2 h-2" />{label}
       </span>
-    </a>
+    </div>
   );
 }
 
