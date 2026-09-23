@@ -194,7 +194,7 @@ export default function EnviarParaMaquinaModal({ open, onClose, dev, maquinaInic
               <span>
                 <strong>Tabela Padrão AJL:</strong> Para o perfil <strong>{blankPadrao.perfil}</strong>{" "}
                 em e{dev.espessura_mm}mm, o blank padrão é <strong>{blankPadrao.blank} mm</strong>.
-                {" "}Calculado (Fator K): <strong>{dev.comprimento_desenvolvido_mm} mm</strong>.
+                {" "}Calculado na Peça: <strong>{dev.comprimento_desenvolvido_mm} mm</strong>.
                 {Math.abs(blankPadrao.blank - dev.comprimento_desenvolvido_mm) > 3 && (
                   <span className="ml-1 text-amber-900 font-bold">
                     ⚠️ Diferença de {Math.abs(blankPadrao.blank - dev.comprimento_desenvolvido_mm)} mm — confira!

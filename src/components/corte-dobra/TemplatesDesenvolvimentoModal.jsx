@@ -242,9 +242,6 @@ export default function TemplatesDesenvolvimentoModal({ open, onClose }) {
     const blank = templateSel.blanks[espIdx];
     const compNum = parseFloat(comprimento) || 6000;
 
-    // Fator K aproximado por espessura (valores padrão da fábrica)
-    const fatorK = esp <= 2.0 ? 0.33 : esp <= 2.5 ? 0.35 : 0.38;
-
     createMutation.mutate({
       nome_peca: templateSel.nome,
       material,
@@ -255,14 +252,13 @@ export default function TemplatesDesenvolvimentoModal({ open, onClose }) {
       largura_mm: templateSel.largura_mm || 6000,
       abas_json: JSON.stringify(templateSel.abas),
       dobras_json: JSON.stringify(templateSel.dobras),
-      fator_k: fatorK,
       maquina_corte: templateSel.maquina_corte,
       maquina_dobra: templateSel.maquina_dobra,
       numero_pedido: numeroPedido || undefined,
       cliente: cliente || undefined,
       status: "aprovado",
       unidade: filialAtiva && filialAtiva !== "todas" ? filialAtiva : "Matriz AJL",
-      observacoes_tecnicas: `Template padrão AJL · Blank=${blank}mm · Fator K=${fatorK}`,
+      observacoes_tecnicas: `Template padrão AJL · Blank=${blank}mm`,
     });
   };
 

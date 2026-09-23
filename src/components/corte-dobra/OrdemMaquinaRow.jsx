@@ -1148,11 +1148,6 @@ function DesenvolvimentoCroquiPanel({ ordem: o, zoom }) {
                 🔧 {dev.ferramental}
               </span>
             )}
-            {dev.fator_k && (
-              <span className="text-slate-500 text-[10px] px-1">
-                Fator K={dev.fator_k}
-              </span>
-            )}
           </div>
 
           {/* Croqui 2D da Peça */}

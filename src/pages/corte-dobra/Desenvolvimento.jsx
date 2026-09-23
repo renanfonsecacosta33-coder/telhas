@@ -94,7 +94,7 @@ export default function DesenvolvimentoCD() {
             <Calculator className="w-6 h-6 text-orange-500" />
             Desenvolvimento de Peças
           </h1>
-          <p className="text-sm text-muted-foreground">Planificação, Fator K e parâmetros técnicos antes da OP</p>
+          <p className="text-sm text-muted-foreground">Planificação técnica e parâmetros de corte/dobra antes da OP</p>
         </div>
         {aba === "lista" && (
           <div className="flex items-center gap-2">
@@ -241,7 +241,7 @@ export default function DesenvolvimentoCD() {
                   <div className="border-t border-border bg-muted/20 px-4 py-4 space-y-4">
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                       <InfoBox label="Espessura" value={dev.espessura_mm ? `${dev.espessura_mm} mm` : "—"} />
-                      <InfoBox label="Fator K" value={dev.fator_k || "—"} />
+                      <InfoBox label="Método" value="Tabela AJL" />
                       <InfoBox label="Comprimento Final" value={dev.comprimento_final_mm ? `${dev.comprimento_final_mm} mm` : "—"} />
                       <InfoBox label="Comprimento Desenvolvido" value={dev.comprimento_desenvolvido_mm ? `${dev.comprimento_desenvolvido_mm} mm` : "—"} highlight />
                       <InfoBox label="Largura Final" value={dev.largura_final_mm ? `${dev.largura_final_mm} mm` : "—"} />

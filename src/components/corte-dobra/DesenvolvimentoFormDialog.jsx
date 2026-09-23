@@ -18,19 +18,12 @@ import EspessuraSelect from "./EspessuraSelect";
 import CroquiPeca2D, { PRESETS_PERFIL } from "./CroquiPeca2D";
 import CalculadoraForcaDobra from "./CalculadoraForcaDobra";
 import ChapaEstoqueCombobox from "./ChapaEstoqueCombobox";
-
-// ─── Fórmulas de planificação ───────────────────────────────────────────────
-// BA (Bend Allowance) = (π/180) × ângulo × (raio + fatorK × espessura)
-function calcBA(angulo, raio, espessura, fatorK) {
-  return (Math.PI / 180) * angulo * (raio + fatorK * espessura);
-}
-
-// BD (Bend Deduction) = 2 × (raio + espessura) × tan(ang/2) − BA
-function calcBD(angulo, raio, espessura, fatorK) {
-  const ba = calcBA(angulo, raio, espessura, fatorK);
-  const outside = 2 * (raio + espessura) * Math.tan((angulo / 2) * (Math.PI / 180));
-  return outside - ba;
-}
+import PainelAproveitamentoInteligente from "./PainelAproveitamentoInteligente";
+import {
+  calcDeducaoDobraAJL,
+  calcBlankDesenvolvidoAJL,
+  getBlankPadraoAJL
+} from "@/lib/tabelaBlanksAJL";
 
 // Mapear qualidade da chapa para material legível
 const QUALIDADE_MATERIAL = {
@@ -67,7 +60,6 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
     espessura_mm: "1.50",
     espessura_label: "1,50 mm",
     largura_mm: "",
-    fator_k: "0.33",
     comprimento_final_mm: "3000",
     largura_final_mm: "",
     altura_final_mm: "",
@@ -146,7 +138,6 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
         espessura_mm: editItem.espessura_mm ? String(editItem.espessura_mm) : "1.50",
         espessura_label: editItem.espessura_mm ? `${editItem.espessura_mm} mm` : "1,50 mm",
         largura_mm: editItem.largura_mm || "",
-        fator_k: editItem.fator_k ? String(editItem.fator_k) : "0.33",
         comprimento_final_mm: editItem.comprimento_final_mm ? String(editItem.comprimento_final_mm) : "3000",
         largura_final_mm: editItem.largura_final_mm || "",
         altura_final_mm: editItem.altura_final_mm || "",
@@ -178,7 +169,7 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
       setForm({
         nome_peca: "", numero_pedido: "", cliente: "", responsavel: "",
         data_desenvolvimento: format(new Date(), "yyyy-MM-dd"),
-        material: "Aço galvanizado", espessura_mm: "1.50", espessura_label: "1,50 mm", largura_mm: "", fator_k: "0.33",
+        material: "Aço galvanizado", espessura_mm: "1.50", espessura_label: "1,50 mm", largura_mm: "",
         comprimento_final_mm: "3000", largura_final_mm: "", altura_final_mm: "",
         raio_dobra_mm: "1.5", maquina_corte: "CORTE 6M", maquina_dobra: "DOBRA FUNDO 6M",
         ferramental: "", quantidade_peca: "1", sequencia_dobras: "", observacoes_tecnicas: "",
@@ -274,27 +265,27 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
     setDobras(d => d.map((dobra, idx) => idx === i ? { ...dobra, [key]: val } : dobra));
   };
 
-  // ── Cálculo do comprimento desenvolvido (Blank) ──
+  // ── Cálculo do comprimento desenvolvido (Blank) conforme regra prática da AJL ──
   const calcComprimentoDesenvolvido = useCallback(() => {
     const esp = parseFloat(form.espessura_mm);
-    const fk = parseFloat(form.fator_k);
-    if (!esp || !fk || abas.length === 0) return null;
-
-    const somaAbas = abas.reduce((acc, a) => acc + (Number(a) || 0), 0);
-    let totalBD = 0;
-
-    for (const d of dobras) {
-      const ang = parseFloat(d.angulo) || 90;
-      const r = parseFloat(d.raio || form.raio_dobra_mm) || esp;
-      totalBD += calcBD(ang, r, esp, fk);
-    }
-
-    const desenvolvido = Math.round(somaAbas - totalBD);
-    return desenvolvido > 0 ? desenvolvido : somaAbas;
-  }, [form.espessura_mm, form.fator_k, form.raio_dobra_mm, abas, dobras]);
+    if (!esp || abas.length === 0) return null;
+    return calcBlankDesenvolvidoAJL(abas, dobras, esp, form.nome_peca);
+  }, [form.espessura_mm, form.nome_peca, abas, dobras]);
 
   const comprimentoCalculado = calcComprimentoDesenvolvido();
   const comprimentoFinal = comprimentoCalculado || (comprimentoManual ? parseFloat(comprimentoManual) : null);
+
+  // ── Handler para adotar perfil recomendado do ranking ──
+  const handleAplicarPerfilDoRanking = (perfilObj) => {
+    if (!perfilObj) return;
+    setAbas([...perfilObj.abasPadrao]);
+    setDobras(perfilObj.dobrasPadrao.map(d => ({
+      ...d,
+      raio: form.raio_dobra_mm || "1.5",
+    })));
+    set("nome_peca", perfilObj.nome);
+    toast.success(`⚡ Perfil "${perfilObj.nome}" adotado! ${perfilObj.qtdBlanks} peças por chapa (${perfilObj.aproveitamentoPerc}% de rendimento).`);
+  };
 
   // ── Análise de compatibilidade com a chapa selecionada ──
   const alertasChapa = [];
@@ -307,22 +298,6 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
         msg: `⚠️ Comprimento da peça (${compPeca} mm) excede o comprimento da chapa (${compChapa} mm)!`,
       });
     }
-    if (comprimentoCalculado && chapaVinculada.largura_mm) {
-      const largChapa = chapaVinculada.largura_mm;
-      if (comprimentoCalculado > largChapa) {
-        alertasChapa.push({
-          tipo: "erro",
-          msg: `⚠️ Largura planificada do blank (${comprimentoCalculado} mm) é maior que a largura da chapa (${largChapa} mm)!`,
-        });
-      } else if (comprimentoCalculado <= largChapa) {
-        const aproveitamento = Math.floor(largChapa / comprimentoCalculado);
-        const sobra = largChapa - aproveitamento * comprimentoCalculado;
-        alertasChapa.push({
-          tipo: "ok",
-          msg: `✅ Aproveitamento: ${aproveitamento} blank(s) por chapa — sobra de ${sobra} mm por chapa`,
-        });
-      }
-    }
   }
 
   const handleSave = (status = "rascunho") => {
@@ -334,7 +309,6 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
       ...form,
       espessura_mm: parseFloat(form.espessura_mm),
       largura_mm: form.largura_mm ? parseFloat(form.largura_mm) : undefined,
-      fator_k: parseFloat(form.fator_k),
       comprimento_desenvolvido_mm: comp || undefined,
       comprimento_final_mm: form.comprimento_final_mm ? parseFloat(form.comprimento_final_mm) : undefined,
       largura_final_mm: form.largura_final_mm ? parseFloat(form.largura_final_mm) : undefined,
@@ -534,10 +508,20 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
                       </div>
                     ))}
 
+                    {/* ── OTIMIZADOR DE CORTE & RANKING INDUSTRIAL AJL ── */}
+                    <div className="pt-2">
+                      <PainelAproveitamentoInteligente
+                        chapa={chapaVinculada}
+                        blankAtual={comprimentoCalculado || comprimentoFinal}
+                        nomePecaAtual={form.nome_peca}
+                        onAplicarPerfil={handleAplicarPerfilDoRanking}
+                      />
+                    </div>
+
                     <button
                       type="button"
                       onClick={handleLimparChapa}
-                      className="text-xs text-emerald-600 hover:text-red-500 underline underline-offset-2"
+                      className="text-xs text-emerald-600 hover:text-red-500 underline underline-offset-2 pt-1"
                     >
                       Trocar / Remover chapa
                     </button>
@@ -583,16 +567,11 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
                     )}
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Fator K</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0.1"
-                      max="0.5"
-                      placeholder="0.33"
-                      value={form.fator_k}
-                      onChange={e => set("fator_k", e.target.value)}
-                    />
+                    <Label className="text-xs">Largura do Blank (Corte)</Label>
+                    <div className="h-9 rounded-md border border-emerald-300 bg-emerald-50 px-3 flex items-center justify-between text-sm font-black text-emerald-800 font-mono">
+                      <span>{comprimentoCalculado ? `${comprimentoCalculado} mm` : "—"}</span>
+                      <Badge className="bg-emerald-600 text-white text-[10px] font-bold py-0 h-5">Padrão AJL</Badge>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -625,16 +604,11 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Fator K</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0.1"
-                      max="0.5"
-                      placeholder="0.33"
-                      value={form.fator_k}
-                      onChange={e => set("fator_k", e.target.value)}
-                    />
+                    <Label className="text-xs">Largura do Blank (Corte)</Label>
+                    <div className="h-9 rounded-md border border-slate-300 bg-slate-50 px-3 flex items-center justify-between text-sm font-black text-slate-800 font-mono">
+                      <span>{comprimentoCalculado ? `${comprimentoCalculado} mm` : "—"}</span>
+                      <span className="text-[10px] text-slate-500 font-semibold">Cálculo Prático</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -780,12 +754,12 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
                         </div>
                       </div>
 
-                      {/* Bend Deduction para esta dobra */}
+                      {/* Bend Deduction para esta dobra pela regra prática da AJL */}
                       {form.espessura_mm && (
                         <div className="text-[10px] text-muted-foreground flex justify-between pt-1">
                           <span>Dedução de Dobra (BD):</span>
                           <strong className="text-blue-600">
-                            -{calcBD(Number(d.angulo) || 90, Number(d.raio || form.raio_dobra_mm) || 1.5, Number(form.espessura_mm), Number(form.fator_k)).toFixed(2)} mm
+                            -{calcDeducaoDobraAJL(Number(d.angulo) || 90, Number(form.espessura_mm)).toFixed(2)} mm
                           </strong>
                         </div>
                       )}
@@ -815,7 +789,7 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
                   </div>
                 </div>
                 <Badge className="bg-emerald-600 text-white text-xs">
-                  Fator K = {form.fator_k} aplicado
+                  Regra Fabril AJL (Sem Fator K)
                 </Badge>
               </div>
             )}
