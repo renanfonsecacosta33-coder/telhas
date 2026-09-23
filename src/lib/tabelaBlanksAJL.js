@@ -214,6 +214,150 @@ export function calcDeducaoDobraAJL(anguloGraus, espessuraMm) {
 }
 
 /**
+ * Interpreta o nome da peça e extrai tipo de perfil, abas, dobras e dimensões
+ * Suporta formatos industriais comuns da AJL e Odoo:
+ *  - "Perfil U 40x75x40", "U 40x75x40", "40x75x40"
+ *  - "Perfil C 150x50x17", "C 50x150x50x17", "100x50 ENRRU."
+ *  - "Cantoneira 50x50", "L 50x50", "40x40"
+ *  - "Perfil Z 30x80x30", "Z 25x60x25"
+ *  - "Rufo Pingadeira 15x120x50x15"
+ *  - "Cartola 20x35x50x35x20", "Omega 20x40x50x40x20"
+ */
+export function interpretarGeometriaNomePeca(nomePeca) {
+  if (!nomePeca || typeof nomePeca !== "string") return null;
+
+  const raw = nomePeca.trim();
+  const up = raw.toUpperCase();
+
+  // Substitui caracteres de multiplicação e normaliza
+  const normStr = up.replace(/[×*]/g, "x").replace(/(\d+)\s*x\s*(\d+)/gi, "$1x$2");
+
+  // Extrai sequência de números como 40x75x40 ou 50x150x50x17
+  const matchSeq = normStr.match(/(\d+(?:[.,]\d+)?(?:\s*x\s*\d+(?:[.,]\d+)?)+)/i);
+  if (!matchSeq) return null;
+
+  const nums = matchSeq[1]
+    .split(/x/i)
+    .map(s => parseFloat(s.trim().replace(",", ".")))
+    .filter(n => !isNaN(n) && n > 0);
+
+  if (nums.length < 2) return null;
+
+  let tipo = "Personalizado";
+  let abas = [];
+  let dobras = [];
+  let largura_final_mm = "";
+  let altura_final_mm = "";
+
+  const isCantoneira = up.includes("CANTONEIRA") || /\bL\b/.test(up) || up.startsWith("L ") || (nums.length === 2 && !up.includes("ENRRU"));
+  const isZ = up.includes("PERFIL Z") || /\bZ\b/.test(up) || up.startsWith("Z ");
+  const isRufo = up.includes("RUFO") || up.includes("PINGADEIRA") || up.includes("CALHA");
+  const isCartola = up.includes("CARTOLA") || up.includes("OMEGA") || up.includes("ÔMEGA");
+  const isEnrijecido = up.includes("ENRRU") || up.includes("ENRIJECIDO") || up.includes("PERFIL C") || (up.includes(" C ") || up.startsWith("C ")) || (nums.length === 5 && !isCartola);
+
+  if (isCantoneira && nums.length === 2) {
+    tipo = "Cantoneira / Perfil L";
+    abas = [nums[0], nums[1]];
+    dobras = [
+      { angulo: 90, direcao: "cima", descricao: "Dobra central 90°", raio: "1.5" },
+    ];
+    largura_final_mm = String(nums[1]);
+    altura_final_mm = String(nums[0]);
+  } else if (isZ && nums.length === 3) {
+    tipo = "Perfil Z";
+    abas = [nums[0], nums[1], nums[2]];
+    dobras = [
+      { angulo: 90, direcao: "cima", descricao: "Aba superior", raio: "1.5" },
+      { angulo: 90, direcao: "baixo", descricao: "Alma vertical", raio: "1.5" },
+    ];
+    largura_final_mm = String(nums[1]);
+    altura_final_mm = String(Math.max(nums[0], nums[2]));
+  } else if (isCartola && nums.length === 5) {
+    tipo = "Perfil Cartola (Ômega)";
+    abas = [nums[0], nums[1], nums[2], nums[3], nums[4]];
+    dobras = [
+      { angulo: 90, direcao: "cima", descricao: "Aba base esq.", raio: "1.5" },
+      { angulo: 90, direcao: "baixo", descricao: "Lateral esq.", raio: "1.5" },
+      { angulo: 90, direcao: "baixo", descricao: "Topo", raio: "1.5" },
+      { angulo: 90, direcao: "cima", descricao: "Lateral dir.", raio: "1.5" },
+    ];
+    largura_final_mm = String(nums[2]);
+    altura_final_mm = String(nums[1]);
+  } else if (isEnrijecido) {
+    tipo = "Perfil C Enrijecido";
+    if (nums.length === 5) {
+      abas = [nums[0], nums[1], nums[2], nums[3], nums[4]];
+      largura_final_mm = String(nums[1]);
+      altura_final_mm = String(nums[2]);
+    } else if (nums.length === 4) {
+      const enr = nums[3];
+      abas = [enr, nums[0], nums[1], nums[2], enr];
+      largura_final_mm = String(nums[0]);
+      altura_final_mm = String(nums[1]);
+    } else if (nums.length === 3) {
+      const maior = Math.max(nums[0], nums[1]);
+      const menor = Math.min(nums[0], nums[1]);
+      const enr = nums[2];
+      abas = [enr, menor, maior, menor, enr];
+      largura_final_mm = String(menor);
+      altura_final_mm = String(maior);
+    } else if (nums.length === 2) {
+      const alma = Math.max(nums[0], nums[1]);
+      const flange = Math.min(nums[0], nums[1]);
+      const enr = 17;
+      abas = [enr, flange, alma, flange, enr];
+      largura_final_mm = String(flange);
+      altura_final_mm = String(alma);
+    }
+    dobras = [
+      { angulo: 90, direcao: "baixo", descricao: "Enrijecedor sup.", raio: "1.5" },
+      { angulo: 90, direcao: "baixo", descricao: "Flange superior", raio: "1.5" },
+      { angulo: 90, direcao: "baixo", descricao: "Alma principal", raio: "1.5" },
+      { angulo: 90, direcao: "baixo", descricao: "Flange inferior", raio: "1.5" },
+    ];
+  } else if (nums.length === 3) {
+    tipo = "Perfil U Simples";
+    abas = [nums[0], nums[1], nums[2]];
+    dobras = [
+      { angulo: 90, direcao: "cima", descricao: "Flange esquerdo", raio: "1.5" },
+      { angulo: 90, direcao: "cima", descricao: "Flange direito", raio: "1.5" },
+    ];
+    largura_final_mm = String(nums[1]);
+    altura_final_mm = String(Math.max(nums[0], nums[2]));
+  } else if (isRufo && nums.length >= 3) {
+    tipo = "Rufo com Pingadeira";
+    abas = nums;
+    dobras = abas.slice(0, -1).map((_, i) => ({
+      angulo: i === 0 ? 135 : 90,
+      direcao: i % 2 === 0 ? "cima" : "baixo",
+      descricao: `Dobra ${i + 1}`,
+      raio: "1.5"
+    }));
+  } else {
+    tipo = `Perfil ${nums.length} Abas`;
+    abas = nums;
+    dobras = abas.slice(0, -1).map((_, i) => ({
+      angulo: 90,
+      direcao: "cima",
+      descricao: `Dobra ${i + 1}`,
+      raio: "1.5"
+    }));
+    largura_final_mm = String(nums[1] || nums[0]);
+    altura_final_mm = String(nums[0]);
+  }
+
+  return {
+    tipo,
+    abas,
+    dobras,
+    largura_final_mm,
+    altura_final_mm,
+    numsIdentificados: nums,
+    textoResumo: `${tipo}: ${abas.join(" × ")} mm (${dobras.length} dobras)`,
+  };
+}
+
+/**
  * Busca se existe blank padronizado tabelado para o perfil e espessura
  */
 export function getBlankPadraoAJL(nomeOuCodigo, espessuraMm) {
@@ -223,8 +367,8 @@ export function getBlankPadraoAJL(nomeOuCodigo, espessuraMm) {
 
   for (const [perfil, blanks] of Object.entries(TABELA_BLANKS)) {
     const pLimpo = perfil.toUpperCase().replace("ENRRU.", "").replace(/\s+/g, "");
-    if (str.includes(pLimpo) || pLimpo.includes(str)) {
-      // Procura a coluna mais próxima na tabela
+    // Verifica correspondência exata do padrão de medidas no nome
+    if (str.includes(pLimpo)) {
       let melhorIdx = -1;
       let menorDiff = 999;
       ESP_COLS.forEach((e, idx) => {

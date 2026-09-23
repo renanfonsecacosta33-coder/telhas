@@ -22,7 +22,8 @@ import PainelAproveitamentoInteligente from "./PainelAproveitamentoInteligente";
 import {
   calcDeducaoDobraAJL,
   calcBlankDesenvolvidoAJL,
-  getBlankPadraoAJL
+  getBlankPadraoAJL,
+  interpretarGeometriaNomePeca
 } from "@/lib/tabelaBlanksAJL";
 
 // Mapear qualidade da chapa para material legível
@@ -83,8 +84,61 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
     { angulo: 90, raio: "1.5", descricao: "Aba 2", direcao: "cima" },
   ]);
   const [comprimentoManual, setComprimentoManual] = useState("");
+  const [geometriaAuto, setGeometriaAuto] = useState(null);
+  const [origemAbas, setOrigemAbas] = useState("padrao"); // "auto" | "manual" | "preset" | "ranking"
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  // ── Auto-leitura e desenho automático a partir do Nome da Peça ──
+  const aplicarGeometriaNome = useCallback((nome, { force = false, notify = false } = {}) => {
+    if (!nome || typeof nome !== "string") {
+      setGeometriaAuto(null);
+      return;
+    }
+    const geo = interpretarGeometriaNomePeca(nome);
+    if (geo && geo.abas && geo.abas.length >= 2) {
+      setGeometriaAuto(geo);
+      setAbas([...geo.abas]);
+      setDobras(geo.dobras.map(d => ({
+        ...d,
+        raio: form.raio_dobra_mm || "1.5",
+      })));
+      setForm(f => ({
+        ...f,
+        largura_final_mm: geo.largura_final_mm || f.largura_final_mm,
+        altura_final_mm: geo.altura_final_mm || f.altura_final_mm,
+      }));
+      setOrigemAbas("auto");
+      if (notify) {
+        toast.success(`📐 ${geo.tipo} identificado! Abas ${geo.abas.join(" × ")} mm desenhadas no croqui.`);
+      }
+    } else {
+      setGeometriaAuto(null);
+    }
+  }, [form.raio_dobra_mm]);
+
+  // Handler ao digitar no campo Nome da Peça
+  const handleNomePecaChange = (novoNome) => {
+    set("nome_peca", novoNome);
+    const geo = interpretarGeometriaNomePeca(novoNome);
+    if (geo && geo.abas && geo.abas.length >= 2) {
+      setGeometriaAuto(geo);
+      setAbas([...geo.abas]);
+      setDobras(geo.dobras.map(d => ({
+        ...d,
+        raio: form.raio_dobra_mm || "1.5",
+      })));
+      setForm(f => ({
+        ...f,
+        nome_peca: novoNome,
+        largura_final_mm: geo.largura_final_mm || f.largura_final_mm,
+        altura_final_mm: geo.altura_final_mm || f.altura_final_mm,
+      }));
+      setOrigemAbas("auto");
+    } else {
+      setGeometriaAuto(null);
+    }
+  };
 
   // ── Query de chapas disponíveis ──
   const { data: todasChapas = [] } = useQuery({
@@ -111,7 +165,6 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
     ...chapasDisponiveis.map(c => ({
       ...c,
       _tipo: "chapa",
-      // garante campos compatíveis com combobox
       bobina_descricao: c.bobina_descricao || c.material || "Chapa",
       codigo: c.codigo || "—",
     })),
@@ -152,7 +205,6 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
         chapa_codigo: editItem.chapa_codigo || "",
       });
 
-      // Se já tem chapa vinculada, começa em modo estoque; senão modo manual
       setModoMaterial(editItem.chapa_id ? "estoque" : "manual");
 
       const parsedDobras = editItem.dobras_json ? JSON.parse(editItem.dobras_json) : [];
@@ -165,6 +217,12 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
       setAbas(parsedAbas.length ? parsedAbas : [25, 50, 25]);
 
       setComprimentoManual(editItem.comprimento_desenvolvido_mm ? String(editItem.comprimento_desenvolvido_mm) : "");
+
+      // Interpreta geometria se houver nome da peça
+      if (editItem.nome_peca) {
+        const geo = interpretarGeometriaNomePeca(editItem.nome_peca);
+        if (geo) setGeometriaAuto(geo);
+      }
     } else {
       setForm({
         nome_peca: "", numero_pedido: "", cliente: "", responsavel: "",
@@ -182,6 +240,8 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
         { angulo: 90, raio: "1.5", descricao: "Aba 2", direcao: "cima" },
       ]);
       setComprimentoManual("");
+      setGeometriaAuto(null);
+      setOrigemAbas("padrao");
     }
   }, [open, editItem]);
 
@@ -234,6 +294,18 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
       raio: form.raio_dobra_mm || "1.5",
     })));
     set("nome_peca", preset.nome);
+    setOrigemAbas("preset");
+    const geo = interpretarGeometriaNomePeca(preset.nome);
+    if (geo) {
+      setGeometriaAuto(geo);
+    } else {
+      setGeometriaAuto({
+        tipo: preset.nome,
+        abas: preset.abasPadrao,
+        dobras: preset.dobrasPadrao,
+        textoResumo: `${preset.nome}: ${preset.abasPadrao.join(" × ")} mm`
+      });
+    }
     toast.info(`Predefinição "${preset.nome}" aplicada com ${preset.abasPadrao.length} abas e ${preset.dobrasPadrao.length} dobra(s)!`);
   };
 
@@ -244,6 +316,7 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
       next[index] = Math.max(0, Number(valor) || 0);
       return next;
     });
+    setOrigemAbas("manual");
   };
 
   const handleAddAbaEDobra = () => {
@@ -253,16 +326,19 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
       raio: form.raio_dobra_mm || "1.5",
       descricao: `Dobra ${prev.length + 1}`,
     }]);
+    setOrigemAbas("manual");
   };
 
   const handleRemoveAbaEDobra = (index) => {
     if (abas.length <= 1) return;
     setAbas(prev => prev.filter((_, i) => i !== index));
     setDobras(prev => prev.filter((_, i) => i !== Math.min(index, prev.length - 1)));
+    setOrigemAbas("manual");
   };
 
   const updateDobra = (i, key, val) => {
     setDobras(d => d.map((dobra, idx) => idx === i ? { ...dobra, [key]: val } : dobra));
+    setOrigemAbas("manual");
   };
 
   // ── Cálculo do comprimento desenvolvido (Blank) conforme regra prática da AJL ──
@@ -284,6 +360,18 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
       raio: form.raio_dobra_mm || "1.5",
     })));
     set("nome_peca", perfilObj.nome);
+    setOrigemAbas("ranking");
+    const geo = interpretarGeometriaNomePeca(perfilObj.nome);
+    if (geo) {
+      setGeometriaAuto(geo);
+    } else {
+      setGeometriaAuto({
+        tipo: perfilObj.nome,
+        abas: perfilObj.abasPadrao,
+        dobras: perfilObj.dobrasPadrao,
+        textoResumo: `${perfilObj.nome}: ${perfilObj.abasPadrao.join(" × ")} mm`
+      });
+    }
     toast.success(`⚡ Perfil "${perfilObj.nome}" adotado! ${perfilObj.qtdBlanks} peças por chapa (${perfilObj.aproveitamentoPerc}% de rendimento).`);
   };
 
@@ -334,7 +422,7 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
             {editItem ? "Editar Desenvolvimento de Peça" : "Novo Desenvolvimento de Peça"}
           </DialogTitle>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Planificação técnica, Fator K, croqui 2D interativo e parâmetros de dobra antes da emissão da OP.
+            Planificação técnica prática (Regra AJL), croqui 2D interativo e parâmetros de dobra antes da emissão da OP.
           </p>
         </DialogHeader>
 
@@ -343,12 +431,45 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
           <Section title="1. Identificação & Pedido">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="space-y-1 col-span-2">
-                <Label className="text-xs">Nome da Peça *</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold">Nome da Peça *</Label>
+                  {geometriaAuto && (
+                    <button
+                      type="button"
+                      onClick={() => aplicarGeometriaNome(form.nome_peca, { force: true, notify: true })}
+                      className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 flex items-center gap-1 hover:underline cursor-pointer"
+                      title="Forçar reaplicação das medidas do nome no croqui"
+                    >
+                      <Sparkles className="w-3 h-3 text-emerald-500" />
+                      Redesenhar do nome
+                    </button>
+                  )}
+                </div>
                 <Input
-                  placeholder="Ex: Perfil U 50x25x25, Rufo Pingadeira 3m..."
+                  placeholder="Ex: Perfil U 40x75x40, Perfil C 150x50x17, Cantoneira 50x50..."
                   value={form.nome_peca}
-                  onChange={e => set("nome_peca", e.target.value)}
+                  onChange={e => handleNomePecaChange(e.target.value)}
+                  className={geometriaAuto ? "border-emerald-500/70 focus-visible:ring-emerald-500 font-medium bg-emerald-50/20" : ""}
                 />
+                {geometriaAuto && (
+                  <div className="mt-1 flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2.5 py-1 text-xs text-emerald-800 dark:text-emerald-300 animate-in fade-in duration-200">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="p-0.5 bg-emerald-500 text-white rounded">
+                        <Sparkles className="w-3 h-3" />
+                      </span>
+                      <span className="font-bold">{geometriaAuto.tipo}:</span>
+                      <span className="font-mono font-bold bg-white/90 dark:bg-black/40 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200">
+                        {geometriaAuto.abas.join(" × ")} mm
+                      </span>
+                      <span className="text-[11px] text-emerald-700 dark:text-emerald-400">
+                        ({geometriaAuto.dobras.length} dobra{geometriaAuto.dobras.length > 1 ? "s" : ""} 90°)
+                      </span>
+                    </div>
+                    <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-0 h-5">
+                      Desenho Automático ✨
+                    </Badge>
+                  </div>
+                )}
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Nº do Pedido</Label>
@@ -639,6 +760,44 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
                 ))}
               </div>
             </div>
+
+            {/* Banner de Sincronismo da Geometria do Nome com o Croqui */}
+            {geometriaAuto && (
+              <div className="flex items-center justify-between text-xs bg-slate-900 text-slate-200 border border-slate-700 rounded-lg px-3 py-2 mb-3 shadow-sm flex-wrap gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-emerald-400 font-bold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    Croqui Sincronizado:
+                  </span>
+                  <span className="font-bold text-white">{geometriaAuto.tipo}</span>
+                  <span className="font-mono bg-slate-800 border border-slate-600 px-2 py-0.5 rounded text-emerald-300 font-bold">
+                    {abas.join(" × ")} mm
+                  </span>
+                  <span className="text-slate-400 text-[11px]">
+                    ({dobras.length} dobra{dobras.length > 1 ? "s" : ""} 90°)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {origemAbas === "manual" ? (
+                    <Badge variant="outline" className="border-amber-500/60 bg-amber-500/10 text-amber-300 text-[10px] font-semibold">
+                      ✏️ Ajuste manual pelo operador
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
+                      100% Automático do Nome
+                    </Badge>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => aplicarGeometriaNome(form.nome_peca, { force: true, notify: true })}
+                    className="text-[11px] text-slate-400 hover:text-emerald-300 underline ml-1 cursor-pointer"
+                    title="Redefinir abas para o padrão do nome da peça"
+                  >
+                    Redefinir
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Visualizador Croqui 2D Interativo com Especialista em Dobra */}
             <CroquiPeca2D
