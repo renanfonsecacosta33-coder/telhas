@@ -100,9 +100,9 @@ export default function EtiquetaBTW({ bobina, onClose }) {
 ^FO520,50^A0N,20,20^FDRECEBIDO EM:^FS
 ^FO520,78^A0N,24,24^FD${dataExib}^FS
 ^FO50,120^GB700,3,3^FS
-^FO50,140^GB700,120,120^FS
-^FO70,165^A0N,75,75^FR^FD${codigo}^FS
-^FO50,280^A0N,22,22^FDSUB-COD: ${subCod} | QUALIDADE: ${qualidade}^FS
+^FO50,135^GB700,135,135^FS
+^FO60,150^A0N,105,100^FR^FD${codigo}^FS
+^FO50,285^A0N,22,22^FDSUB-COD: ${subCod} | QUALIDADE: ${qualidade}^FS
 ^FO50,315^GB700,2,2^FS
 ^FO50,335^A0N,24,24^FDDIMENSOES / LARGURA:^FS
 ^FO350,330^A0N,34,34^FD${dim}^FS
@@ -138,7 +138,7 @@ export default function EtiquetaBTW({ bobina, onClose }) {
 ^LL600
 ^FO30,20^GB740,560,3^FS
 ^FO50,35^A0N,30,30^FDAJL FERRO E ACO - ${setorLabel}^FS
-^FO50,75^A0N,55,55^FD${codigo}^FS
+^FO50,65^A0N,72,72^FD${codigo}^FS
 ^FO50,140^GB700,2,2^FS
 ^FO50,155^A0N,22,22^FDDIMENSAO: ${dim} | CHAPA: ${chapaReal} mm^FS
 ^FO50,185^A0N,22,22^FD${isCorteDobra ? "CHAPA UTIL:" : "COR:"} ${isCorteDobra ? chapaUtilizada : corBobina} | QUAL: ${qualidade}^FS
@@ -517,11 +517,11 @@ export default function EtiquetaBTW({ bobina, onClose }) {
                   alignItems: "center",
                   justifyContent: "space-between"
                 }}>
-                  <div>
-                    <div style={{ fontSize: "8.5px", letterSpacing: "0.5px", fontWeight: 900, color: "#000" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: "9px", letterSpacing: "0.6px", fontWeight: 900, color: "#000" }}>
                       CÓDIGO DA BOBINA
                     </div>
-                    <div style={{ fontSize: "36px", fontWeight: 900, lineHeight: 1, letterSpacing: "-1px", color: "#000" }}>
+                    <div style={{ fontSize: "50px", fontWeight: 900, lineHeight: 0.92, letterSpacing: "-1.5px", color: "#000", whiteSpace: "nowrap" }}>
                       {codigo}
                     </div>
                   </div>
@@ -626,7 +626,7 @@ export default function EtiquetaBTW({ bobina, onClose }) {
               <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: "5px" }}>
                 {/* Header compacto */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1.5px solid #000", paddingBottom: "3px" }}>
-                  <div style={{ fontSize: "28px", fontWeight: 900, color: "#000", lineHeight: 1 }}>
+                  <div style={{ fontSize: "38px", fontWeight: 900, color: "#000", lineHeight: 0.95, letterSpacing: "-1px" }}>
                     {codigo}
                   </div>
                   <div style={{ textAlign: "right" }}>
@@ -689,7 +689,7 @@ export default function EtiquetaBTW({ bobina, onClose }) {
               /* ============================================================ */
               <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: "4px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1.5px solid #000" }}>
-                  <div style={{ fontSize: "24px", fontWeight: 900 }}>{codigo}</div>
+                  <div style={{ fontSize: "32px", fontWeight: 900, lineHeight: 0.95, letterSpacing: "-0.5px" }}>{codigo}</div>
                   <div style={{ fontSize: "12px", fontWeight: 900 }}>AJL FERRO &amp; AÇO</div>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px", fontSize: "9px", marginTop: "3px" }}>
