@@ -635,6 +635,8 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
                         chapa={chapaVinculada}
                         blankAtual={comprimentoCalculado || comprimentoFinal}
                         nomePecaAtual={form.nome_peca}
+                        quantidadePeca={form.quantidade_peca}
+                        comprimentoPecaMm={form.comprimento_final_mm}
                         onAplicarPerfil={handleAplicarPerfilDoRanking}
                       />
                     </div>

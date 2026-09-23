@@ -13,7 +13,8 @@ import {
   ChevronDown,
   ChevronUp,
   Sliders,
-  AlertCircle
+  AlertCircle,
+  Package
 } from "lucide-react";
 import { calcularRankingPerfisParaChapa, analisarAproveitamentoChapa } from "@/lib/tabelaBlanksAJL";
 
@@ -23,14 +24,17 @@ import { calcularRankingPerfisParaChapa, analisarAproveitamentoChapa } from "@/l
  * Tecnologia de Ponta para Otimização de Corte da Chaparia:
  * 1. Análise em Tempo Real do Blank Atual na Chapa selecionada
  * 2. Visualizador Gráfico SVG do Plano de Corte da Chapa (Nesting de Tiras)
- * 3. Ranking Inteligente IA: Compara com toda a Tabela Física de Blanks da AJL
+ * 3. Cálculo de Consumo de Chapas para o Pedido (Quantas chapas usar para X peças)
+ * 4. Ranking Inteligente IA: Compara com toda a Tabela Física de Blanks da AJL
  *    e diz qual perfil tem o melhor rendimento comercial com menor sucata.
- * 4. Adoção rápida: 1 clique para preencher o perfil escolhido.
+ * 5. Adoção rápida: 1 clique para preencher o perfil escolhido.
  */
 export default function PainelAproveitamentoInteligente({
   chapa,
   blankAtual,
   nomePecaAtual,
+  quantidadePeca = 1,
+  comprimentoPecaMm = 3000,
   onAplicarPerfil,
 }) {
   const [expandido, setExpandido] = useState(true);
@@ -45,6 +49,29 @@ export default function PainelAproveitamentoInteligente({
 
   // Análise do blank atual na chapa
   const analiseAtual = analisarAproveitamentoChapa(largChapa, blankNum);
+
+  // ── Cálculos Industriais de Demanda & Consumo de Chapas ──
+  const qtdPecasPed = Math.max(1, parseInt(quantidadePeca) || 1);
+  const compPeca = Math.max(100, parseFloat(comprimentoPecaMm) || 3000);
+  
+  // Quantas peças cabem no comprimento de cada tira (ex: 6000 / 3000 = 2)
+  const cortesNoComprimento = Math.max(1, Math.floor(compChapa / compPeca));
+  
+  // Quantas peças saem de 1 chapa inteira
+  const pecasPorChapa = (analiseAtual.qtdBlanks || 1) * cortesNoComprimento;
+  
+  // Quantas chapas serão necessárias retirar do estoque para suprir o pedido
+  const chapasNecessarias = Math.max(1, Math.ceil(qtdPecasPed / (pecasPorChapa || 1)));
+  
+  // Total de peças que serão fabricadas ao cortar todas as chapas necessárias
+  const totalPecasProduzidas = chapasNecessarias * pecasPorChapa;
+  
+  // Saldo de peças que sobram para estoque ou retalhos
+  const saldoExcedente = Math.max(0, totalPecasProduzidas - qtdPecasPed);
+  
+  // Situação do estoque físico
+  const estoqueDisponivel = chapa.quantidade_disponivel != null ? Number(chapa.quantidade_disponivel) : null;
+  const estoqueSuficiente = estoqueDisponivel == null || estoqueDisponivel >= chapasNecessarias;
 
   // Ranking de todos os perfis padronizados AJL para a largura desta chapa
   const ranking = calcularRankingPerfisParaChapa(largChapa, espChapa);
@@ -156,6 +183,77 @@ export default function PainelAproveitamentoInteligente({
               </span>
               <span className="text-[10px] text-slate-400 block mt-0.5">
                 {ehMelhorAproveitamento ? "⭐ Máxima eficiência!" : "Existem perfis com menor sobra"}
+              </span>
+            </div>
+          </div>
+
+          {/* ── CARD INDUSTRIAL DE CONSUMO DE MATÉRIA-PRIMA & DEMANDA DO PEDIDO ── */}
+          <div className="bg-gradient-to-r from-blue-950/80 via-slate-900 to-indigo-950/80 border-2 border-blue-500/40 rounded-xl p-3.5 shadow-lg space-y-2.5">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-blue-500 text-white rounded-lg shadow-md shadow-blue-500/30">
+                  <Package className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-xs font-black uppercase text-blue-400 tracking-wider">
+                    Demanda do Pedido: {qtdPecasPed} Peça{qtdPecasPed > 1 ? "s" : ""} ({compPeca} mm)
+                  </span>
+                  <p className="text-[11px] text-slate-300">
+                    Cálculo exato de matéria-prima a requisitar no chão de fábrica
+                  </p>
+                </div>
+              </div>
+
+              {estoqueDisponivel != null && (
+                <Badge className={estoqueSuficiente ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold" : "bg-red-500/20 text-red-300 border border-red-500/40 text-xs font-bold"}>
+                  {estoqueSuficiente ? `✓ Estoque Suficiente (${chapasNecessarias} de ${estoqueDisponivel} chapa${estoqueDisponivel > 1 ? "s" : ""})` : `⚠️ Estoque Insuficiente! Faltam ${chapasNecessarias - estoqueDisponivel} chapa(s)`}
+                </Badge>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+              <div className="bg-slate-900/90 border border-blue-500/40 rounded-lg p-2 text-center">
+                <span className="text-[10px] uppercase font-bold text-blue-300 block">Chapas a Usar</span>
+                <span className="text-xl font-black text-white font-mono">
+                  {chapasNecessarias} <span className="text-xs font-normal text-slate-400">chapa{chapasNecessarias > 1 ? "s" : ""}</span>
+                </span>
+                <span className="text-[10px] text-blue-400/90 block font-semibold">Pegar no estoque (chão)</span>
+              </div>
+
+              <div className="bg-slate-900/90 border border-slate-700 rounded-lg p-2 text-center">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Rendimento por Chapa</span>
+                <span className="text-xl font-black text-emerald-400 font-mono">
+                  {pecasPorChapa} <span className="text-xs font-normal text-slate-400">peças</span>
+                </span>
+                <span className="text-[10px] text-slate-400 block">
+                  {analiseAtual.qtdBlanks} tiras {cortesNoComprimento > 1 ? `× ${cortesNoComprimento} cortes` : ""}
+                </span>
+              </div>
+
+              <div className="bg-slate-900/90 border border-slate-700 rounded-lg p-2 text-center">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Produção Total</span>
+                <span className="text-xl font-black text-white font-mono">
+                  {totalPecasProduzidas} <span className="text-xs font-normal text-slate-400">peças</span>
+                </span>
+                <span className="text-[10px] text-emerald-400 block font-semibold">
+                  {totalPecasProduzidas >= qtdPecasPed ? `Atende 100% da OP!` : ""}
+                </span>
+              </div>
+
+              <div className="bg-slate-900/90 border border-slate-700 rounded-lg p-2 text-center">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Saldo Excedente</span>
+                <span className={`text-xl font-black font-mono ${saldoExcedente > 0 ? "text-amber-400" : "text-slate-300"}`}>
+                  {saldoExcedente > 0 ? `+${saldoExcedente}` : "0"} <span className="text-xs font-normal text-slate-400">peças</span>
+                </span>
+                <span className="text-[10px] text-slate-400 block">
+                  {saldoExcedente > 0 ? "Peças extras / Estoque" : "Corte exato (sem sobra)"}
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300 flex items-center justify-between flex-wrap gap-1">
+              <span>
+                💡 <strong>Orientação de Corte:</strong> Para produzir as <strong>{qtdPecasPed} peças ({compPeca} mm)</strong>, retire <strong>{chapasNecessarias} chapa(s) {chapa.codigo}</strong> no chão de fábrica. {cortesNoComprimento > 1 ? `Cada chapa rende ${cortesNoComprimento} peças de ${compPeca} mm no comprimento.` : ""} {saldoExcedente > 0 ? `Entregar ${qtdPecasPed} peças ao pedido e guardar ${saldoExcedente} peças de saldo!` : "Quantidade exata."}
               </span>
             </div>
           </div>
