@@ -134,6 +134,14 @@
     "foto_peca_url": {
       "type": "string",
       "description": "URL da foto de refer\u00eancia da pe\u00e7a"
+    },
+    "chapa_id": {
+      "type": "string",
+      "description": "ID da ChapaCD vinculada (chapa do chão de fábrica utilizada)"
+    },
+    "chapa_codigo": {
+      "type": "string",
+      "description": "Código da ChapaCD vinculada (ex: CH0012) para rastreabilidade"
     }
   },
   "required": [

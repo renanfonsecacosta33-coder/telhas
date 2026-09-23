@@ -10,7 +10,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
-import { Layers, Package, Camera, PackageX, Scissors, Lock, Flame, Route, Star, User as UserIcon } from "lucide-react";
+import { Layers, Package, Camera, PackageX, Scissors, Lock, Flame, Route, Star, User as UserIcon, Zap, ChevronDown, ChevronUp, CheckCircle2, Search } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import ChapaEstoqueCombobox from "@/components/corte-dobra/ChapaEstoqueCombobox";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
@@ -272,7 +272,39 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
 
   const devObj = desenvolvimentos.find(d => d.id === form.desenvolvimento_id);
 
-  // Quando o tipo de peça muda
+  // ── RECOMENDAÇÃO INTELIGENTE ──────────────────────────────────────────────
+  // Filtra desenvolvimentos pela espessura da chapa selecionada (tolerância ±0.2mm)
+  const devsCompativeis = useMemo(() => {
+    if (!chapaObj || !desenvolvimentos.length) return [];
+    const esp = parseFloat(chapaObj.espessura_mm);
+    if (isNaN(esp)) return [];
+    return desenvolvimentos
+      .filter(d => {
+        const dEsp = parseFloat(d.espessura_mm);
+        return !isNaN(dEsp) && Math.abs(dEsp - esp) <= 0.2;
+      })
+      .sort((a, b) => {
+        // Prioridade: mesma espessura exata primeiro, depois por nome
+        const aExact = Math.abs(parseFloat(a.espessura_mm) - esp) < 0.01;
+        const bExact = Math.abs(parseFloat(b.espessura_mm) - esp) < 0.01;
+        if (aExact && !bExact) return -1;
+        if (!aExact && bExact) return 1;
+        return (a.nome_peca || "").localeCompare(b.nome_peca || "", "pt-BR");
+      });
+  }, [chapaObj?.id, desenvolvimentos]);
+
+  // Desenvolvimentos que NÃO são compatíveis com a espessura (para lista secundária)
+  const devsOutros = useMemo(() => {
+    if (!chapaObj) return desenvolvimentos;
+    const compatIds = new Set(devsCompativeis.map(d => d.id));
+    return desenvolvimentos.filter(d => !compatIds.has(d.id));
+  }, [devsCompativeis, desenvolvimentos, chapaObj]);
+
+  const [mostrarTodosDevs, setMostrarTodosDevs] = useState(false);
+  const [buscaDev, setBuscaDev] = useState("");
+  // ─────────────────────────────────────────────────────────────────────────
+
+
   const handleTipoPeca = (label) => {
     if (isPerfiladeira) {
       // Perfiladeira: tipo_peca é o material da slitter
@@ -536,38 +568,215 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
             </div>
           </div>
 
-          {/* Desenvolvimento (opcional para corte/dobra) */}
+          {/* ═══════════════════════════════════════════════════════════════
+              DESENVOLVIMENTO — Painel de Recomendação Inteligente
+          ═══════════════════════════════════════════════════════════════ */}
           {isMaquinaPadrao && (
-            <div className="space-y-1">
-              <Label>Desenvolvimento (opcional)</Label>
-              <Select value={form.desenvolvimento_id} onValueChange={v => {
-                set("desenvolvimento_id", v);
-                if (!v) { set("tipo_peca", ""); set("dimensoes_livres", ""); set("ordem_dobra_maquina", ""); return; }
-                const d = desenvolvimentos.find(x => x.id === v);
-                set("desenvolvimento_descricao", d ? `${d.nome_peca} — ${d.material || ""} ${d.espessura_mm || ""}mm` : "");
-              }}>
-                <SelectTrigger><SelectValue placeholder="Selecione o desenvolvimento..." /></SelectTrigger>
-                <SelectContent>
-                  {desenvolvimentos.length === 0 && <SelectItem value="_empty" disabled>Nenhum desenvolvimento aprovado</SelectItem>}
-                  {desenvolvimentos.map(d => (
-                    <SelectItem key={d.id} value={d.id}>
-                      <span className="font-semibold">{d.nome_peca}</span>
-                      <span className="text-muted-foreground ml-2 text-xs">{d.material} {d.espessura_mm}mm</span>
-                      {d.maquina_dobra && d.maquina_dobra !== "PERFILADEIRA" && (
-                        <span className="text-amber-600 ml-2 text-xs">📐 +{d.maquina_dobra}</span>
-                      )}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {devObj && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-xs flex flex-wrap gap-3 text-emerald-800">
-                  <span>Material: <strong>{devObj.material}</strong></span>
-                  <span>Espessura: <strong>{devObj.espessura_mm}mm</strong></span>
-                  {devObj.largura_mm && <span>Largura: <strong>{devObj.largura_mm}mm</strong></span>}
-                  {devObj.maquina_dobra && devObj.maquina_dobra !== "PERFILADEIRA" && (
-                    <span className="text-amber-700">📐 Precisa de dobra</span>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-orange-500" />
+                  Desenvolvimento de Peça
+                  {devsCompativeis.length > 0 && (
+                    <Badge className="bg-emerald-500 text-white text-[10px] ml-1">
+                      {devsCompativeis.length} compatíveis
+                    </Badge>
                   )}
+                </Label>
+                {form.desenvolvimento_id && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      set("desenvolvimento_id", "");
+                      set("tipo_peca", "");
+                      set("dimensoes_livres", "");
+                      set("ordem_dobra_maquina", "");
+                    }}
+                    className="text-[10px] text-red-500 hover:text-red-700 underline"
+                  >
+                    ✕ Limpar seleção
+                  </button>
+                )}
+              </div>
+
+              {/* ── CASO 1: Chapa selecionada → mostrar recomendações por espessura ── */}
+              {chapaObj ? (
+                <div className="space-y-2">
+                  {/* Cabeçalho de contexto */}
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs text-orange-800 flex items-center gap-2">
+                    <Zap className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                    <span>
+                      Chapa <strong>e{chapaObj.espessura_mm}mm</strong> selecionada
+                      {chapaObj.material ? ` · ${chapaObj.material}` : ""}
+                      {devsCompativeis.length > 0
+                        ? ` — mostrando os ${devsCompativeis.length} desenvolvimentos compatíveis:`
+                        : " — nenhum desenvolvimento cadastrado para esta espessura ainda."}
+                    </span>
+                  </div>
+
+                  {/* Cards dos desenvolvimentos compatíveis */}
+                  {devsCompativeis.length > 0 && (
+                    <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-1">
+                      {devsCompativeis.map(d => {
+                        const selected = form.desenvolvimento_id === d.id;
+                        return (
+                          <button
+                            key={d.id}
+                            type="button"
+                            onClick={() => {
+                              set("desenvolvimento_id", d.id);
+                              set("desenvolvimento_descricao", `${d.nome_peca} — ${d.material || ""} ${d.espessura_mm || ""}mm`);
+                            }}
+                            className={`text-left rounded-xl border-2 px-3 py-2.5 transition-all ${
+                              selected
+                                ? "border-emerald-500 bg-emerald-50 shadow-md"
+                                : "border-border bg-card hover:border-orange-300 hover:bg-orange-50/30"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {selected && (
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                  )}
+                                  <span className={`font-bold text-sm ${selected ? "text-emerald-800" : "text-foreground"}`}>
+                                    {d.nome_peca}
+                                  </span>
+                                  <Badge className="bg-orange-100 text-orange-700 border-orange-300 text-[10px] font-bold">
+                                    e{d.espessura_mm}mm
+                                  </Badge>
+                                  {d.material && (
+                                    <span className="text-xs text-muted-foreground">{d.material}</span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-3 mt-1 flex-wrap">
+                                  {d.comprimento_desenvolvido_mm && (
+                                    <span className="text-xs font-mono font-bold text-emerald-700">
+                                      ✂️ Blank: {d.comprimento_desenvolvido_mm} mm
+                                    </span>
+                                  )}
+                                  {d.comprimento_final_mm && (
+                                    <span className="text-xs font-mono text-muted-foreground">
+                                      ↔️ {d.comprimento_final_mm} mm
+                                    </span>
+                                  )}
+                                  {d.maquina_dobra && d.maquina_dobra !== "PERFILADEIRA" && (
+                                    <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5">
+                                      📐 {d.maquina_dobra}
+                                    </span>
+                                  )}
+                                  {d.maquina_corte && (
+                                    <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-200 rounded px-1.5 py-0.5">
+                                      ✂️ {d.maquina_corte}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {selected && (
+                                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Outros desenvolvimentos (espessura diferente) — colapsável */}
+                  {devsOutros.length > 0 && (
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setMostrarTodosDevs(v => !v)}
+                        className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                      >
+                        {mostrarTodosDevs ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                        {mostrarTodosDevs ? "Ocultar" : `Ver todos (${devsOutros.length} outros — espessuras diferentes)`}
+                      </button>
+                      {mostrarTodosDevs && (
+                        <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+                          {devsOutros.map(d => (
+                            <button
+                              key={d.id}
+                              type="button"
+                              onClick={() => {
+                                set("desenvolvimento_id", d.id);
+                                set("desenvolvimento_descricao", `${d.nome_peca} — ${d.material || ""} ${d.espessura_mm || ""}mm`);
+                              }}
+                              className="w-full text-left rounded-lg border border-border px-3 py-2 text-xs hover:border-orange-300 hover:bg-orange-50/30 transition-all flex items-center justify-between gap-2 bg-card"
+                            >
+                              <span className="font-semibold">{d.nome_peca}</span>
+                              <span className="text-muted-foreground shrink-0">e{d.espessura_mm}mm · {d.material || "—"}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* ── CASO 2: Sem chapa → Select padrão com busca ── */
+                <div className="space-y-1.5">
+                  <p className="text-[10px] text-muted-foreground italic">
+                    Selecione uma chapa acima para ver as recomendações automáticas por espessura.
+                  </p>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar desenvolvimento por nome..."
+                      value={buscaDev}
+                      onChange={e => setBuscaDev(e.target.value)}
+                      className="pl-8 h-8 text-xs"
+                    />
+                  </div>
+                  <Select value={form.desenvolvimento_id} onValueChange={v => {
+                    set("desenvolvimento_id", v);
+                    if (!v) { set("tipo_peca", ""); set("dimensoes_livres", ""); set("ordem_dobra_maquina", ""); return; }
+                    const d = desenvolvimentos.find(x => x.id === v);
+                    set("desenvolvimento_descricao", d ? `${d.nome_peca} — ${d.material || ""} ${d.espessura_mm || ""}mm` : "");
+                  }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o desenvolvimento..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {desenvolvimentos.length === 0 && <SelectItem value="_empty" disabled>Nenhum desenvolvimento aprovado</SelectItem>}
+                      {desenvolvimentos
+                        .filter(d => !buscaDev || d.nome_peca?.toLowerCase().includes(buscaDev.toLowerCase()))
+                        .map(d => (
+                          <SelectItem key={d.id} value={d.id}>
+                            <span className="font-semibold">{d.nome_peca}</span>
+                            <span className="text-muted-foreground ml-2 text-xs">{d.material} {d.espessura_mm}mm</span>
+                            {d.maquina_dobra && d.maquina_dobra !== "PERFILADEIRA" && (
+                              <span className="text-amber-600 ml-2 text-xs">📐 +{d.maquina_dobra}</span>
+                            )}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Card de resumo quando um desenvolvimento está selecionado */}
+              {devObj && (
+                <div className="bg-emerald-50 border-2 border-emerald-300 rounded-xl px-3 py-2.5 text-xs space-y-1.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span className="font-black text-emerald-900 text-sm">{devObj.nome_peca}</span>
+                    <Badge className="bg-orange-500 text-white font-bold">e{devObj.espessura_mm}mm</Badge>
+                    {devObj.material && <Badge variant="outline" className="text-slate-700">{devObj.material}</Badge>}
+                  </div>
+                  <div className="flex flex-wrap gap-3 text-emerald-800">
+                    {devObj.comprimento_desenvolvido_mm && (
+                      <span className="font-mono font-bold">✂️ Blank: <strong>{devObj.comprimento_desenvolvido_mm} mm</strong></span>
+                    )}
+                    {devObj.comprimento_final_mm && (
+                      <span className="font-mono">↔️ Comp: <strong>{devObj.comprimento_final_mm} mm</strong></span>
+                    )}
+                    {devObj.largura_mm && <span>Largura: <strong>{devObj.largura_mm}mm</strong></span>}
+                    {devObj.maquina_dobra && devObj.maquina_dobra !== "PERFILADEIRA" && (
+                      <span className="text-blue-700 font-bold">📐 Dobra: {devObj.maquina_dobra}</span>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

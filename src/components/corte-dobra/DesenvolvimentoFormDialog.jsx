@@ -9,12 +9,15 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import {
   Calculator, Plus, Trash2, AlertTriangle, CheckCircle2, Info,
-  Wrench, Layers, Sparkles, Compass
+  Wrench, Layers, Sparkles, Compass, Package, X, ToggleLeft, ToggleRight
 } from "lucide-react";
 import { toast } from "sonner";
+import { base44 } from "@/api/base44Client";
+import { useQuery } from "@tanstack/react-query";
 import EspessuraSelect from "./EspessuraSelect";
 import CroquiPeca2D, { PRESETS_PERFIL } from "./CroquiPeca2D";
 import CalculadoraForcaDobra from "./CalculadoraForcaDobra";
+import ChapaEstoqueCombobox from "./ChapaEstoqueCombobox";
 
 // ─── Fórmulas de planificação ───────────────────────────────────────────────
 // BA (Bend Allowance) = (π/180) × ângulo × (raio + fatorK × espessura)
@@ -28,6 +31,15 @@ function calcBD(angulo, raio, espessura, fatorK) {
   const outside = 2 * (raio + espessura) * Math.tan((angulo / 2) * (Math.PI / 180));
   return outside - ba;
 }
+
+// Mapear qualidade da chapa para material legível
+const QUALIDADE_MATERIAL = {
+  "GV":       "Aço galvanizado",
+  "FF":       "Aço galvanizado pré-pintado",
+  "PP":       "Aço galvanizado pré-pintado",
+  "FQ":       "Aço galvanizado FQ",
+  "GL (IMP)": "Aço galvanizado importado",
+};
 
 const MATERIAIS = [
   "Aço galvanizado",
@@ -66,7 +78,12 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
     quantidade_peca: "1",
     sequencia_dobras: "",
     observacoes_tecnicas: "",
+    chapa_id: "",
+    chapa_codigo: "",
   });
+
+  // Modo de seleção de material: "estoque" ou "manual"
+  const [modoMaterial, setModoMaterial] = useState("estoque");
 
   const [abas, setAbas] = useState([25, 50, 25]);
   const [dobras, setDobras] = useState([
@@ -76,6 +93,45 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
   const [comprimentoManual, setComprimentoManual] = useState("");
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  // ── Query de chapas disponíveis ──
+  const { data: todasChapas = [] } = useQuery({
+    queryKey: ["chapas-cd-todas-dev"],
+    queryFn: () => base44.entities.ChapaCD.filter({}),
+    enabled: open,
+    staleTime: 30000,
+  });
+  const chapasDisponiveis = todasChapas.filter(
+    c => c.status === "disponivel" || c.status === "parcial"
+  );
+  const chapaVinculada = chapasDisponiveis.find(c => c.id === form.chapa_id) || null;
+
+  // ── Query de retalhos disponíveis ──
+  const { data: retalhos = [] } = useQuery({
+    queryKey: ["retalhos-cd-dev"],
+    queryFn: () => base44.entities.RetalhoCD.filter({ status: "disponivel" }),
+    enabled: open,
+    staleTime: 30000,
+  });
+
+  // Combina chapas + retalhos em um único array normalizado para o combobox
+  const todasOpcoes = [
+    ...chapasDisponiveis.map(c => ({
+      ...c,
+      _tipo: "chapa",
+      // garante campos compatíveis com combobox
+      bobina_descricao: c.bobina_descricao || c.material || "Chapa",
+      codigo: c.codigo || "—",
+    })),
+    ...retalhos.map(r => ({
+      ...r,
+      _tipo: "retalho",
+      codigo: `RT-${r.id?.slice(-4)?.toUpperCase() || "????"}`,
+      bobina_descricao: r.material || "Retalho",
+      quantidade_disponivel: 1,
+      destino: "estoque",
+    })),
+  ];
 
   useEffect(() => {
     if (!open) return;
@@ -101,7 +157,12 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
         quantidade_peca: editItem.quantidade_peca ? String(editItem.quantidade_peca) : "1",
         sequencia_dobras: editItem.sequencia_dobras || "",
         observacoes_tecnicas: editItem.observacoes_tecnicas || "",
+        chapa_id: editItem.chapa_id || "",
+        chapa_codigo: editItem.chapa_codigo || "",
       });
+
+      // Se já tem chapa vinculada, começa em modo estoque; senão modo manual
+      setModoMaterial(editItem.chapa_id ? "estoque" : "manual");
 
       const parsedDobras = editItem.dobras_json ? JSON.parse(editItem.dobras_json) : [];
       setDobras(parsedDobras.length ? parsedDobras : [
@@ -121,7 +182,9 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
         comprimento_final_mm: "3000", largura_final_mm: "", altura_final_mm: "",
         raio_dobra_mm: "1.5", maquina_corte: "CORTE 6M", maquina_dobra: "DOBRA FUNDO 6M",
         ferramental: "", quantidade_peca: "1", sequencia_dobras: "", observacoes_tecnicas: "",
+        chapa_id: "", chapa_codigo: "",
       });
+      setModoMaterial("estoque");
       setAbas([25, 50, 25]);
       setDobras([
         { angulo: 90, raio: "1.5", descricao: "Aba 1", direcao: "cima" },
@@ -130,6 +193,47 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
       setComprimentoManual("");
     }
   }, [open, editItem]);
+
+  // ── Ao selecionar uma chapa do estoque, auto-preenche os campos ──
+  const handleSelecionarChapa = (chapaId) => {
+    const chapa = todasOpcoes.find(c => c.id === chapaId);
+    if (!chapa) {
+      // Limpou a seleção
+      setForm(f => ({ ...f, chapa_id: "", chapa_codigo: "" }));
+      return;
+    }
+    const materialChapa =
+      QUALIDADE_MATERIAL[chapa.qualidade] ||
+      chapa.material ||
+      "Aço galvanizado";
+
+    const espessura = chapa.espessura_mm ? String(chapa.espessura_mm) : "";
+    const espessuraLabel = chapa.espessura_mm
+      ? `${String(chapa.espessura_mm).replace(".", ",")} mm`
+      : "";
+
+    setForm(f => ({
+      ...f,
+      chapa_id: chapa.id,
+      chapa_codigo: chapa.codigo || "",
+      material: materialChapa,
+      espessura_mm: espessura,
+      espessura_label: espessuraLabel,
+      largura_mm: chapa.largura_mm ? String(chapa.largura_mm) : f.largura_mm,
+      // Se comprimento não preenchido ainda, sugere comprimento da chapa
+      comprimento_final_mm: f.comprimento_final_mm && f.comprimento_final_mm !== "3000"
+        ? f.comprimento_final_mm
+        : (chapa.comprimento_mm ? String(chapa.comprimento_mm) : "3000"),
+    }));
+
+    toast.success(`📦 Chapa ${chapa.codigo} vinculada! Material e espessura preenchidos automaticamente.`);
+  };
+
+  // ── Limpar vinculação de chapa ──
+  const handleLimparChapa = () => {
+    setForm(f => ({ ...f, chapa_id: "", chapa_codigo: "" }));
+    toast.info("Vínculo com chapa removido.");
+  };
 
   // ── Aplica preset de perfil ──
   const aplicarPreset = (preset) => {
@@ -192,6 +296,35 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
   const comprimentoCalculado = calcComprimentoDesenvolvido();
   const comprimentoFinal = comprimentoCalculado || (comprimentoManual ? parseFloat(comprimentoManual) : null);
 
+  // ── Análise de compatibilidade com a chapa selecionada ──
+  const alertasChapa = [];
+  if (chapaVinculada) {
+    const compPeca = parseFloat(form.comprimento_final_mm) || 0;
+    const compChapa = chapaVinculada.comprimento_mm || 0;
+    if (compPeca > compChapa) {
+      alertasChapa.push({
+        tipo: "erro",
+        msg: `⚠️ Comprimento da peça (${compPeca} mm) excede o comprimento da chapa (${compChapa} mm)!`,
+      });
+    }
+    if (comprimentoCalculado && chapaVinculada.largura_mm) {
+      const largChapa = chapaVinculada.largura_mm;
+      if (comprimentoCalculado > largChapa) {
+        alertasChapa.push({
+          tipo: "erro",
+          msg: `⚠️ Largura planificada do blank (${comprimentoCalculado} mm) é maior que a largura da chapa (${largChapa} mm)!`,
+        });
+      } else if (comprimentoCalculado <= largChapa) {
+        const aproveitamento = Math.floor(largChapa / comprimentoCalculado);
+        const sobra = largChapa - aproveitamento * comprimentoCalculado;
+        alertasChapa.push({
+          tipo: "ok",
+          msg: `✅ Aproveitamento: ${aproveitamento} blank(s) por chapa — sobra de ${sobra} mm por chapa`,
+        });
+      }
+    }
+  }
+
   const handleSave = (status = "rascunho") => {
     if (!form.nome_peca) { alert("Informe o nome da peça."); return; }
     if (!form.espessura_mm) { alert("Informe a espessura."); return; }
@@ -212,6 +345,8 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
       dobras_json: dobras.length ? JSON.stringify(dobras) : undefined,
       abas_json: abas.length ? JSON.stringify(abas) : undefined,
       quantidade_peca: form.quantidade_peca ? parseFloat(form.quantidade_peca) : undefined,
+      chapa_id: form.chapa_id || undefined,
+      chapa_codigo: form.chapa_codigo || undefined,
       status,
     });
   };
@@ -270,38 +405,240 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
 
           {/* ── MATERIAL & ESPESSURA ── */}
           <Section title="2. Material & Matéria-Prima">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Material *</Label>
-                <Select value={form.material} onValueChange={v => set("material", v)}>
-                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                  <SelectContent>
-                    {MATERIAIS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Espessura da Chapa *</Label>
-                <EspessuraSelect
-                  value={form.espessura_label || (form.espessura_mm ? String(form.espessura_mm) : "")}
-                  onChange={(label, valor) => {
-                    setForm(f => ({ ...f, espessura_mm: valor, espessura_label: label }));
-                  }}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Fator K</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0.1"
-                  max="0.5"
-                  placeholder="0.33"
-                  value={form.fator_k}
-                  onChange={e => set("fator_k", e.target.value)}
-                />
-              </div>
+
+            {/* Toggle: Estoque vs Manual */}
+            <div className="flex items-center gap-2 mb-3">
+              <button
+                type="button"
+                onClick={() => setModoMaterial("estoque")}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
+                  modoMaterial === "estoque"
+                    ? "bg-orange-500 text-white border-orange-500 shadow"
+                    : "bg-background text-muted-foreground border-border hover:bg-muted/40"
+                }`}
+              >
+                <Package className="w-4 h-4" />
+                📦 Chapa do Estoque (Chão)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setModoMaterial("manual");
+                  handleLimparChapa();
+                }}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
+                  modoMaterial === "manual"
+                    ? "bg-slate-600 text-white border-slate-600 shadow"
+                    : "bg-background text-muted-foreground border-border hover:bg-muted/40"
+                }`}
+              >
+                <Compass className="w-4 h-4" />
+                ✏️ Manual / Simulação
+              </button>
+              {modoMaterial === "estoque" && (
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {chapasDisponiveis.length} chapa(s) + {retalhos.length} retalho(s) disponíveis
+                </span>
+              )}
             </div>
+
+            {/* Modo: Estoque → Seletor de Chapa do Chão */}
+            {modoMaterial === "estoque" && (
+              <div className="space-y-3">
+                {/* Combobox de chapas */}
+                {!chapaVinculada ? (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs flex items-center gap-1.5">
+                      <Package className="w-3.5 h-3.5 text-orange-500" />
+                      Selecionar Chapa / Retalho do Estoque
+                    </Label>
+                    <ChapaEstoqueCombobox
+                      chapas={todasOpcoes}
+                      value={form.chapa_id}
+                      onChange={handleSelecionarChapa}
+                      numeroPedido={form.numero_pedido}
+                      placeholder="🔍 Pesquisar por código, espessura, material, qualidade..."
+                    />
+                    {todasOpcoes.length === 0 && (
+                      <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        ⚠️ Nenhuma chapa disponível no estoque da Chaparia. Cadastre chapas primeiro ou use o modo Manual.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  /* Card da chapa vinculada */
+                  <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-4 space-y-2">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-emerald-500 text-white rounded-lg">
+                          <Package className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-emerald-700 font-semibold uppercase tracking-wider">
+                            Chapa vinculada ao desenvolvimento
+                          </p>
+                          <p className="text-lg font-black text-emerald-800 font-mono">
+                            {chapaVinculada.codigo || "—"}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleLimparChapa}
+                        className="text-emerald-500 hover:text-red-500 transition-colors p-1 rounded"
+                        title="Remover vínculo com chapa"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {chapaVinculada.espessura_mm && (
+                        <Badge className="bg-emerald-600 text-white">
+                          {chapaVinculada.espessura_mm} mm
+                        </Badge>
+                      )}
+                      {chapaVinculada.qualidade && (
+                        <Badge variant="outline" className="border-emerald-400 text-emerald-700">
+                          {chapaVinculada.qualidade}
+                        </Badge>
+                      )}
+                      {chapaVinculada.comprimento_mm && chapaVinculada.largura_mm && (
+                        <Badge variant="outline" className="border-emerald-400 text-emerald-700 font-mono">
+                          {chapaVinculada.comprimento_mm} × {chapaVinculada.largura_mm} mm
+                        </Badge>
+                      )}
+                      {chapaVinculada.quantidade_disponivel != null && (
+                        <Badge variant="outline" className="border-emerald-400 text-emerald-700">
+                          📦 {chapaVinculada.quantidade_disponivel} pç disponível
+                        </Badge>
+                      )}
+                      {chapaVinculada.material && (
+                        <Badge variant="outline" className="border-slate-300 text-slate-600">
+                          {chapaVinculada.material}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Alertas de compatibilidade */}
+                    {alertasChapa.map((alerta, i) => (
+                      <div
+                        key={i}
+                        className={`rounded-lg px-3 py-2 text-xs font-medium ${
+                          alerta.tipo === "erro"
+                            ? "bg-red-100 text-red-700 border border-red-300"
+                            : "bg-blue-50 text-blue-700 border border-blue-200"
+                        }`}
+                      >
+                        {alerta.msg}
+                      </div>
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={handleLimparChapa}
+                      className="text-xs text-emerald-600 hover:text-red-500 underline underline-offset-2"
+                    >
+                      Trocar / Remover chapa
+                    </button>
+                  </div>
+                )}
+
+                {/* Campos auto-preenchidos (somente leitura quando vinculado) — editáveis quando não vinculado */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                  <div className="space-y-1">
+                    <Label className="text-xs">
+                      Material *
+                      {chapaVinculada && <span className="ml-1 text-emerald-600 text-[10px]">↑ da chapa</span>}
+                    </Label>
+                    <Select
+                      value={form.material}
+                      onValueChange={v => set("material", v)}
+                      disabled={!!chapaVinculada}
+                    >
+                      <SelectTrigger className={chapaVinculada ? "bg-emerald-50 border-emerald-300" : ""}>
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MATERIAIS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">
+                      Espessura da Chapa *
+                      {chapaVinculada && <span className="ml-1 text-emerald-600 text-[10px]">↑ da chapa</span>}
+                    </Label>
+                    {chapaVinculada ? (
+                      <div className="h-9 rounded-md border border-emerald-300 bg-emerald-50 px-3 flex items-center text-sm font-bold text-emerald-800">
+                        {chapaVinculada.espessura_mm} mm
+                      </div>
+                    ) : (
+                      <EspessuraSelect
+                        value={form.espessura_label || (form.espessura_mm ? String(form.espessura_mm) : "")}
+                        onChange={(label, valor) => {
+                          setForm(f => ({ ...f, espessura_mm: valor, espessura_label: label }));
+                        }}
+                      />
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Fator K</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0.1"
+                      max="0.5"
+                      placeholder="0.33"
+                      value={form.fator_k}
+                      onChange={e => set("fator_k", e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Modo: Manual → campos diretos sem vinculação */}
+            {modoMaterial === "manual" && (
+              <div className="space-y-3">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-600 flex items-center gap-2">
+                  <Info className="w-3.5 h-3.5 shrink-0" />
+                  Modo simulação: material e espessura serão digitados manualmente sem vínculo com o estoque físico.
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Material *</Label>
+                    <Select value={form.material} onValueChange={v => set("material", v)}>
+                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                      <SelectContent>
+                        {MATERIAIS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Espessura da Chapa *</Label>
+                    <EspessuraSelect
+                      value={form.espessura_label || (form.espessura_mm ? String(form.espessura_mm) : "")}
+                      onChange={(label, valor) => {
+                        setForm(f => ({ ...f, espessura_mm: valor, espessura_label: label }));
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Fator K</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0.1"
+                      max="0.5"
+                      placeholder="0.33"
+                      value={form.fator_k}
+                      onChange={e => set("fator_k", e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </Section>
 
           {/* ── PRESETS RÁPIDOS & CROQUI 2D ── */}

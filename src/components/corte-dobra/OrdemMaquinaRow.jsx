@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import {
   Play, Pause, CheckCircle2, Timer, Coffee, Square, Circle,
   AlertCircle, Clock, Camera, Loader2, Layers, Package, ShoppingCart, Trash2, Image as ImageIcon,
-  Edit3, History, Star, User, Users, PackageX, AlertTriangle, Ban
+  Edit3, History, Star, User, Users, PackageX, AlertTriangle, Ban, ChevronDown, ChevronUp, Calculator
 } from "lucide-react";
 import { registrarAuditoria } from "@/lib/auditHelper";
 import UploadButton from "@/components/ui/UploadButton";
@@ -28,6 +28,8 @@ import ApontamentoOpButton from "@/components/producao/ApontamentoOpButton";
 import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo } from "@/lib/pedidoOdooHelper";
 import { PrioridadeBadge, getPrioridadeNivel } from "@/lib/prioridadeHelper";
 import { notificarStatus } from "@/lib/biNotificador";
+import CroquiPeca2D from "@/components/corte-dobra/CroquiPeca2D";
+
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -555,13 +557,11 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               )}
             </div>
 
-            {/* Desenvolvimento */}
-            {o.desenvolvimento_descricao && (
-              <div className={`flex items-center gap-1 ${z.info} text-emerald-700 mb-1`}>
-                <span className="text-emerald-500">📐</span>
-                <span className="font-medium">{o.desenvolvimento_descricao}</span>
-              </div>
+            {/* Desenvolvimento — Painel expansível com Croqui 2D */}
+            {o.desenvolvimento_id && o.desenvolvimento_descricao && (
+              <DesenvolvimentoCroquiPanel ordem={o} zoom={zoom} />
             )}
+
 
             {/* Pedido e Cliente em Alto Destaque */}
             {(o.numero_pedido || o.cliente) && (
@@ -1064,3 +1064,150 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
     </>
   );
 }
+
+// ─── Painel Croqui 2D da Peça (exibido na tela da máquina) ────────────────
+function DesenvolvimentoCroquiPanel({ ordem: o, zoom }) {
+  const [expandido, setExpandido] = useState(false);
+  const [dev, setDev] = useState(null);
+  const [carregando, setCarregando] = useState(false);
+
+  // Carregar dados do desenvolvimento sob demanda (lazy)
+  const carregarDev = async () => {
+    if (dev || carregando) { setExpandido(e => !e); return; }
+    setCarregando(true);
+    try {
+      const result = await base44.entities.DesenvolvimentoCD.get(o.desenvolvimento_id);
+      setDev(result);
+      setExpandido(true);
+    } catch (e) {
+      toast.error("Erro ao carregar desenvolvimento: " + e.message);
+    }
+    setCarregando(false);
+  };
+
+  const dobras = dev?.dobras_json ? JSON.parse(dev.dobras_json) : [];
+  const abas = dev?.abas_json ? JSON.parse(dev.abas_json) : [25, 50, 25];
+
+  return (
+    <div className="mb-2 border border-emerald-300 rounded-xl overflow-hidden bg-emerald-50/40">
+      {/* Header do painel — sempre visível */}
+      <button
+        type="button"
+        onClick={carregarDev}
+        className="w-full flex items-center justify-between px-3 py-2 hover:bg-emerald-50 transition-colors text-left"
+      >
+        <div className="flex items-center gap-2">
+          <Calculator className="w-4 h-4 text-emerald-600 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-emerald-800 leading-tight">
+              📐 Desenvolvimento: {o.desenvolvimento_descricao || "—"}
+            </p>
+            {!expandido && (
+              <p className="text-[10px] text-emerald-600">
+                Clique para ver o desenho 2D e parâmetros de corte/dobra
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          {carregando && <Loader2 className="w-3.5 h-3.5 text-emerald-600 animate-spin" />}
+          {expandido
+            ? <ChevronUp className="w-4 h-4 text-emerald-600" />
+            : <ChevronDown className="w-4 h-4 text-emerald-600" />
+          }
+        </div>
+      </button>
+
+      {/* Conteúdo expansível */}
+      {expandido && dev && (
+        <div className="border-t border-emerald-200 space-y-3 p-3">
+          {/* Dados técnicos em linha */}
+          <div className="flex flex-wrap gap-2 text-xs">
+            {dev.espessura_mm && (
+              <span className="bg-orange-100 text-orange-700 border border-orange-300 rounded-md px-2 py-0.5 font-bold">
+                e{dev.espessura_mm} mm
+              </span>
+            )}
+            {dev.comprimento_desenvolvido_mm && (
+              <span className="bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-md px-2 py-0.5 font-bold font-mono">
+                ✂️ Blank: {dev.comprimento_desenvolvido_mm} mm
+              </span>
+            )}
+            {dev.comprimento_final_mm && (
+              <span className="bg-slate-100 text-slate-700 border border-slate-200 rounded-md px-2 py-0.5 font-mono">
+                ↔️ Comp: {dev.comprimento_final_mm} mm
+              </span>
+            )}
+            {dev.raio_dobra_mm && (
+              <span className="bg-blue-50 text-blue-700 border border-blue-200 rounded-md px-2 py-0.5">
+                R dobra: {dev.raio_dobra_mm} mm
+              </span>
+            )}
+            {dev.ferramental && (
+              <span className="bg-purple-50 text-purple-700 border border-purple-200 rounded-md px-2 py-0.5">
+                🔧 {dev.ferramental}
+              </span>
+            )}
+            {dev.fator_k && (
+              <span className="text-slate-500 text-[10px] px-1">
+                Fator K={dev.fator_k}
+              </span>
+            )}
+          </div>
+
+          {/* Croqui 2D da Peça */}
+          {abas.length > 0 && (
+            <div className="rounded-xl overflow-hidden bg-slate-900">
+              <CroquiPeca2D
+                abas={abas}
+                dobras={dobras}
+                espessura_mm={parseFloat(dev.espessura_mm) || 1.5}
+                nomePeca={dev.nome_peca}
+                larguraPlanificada={dev.comprimento_desenvolvido_mm || 100}
+                comprimento_mm={parseFloat(dev.comprimento_final_mm) || 3000}
+                material={dev.material}
+                maquinaNome={o.maquina}
+              />
+            </div>
+          )}
+
+          {/* Sequência de dobras */}
+          {dobras.length > 0 && (
+            <div>
+              <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1.5">
+                Sequência de Dobras
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {dobras.map((d, i) => (
+                  <div key={i} className="bg-white border border-border rounded-lg px-2.5 py-1.5 text-xs">
+                    <span className="font-black text-orange-600">D{i + 1}</span>
+                    <span className="text-muted-foreground ml-2">{d.angulo}°</span>
+                    {d.raio && <span className="text-muted-foreground ml-1">R{d.raio}</span>}
+                    {d.direcao && (
+                      <span className="ml-1.5 text-[10px] bg-blue-50 text-blue-600 rounded px-1">
+                        {d.direcao === "cima" ? "↑" : "↓"}
+                      </span>
+                    )}
+                    {d.descricao && <span className="ml-2">{d.descricao}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Observações técnicas */}
+          {dev.sequencia_dobras && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
+              <strong>Sequência:</strong> {dev.sequencia_dobras}
+            </div>
+          )}
+          {dev.observacoes_tecnicas && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-800">
+              📋 {dev.observacoes_tecnicas}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

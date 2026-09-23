@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Calculator, Plus, Search, CheckCircle2, Clock, AlertTriangle,
-  ChevronDown, ChevronUp, Layers, Ruler, Settings, ShoppingCart, Eye, BarChart2, Scissors, Printer
+  ChevronDown, ChevronUp, Layers, Ruler, Settings, ShoppingCart, Eye, BarChart2, Scissors, Printer,
+  Send, FileText, BookOpen
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -15,6 +16,10 @@ import DesenvolvimentoFormDialog from "@/components/corte-dobra/DesenvolvimentoF
 import AproveitamentoBlank from "@/components/corte-dobra/AproveitamentoBlank";
 import OtimizadorCorte from "@/components/corte-dobra/OtimizadorCorte/OtimizadorCorte";
 import FichaTecnicaImpressaoModal from "@/components/corte-dobra/FichaTecnicaImpressaoModal";
+import EnviarParaMaquinaModal from "@/components/corte-dobra/EnviarParaMaquinaModal";
+import TemplatesDesenvolvimentoModal from "@/components/corte-dobra/TemplatesDesenvolvimentoModal";
+
+
 
 const STATUS_CONFIG = {
   rascunho:    { label: "Rascunho",     className: "bg-slate-100 text-slate-600 border-slate-200",  icon: Clock },
@@ -33,7 +38,10 @@ export default function DesenvolvimentoCD() {
   const [devAproveitamento, setDevAproveitamento] = useState(null);
   const [devOtimizador, setDevOtimizador] = useState(null);
   const [fichaDev, setFichaDev] = useState(null);
+  const [envioMaquinaDev, setEnvioMaquinaDev] = useState(null); // dev a enviar para máquina
+  const [templateOpen, setTemplateOpen] = useState(false); // modal templates padrão
   const queryClient = useQueryClient();
+
 
   const { data: desenvolvimentos = [], isLoading } = useQuery({
     queryKey: ["desenvolvimentos-cd"],
@@ -89,9 +97,18 @@ export default function DesenvolvimentoCD() {
           <p className="text-sm text-muted-foreground">Planificação, Fator K e parâmetros técnicos antes da OP</p>
         </div>
         {aba === "lista" && (
-          <Button onClick={() => { setEditItem(null); setDialogOpen(true); }} className="gap-2 bg-orange-500 hover:bg-orange-600">
-            <Plus className="w-4 h-4" /> Novo Desenvolvimento
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setTemplateOpen(true)}
+              className="gap-2 border-orange-300 text-orange-700 hover:bg-orange-50"
+            >
+              <BookOpen className="w-4 h-4" /> Templates Padrão
+            </Button>
+            <Button onClick={() => { setEditItem(null); setDialogOpen(true); }} className="gap-2 bg-orange-500 hover:bg-orange-600">
+              <Plus className="w-4 h-4" /> Novo Desenvolvimento
+            </Button>
+          </div>
         )}
       </div>
 
@@ -288,7 +305,32 @@ export default function DesenvolvimentoCD() {
                         onClick={() => { setDevOtimizador(dev); setAba("otimizador"); }}>
                         <Scissors className="w-3 h-3" /> Otimizar Corte
                       </Button>
+
+                      {/* ── NOVOS: Enviar direto para a máquina ── */}
+                      <div className="w-full border-t border-border/50 pt-2 mt-1 flex flex-wrap gap-2">
+                        <p className="w-full text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-1 flex items-center gap-1">
+                          <Send className="w-3 h-3 text-orange-500" />
+                          Enviar para produção:
+                        </p>
+                        <Button
+                          size="sm"
+                          className="gap-1.5 text-xs bg-purple-600 hover:bg-purple-700 text-white font-bold"
+                          onClick={() => setEnvioMaquinaDev({ dev, maquina: dev.maquina_corte || "CORTE 6M", tipo: "corte" })}
+                        >
+                          <Scissors className="w-3.5 h-3.5" /> ✂️ Enviar para Corte
+                        </Button>
+                        {dev.maquina_dobra && dev.maquina_dobra !== "PERFILADEIRA" && (
+                          <Button
+                            size="sm"
+                            className="gap-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                            onClick={() => setEnvioMaquinaDev({ dev, maquina: dev.maquina_dobra, tipo: "dobra" })}
+                          >
+                            <FileText className="w-3.5 h-3.5" /> 📐 Enviar para Dobra
+                          </Button>
+                        )}
+                      </div>
                     </div>
+
                   </div>
                 )}
               </div>
@@ -309,6 +351,19 @@ export default function DesenvolvimentoCD() {
         open={!!fichaDev}
         onClose={() => setFichaDev(null)}
         dev={fichaDev}
+      />
+
+      <EnviarParaMaquinaModal
+        open={!!envioMaquinaDev}
+        onClose={() => setEnvioMaquinaDev(null)}
+        dev={envioMaquinaDev?.dev}
+        maquinaInicial={envioMaquinaDev?.maquina}
+        tipoInicial={envioMaquinaDev?.tipo}
+      />
+
+      <TemplatesDesenvolvimentoModal
+        open={templateOpen}
+        onClose={() => setTemplateOpen(false)}
       />
     </div>
   );
