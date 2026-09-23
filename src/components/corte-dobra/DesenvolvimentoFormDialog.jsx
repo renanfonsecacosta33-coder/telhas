@@ -18,7 +18,9 @@ import EspessuraSelect from "./EspessuraSelect";
 import CroquiPeca2D, { PRESETS_PERFIL } from "./CroquiPeca2D";
 import CalculadoraForcaDobra from "./CalculadoraForcaDobra";
 import ChapaEstoqueCombobox from "./ChapaEstoqueCombobox";
+import PedidoOdooCombobox from "./PedidoOdooCombobox";
 import PainelAproveitamentoInteligente from "./PainelAproveitamentoInteligente";
+import { getItens, classGrupo } from "@/lib/pedidoOdooHelper";
 import {
   calcDeducaoDobraAJL,
   calcBlankDesenvolvidoAJL,
@@ -138,6 +140,53 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
     } else {
       setGeometriaAuto(null);
     }
+  };
+
+  // ── Handler ao vincular um pedido do ODOO ──
+  const handleSelectPedidoOdoo = (pedidoOdoo) => {
+    if (!pedidoOdoo) {
+      setForm(f => ({ ...f, numero_pedido: "", cliente: "" }));
+      return;
+    }
+
+    const itens = getItens(pedidoOdoo);
+    const itemCD = itens.find(i => classGrupo(i) === "cd" || classGrupo(i) === "chapa") || itens[0] || null;
+
+    setForm(f => {
+      const next = {
+        ...f,
+        numero_pedido: pedidoOdoo.numero_pedido || f.numero_pedido,
+        cliente: pedidoOdoo.cliente_nome || f.cliente,
+        responsavel: f.responsavel || pedidoOdoo.vendedor_nome || "",
+      };
+
+      if (itemCD) {
+        if (itemCD.quantidade) {
+          next.quantidade_peca = String(itemCD.quantidade);
+        }
+        if (itemCD.comprimento_mm || itemCD.comprimento) {
+          next.comprimento_final_mm = String(itemCD.comprimento_mm || itemCD.comprimento);
+        }
+        if (itemCD.espessura) {
+          const espLimpa = String(itemCD.espessura).replace(",", ".").replace(/[^\d.]/g, "");
+          if (espLimpa) {
+            next.espessura_mm = espLimpa;
+            next.espessura_label = `${espLimpa.replace(".", ",")} mm`;
+          }
+        }
+      }
+
+      return next;
+    });
+
+    if (itemCD && (!form.nome_peca || form.nome_peca.toLowerCase().includes("novo"))) {
+      const nomeSugerido = itemCD.produto || itemCD.descricao || "";
+      if (nomeSugerido) {
+        handleNomePecaChange(nomeSugerido);
+      }
+    }
+
+    toast.success(`📋 Pedido ${pedidoOdoo.numero_pedido} (${pedidoOdoo.cliente_nome || "Cliente"}) vinculado ao desenvolvimento!`);
   };
 
   // ── Query de chapas disponíveis ──
@@ -472,8 +521,16 @@ export default function DesenvolvimentoFormDialog({ open, onClose, onSave, editI
                 )}
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Nº do Pedido</Label>
-                <Input placeholder="Ex: 12345" value={form.numero_pedido} onChange={e => set("numero_pedido", e.target.value)} />
+                <Label className="text-xs flex items-center justify-between">
+                  <span>Nº do Pedido</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">Fila Odoo ou Manual</span>
+                </Label>
+                <PedidoOdooCombobox
+                  numeroPedido={form.numero_pedido}
+                  onChangeNumeroPedido={v => set("numero_pedido", v)}
+                  onSelectPedidoOdoo={handleSelectPedidoOdoo}
+                  clienteAtual={form.cliente}
+                />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Cliente</Label>
