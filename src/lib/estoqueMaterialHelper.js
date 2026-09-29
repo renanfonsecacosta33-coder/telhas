@@ -14,8 +14,13 @@ import { getItens, classGrupo } from "./pedidoOdooHelper.js";
 export function parseEspessuraToNumber(value) {
   if (value == null) return null;
   if (typeof value === "number") return isNaN(value) ? null : value;
-  const s = String(value).replace(/\./g, "").replace(",", ".").trim();
-  const n = parseFloat(s);
+  const s = String(value).trim();
+  if (!s) return null;
+  // Extrai o primeiro número decimal da string (suporta "0,43", "0.43", "0.43mm", "0,43 mm", etc.)
+  const match = s.match(/(\d+(?:[.,]\d+)?)/);
+  if (!match) return null;
+  const numStr = match[1].replace(",", ".");
+  const n = parseFloat(numStr);
   return isNaN(n) ? null : n;
 }
 

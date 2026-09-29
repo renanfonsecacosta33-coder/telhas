@@ -169,8 +169,20 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   };
 
   const { data: bobinas = [] } = useQuery({
-    queryKey: ["bobinas-ativas"],
-    queryFn: () => base44.entities.Bobina.filter({ arquivada: false, setor: "telhas" }),
+    queryKey: ["bobinas-ativas-telhas"],
+    queryFn: async () => {
+      try {
+        const list = await base44.entities.Bobina.filter({ setor: "telhas" }, "-created_date", 2000);
+        if (Array.isArray(list) && list.length > 0) {
+          return list.filter(b => !b.arquivada);
+        }
+        const all = await base44.entities.Bobina.list("-created_date", 2000);
+        return Array.isArray(all) ? all.filter(b => !b.arquivada && (!b.setor || b.setor === "telhas")) : [];
+      } catch (err) {
+        console.error("Erro ao carregar bobinas:", err);
+        return [];
+      }
+    },
     enabled: open
   });
 
@@ -268,14 +280,29 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   const { preBaixaMap, statusMap } = usePreBaixaBobinas("telhas");
   const { data: tolerancias = [] } = useTolerancias();
   const [bloqueio, setBloqueio] = useState({ open: false, motivos: [], titulo: "", rodape: "" });
-  const reqValidacao = { espessuraExigida: form.espessura_exigida, origemExigida: form.origem_exigida, tolerancias };
+  const [ignorarFiltroOdoo, setIgnorarFiltroOdoo] = useState(false);
+  const reqValidacao = useMemo(() => ({
+    espessuraExigida: form.espessura_exigida,
+    origemExigida: form.origem_exigida,
+    tolerancias
+  }), [form.espessura_exigida, form.origem_exigida, tolerancias]);
+
   const temReqOdoo = !!(form.espessura_exigida || (form.origem_exigida && form.origem_exigida !== "ambas"));
   const precisaEPS = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(form.produto);
   const precisaBobinaInferior = ["TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(form.produto);
 
+  // Bobinas compatíveis com requisitos Odoo
+  const bobinasCompativeis = useMemo(() => {
+    return filtrarBobinasCompativeis(bobinas, reqValidacao);
+  }, [bobinas, reqValidacao]);
+
+  // Se o filtro do Odoo estiver ativo e não dispensado pelo operador E houver bobinas compatíveis, filtra.
+  // Caso não haja bobinas compatíveis no estoque ou o operador dispense o filtro, exibe todas as bobinas ativas do estoque.
+  const filtroOdooAtivo = temReqOdoo && !ignorarFiltroOdoo && bobinasCompativeis.length > 0;
+  const bobinasFiltradas = filtroOdooAtivo ? bobinasCompativeis : bobinas;
+
   // Bobinas ativas ordenadas com prioridade estrita de Telhas:
   // 1º Abertas Naturais -> 2º Abertas Pré-Pintadas -> 3º Fechadas Naturais -> 4º Fechadas Pré-Pintadas
-  const bobinasFiltradas = useMemo(() => filtrarBobinasCompativeis(bobinas, reqValidacao), [bobinas, reqValidacao]);
   const bobinasList = useMemo(() => {
     return [...bobinasFiltradas].sort((a, b) => compararBobinasTelhas(a, b, statusMap));
   }, [bobinasFiltradas, statusMap]);
@@ -641,13 +668,13 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   };
 
   const updateVariacao = (idx, field, val) => {
-    // Trava de segurança Odoo — bloqueia bobina incompatível na variação
-    if (field === "bobina_id" || field === "bobina_inf_id") {
+    // Trava de segurança Odoo — bloqueia bobina incompatível na variação quando o filtro estiver ativo
+    if ((field === "bobina_id" || field === "bobina_inf_id") && val) {
       const b = bobinas.find((x) => x.id === val);
-      if (b) {
+      if (b && filtroOdooAtivo) {
         const res = validarBobina(b, reqValidacao);
         if (!res.ok) {
-          setBloqueio({ open: true, titulo: "Espessura da bobina incompatível com o pedido Odoo!", motivos: [res.detail] });
+          setBloqueio({ open: true, titulo: "Espessura ou origem incompatível com o pedido Odoo!", motivos: [res.detail] });
           return;
         }
       }
@@ -682,10 +709,10 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   // Quando selecionar bobina superior, preenche RVM/Cor automaticamente
   const handleBobinaSupChange = (bobinaId) => {
     const b = bobinas.find((x) => x.id === bobinaId);
-    if (b) {
+    if (b && filtroOdooAtivo) {
       const res = validarBobina(b, reqValidacao);
       if (!res.ok) {
-        setBloqueio({ open: true, titulo: "Espessura da bobina incompatível com o pedido Odoo!", motivos: [res.detail] });
+        setBloqueio({ open: true, titulo: "Espessura ou origem incompatível com o pedido Odoo!", motivos: [res.detail] });
         return;
       }
     }
@@ -715,10 +742,10 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
 
   const handleBobinaInfChange = (bobinaId) => {
     const b = bobinas.find((x) => x.id === bobinaId);
-    if (b) {
+    if (b && filtroOdooAtivo) {
       const res = validarBobina(b, reqValidacao);
       if (!res.ok) {
-        setBloqueio({ open: true, titulo: "Espessura da bobina incompatível com o pedido Odoo!", motivos: [res.detail] });
+        setBloqueio({ open: true, titulo: "Espessura ou origem incompatível com o pedido Odoo!", motivos: [res.detail] });
         return;
       }
     }
@@ -1389,11 +1416,15 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           </div>
 
           {/* Requisitos do Pedido Odoo — trava de espessura + origem */}
-          <div className={`rounded-lg border-2 p-3 space-y-2 ${temReqOdoo ? "border-red-400 bg-red-50" : "border-border bg-muted/30"}`}>
+          <div className={`rounded-lg border-2 p-3 space-y-2 ${temReqOdoo ? "border-amber-400 bg-amber-50/50 dark:bg-amber-950/20" : "border-border bg-muted/30"}`}>
             <div className="flex items-center gap-2">
-              <ShieldAlert className={`w-4 h-4 ${temReqOdoo ? "text-red-600" : "text-muted-foreground"}`} />
+              <ShieldAlert className={`w-4 h-4 ${temReqOdoo ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`} />
               <p className="text-sm font-bold">Requisitos do Pedido (Odoo) — Trava de Segurança</p>
-              {temReqOdoo && <span className="text-[10px] bg-red-600 text-white rounded-full px-2 py-0.5 font-bold ml-auto">FILTRO ATIVO</span>}
+              {temReqOdoo && (
+                <span className={`text-[10px] text-white rounded-full px-2 py-0.5 font-bold ml-auto ${filtroOdooAtivo ? "bg-amber-600" : "bg-slate-500"}`}>
+                  {filtroOdooAtivo ? "FILTRO ATIVO" : "TODAS AS BOBINAS"}
+                </span>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
@@ -1425,14 +1456,32 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                     </SelectContent>
                   </Select>
                 )}
-                <p className="text-[10px] text-muted-foreground">Bloqueia bobinas de origem incompatível.</p>
+                <p className="text-[10px] text-muted-foreground">Origem do aço exigida pelo cliente/pedido.</p>
               </div>
             </div>
-            {temReqOdoo && bobinasFiltradas.length === 0 && (
-              <p className="text-xs text-red-600 font-semibold">⚠ Nenhuma bobina compatível em estoque — OP deve ir para "OP sem Material".</p>
-            )}
-            {temReqOdoo && bobinasFiltradas.length > 0 && (
-              <p className="text-xs text-emerald-700 font-semibold">✓ {bobinasFiltradas.length} bobina(s) compatível(eis) disponível(eis).</p>
+            {temReqOdoo && (
+              <div className="flex items-center justify-between pt-1 border-t border-amber-200 dark:border-amber-900/40 text-xs">
+                {bobinasCompativeis.length > 0 ? (
+                  <p className="text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                    ✓ {bobinasCompativeis.length} bobina(s) compatível(eis) disponível(eis) no estoque ({bobinas.length} no total).
+                  </p>
+                ) : (
+                  <p className="text-amber-700 dark:text-amber-400 font-semibold flex items-center gap-1">
+                    ⚠ Nenhuma bobina atende 100% à espessura/origem. Exibindo todo o estoque da fábrica ({bobinas.length} bobinas).
+                  </p>
+                )}
+                {bobinas.length > 0 && bobinasCompativeis.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIgnorarFiltroOdoo(v => !v)}
+                    className="text-xs h-7 px-2 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-950/60"
+                  >
+                    {ignorarFiltroOdoo ? `Reativar filtro Odoo (${bobinasCompativeis.length})` : `Ver todo o estoque (${bobinas.length})`}
+                  </Button>
+                )}
+              </div>
             )}
           </div>
 
