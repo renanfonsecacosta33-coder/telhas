@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Factory, Scissors, Wind, Layers, Ruler, ClipboardList, ImageIcon, Sparkles, Home, CheckCircle2, AlertTriangle, Clock, Disc } from "lucide-react";
 import { stripHtml } from "@/lib/stripHtml";
-import { obterStatusDescritivoItem, extrairAnotacaoItem } from "@/lib/pedidoOdooHelper";
+import { obterStatusDescritivoItem, extrairAnotacaoItem, localizarOpDoItem } from "@/lib/pedidoOdooHelper";
 import { extrairCroquiItem, extrairCroquiPedido } from "@/lib/croquiExtractor";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import { verificarEstoqueItem } from "@/lib/estoqueMaterialHelper";
@@ -83,12 +83,20 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
   if (itens.length === 0) return null;
 
   const numPed = String(pedido?.numero_pedido || "").trim().toUpperCase();
-  const opsTelha = (pedidosProducao || []).filter(op =>
-    op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed
-  );
-  const opsCD = (ordensCD || []).filter(op =>
-    op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed
-  );
+  const ofId = String(pedido?.of_odoo_id || pedido?.odoo_id || "").trim().toUpperCase();
+  const ofNome = String(pedido?.of_nome || "").trim().toUpperCase();
+
+  const matchOp = (op) => {
+    if (!op || op.status === "cancelado") return false;
+    if (op.pedido_odoo_id && pedido?.id) return op.pedido_odoo_id === pedido.id;
+    if (ofId && op.of_odoo_id) return String(op.of_odoo_id).trim().toUpperCase() === ofId;
+    if (ofNome && op.of_nome) return String(op.of_nome).trim().toUpperCase() === ofNome;
+    if (op.pedido_odoo_id || op.of_odoo_id) return false;
+    return op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed;
+  };
+
+  const opsTelha = (pedidosProducao || []).filter(matchOp);
+  const opsCD = (ordensCD || []).filter(matchOp);
 
   return (
     <div className={`flex flex-col ${compacto ? "gap-1" : "gap-1.5"}`}>
@@ -118,17 +126,10 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
             String(it.produto || it.descricao || "")
           );
 
-          // Localiza OP real nas máquinas
-          let opReal = null;
-          if (g === "telha") {
-            opReal = opsTelha.find(o =>
-              String(o.produto || "").toUpperCase().includes(String(it.produto || "").toUpperCase())
-            ) || opsTelha[0];
-          } else if (g === "cd") {
-            opReal = opsCD.find(o =>
-              String(o.produto || "").toUpperCase().includes(String(it.produto || "").toUpperCase())
-            ) || opsCD[0];
-          }
+          // Localiza OP real nas máquinas estritamente vinculada a este item
+          const opReal = g === "telha"
+            ? localizarOpDoItem(it, opsTelha, itens)
+            : localizarOpDoItem(it, opsCD, itens);
 
           // Obtém status descritivo exato para o vendedor e PCP
           const itemInfo = obterStatusDescritivoItem(it, pedido, pedidosProducao, ordensCD);

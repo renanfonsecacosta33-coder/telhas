@@ -410,7 +410,27 @@
     },
     "historico_expedicao": {
       "type": "string",
-      "description": "JSON string com hist\u00f3rico de expedi\u00e7\u00e3o [{data, usuario, acao, detalhes}]"
+      "description": "JSON string com histórico de expedição [{data, usuario, acao, detalhes}]"
+    },
+    "pedido_odoo_id": {
+      "type": "string",
+      "description": "ID da OF/Pedido no Odoo (PedidoOdoo.id) para vínculo 1-para-1 exato"
+    },
+    "of_odoo_id": {
+      "type": "string",
+      "description": "ID da OF no Odoo (mrp.production) para vínculo 1-para-1 exato"
+    },
+    "of_nome": {
+      "type": "string",
+      "description": "Nome visível da OF no Odoo (ex: WH/MO/406632)"
+    },
+    "item_idx": {
+      "type": "number",
+      "description": "Índice do item dentro do itens_json do PedidoOdoo"
+    },
+    "item_produto": {
+      "type": "string",
+      "description": "Nome exato do produto do item Odoo para matching preciso"
     }
   },
   "required": [

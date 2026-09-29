@@ -107,6 +107,47 @@ export function computePercentualGrupo(itens, grupo) {
   return computePercentual(sub);
 }
 
+// Localiza a OP correspondente a um item específico de forma estrita,
+// evitando que OPs de outros itens ou outras OFs do mesmo pedido de venda
+// contaminem este item.
+export function localizarOpDoItem(it, opsList = [], todosItens = []) {
+  if (!opsList || opsList.length === 0) return null;
+
+  // 1. Vínculo exato por índice do item se a OP registrou item_idx
+  if (it._idx != null) {
+    const opPorIdx = opsList.find(o => o.item_idx != null && o.item_idx === it._idx);
+    if (opPorIdx) return opPorIdx;
+  }
+
+  // 2. Vínculo por código inicial do produto (ex: "2124", "2132")
+  const prodItem = String(it.produto || it.descricao || "").toUpperCase().trim();
+  const codItem = (prodItem.match(/^\d{3,6}/) || [])[0];
+
+  if (codItem) {
+    const opPorCod = opsList.find(o => {
+      const prodOp = String(o.item_produto || o.produto_rotulo_pcp || o.modelo || o.produto || "").toUpperCase().trim();
+      const codOp = (prodOp.match(/^\d{3,6}/) || [])[0];
+      return codOp && codOp === codItem;
+    });
+    if (opPorCod) return opPorCod;
+  }
+
+  // 3. Vínculo por inclusão de texto de produto/descrição
+  const opPorTexto = opsList.find(o => {
+    const prodOp = String(o.item_produto || o.produto_rotulo_pcp || o.modelo || o.produto || "").toUpperCase().trim();
+    if (!prodOp || !prodItem) return false;
+    return prodItem.includes(prodOp) || prodOp.includes(prodItem);
+  });
+  if (opPorTexto) return opPorTexto;
+
+  // 4. Fallback estrito: SOMENTE se o pedido tiver exatamente 1 item E a lista de OPs tiver exatamente 1 OP
+  if (opsList.length === 1 && todosItens.length === 1) {
+    return opsList[0];
+  }
+
+  return null;
+}
+
 // Calcula o progresso real e dinâmico consultando as OPs de produção nas máquinas
 export function calcularProgressoRealPedido(pedido, pedidosProducao = [], ordensCD = []) {
   if (!pedido) return 0;
@@ -119,10 +160,22 @@ export function calcularProgressoRealPedido(pedido, pedidosProducao = [], ordens
 
   const matchOp = (op) => {
     if (!op || op.status === "cancelado") return false;
-    if (ofId && op.of_odoo_id && String(op.of_odoo_id).trim().toUpperCase() === ofId) return true;
-    if (ofNome && op.of_nome && String(op.of_nome).trim().toUpperCase() === ofNome) return true;
-    if (op.pedido_odoo_id && op.pedido_odoo_id === pedido.id) return true;
-    if (op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed) return true;
+    if (op.pedido_odoo_id && pedido?.id) {
+      return op.pedido_odoo_id === pedido.id;
+    }
+    if (ofId && op.of_odoo_id) {
+      return String(op.of_odoo_id).trim().toUpperCase() === ofId;
+    }
+    if (ofNome && op.of_nome) {
+      return String(op.of_nome).trim().toUpperCase() === ofNome;
+    }
+    // Se a OP já foi vinculada a OUTRO pedido_odoo_id ou of_odoo_id, NÃO pertence a este:
+    if (op.pedido_odoo_id || op.of_odoo_id) {
+      return false;
+    }
+    if (op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed) {
+      return true;
+    }
     return false;
   };
 
@@ -135,13 +188,9 @@ export function calcularProgressoRealPedido(pedido, pedidosProducao = [], ordens
     let opReal = null;
 
     if (grupo === "telha") {
-      opReal = opsTelha.find(o =>
-        String(o.produto || "").toUpperCase().includes(String(it.produto || "").toUpperCase())
-      ) || opsTelha[0];
+      opReal = localizarOpDoItem(it, opsTelha, itens);
     } else {
-      opReal = opsCD.find(o =>
-        String(o.produto || "").toUpperCase().includes(String(it.produto || "").toUpperCase())
-      ) || opsCD[0];
+      opReal = localizarOpDoItem(it, opsCD, itens);
     }
 
     if (opReal) {
@@ -183,25 +232,33 @@ export function obterStatusDescritivoItem(it, pedido, pedidosProducao = [], orde
 
   const matchOp = (op) => {
     if (!op || op.status === "cancelado") return false;
-    if (ofId && op.of_odoo_id && String(op.of_odoo_id).trim().toUpperCase() === ofId) return true;
-    if (ofNome && op.of_nome && String(op.of_nome).trim().toUpperCase() === ofNome) return true;
-    if (op.pedido_odoo_id && op.pedido_odoo_id === pedido?.id) return true;
-    if (op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed) return true;
+    if (op.pedido_odoo_id && pedido?.id) {
+      return op.pedido_odoo_id === pedido.id;
+    }
+    if (ofId && op.of_odoo_id) {
+      return String(op.of_odoo_id).trim().toUpperCase() === ofId;
+    }
+    if (ofNome && op.of_nome) {
+      return String(op.of_nome).trim().toUpperCase() === ofNome;
+    }
+    if (op.pedido_odoo_id || op.of_odoo_id) {
+      return false;
+    }
+    if (op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed) {
+      return true;
+    }
     return false;
   };
 
   const opsTelha = (pedidosProducao || []).filter(matchOp);
   const opsCD = (ordensCD || []).filter(matchOp);
+  const itens = getItens(pedido);
 
   let opReal = null;
   if (g === "telha") {
-    opReal = opsTelha.find(o =>
-      String(o.produto || "").toUpperCase().includes(String(it.produto || "").toUpperCase())
-    ) || opsTelha[0];
+    opReal = localizarOpDoItem(it, opsTelha, itens);
   } else {
-    opReal = opsCD.find(o =>
-      String(o.produto || "").toUpperCase().includes(String(it.produto || "").toUpperCase())
-    ) || opsCD[0];
+    opReal = localizarOpDoItem(it, opsCD, itens);
   }
 
   const isSanduiche = /(eps|manta|sanduiche|isopor|termoacustica)/i.test(
@@ -330,7 +387,7 @@ export function buildItensJson(itens) {
 export function statusPcpPorPercentual(percentual, atual) {
   if (percentual >= 100) return "concluido";
   if (percentual > 0) return "em_producao";
-  return atual === "distribuido" ? "distribuido" : (atual || "distribuido");
+  return atual === "distribuido" ? "distribuido" : (atual || "pendente_distribuicao");
 }
 
 export const STATUS_ITEM = {
@@ -502,6 +559,11 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
       observacoes_encarregado: "",
       foto_pedido_url: item?.foto_url || item?.imagem_url || pedido?.foto_pedido_url || extrairCroquiPedido(pedido) || "",
       trava_produto_pcp: true,
+      pedido_odoo_id: pedido?.id || "",
+      of_odoo_id: pedido?.of_odoo_id || "",
+      of_nome: pedido?.of_nome || "",
+      item_idx: item?._idx != null ? item._idx : 0,
+      item_produto: produtoNome,
     }
   };
 }

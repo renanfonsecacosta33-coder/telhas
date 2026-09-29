@@ -12,7 +12,8 @@ import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
 import {
   getItens, classGrupo, computePercentual, buildItensJson,
-  statusPcpPorPercentual, STATUS_ITEM, MAQUINAS_CD
+  statusPcpPorPercentual, STATUS_ITEM, MAQUINAS_CD,
+  localizarOpDoItem, saoPedidosIguais
 } from "@/lib/pedidoOdooHelper";
 import { formatDataBR, diasUteisRestantes } from "@/lib/sla";
 import { notificarStatus } from "@/lib/biNotificador";
@@ -128,11 +129,14 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
             <div className="space-y-2">
               {grupo.itens.map(({ pedido, item, idx }) => {
                 // Determina status real a partir das OPs de corte e dobra
-                const opReal = ordensMaquina.find(o =>
-                  o.numero_pedido && String(o.numero_pedido).trim().toUpperCase() === String(pedido.numero_pedido).trim().toUpperCase()
-                ) || ordensDesb.find(o =>
-                  o.numero_pedido && String(o.numero_pedido).trim().toUpperCase() === String(pedido.numero_pedido).trim().toUpperCase()
-                );
+                const opsDoPedido = [...ordensMaquina, ...ordensDesb].filter(o => {
+                  if (!o.numero_pedido || String(o.status || "").toLowerCase() === "cancelado") return false;
+                  if (o.pedido_odoo_id && pedido?.id) return o.pedido_odoo_id === pedido.id;
+                  if (pedido?.of_odoo_id && o.of_odoo_id) return String(o.of_odoo_id).trim().toUpperCase() === String(pedido.of_odoo_id).trim().toUpperCase();
+                  if (o.pedido_odoo_id || o.of_odoo_id) return false;
+                  return saoPedidosIguais(o.numero_pedido, pedido.numero_pedido);
+                });
+                const opReal = localizarOpDoItem(item, opsDoPedido, [item]);
 
                 let statusItem = "pendente";
                 let maquinaItem = item.maquina || "";

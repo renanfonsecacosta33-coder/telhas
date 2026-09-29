@@ -273,13 +273,20 @@ export default function CentralPCP() {
     pedidos.forEach(async (p) => {
       if (!p.id || !p.numero_pedido) return;
       const progressoReal = calcularProgressoRealPedido(p, pedidosProducao, ordensCD);
-      const statusReal = statusPcpPorPercentual(progressoReal, p.status_pcp);
+      let statusReal = statusPcpPorPercentual(progressoReal, p.status_pcp);
+
+      // Se o pedido está pendente de distribuição no PCP, NÃO deve ser alterado automaticamente para 'em_producao'
+      // a menos que esteja realmente concluído (100%)
+      if (p.status_pcp === "pendente_distribuicao" && statusReal !== "concluido") {
+        statusReal = "pendente_distribuicao";
+      }
 
       // Sincroniza SOMENTE se o percentual ou status realmente mudarem
       const syncKey = `${p.id}_${progressoReal}_${statusReal}`;
       if (
-        (progressoReal !== p.percentual_concluido ||
-         (p.status_pcp !== "concluido" && statusReal === "concluido")) &&
+        ((progressoReal !== p.percentual_concluido && p.status_pcp !== "pendente_distribuicao") ||
+         (p.status_pcp !== "concluido" && statusReal === "concluido") ||
+         (p.status_pcp !== "pendente_distribuicao" && p.status_pcp !== statusReal)) &&
         !syncEmAndamentoRef.current.has(syncKey)
       ) {
         syncEmAndamentoRef.current.add(syncKey);

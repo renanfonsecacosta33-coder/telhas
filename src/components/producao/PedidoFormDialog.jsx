@@ -133,7 +133,12 @@ const emptyForm = {
   origem_exigida: "ambas",
   rota: false,
   prioridade: false,
-  prioridade_nivel: null
+  prioridade_nivel: null,
+  pedido_odoo_id: "",
+  of_odoo_id: "",
+  of_nome: "",
+  item_idx: null,
+  item_produto: ""
 };
 
 export default function PedidoFormDialog({ open, onClose, onSave, editItem, defaultDate }) {
@@ -199,9 +204,29 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
       if (idEditando && String(p.id) === idEditando) return false;
       const st = String(p.status || "").toLowerCase().trim();
       if (st === "cancelado") return false; // OP cancelada permite relançar
-      return saoPedidosIguais(p.numero_pedido, numAtual);
+      if (!saoPedidosIguais(p.numero_pedido, numAtual)) return false;
+
+      // Se ambos tiverem pedido_odoo_id vinculado, só é duplicado se for para o MESMO pedido_odoo_id
+      if (form.pedido_odoo_id && p.pedido_odoo_id) {
+        return p.pedido_odoo_id === form.pedido_odoo_id;
+      }
+      // Se ambos tiverem of_odoo_id vinculado, só é duplicado se for para a MESMA OF
+      if (form.of_odoo_id && p.of_odoo_id) {
+        return String(p.of_odoo_id).trim() === String(form.of_odoo_id).trim();
+      }
+      // Se tiverem item_idx diferente, são itens distintos do mesmo pedido de venda
+      if (form.item_idx != null && p.item_idx != null) {
+        return p.item_idx === form.item_idx;
+      }
+      // Se tiverem códigos numéricos iniciais de produto diferentes (ex: 2124 vs 2132), são itens distintos
+      const codForm = (String(form.item_produto || form.produto_rotulo_pcp || form.produto || "").match(/^\d{3,6}/) || [])[0];
+      const codP = (String(p.item_produto || p.produto_rotulo_pcp || p.produto || "").match(/^\d{3,6}/) || [])[0];
+      if (codForm && codP && codForm !== codP) {
+        return false;
+      }
+      return true;
     });
-  }, [form.numero_pedido, todasOrdens, editItem]);
+  }, [form.numero_pedido, form.pedido_odoo_id, form.of_odoo_id, form.item_idx, form.item_produto, form.produto_rotulo_pcp, form.produto, todasOrdens, editItem]);
 
   const temDuplicidade = ordensDuplicadas.length > 0;
 
@@ -340,7 +365,12 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           origem_exigida: editItem.origem_exigida || "ambas",
           rota: editItem.rota || false,
           prioridade: editItem.prioridade || false,
-          prioridade_nivel: editItem.prioridade_nivel ? Number(editItem.prioridade_nivel) : (editItem.prioridade ? 1 : null)
+          prioridade_nivel: editItem.prioridade_nivel ? Number(editItem.prioridade_nivel) : (editItem.prioridade ? 1 : null),
+          pedido_odoo_id: editItem.pedido_odoo_id || "",
+          of_odoo_id: editItem.of_odoo_id || "",
+          of_nome: editItem.of_nome || "",
+          item_idx: editItem.item_idx != null ? editItem.item_idx : null,
+          item_produto: editItem.item_produto || ""
         });
       } else {
         const presets = editItem?._presets || editItem || {};
@@ -390,6 +420,11 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           prioridade: Boolean(presets.prioridade),
           prioridade_nivel: presets.prioridade_nivel ? Number(presets.prioridade_nivel) : (presets.prioridade ? 1 : null),
           status: "pendente",
+          pedido_odoo_id: presets.pedido_odoo_id || "",
+          of_odoo_id: presets.of_odoo_id || "",
+          of_nome: presets.of_nome || "",
+          item_idx: presets.item_idx != null ? presets.item_idx : null,
+          item_produto: presets.item_produto || rawProd || ""
         });
       }
     }

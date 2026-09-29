@@ -10,7 +10,8 @@ import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
 import {
   getItens, itensPorGrupo, computePercentual, computePercentualGrupo,
-  buildItensJson, statusPcpPorPercentual, STATUS_ITEM, saoPedidosIguais
+  buildItensJson, statusPcpPorPercentual, STATUS_ITEM, saoPedidosIguais,
+  localizarOpDoItem
 } from "@/lib/pedidoOdooHelper";
 import { formatDataBR, slaDiasPorCategoria, diasUteisRestantes } from "@/lib/sla";
 import { notificarStatus } from "@/lib/biNotificador";
@@ -40,7 +41,15 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
   const fila = pedidos
     .filter(p => ["distribuido", "em_producao"].includes(p.status_pcp))
     .filter(p => !filialAtiva || filialAtiva === "todas" || (p.unidade || "Matriz AJL") === filialAtiva)
-    .filter(p => itensPorGrupo(getItens(p), "telha").length > 0)
+    .filter(p => {
+      const telhas = itensPorGrupo(getItens(p), "telha");
+      if (telhas.length === 0) return false;
+      return telhas.some(it => {
+        if (it.distribuido === true || it.status === "distribuido" || it.status === "em_producao" || it.status === "concluido") return true;
+        if (it.distribuido === false) return false;
+        return ["distribuido", "em_producao"].includes(p.status_pcp);
+      });
+    })
     .sort((a, b) => new Date(a.data_recebimento || 0) - new Date(b.data_recebimento || 0));
 
   const handleAtualizar = async (pedido, idx, updates) => {
@@ -98,15 +107,21 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
           const telhas = itensPorGrupo(itens, "telha");
 
           // Busca se existe Ordem de Produção real criada para este pedido na fábrica
-          const opsDoPedido = pedidosProducao.filter(op =>
-            op.numero_pedido &&
-            saoPedidosIguais(op.numero_pedido, pedido.numero_pedido) &&
-            String(op.status || "").toLowerCase() !== "cancelado"
-          );
+          const opsDoPedido = pedidosProducao.filter(op => {
+            if (!op.numero_pedido || String(op.status || "").toLowerCase() === "cancelado") return false;
+            if (op.pedido_odoo_id && pedido?.id) {
+              return op.pedido_odoo_id === pedido.id;
+            }
+            if (pedido?.of_odoo_id && op.of_odoo_id) {
+              return String(op.of_odoo_id).trim().toUpperCase() === String(pedido.of_odoo_id).trim().toUpperCase();
+            }
+            if (op.pedido_odoo_id || op.of_odoo_id) return false;
+            return saoPedidosIguais(op.numero_pedido, pedido.numero_pedido);
+          });
 
           let somaProgresso = 0;
-          telhas.forEach((t, idx) => {
-            const op = opsDoPedido[idx] || opsDoPedido.find(o => String(o.produto).toUpperCase().includes(String(t.produto).toUpperCase())) || opsDoPedido[0];
+          telhas.forEach((t) => {
+            const op = localizarOpDoItem(t, opsDoPedido, telhas);
             if (op) {
               if (op.status === "finalizado") somaProgresso += 1.0;
               else if (op.status === "aguardando_colagem") somaProgresso += 0.75;
@@ -128,6 +143,17 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
           const sla = slaDiasPorCategoria(pedido);
           const restantes = diasUteisRestantes(pedido.data_entrega);
           const pacoteConcluido = pctTelha === 100;
+
+          // Filtra apenas itens que foram distribuídos ou que já possuem OP criada na fábrica
+          const telhasParaExibir = telhas.filter(it => {
+            const opExistente = localizarOpDoItem(it, opsDoPedido, telhas);
+            if (opExistente) return true;
+            if (it.distribuido === true || it.status === "distribuido" || it.status === "em_producao" || it.status === "concluido") return true;
+            if (it.distribuido === false) return false;
+            return ["distribuido", "em_producao"].includes(pedido.status_pcp);
+          });
+
+          if (telhasParaExibir.length === 0) return null;
 
           return (
             <div key={pedido.id} className={`p-4 ${pacoteConcluido ? "bg-emerald-50/40 dark:bg-emerald-950/10" : ""}`}>
@@ -171,9 +197,9 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
               </div>
 
               <div className="space-y-2">
-                {telhas.map((item, idx) => {
-                  // Determina o status real do item com base na OP da máquina
-                  const opDoItem = opsDoPedido[idx] || opsDoPedido[0] || null;
+                {telhasParaExibir.map((item, idx) => {
+                  // Determina o status real do item com base na OP específica desta peça
+                  const opDoItem = localizarOpDoItem(item, opsDoPedido, telhas);
                   let statusItem = "pendente";
                   let maquinaItem = item.maquina || "";
 
@@ -184,6 +210,10 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                     } else if (["em_producao", "pausado", "aguardando_colagem", "pendente"].includes(opDoItem.status)) {
                       statusItem = "em_producao";
                     }
+                  } else if (item.status === "concluido") {
+                    statusItem = "concluido";
+                  } else if (item.status === "em_producao") {
+                    statusItem = "em_producao";
                   }
 
                   const st = STATUS_ITEM[statusItem] || STATUS_ITEM.pendente;
@@ -191,7 +221,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                   const concluido = statusItem === "concluido";
 
                   return (
-                    <div key={idx} className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950/40 space-y-2">
+                    <div key={item._idx != null ? item._idx : idx} className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950/40 space-y-2">
                       <InstrucaoVendedorCard descricao={item.descricao || item.produto} quantidadeOdoo={item.quantidade} espessura={item.espessura} unidade="MT" />
                       <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
                         <div className="flex-1 min-w-0">
@@ -216,10 +246,10 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                               });
                               onNovaOrdem(pedido, {
                                 ...item,
-                                _idx: idx,
+                                _idx: item._idx != null ? item._idx : idx,
                                 maquina: maquinaItem,
                                 data: item.data_programada || pedido.data_entrega,
-                                existingOp: opDoItem
+                                existingOp: opDoItem || null
                               });
                             }}
                             className={
