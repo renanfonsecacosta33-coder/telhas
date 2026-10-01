@@ -18,15 +18,16 @@ export function urgenciaPrazo(dataEntrega, opts = {}) {
 
   // Atrasado (dias < 0): vermelho forte + pulsante
   if (dias < 0) {
-    return { opacidade: 0.38, atrasado: true, dias };
+    return { opacidade: 0.60, atrasado: true, dias };
   }
   // Escala progressiva de branco -> vermelho conforme o prazo diminui
   let opacidade = 0;
-  if (dias === 0) opacidade = 0.30;
-  else if (dias === 1) opacidade = 0.22;
-  else if (dias === 2) opacidade = 0.16;
-  else if (dias <= 4) opacidade = 0.10;
-  else if (dias <= 6) opacidade = 0.06;
+  if (dias === 0) opacidade = 0.46;
+  else if (dias === 1) opacidade = 0.38;
+  else if (dias === 2) opacidade = 0.28;
+  else if (dias === 3) opacidade = 0.22;
+  else if (dias <= 4) opacidade = 0.16;
+  else if (dias <= 6) opacidade = 0.10;
   else opacidade = 0; // 7+ dias: sem alerta
 
   if (opacidade === 0) return null;

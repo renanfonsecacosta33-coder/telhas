@@ -235,7 +235,7 @@ export default function PedidoOdooCard({
       >
         {urgencia && (
           <div
-            className={`pointer-events-none absolute inset-0 rounded-xl bg-red-500 ${urgencia.atrasado ? "animate-pulse" : ""}`}
+            className={`pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-r from-red-600 via-red-500/80 to-red-500/10 ${urgencia.atrasado ? "animate-pulse" : ""}`}
             style={{ opacity: urgencia.opacidade }}
             aria-hidden="true"
           />
@@ -411,7 +411,7 @@ export default function PedidoOdooCard({
     >
       {urgencia && (
         <div
-          className={`pointer-events-none absolute inset-0 rounded-2xl bg-red-500 ${urgencia.atrasado ? "animate-pulse" : ""}`}
+          className={`pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-r from-red-600 via-red-500/80 to-red-500/10 ${urgencia.atrasado ? "animate-pulse" : ""}`}
           style={{ opacity: urgencia.opacidade }}
           aria-hidden="true"
         />

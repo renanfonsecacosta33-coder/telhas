@@ -40,13 +40,13 @@ export function slaCountdown(dataPrometida) {
 export function slaCountdownCls(tom) {
   switch (tom) {
     case "atrasado":
-      return "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40";
+      return "bg-red-600 text-white dark:text-white border-red-700 shadow-red-500/30";
     case "hoje":
-      return "bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/40";
+      return "bg-red-500 text-white dark:text-white border-red-600 shadow-red-500/20";
     case "amanha":
-      return "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40";
+      return "bg-orange-500 text-white dark:text-white border-orange-600 shadow-orange-500/20";
     default:
-      return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40";
+      return "bg-amber-500/20 text-amber-800 dark:text-amber-200 border-amber-500/50";
   }
 }
 

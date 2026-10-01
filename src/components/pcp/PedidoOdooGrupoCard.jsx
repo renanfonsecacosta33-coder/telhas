@@ -134,10 +134,10 @@ export default function PedidoOdooGrupoCard({
           : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
       }`}
     >
-      {/* Overlay de urgência de prazo (vermelho progressivo conforme o SLA se aproxima) */}
+      {/* Overlay de urgência de prazo (gradiente vermelho progressivo conforme o SLA se aproxima) */}
       {urgencia && (
         <div
-          className={`pointer-events-none absolute inset-0 rounded-2xl bg-red-500 ${urgencia.atrasado ? "animate-pulse" : ""}`}
+          className={`pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-r from-red-600 via-red-500/80 to-red-500/10 ${urgencia.atrasado ? "animate-pulse" : ""}`}
           style={{ opacity: urgencia.opacidade }}
           aria-hidden="true"
         />
