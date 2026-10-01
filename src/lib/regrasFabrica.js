@@ -128,3 +128,36 @@ export function progressoChecklist(itensJson) {
     percentual: Math.round((concluidos / itens.length) * 100),
   };
 }
+
+// ════════════════════════════════════════════════════════════
+// REGRA: Capacidade e Espessura Mínima da Desbobinadeira 02
+// ════════════════════════════════════════════════════════════
+// A Desbobinadeira 02 aceita no mínimo a espessura 0,80 mm (faixa: 0,80 mm a 4,75 mm).
+// Qualquer espessura menor que 0,80 mm requer obrigatoriamente senha de liberação do gestor.
+export const ESPESSURA_MINIMA_DESBOBINADEIRA_02 = 0.80;
+export const ESPESSURA_MAXIMA_DESBOBINADEIRA_02 = 4.75;
+export const ESPESSURA_MAXIMA_DESBOBINADEIRA_01 = 3.00;
+
+export function getEspessuraNumeroDesb(ordem) {
+  if (!ordem) return null;
+  const raw = ordem.espessura_utilizada || ordem.espessura_exigida || ordem.material_espessura;
+  if (raw != null && String(raw).trim() !== "") {
+    const num = parseFloat(String(raw).replace(",", ".").replace(/[^\d.]/g, ""));
+    if (!isNaN(num) && num > 0) return num;
+  }
+  const m = String(ordem.bobina_descricao || "").match(/\b(\d+[.,]\d+)\s*(?:mm)?\b/);
+  if (m) {
+    const num = parseFloat(m[1].replace(",", "."));
+    if (!isNaN(num) && num > 0) return num;
+  }
+  return null;
+}
+
+export function isAbaixoDoMinimoDesbobinadeira02(ordem) {
+  const m = String(ordem?.maquina || ordem?.maquina_inicial || "").toUpperCase();
+  const isDesb02 = m.includes("02") || m.includes("2");
+  if (!isDesb02) return false;
+  const esp = getEspessuraNumeroDesb(ordem);
+  if (esp === null) return false;
+  return esp < (ESPESSURA_MINIMA_DESBOBINADEIRA_02 - 0.005);
+}

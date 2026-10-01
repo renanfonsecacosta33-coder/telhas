@@ -426,7 +426,7 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
             <Factory className="w-3.5 h-3.5" />
             <span>Desbobinadeira 02</span>
             <Badge className={`text-[9px] px-1 py-0 h-4 font-semibold ${maquinaAtiva === "DESBOBINADEIRA 02" ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"}`}>
-              até 4,75mm
+              0,80 a 4,75mm
             </Badge>
             <span className={`text-[10px] font-mono px-1.5 py-0 rounded-full font-bold ${maquinaAtiva === "DESBOBINADEIRA 02" ? "bg-black/20 text-white" : "bg-muted text-muted-foreground"}`}>
               {totalOps02} OP{totalOps02 !== 1 ? "s" : ""}
@@ -436,9 +436,31 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
 
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Layers className="w-3.5 h-3.5 text-orange-500" />
-          <span>Filtro de capacidade ativo: <strong>{maquinaAtiva === "DESBOBINADEIRA 02" ? "bobinas até 4,75 mm" : "bobinas até 3,00 mm"}</strong></span>
+          <span>Filtro de capacidade ativo: <strong>{maquinaAtiva === "DESBOBINADEIRA 02" ? "bobinas de 0,80 mm a 4,75 mm (mínimo 0,80 mm)" : "bobinas até 3,00 mm"}</strong></span>
         </div>
       </div>
+
+      {/* Banner de Aviso de Espessura Mínima para a Desbobinadeira 02 */}
+      {maquinaAtiva === "DESBOBINADEIRA 02" && (
+        <div className="rounded-xl border-2 border-amber-400 bg-amber-500/10 dark:bg-amber-950/40 p-3 sm:p-4 text-amber-950 dark:text-amber-100 flex items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="p-2 rounded-lg bg-amber-500 text-white shrink-0 shadow-xs">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs sm:text-sm font-extrabold uppercase tracking-wide text-amber-900 dark:text-amber-200">
+                Aviso Operacional: Espessura Mínima 0,80 mm
+              </p>
+              <p className="text-xs text-amber-800 dark:text-amber-300 mt-0.5 leading-relaxed">
+                A <strong>Desbobinadeira 02</strong> aceita no mínimo espessura de <strong>0,80 mm</strong>. Qualquer OP com espessura inferior (ex: 0,43, 0,50, 0,65 mm) fica bloqueada e <strong>só pode ser iniciada mediante Senha de Liberação do Gestor</strong>.
+              </p>
+            </div>
+          </div>
+          <Badge className="bg-amber-600 text-white border-0 font-bold shrink-0 hidden md:inline-flex">
+            Trava Ativa: Mín 0,80mm
+          </Badge>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -447,11 +469,11 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
             <Factory className="w-6 h-6 text-orange-500" />
             {maquinaAtiva === "DESBOBINADEIRA 02" ? "Desbobinadeira 02" : "Desbobinadeira 01"}
             <Badge variant="outline" className={`text-xs font-semibold ${maquinaAtiva === "DESBOBINADEIRA 02" ? "border-amber-400 text-amber-800 bg-amber-50 dark:bg-amber-950/40" : "border-orange-300 text-orange-700 bg-orange-50 dark:bg-orange-950/30"}`}>
-              {maquinaAtiva === "DESBOBINADEIRA 02" ? "Capacidade: até 4,75 mm" : "Capacidade: até 3,00 mm"}
+              {maquinaAtiva === "DESBOBINADEIRA 02" ? "Capacidade: 0,80 mm a 4,75 mm (Mínimo: 0,80 mm)" : "Capacidade: até 3,00 mm"}
             </Badge>
           </h1>
           <p className="text-sm text-muted-foreground">
-            {maquinaAtiva === "DESBOBINADEIRA 02" ? "Desbobinamento reforçado para bobinas pesadas até 4,75 mm" : "Desbobinamento para bobinas de até 3,00 mm"} — Corte e Dobra
+            {maquinaAtiva === "DESBOBINADEIRA 02" ? "Desbobinamento reforçado para bobinas de 0,80 mm a 4,75 mm (OPs < 0,80mm exigem liberação do gestor)" : "Desbobinamento para bobinas de até 3,00 mm"} — Corte e Dobra
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

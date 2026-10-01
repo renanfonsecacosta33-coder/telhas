@@ -5,9 +5,18 @@ import { Input } from "@/components/ui/input";
 import { ShieldAlert, Star, Unlock, X } from "lucide-react";
 import { validarSenhaGestor } from "@/lib/regrasFabrica";
 
-// Dialog de validação de Senha do Gestor (PIN 0000) para liberar alteração de prioridade.
+// Dialog de validação de Senha do Gestor (PIN 0000) para liberar ações restritas.
 // onAutorizado callback disparado somente se o PIN estiver correto.
-export default function SenhaGestorDialog({ open, onOpenChange, onAutorizado, titulo = "Autorização de Gestor", descricao }) {
+export default function SenhaGestorDialog({
+  open,
+  onOpenChange,
+  onAutorizado,
+  titulo = "Autorização de Gestor",
+  descricao,
+  aviso = "Marcar como Prioridade Alta exige autorização.",
+  iconeAviso: IconeAviso = Star,
+  erroTexto = "PIN incorreto. Ação bloqueada.",
+}) {
   const [pin, setPin] = useState("");
   const [erro, setErro] = useState(false);
   const [tentou, setTentou] = useState(false);
@@ -46,12 +55,14 @@ export default function SenhaGestorDialog({ open, onOpenChange, onAutorizado, ti
         </DialogHeader>
 
         <div className="py-2 space-y-3">
-          <div className="flex items-center gap-2 rounded-lg border-2 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 px-3 py-2">
-            <Star className="w-4 h-4 text-amber-500 shrink-0" />
-            <span className="text-xs font-semibold text-amber-800 dark:text-amber-200">
-              Marcar como Prioridade Alta exige autorização.
-            </span>
-          </div>
+          {aviso && (
+            <div className="flex items-center gap-2 rounded-lg border-2 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 px-3 py-2">
+              <IconeAviso className="w-4 h-4 text-amber-500 shrink-0" />
+              <span className="text-xs font-semibold text-amber-800 dark:text-amber-200">
+                {aviso}
+              </span>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-600 dark:text-slate-300">PIN do Gestor (4 dígitos)</label>
@@ -71,7 +82,7 @@ export default function SenhaGestorDialog({ open, onOpenChange, onAutorizado, ti
             />
             {tentou && erro && (
               <p className="text-xs text-red-600 font-semibold flex items-center gap-1 mt-1">
-                <X className="w-3 h-3" /> PIN incorreto. Alteração de prioridade bloqueada.
+                <X className="w-3 h-3" /> {erroTexto}
               </p>
             )}
           </div>

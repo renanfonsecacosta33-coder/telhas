@@ -22,6 +22,8 @@ import ApontamentoOpButton from "@/components/producao/ApontamentoOpButton";
 import { PrioridadeBadge } from "@/lib/prioridadeHelper";
 import SmartImage from "@/components/ui/SmartImage";
 import { comprimirImagemParaUpload } from "@/lib/compressImage";
+import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
+import { getEspessuraNumeroDesb, isAbaixoDoMinimoDesbobinadeira02, ESPESSURA_MINIMA_DESBOBINADEIRA_02 } from "@/lib/regrasFabrica";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -73,6 +75,11 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
   const [validacaoDialog, setValidacaoDialog] = useState(false);
   const [confirmarExclusaoOpen, setConfirmarExclusaoOpen] = useState(false);
   const [confirmarCancelarOpen, setConfirmarCancelarOpen] = useState(false);
+  const [senhaDesb02Open, setSenhaDesb02Open] = useState(false);
+
+  // Validação estrita de espessura mínima da Desbobinadeira 02 (mínimo: 0,80mm)
+  const espNum = getEspessuraNumeroDesb(o);
+  const isAbaixoMinimo02 = isAbaixoDoMinimoDesbobinadeira02(o);
 
   useEffect(() => {
     const iv = setInterval(() => setTick(t => t + 1), 1000);
@@ -116,6 +123,14 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
 
   const handleIniciar = () => {
     if (verificarBloqueio("iniciar")) return;
+
+    // Regra da Desbobinadeira 02: aceita no mínimo espessura 0,80mm.
+    // Se for inferior a 0,80mm, bloqueia e exige senha de liberação do gestor (a menos que seja gestor)
+    if (isAbaixoMinimo02 && !user?.permissions?.ignorar_bloqueio_op && !isGestor) {
+      setSenhaDesb02Open(true);
+      return;
+    }
+
     setValidacaoDialog(true);
   };
 
@@ -435,12 +450,27 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                   <Layers className="w-3 h-3" /> {o.espessura_utilizada}mm
                 </span>
               )}
+              {isAbaixoMinimo02 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black bg-amber-500/15 text-amber-800 dark:text-amber-200 border-2 border-amber-400 dark:border-amber-600 animate-pulse shadow-xs" title="Desbobinadeira 02 aceita no mínimo 0,80mm. Exige senha de gestor para iniciar.">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  Mínimo 0,80mm (Requer Senha)
+                </span>
+              )}
               <StatusBadge status={o.status} />
               <PrioridadeBadge pedido={o} />
               {o.data < format(new Date(), "yyyy-MM-dd") && o.status !== "finalizado" && o.status !== "cancelado" && (
                 <Badge className="bg-red-500 text-white border-red-600 animate-pulse text-xs">⚠️ Prioridade (Dia Anterior)</Badge>
               )}
             </div>
+            {/* Aviso visual explícito para o operador quando na Desbobinadeira 02 com espessura < 0,80mm */}
+            {isAbaixoMinimo02 && (
+              <div className="flex items-center gap-2 my-2 p-2 rounded-lg bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/40 text-amber-900 dark:text-amber-200 text-xs font-bold shadow-xs">
+                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span>
+                  <strong>Aviso Operacional Desbobinadeira 02:</strong> Esta máquina aceita no mínimo espessura <strong>0,80 mm</strong>. Esta OP possui {espNum ? <strong>{espNum} mm</strong> : "espessura abaixo de 0,80 mm"}. Para iniciar a produção, será exigida a <strong>Senha de Liberação do Gestor</strong>.
+                </span>
+              </div>
+            )}
             <div className={`flex flex-wrap gap-x-4 gap-y-0.5 ${z.info} text-muted-foreground`}>
               {o.quantidade > 0 && <span className="font-semibold text-foreground">{o.quantidade} peças</span>}
               {o.comprimento_mm > 0 && <span>{o.comprimento_mm}mm de corte</span>}
@@ -865,6 +895,21 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Senha de Liberação do Gestor para Desbobinadeira 02 (Espessura < 0,80mm) */}
+      <SenhaGestorDialog
+        open={senhaDesb02Open}
+        onOpenChange={setSenhaDesb02Open}
+        titulo="🔒 Liberação Desbobinadeira 02 (Espessura < 0,80 mm)"
+        descricao={`A Desbobinadeira 02 aceita no mínimo espessura de 0,80 mm. Esta OP possui espessura de ${espNum ? `${espNum} mm` : "menor que 0,80 mm"}. Digite o PIN do gestor para autorizar a produção nesta máquina.`}
+        aviso="Espessura abaixo de 0,80 mm na Desbobinadeira 02 exige autorização expressa da gerência."
+        iconeAviso={AlertTriangle}
+        erroTexto="PIN incorreto. Início na Desbobinadeira 02 bloqueado."
+        onAutorizado={() => {
+          toast.success(`✅ Início autorizado pelo gestor para Desbobinadeira 02 (${espNum || "< 0,80"} mm)!`);
+          setValidacaoDialog(true);
+        }}
+      />
     </>
   );
 }

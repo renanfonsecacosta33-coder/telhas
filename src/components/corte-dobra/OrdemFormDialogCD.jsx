@@ -24,7 +24,7 @@ import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
 
 const MAQUINAS_INICIAIS = [
   { id: "DESBOBINADEIRA 01", label: "Desbobinadeira 01 (até 3,00mm)", icon: Layers },
-  { id: "DESBOBINADEIRA 02", label: "Desbobinadeira 02 (até 4,75mm)", icon: Layers },
+  { id: "DESBOBINADEIRA 02", label: "Desbobinadeira 02 (0,80 a 4,75mm)", icon: Layers },
   { id: "CORTE 3M", label: "Guilhotina 3m", icon: Wrench },
   { id: "CORTE 6M", label: "Guilhotina 6m", icon: Wrench },
   { id: "DOBRA 3M", label: "Dobradeira 3m", icon: Wrench },
@@ -612,10 +612,18 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
               </Label>
               {limiteEspessuraBobina && (
                 <span className="text-[11px] font-semibold text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800 rounded px-2 py-0.5">
-                  Capacidade {form.maquina_inicial}: até {limiteEspessuraBobina.toFixed(2).replace(".", ",")} mm
+                  Capacidade {form.maquina_inicial}: {isDesb02 ? "0,80 a 4,75 mm (mín: 0,80 mm)" : `até ${limiteEspessuraBobina.toFixed(2).replace(".", ",")} mm`}
                 </span>
               )}
             </div>
+            {isDesb02 && bobinaObj && getEspessuraNumeroBobina(bobinaObj) > 0 && getEspessuraNumeroBobina(bobinaObj) < 0.795 && (
+              <div className="flex items-center gap-1.5 p-2 rounded-lg bg-amber-500/10 border border-amber-500/40 text-amber-800 dark:text-amber-200 text-xs font-bold">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  Aviso: A bobina selecionada tem {bobinaObj.chapa || bobinaObj.espessura_utilizada} mm. A Desbobinadeira 02 aceita no mínimo 0,80 mm. O operador só conseguirá iniciar esta OP mediante senha de liberação do gestor.
+                </span>
+              </div>
+            )}
             <Select value={form.bobina_id} onValueChange={handleBobinaChange}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Selecione a bobina..." />
