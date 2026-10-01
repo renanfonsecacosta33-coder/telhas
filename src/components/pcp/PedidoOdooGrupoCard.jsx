@@ -7,6 +7,7 @@ import {
   Building2, ArrowRightLeft, Store
 } from "lucide-react";
 import { formatDataBR } from "@/lib/sla";
+import { urgenciaPrazo } from "@/lib/prazoUrgencia";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import PedidoOdooCard from "@/components/pcp/PedidoOdooCard";
 import { calcularProgressoRealPedido, classGrupo } from "@/lib/pedidoOdooHelper";
