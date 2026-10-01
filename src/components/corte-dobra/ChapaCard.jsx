@@ -7,6 +7,7 @@ import {
   Weight, FileCheck, ShieldCheck, Lock, Printer
 } from "lucide-react";
 import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import ImageLink from "@/components/ui/ImageLink";
 import CorChapaDot, { extractEspessuraFromDesc } from "@/components/corte-dobra/CorChapaDot";
 import SmartImage from "@/components/ui/SmartImage";

@@ -22,6 +22,7 @@ import { PrioridadeBadge } from "@/lib/prioridadeHelper";
 import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco";
 import SmartImage from "@/components/ui/SmartImage";
 import { comprimirImagemParaUpload } from "@/lib/compressImage";
+import { toast } from "sonner";
 
 const PRODUTO_BG = {
   "TELHA":               "border-l-blue-400",

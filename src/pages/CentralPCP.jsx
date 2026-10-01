@@ -1278,19 +1278,23 @@ export default function CentralPCP() {
       queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
       queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
 
-      toast({
-        title: `🗑️ ${excluidos} ordem(ns) de fabricação excluída(s)`,
-        description: erros > 0
-          ? `${excluidos} excluídas com sucesso. ${erros} falharam.`
-          : `As ordens foram removidas com sucesso da Central PCP e dos galpões.`,
-        className: "border-red-500/40"
-      });
+      if (!isOperador) {
+        toast({
+          title: `🗑️ ${excluidos} ordem(ns) de fabricação excluída(s)`,
+          description: erros > 0
+            ? `${excluidos} excluídas com sucesso. ${erros} falharam.`
+            : `As ordens foram removidas com sucesso da Central PCP e dos galpões.`,
+          className: "border-red-500/40"
+        });
+      }
     } catch (e) {
-      toast({
-        title: "Erro ao excluir ordens",
-        description: e.message,
-        variant: "destructive"
-      });
+      if (!isOperador) {
+        toast({
+          title: "Erro ao excluir ordens",
+          description: e.message,
+          variant: "destructive"
+        });
+      }
     } finally {
       setExcluindo(false);
       setModalExclusao({ aberto: false, pedidos: [], titulo: "", descricao: "", notificarOdoo: true });
