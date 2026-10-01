@@ -7,22 +7,33 @@ import { classGrupo } from "@/lib/pedidoOdooHelper";
 import { rotearUnidadeProducao, normalizarLojaVenda } from "@/lib/roteamentoPCP";
 
 const CATEGORIA_MAP = {
-  // Telhas
+  // Telhas e Acessórios de Telhas
   "telhas": { grupo: "telha", sla: 7 },
   "telha": { grupo: "telha", sla: 7 },
   "bandeja": { grupo: "telha", sla: 7 },
   "bobininha": { grupo: "telha", sla: 7 },
-  // Corte e Dobra
+  "bobinina": { grupo: "telha", sla: 7 },
+  "bobina": { grupo: "telha", sla: 7 },
+  "fita": { grupo: "telha", sla: 7 },
+  "desbobinamento": { grupo: "telha", sla: 7 },
+  "cumeeira": { grupo: "telha", sla: 7 },
+  "cumeeiras": { grupo: "telha", sla: 7 },
+  "calha": { grupo: "telha", sla: 7 },
+  "calhas": { grupo: "telha", sla: 7 },
+  "rufo": { grupo: "telha", sla: 7 },
+  "rufos": { grupo: "telha", sla: 7 },
+  // Corte e Dobra (Perfis, Cantoneiras, Chapas)
   "corte e dobra": { grupo: "cd", sla: 5 },
   "corte_dobra": { grupo: "cd", sla: 5 },
   "corte-dobra": { grupo: "cd", sla: 5 },
-  // Perfis
   "perfis": { grupo: "cd", sla: 5 },
   "perfil": { grupo: "cd", sla: 5 },
   "perfis perfilados": { grupo: "cd", sla: 5 },
-  // Chapas
+  "cantoneira": { grupo: "cd", sla: 5 },
+  "cantoneiras": { grupo: "cd", sla: 5 },
   "chapas": { grupo: "cd", sla: 5 },
   "chapa": { grupo: "cd", sla: 5 },
+  "chaparia": { grupo: "cd", sla: 5 },
   // Frisadas
   "frisadas": { grupo: "frisada", sla: 5 },
   "frisada": { grupo: "frisada", sla: 5 }

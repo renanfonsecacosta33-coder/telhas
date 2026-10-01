@@ -1,3 +1,5 @@
+import { classGrupo } from "@/lib/pedidoOdooHelper";
+
 // Regras de Roteamento Industrial e Normalização de Lojas da Central PCP - AJL Ferro & Aço
 // Lojas e Filiais Suportadas:
 // - "Matriz AJL" (Comércio Atacadista de Ferragens e Ferramentas)
@@ -92,16 +94,11 @@ export function rotearUnidadeProducao({
   let temCd = itensCd > 0;
 
   if (Array.isArray(itens) && itens.length > 0) {
-    const cat = (s) => String(s || "").toLowerCase();
     for (const it of itens) {
-      const t = cat(it.categoria) + " " + cat(it.produto) + " " + cat(it.descricao) + " " + cat(it.observacao);
-      if (/frisad/.test(t)) {
-        temFrisada = true;
-      } else if (/telha|tp[- ]?\d|ondulada|colonial|bandeja|cumeeira|painel|bobinin/.test(t)) {
-        temTelha = true;
-      } else {
-        temCd = true;
-      }
+      const g = classGrupo(it);
+      if (g === "frisada") temFrisada = true;
+      else if (g === "telha") temTelha = true;
+      else if (g === "cd") temCd = true;
     }
   }
 

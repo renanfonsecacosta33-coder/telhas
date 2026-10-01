@@ -60,20 +60,22 @@ export function classGrupo(itemOrCat, produtoNome = "") {
     prod = String(produtoNome || "").trim().toLowerCase();
   }
 
-  // 1. Frisadas / Lambris (prioridade sobre C&D genérico)
+  // 1. Frisadas / Lambris (prioridade exclusiva de Frisada/Expedição)
   if (["frisadas", "frisada"].includes(cat) || /(frisad|lambri)/i.test(prod) || /(frisad|lambri)/i.test(cat)) return "frisada";
 
-  // 2. Telhas e acessórios de telhas
-  if (["telhas", "telha", "bandeja", "bobininha"].includes(cat)) return "telha";
-  if (/(telha|tp\s*-?\s*25|tp\s*-?\s*40|termoac[uú]stica|sandu[ií]che|eps|manta|cumeeira|ondulada|colonial|bandeja|bobininha)/i.test(prod)) return "telha";
+  // 2. CORTE E DOBRA (100% Perfis, Cantoneiras, Chapas/Chaparia e serviços de C&D)
+  // Regra de ouro da fábrica: tudo que for PERFIL e CANTONEIRA é CORTE E DOBRA 100%!
+  if (
+    /(perfil|cantoneir|chapa|chaparia|corte\s*e\s*dobra|corte_dobra|\bcd\b)/i.test(cat) ||
+    /(perfil|cantoneir|chapa|chaparia|corte\s*e\s*dobra|corte_dobra)/i.test(prod)
+  ) {
+    return "cd";
+  }
 
-  // 3. Corte & Dobra / Perfis / Chapas
-  if (["chapa", "perfil", "barra", "tubo", "zincado", "corte e dobra", "corte_dobra", "cd"].some((k) => cat.includes(k))) return "cd";
-  if (["chapa", "perfil", "barra", "tubo", "zincado", "cantoneira", "ferro", "dobra"].some((k) => prod.includes(k))) return "cd";
-
-  // Fallbacks adicionais por texto
-  if (["telha", "tp-", "tp ", "eps", "manta"].some((k) => prod.includes(k))) return "telha";
-  return "cd"; // fallback seguro p/ produção C&D
+  // 3. TELHAS (Bobininhas, Telhas, Cumeeiras, Calhas, Rufos, Bandejas, etc.)
+  // Regra de ouro da fábrica: Bobininha (e variações: bobinina, fita, desbobinamento) vai SEMPRE para Telhas (máquina DESBOBINADOR),
+  // assim como Telhas, Cumeeiras, Calhas, Rufos e todo o restante!
+  return "telha";
 }
 
 export function itensPorGrupo(itens, grupo) {
@@ -416,10 +418,10 @@ export function detectarTipoProdutoTelha(produtoTexto = "") {
   if (p.includes("BANDEJA")) {
     return "TELHA BANDEJA";
   }
-  if (p.includes("EPS")) {
+  if (p.includes("EPS") || p.includes("SANDUICHE") || p.includes("SANDUÍCHE") || p.includes("TERMOACUSTICA") || p.includes("TERMOACÚSTICA")) {
     return "TELHA + EPS";
   }
-  if (p.includes("BOBININHA")) {
+  if (/(BOBININ|BOBININH|BOBINA|FITA|DESBOBINAM)/i.test(p)) {
     return "BOBININHA";
   }
   if (p.includes("CUMEEIRA")) {
@@ -434,12 +436,12 @@ export function detectarTipoProdutoTelha(produtoTexto = "") {
 // Detecta a máquina sugerida para Telhas
 export function detectarMaquinaTelha(produtoTexto = "") {
   const p = String(produtoTexto || "").toUpperCase();
+  if (/(DESBOBINADOR|BOBININ|BOBININH|BOBINA|FITA|DESBOBINAM)/i.test(p)) return "DESBOBINADOR";
   if (p.includes("TP 25") || p.includes("TP-25") || p.includes("TP25")) return "TP - 25";
   if (p.includes("TP 40") || p.includes("TP-40") || p.includes("TP40")) return "TP - 40";
   if (p.includes("ONDULAD")) return "ONDULADA";
   if (p.includes("COLONIAL")) return "COLONIAL";
   if (p.includes("BANDEJA")) return "BANDEJA";
-  if (p.includes("DESBOBINADOR") || p.includes("BOBININHA")) return "DESBOBINADOR";
   if (p.includes("CUMEEIRA")) return "CUMEEIRA";
   return "";
 }

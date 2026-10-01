@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Factory, Scissors, Wind, Layers, Ruler, ClipboardList, ImageIcon, Sparkles, Home, CheckCircle2, AlertTriangle, Clock, Disc } from "lucide-react";
 import { stripHtml } from "@/lib/stripHtml";
-import { obterStatusDescritivoItem, extrairAnotacaoItem, localizarOpDoItem } from "@/lib/pedidoOdooHelper";
+import { obterStatusDescritivoItem, extrairAnotacaoItem, localizarOpDoItem, classGrupo } from "@/lib/pedidoOdooHelper";
 import { extrairCroquiItem, extrairCroquiPedido } from "@/lib/croquiExtractor";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import { verificarEstoqueItem } from "@/lib/estoqueMaterialHelper";
@@ -56,17 +56,9 @@ const CATEGORIA_CFG = {
   },
 };
 
-// Detecção de categoria: campo explícito → nome do produto → fallback Avulso.
+// Detecção unificada de categoria seguindo a regra de ouro AJL
 function detectarCategoria(item) {
-  const cat = String(item?.categoria || "").trim().toLowerCase();
-  if (["telhas", "telha", "bandeja", "bobininha"].includes(cat)) return "telha";
-  if (["frisadas", "frisada"].includes(cat)) return "frisada";
-  if (["chapa", "perfil", "barra", "tubo", "zincado", "corte e dobra", "corte_dobra"].some((k) => cat.includes(k))) return "cd";
-
-  const nome = String(item?.produto || item?.descricao || "").toLowerCase();
-  if (["telha", "tp-", "tp ", "eps", "manta"].some((k) => nome.includes(k))) return "telha";
-  if (["chapa", "perfil", "barra", "tubo", "zincado"].some((k) => nome.includes(k))) return "cd";
-  return "avulso";
+  return classGrupo(item);
 }
 
 // Lista cada item do pedido com cor distinta por categoria.

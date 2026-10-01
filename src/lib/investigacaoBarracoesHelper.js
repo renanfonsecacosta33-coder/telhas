@@ -197,10 +197,10 @@ export function processarMapaBarracoes({
       p.identificacao_2 || ""
     ].join(" ").toLowerCase();
 
-    if (/(telha|tp\s*-?\s*25|tp\s*-?\s*40|termoac|sandu[ií]|eps|manta|cumeeir|ondulad|coloni|bandej|bobininha|isopor)/i.test(textToScan)) {
+    if (/(telha|tp\s*-?\s*25|tp\s*-?\s*40|termoac|sandu[ií]|eps|manta|cumeeir|ondulad|coloni|bandej|bobinin|bobina|fita|desbobin|calha|rufo|pingadeir|isopor)/i.test(textToScan)) {
       temTelhaOdoo = true;
     }
-    if (/(chapa|perfil|dobra|corte|guilhot|calha|rufo|tubo|barra|cantoneira|slitter|desbobin)/i.test(textToScan)) {
+    if (/(chapa|perfil|dobra|corte|guilhot|tubo|barra|cantoneira|slitter)/i.test(textToScan)) {
       temCdOdoo = true;
     }
 
@@ -361,8 +361,8 @@ export function useInvestigacaoBarracoes(filialAtiva) {
 
     // Inferência por observação se não encontrado no mapa ainda
     const textoAnalise = ((obsTexto || "") + " " + (tituloRota || "")).toLowerCase();
-    const temCDObs = /(corte|dobra|chaparia|chapa|calha|rufo|slitter|perfil|barra|tubo|cantoneira|desbobin)/i.test(textoAnalise);
-    const temTelhasObs = /(telha|sandu[ií]|eps|isopor|manta|cumeeir|ondulad|coloni|bandej|bobininha|perfiladeir)/i.test(textoAnalise);
+    const temCDObs = /(corte|dobra|chaparia|chapa|slitter|perfil|barra|tubo|cantoneira)/i.test(textoAnalise);
+    const temTelhasObs = /(telha|sandu[ií]|eps|isopor|manta|cumeeir|ondulad|coloni|bandej|bobinin|bobina|fita|desbobin|calha|rufo|pingadeir|perfiladeir)/i.test(textoAnalise);
 
     let barracao = "aguardando";
     let barracaoLabel = "Aguardando Entrada";

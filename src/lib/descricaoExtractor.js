@@ -22,27 +22,45 @@ function capitalizar(s) {
 // Normaliza string de comprimento para { mm, m }
 export function parseComprimento(str, rawUnidade = "") {
   if (!str) return { mm: null, m: null };
-  const s = String(str).trim().toLowerCase().replace(/[\\\/]+$/, "").trim();
+  let s = String(str).trim().toLowerCase().replace(/[\\\/]+$/, "").trim();
   const u = rawUnidade.toLowerCase().trim();
+
+  // Tratamento de milhar brasileiro com ponto: "2.000", "6.000", "12.000" (com ou sem mm no final)
+  // Ex: "6.000mm", "6.000 mm", "6.000"
+  if (/^\d{1,2}\.\d{3}(?:\s*mm)?$/.test(s)) {
+    const mm = parseInt(s.replace("mm", "").replace(".", "").trim(), 10);
+    return { mm, m: +(mm / 1000).toFixed(3) };
+  }
 
   // Ex: "2000mm" ou unidade explícita "mm"
   if (s.endsWith("mm") || u === "mm") {
-    const num = parseFloat(s.replace("mm", "").trim().replace(",", "."));
+    const limpo = s.replace("mm", "").trim();
+    // Se ainda tiver ponto de milhar brasileiro ex: "2.000"
+    const semPontoMilhar = /^\d{1,2}\.\d{3}$/.test(limpo) ? limpo.replace(".", "") : limpo.replace(",", ".");
+    const num = parseFloat(semPontoMilhar);
     if (isNaN(num) || num <= 0) return { mm: null, m: null };
     return { mm: Math.round(num), m: +(num / 1000).toFixed(3) };
   }
 
-  // Ex: "2,00m", "2m", "2 metros"
+  // Ex: "2,00m", "2m", "6,5m", "2 metros"
   if (/(?:m|mts|metros?)$/.test(s) || u === "m" || u === "metros") {
-    const num = parseFloat(s.replace(/(?:m|mts|metros?)$/, "").trim().replace(",", "."));
+    const limpo = s.replace(/(?:m|mts|metros?)$/, "").trim();
+    const semPontoMilhar = /^\d{1,2}\.\d{3}$/.test(limpo) ? limpo.replace(".", "") : limpo.replace(",", ".");
+    const num = parseFloat(semPontoMilhar);
     if (isNaN(num) || num <= 0) return { mm: null, m: null };
+    // Se o valor for grande (ex: 2000 m que na verdade era 2000 mm mas digitaram m por engano, ou milhar)
+    if (num >= 500) {
+      return { mm: Math.round(num), m: +(num / 1000).toFixed(3) };
+    }
     return { mm: Math.round(num * 1000), m: +num.toFixed(3) };
   }
 
-  // Notação brasileira de milhar: "2.000" ou "3.500" (ponto com exatamente 3 dígitos após)
-  if (/^\d{1,2}\.\d{3}$/.test(s)) {
-    const mm = parseInt(s.replace(".", ""), 10);
-    return { mm, m: +(mm / 1000).toFixed(3) };
+  // Se tiver vírgula ou ponto decimal para metros (ex: 6,5 ou 6.5)
+  if (/^\d{1,2}[,\.]\d{1,2}$/.test(s)) {
+    const valM = parseFloat(s.replace(",", "."));
+    if (!isNaN(valM) && valM > 0 && valM < 50) {
+      return { mm: Math.round(valM * 1000), m: +valM.toFixed(3) };
+    }
   }
 
   const val = parseFloat(s.replace(",", "."));
@@ -73,9 +91,17 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
   };
   if (!t) return out;
 
-  // 1. Regex para cortes compostos: QTD + PALAVRA DE PEÇA + COMPRIMENTO
-  // Ex: 50 PÇS c/ 2000\, 50 pcs c/ 2.000 mm, 50 pçs de 2,00m, 50 pçs x 2000
-  const regexCorteComposto = /(\d+)\s*(?:p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|barras?|telhas?|chapas?|unidades?|un\.?|pc\.?)\s*(?:c\/|com|de|x|\*|\:)?\s*(\d+(?:[.,]\d+)?\s*(?:mm|mts?|metros?|m\b)?)[\\\/]*/gi;
+  // 1. Regex para cortes compostos: QTD + (palavra de peça opcional) + (separador opcional c/, com, de, -, :, x) + COMPRIMENTO
+  // Suporta:
+  // - "50 PÇS c/ 2000"
+  // - "50 pcs c/ 2.000 mm"
+  // - "50 pçs de 2,00m"
+  // - "50 pçs - 6000"
+  // - "50 - 6000" ou "50 - 6.000" ou "50 - 6m"
+  // - "50 c/ 6000" ou "50 c/ 6.000 mm"
+  // - "50 com 6000" ou "50 com 6m"
+  // - "50 de 6000" ou "50 de 6,5m"
+  const regexCorteComposto = /(\d+)\s*(?:p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|barras?|telhas?|chapas?|unidades?|un\.?|pc\.?)?\s*(?:c\/|com|de|x|\*|\:|-|–|—)\s*(\d+(?:[.,]\d+)?\s*(?:mm|mts?|metros?|m\b)?)[\\\/]*/gi;
 
   let match;
   while ((match = regexCorteComposto.exec(t)) !== null) {
@@ -92,7 +118,7 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
     }
   }
 
-  // 2. Se não encontrou no formato composto com unidade/palavra de peça, tenta padrão NxM grande
+  // 2. Se não encontrou no formato composto acima, tenta padrão NxM grande
   // Ex: 50x2000, 50 x 2000mm, 50*3000 (exige M >= 500 para não confundir com perfil 75x40)
   if (out.variacoes.length === 0) {
     const regexNxM = /(\d+)\s*[xX*]\s*(\d{3,5}\s*(?:mm)?|\d+[.,]\d+\s*(?:m|mts?|metros?)?)[\\\/]*/g;
@@ -150,6 +176,25 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
         out.metragem_total = qOdoo;
         out.resumo_formatado = `${q} pçs c/ ${mmUnit.toLocaleString("pt-BR")} mm`;
         out.variacoes.push({ qty: q, mm: mmUnit, m: mUnit, total_m: qOdoo });
+      }
+    } else {
+      // 4. Medida isolada na descrição com quantidade vindo do Odoo (ex: "6000mm", "c/ 6000", "6m", "- 6.000")
+      const regexMedidaIsolada = /(?:c\/|com|de|-|–|—)?\s*(\d{1,2}\.\d{3}|\d{3,5}\s*mm|\d+(?:[.,]\d+)?\s*(?:m|mts?|metros?))\b/i;
+      const matchMedida = t.match(regexMedidaIsolada);
+      if (matchMedida) {
+        const { mm, m } = parseComprimento(matchMedida[1]);
+        if (mm && mm >= 300) {
+          const qOdoo = Number(qtdOdoo) || 1;
+          const totalMetros = +(qOdoo * m).toFixed(2);
+          out.quantidade = qOdoo;
+          out.pecas = qOdoo;
+          out.comprimento_mm = mm;
+          out.comprimento_m = m;
+          out.metragem_total = totalMetros;
+          out.tem_especificacao = true;
+          out.resumo_formatado = `${qOdoo} pçs c/ ${mm.toLocaleString("pt-BR")} mm`;
+          out.variacoes.push({ qty: qOdoo, mm: mm, m: m, total_m: totalMetros });
+        }
       }
     }
   }

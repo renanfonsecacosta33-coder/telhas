@@ -307,6 +307,75 @@ export default async function(req: Request): Promise<Response> {
       }
     }
 
+    // ── TRATAMENTO DE CANCELAMENTO VIA ODOO ──
+    const isCancelado =
+      body?.state === "cancel" ||
+      body?.status === "cancel" ||
+      body?.status_pcp === "cancelado" ||
+      body?.cancelado === true ||
+      body?.action === "cancel";
+
+    if (isCancelado && existingRec) {
+      await db.entities.PedidoOdoo.update(existingRec.id, {
+        status_pcp: "cancelado",
+        motivo_cancelamento: body?.motivo || "Cancelado pelo Odoo ERP",
+        data_cancelamento: new Date().toISOString()
+      });
+
+      // Cancela OPs filhas vinculadas na fábrica de Telhas
+      try {
+        const opsTelhas = await db.entities.Pedido.filter({ numero_pedido: numeroPedido });
+        for (const op of opsTelhas) {
+          if (op.status !== "cancelado") {
+            await db.entities.Pedido.update(op.id, {
+              status: "cancelado",
+              observacoes: `${op.observacoes || ""} [Cancelado pelo Odoo ERP]`.trim()
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("[odooWebhook] Erro ao cancelar OPs de Telhas:", e);
+      }
+
+      // Cancela OPs filhas vinculadas no Corte & Dobra
+      try {
+        const opsCD = await db.entities.OrdemMaquinaCD.filter({ numero_pedido: numeroPedido });
+        for (const op of opsCD) {
+          if (op.status !== "cancelado") {
+            await db.entities.OrdemMaquinaCD.update(op.id, {
+              status: "cancelado",
+              observacoes: `${op.observacoes || ""} [Cancelado pelo Odoo ERP]`.trim()
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("[odooWebhook] Erro ao cancelar OPs de CD:", e);
+      }
+
+      // Notificação de alerta urgente no PCP
+      try {
+        await db.entities.Notificacao.create({
+          titulo: `❌ Pedido Odoo #${numeroPedido} CANCELADO`,
+          mensagem: `O pedido #${numeroPedido} (${existingRec.cliente_nome || "Cliente"}) foi cancelado no Odoo ERP. OPs vinculadas foram suspensas e marcadas como canceladas.`,
+          tipo: "alerta",
+          unidade: existingRec.unidade || "Todas",
+          link: "/pcp",
+          autor_nome: "Odoo ERP",
+          data_hora: new Date().toISOString(),
+          lida: false
+        });
+      } catch (e) {
+        console.warn("[odooWebhook] Falha ao registrar Notificacao de cancelamento:", e);
+      }
+
+      return Response.json({
+        status: "success",
+        action: "cancelled",
+        numero_pedido: numeroPedido,
+        id: existingRec.id
+      }, { status: 200 });
+    }
+
     // ── MERGE de itens: apenas se for atualização da MESMA OF existente ──
     // Se for uma nova_of ou OF inédita, newItems é a lista limpa daquela produção específica.
     let mergedItems: any[] = [];
@@ -329,16 +398,20 @@ export default async function(req: Request): Promise<Response> {
     }
     const itensJsonStr = JSON.stringify(mergedItems);
 
-    // Contagem por categoria (recalculada sobre o array MERGED — Rule 4)
-    const cat = (s: string) => (s || "").toLowerCase();
-    const isTelha = (i: any) => {
-      const t = cat(i?.categoria) + " " + cat(i?.produto) + " " + cat(i?.descricao);
-      return /telha|tp[- ]?\d|ondulada|colonial|bandeja|cumeeira|painel|bobinin/.test(t);
+    // ── Regra de Ouro da Fábrica AJL ──
+    // 1) Frisada -> "frisada"
+    // 2) Perfil e Cantoneira -> "cd" 100% (assim como chapa, corte e dobra)
+    // 3) Bobininha/bobinina/bobina/fita/desbobinamento, Telhas, Cumeeiras, Calhas, Rufos e Pingadeiras -> "telha" 100%
+    const classificarItem = (i: any): "frisada" | "cd" | "telha" => {
+      const t = `${i?.categoria || ""} ${i?.produto || ""} ${i?.descricao || ""} ${i?.observacao || ""}`.toLowerCase();
+      if (/frisad/.test(t)) return "frisada";
+      if (/perfil|cantoneir|chapa|chaparia|dobra|guilhot|corte|c&d|slitter|tubo|barra/.test(t)) return "cd";
+      return "telha";
     };
-    const isFrisada = (i: any) => /frisad/.test(cat(i?.categoria) + " " + cat(i?.produto) + " " + cat(i?.descricao));
-    const itensTelha = mergedItems.filter(isTelha).length;
-    const itensFrisada = mergedItems.filter(isFrisada).length;
-    const itensCd = mergedItems.length - itensTelha - itensFrisada;
+
+    const itensFrisada = mergedItems.filter(i => classificarItem(i) === "frisada").length;
+    const itensCd = mergedItems.filter(i => classificarItem(i) === "cd").length;
+    const itensTelha = mergedItems.filter(i => classificarItem(i) === "telha").length;
 
     // Espessuras distintas (sobre o array MERGED)
     const espSet = new Set<string>();
