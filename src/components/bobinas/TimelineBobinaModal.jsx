@@ -47,8 +47,6 @@ function formatarDataHora(isoString) {
 }
 
 export default function TimelineBobinaModal({ open, onClose, bobina }) {
-  if (!bobina) return null;
-
   // Busca logs de auditoria no banco para esta bobina
   const { data: logs = [], isLoading: loadingLogs } = useQuery({
     queryKey: ["timeline-logs", bobina.id, bobina.codigo],
@@ -76,7 +74,7 @@ export default function TimelineBobinaModal({ open, onClose, bobina }) {
         return [];
       }
     },
-    enabled: open && !!bobina.id
+    enabled: open && !!bobina?.id
   });
 
   // Busca pedidos de Telhas que usaram essa bobina
@@ -112,7 +110,7 @@ export default function TimelineBobinaModal({ open, onClose, bobina }) {
         return [];
       }
     },
-    enabled: open && !!bobina.id
+    enabled: open && !!bobina?.id
   });
 
   // Busca ordens de desbobinadeira que usaram essa bobina
@@ -130,11 +128,12 @@ export default function TimelineBobinaModal({ open, onClose, bobina }) {
     queryFn: async () => {
       return base44.entities.OrdemMaquinaCD.filter({ bobina_id: bobina.id }, "-created_date", 50);
     },
-    enabled: open && !!bobina.id
+    enabled: open && !!bobina?.id
   });
 
   // Monta a lista unificada de eventos em ordem cronológica decrescente
   const eventos = useMemo(() => {
+    if (!bobina) return [];
     const lista = [];
 
     // 1. Evento de criação no estoque
@@ -282,6 +281,8 @@ export default function TimelineBobinaModal({ open, onClose, bobina }) {
 
     return lista;
   }, [bobina, logs, pedidosTelhas, ordensDesbob, ordensCD]);
+
+  if (!bobina) return null;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
