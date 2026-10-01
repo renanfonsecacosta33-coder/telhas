@@ -29,8 +29,12 @@ export default function ValidacaoEtiquetaTelhasDialog({ open, onClose, pedido, o
       // Trava de segurança Odoo — valida bobina vinculada vs espessura/origem exigida
       const req = { espessuraExigida: pedido?.espessura_exigida, origemExigida: pedido?.origem_exigida, tolerancias };
       const temReq = req.espessuraExigida || (req.origemExigida && req.origemExigida !== "ambas");
-      if (temReq && pedido?.bobina_superior_id) {
-        base44.entities.Bobina.get(pedido.bobina_superior_id)
+      const targetBobinaId = (pedido?.tipo_componente_bandeja === "bandeja_inferior" || pedido?.maquina === "BANDEJA")
+        ? (pedido?.bobina_superior_id || pedido?.bobina_inferior_id)
+        : pedido?.bobina_superior_id;
+
+      if (temReq && targetBobinaId) {
+        base44.entities.Bobina.get(targetBobinaId)
           .then((b) => {
             const res = validarBobina(b, req);
             setViolacao(res.ok ? null : res.detail);
@@ -40,8 +44,24 @@ export default function ValidacaoEtiquetaTelhasDialog({ open, onClose, pedido, o
     }
   }, [open, pedido?.id, tolerancias]);
 
+  const isComponenteBandeja = pedido?.tipo_componente_bandeja === "bandeja_inferior" || pedido?.maquina === "BANDEJA";
+  const isComponenteTelha = pedido?.tipo_componente_bandeja === "telha_superior";
+  const labelComponente = isComponenteBandeja
+    ? "BANDEJA INFERIOR (Máquina BANDEJA)"
+    : isComponenteTelha
+    ? `TELHA SUPERIOR (Máquina ${pedido?.maquina || "TP - 40"})`
+    : null;
+
+  const bobinaEsperadaCodigo = isComponenteBandeja
+    ? (pedido?.bobina_superior || pedido?.bobina_inferior || "—")
+    : (pedido?.bobina_superior || "—");
+
+  const rvmEsperado = isComponenteBandeja
+    ? (pedido?.rvm_superior || pedido?.rvm_inferior || "—")
+    : (pedido?.rvm_superior || "—");
+
   const bobinaInfo = pedido
-    ? `Produto: ${pedido.produto || "—"}\nModelo: ${pedido.modelo || "—"}\nBobina superior: ${pedido.bobina_superior || "—"}\nCor/RVM superior: ${pedido.rvm_superior || "—"}\n${pedido.bobina_inferior ? `Bobina inferior: ${pedido.bobina_inferior}\nCor/RVM inferior: ${pedido.rvm_inferior || "—"}\n` : ""}Cliente: ${pedido.cliente || "—"}\nNúmero do pedido: ${pedido.numero_pedido || "—"}`
+    ? `Produto: ${pedido.produto || "—"}${labelComponente ? `\nComponente: ${labelComponente}` : ""}\nModelo: ${pedido.modelo || "—"}\nBobina esperada nesta máquina: ${bobinaEsperadaCodigo}\nCor/RVM: ${rvmEsperado}\nCliente: ${pedido.cliente || "—"}\nNúmero do pedido: ${pedido.numero_pedido || "—"}`
     : "";
 
   const handleUpload = async (file) => {
@@ -153,13 +173,17 @@ Responda em JSON com:
           )}
 
           {/* Info da bobina esperada */}
-          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-xs space-y-0.5">
-            <p className="font-bold text-orange-800 mb-1">Bobina esperada:</p>
-            <p className="text-orange-700 font-mono">{pedido?.bobina_superior || "—"}</p>
-            <p className="text-orange-600">Cor/RVM: <strong>{pedido?.rvm_superior || "—"}</strong></p>
-            {pedido?.bobina_inferior && (
-              <p className="text-orange-600">Bobina inferior: <strong>{pedido.bobina_inferior}</strong></p>
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-xs space-y-1">
+            {labelComponente && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded font-bold text-xs bg-orange-200 text-orange-950 mb-1 border border-orange-300">
+                🏷️ {labelComponente}
+              </div>
             )}
+            <p className="font-bold text-orange-800">
+              {isComponenteBandeja ? "Bobina da Bandeja esperada:" : "Bobina esperada:"}
+            </p>
+            <p className="text-orange-700 font-mono font-bold text-sm">{bobinaEsperadaCodigo}</p>
+            <p className="text-orange-600">Cor/RVM: <strong>{rvmEsperado}</strong></p>
             <p className="text-orange-600">Produto: <strong>{pedido?.produto || "—"}</strong></p>
           </div>
 

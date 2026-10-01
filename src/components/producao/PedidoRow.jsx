@@ -23,6 +23,7 @@ import { PrioridadeBadge } from "@/lib/prioridadeHelper";
 import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco";
 import SmartImage from "@/components/ui/SmartImage";
 import { comprimirImagemParaUpload } from "@/lib/compressImage";
+import { isTelhaBandeja, verificarStatusComponentesBandeja } from "@/lib/bandejaHelper";
 
 const PRODUTO_BG = {
   "TELHA":               "border-l-blue-400",
@@ -141,7 +142,7 @@ function formatTempo(segundos) {
   return `${String(m).padStart(2, "0")}m ${String(sec).padStart(2, "0")}s`;
 }
 
-export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRole, opRodando, maquina, user, filialAtiva, appendHistoricoFn }) {
+export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRole, opRodando, maquina, user, filialAtiva, appendHistoricoFn, todosPedidos = [] }) {
   const isOperador = userRole === "operador";
   const podeGerenciar = !isOperador;
   const [etapasOk, setEtapasOk] = useState({});
@@ -168,6 +169,10 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
   const [operadoresDialogOpen, setOperadoresDialogOpen] = useState(false);
   const [pendingColagemUpdates, setPendingColagemUpdates] = useState(null);
   const intervalRef = useRef(null);
+
+  // Análise de fluxo paralelo de Telha Bandeja (Telha Normal + Bandeja Inferior + Colagem)
+  const diagBandeja = useMemo(() => verificarStatusComponentesBandeja(p, todosPedidos), [p, todosPedidos]);
+  const isComponenteParaleloBandeja = Boolean(p.tipo_componente_bandeja === "telha_superior" || p.tipo_componente_bandeja === "bandeja_inferior");
 
   // Lista de bobinas para conferência nos itens de múltiplas medidas
   const { data: todasBobinas = [] } = useQuery({
@@ -279,8 +284,8 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
     (mOrigemNorm === mPainelNorm || (!p.maquina_origem && (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem"))) &&
     (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem" || p.perfilacao_concluida)
   );
-  // TELHA BANDEJA TP-40 tem fluxo especial de 3 etapas
-  const isBandejaMultiEtapa = p.produto === "TELHA BANDEJA" && ["TP - 40", "COLONIAL", "BANDEJA", "COLAGEM"].includes(p.maquina);
+  // TELHA BANDEJA: fluxo multi-etapa sequencial (legado, caso não use a tríade de fluxo paralelo)
+  const isBandejaMultiEtapa = !isComponenteParaleloBandeja && p.tipo_componente_bandeja !== "colagem_final" && !p.grupo_bandeja_id && p.produto === "TELHA BANDEJA" && ["TP - 40", "COLONIAL", "BANDEJA", "COLAGEM"].includes(p.maquina);
   const proximaEtapaBandeja = isBandejaMultiEtapa ? proximaMaquinaFluxo(p.produto, p.maquina) : null;
 
   // Calcula tempo ao vivo
@@ -319,6 +324,17 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
       alert("Aguardando aprovação do encarregado para iniciar esta OP.");
       return;
     }
+    // Trava de Telha Bandeja na Colagem: só libera após término de ambas as metades (Telha Superior e Bandeja Inferior)
+    if (p.maquina === "COLAGEM" && diagBandeja.isBandeja && !diagBandeja.liberadoColagem) {
+      playAlertSound();
+      alert(
+        "⚠️ COLAGEM BLOQUEADA!\n\n" +
+        diagBandeja.mensagemBloqueio + "\n\n" +
+        "A colagem da Telha Bandeja só pode ser iniciada após a conclusão da perfilação de ambas as metades no galpão (Telha Superior e Bandeja Inferior)."
+      );
+      return;
+    }
+
     // Validação de etiqueta obrigatória antes de iniciar (exceto colagem e pedidos com múltiplas medidas que validam bobinas por item)
     if (!temVariacoes && p.maquina !== "COLAGEM" && p.validacao_etiqueta_status !== "aprovado") {
       setValidacaoEtiquetaOpen(true);
@@ -764,7 +780,26 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
       }
     }
 
-    // TELHA BANDEJA multi-etapa: avança pelo fluxo (COLAGEM ainda virá depois)
+    const hojeStr = format(new Date(), "yyyy-MM-dd");
+    const agoraIso = new Date().toISOString();
+
+    // TELHA BANDEJA: componente paralelo (Telha Superior ou Bandeja Inferior) finaliza na própria máquina
+    if (isComponenteParaleloBandeja) {
+      playFinishSound();
+      speakOpFinalizada(p.maquina, p.numero_pedido);
+      onStatusChange(p, "finalizado", {
+        tempo_producao_seg: prodSeg,
+        metragem_utilizada: metragemRealNum,
+        metragem_planejada: metragemRealNum,
+        inicio_producao_ts: null,
+        data_finalizacao: hojeStr,
+        foto_finalizacao_url: fotoFinalizacaoUrl,
+      });
+      setMetragemDialog(false);
+      return;
+    }
+
+    // TELHA BANDEJA multi-etapa sequencial (legado): avança pelo fluxo
     if (isBandejaMultiEtapa && proximaEtapaBandeja) {
       onStatusChange(p, "aguardando_colagem", {
         tempo_producao_seg: prodSeg,
@@ -779,8 +814,6 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
 
     // Produto sem colagem → finaliza direto; com colagem → vai pra COLAGEM
     const novoStatus = precisaColagem ? "aguardando_colagem" : "finalizado";
-    const hojeStr = format(new Date(), "yyyy-MM-dd");
-    const agoraIso = new Date().toISOString();
     const maqOrigem = p.maquina_origem || (p.maquina !== "COLAGEM" ? p.maquina : null) || maquina || "TP - 25";
 
     if (novoStatus === "finalizado") {
@@ -827,6 +860,34 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="font-bold text-base">{p.produto}</span>
+              {p.tipo_componente_bandeja === "telha_superior" && (
+                <Badge className="bg-blue-600 text-white border-blue-700 text-xs gap-1 font-bold shadow-xs">
+                  <Layers className="w-3 h-3" /> TELHA SUPERIOR ({p.maquina})
+                </Badge>
+              )}
+              {(p.tipo_componente_bandeja === "bandeja_inferior" || (p.maquina === "BANDEJA" && isTelhaBandeja(p))) && (
+                <Badge className="bg-pink-600 text-white border-pink-700 text-xs gap-1 font-bold shadow-xs">
+                  <Layers className="w-3 h-3" /> BANDEJA INFERIOR
+                </Badge>
+              )}
+              {p.maquina === "COLAGEM" && diagBandeja.isBandeja && (
+                <>
+                  <Badge className="bg-purple-700 text-white text-xs gap-1 font-bold shadow-xs">
+                    <Layers className="w-3 h-3" /> COLAGEM BANDEJA
+                  </Badge>
+                  {!diagBandeja.liberadoColagem ? (
+                    <Badge className="bg-amber-100 text-amber-900 border-amber-400 text-xs gap-1.5 font-bold">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                      Aguardando: {diagBandeja.mensagemBloqueio}
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-emerald-100 text-emerald-900 border-emerald-400 text-xs gap-1.5 font-bold shadow-xs">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      Componentes Prontos no Galpão
+                    </Badge>
+                  )}
+                </>
+              )}
               <PrioridadeBadge pedido={p} />
               {p.rota && (
                 <Badge className="bg-red-600 text-white border-red-700 text-xs gap-1 animate-pulse">
@@ -1167,6 +1228,43 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
           );
         })()}
 
+        {/* Painel de Componentes para Telha Bandeja na Máquina de Colagem */}
+        {p.maquina === "COLAGEM" && diagBandeja.isBandeja && (
+          <div className="w-full bg-amber-50/90 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-700/80 rounded-2xl p-3 sm:p-4 mb-3 flex flex-col gap-2.5 shadow-xs">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-amber-600" />
+                <span className="font-bold text-xs uppercase tracking-wide text-amber-950 dark:text-amber-200">
+                  Componentes da Telha Bandeja no Galpão
+                </span>
+              </div>
+              <Badge className={diagBandeja.liberadoColagem ? "bg-emerald-600 text-white font-bold text-xs" : "bg-amber-600 text-white font-bold text-xs"}>
+                {diagBandeja.liberadoColagem ? "✓ Liberado para Colagem" : "Aguardando Perfilação"}
+              </Badge>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              <div className={`p-2 rounded-xl border flex items-center justify-between ${diagBandeja.telhaFinalizada ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 text-emerald-900 dark:text-emerald-200" : "bg-white dark:bg-slate-800 border-amber-200 text-slate-700 dark:text-slate-300"}`}>
+                <div>
+                  <p className="font-bold">1. Telha Superior ({diagBandeja.maquinaTelha})</p>
+                  <p className="text-[11px] text-muted-foreground font-mono">{diagBandeja.opTelha?.bobina_superior || p.bobina_superior || "Bobina Superior"}</p>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${diagBandeja.telhaFinalizada ? "bg-emerald-600 text-white" : "bg-amber-100 text-amber-800"}`}>
+                  {diagBandeja.telhaFinalizada ? "✓ Finalizada" : diagBandeja.statusTelha}
+                </span>
+              </div>
+              <div className={`p-2 rounded-xl border flex items-center justify-between ${diagBandeja.bandejaFinalizada ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 text-emerald-900 dark:text-emerald-200" : "bg-white dark:bg-slate-800 border-amber-200 text-slate-700 dark:text-slate-300"}`}>
+                <div>
+                  <p className="font-bold">2. Bandeja Inferior (BANDEJA)</p>
+                  <p className="text-[11px] text-muted-foreground font-mono">{diagBandeja.opBandeja?.bobina_superior || p.bobina_inferior || p.bobina_superior || "Bobina Bandeja"}</p>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${diagBandeja.bandejaFinalizada ? "bg-emerald-600 text-white" : "bg-amber-100 text-amber-800"}`}>
+                  {diagBandeja.bandejaFinalizada ? "✓ Finalizada" : diagBandeja.statusBandeja}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Bloco de Destaque da Bobina & Procedência do Aço (Nacional vs Importado) */}
         {(p.bobina_superior || p.bobina_superior_id || p.origem_exigida) && (
           <div className="w-full bg-slate-50/90 dark:bg-slate-900/80 border-2 border-slate-200 dark:border-slate-700/80 rounded-2xl p-3 sm:p-4 mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
@@ -1177,7 +1275,11 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
-                    Bobina de Produção
+                    {p.tipo_componente_bandeja === "telha_superior"
+                      ? `Bobina da Telha Superior (${p.maquina})`
+                      : p.tipo_componente_bandeja === "bandeja_inferior" || (p.maquina === "BANDEJA" && isTelhaBandeja(p))
+                      ? "Bobina da Bandeja Inferior"
+                      : "Bobina de Produção"}
                   </span>
                   <span className="font-mono font-black text-sm text-foreground bg-white dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
                     {p.bobina_superior || "Bobina não definida"}
@@ -1421,14 +1523,25 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
           ) : (
             <>
               {p.status === "pendente" && (
-                <Button
-                  size="sm"
-                  className={`gap-1 border-0 ${aguardandoAprovacao ? "bg-orange-400 hover:bg-orange-500 text-white" : p.rota ? "bg-red-500 hover:bg-red-600 text-white" : "bg-amber-500 hover:bg-amber-600 text-white"}`}
-                  onClick={aguardandoAprovacao ? cancelarSolicitacaoPendente : handleIniciar}
-                  title={aguardandoAprovacao ? "Aguardando aprovação do encarregado. Clique para cancelar a solicitação." : ""}
-                >
-                  <Play className="w-3 h-3" /> {aguardandoAprovacao ? "Aguardando... (cancelar)" : p.maquina === "COLAGEM" ? "Iniciar Colagem" : "Iniciar"}
-                </Button>
+                p.maquina === "COLAGEM" && diagBandeja.isBandeja && !diagBandeja.liberadoColagem ? (
+                  <Button
+                    size="sm"
+                    disabled
+                    className="gap-1.5 bg-slate-200 dark:bg-slate-800 text-slate-500 border border-slate-300 dark:border-slate-700 cursor-not-allowed opacity-80"
+                    title={diagBandeja.mensagemBloqueio}
+                  >
+                    <Lock className="w-3.5 h-3.5 text-amber-600" /> Aguardando Componentes
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    className={`gap-1 border-0 ${aguardandoAprovacao ? "bg-orange-400 hover:bg-orange-500 text-white" : p.rota ? "bg-red-500 hover:bg-red-600 text-white" : "bg-amber-500 hover:bg-amber-600 text-white"}`}
+                    onClick={aguardandoAprovacao ? cancelarSolicitacaoPendente : handleIniciar}
+                    title={aguardandoAprovacao ? "Aguardando aprovação do encarregado. Clique para cancelar a solicitação." : ""}
+                  >
+                    <Play className="w-3 h-3" /> {aguardandoAprovacao ? "Aguardando... (cancelar)" : p.maquina === "COLAGEM" ? "Iniciar Colagem" : "Iniciar"}
+                  </Button>
+                )
               )}
 
               {p.status === "em_producao" && (
@@ -1446,6 +1559,10 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
                     <CheckCircle2 className="w-3 h-3" />
                     {temVariacoes && !todosItensFinalizados
                       ? `Finalize os itens (${_variacoesTelhas.filter(v => v.finalizado).length}/${_variacoesTelhas.length})`
+                      : p.tipo_componente_bandeja === "telha_superior"
+                      ? "✓ Finalizar Telha Superior"
+                      : p.tipo_componente_bandeja === "bandeja_inferior"
+                      ? "✓ Finalizar Bandeja Inferior"
                       : isBandejaMultiEtapa && proximaEtapaBandeja
                       ? `Finalizar ${labelProximaEtapa(p.produto, p.maquina)}`
                       : precisaColagem ? "Finalizar → Colagem" : "✓ Finalizar"}
@@ -1460,9 +1577,20 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
               )}
 
               {p.status === "aguardando_colagem" && p.maquina === "COLAGEM" && (
-                <Button size="sm" className="gap-1 bg-amber-500 hover:bg-amber-600 text-white border-0" onClick={handleIniciar}>
-                  <Play className="w-3 h-3" /> Iniciar Colagem
-                </Button>
+                diagBandeja.isBandeja && !diagBandeja.liberadoColagem ? (
+                  <Button
+                    size="sm"
+                    disabled
+                    className="gap-1.5 bg-slate-200 dark:bg-slate-800 text-slate-500 border border-slate-300 dark:border-slate-700 cursor-not-allowed opacity-80"
+                    title={diagBandeja.mensagemBloqueio}
+                  >
+                    <Lock className="w-3.5 h-3.5 text-amber-600" /> Aguardando Componentes
+                  </Button>
+                ) : (
+                  <Button size="sm" className="gap-1 bg-amber-500 hover:bg-amber-600 text-white border-0 font-bold" onClick={handleIniciar}>
+                    <Play className="w-3 h-3" /> Iniciar Colagem
+                  </Button>
+                )
               )}
 
               {p.status === "aguardando_colagem" && (

@@ -122,7 +122,17 @@ export default function MaquinaPanel({ maquina }) {
 
       // Se estamos na tela da COLAGEM:
       if (targetNorm === "COLAGEM") {
+        // Componentes individuais de perfilação (telha superior ou bandeja inferior) rodam nas perfiladeiras, não na Colagem
+        if (p.tipo_componente_bandeja === "telha_superior" || p.tipo_componente_bandeja === "bandeja_inferior") {
+          return false;
+        }
         return mNorm === "COLAGEM" || p.status === "aguardando_colagem";
+      }
+
+      // Se estamos em máquina perfiladeira (TP-40, BANDEJA, etc.):
+      // A OP de colagem final da Telha Bandeja fica restrita à máquina de Colagem
+      if (p.tipo_componente_bandeja === "colagem_final") {
+        return false;
       }
 
       // 1. Está atualmente atribuído a esta máquina perfiladeira
@@ -985,7 +995,7 @@ export default function MaquinaPanel({ maquina }) {
                     </Button>
                   </div>
                 )}
-                <PedidoRow pedido={p} onStatusChange={handleStatusChange} onUpdate={handleStatusChange} userRole={user?.role} opRodando={opRodando} maquina={maquina} user={user} filialAtiva={filialAtiva} appendHistoricoFn={(pedido, acao, label, detalhes) => appendHistorico(pedido, acao, label, detalhes)} />
+                <PedidoRow pedido={p} onStatusChange={handleStatusChange} onUpdate={handleStatusChange} userRole={user?.role} opRodando={opRodando} maquina={maquina} user={user} filialAtiva={filialAtiva} appendHistoricoFn={(pedido, acao, label, detalhes) => appendHistorico(pedido, acao, label, detalhes)} todosPedidos={todosPedidos} />
               </div>
             );
           })}

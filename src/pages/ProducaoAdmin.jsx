@@ -24,6 +24,7 @@ import KanbanBoard from "@/components/producao/KanbanBoard";
 import { prepararPresetNovaOrdemTelhas, getItens, computePercentual, statusPcpPorPercentual, buildItensJson } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
+import { isTelhaBandeja, montarTriadeTelhaBandeja } from "@/lib/bandejaHelper";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 
@@ -146,6 +147,18 @@ export default function ProducaoAdmin() {
         }
       } catch (errCheck) {
         console.warn("[ProducaoAdmin] Falha na verificação de OP existente:", errCheck);
+      }
+
+      if (isTelhaBandeja(data)) {
+        const { ordemTelha, ordemBandeja, ordemColagem } = montarTriadeTelhaBandeja({ ...data, unidade: data.unidade || filialAtiva });
+        try {
+          await base44.entities.Pedido.create(ordemBandeja);
+          await base44.entities.Pedido.create(ordemColagem);
+        } catch (errBandeja) {
+          console.error("[ProducaoAdmin] Erro ao criar ordens de Bandeja/Colagem:", errBandeja);
+        }
+        createMutation.mutate(ordemTelha);
+        return;
       }
 
       createMutation.mutate(data);

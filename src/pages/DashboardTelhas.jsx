@@ -22,6 +22,7 @@ import { calcularMetrosPedido } from "@/lib/metrosHelper";
 import PedidoFormDialog from "@/components/producao/PedidoFormDialog";
 import { prepararPresetNovaOrdemTelhas, getItens, computePercentual, statusPcpPorPercentual, buildItensJson } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
+import { isTelhaBandeja, montarTriadeTelhaBandeja } from "@/lib/bandejaHelper";
 
 const MAQUINAS_TELHAS = [
   { id: "TP - 40",      label: "TP-40",        color: "bg-blue-500",   hex: "#3b82f6", path: "/maquina/tp40" },
@@ -172,6 +173,18 @@ export default function DashboardTelhas() {
         }
       } catch (errCheck) {
         console.warn("[DashboardTelhas] Falha na verificação de OP existente:", errCheck);
+      }
+
+      if (isTelhaBandeja(data)) {
+        const { ordemTelha, ordemBandeja, ordemColagem } = montarTriadeTelhaBandeja({ ...data, unidade: filialAtiva });
+        try {
+          await base44.entities.Pedido.create(ordemBandeja);
+          await base44.entities.Pedido.create(ordemColagem);
+        } catch (errBandeja) {
+          console.error("[DashboardTelhas] Erro ao criar ordens de Bandeja/Colagem:", errBandeja);
+        }
+        createMutation.mutate(ordemTelha);
+        return;
       }
 
       createMutation.mutate({ ...data, unidade: filialAtiva });

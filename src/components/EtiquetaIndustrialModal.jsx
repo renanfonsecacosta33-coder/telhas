@@ -23,7 +23,8 @@ export default function EtiquetaIndustrialModal({ open, onOpenChange, data }) {
   const tipo = data.tipo || "amarrado_telha";
   const cliente = data.cliente || "CLIENTE PADRÃO";
   const opNumero = data.opNumero || "#1042";
-  const modelo = data.modelo || "TP-40 GALVALUME 0.43mm";
+  const componente = data.componente || data.etiqueta_identificacao || data.tipo_componente || "";
+  const modelo = componente ? `${data.modelo || "MATERIAL"} [${componente}]` : (data.modelo || "TP-40 GALVALUME 0.43mm");
   const dimensao = data.dimensao || "6.00 metros";
   const quantidade = data.quantidade || "20 Peças";
   const pesoTotal = data.pesoTotal || "243.0 kg";
@@ -37,10 +38,10 @@ export default function EtiquetaIndustrialModal({ open, onOpenChange, data }) {
 ^FO70,50^A0N,35,35^FDAJL FERRO E ACO - ETIQUETA INDUSTRIAL^FS
 ^FO70,95^A0N,25,25^FDCLIENTE: ${cliente}^FS
 ^FO70,130^A0N,25,25^FDOP / LOTE: ${opNumero} | ETIQUETA: ${codigoEtiqueta}^FS
-^FO70,165^A0N,25,25^FDMATERIAL: ${modelo}^FS
-^FO70,200^A0N,25,25^FDDIMENSAO: ${dimensao} | QTD: ${quantidade}^FS
-^FO70,235^A0N,30,30^FDPESO BRUTO: ${pesoTotal}^FS
-^FO70,275^A0N,20,20^FDUSINA: ${usina} | EMISSAO: ${dataEmissao}^FS
+${componente ? `^FO70,165^A0N,25,25^FDCOMPONENTE: ${componente}^FS\n^FO70,200^A0N,25,25^FDMATERIAL: ${modelo}^FS` : `^FO70,165^A0N,25,25^FDMATERIAL: ${modelo}^FS`}
+^FO70,235^A0N,25,25^FDDIMENSAO: ${dimensao} | QTD: ${quantidade}^FS
+^FO70,270^A0N,30,30^FDPESO BRUTO: ${pesoTotal}^FS
+^FO70,305^A0N,20,20^FDUSINA: ${usina} | EMISSAO: ${dataEmissao}^FS
 ^FO520,100^BQN,2,6^FDQA,https://ajl.base44.app/valida/${codigoEtiqueta}^FS
 ^XZ`;
 

@@ -19,6 +19,7 @@ import {
   buildItensJson
 } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
+import { isTelhaBandeja, montarTriadeTelhaBandeja } from "@/lib/bandejaHelper";
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
@@ -113,6 +114,18 @@ export default function Dashboard() {
         }
       } catch (errCheck) {
         console.warn("[Dashboard] Falha na verificação de OP existente:", errCheck);
+      }
+
+      if (isTelhaBandeja(data)) {
+        const { ordemTelha, ordemBandeja, ordemColagem } = montarTriadeTelhaBandeja({ ...data, unidade: filialAtiva });
+        try {
+          await base44.entities.Pedido.create(ordemBandeja);
+          await base44.entities.Pedido.create(ordemColagem);
+        } catch (errBandeja) {
+          console.error("[Dashboard] Erro ao criar ordens de Bandeja/Colagem:", errBandeja);
+        }
+        createMutation.mutate(ordemTelha);
+        return;
       }
 
       createMutation.mutate({ ...data, unidade: filialAtiva });
