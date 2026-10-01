@@ -55,11 +55,22 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
     const mapa = new Map();
     fila.forEach(pedido => {
       const itens = getItens(pedido);
+      const algumItemTemDistribuido = itens.some(i => i.distribuido === true || i.distribuido === false);
+
       itens.forEach(item => {
         if (classGrupo(item) !== "cd") return;
+
+        // Se o pedido teve programação/distribuição granular de itens, exibe apenas os distribuídos ou em produção
+        if (algumItemTemDistribuido) {
+          const estaDistribuido = item.distribuido === true || item.status === "distribuido" || item.status === "em_producao" || item.status === "concluido";
+          if (!estaDistribuido) return;
+        } else if (item.distribuido === false) {
+          return;
+        }
+
         const esp = item.espessura || "—";
         if (!mapa.has(esp)) mapa.set(esp, []);
-        mapa.get(esp).push({ pedido, item, idx: item._idx });
+        mapa.get(esp).push({ pedido, item, idx: item._idx != null ? item._idx : 0 });
       });
     });
     return Array.from(mapa.entries())

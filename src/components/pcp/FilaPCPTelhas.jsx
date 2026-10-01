@@ -44,8 +44,12 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
     .filter(p => {
       const telhas = itensPorGrupo(getItens(p), "telha");
       if (telhas.length === 0) return false;
+      const algumItemTemDistribuido = telhas.some(i => i.distribuido === true || i.distribuido === false);
       return telhas.some(it => {
-        if (it.distribuido === true || it.status === "distribuido" || it.status === "em_producao" || it.status === "concluido") return true;
+        if (it.status === "em_producao" || it.status === "concluido") return true;
+        if (algumItemTemDistribuido) {
+          return it.distribuido === true || it.status === "distribuido";
+        }
         if (it.distribuido === false) return false;
         return ["distribuido", "em_producao"].includes(p.status_pcp);
       });
@@ -145,10 +149,14 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
           const pacoteConcluido = pctTelha === 100;
 
           // Filtra apenas itens que foram distribuídos ou que já possuem OP criada na fábrica
+          const algumItemTemDistribuido = telhas.some(i => i.distribuido === true || i.distribuido === false);
           const telhasParaExibir = telhas.filter(it => {
             const opExistente = localizarOpDoItem(it, opsDoPedido, telhas);
             if (opExistente) return true;
-            if (it.distribuido === true || it.status === "distribuido" || it.status === "em_producao" || it.status === "concluido") return true;
+            if (it.status === "em_producao" || it.status === "concluido") return true;
+            if (algumItemTemDistribuido) {
+              return it.distribuido === true || it.status === "distribuido";
+            }
             if (it.distribuido === false) return false;
             return ["distribuido", "em_producao"].includes(pedido.status_pcp);
           });

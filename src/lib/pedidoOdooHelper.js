@@ -113,7 +113,7 @@ export function computePercentualGrupo(itens, grupo) {
 // evitando que OPs de outros itens ou outras OFs do mesmo pedido de venda
 // contaminem este item.
 export function localizarOpDoItem(it, opsList = [], todosItens = []) {
-  if (!opsList || opsList.length === 0) return null;
+  if (!opsList || opsList.length === 0 || !it) return null;
 
   // 1. Vínculo exato por índice do item se a OP registrou item_idx
   if (it._idx != null) {
@@ -121,26 +121,40 @@ export function localizarOpDoItem(it, opsList = [], todosItens = []) {
     if (opPorIdx) return opPorIdx;
   }
 
-  // 2. Vínculo por código inicial do produto (ex: "2124", "2132")
+  // 2. Vínculo por correspondência de produto E medida/quantidade (evita colisão entre itens do mesmo produto)
   const prodItem = String(it.produto || it.descricao || "").toUpperCase().trim();
   const codItem = (prodItem.match(/^\d{3,6}/) || [])[0];
+  const medidaItem = String(it.medida || "").replace(/\D+/g, "");
+  const qtdItem = it.quantidade ? String(it.quantidade) : "";
 
+  const opExata = opsList.find(o => {
+    const prodOp = String(o.item_produto || o.produto_rotulo_pcp || o.modelo || o.tipo_peca || o.produto || "").toUpperCase().trim();
+    const codOp = (prodOp.match(/^\d{3,6}/) || [])[0];
+    const matchProd = (codItem && codOp && codItem === codOp) || (prodOp && (prodItem.includes(prodOp) || prodOp.includes(prodItem)));
+    if (!matchProd) return false;
+
+    // Se temos medida no item, checa se bate com a metragem ou dimensões da OP
+    if (medidaItem) {
+      const opMetragem = String(o.metragem_mm || o.dimensoes_livres || "").replace(/\D+/g, "");
+      if (opMetragem && (opMetragem.includes(medidaItem) || medidaItem.includes(opMetragem))) return true;
+    }
+    // Se temos quantidade/metros
+    if (qtdItem && (String(o.metros) === qtdItem || String(o.quantidade) === qtdItem || String(o.quantidade_telhas) === qtdItem)) {
+      return true;
+    }
+    return false;
+  });
+  if (opExata) return opExata;
+
+  // 3. Se houver apenas 1 OP desse código correspondente na lista
   if (codItem) {
-    const opPorCod = opsList.find(o => {
-      const prodOp = String(o.item_produto || o.produto_rotulo_pcp || o.modelo || o.produto || "").toUpperCase().trim();
+    const opsMesmoCod = opsList.filter(o => {
+      const prodOp = String(o.item_produto || o.produto_rotulo_pcp || o.modelo || o.tipo_peca || o.produto || "").toUpperCase().trim();
       const codOp = (prodOp.match(/^\d{3,6}/) || [])[0];
       return codOp && codOp === codItem;
     });
-    if (opPorCod) return opPorCod;
+    if (opsMesmoCod.length === 1) return opsMesmoCod[0];
   }
-
-  // 3. Vínculo por inclusão de texto de produto/descrição
-  const opPorTexto = opsList.find(o => {
-    const prodOp = String(o.item_produto || o.produto_rotulo_pcp || o.modelo || o.produto || "").toUpperCase().trim();
-    if (!prodOp || !prodItem) return false;
-    return prodItem.includes(prodOp) || prodOp.includes(prodItem);
-  });
-  if (opPorTexto) return opPorTexto;
 
   // 4. Fallback estrito: SOMENTE se o pedido tiver exatamente 1 item E a lista de OPs tiver exatamente 1 OP
   if (opsList.length === 1 && todosItens.length === 1) {

@@ -659,7 +659,15 @@ export default function CentralPCP() {
         acao: "distribuicao_automatica",
         detalhes: "Pedido distribuído automaticamente para os galpões (Telhas→Barracão Telhas, C&D→Barracão C&D, Frisada→Expedição)."
       }];
+      const itens = parseItensPedido(pedido.itens_json);
+      const itensDistribuidos = itens.map(it => ({
+        ...it,
+        status: it.status === "concluido" ? "concluido" : (it.status === "em_producao" ? "em_producao" : "distribuido"),
+        distribuido: true
+      }));
+
       const atualizado = await base44.entities.PedidoOdoo.update(pedido.id, {
+        itens_json: JSON.stringify(itensDistribuidos),
         status_pcp: "distribuido",
         percentual_concluido: 15,
         historico_log: JSON.stringify(novoLog)
@@ -757,6 +765,16 @@ export default function CentralPCP() {
         distribuido: distribuir ? true : (itens[idx].distribuido || false)
       };
       itens[idx] = itemAtualizado;
+
+      // Se este item específico está sendo distribuído, garante que outros itens sem marcação
+      // fiquem com distribuido: false, para não irem juntos para o galpão prematuramente
+      if (distribuir) {
+        itens.forEach((it, i) => {
+          if (i !== idx && it.distribuido === undefined) {
+            it.distribuido = false;
+          }
+        });
+      }
 
       const algumDistribuido = itens.some(i => i.distribuido || i.status === "distribuido" || i.status === "concluido");
       const novoStatusPcp = algumDistribuido && pedido.status_pcp === "pendente_distribuicao" 

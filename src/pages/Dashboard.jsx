@@ -35,6 +35,7 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ["pedidos-dash"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
       setDialogOpen(false);
+      setEditPreset(null);
       toast.success("Pedido criado!");
 
       const ctx = filaContext;
@@ -71,6 +72,52 @@ export default function Dashboard() {
       }
     },
   });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.Pedido.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pedidos-dash"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      setDialogOpen(false);
+      setEditPreset(null);
+      toast.success("Pedido atualizado com sucesso!");
+    },
+  });
+
+  const handleSave = async (data) => {
+    if (editPreset && !editPreset._presets && editPreset.id) {
+      updateMutation.mutate({ id: editPreset.id, data });
+    } else {
+      // Verificação anti-duplicação antes de criar
+      try {
+        const pedNum = data.numero_pedido ? String(data.numero_pedido).trim() : "";
+        const pedOdooId = filaContext?.pedidoId || data.pedido_odoo_id || null;
+        const itemIdx = filaContext?.itemIdx != null ? filaContext.itemIdx : (data.item_idx != null ? data.item_idx : null);
+
+        if (pedNum) {
+          const opsAtuais = await base44.entities.Pedido.filter({ numero_pedido: pedNum });
+          const opExistente = opsAtuais.find(o => {
+            if (o.status === "cancelado") return false;
+            if (pedOdooId && o.pedido_odoo_id && o.pedido_odoo_id === pedOdooId) {
+              if (itemIdx != null && o.item_idx != null) return o.item_idx === itemIdx;
+              return true;
+            }
+            if (itemIdx != null && o.item_idx != null && o.item_idx === itemIdx) return true;
+            return o.produto === data.produto && String(o.metros) === String(data.metros);
+          });
+
+          if (opExistente && opExistente.id) {
+            updateMutation.mutate({ id: opExistente.id, data });
+            return;
+          }
+        }
+      } catch (errCheck) {
+        console.warn("[Dashboard] Falha na verificação de OP existente:", errCheck);
+      }
+
+      createMutation.mutate({ ...data, unidade: filialAtiva });
+    }
+  };
 
   const { data: bobinas = [] } = useQuery({
     queryKey: ["bobinas", filialAtiva],
@@ -218,7 +265,11 @@ export default function Dashboard() {
       {/* Fila PCP — Pedidos a Produzir */}
       <FilaPCPTelhas onNovaOrdem={(pedido, item) => {
         setFilaContext({ pedidoId: pedido.id, itemIdx: item._idx, pedido, produtoFixo: item.produto || "" });
-        setEditPreset(prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva));
+        if (item.existingOp) {
+          setEditPreset(item.existingOp);
+        } else {
+          setEditPreset(prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva));
+        }
         setDialogOpen(true);
       }} />
 
@@ -288,7 +339,7 @@ export default function Dashboard() {
         <PedidoFormDialog
           open={dialogOpen}
           onClose={() => { setDialogOpen(false); setEditPreset(null); }}
-          onSave={(data) => createMutation.mutate({ ...data, unidade: filialAtiva })}
+          onSave={handleSave}
           editItem={editPreset}
           defaultDate={format(new Date(), "yyyy-MM-dd")}
         />

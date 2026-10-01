@@ -153,7 +153,7 @@ export function parseWebhookPayload(rawJson) {
       itensFrisada: frisadaCount,
       itens
     });
-    const unidadeFinal = p.unidade && p.unidade !== "Matriz AJL" ? p.unidade : roteamento.unidade;
+    const unidadeFinal = roteamento.unidade;
 
     result.push({
       odoo_id: String(p.odoo_id || p.id || ""),

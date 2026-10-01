@@ -143,10 +143,37 @@ export default function DashboardTelhas() {
     },
   });
 
-  const handleSave = (data) => {
+  const handleSave = async (data) => {
     if (editPreset && !editPreset._presets && editPreset.id) {
       updateMutation.mutate({ id: editPreset.id, data });
     } else {
+      // Verificação anti-duplicação antes de criar
+      try {
+        const pedNum = data.numero_pedido ? String(data.numero_pedido).trim() : "";
+        const pedOdooId = filaContext?.pedidoId || data.pedido_odoo_id || null;
+        const itemIdx = filaContext?.itemIdx != null ? filaContext.itemIdx : (data.item_idx != null ? data.item_idx : null);
+
+        if (pedNum) {
+          const opsAtuais = await base44.entities.Pedido.filter({ numero_pedido: pedNum });
+          const opExistente = opsAtuais.find(o => {
+            if (o.status === "cancelado") return false;
+            if (pedOdooId && o.pedido_odoo_id && o.pedido_odoo_id === pedOdooId) {
+              if (itemIdx != null && o.item_idx != null) return o.item_idx === itemIdx;
+              return true;
+            }
+            if (itemIdx != null && o.item_idx != null && o.item_idx === itemIdx) return true;
+            return o.produto === data.produto && String(o.metros) === String(data.metros);
+          });
+
+          if (opExistente && opExistente.id) {
+            updateMutation.mutate({ id: opExistente.id, data });
+            return;
+          }
+        }
+      } catch (errCheck) {
+        console.warn("[DashboardTelhas] Falha na verificação de OP existente:", errCheck);
+      }
+
       createMutation.mutate({ ...data, unidade: filialAtiva });
     }
   };

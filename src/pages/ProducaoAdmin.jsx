@@ -117,9 +117,39 @@ export default function ProducaoAdmin() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["pedidos"] }); toast.success("Pedido excluído!"); },
   });
 
-  const handleSave = (data) => {
-    if (editItem && !editItem._presets && editItem.id) updateMutation.mutate({ id: editItem.id, data });
-    else createMutation.mutate(data);
+  const handleSave = async (data) => {
+    if (editItem && !editItem._presets && editItem.id) {
+      updateMutation.mutate({ id: editItem.id, data });
+    } else {
+      // Verificação anti-duplicação antes de criar
+      try {
+        const pedNum = data.numero_pedido ? String(data.numero_pedido).trim() : "";
+        const pedOdooId = filaContext?.pedidoId || data.pedido_odoo_id || null;
+        const itemIdx = filaContext?.itemIdx != null ? filaContext.itemIdx : (data.item_idx != null ? data.item_idx : null);
+
+        if (pedNum) {
+          const opsAtuais = await base44.entities.Pedido.filter({ numero_pedido: pedNum });
+          const opExistente = opsAtuais.find(o => {
+            if (o.status === "cancelado") return false;
+            if (pedOdooId && o.pedido_odoo_id && o.pedido_odoo_id === pedOdooId) {
+              if (itemIdx != null && o.item_idx != null) return o.item_idx === itemIdx;
+              return true;
+            }
+            if (itemIdx != null && o.item_idx != null && o.item_idx === itemIdx) return true;
+            return o.produto === data.produto && String(o.metros) === String(data.metros);
+          });
+
+          if (opExistente && opExistente.id) {
+            updateMutation.mutate({ id: opExistente.id, data });
+            return;
+          }
+        }
+      } catch (errCheck) {
+        console.warn("[ProducaoAdmin] Falha na verificação de OP existente:", errCheck);
+      }
+
+      createMutation.mutate(data);
+    }
   };
 
   const openNew = (date = null, maquina = null) => {

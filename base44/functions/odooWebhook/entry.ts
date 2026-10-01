@@ -496,8 +496,6 @@ export default async function(req: Request): Promise<Response> {
     let unidadeCalculada = roteamento.unidade;
     if (existingRec?.unidade_transferida_de) {
       unidadeCalculada = existingRec.unidade;
-    } else if (body?.unidade && body?.unidade !== "Matriz AJL") {
-      unidadeCalculada = body.unidade;
     }
 
     const record: Record<string, any> = {

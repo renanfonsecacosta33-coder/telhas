@@ -345,10 +345,18 @@ export default function ProducaoCD() {
     setDialogMaq(true);
   };
 
-  // Abrir formulário completo de Nova Ordem a partir de um item da Fila PCP
+  // Abrir formulário completo de Nova Ordem ou Revisão a partir de um item da Fila PCP
   const openNewFromFila = (pedido, item) => {
     setMaquinaAtiva(null);
     setFilaContext({ pedidoId: pedido.id, itemIdx: item._idx, pedido, produtoFixo: item.produto || "" });
+
+    // Se já existe OP criada nas máquinas para este item do pedido, abre para EDIÇÃO/REVISÃO direta
+    if (item.existingOp && item.existingOp.id) {
+      setMaquinaAtiva(item.existingOp.maquina || null);
+      setEditMaq(item.existingOp);
+      setDialogMaq(true);
+      return;
+    }
 
     // Extrai especificação da descrição (ex: "60 peças" ou "50 PÇS c/ 2000\")
     const descItem = item.descricao || item.observacao || pedido.observacoes || "";
@@ -370,17 +378,87 @@ export default function ProducaoCD() {
       material_espessura: item.espessura ? String(item.espessura) : "",
       observacoes: descItem,
       foto_pedido_url: item.foto_url || item.imagem_url || pedido.foto_pedido_url || extrairCroquiPedido(pedido) || "",
+      pedido_odoo_id: pedido.id || "",
+      of_odoo_id: pedido.of_odoo_id || "",
+      of_nome: pedido.of_nome || "",
+      item_idx: item._idx != null ? item._idx : 0,
+      unidade: filialAtiva || pedido.unidade || "Matriz AJL"
     });
     setDialogMaq(true);
   };
   const openEditMaq = (item) => { setMaquinaAtiva(item.maquina); setEditMaq(item); setDialogMaq(true); };
-  const handleSaveMaq = (data) => {
+  const handleSaveMaq = async (data) => {
     if (editMaq && !editMaq._presets && editMaq.id) {
       updateMaq.mutate({ id: editMaq.id, data }, {
-        onSuccess: () => setDialogMaq(false),
+        onSuccess: async () => {
+          setDialogMaq(false);
+          toast.success("Ordem atualizada com sucesso!");
+          const ctx = filaContext;
+          setFilaContext(null);
+          if (!ctx) return;
+          try {
+            const itens = getItens(ctx.pedido);
+            if (itens[ctx.itemIdx]) {
+              itens[ctx.itemIdx] = {
+                ...itens[ctx.itemIdx],
+                status: data.material_em_falta ? "aguardando_material" : "em_producao",
+                maquina: data.maquina || "",
+              };
+              const percentual = computePercentual(itens);
+              const status_pcp = statusPcpPorPercentual(percentual, ctx.pedido.status_pcp);
+              const updated = await base44.entities.PedidoOdoo.update(ctx.pedidoId, {
+                itens_json: buildItensJson(itens),
+                percentual_concluido: percentual,
+                status_pcp,
+              });
+              queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-cd"] });
+              queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+              await notificarStatus(updated, "maquina_inicio", {
+                maquina_atual: data.maquina || "",
+                item_nome: itens[ctx.itemIdx]?.produto || "",
+                inicio_fmt: new Date().toISOString(),
+                status_novo: status_pcp,
+              });
+            }
+          } catch (e) {
+            console.error("[Fila PCP] erro ao sincronizar item após edição:", e?.message || e);
+          }
+        },
       });
     } else {
-      createMaq.mutate(data, {
+      // Verificação anti-duplicação: checar se já existe OP antes de criar
+      try {
+        const pedNum = data.numero_pedido ? String(data.numero_pedido).trim() : "";
+        const itemIdx = filaContext?.itemIdx != null ? filaContext.itemIdx : null;
+        const pedOdooId = filaContext?.pedidoId || null;
+
+        if (pedNum) {
+          const opsAtuais = await base44.entities.OrdemMaquinaCD.filter({ numero_pedido: pedNum });
+          const opExistente = opsAtuais.find(o => {
+            if (o.status === "cancelado") return false;
+            if (pedOdooId && o.pedido_odoo_id && o.pedido_odoo_id === pedOdooId) {
+              if (itemIdx != null && o.item_idx != null) return o.item_idx === itemIdx;
+              return true;
+            }
+            if (itemIdx != null && o.item_idx != null && o.item_idx === itemIdx) return true;
+            return o.tipo_peca === data.tipo_peca && String(o.quantidade) === String(data.quantidade);
+          });
+
+          if (opExistente && opExistente.id) {
+            updateMaq.mutate({ id: opExistente.id, data }, {
+              onSuccess: () => {
+                setDialogMaq(false);
+                toast.success("Ordem existente revisada e atualizada!");
+              }
+            });
+            return;
+          }
+        }
+      } catch (errVerif) {
+        console.warn("[Producao CD] Aviso na verificação anti-duplicação:", errVerif);
+      }
+
+      createMaq.mutate({ ...data, unidade: filialAtiva || "Matriz AJL" }, {
         onSuccess: async () => {
           const ctx = filaContext;
           setFilaContext(null);
