@@ -111,6 +111,9 @@ export default function PedidoOdooGrupoCard({
   const unidadeDoGrupo = grupo.unidade || ofs[0]?.unidade || "Matriz AJL";
   const isAlgumaTransferida = ofs.some(p => Boolean(p.unidade_transferida_de));
 
+  // Urgência de prazo: tingir o card de vermelho progressivamente conforme o SLA se aproxima
+  const urgencia = urgenciaPrazo(grupo.data_entrega, { concluido: isPedidoTotalConcluido });
+
   // Manipulador de distribuição em lote de todas as pendentes deste pedido
   const handleDistribuirTodas = (e) => {
     e.stopPropagation();
@@ -121,14 +124,24 @@ export default function PedidoOdooGrupoCard({
 
   return (
     <div
-      className={`bg-white dark:bg-slate-900 border rounded-2xl transition-all shadow-sm ${
+      className={`bg-white dark:bg-slate-900 border rounded-2xl transition-all shadow-sm relative overflow-hidden ${
         isPrioritario
           ? "border-amber-400 dark:border-amber-600 ring-1 ring-amber-400/40"
           : isPedidoTotalConcluido
           ? "border-emerald-300 dark:border-emerald-800"
+          : urgencia?.atrasado
+          ? "border-red-400 dark:border-red-600 ring-1 ring-red-400/40"
           : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
       }`}
     >
+      {/* Overlay de urgência de prazo (vermelho progressivo conforme o SLA se aproxima) */}
+      {urgencia && (
+        <div
+          className={`pointer-events-none absolute inset-0 rounded-2xl bg-red-500 ${urgencia.atrasado ? "animate-pulse" : ""}`}
+          style={{ opacity: urgencia.opacidade }}
+          aria-hidden="true"
+        />
+      )}
       {/* Cabeçalho Executivo do Pedido (Clicável para Expandir/Minimizar) */}
       <div
         onClick={onToggle}
