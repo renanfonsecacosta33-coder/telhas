@@ -59,6 +59,7 @@ export default function CentralPCP() {
   // Central PCP por Loja / Filial e Permissões de Usuário
   const filialCtx = useFilial();
   const filialAtiva = filialCtx?.filialAtiva || "Matriz AJL";
+  const isOperador = filialCtx?.user?.role === "operador";
 
   const filiaisPcpExibidas = useMemo(() => {
     if (!filialCtx?.filiaisPermitidas || filialCtx.filiaisPermitidas.length === 0) {
