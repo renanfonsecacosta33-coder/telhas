@@ -8,6 +8,7 @@ import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, 
 import ImageLink from "@/components/ui/ImageLink";
 import RetrabalhoTelhasDialog from "@/components/producao/RetrabalhoTelhasDialog";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
 import ValidacaoEtiquetaTelhasDialog from "@/components/producao/ValidacaoEtiquetaTelhasDialog";
 import ConfirmarInicioDialog from "@/components/producao/ConfirmarInicioDialog";
@@ -22,7 +23,6 @@ import { PrioridadeBadge } from "@/lib/prioridadeHelper";
 import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco";
 import SmartImage from "@/components/ui/SmartImage";
 import { comprimirImagemParaUpload } from "@/lib/compressImage";
-import { toast } from "sonner";
 
 const PRODUTO_BG = {
   "TELHA":               "border-l-blue-400",

@@ -42,9 +42,11 @@ export default function ChapaFormDialog({ open, onClose, onSave, proximoCodigo, 
     reserva_autorizado_por: "",
     reserva_data: "",
   });
-  const set = (field, value) => setForm(f => ({ ...f, [field]: value }));
   const [uploadingNF, setUploadingNF] = useState(false);
   const [uploadingCF, setUploadingCF] = useState(false);
+
+  // Helper para atualizar um campo do formulário de forma imutável
+  const set = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
   const nfInputRef = useRef();
   const nfCameraRef = useRef();
   const cfInputRef = useRef();

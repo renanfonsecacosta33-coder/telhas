@@ -47,23 +47,26 @@ function formatarDataHora(isoString) {
 }
 
 export default function TimelineBobinaModal({ open, onClose, bobina }) {
+  const bobinaId = bobina?.id;
+  const bobinaCodigo = bobina?.codigo;
+
   // Busca logs de auditoria no banco para esta bobina
   const { data: logs = [], isLoading: loadingLogs } = useQuery({
-    queryKey: ["timeline-logs", bobina.id, bobina.codigo],
+    queryKey: ["timeline-logs", bobinaId, bobinaCodigo],
     queryFn: async () => {
       try {
         const [logsPorId, logsPorCod, logsRecentes] = await Promise.all([
-          base44.entities.AuditLog.filter({ registro_id: bobina.id }, "-created_date", 100).catch(() => []),
-          bobina.codigo ? base44.entities.AuditLog.filter({ registro_identificador: bobina.codigo }, "-created_date", 100).catch(() => []) : [],
+          base44.entities.AuditLog.filter({ registro_id: bobinaId }, "-created_date", 100).catch(() => []),
+          bobinaCodigo ? base44.entities.AuditLog.filter({ registro_identificador: bobinaCodigo }, "-created_date", 100).catch(() => []) : [],
           base44.entities.AuditLog.list("-created_date", 300).catch(() => [])
         ]);
 
         const map = new Map();
         [...logsPorId, ...logsPorCod, ...logsRecentes].forEach(l => {
           if (!l || !l.id) return;
-          const match = (l.registro_id && l.registro_id === bobina.id) ||
-            (l.registro_identificador && l.registro_identificador.toUpperCase() === (bobina.codigo || "").toUpperCase()) ||
-            (l.detalhes && l.detalhes.toUpperCase().includes((bobina.codigo || "").toUpperCase()));
+          const match = (l.registro_id && l.registro_id === bobinaId) ||
+            (l.registro_identificador && l.registro_identificador.toUpperCase() === (bobinaCodigo || "").toUpperCase()) ||
+            (l.detalhes && l.detalhes.toUpperCase().includes((bobinaCodigo || "").toUpperCase()));
           if (match) {
             map.set(l.id, l);
           }
@@ -74,27 +77,27 @@ export default function TimelineBobinaModal({ open, onClose, bobina }) {
         return [];
       }
     },
-    enabled: open && !!bobina?.id
+    enabled: open && !!bobinaId
   });
 
   // Busca pedidos de Telhas que usaram essa bobina
   const { data: pedidosTelhas = [] } = useQuery({
-    queryKey: ["timeline-pedidos-telhas", bobina.id, bobina.codigo],
+    queryKey: ["timeline-pedidos-telhas", bobinaId, bobinaCodigo],
     queryFn: async () => {
       try {
         const [porSup, porInf, recentes] = await Promise.all([
-          base44.entities.Pedido.filter({ bobina_superior_id: bobina.id }, "-data", 100).catch(() => []),
-          base44.entities.Pedido.filter({ bobina_inferior_id: bobina.id }, "-data", 100).catch(() => []),
+          base44.entities.Pedido.filter({ bobina_superior_id: bobinaId }, "-data", 100).catch(() => []),
+          base44.entities.Pedido.filter({ bobina_inferior_id: bobinaId }, "-data", 100).catch(() => []),
           base44.entities.Pedido.list("-data", 300).catch(() => [])
         ]);
 
         const map = new Map();
         [...porSup, ...porInf, ...recentes].forEach(p => {
           if (!p || !p.id) return;
-          const matchSup = p.bobina_superior_id === bobina.id || (bobina.codigo && p.bobina_superior && String(p.bobina_superior).includes(bobina.codigo));
-          const matchInf = p.bobina_inferior_id === bobina.id || (bobina.codigo && p.bobina_inferior && String(p.bobina_inferior).includes(bobina.codigo));
-          const matchSec = p.bobina_secundaria_id === bobina.id || p.bobina_id === bobina.id;
-          const matchVar = p.variacoes_telhas && (p.variacoes_telhas.includes(bobina.id) || (bobina.codigo && p.variacoes_telhas.includes(bobina.codigo)));
+          const matchSup = p.bobina_superior_id === bobinaId || (bobinaCodigo && p.bobina_superior && String(p.bobina_superior).includes(bobinaCodigo));
+          const matchInf = p.bobina_inferior_id === bobinaId || (bobinaCodigo && p.bobina_inferior && String(p.bobina_inferior).includes(bobinaCodigo));
+          const matchSec = p.bobina_secundaria_id === bobinaId || p.bobina_id === bobinaId;
+          const matchVar = p.variacoes_telhas && (p.variacoes_telhas.includes(bobinaId) || (bobinaCodigo && p.variacoes_telhas.includes(bobinaCodigo)));
 
           if (matchSup || matchInf || matchSec || matchVar) {
             map.set(p.id, {
@@ -110,25 +113,25 @@ export default function TimelineBobinaModal({ open, onClose, bobina }) {
         return [];
       }
     },
-    enabled: open && !!bobina?.id
+    enabled: open && !!bobinaId
   });
 
   // Busca ordens de desbobinadeira que usaram essa bobina
   const { data: ordensDesbob = [] } = useQuery({
-    queryKey: ["timeline-ordens-desbob", bobina.id],
+    queryKey: ["timeline-ordens-desbob", bobinaId],
     queryFn: async () => {
-      return base44.entities.OrdemDesbobinadeira.filter({ bobina_id: bobina.id }, "-created_date", 50);
+      return base44.entities.OrdemDesbobinadeira.filter({ bobina_id: bobinaId }, "-created_date", 50);
     },
-    enabled: open && !!bobina.id
+    enabled: open && !!bobinaId
   });
 
   // Busca ordens de máquina CD que usaram essa bobina
   const { data: ordensCD = [] } = useQuery({
-    queryKey: ["timeline-ordens-cd", bobina.id],
+    queryKey: ["timeline-ordens-cd", bobinaId],
     queryFn: async () => {
-      return base44.entities.OrdemMaquinaCD.filter({ bobina_id: bobina.id }, "-created_date", 50);
+      return base44.entities.OrdemMaquinaCD.filter({ bobina_id: bobinaId }, "-created_date", 50);
     },
-    enabled: open && !!bobina?.id
+    enabled: open && !!bobinaId
   });
 
   // Monta a lista unificada de eventos em ordem cronológica decrescente

@@ -11,7 +11,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
-import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, ShieldAlert, ShieldCheck, Camera, Loader2, X, Star, PackageX, Wrench, Trash2, User, Route, Flame, AlertTriangle } from "lucide-react";
+import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, AlertTriangle, ShieldAlert, ShieldCheck, Camera, Loader2, X, Star, PackageX, Wrench, Trash2, User, Route, Flame } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import UploadButton from "@/components/ui/UploadButton";
 import CroquiImage from "@/components/pcp/CroquiImage";
