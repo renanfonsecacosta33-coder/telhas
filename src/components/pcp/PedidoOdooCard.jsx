@@ -575,7 +575,7 @@ export default function PedidoOdooCard({
       </div>
 
       {/* SLA Countdown (Regra 6) */}
-      <SlaCountdownBadge dataPrometida={pedido.data_entrega} />
+      <SlaCountdownBadge dataPrometida={pedido.data_entrega} dataPrevisaoFabrica={pedido.data_previsao_fabrica} />
 
       {/* Lista de Itens com Barras de Progresso Individuais e Etapas (Telha+EPS+Manta) */}
       <PedidoItensLista

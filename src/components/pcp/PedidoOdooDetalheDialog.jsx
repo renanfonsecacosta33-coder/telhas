@@ -7,7 +7,7 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Zap, Factory, Scissors, Wind, Tag, Ruler, Package, CheckCircle2, Trash2, ImageIcon, ExternalLink, Star, ShieldAlert, Undo2, RotateCcw, RefreshCw, Disc, AlertTriangle, Layers, Building2, ArrowRightLeft, Store } from "lucide-react";
+import { Zap, Factory, Scissors, Wind, Tag, Ruler, Package, CheckCircle2, Trash2, ImageIcon, ExternalLink, Star, ShieldAlert, Undo2, RotateCcw, RefreshCw, Disc, AlertTriangle, Layers, Building2, ArrowRightLeft, Store, CalendarClock } from "lucide-react";
 import { formatDataBR, slaDiasPorCategoria } from "@/lib/sla";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
@@ -23,6 +23,8 @@ import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 import ProgramadorItensSection from "./ProgramadorItensSection";
 import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelper";
 import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
+import AlterarPrazoFabrilDialog from "@/components/pcp/AlterarPrazoFabrilDialog";
+import EditarItensOdooDialog from "@/components/pcp/EditarItensOdooDialog";
 
 export default function PedidoOdooDetalheDialog({
   pedido, open, onOpenChange, onDistribuir, distribuindo,
@@ -39,6 +41,8 @@ export default function PedidoOdooDetalheDialog({
   const [excluindo, setExcluindo] = useState(false);
   const [operadorNome, setOperadorNome] = useState("");
   const [sincronizando, setSincronizando] = useState(false);
+  const [alterarPrazoOpen, setAlterarPrazoOpen] = useState(false);
+  const [editarItensOpen, setEditarItensOpen] = useState(false);
 
   const handleSincronizarOdoo = async () => {
     if (!pedido) return;
@@ -257,12 +261,37 @@ export default function PedidoOdooDetalheDialog({
               <p className="font-medium text-slate-800 dark:text-slate-100 truncate" title={pedido.vendedor_nome}>{pedido.vendedor_nome || "—"}</p>
             </div>
             <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 min-w-0">
-              <p className="text-[10px] text-slate-400 uppercase font-semibold">Data Prometida</p>
+              <p className="text-[10px] text-slate-400 uppercase font-semibold">Data Prometida (Cliente)</p>
               <p className="font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">{formatDataBR(pedido.data_entrega)}</p>
             </div>
-            <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 min-w-0">
-              <p className="text-[10px] text-slate-400 uppercase font-semibold">SLA</p>
-              <p className="font-medium text-orange-600 dark:text-orange-400 whitespace-nowrap">{sla} dias úteis</p>
+            <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 min-w-0 border border-transparent hover:border-orange-300 dark:hover:border-orange-800 transition-colors">
+              <div className="flex items-center justify-between gap-1 mb-0.5">
+                <p className="text-[10px] text-slate-400 uppercase font-semibold">SLA Fábrica</p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setAlterarPrazoOpen(true)}
+                  className="h-5 px-1.5 text-[10px] text-orange-600 hover:text-orange-700 hover:bg-orange-100 dark:hover:bg-orange-950 font-bold gap-1"
+                  title="Alterar prazo interno da fábrica e notificar vendedor"
+                >
+                  <CalendarClock className="w-3 h-3" /> Alterar
+                </Button>
+              </div>
+              <div className="flex items-baseline gap-1.5 flex-wrap">
+                <p className="font-bold text-orange-600 dark:text-orange-400 whitespace-nowrap text-sm">
+                  {pedido.data_previsao_fabrica ? formatDataBR(pedido.data_previsao_fabrica) : `${sla} dias úteis`}
+                </p>
+                {pedido.data_previsao_fabrica && (
+                  <Badge variant="outline" className="text-[9px] px-1 py-0 border-orange-400 text-orange-700 bg-orange-50 dark:bg-orange-950/40 font-semibold">
+                    Ajustado PCP
+                  </Badge>
+                )}
+              </div>
+              {pedido.data_previsao_fabrica && pedido.motivo_alteracao_prazo && (
+                <p className="text-[10px] text-slate-500 truncate mt-0.5" title={pedido.motivo_alteracao_prazo}>
+                  Motivo: {pedido.motivo_alteracao_prazo}
+                </p>
+              )}
             </div>
           </div>
 
@@ -318,7 +347,7 @@ export default function PedidoOdooDetalheDialog({
 
           {/* SLA Countdown (Regra 6) */}
           <div className="flex items-center gap-2 flex-wrap">
-            <SlaCountdownBadge dataPrometida={pedido.data_entrega} />
+            <SlaCountdownBadge dataPrometida={pedido.data_entrega} dataPrevisaoFabrica={pedido.data_previsao_fabrica} />
             <div className="ml-auto flex items-center gap-2 flex-wrap">
               <Button
                 size="sm"
@@ -562,15 +591,27 @@ export default function PedidoOdooDetalheDialog({
 
           {/* Checklist de Itens Agrupados (Regra 4) + Roteamento (Regra 3) */}
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
               <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
                 <Package className="w-4 h-4" /> Itens Agrupados ({itens.length})
               </h4>
-              {chk.total > 1 && (
-                <span className="text-[11px] font-bold text-slate-500">
-                  Checklist: {chk.concluidos}/{chk.total} ({chk.percentual}%)
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setEditarItensOpen(true)}
+                  className="h-7 text-xs font-bold gap-1 border-orange-300 dark:border-orange-800 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/40"
+                  title="Corrigir quantidades, medidas ou adicionar itens a esta OF"
+                >
+                  ✏️ Ajustar Medidas / Itens
+                </Button>
+                {chk.total > 1 && (
+                  <span className="text-[11px] font-bold text-slate-500">
+                    Checklist: {chk.concluidos}/{chk.total} ({chk.percentual}%)
+                  </span>
+                )}
+              </div>
             </div>
             {itens.length === 0 ? (
               <p className="text-xs text-slate-400 italic">Nenhum item detalhado.</p>
@@ -718,6 +759,28 @@ export default function PedidoOdooDetalheDialog({
           analiseItem={itemSimulacaoSelecionado}
           statusEstoque={statusEstoque}
           estoqueContext={estoqueContext}
+        />
+      )}
+
+      {pedido && (
+        <AlterarPrazoFabrilDialog
+          open={alterarPrazoOpen}
+          onOpenChange={setAlterarPrazoOpen}
+          pedido={pedido}
+          onPrazoAlterado={(atualizado) => {
+            if (onAtualizado) onAtualizado(atualizado);
+          }}
+        />
+      )}
+
+      {pedido && (
+        <EditarItensOdooDialog
+          open={editarItensOpen}
+          onOpenChange={setEditarItensOpen}
+          pedido={pedido}
+          onSalvo={() => {
+            onAtualizado?.();
+          }}
         />
       )}
     </>
