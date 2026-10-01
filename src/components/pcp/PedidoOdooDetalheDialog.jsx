@@ -24,6 +24,7 @@ import ProgramadorItensSection from "./ProgramadorItensSection";
 import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelper";
 import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
 import AlterarPrazoFabrilDialog from "@/components/pcp/AlterarPrazoFabrilDialog";
+import EditarItensOdooDialog from "@/components/pcp/EditarItensOdooDialog";
 
 export default function PedidoOdooDetalheDialog({
   pedido, open, onOpenChange, onDistribuir, distribuindo,
@@ -41,6 +42,7 @@ export default function PedidoOdooDetalheDialog({
   const [operadorNome, setOperadorNome] = useState("");
   const [sincronizando, setSincronizando] = useState(false);
   const [alterarPrazoOpen, setAlterarPrazoOpen] = useState(false);
+  const [editarItensOpen, setEditarItensOpen] = useState(false);
 
   const handleSincronizarOdoo = async () => {
     if (!pedido) return;
@@ -589,15 +591,27 @@ export default function PedidoOdooDetalheDialog({
 
           {/* Checklist de Itens Agrupados (Regra 4) + Roteamento (Regra 3) */}
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
               <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
                 <Package className="w-4 h-4" /> Itens Agrupados ({itens.length})
               </h4>
-              {chk.total > 1 && (
-                <span className="text-[11px] font-bold text-slate-500">
-                  Checklist: {chk.concluidos}/{chk.total} ({chk.percentual}%)
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setEditarItensOpen(true)}
+                  className="h-7 text-xs font-bold gap-1 border-orange-300 dark:border-orange-800 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/40"
+                  title="Corrigir quantidades, medidas ou adicionar itens a esta OF"
+                >
+                  ✏️ Ajustar Medidas / Itens
+                </Button>
+                {chk.total > 1 && (
+                  <span className="text-[11px] font-bold text-slate-500">
+                    Checklist: {chk.concluidos}/{chk.total} ({chk.percentual}%)
+                  </span>
+                )}
+              </div>
             </div>
             {itens.length === 0 ? (
               <p className="text-xs text-slate-400 italic">Nenhum item detalhado.</p>
@@ -755,6 +769,17 @@ export default function PedidoOdooDetalheDialog({
           pedido={pedido}
           onPrazoAlterado={(atualizado) => {
             if (onAtualizado) onAtualizado(atualizado);
+          }}
+        />
+      )}
+
+      {pedido && (
+        <EditarItensOdooDialog
+          open={editarItensOpen}
+          onOpenChange={setEditarItensOpen}
+          pedido={pedido}
+          onSalvo={() => {
+            onAtualizado?.();
           }}
         />
       )}

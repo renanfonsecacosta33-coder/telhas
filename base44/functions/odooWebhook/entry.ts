@@ -247,7 +247,44 @@ export default async function(req: Request): Promise<Response> {
       newItems = body.itens_json;
     } else if (typeof body?.itens_json === "string" && body.itens_json.trim()) {
       try { newItems = JSON.parse(body.itens_json); } catch { newItems = []; }
+    } else if (Array.isArray(body?.order_line)) {
+      newItems = body.order_line;
+    } else if (Array.isArray(body?.lines)) {
+      newItems = body.lines;
+    } else if (Array.isArray(body?.itens)) {
+      newItems = body.itens;
+    } else if (body?.produto || body?.product || body?.product_name || body?.product_id) {
+      // Payload direto da Ordem de Produção (mrp.production)
+      const prodNome = typeof body.product_id === "object" && body.product_id?.[1]
+        ? body.product_id[1]
+        : (body.produto || body.product || body.product_name || String(body.product_id || ""));
+      newItems = [{
+        produto: prodNome,
+        quantidade: Number(body.product_qty || body.quantidade || body.qty || 1),
+        unidade: body.product_uom || body.unidade || "MT",
+        descricao: body.descricao || body.observacao || body.name || "",
+        observacao: body.observacao || body.descricao || body.name || "",
+        espessura: body.espessura || "",
+        medida: body.medida || "",
+        foto_url: body.foto_url || body.imagem_url || ""
+      }];
     }
+
+    // Se o payload trouxe uma lista de itens do pedido inteiro, mas este webhook é de uma OF específica
+    // (com of_nome / of_odoo_id) e foi informada a quantidade/produto da OF:
+    const ofQtd = Number(body?.product_qty || body?.of_quantidade || body?.quantidade_of || 0);
+    const ofProdId = body?.product_id;
+    if (newItems.length > 1 && (ofQtd > 0 || ofProdId) && (body?.of_nome || body?.of_odoo_id || body?.odoo_id)) {
+      const matchLinhaOf = newItems.find((it: any) => {
+        const itQtd = Number(it.quantidade || it.qty || it.product_uom_qty || 0);
+        const matchQtd = ofQtd > 0 ? Math.abs(itQtd - ofQtd) < 0.05 : true;
+        return matchQtd;
+      });
+      if (matchLinhaOf) {
+        newItems = [matchLinhaOf];
+      }
+    }
+
     // Descarta itens que explicitamente não devem ser fabricados (ex: desmarcados na cotação)
     newItems = newItems.filter((it: any) => {
       if (!it || typeof it !== "object") return false;
