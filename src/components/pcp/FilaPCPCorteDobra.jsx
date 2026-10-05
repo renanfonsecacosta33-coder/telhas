@@ -73,6 +73,25 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
       .filter(p => getItens(p).some(i => classGrupo(i) === "cd"));
   }, [pedidos, filialAtiva]);
 
+  // Pedidos de C&D ainda NÃO distribuídos (status_pcp = pendente_distribuicao)
+  const naoDistribuidos = useMemo(() => {
+    return pedidos
+      .filter(p => p.status_pcp === "pendente_distribuicao")
+      .filter(p => !filialAtiva || filialAtiva === "todas" || (p.unidade || "Matriz AJL") === filialAtiva)
+      .filter(p => getItens(p).some(i => classGrupo(i) === "cd"));
+  }, [pedidos, filialAtiva]);
+
+  // Contagem de OFs/itens por número de pedido (marcação de pedidos com múltiplas entradas)
+  const contagemPorPedido = useMemo(() => {
+    const mapa = new Map();
+    pedidos.forEach(p => {
+      const num = String(p.numero_pedido || "").trim();
+      if (!num) return;
+      mapa.set(num, (mapa.get(num) || 0) + 1);
+    });
+    return mapa;
+  }, [pedidos]);
+
   // Contadores executivos de prazo
   const contadores = useMemo(() => {
     let atrasados = 0;
@@ -93,9 +112,10 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
       total: filaBase.length,
       atrasados,
       hojeAmanha,
-      prioritarios
+      prioritarios,
+      naoDistribuidos: naoDistribuidos.length
     };
-  }, [filaBase]);
+  }, [filaBase, naoDistribuidos]);
 
   // Handlers de Preset e Limpeza
   const handleSelectPreset = (presetId) => {
@@ -123,8 +143,10 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
   // Agrupar itens de CD por espessura (bitola) com filtros de urgência, data e ordenação
   const gruposEspessura = useMemo(() => {
     const mapa = new Map();
+    // No filtro "Não Distribuídos", usa a base de pedidos pendentes em vez da fila distribuída
+    const base = filtroUrgencia === "nao_distribuidos" ? naoDistribuidos : filaBase;
 
-    filaBase.forEach(pedido => {
+    base.forEach(pedido => {
       const dataAlvo = pedido.data_previsao_fabrica || pedido.data_entrega;
       const d = diasUteisRestantes(dataAlvo);
 
@@ -168,15 +190,18 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
 
       const itens = getItens(pedido);
       const algumItemTemDistribuido = itens.some(i => i.distribuido === true || i.distribuido === false);
+      const mostrandoNaoDistribuidos = filtroUrgencia === "nao_distribuidos";
 
       itens.forEach(item => {
         if (classGrupo(item) !== "cd") return;
 
-        if (algumItemTemDistribuido) {
-          const estaDistribuido = item.distribuido === true || item.status === "distribuido" || item.status === "em_producao" || item.status === "concluido";
-          if (!estaDistribuido) return;
-        } else if (item.distribuido === false) {
-          return;
+        if (!mostrandoNaoDistribuidos) {
+          if (algumItemTemDistribuido) {
+            const estaDistribuido = item.distribuido === true || item.status === "distribuido" || item.status === "em_producao" || item.status === "concluido";
+            if (!estaDistribuido) return;
+          } else if (item.distribuido === false) {
+            return;
+          }
         }
 
         const esp = item.espessura || "—";
@@ -219,7 +244,7 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
 
         return { espessura, itens: itensOrdenados };
       });
-  }, [filaBase, filtroUrgencia, ordenacao, filtroDataCampo, dataInicio, dataFim, termoBusca]);
+  }, [filaBase, naoDistribuidos, filtroUrgencia, ordenacao, filtroDataCampo, dataInicio, dataFim, termoBusca]);
 
   const handleAtualizar = async (pedido, idx, updates) => {
     setAtualizando(`${pedido.id}-${idx}`);
@@ -415,6 +440,14 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                                 {pedido.of_nome && (
                                   <Badge variant="outline" className="text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 border-indigo-200">
                                     OF: {pedido.of_nome}
+                                  </Badge>
+                                )}
+                                {(contagemPorPedido.get(String(pedido.numero_pedido || "").trim()) || 1) > 1 && (
+                                  <Badge
+                                    className="bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/40 text-[10px] font-bold shrink-0"
+                                    title="Este número de pedido possui múltiplas OFs/itens na fila"
+                                  >
+                                    <Layers className="w-3 h-3 mr-0.5" /> {contagemPorPedido.get(String(pedido.numero_pedido || "").trim())} itens deste pedido
                                   </Badge>
                                 )}
                                 <span className="text-sm font-bold text-slate-900 dark:text-slate-100">

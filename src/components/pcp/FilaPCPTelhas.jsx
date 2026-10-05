@@ -173,6 +173,26 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
     return [...listaOdoo, ...pedidosAvulsosFabrica];
   }, [pedidos, pedidosProducao, filialAtiva, termoBusca]);
 
+  // Pedidos de Telhas ainda NÃO distribuídos (status_pcp = pendente_distribuicao)
+  const naoDistribuidos = useMemo(() => {
+    return pedidos.filter(p => {
+      if (p.status_pcp !== "pendente_distribuicao") return false;
+      if (filialAtiva && filialAtiva !== "todas" && (p.unidade || "Matriz AJL") !== filialAtiva) return false;
+      return itensPorGrupo(getItens(p), "telha").length > 0;
+    });
+  }, [pedidos, filialAtiva]);
+
+  // Contagem de OFs/itens por número de pedido (marcação de pedidos com múltiplas entradas)
+  const contagemPorPedido = useMemo(() => {
+    const mapa = new Map();
+    pedidos.forEach(p => {
+      const num = String(p.numero_pedido || "").trim();
+      if (!num) return;
+      mapa.set(num, (mapa.get(num) || 0) + 1);
+    });
+    return mapa;
+  }, [pedidos]);
+
   // Contadores executivos de prazo para os botões de filtro rápido
   const contadores = useMemo(() => {
     let atrasados = 0;
@@ -193,9 +213,10 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
       total: filaBase.length,
       atrasados,
       hojeAmanha,
-      prioritarios
+      prioritarios,
+      naoDistribuidos: naoDistribuidos.length
     };
-  }, [filaBase]);
+  }, [filaBase, naoDistribuidos]);
 
   // Handlers de Preset e Limpeza
   const handleSelectPreset = (presetId) => {
@@ -222,7 +243,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
 
   // 2. Aplicação de busca, filtros de urgência e filtro de período de datas
   const filaFiltrada = useMemo(() => {
-    let lista = [...filaBase];
+    let lista = filtroUrgencia === "nao_distribuidos" ? [...naoDistribuidos] : [...filaBase];
 
     // Busca textual inteligente e sem falsos positivos de IDs internos
     if (termoBusca.trim()) {
@@ -308,7 +329,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
 
     // 3. Ordenação inteligente
     return ordenarPedidosPCP(lista, ordenacao);
-  }, [filaBase, termoBusca, filtroUrgencia, ordenacao, filtroDataCampo, dataInicio, dataFim]);
+  }, [filaBase, naoDistribuidos, termoBusca, filtroUrgencia, ordenacao, filtroDataCampo, dataInicio, dataFim]);
 
   const handleAtualizar = async (pedido, idx, updates) => {
     setAtualizando(`${pedido.id}-${idx}`);
@@ -438,8 +459,11 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
             const isPrioritario = Boolean(pedido.prioridade);
 
             // Filtra apenas itens que foram distribuídos ou que já possuem OP criada na fábrica
+            // (no filtro "Não Distribuídos", exibe todos os itens pendentes)
             const algumItemTemDistribuido = telhas.some(i => i.distribuido === true || i.distribuido === false);
-            const telhasParaExibir = telhas.filter(it => {
+            const telhasParaExibir = filtroUrgencia === "nao_distribuidos"
+              ? telhas
+              : telhas.filter(it => {
               const opExistente = localizarOpDoItem(it, opsDoPedido, telhas);
               if (opExistente) return true;
               if (it.status === "em_producao" || it.status === "concluido") return true;
@@ -448,7 +472,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
               }
               if (it.distribuido === false) return false;
               return ["distribuido", "em_producao"].includes(pedido.status_pcp);
-            });
+              });
 
             if (telhasParaExibir.length === 0) return null;
 
@@ -505,6 +529,14 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                               OF: {pedido.of_odoo_id}
                             </Badge>
                           ) : null}
+                          {(contagemPorPedido.get(String(pedido.numero_pedido || "").trim()) || 1) > 1 && (
+                            <Badge
+                              className="bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/40 text-[10px] font-bold"
+                              title="Este número de pedido possui múltiplas OFs/itens na fila"
+                            >
+                              <Layers className="w-3 h-3 mr-0.5" /> {contagemPorPedido.get(String(pedido.numero_pedido || "").trim())} itens deste pedido
+                            </Badge>
+                          )}
 
                           {pacoteConcluido ? (
                             <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40 text-[10px] font-bold">
