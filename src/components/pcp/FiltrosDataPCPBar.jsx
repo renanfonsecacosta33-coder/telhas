@@ -1,5 +1,5 @@
 import React from "react";
-import { Search, Calendar, Filter, X, ArrowUpDown, Flame, Clock, Star, AlertTriangle, ArrowRight } from "lucide-react";
+import { Search, Calendar, Filter, X, ArrowUpDown, Flame, Clock, Star, AlertTriangle, ArrowRight, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +21,7 @@ export default function FiltrosDataPCPBar({
   onFiltroUrgenciaChange,
   ordenacao = "mais_atrasados",
   onOrdenacaoChange,
-  contadores = { total: 0, atrasados: 0, hojeAmanha: 0, prioritarios: 0 }
+  contadores = { total: 0, atrasados: 0, hojeAmanha: 0, prioritarios: 0, naoDistribuidos: 0 }
 }) {
   const filtroDataAtivo = Boolean(dataInicio) || Boolean(dataFim) || (filtroDataPreset !== "todas" && filtroDataPreset !== "personalizada");
   const temFiltroAtivo = filtroDataAtivo || Boolean(termoBusca) || filtroUrgencia !== "todos" || ordenacao !== "mais_atrasados";
@@ -126,6 +126,22 @@ export default function FiltrosDataPCPBar({
             >
               <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
               ⭐ Prioritários ({contadores.prioritarios})
+            </Button>
+          )}
+
+          {contadores.naoDistribuidos > 0 && (
+            <Button
+              size="sm"
+              variant={filtroUrgencia === "nao_distribuidos" ? "default" : "outline"}
+              onClick={() => onFiltroUrgenciaChange("nao_distribuidos")}
+              className={`h-7 text-xs font-bold gap-1 px-2.5 border-sky-300 dark:border-sky-900 ${
+                filtroUrgencia === "nao_distribuidos"
+                  ? "bg-sky-600 text-white hover:bg-sky-700 shadow-xs"
+                  : "text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/40"
+              }`}
+            >
+              <Inbox className="w-3.5 h-3.5" />
+              📥 Não Distribuídos ({contadores.naoDistribuidos})
             </Button>
           )}
         </div>
