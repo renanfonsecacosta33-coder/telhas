@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeftRight, MessageCircle } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import CentralMensagensDireto from "@/components/chat/CentralMensagensDireto";
+import ScrollNavigationFab from "@/components/ui/ScrollNavigationFab";
 import { useUnreadCount } from "@/hooks/useUnreadMessages";
 
 export default function AppLayoutCD() {
@@ -101,6 +102,7 @@ export default function AppLayoutCD() {
         </div>
       </main>
       <CentralMensagensDireto user={user} open={centralDiretoOpen} onOpenChange={setCentralDiretoOpen} />
+      <ScrollNavigationFab />
     </div>
   );
 }

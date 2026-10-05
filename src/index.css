@@ -293,17 +293,60 @@
   animation: pageEnter 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* ── Barra de Rolagem Lateral Evidente, Ergonômica e Nítida em Todas as Guias ── */
+html {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
+:root {
+  scrollbar-color: #94a3b8 #f1f5f9;
+}
+
+.dark {
+  scrollbar-color: #64748b #0f172a;
+}
+
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 12px;
+  height: 12px;
 }
+
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #f1f5f9;
+  border-left: 1px solid #e2e8f0;
 }
+
+.dark ::-webkit-scrollbar-track {
+  background: #0f172a;
+  border-left: 1px solid #1e293b;
+}
+
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.2);
+  background-color: #94a3b8;
   border-radius: 9999px;
+  border: 2px solid #f1f5f9;
+  background-clip: padding-box;
 }
+
+.dark ::-webkit-scrollbar-thumb {
+  background-color: #64748b;
+  border: 2px solid #0f172a;
+  background-clip: padding-box;
+}
+
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.5);
+  background-color: #64748b;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+::-webkit-scrollbar-thumb:active {
+  background-color: #2563eb;
+}
+
+.dark ::-webkit-scrollbar-thumb:active {
+  background-color: #3b82f6;
 }

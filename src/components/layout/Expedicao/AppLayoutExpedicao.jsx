@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import SidebarExpedicao from "./SidebarExpedicao";
 import EcosystemHeaderBar from "@/components/layout/EcosystemHeaderBar";
 import PageTransition from "@/components/layout/PageTransition";
+import ScrollNavigationFab from "@/components/ui/ScrollNavigationFab";
 
 export default function AppLayoutExpedicao() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -53,6 +54,7 @@ export default function AppLayoutExpedicao() {
           </PageTransition>
         </main>
       </div>
+      <ScrollNavigationFab />
     </div>
   );
 }
