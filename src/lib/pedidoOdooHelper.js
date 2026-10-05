@@ -605,7 +605,24 @@ export function saoPedidosIguais(num1, num2) {
   // Comparação sem pontuação ou caracteres não alfanuméricos
   const clean1 = s1.replace(/[^a-zA-Z0-9]/g, "");
   const clean2 = s2.replace(/[^a-zA-Z0-9]/g, "");
-  return Boolean(clean1 && clean2 && clean1 === clean2);
+  if (clean1 && clean2 && clean1 === clean2) return true;
+
+  // Correspondência numérica com prefixos de loja ou zeros à esquerda
+  // Ex: "501006" e "1006", "001006" e "1006", "501806" e "1806"
+  const digits1 = clean1.replace(/\D/g, "");
+  const digits2 = clean2.replace(/\D/g, "");
+  if (digits1 && digits2) {
+    if (digits1 === digits2) return true;
+    if (parseInt(digits1, 10) === parseInt(digits2, 10)) return true;
+    const dMaior = digits1.length > digits2.length ? digits1 : digits2;
+    const dMenor = digits1.length > digits2.length ? digits2 : digits1;
+    // Se um termina exatamente com o outro e a diferença de dígitos for <= 3 (prefixo de filial como 50, 01, 10)
+    if (dMenor.length >= 3 && dMaior.endsWith(dMenor) && (dMaior.length - dMenor.length <= 3)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**

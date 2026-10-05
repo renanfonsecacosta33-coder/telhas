@@ -61,25 +61,117 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
     refetchInterval: 10000
   });
 
-  // 1. Filtragem base da filial e dos itens do setor de Telhas
+  const MAQUINAS_TELHAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
+
+  const isOpDeTelhas = (op) => {
+    if (!op) return false;
+    const maq = String(op.maquina || "").toUpperCase();
+    if (MAQUINAS_TELHAS.some(m => maq.includes(m.replace(/\s+/g, "")) || maq.includes(m))) return true;
+    const prod = String(op.produto || "").toUpperCase();
+    if (/(TELHA|CUMEEIRA|BOBININHA|BANDEJA|COLAGEM|PAINEL)/i.test(prod)) return true;
+    return false;
+  };
+
+  const buscarOpsDoPedido = (pedido, producaoList = []) => {
+    if (!pedido || !producaoList || producaoList.length === 0) return [];
+    if (pedido._isOpAvulsa && pedido._opOrigem) return [pedido._opOrigem];
+
+    return producaoList.filter(op => {
+      if (!op || String(op.status || "").toLowerCase() === "cancelado") return false;
+      if (op.pedido_odoo_id && pedido?.id) {
+        return op.pedido_odoo_id === pedido.id;
+      }
+      if (pedido?.of_odoo_id && op.of_odoo_id) {
+        return String(op.of_odoo_id).trim().toUpperCase() === String(pedido.of_odoo_id).trim().toUpperCase();
+      }
+      if (saoPedidosIguais(op.numero_pedido, pedido.numero_pedido)) return true;
+      if (op.cliente && pedido.cliente_nome && op.cliente.trim().toUpperCase() === pedido.cliente_nome.trim().toUpperCase()) {
+        if (!op.pedido_odoo_id) return true;
+      }
+      return false;
+    });
+  };
+
+  // 1. Filtragem base da filial e dos itens do setor de Telhas (com suporte a OPs da fábrica)
   const filaBase = useMemo(() => {
-    return pedidos
-      .filter(p => ["distribuido", "em_producao"].includes(p.status_pcp))
-      .filter(p => !filialAtiva || filialAtiva === "todas" || (p.unidade || "Matriz AJL") === filialAtiva)
-      .filter(p => {
-        const telhas = itensPorGrupo(getItens(p), "telha");
-        if (telhas.length === 0) return false;
-        const algumItemTemDistribuido = telhas.some(i => i.distribuido === true || i.distribuido === false);
-        return telhas.some(it => {
-          if (it.status === "em_producao" || it.status === "concluido") return true;
-          if (algumItemTemDistribuido) {
-            return it.distribuido === true || it.status === "distribuido";
-          }
-          if (it.distribuido === false) return false;
-          return ["distribuido", "em_producao"].includes(p.status_pcp);
-        });
-      });
-  }, [pedidos, filialAtiva]);
+    // A. Pedidos do Odoo
+    const listaOdoo = pedidos.filter(p => {
+      const atendeFilial = !filialAtiva || filialAtiva === "todas" || (p.unidade || "Matriz AJL") === filialAtiva;
+      if (!atendeFilial) return false;
+
+      const telhas = itensPorGrupo(getItens(p), "telha");
+      const temItensTelha = telhas.length > 0;
+      const ops = buscarOpsDoPedido(p, pedidosProducao);
+      const temOpFabrica = ops.length > 0;
+
+      // Se não tem itens de telha nem OP de telha na máquina, descarta
+      if (!temItensTelha && !temOpFabrica) return false;
+
+      // Se já possui OP ativa na fábrica (ex: TP - 40), DEVE aparecer na fila PCP
+      if (temOpFabrica) return true;
+
+      // Se o usuário está buscando por texto, permite encontrar qualquer pedido de telha
+      if (termoBusca.trim()) return true;
+
+      // Caso padrão do PCP: pedidos distribuídos ou em produção
+      if (["distribuido", "em_producao"].includes(p.status_pcp)) return true;
+
+      return telhas.some(it => ["distribuido", "em_producao", "concluido"].includes(it.status) || it.distribuido === true);
+    });
+
+    // B. OPs criadas diretamente no chão de fábrica (tabela Pedido) que não vieram do Odoo
+    const opsJaVinculadas = new Set();
+    listaOdoo.forEach(p => {
+      const ops = buscarOpsDoPedido(p, pedidosProducao);
+      ops.forEach(op => opsJaVinculadas.add(op.id));
+    });
+
+    const opsAvulsas = pedidosProducao.filter(op => {
+      if (!op.id || opsJaVinculadas.has(op.id)) return false;
+      if (String(op.status || "").toLowerCase() === "cancelado") return false;
+      if (!isOpDeTelhas(op)) return false;
+      const atendeFilial = !filialAtiva || filialAtiva === "todas" || (op.unidade || "Matriz AJL") === filialAtiva;
+      return atendeFilial;
+    });
+
+    const pedidosAvulsosFabrica = opsAvulsas.map(op => {
+      const qtd = Number(op.qtd_telhas || op.quantidade) || 1;
+      const met = Number(op.metros) || (Number(op.metragem_mm) ? +(Number(op.metragem_mm) / 1000).toFixed(2) : 1);
+      const descItem = op.descricao || `${qtd} peças ${op.metragem_mm ? `x ${op.metragem_mm}mm` : (op.metros ? `x ${op.metros}m` : "")}`.trim();
+      const itemSintetico = {
+        _idx: 0,
+        produto: op.produto || `TELHA (Máquina ${op.maquina || "TP - 40"})`,
+        descricao: descItem,
+        medida: op.metragem_mm ? `${op.metragem_mm}mm` : `${met}m`,
+        quantidade: met,
+        espessura: op.espessura || op.chapa || "0.43",
+        maquina: op.maquina || "TP - 40",
+        status: op.status === "finalizado" ? "concluido" : (op.status || "em_producao"),
+        distribuido: true
+      };
+
+      return {
+        id: `op_${op.id}`,
+        _isOpAvulsa: true,
+        _opOrigem: op,
+        numero_pedido: op.numero_pedido || op.id?.slice(-6)?.toUpperCase(),
+        of_nome: op.of_odoo_id || `OP ${op.maquina || "Fábrica"}`,
+        cliente_nome: op.cliente || "Cliente Balcão",
+        vendedor_nome: op.vendedor || "—",
+        unidade: op.unidade || "Matriz AJL",
+        data_entrega: op.data || op.created_date,
+        data_previsao_fabrica: op.data_previsao || op.data,
+        data_recebimento: op.created_date || op.data,
+        status_pcp: op.status === "finalizado" ? "concluido" : "em_producao",
+        prioridade: Boolean(op.prioridade),
+        itens: [itemSintetico],
+        itens_json: JSON.stringify([itemSintetico]),
+        percentual_concluido: op.status === "finalizado" ? 100 : (op.status === "em_producao" ? 50 : 30)
+      };
+    });
+
+    return [...listaOdoo, ...pedidosAvulsosFabrica];
+  }, [pedidos, pedidosProducao, filialAtiva, termoBusca]);
 
   // Contadores executivos de prazo para os botões de filtro rápido
   const contadores = useMemo(() => {
@@ -132,16 +224,58 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
   const filaFiltrada = useMemo(() => {
     let lista = [...filaBase];
 
-    // Busca textual
+    // Busca textual inteligente e sem falsos positivos de IDs internos
     if (termoBusca.trim()) {
       const q = termoBusca.toLowerCase().trim();
+      const qDigits = q.replace(/\D/g, "");
+
       lista = lista.filter(p => {
-        const num = String(p.numero_pedido || "").toLowerCase();
+        // 1. Número do pedido (exato, substring ou match numérico de loja)
+        const num = String(p.numero_pedido || "").toLowerCase().trim();
+        const numDigits = num.replace(/\D/g, "");
+        if (num.includes(q)) return true;
+        if (qDigits && numDigits) {
+          if (numDigits === qDigits) return true;
+          if (numDigits.endsWith(qDigits) || qDigits.endsWith(numDigits)) return true;
+          if (saoPedidosIguais(num, q)) return true;
+        }
+
+        // 2. OF e IDs Odoo
         const ofNome = String(p.of_nome || "").toLowerCase();
-        const cliente = String(p.cliente_nome || "").toLowerCase();
-        const vendedor = String(p.vendedor_nome || "").toLowerCase();
-        const itens = String(p.itens_json || "").toLowerCase();
-        return num.includes(q) || ofNome.includes(q) || cliente.includes(q) || vendedor.includes(q) || itens.includes(q);
+        const ofOdooId = String(p.of_odoo_id || "").toLowerCase();
+        const odooId = String(p.odoo_id || "").toLowerCase();
+        if (ofNome.includes(q) || ofOdooId.includes(q) || odooId.includes(q)) return true;
+
+        // 3. Cliente e Vendedor
+        const cliente = String(p.cliente_nome || p.cliente || "").toLowerCase();
+        const vendedor = String(p.vendedor_nome || p.vendedor || "").toLowerCase();
+        if (cliente.includes(q) || vendedor.includes(q)) return true;
+
+        // 4. OPs reais da fábrica associadas a este pedido
+        const ops = buscarOpsDoPedido(p, pedidosProducao);
+        for (const op of ops) {
+          const opNum = String(op.numero_pedido || "").toLowerCase().trim();
+          const opNumDigits = opNum.replace(/\D/g, "");
+          if (opNum.includes(q)) return true;
+          if (qDigits && opNumDigits && (opNumDigits === qDigits || opNumDigits.endsWith(qDigits) || qDigits.endsWith(opNumDigits))) return true;
+          if (String(op.cliente || "").toLowerCase().includes(q)) return true;
+          if (String(op.vendedor || "").toLowerCase().includes(q)) return true;
+          if (String(op.maquina || "").toLowerCase().includes(q)) return true;
+          if (String(op.bobina_superior || "").toLowerCase().includes(q)) return true;
+          if (String(op.produto || "").toLowerCase().includes(q)) return true;
+        }
+
+        // 5. Itens limpos (texto legível de produto/medida, SEM varrer JSON bruto)
+        const itens = getItens(p);
+        for (const it of itens) {
+          const prod = String(it.produto || "").toLowerCase();
+          const desc = String(it.descricao || "").toLowerCase();
+          const med = String(it.medida || "").toLowerCase();
+          const obs = String(it.observacao || "").toLowerCase();
+          if (prod.includes(q) || desc.includes(q) || med.includes(q) || obs.includes(q)) return true;
+        }
+
+        return false;
       });
     }
 
@@ -269,17 +403,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
             const telhas = itensPorGrupo(itens, "telha");
 
             // Busca se existe Ordem de Produção real criada para este pedido na fábrica
-            const opsDoPedido = pedidosProducao.filter(op => {
-              if (!op.numero_pedido || String(op.status || "").toLowerCase() === "cancelado") return false;
-              if (op.pedido_odoo_id && pedido?.id) {
-                return op.pedido_odoo_id === pedido.id;
-              }
-              if (pedido?.of_odoo_id && op.of_odoo_id) {
-                return String(op.of_odoo_id).trim().toUpperCase() === String(pedido.of_odoo_id).trim().toUpperCase();
-              }
-              if (op.pedido_odoo_id || op.of_odoo_id) return false;
-              return saoPedidosIguais(op.numero_pedido, pedido.numero_pedido);
-            });
+            const opsDoPedido = buscarOpsDoPedido(pedido, pedidosProducao);
 
             let somaProgresso = 0;
             telhas.forEach((t) => {
@@ -368,7 +492,11 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                           <span className="text-base font-black text-slate-900 dark:text-white font-mono">
                             #{pedido.numero_pedido}
                           </span>
-                          {pedido.of_nome ? (
+                          {pedido._isOpAvulsa ? (
+                            <Badge variant="outline" className="text-[10px] font-mono font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300">
+                              OP Fábrica ({pedido._opOrigem?.maquina || "Telhas"})
+                            </Badge>
+                          ) : pedido.of_nome ? (
                             <Badge variant="outline" className="text-[10px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200">
                               OF: {pedido.of_nome}
                             </Badge>
@@ -538,6 +666,16 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                               <Button
                                 size="sm"
                                 onClick={() => {
+                                  if (pedido._isOpAvulsa && pedido._opOrigem) {
+                                    onNovaOrdem(pedido, {
+                                      ...item,
+                                      _idx: 0,
+                                      maquina: item.maquina || pedido._opOrigem.maquina,
+                                      data: pedido.data_entrega,
+                                      existingOp: pedido._opOrigem
+                                    });
+                                    return;
+                                  }
                                   notificarStatus(pedido, "revisando_ordem", {
                                     status_novo: "em_revisao",
                                     item_nome: item.produto || item.descricao || "",

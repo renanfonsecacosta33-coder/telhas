@@ -142,15 +142,26 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
         if (dataFim && dataIso > dataFim) return;
       }
 
-      // 3. Filtro de busca textual
+      // 3. Filtro de busca textual inteligente
       if (termoBusca.trim()) {
         const q = termoBusca.toLowerCase().trim();
-        const num = String(pedido.numero_pedido || "").toLowerCase();
+        const qDigits = q.replace(/\D/g, "");
+        const num = String(pedido.numero_pedido || "").toLowerCase().trim();
+        const numDigits = num.replace(/\D/g, "");
+        const matchNum = num.includes(q) || Boolean(qDigits && numDigits && (numDigits === qDigits || numDigits.endsWith(qDigits) || qDigits.endsWith(numDigits) || saoPedidosIguais(num, q)));
         const ofNome = String(pedido.of_nome || "").toLowerCase();
+        const ofOdooId = String(pedido.of_odoo_id || "").toLowerCase();
         const cliente = String(pedido.cliente_nome || "").toLowerCase();
         const vendedor = String(pedido.vendedor_nome || "").toLowerCase();
-        const itensStr = String(pedido.itens_json || "").toLowerCase();
-        if (!num.includes(q) && !ofNome.includes(q) && !cliente.includes(q) && !vendedor.includes(q) && !itensStr.includes(q)) {
+        const itensLimpos = getItens(pedido);
+        const matchItem = itensLimpos.some(it => {
+          const prod = String(it.produto || "").toLowerCase();
+          const desc = String(it.descricao || "").toLowerCase();
+          const med = String(it.medida || "").toLowerCase();
+          return prod.includes(q) || desc.includes(q) || med.includes(q);
+        });
+
+        if (!matchNum && !ofNome.includes(q) && !ofOdooId.includes(q) && !cliente.includes(q) && !vendedor.includes(q) && !matchItem) {
           return;
         }
       }
