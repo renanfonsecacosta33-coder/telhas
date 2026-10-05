@@ -442,28 +442,31 @@ export default function MaquinaPanel({ maquina }) {
   
   // Para o painel da máquina:
   // - Na COLAGEM: segue o fluxo padrão de colagem.
-  // - Na perfiladeira (TP - 25, etc.): se o pedido já foi para aguardando_colagem ou COLAGEM,
-  //   as peças já foram TIRADAS nesta máquina! Conta como concluído/pronto na máquina.
+  // - Na perfiladeira (TP - 25, BANDEJA, etc.): se o pedido já avançou para a máquina seguinte (ex: COLAGEM),
+  //   as peças já foram TIRADAS nesta máquina! Conta como concluído/pronto nesta máquina.
+  // - Se o pedido está atribuído a esta máquina atual (mesmo em fluxo multi-etapa como BANDEJA), ele é Pendente/Em Produção aqui.
   const finalizados = pedidosDia.filter(p => {
     if (p.status === "finalizado") return true;
-    if (targetNorm !== "COLAGEM" && (p.status === "aguardando_colagem" || maquinaNorm(p.maquina) === "COLAGEM")) {
+    if (maquinaNorm(p.maquina) !== targetNorm && (p.status === "aguardando_colagem" || maquinaNorm(p.maquina) === "COLAGEM")) {
       return true;
     }
     return false;
   }).length;
 
   const emProducao = pedidosDia.filter(p => {
-    if (targetNorm !== "COLAGEM" && (p.status === "aguardando_colagem" || maquinaNorm(p.maquina) === "COLAGEM")) {
+    if (maquinaNorm(p.maquina) !== targetNorm && (p.status === "aguardando_colagem" || maquinaNorm(p.maquina) === "COLAGEM")) {
       return false;
     }
     return p.status === "em_producao" || p.status === "pausado";
   }).length;
 
   const pendentes = pedidosDia.filter(p => {
-    if (targetNorm !== "COLAGEM" && (p.status === "aguardando_colagem" || maquinaNorm(p.maquina) === "COLAGEM")) {
+    if (maquinaNorm(p.maquina) !== targetNorm && (p.status === "aguardando_colagem" || maquinaNorm(p.maquina) === "COLAGEM")) {
       return false;
     }
-    return p.status === "pendente";
+    if (p.status === "pendente") return true;
+    if (maquinaNorm(p.maquina) === targetNorm && p.status === "aguardando_colagem") return true;
+    return false;
   }).length;
 
   // Função para match de busca: número do pedido (#, dígitos ou texto), cliente, produto/modelo ou obs

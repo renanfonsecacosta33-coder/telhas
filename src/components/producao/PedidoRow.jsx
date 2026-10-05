@@ -277,12 +277,13 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
   const mAtualNorm = maquinaNorm(p.maquina);
   const mPainelNorm = maquinaNorm(maquina);
   const mOrigemNorm = maquinaNorm(p.maquina_origem);
-  // Indica se este pedido foi tirado/perfilado nesta máquina e seguiu para a colagem
+  // Indica se este pedido foi tirado/perfilado nesta máquina e seguiu para a colagem/próxima etapa
   const isPerfiladoNestaMaquina = Boolean(
     mPainelNorm &&
     mPainelNorm !== "COLAGEM" &&
-    (mOrigemNorm === mPainelNorm || (!p.maquina_origem && (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem"))) &&
-    (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem" || p.perfilacao_concluida)
+    mAtualNorm !== mPainelNorm && // A máquina atual não é mais esta máquina (já seguiu para a próxima!)
+    (mOrigemNorm === mPainelNorm || p.etapa_anterior_concluida === maquina || (!p.maquina_origem && (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem"))) &&
+    (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem" || p.status === "finalizado" || p.perfilacao_concluida)
   );
   // TELHA BANDEJA: fluxo multi-etapa sequencial (legado, caso não use a tríade de fluxo paralelo)
   const isBandejaMultiEtapa = !isComponenteParaleloBandeja && p.tipo_componente_bandeja !== "colagem_final" && !p.grupo_bandeja_id && p.produto === "TELHA BANDEJA" && ["TP - 40", "COLONIAL", "BANDEJA", "COLAGEM"].includes(p.maquina);
@@ -799,14 +800,18 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
       return;
     }
 
-    // TELHA BANDEJA multi-etapa sequencial (legado): avança pelo fluxo
+    // TELHA BANDEJA multi-etapa sequencial: avança pelo fluxo (TP-40/Colonial → BANDEJA → COLAGEM)
     if (isBandejaMultiEtapa && proximaEtapaBandeja) {
-      onStatusChange(p, "aguardando_colagem", {
+      const proximoStatus = proximaEtapaBandeja === "COLAGEM" ? "aguardando_colagem" : "pendente";
+      onStatusChange(p, proximoStatus, {
         tempo_producao_seg: prodSeg,
         metragem_utilizada: metragemRealNum,
         metragem_planejada: metragemRealNum,
         inicio_producao_ts: null,
         maquina: proximaEtapaBandeja,
+        maquina_origem: p.maquina_origem || p.maquina,
+        etapa_anterior_concluida: p.maquina,
+        data_perfilacao: hojeStr
       });
       setMetragemDialog(false);
       return;
@@ -1535,11 +1540,11 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
                 ) : (
                   <Button
                     size="sm"
-                    className={`gap-1 border-0 ${aguardandoAprovacao ? "bg-orange-400 hover:bg-orange-500 text-white" : p.rota ? "bg-red-500 hover:bg-red-600 text-white" : "bg-amber-500 hover:bg-amber-600 text-white"}`}
+                    className={`gap-1 border-0 ${aguardandoAprovacao ? "bg-orange-400 hover:bg-orange-500 text-white" : p.rota ? "bg-red-500 hover:bg-red-600 text-white" : "bg-amber-500 hover:bg-amber-600 text-white font-bold shadow-xs"}`}
                     onClick={aguardandoAprovacao ? cancelarSolicitacaoPendente : handleIniciar}
                     title={aguardandoAprovacao ? "Aguardando aprovação do encarregado. Clique para cancelar a solicitação." : ""}
                   >
-                    <Play className="w-3 h-3" /> {aguardandoAprovacao ? "Aguardando... (cancelar)" : p.maquina === "COLAGEM" ? "Iniciar Colagem" : "Iniciar"}
+                    <Play className="w-3 h-3 fill-current" /> {aguardandoAprovacao ? "Aguardando... (cancelar)" : p.maquina === "COLAGEM" ? "Iniciar Colagem" : (p.etapa_anterior_concluida || (p.maquina === "BANDEJA" && isTelhaBandeja(p))) ? "Continuar na Bandeja" : "Iniciar"}
                   </Button>
                 )
               )}
@@ -1593,10 +1598,28 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
                 )
               )}
 
-              {p.status === "aguardando_colagem" && (
-                <Button size="sm" variant="outline" className="gap-1 text-amber-600 border-amber-300 hover:bg-amber-50" onClick={() => onStatusChange(p, "pendente", { inicio_producao_ts: null })}>
-                  ↩ Retornar
-                </Button>
+              {p.status === "aguardando_colagem" && p.maquina !== "COLAGEM" && (
+                <>
+                  <Button
+                    size="sm"
+                    className="gap-1.5 border-0 bg-amber-500 hover:bg-amber-600 text-white font-bold shadow-xs"
+                    onClick={handleIniciar}
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    Continuar Produção ({p.maquina === "BANDEJA" ? "Bandeja" : p.maquina})
+                  </Button>
+                  {podeGerenciar && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1 text-slate-500 border-slate-300 hover:bg-slate-50 text-xs"
+                      onClick={() => onStatusChange(p, "pendente", { inicio_producao_ts: null })}
+                      title="Voltar status para pendente nesta máquina"
+                    >
+                      Voltar para Pendente
+                    </Button>
+                  )}
+                </>
               )}
 
               {p.status === "finalizado" && p.maquina !== "COLAGEM" && podeGerenciar && (
