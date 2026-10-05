@@ -23,13 +23,24 @@ import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import AlterarPrazoFabrilDialog from "@/components/pcp/AlterarPrazoFabrilDialog";
 import { notificarStatus } from "@/lib/biNotificador";
 import { useFilial } from "@/contexts/FilialContext";
+import FiltrosDataPCPBar from "@/components/pcp/FiltrosDataPCPBar";
+import {
+  extrairDataISO,
+  calcularIntervaloPreset,
+  obterDataCampoPedido
+} from "@/lib/filtroDataHelper";
 
 export default function FilaPCPCorteDobra({ onNovaOrdem }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [atualizando, setAtualizando] = useState(null);
   const [termoBusca, setTermoBusca] = useState("");
-  const [filtroPrazo, setFiltroPrazo] = useState("todos"); // "todos" | "criticos" | "atrasados" | "hoje_amanha" | "prioritarios"
+  const [filtroUrgencia, setFiltroUrgencia] = useState("todos"); // "todos" | "mais_atrasados" | "hoje_amanha" | "prioritarios"
+  const [ordenacao, setOrdenacao] = useState("mais_atrasados"); // "mais_atrasados" | "urgencia_sla" | "data_entrega_asc" | "data_entrada_desc" | "data_entrada_asc"
+  const [filtroDataCampo, setFiltroDataCampo] = useState("data_recebimento"); // "data_recebimento" | "data_entrega" | "data_previsao_fabrica"
+  const [filtroDataPreset, setFiltroDataPreset] = useState("todas");
+  const [dataInicio, setDataInicio] = useState("");
+  const [dataFim, setDataFim] = useState("");
   const [pedidoPrazoModal, setPedidoPrazoModal] = useState(null);
 
   const filialCtx = useFilial();
@@ -81,12 +92,34 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
       total: filaBase.length,
       atrasados,
       hojeAmanha,
-      criticos: atrasados + hojeAmanha,
       prioritarios
     };
   }, [filaBase]);
 
-  // Agrupar itens de CD por espessura (bitola) com filtros de prazo e busca
+  // Handlers de Preset e Limpeza
+  const handleSelectPreset = (presetId) => {
+    setFiltroDataPreset(presetId);
+    if (presetId === "todas") {
+      setDataInicio("");
+      setDataFim("");
+    } else {
+      const { inicio, fim } = calcularIntervaloPreset(presetId);
+      setDataInicio(inicio);
+      setDataFim(fim);
+    }
+  };
+
+  const handleLimparFiltros = () => {
+    setTermoBusca("");
+    setFiltroUrgencia("todos");
+    setOrdenacao("mais_atrasados");
+    setFiltroDataCampo("data_recebimento");
+    setFiltroDataPreset("todas");
+    setDataInicio("");
+    setDataFim("");
+  };
+
+  // Agrupar itens de CD por espessura (bitola) com filtros de urgência, data e ordenação
   const gruposEspessura = useMemo(() => {
     const mapa = new Map();
 
@@ -94,13 +127,21 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
       const dataAlvo = pedido.data_previsao_fabrica || pedido.data_entrega;
       const d = diasUteisRestantes(dataAlvo);
 
-      // Filtros de Prazo
-      if (filtroPrazo === "atrasados" && !(d != null && d < 0)) return;
-      if (filtroPrazo === "hoje_amanha" && !(d != null && (d === 0 || d === 1))) return;
-      if (filtroPrazo === "criticos" && !(d != null && d <= 1)) return;
-      if (filtroPrazo === "prioritarios" && !pedido.prioridade) return;
+      // 1. Filtros de Urgência
+      if (filtroUrgencia === "mais_atrasados" && !(d != null && d < 0)) return;
+      if (filtroUrgencia === "hoje_amanha" && !(d != null && (d === 0 || d === 1))) return;
+      if (filtroUrgencia === "prioritarios" && !pedido.prioridade) return;
 
-      // Filtro de busca textual
+      // 2. Filtro de Intervalo de Datas (Data X até Data Y)
+      if (dataInicio || dataFim) {
+        const valData = obterDataCampoPedido(pedido, filtroDataCampo);
+        const dataIso = extrairDataISO(valData);
+        if (!dataIso) return;
+        if (dataInicio && dataIso < dataInicio) return;
+        if (dataFim && dataIso > dataFim) return;
+      }
+
+      // 3. Filtro de busca textual
       if (termoBusca.trim()) {
         const q = termoBusca.toLowerCase().trim();
         const num = String(pedido.numero_pedido || "").toLowerCase();
@@ -134,8 +175,39 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
 
     return Array.from(mapa.entries())
       .sort((a, b) => a[0].localeCompare(b[0], "pt-BR"))
-      .map(([espessura, itens]) => ({ espessura, itens }));
-  }, [filaBase, filtroPrazo, termoBusca]);
+      .map(([espessura, itens]) => {
+        // Ordena os itens daquela bitola de acordo com a ordenação selecionada (ex: mais atrasados primeiro)
+        const itensOrdenados = [...itens].sort((a, b) => {
+          const pedA = a.pedido;
+          const pedB = b.pedido;
+          if (pedA.prioridade && !pedB.prioridade) return -1;
+          if (!pedA.prioridade && pedB.prioridade) return 1;
+
+          const dataAlvoA = pedA.data_previsao_fabrica || pedA.data_entrega;
+          const dataAlvoB = pedB.data_previsao_fabrica || pedB.data_entrega;
+          const dA = diasUteisRestantes(dataAlvoA) ?? 999;
+          const dB = diasUteisRestantes(dataAlvoB) ?? 999;
+
+          if (ordenacao === "mais_atrasados" || ordenacao === "urgencia_sla") {
+            if (dA !== dB) return dA - dB;
+            return new Date(pedA.data_recebimento || 0) - new Date(pedB.data_recebimento || 0);
+          }
+          if (ordenacao === "data_entrega_asc") {
+            const dtA = extrairDataISO(dataAlvoA) || "9999-99-99";
+            const dtB = extrairDataISO(dataAlvoB) || "9999-99-99";
+            if (dtA !== dtB) return dtA.localeCompare(dtB);
+            return new Date(pedA.data_recebimento || 0) - new Date(pedB.data_recebimento || 0);
+          }
+          if (ordenacao === "data_entrada_desc") {
+            return new Date(pedB.data_recebimento || 0) - new Date(pedA.data_recebimento || 0);
+          }
+          // data_entrada_asc (FIFO)
+          return new Date(pedA.data_recebimento || 0) - new Date(pedB.data_recebimento || 0);
+        });
+
+        return { espessura, itens: itensOrdenados };
+      });
+  }, [filaBase, filtroUrgencia, ordenacao, filtroDataCampo, dataInicio, dataFim, termoBusca]);
 
   const handleAtualizar = async (pedido, idx, updates) => {
     setAtualizando(`${pedido.id}-${idx}`);
@@ -168,103 +240,46 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
-      {/* ══════════════ CABEÇALHO COM FILTROS DE PRAZO ══════════════ */}
+      {/* ══════════════ CABEÇALHO EXECUTIVO E BARRA AVANÇADA DE FILTROS PCP ══════════════ */}
       <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 space-y-3">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <div className="w-9 h-9 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
-              <Scissors className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
-                  Fila PCP — Aguardando Produção (Corte & Dobra)
-                </h2>
-                <Badge className="bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30 font-bold text-xs">
-                  {contadores.total} pedido(s)
-                </Badge>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Ordens de corte, dobra e perfis organizadas por bitola e com controle de urgência de entrega
-              </p>
-            </div>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="w-9 h-9 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+            <Scissors className="w-5 h-5" />
           </div>
-
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input
-              value={termoBusca}
-              onChange={(e) => setTermoBusca(e.target.value)}
-              placeholder="Buscar pedido, cliente, chapa..."
-              className="pl-8 h-9 text-xs bg-white dark:bg-slate-800"
-            />
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
+                Fila PCP — Aguardando Produção (Corte & Dobra)
+              </h2>
+              <Badge className="bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30 font-bold text-xs">
+                {contadores.total} pedido(s)
+              </Badge>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Ordens de corte, dobra e perfis com controle de prazos, pesquisa rápida e filtros de data
+            </p>
           </div>
         </div>
 
-        {/* Filtros Rápidos de Prazo */}
-        <div className="flex items-center gap-1.5 flex-wrap pt-1">
-          <Button
-            size="sm"
-            variant={filtroPrazo === "todos" ? "default" : "outline"}
-            onClick={() => setFiltroPrazo("todos")}
-            className={`h-7 text-xs font-bold gap-1 ${
-              filtroPrazo === "todos" ? "bg-slate-900 text-white" : "text-slate-600"
-            }`}
-          >
-            Todos ({contadores.total})
-          </Button>
-
-          <Button
-            size="sm"
-            variant={filtroPrazo === "criticos" ? "default" : "outline"}
-            onClick={() => setFiltroPrazo("criticos")}
-            className={`h-7 text-xs font-bold gap-1 border-red-300 ${
-              filtroPrazo === "criticos" ? "bg-red-600 text-white hover:bg-red-700" : "text-red-600 hover:bg-red-50"
-            }`}
-          >
-            <Flame className="w-3.5 h-3.5 text-red-500" />
-            🚨 Críticos & Atrasados ({contadores.criticos})
-          </Button>
-
-          {contadores.atrasados > 0 && (
-            <Button
-              size="sm"
-              variant={filtroPrazo === "atrasados" ? "default" : "outline"}
-              onClick={() => setFiltroPrazo("atrasados")}
-              className={`h-7 text-xs font-bold gap-1 border-red-300 ${
-                filtroPrazo === "atrasados" ? "bg-red-700 text-white" : "text-red-600 hover:bg-red-50"
-              }`}
-            >
-              🔴 Atrasados ({contadores.atrasados})
-            </Button>
-          )}
-
-          <Button
-            size="sm"
-            variant={filtroPrazo === "hoje_amanha" ? "default" : "outline"}
-            onClick={() => setFiltroPrazo("hoje_amanha")}
-            className={`h-7 text-xs font-bold gap-1 border-amber-300 ${
-              filtroPrazo === "hoje_amanha" ? "bg-amber-600 text-white hover:bg-amber-700" : "text-amber-700 hover:bg-amber-50"
-            }`}
-          >
-            <Clock className="w-3.5 h-3.5 text-amber-500" />
-            ⏳ Vence Hoje/Amanhã ({contadores.hojeAmanha})
-          </Button>
-
-          {contadores.prioritarios > 0 && (
-            <Button
-              size="sm"
-              variant={filtroPrazo === "prioritarios" ? "default" : "outline"}
-              onClick={() => setFiltroPrazo("prioritarios")}
-              className={`h-7 text-xs font-bold gap-1 border-amber-400 ${
-                filtroPrazo === "prioritarios" ? "bg-amber-500 text-white" : "text-amber-600 hover:bg-amber-50"
-              }`}
-            >
-              <Star className="w-3.5 h-3.5 fill-amber-500" />
-              ⭐ Prioritários ({contadores.prioritarios})
-            </Button>
-          )}
-        </div>
+        <FiltrosDataPCPBar
+          termoBusca={termoBusca}
+          onBuscaChange={setTermoBusca}
+          placeholderBusca="Buscar pedido, cliente, chapa, vendedor..."
+          filtroDataCampo={filtroDataCampo}
+          onDataCampoChange={setFiltroDataCampo}
+          filtroDataPreset={filtroDataPreset}
+          onSelectPreset={handleSelectPreset}
+          dataInicio={dataInicio}
+          onDataInicioChange={setDataInicio}
+          dataFim={dataFim}
+          onDataFimChange={setDataFim}
+          onLimparFiltros={handleLimparFiltros}
+          filtroUrgencia={filtroUrgencia}
+          onFiltroUrgenciaChange={setFiltroUrgencia}
+          ordenacao={ordenacao}
+          onOrdenacaoChange={setOrdenacao}
+          contadores={contadores}
+        />
       </div>
 
       {/* ══════════════ LISTA DE GRUPOS POR BITOLA ══════════════ */}
@@ -275,7 +290,9 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
             Nenhum pedido de Corte & Dobra nos filtros atuais
           </p>
           <p className="text-xs text-slate-400 mt-1 max-w-sm">
-            Alterne os filtros de prazo ou verifique se há ordens distribuídas para este setor.
+            {filtroUrgencia !== "todos" || dataInicio || dataFim || termoBusca
+              ? "Experimente limpar os filtros ou alterar o intervalo de datas."
+              : "Não há ordens distribuídas aguardando produção neste setor."}
           </p>
         </div>
       ) : (
