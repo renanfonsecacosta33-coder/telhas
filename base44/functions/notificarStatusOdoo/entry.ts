@@ -148,6 +148,7 @@ export default async function(req: Request): Promise<Response> {
       data_entrega_fabrica: dataPrevisaoFabrica,
       commitment_date: dataPrevisaoFabrica,
       date_planned: dataPrevisaoFabrica,
+      date_deadline: dataPrevisaoFabrica,
       nova_data_fabrica: dataPrevisaoFabrica,
       data_entrega_original: dataEntregaOriginal,
       motivo_alteracao_prazo: motivoAlteracaoPrazo,

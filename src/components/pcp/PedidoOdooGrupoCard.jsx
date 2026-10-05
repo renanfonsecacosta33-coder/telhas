@@ -125,23 +125,15 @@ export default function PedidoOdooGrupoCard({
   return (
     <div
       className={`bg-white dark:bg-slate-900 border rounded-2xl transition-all shadow-sm relative overflow-hidden ${
+        urgencia?.borderLeftClass || ""
+      } ${
         isPrioritario
           ? "border-amber-400 dark:border-amber-600 ring-1 ring-amber-400/40"
           : isPedidoTotalConcluido
           ? "border-emerald-300 dark:border-emerald-800"
-          : urgencia?.atrasado
-          ? "border-red-400 dark:border-red-600 ring-1 ring-red-400/40"
-          : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+          : urgencia?.ringClass || "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
       }`}
     >
-      {/* Overlay de urgência de prazo (gradiente vermelho progressivo conforme o SLA se aproxima) */}
-      {urgencia && (
-        <div
-          className={`pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-r from-red-600 via-red-500/80 to-red-500/10 ${urgencia.atrasado ? "animate-pulse" : ""}`}
-          style={{ opacity: urgencia.opacidade }}
-          aria-hidden="true"
-        />
-      )}
       {/* Cabeçalho Executivo do Pedido (Clicável para Expandir/Minimizar) */}
       <div
         onClick={onToggle}

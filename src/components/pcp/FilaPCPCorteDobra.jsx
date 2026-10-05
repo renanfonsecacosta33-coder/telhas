@@ -358,26 +358,18 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                   return (
                     <div
                       key={key}
-                      className={`rounded-xl border transition-all p-3.5 space-y-2.5 relative overflow-hidden shadow-2xs ${
+                      className={`rounded-xl border transition-all p-3.5 space-y-2.5 relative overflow-hidden shadow-2xs bg-card ${
                         concluido
-                          ? "bg-emerald-50/40 dark:bg-emerald-950/10 border-emerald-300"
+                          ? "bg-emerald-50/20 dark:bg-emerald-950/10 border-emerald-300"
                           : isPrioritario
-                          ? "border-l-4 border-l-amber-500 border-amber-300 bg-amber-50/20"
+                          ? "border-l-4 border-l-amber-500 border-amber-300 hover:bg-slate-50/40 dark:hover:bg-slate-900/20"
                           : isAtrasado
-                          ? "border-l-4 border-l-red-600 border-red-300 bg-red-50/25"
+                          ? "border-l-4 border-l-red-600 ring-1 ring-red-400/20 border-red-300 dark:border-red-900/50 hover:bg-slate-50/40 dark:hover:bg-slate-900/20"
                           : isHoje || isAmanha
-                          ? "border-l-4 border-l-amber-500 border-amber-300 bg-amber-50/15"
-                          : "border-l-4 border-l-orange-500 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950/50"
+                          ? "border-l-4 border-l-amber-500 border-amber-300 hover:bg-slate-50/40 dark:hover:bg-slate-900/20"
+                          : "border-l-4 border-l-orange-500 border-slate-200 dark:border-slate-700 hover:bg-slate-50/40 dark:hover:bg-slate-900/20"
                       }`}
                     >
-                      {urgencia && !concluido && (
-                        <div
-                          className={`pointer-events-none absolute inset-0 bg-red-500 ${urgencia.atrasado ? "animate-pulse" : ""}`}
-                          style={{ opacity: urgencia.opacidade }}
-                          aria-hidden="true"
-                        />
-                      )}
-
                       <div className="relative z-10 space-y-2.5">
                         {/* ══════════════ PAINEL HERO: ONDE ESTÁ & STATUS EM MÁXIMA EVIDÊNCIA ══════════════ */}
                         <LocalizacaoStatusHero

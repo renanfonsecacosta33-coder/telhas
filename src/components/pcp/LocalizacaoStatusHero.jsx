@@ -151,57 +151,49 @@ export default function LocalizacaoStatusHero({
     );
   }
 
-  // ── MODO HERO EM DESTAQUE TOTAL ──
+  // ── MODO COMPACTO / INTEGRADO REFINADO ──
   return (
-    <div className={`p-3 sm:p-3.5 rounded-2xl border-2 transition-all ${localizacao.corBg} shadow-2xs space-y-2.5`}>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-        {/* PILAR 1: ONDE ESTÁ AGORA */}
-        <div className="flex items-start gap-2.5 min-w-0 flex-1">
-          <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
-            <MapPin className="w-4 h-4 text-rose-600" />
+    <div className="bg-slate-50/90 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl p-2 sm:p-2.5 transition-all space-y-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 min-w-0">
+        {/* ONDE ESTÁ AGORA */}
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <div className="w-6 h-6 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center shrink-0 shadow-2xs">
+            <MapPin className="w-3.5 h-3.5 text-rose-600" />
           </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-300/50">
-                📍 Onde Este Pedido Está
-              </span>
-              {pedido?.unidade && (
-                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                  • {pedido.unidade}
-                </span>
-              )}
-            </div>
-            <h4 className={`text-sm sm:text-base font-black truncate mt-0.5 ${localizacao.corTexto}`}>
+          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+            <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+              Onde está:
+            </span>
+            <strong className={`text-xs font-black truncate ${localizacao.corTexto}`}>
               {localizacao.titulo}
-            </h4>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-              {localizacao.subtitulo}
-            </p>
+            </strong>
+            {pedido?.unidade && (
+              <span className="text-[10px] text-slate-400 font-medium">
+                • {pedido.unidade}
+              </span>
+            )}
           </div>
         </div>
 
-        {/* PILAR 2: STATUS EM MÁXIMA EVIDÊNCIA */}
-        <div className="shrink-0 flex flex-col sm:items-end justify-center">
-          <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider mb-1 hidden sm:block">
-            Status Operacional
-          </span>
-          <Badge className={`text-xs font-black uppercase tracking-wider px-3 py-1.5 border-2 rounded-xl flex items-center gap-1.5 ${statusBadge.cls}`}>
-            <span className="relative flex h-2 w-2">
+        {/* STATUS OPERACIONAL */}
+        <div className="shrink-0 flex items-center gap-1.5">
+          <Badge className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 border rounded-lg flex items-center gap-1 shadow-2xs ${statusBadge.cls}`}>
+            <span className="relative flex h-1.5 w-1.5">
               <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isConcluido ? "bg-white" : "bg-blue-200"}`} />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
             </span>
-            <StatusIcon className="w-3.5 h-3.5 shrink-0" />
+            <StatusIcon className="w-3 h-3 shrink-0" />
             <span>{statusBadge.label}</span>
           </Badge>
         </div>
       </div>
 
-      {/* ── PILAR 3: ESTEIRA DE PROGRESSO VISUAL (PIPELINE DE 4 ETAPAS) ── */}
-      <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
-        <div className="grid grid-cols-4 gap-1 sm:gap-2">
+      {/* ── ESTEIRA DE PROGRESSO VISUAL (PIPELINE SLIM) ── */}
+      <div className="pt-1.5 border-t border-slate-200/50 dark:border-slate-800/50">
+        <div className="grid grid-cols-4 gap-1">
           {[
-            { step: 1, label: "1. Entrada PCP", desc: "Emitido" },
-            { step: 2, label: "2. Distribuído", desc: "Na Fila" },
+            { step: 1, label: "1. Entrada", desc: "PCP" },
+            { step: 2, label: "2. Na Fila", desc: "Galpão" },
             { step: 3, label: "3. Na Máquina", desc: maquinasLista[0] || "Produção" },
             { step: 4, label: "4. Concluído", desc: "Expedição" },
           ].map((etapa) => {
@@ -211,28 +203,23 @@ export default function LocalizacaoStatusHero({
             return (
               <div
                 key={etapa.step}
-                className={`flex flex-col items-center text-center p-1.5 rounded-lg transition-all ${
+                className={`flex items-center justify-center gap-1 px-1.5 py-1 rounded-md text-center transition-all ${
                   atual
-                    ? "bg-white dark:bg-slate-900 border-2 border-blue-500 shadow-2xs font-black"
+                    ? "bg-blue-600 text-white shadow-xs font-black"
                     : atingida
-                    ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
-                    : "opacity-40"
+                    ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-500/30"
+                    : "bg-slate-100 dark:bg-slate-800/50 text-slate-400 opacity-60 font-medium"
                 }`}
               >
-                <div className="flex items-center gap-1">
-                  {atingida && !atual ? (
-                    <Check className="w-3 h-3 text-emerald-600" />
-                  ) : atual ? (
-                    <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
-                  ) : (
-                    <span className="w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-700" />
-                  )}
-                  <span className="text-[10px] sm:text-[11px] font-bold truncate">
-                    {etapa.label}
-                  </span>
-                </div>
-                <span className="text-[9px] text-slate-500 dark:text-slate-400 truncate hidden sm:inline">
-                  {etapa.desc}
+                {atingida && !atual ? (
+                  <Check className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                ) : atual ? (
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />
+                ) : (
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0" />
+                )}
+                <span className="text-[10px] truncate leading-tight">
+                  {etapa.label}
                 </span>
               </div>
             );

@@ -224,23 +224,16 @@ export default function PedidoOdooCard({
     return (
       <div
         onClick={onClick}
-        className={`${cfgSetor.bgTint} ${cfgSetor.borderLeft} border rounded-xl p-2.5 hover:shadow-md transition-all cursor-pointer flex flex-col gap-2 relative overflow-hidden ${
+        className={`${cfgSetor.bgTint} border rounded-xl p-2.5 hover:shadow-md transition-all cursor-pointer flex flex-col gap-2 relative overflow-hidden ${
+          urgencia?.borderLeftClass || cfgSetor.borderLeft
+        } ${
           isPrioritario
             ? "border-amber-400 dark:border-amber-600 ring-1 ring-amber-300/50"
             : isConcluido
             ? "border-emerald-300 dark:border-emerald-800"
-            : urgencia?.atrasado
-            ? "border-red-400 dark:border-red-600 ring-1 ring-red-400/40"
-            : cfgSetor.borderBase
+            : urgencia?.ringClass || cfgSetor.borderBase
         }`}
       >
-        {urgencia && (
-          <div
-            className={`pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-r from-red-600 via-red-500/80 to-red-500/10 ${urgencia.atrasado ? "animate-pulse" : ""}`}
-            style={{ opacity: urgencia.opacidade }}
-            aria-hidden="true"
-          />
-        )}
         {/* Cabeçalho Compacto: Focado na identificação da OF, setor e status */}
         <div className="flex items-start justify-between gap-1.5 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
@@ -409,23 +402,16 @@ export default function PedidoOdooCard({
   return (
     <div
       onClick={onClick}
-      className={`${cfgSetor.bgTint} ${cfgSetor.borderLeft} border rounded-2xl p-4 hover:shadow-lg transition-all cursor-pointer flex flex-col gap-3 relative overflow-hidden ${
+      className={`${cfgSetor.bgTint} border rounded-2xl p-4 hover:shadow-lg transition-all cursor-pointer flex flex-col gap-3 relative overflow-hidden ${
+        urgencia?.borderLeftClass || cfgSetor.borderLeft
+      } ${
         isPrioritario
           ? "border-amber-400 dark:border-amber-600 ring-1 ring-amber-300/50"
           : isConcluido
           ? "border-emerald-300 dark:border-emerald-800"
-          : urgencia?.atrasado
-          ? "border-red-400 dark:border-red-600 ring-1 ring-red-400/40"
-          : cfgSetor.borderBase
+          : urgencia?.ringClass || cfgSetor.borderBase
       }`}
     >
-      {urgencia && (
-        <div
-          className={`pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-r from-red-600 via-red-500/80 to-red-500/10 ${urgencia.atrasado ? "animate-pulse" : ""}`}
-          style={{ opacity: urgencia.opacidade }}
-          aria-hidden="true"
-        />
-      )}
       <div className="flex items-start gap-2.5">
         {onToggleSelect && (
           <div

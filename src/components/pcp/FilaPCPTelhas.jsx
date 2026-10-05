@@ -331,27 +331,18 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
             return (
               <div
                 key={pedido.id}
-                className={`p-4 sm:p-5 transition-all relative overflow-hidden ${
+                className={`p-4 sm:p-5 transition-all relative overflow-hidden bg-card ${
                   pacoteConcluido
-                    ? "bg-emerald-50/40 dark:bg-emerald-950/10"
+                    ? "bg-emerald-50/20 dark:bg-emerald-950/10"
                     : isPrioritario
-                    ? "border-l-4 border-l-amber-500 bg-amber-50/20 dark:bg-amber-950/10"
+                    ? "border-l-4 border-l-amber-500 hover:bg-slate-50/40 dark:hover:bg-slate-900/20"
                     : isAtrasado
-                    ? "border-l-4 border-l-red-600 bg-red-50/25 dark:bg-red-950/15"
+                    ? "border-l-4 border-l-red-600 ring-1 ring-red-400/20 hover:bg-slate-50/40 dark:hover:bg-slate-900/20"
                     : isHoje || isAmanha
-                    ? "border-l-4 border-l-amber-500 bg-amber-50/15 dark:bg-amber-950/10"
-                    : "border-l-4 border-l-blue-600 hover:bg-slate-50/50 dark:hover:bg-slate-800/20"
+                    ? "border-l-4 border-l-amber-500 hover:bg-slate-50/40 dark:hover:bg-slate-900/20"
+                    : "border-l-4 border-l-blue-600 hover:bg-slate-50/40 dark:hover:bg-slate-900/20"
                 }`}
               >
-                {/* Overlay de tingimento progressivo de urgência */}
-                {urgencia && !pacoteConcluido && (
-                  <div
-                    className={`pointer-events-none absolute inset-0 bg-red-500 ${urgencia.atrasado ? "animate-pulse" : ""}`}
-                    style={{ opacity: urgencia.opacidade }}
-                    aria-hidden="true"
-                  />
-                )}
-
                 <div className="relative z-10 space-y-3">
                   {/* ══════════════ PAINEL HERO: ONDE ESTÁ & STATUS EM MÁXIMA EVIDÊNCIA ══════════════ */}
                   <LocalizacaoStatusHero
