@@ -122,6 +122,13 @@ export default async function(req: Request): Promise<Response> {
 
     const usuario = String(body.usuario || user?.full_name || user?.email || "Operador Fábrica").trim();
 
+    // ── Previsão e Prazo Fabril (PCP -> Odoo) ──
+    const dataPrevisaoFabrica = String(body.data_previsao_fabrica || body.prazo_fabrica || body.nova_data_fabrica || "").trim();
+    const motivoAlteracaoPrazo = String(body.motivo_alteracao_prazo || body.motivo_alteracao || body.motivo || "").trim();
+    const dataAlteracaoPrazo = String(body.data_alteracao_prazo || (dataPrevisaoFabrica ? new Date().toISOString() : "")).trim();
+    const usuarioAlteracaoPrazo = String(body.usuario_alteracao_prazo || usuario).trim();
+    const dataEntregaOriginal = String(body.data_entrega || "").trim();
+
     const payload = {
       api_key: ODOO_BI_KEY,
       numero_pedido: body.numero_pedido || "",
@@ -134,6 +141,18 @@ export default async function(req: Request): Promise<Response> {
       galpao: body.galpao || "",
       maquina_atual: body.maquina_atual || "",
       usuario,
+      // ── Campos de Prazo Fabril para o Odoo (compatível com sale.order e mrp.production) ──
+      data_previsao_fabrica: dataPrevisaoFabrica,
+      prazo_fabrica: dataPrevisaoFabrica,
+      previsao_entrega_fabrica: dataPrevisaoFabrica,
+      data_entrega_fabrica: dataPrevisaoFabrica,
+      commitment_date: dataPrevisaoFabrica,
+      date_planned: dataPrevisaoFabrica,
+      nova_data_fabrica: dataPrevisaoFabrica,
+      data_entrega_original: dataEntregaOriginal,
+      motivo_alteracao_prazo: motivoAlteracaoPrazo,
+      data_alteracao_prazo: dataAlteracaoPrazo,
+      usuario_alteracao_prazo: usuarioAlteracaoPrazo,
       foto_finalizacao_url: body.foto_finalizacao_url || "",
       inicio_fmt: body.inicio_fmt || "",
       fim_fmt: body.fim_fmt || "",
