@@ -24,6 +24,7 @@ import SmartImage from "@/components/ui/SmartImage";
 import { comprimirImagemParaUpload } from "@/lib/compressImage";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import { getEspessuraNumeroDesb, isAbaixoDoMinimoDesbobinadeira02, ESPESSURA_MINIMA_DESBOBINADEIRA_02 } from "@/lib/regrasFabrica";
+import { useRegrasProducao } from "@/lib/regrasProducao";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -57,6 +58,7 @@ const ZOOM_CFG = {
 };
 
 export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "normal", ordens = [], pedidoSeq, bobinaCustoMap = {}, user, chapaVinculada, onGerarChapa }) {
+  const regras = useRegrasProducao();
   const z = ZOOM_CFG[zoom] || ZOOM_CFG.normal;
   const [pauseDialog, setPauseDialog] = useState(false);
   const [pauseMotivo, setPauseMotivo] = useState("");
@@ -131,7 +133,8 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
       return;
     }
 
-    setValidacaoDialog(true);
+    if (regras.exigirEtiquetaBobina) setValidacaoDialog(true);
+    else doIniciar();
   };
 
   const handleEtiquetaAprovada = (fotoUrl, motivo) => {
@@ -192,7 +195,10 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
     setBloqueioDialog(false);
     setAcaoPendente(null);
     setOrdemBloqueante(null);
-    if (acao === "iniciar") setValidacaoDialog(true);
+    if (acao === "iniciar") {
+      if (regras.exigirEtiquetaBobina) setValidacaoDialog(true);
+      else doIniciar();
+    }
     else if (acao === "retomar") doRetomar();
   };
 
@@ -907,7 +913,8 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
         erroTexto="PIN incorreto. Início na Desbobinadeira 02 bloqueado."
         onAutorizado={() => {
           toast.success(`✅ Início autorizado pelo gestor para Desbobinadeira 02 (${espNum || "< 0,80"} mm)!`);
-          setValidacaoDialog(true);
+          if (regras.exigirEtiquetaBobina) setValidacaoDialog(true);
+          else doIniciar();
         }}
       />
     </>

@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Plus, Settings, GripVertical, Pencil, Trash2, Eye, EyeOff, Ruler } from "lucide-react";
 import { toast } from "sonner";
 import ToleranciaEspessuraManager from "@/components/admin/ToleranciaEspessuraManager";
+import { useRegrasProducao, setRegraProducao } from "@/lib/regrasProducao";
+import { ShieldCheck, ScanLine, Users } from "lucide-react";
 
 const ICONES_DISPONIVEIS = [
   "Package", "Droplets", "Wrench", "Layers", "Box", "ShoppingCart",
@@ -19,6 +21,7 @@ const ICONES_DISPONIVEIS = [
 const emptyForm = { nome: "", icone: "Package", path: "", cor: "#3b82f6", ativa: true };
 
 export default function Configuracoes() {
+  const regras = useRegrasProducao();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [form, setForm] = useState(emptyForm);
@@ -73,6 +76,43 @@ export default function Configuracoes() {
           <Plus className="w-4 h-4" />
           Nova Categoria
         </Button>
+      </div>
+
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-border bg-muted/30">
+          <p className="text-sm font-semibold flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4" /> Regras de Produção
+          </p>
+          <p className="text-xs text-muted-foreground">Exigências do fluxo de início de OP. Ative ou desative livremente.</p>
+        </div>
+        <div className="divide-y divide-border">
+          <div className="px-4 py-3 flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <ScanLine className="w-4 h-4 mt-0.5 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Exigir validação da etiqueta da bobina</p>
+                <p className="text-xs text-muted-foreground">Quando ativo, o operador deve fotografar e validar a etiqueta da bobina antes de iniciar a OP.</p>
+              </div>
+            </div>
+            <Switch
+              checked={regras.exigirEtiquetaBobina}
+              onCheckedChange={(v) => setRegraProducao("exigirEtiquetaBobina", v)}
+            />
+          </div>
+          <div className="px-4 py-3 flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <Users className="w-4 h-4 mt-0.5 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Exigir seleção de operador ao iniciar</p>
+                <p className="text-xs text-muted-foreground">Quando ativo, a seleção de operador(es) é obrigatória antes de iniciar a produção.</p>
+              </div>
+            </div>
+            <Switch
+              checked={regras.exigirOperadorInicio}
+              onCheckedChange={(v) => setRegraProducao("exigirOperadorInicio", v)}
+            />
+          </div>
+        </div>
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-hidden">

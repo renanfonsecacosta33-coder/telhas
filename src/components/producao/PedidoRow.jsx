@@ -24,6 +24,7 @@ import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco";
 import SmartImage from "@/components/ui/SmartImage";
 import { comprimirImagemParaUpload } from "@/lib/compressImage";
 import { isTelhaBandeja, verificarStatusComponentesBandeja } from "@/lib/bandejaHelper";
+import { useRegrasProducao } from "@/lib/regrasProducao";
 
 const PRODUTO_BG = {
   "TELHA":               "border-l-blue-400",
@@ -145,6 +146,7 @@ function formatTempo(segundos) {
 export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRole, opRodando, maquina, user, filialAtiva, appendHistoricoFn, todosPedidos = [] }) {
   const isOperador = userRole === "operador";
   const podeGerenciar = !isOperador;
+  const regras = useRegrasProducao();
   const [etapasOk, setEtapasOk] = useState({});
   const [mostrarEtapas, setMostrarEtapas] = useState(false);
   const [pauseDialog, setPauseDialog] = useState(false);
@@ -261,7 +263,11 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
       Object.assign(updates, appendHistoricoFn(p, "inicio_colagem_validado", pularFoto ? "Iniciou colagem (modo direto)" : "Validou EPS e iniciou colagem"));
     }
     setPendingColagemUpdates(updates);
-    setOperadoresDialogOpen(true);
+    if (regras.exigirOperadorInicio) {
+      setOperadoresDialogOpen(true);
+    } else {
+      handleConfirmarOperadores(null, updates);
+    }
   };
 
   // Tick a cada segundo para atualizar cronômetro ao vivo
@@ -336,8 +342,8 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
       return;
     }
 
-    // Validação de etiqueta obrigatória antes de iniciar (exceto colagem e pedidos com múltiplas medidas que validam bobinas por item)
-    if (!temVariacoes && p.maquina !== "COLAGEM" && p.validacao_etiqueta_status !== "aprovado") {
+    // Validação de etiqueta antes de iniciar (exigência configurável em Configurações)
+    if (regras.exigirEtiquetaBobina && !temVariacoes && p.maquina !== "COLAGEM" && p.validacao_etiqueta_status !== "aprovado") {
       setValidacaoEtiquetaOpen(true);
       return;
     }
@@ -366,13 +372,17 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
       return;
     }
     setPendingColagemUpdates(null);
-    setOperadoresDialogOpen(true);
+    if (regras.exigirOperadorInicio) {
+      setOperadoresDialogOpen(true);
+    } else {
+      handleConfirmarOperadores(null, null);
+    }
   };
 
-  const handleConfirmarOperadores = (operadores) => {
+  const handleConfirmarOperadores = (operadores, extraUpdates) => {
     const updates = {
       inicio_producao_ts: new Date().toISOString(),
-      ...(pendingColagemUpdates || {}),
+      ...(extraUpdates !== undefined ? extraUpdates : (pendingColagemUpdates || {})),
     };
     if (operadores && Array.isArray(operadores)) {
       updates.operadores_json = JSON.stringify(operadores);
@@ -578,12 +588,17 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
 
   const handleEtiquetaAprovada = (fotoUrl, motivo) => {
     setValidacaoEtiquetaOpen(false);
-    setPendingColagemUpdates({
+    const payload = {
       foto_etiqueta_bobina_url: fotoUrl,
       validacao_etiqueta_status: "aprovado",
       validacao_etiqueta_motivo: motivo,
-    });
-    setOperadoresDialogOpen(true);
+    };
+    setPendingColagemUpdates(payload);
+    if (regras.exigirOperadorInicio) {
+      setOperadoresDialogOpen(true);
+    } else {
+      handleConfirmarOperadores(null, payload);
+    }
   };
 
   const handlePausar = () => {

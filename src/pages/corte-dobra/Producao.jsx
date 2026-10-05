@@ -26,6 +26,7 @@ import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import KanbanBoard from "@/components/producao/KanbanBoard";
 import IniciarOpOperadoresDialog from "@/components/producao/IniciarOpOperadoresDialog";
+import { useRegrasProducao } from "@/lib/regrasProducao";
 import { extrairCroquiPedido } from "@/lib/croquiExtractor";
 
 const MAQUINAS_OUTRAS = [
@@ -64,17 +65,13 @@ export default function ProducaoCD() {
 
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
+  const regras = useRegrasProducao();
 
-  const handleStatusChangeKanban = async (item, novoStatus) => {
-    if (novoStatus === "em_producao") {
-      setOrdemParaOperadores(item);
-      setOperadoresDialogOpen(true);
-      return;
-    }
+  const aplicarStatusKanban = async (item, novoStatus, extras = {}) => {
     try {
       const isDesb = !item.maquina || item.maquina === "DESBOBINADEIRA" || item.maquina?.startsWith?.("DESBOBINADEIRA");
       const entity = isDesb ? base44.entities.OrdemDesbobinadeira : base44.entities.OrdemMaquinaCD;
-      const patch = { status: novoStatus };
+      const patch = { status: novoStatus, ...extras };
       if (novoStatus === "finalizado") {
         patch.data_finalizacao = new Date().toISOString();
       }
@@ -87,22 +84,27 @@ export default function ProducaoCD() {
     }
   };
 
+  const handleStatusChangeKanban = async (item, novoStatus) => {
+    if (novoStatus === "em_producao") {
+      // Seleção de operadores é exigência configurável em Configurações
+      if (regras.exigirOperadorInicio) {
+        setOrdemParaOperadores(item);
+        setOperadoresDialogOpen(true);
+      } else {
+        await aplicarStatusKanban(item, novoStatus, { inicio_producao_ts: new Date().toISOString() });
+      }
+      return;
+    }
+    await aplicarStatusKanban(item, novoStatus);
+  };
+
   const handleConfirmarOperadores = async (operadores) => {
     if (!ordemParaOperadores) return;
-    try {
-      const isDesb = !ordemParaOperadores.maquina || ordemParaOperadores.maquina === "DESBOBINADEIRA" || ordemParaOperadores.maquina?.startsWith?.("DESBOBINADEIRA");
-      const entity = isDesb ? base44.entities.OrdemDesbobinadeira : base44.entities.OrdemMaquinaCD;
-      await entity.update(ordemParaOperadores.id, {
-        status: "em_producao",
-        inicio_producao_ts: new Date().toISOString(),
-        operadores_json: JSON.stringify(operadores)
-      });
-      queryClient.invalidateQueries({ queryKey: ["ordens-cd"] });
-      queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
-      toast.success(`OP iniciada com \${operadores.length} operador(es)!`);
-    } catch (e) {
-      toast.error("Erro ao iniciar OP: " + (e?.message || ""));
-    }
+    await aplicarStatusKanban(ordemParaOperadores, "em_producao", {
+      inicio_producao_ts: new Date().toISOString(),
+      operadores_json: JSON.stringify(operadores)
+    });
+    toast.success(`OP iniciada com ${operadores.length} operador(es)!`);
   };
 
   useEffect(() => {

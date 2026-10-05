@@ -28,6 +28,7 @@ import ApontamentoOpButton from "@/components/producao/ApontamentoOpButton";
 import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo } from "@/lib/pedidoOdooHelper";
 import { PrioridadeBadge, getPrioridadeNivel } from "@/lib/prioridadeHelper";
 import { notificarStatus } from "@/lib/biNotificador";
+import { useRegrasProducao } from "@/lib/regrasProducao";
 import CroquiPeca2D from "@/components/corte-dobra/CroquiPeca2D";
 
 
@@ -75,6 +76,7 @@ const ZOOM_CFG = {
 };
 
 export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "normal", ordens = [], pedidoSeq, user }) {
+  const regras = useRegrasProducao();
   const z = ZOOM_CFG[zoom] || ZOOM_CFG.normal;
   const [pauseDialog, setPauseDialog] = useState(false);
   const [pauseMotivo, setPauseMotivo] = useState("");
@@ -209,8 +211,9 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
         return;
       }
     }
-    // Abre seleção de operadores da máquina
-    setOperadoresDialogOpen(true);
+    // Abre seleção de operadores da máquina (exigência configurável em Configurações)
+    if (regras.exigirOperadorInicio) setOperadoresDialogOpen(true);
+    else doIniciar();
   };
 
   const handleConfirmarOperadores = (operadores) => {
@@ -1205,4 +1208,4 @@ function DesenvolvimentoCroquiPanel({ ordem: o, zoom }) {
       )}
     </div>
   );
-}
+}
