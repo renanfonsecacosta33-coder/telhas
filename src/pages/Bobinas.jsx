@@ -1,10 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, AlertTriangle, Package, Weight, Archive, X, Loader2, Layers, Calendar, Download, History } from "lucide-react";
+import { Plus, Search, AlertTriangle, Package, Weight, Archive, X, Loader2, Layers, Calendar, Download, History, Building2, Globe } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import BobinaFormDialog from "@/components/bobinas/BobinaFormDialog";
@@ -50,15 +50,89 @@ export default function Bobinas() {
   const [filtroFornecedor, setFiltroFornecedor] = useState("");
   const [filtroData, setFiltroData] = useState("");
   const [ordenacao, setOrdenacao] = useState("none");
+  const [verTodasFiliais, setVerTodasFiliais] = useState(false);
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
 
-  const { data: bobinas = [], isLoading } = useQuery({
-    queryKey: ["bobinas", filialAtiva],
-    queryFn: () => base44.entities.Bobina.filter({ setor: "telhas", unidade: filialAtiva }, "-created_date", 500),
+  // Busca resiliente: carrega bobinas da fábrica com múltiplas camadas de fallback
+  // para evitar que bobinas sumam por falta de indexador ou campos nulos no DB
+  const { data: todasBobinasRaw = [], isLoading } = useQuery({
+    queryKey: ["bobinas", "lista-fabrica"],
+    queryFn: async () => {
+      let raw = [];
+      try {
+        const res = await base44.entities.Bobina.list("-created_date", 2000);
+        if (Array.isArray(res) && res.length > 0) {
+          raw = res;
+        }
+      } catch (e1) {
+        console.warn("[Bobinas] Falha no Bobina.list(-created_date):", e1);
+      }
+
+      if (raw.length === 0) {
+        try {
+          const res = await base44.entities.Bobina.filter({}, "-created_date", 2000);
+          if (Array.isArray(res) && res.length > 0) {
+            raw = res;
+          }
+        } catch (e2) {
+          console.warn("[Bobinas] Falha no Bobina.filter({}):", e2);
+        }
+      }
+
+      if (raw.length === 0) {
+        try {
+          const res = await base44.entities.Bobina.filter({ setor: "telhas" });
+          if (Array.isArray(res) && res.length > 0) {
+            raw = res;
+          }
+        } catch (e3) {
+          console.warn("[Bobinas] Falha no Bobina.filter({ setor }):", e3);
+        }
+      }
+
+      if (raw.length === 0) {
+        try {
+          const res = await base44.entities.Bobina.list();
+          if (Array.isArray(res)) {
+            raw = res;
+          }
+        } catch (e4) {
+          console.error("[Bobinas] Todas as tentativas de listar Bobinas falharam:", e4);
+        }
+      }
+
+      return Array.isArray(raw) ? raw : [];
+    },
+    staleTime: 5000,
+    refetchInterval: 25000,
   });
 
-  const filiaisHook = filialAtiva === "todas" ? null : [filialAtiva];
+  // Filtra apenas setor de telhas (qualquer bobina que NÃO seja exclusivamente de corte_dobra)
+  const bobinasTelhasGerais = useMemo(() => {
+    return todasBobinasRaw.filter(b => {
+      if (!b) return false;
+      if (b.setor === "corte_dobra") return false;
+      return true;
+    });
+  }, [todasBobinasRaw]);
+
+  // Filtra pela filial ativa (ou exibe todas se verTodasFiliais for true ou filialAtiva for "todas")
+  const bobinas = useMemo(() => {
+    if (verTodasFiliais || !filialAtiva || filialAtiva === "todas") {
+      return bobinasTelhasGerais;
+    }
+    const filialNorm = String(filialAtiva).trim().toLowerCase();
+    return bobinasTelhasGerais.filter(b => {
+      // Padrão AJL: se a bobina não tiver unidade definida, seu estoque físico pertence à Matriz AJL
+      const u = String(b.unidade || "Matriz AJL").trim().toLowerCase();
+      if (u === filialNorm) return true;
+      if (filialNorm.includes("matriz") && u.includes("matriz")) return true;
+      return false;
+    });
+  }, [bobinasTelhasGerais, filialAtiva, verTodasFiliais]);
+
+  const filiaisHook = (verTodasFiliais || filialAtiva === "todas") ? null : [filialAtiva];
   const { preBaixaMap, preBaixaMetrosMap, preBaixaOpsMap, statusMap, totalPreBaixaKg, totalPreBaixaMetros } = usePreBaixaBobinas("telhas", filiaisHook);
 
   const deleteMutation = useMutation({
@@ -354,6 +428,20 @@ export default function Bobinas() {
                 <Layers className="w-3 h-3" />
                 Com Pré-baixa ({bobinasComPreBaixa.length})
               </Button>
+              <Button
+                variant={verTodasFiliais ? "default" : "outline"}
+                size="sm"
+                onClick={() => setVerTodasFiliais(v => !v)}
+                className={`gap-1.5 h-8 text-xs font-semibold ${
+                  verTodasFiliais
+                    ? "bg-slate-800 text-white hover:bg-slate-900 border-slate-800 dark:bg-slate-100 dark:text-slate-900"
+                    : "border-border text-muted-foreground hover:text-foreground"
+                }`}
+                title={verTodasFiliais ? "Exibindo bobinas de todas as filiais. Clique para filtrar pela filial ativa." : `Filtrando por ${filialAtiva}. Clique para ver todas as filiais.`}
+              >
+                <Building2 className="w-3.5 h-3.5 text-sky-500" />
+                {verTodasFiliais ? "Todas as Filiais" : filialAtiva}
+              </Button>
               <Button variant={filterStatus === "all" ? "default" : "outline"} size="sm" onClick={() => setFilterStatus("all")}
                 className="h-8 text-xs">Todas</Button>
               {statusList.map(s => (
@@ -441,7 +529,44 @@ export default function Bobinas() {
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
         </div>
       ) : sorted.length === 0 ? (
-        <EmptyState title="Nenhuma bobina encontrada" description="Adicione bobinas ao estoque." onAdd={() => { setEditItem(null); setDialogOpen(true); }} />
+        <div className="bg-card border border-border rounded-xl p-8 text-center space-y-4">
+          <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center mx-auto text-muted-foreground">
+            <Package className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="font-bold text-base">Nenhuma bobina encontrada</h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              {!verTodasFiliais && bobinasTelhasGerais.length > 0
+                ? `Não há bobinas registradas especificamente para ${filialAtiva}, mas existem ${bobinasTelhasGerais.length} bobina(s) no estoque geral.`
+                : "Nenhuma bobina corresponde aos filtros selecionados."}
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            {!verTodasFiliais && bobinasTelhasGerais.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setVerTodasFiliais(true)}
+                className="gap-1.5 text-xs h-9 border-sky-400 text-sky-700 hover:bg-sky-50 dark:border-sky-700 dark:text-sky-300"
+              >
+                <Globe className="w-3.5 h-3.5 text-sky-600" />
+                Ver Bobinas de Todas as Filiais ({bobinasTelhasGerais.length})
+              </Button>
+            )}
+            <Button
+              size="sm"
+              onClick={() => { setEditItem(null); setDialogOpen(true); }}
+              className="gap-1.5 text-xs h-9"
+            >
+              <Plus className="w-3.5 h-3.5" /> Adicionar Bobina
+            </Button>
+            {(search || filterStatus !== "all" || filterAlerta || filterPreBaixa || filtroQualidade !== "todos" || filtroFornecedor || filtroData) && (
+              <Button variant="ghost" size="sm" onClick={limparFiltros} className="text-xs h-9">
+                Limpar Filtros
+              </Button>
+            )}
+          </div>
+        </div>
       ) : (
         <div className="space-y-3">
           {sorted.map((bobina) => (

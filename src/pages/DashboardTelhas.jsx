@@ -75,7 +75,25 @@ export default function DashboardTelhas() {
 
   const { data: bobinas = [] } = useQuery({
     queryKey: ["bobinas-telhas-dash", filialAtiva],
-    queryFn: () => base44.entities.Bobina.filter({ setor: "telhas", arquivada: false, unidade: filialAtiva }),
+    queryFn: async () => {
+      let raw = [];
+      try {
+        raw = await base44.entities.Bobina.list("-created_date", 1000);
+      } catch {
+        try {
+          raw = await base44.entities.Bobina.filter({}, "-created_date", 1000);
+        } catch {
+          raw = [];
+        }
+      }
+      const telhas = (Array.isArray(raw) ? raw : []).filter(b => b && !b.arquivada && b.setor !== "corte_dobra");
+      if (!filialAtiva || filialAtiva === "todas") return telhas;
+      const fn = String(filialAtiva).trim().toLowerCase();
+      return telhas.filter(b => {
+        const u = String(b.unidade || "Matriz AJL").trim().toLowerCase();
+        return u === fn || (fn.includes("matriz") && u.includes("matriz"));
+      });
+    },
     refetchInterval: 30000,
   });
 

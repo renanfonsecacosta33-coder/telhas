@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -37,10 +37,36 @@ export default function BobinasCD() {
   const [ordenacao, setOrdenacao] = useState("none");
   const queryClient = useQueryClient();
 
-  const { data: bobinas = [], isLoading } = useQuery({
-    queryKey: ["bobinas-cd", filialAtiva],
-    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", unidade: filialAtiva }, "-created_date", 500),
+  const { data: todasBobinasRawCD = [], isLoading } = useQuery({
+    queryKey: ["bobinas-cd", "raw-lista"],
+    queryFn: async () => {
+      let raw = [];
+      try {
+        const res = await base44.entities.Bobina.list("-created_date", 2000);
+        if (Array.isArray(res) && res.length > 0) raw = res;
+      } catch (e1) {
+        console.warn("[BobinasCD] Falha no Bobina.list:", e1);
+      }
+      if (raw.length === 0) {
+        try {
+          const res = await base44.entities.Bobina.filter({ setor: "corte_dobra" }, "-created_date", 2000);
+          if (Array.isArray(res) && res.length > 0) raw = res;
+        } catch (e2) {}
+      }
+      return (Array.isArray(raw) ? raw : []).filter(b => b && b.setor === "corte_dobra");
+    },
+    staleTime: 5000,
+    refetchInterval: 25000,
   });
+
+  const bobinas = useMemo(() => {
+    if (!filialAtiva || filialAtiva === "todas") return todasBobinasRawCD;
+    const fn = String(filialAtiva).trim().toLowerCase();
+    return todasBobinasRawCD.filter(b => {
+      const u = String(b.unidade || "Matriz AJL").trim().toLowerCase();
+      return u === fn || (fn.includes("matriz") && u.includes("matriz"));
+    });
+  }, [todasBobinasRawCD, filialAtiva]);
 
   const filiaisHook = filialAtiva === "todas" ? null : [filialAtiva];
   const { preBaixaMap, statusMap, totalPreBaixaKg } = usePreBaixaBobinas("corte_dobra", filiaisHook);
