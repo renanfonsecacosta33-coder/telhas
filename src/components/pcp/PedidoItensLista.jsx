@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Factory, Scissors, Wind, Layers, Ruler, ClipboardList, ImageIcon, Sparkles, Home, CheckCircle2, AlertTriangle, Clock, Disc } from "lucide-react";
 import { stripHtml } from "@/lib/stripHtml";
-import { obterStatusDescritivoItem, extrairAnotacaoItem, localizarOpDoItem, classGrupo } from "@/lib/pedidoOdooHelper";
+import { obterStatusDescritivoItem, extrairAnotacaoItem, localizarOpDoItem, classGrupo, normalizarUnidadeMedidaItem } from "@/lib/pedidoOdooHelper";
 import { extrairCroquiItem, extrairCroquiPedido } from "@/lib/croquiExtractor";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import { verificarEstoqueItem } from "@/lib/estoqueMaterialHelper";
@@ -110,7 +110,7 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
           const qtd = (estoqueItem?.demanda?.isKg && estoqueItem?.demanda?.pesoKgInformado)
             ? estoqueItem.demanda.pesoKgInformado
             : it.quantidade;
-          const unidade = (it.unidade || "").trim() || "peças";
+          const unidade = normalizarUnidadeMedidaItem(it, g);
           const esp = it.espessura || it.chapa;
 
           // Detecção de produto composto: Telha + EPS + Manta (Sanduíche / Termoacústica)
@@ -154,7 +154,7 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
 
                   {/* Especificação técnica inteligente extraída da descrição (ex: 50 pçs c/ 2000mm ou 60 peças) */}
                   {(() => {
-                    const espTec = extrairEspecificacao(it.descricao || it.observacao, it.quantidade, it.unidade);
+                    const espTec = extrairEspecificacao(it.descricao || it.observacao, it.quantidade, unidade);
                     if (!espTec.tem_especificacao || !espTec.resumo_formatado) return null;
                     return (
                       <div className="flex items-center gap-1.5 mt-1 flex-wrap">

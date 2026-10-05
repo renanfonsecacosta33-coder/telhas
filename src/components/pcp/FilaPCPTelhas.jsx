@@ -15,7 +15,7 @@ import CroquiThumb from "@/components/pcp/CroquiThumb";
 import {
   getItens, itensPorGrupo, computePercentual, computePercentualGrupo,
   buildItensJson, statusPcpPorPercentual, STATUS_ITEM, saoPedidosIguais,
-  localizarOpDoItem
+  localizarOpDoItem, normalizarUnidadeMedidaItem
 } from "@/lib/pedidoOdooHelper";
 import { formatDataBR, slaDiasPorCategoria, diasUteisRestantes } from "@/lib/sla";
 import { urgenciaPrazo } from "@/lib/prazoUrgencia";
@@ -638,7 +638,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                             descricao={item.descricao || item.produto}
                             quantidadeOdoo={item.quantidade}
                             espessura={item.espessura}
-                            unidade="MT"
+                            unidade={normalizarUnidadeMedidaItem(item, "telha")}
                           />
 
                           <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap pt-1">

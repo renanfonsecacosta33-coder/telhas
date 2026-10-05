@@ -3,7 +3,7 @@
 // (descarta revendas e outros)
 
 import { normalizarImagemBase64 } from "@/lib/imagemBase64";
-import { classGrupo } from "@/lib/pedidoOdooHelper";
+import { classGrupo, normalizarUnidadeMedidaItem } from "@/lib/pedidoOdooHelper";
 import { rotearUnidadeProducao, normalizarLojaVenda } from "@/lib/roteamentoPCP";
 
 const CATEGORIA_MAP = {
@@ -112,7 +112,13 @@ export function parseWebhookPayload(rawJson) {
           medida: it.medida || it.dimension || it.dimensao || "",
           espessura,
           quantidade: Number(it.quantidade || it.qty || it.quantity || it.product_uom_qty || 0),
-          unidade: it.unidade || "UN",
+          unidade: normalizarUnidadeMedidaItem({
+            produto,
+            descricao,
+            observacao: it.observacao || descricao,
+            categoria: it.categoria || it.category || it.product_category || "",
+            unidade: it.unidade || it.uom || it.product_uom || ""
+          }),
           foto_url: imgUrl,
           imagem_url: imgUrl
         };

@@ -122,6 +122,92 @@ function normalizarUrlOdoo(url: any): string {
   return s;
 }
 
+function normalizarUnidadeMedidaOdoo(it: any): string {
+  if (!it) return "UN";
+
+  const prod = String(it.produto || it.product || it.product_name || "").trim();
+  const desc = String(it.descricao || it.description || it.observacao || it.obs || it.name || "").trim();
+  const cat = String(it.categoria || it.category || "").trim().toLowerCase();
+  const textoCompleto = `${prod} ${desc}`.toUpperCase();
+  const rawUnidade = String(it.unidade || it.uom || it.product_uom || "").trim().toUpperCase();
+
+  // 1. Detecção explícita no texto do produto/descrição (padrão oficial de cadastro no Odoo AJL)
+  if (
+    /\(PADR[AÃ]O\s*-\s*BR\)/i.test(textoCompleto) ||
+    /\[PADR[AÃ]O\s*-\s*BR\]/i.test(textoCompleto) ||
+    /\bPADR[AÃ]O\s*-\s*BR\b/i.test(textoCompleto) ||
+    /\bPOR\s+METRO\s*\(PADR[AÃ]O\s*-\s*BR\)/i.test(textoCompleto) ||
+    /\b\(BR\)/i.test(textoCompleto) ||
+    /\/BR\b/i.test(textoCompleto)
+  ) {
+    return "BR";
+  }
+
+  if (
+    /\(PADR[AÃ]O\s*-\s*UN\)/i.test(textoCompleto) ||
+    /\[PADR[AÃ]O\s*-\s*UN\]/i.test(textoCompleto) ||
+    /\bPADR[AÃ]O\s*-\s*UN\b/i.test(textoCompleto) ||
+    /\(PADR[AÃ]O\s*-\s*P[EÇ]A\)/i.test(textoCompleto) ||
+    /\[PADR[AÃ]O\s*-\s*P[EÇ]A\]/i.test(textoCompleto)
+  ) {
+    return "UN";
+  }
+
+  if (
+    /\(PADR[AÃ]O\s*-\s*KG\)/i.test(textoCompleto) ||
+    /\[PADR[AÃ]O\s*-\s*KG\]/i.test(textoCompleto) ||
+    /\bPADR[AÃ]O\s*-\s*KG\b/i.test(textoCompleto)
+  ) {
+    return "KG";
+  }
+
+  // 2. Classificação de setor
+  const isFrisada = ["frisadas", "frisada"].includes(cat) || /(frisad|lambri)/i.test(textoCompleto);
+  const isCd = /(perfil|cantoneir|chapa|chaparia|corte\s*e\s*dobra|corte_dobra|\bcd\b)/i.test(cat) ||
+               /(perfil|cantoneir|chapa|chaparia|corte\s*e\s*dobra|corte_dobra)/i.test(textoCompleto);
+
+  if (isCd || isFrisada) {
+    // Se a unidade já informada for BR ou produto indicar barra/perfil:
+    if (
+      ["BR", "BARRA", "BARRAS"].includes(rawUnidade) ||
+      /\bPERFIL\b/i.test(textoCompleto) ||
+      /\bTRILHO\b/i.test(textoCompleto) ||
+      /\bCANTONEIRA\b/i.test(textoCompleto) ||
+      /\bBARRA\b/i.test(textoCompleto) ||
+      /\bc\/\s*3000\b/i.test(textoCompleto) ||
+      /\bc\/\s*6000\b/i.test(textoCompleto) ||
+      /\bc\/\s*2000\b/i.test(textoCompleto) ||
+      /\b3000\s*MM\b/i.test(textoCompleto) ||
+      /\b6000\s*MM\b/i.test(textoCompleto)
+    ) {
+      return "BR";
+    }
+
+    if (["UN", "UND", "UNID", "UNIDADE", "UNIDADES", "PC", "PCS", "PÇ", "PÇS", "PECA", "PECAS"].includes(rawUnidade)) {
+      return "UN";
+    }
+
+    if (["KG", "KGS", "QUILO", "QUILOS"].includes(rawUnidade)) {
+      return "KG";
+    }
+
+    if (isFrisada) {
+      return "BR";
+    }
+
+    // Padrão de Corte e Dobra: KG!
+    return "KG";
+  }
+
+  // 3. Telhas
+  if (["MT", "M", "METRO", "METROS"].includes(rawUnidade)) return "MT";
+  if (["KG", "KGS"].includes(rawUnidade)) return "KG";
+  if (["BR", "BARRA", "BARRAS"].includes(rawUnidade)) return "BR";
+  if (["UN", "UND", "UNID", "UNIDADE", "UNIDADES", "PC", "PCS", "PÇ", "PÇS", "PECA", "PECAS"].includes(rawUnidade)) return "UN";
+
+  return rawUnidade || "UN";
+}
+
 function sanitizarItemOdoo(it: any): any {
   if (!it || typeof it !== "object") return it;
 
@@ -131,6 +217,9 @@ function sanitizarItemOdoo(it: any): any {
   if (itemNormalizado.imagem_url) itemNormalizado.imagem_url = normalizarUrlOdoo(itemNormalizado.imagem_url);
   if (itemNormalizado.anexo_url) itemNormalizado.anexo_url = normalizarUrlOdoo(itemNormalizado.anexo_url);
   if (itemNormalizado.croqui_url) itemNormalizado.croqui_url = normalizarUrlOdoo(itemNormalizado.croqui_url);
+
+  // Auto-corrigir unidade de medida para nunca gravar MT em Corte e Dobra ou Perfis
+  itemNormalizado.unidade = normalizarUnidadeMedidaOdoo(itemNormalizado);
 
   const prod = String(itemNormalizado.produto || "").trim();
   const obs = String(itemNormalizado.observacao || "").trim();
@@ -258,11 +347,18 @@ export default async function(req: Request): Promise<Response> {
       const prodNome = typeof body.product_id === "object" && body.product_id?.[1]
         ? body.product_id[1]
         : (body.produto || body.product || body.product_name || String(body.product_id || ""));
+      const descItem = body.descricao || body.observacao || body.name || "";
+      const rawUnid = body.product_uom || body.unidade || "";
+      const unidCorrigida = normalizarUnidadeMedidaOdoo({
+        produto: prodNome,
+        descricao: descItem,
+        unidade: rawUnid
+      });
       newItems = [{
         produto: prodNome,
         quantidade: Number(body.product_qty || body.quantidade || body.qty || 1),
-        unidade: body.product_uom || body.unidade || "MT",
-        descricao: body.descricao || body.observacao || body.name || "",
+        unidade: unidCorrigida,
+        descricao: descItem,
         observacao: body.observacao || body.descricao || body.name || "",
         espessura: body.espessura || "",
         medida: body.medida || "",

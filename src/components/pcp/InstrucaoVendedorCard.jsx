@@ -68,6 +68,36 @@ export default function InstrucaoVendedorCard({ descricao, quantidadeOdoo, espes
             </span>
           </div>
         )}
+        {unidade === "BR" && quantidadeOdoo != null && (
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-sky-700 dark:text-sky-400 uppercase">
+              Total de Barras Odoo
+            </span>
+            <span className="text-sm font-extrabold text-sky-600 dark:text-sky-400">
+              {quantidadeOdoo} BR
+            </span>
+          </div>
+        )}
+        {unidade === "KG" && quantidadeOdoo != null && (
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase">
+              Peso Total Odoo
+            </span>
+            <span className="text-sm font-extrabold text-amber-600 dark:text-amber-400">
+              {quantidadeOdoo} KG
+            </span>
+          </div>
+        )}
+        {(unidade === "UN" || unidade === "un" || unidade === "PC" || unidade === "pc") && quantidadeOdoo != null && (
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-purple-700 dark:text-purple-400 uppercase">
+              Quantidade Odoo
+            </span>
+            <span className="text-sm font-extrabold text-purple-600 dark:text-purple-400">
+              {quantidadeOdoo} UN
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

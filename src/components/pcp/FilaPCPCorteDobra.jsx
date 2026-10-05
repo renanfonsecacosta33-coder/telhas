@@ -15,7 +15,7 @@ import CroquiThumb from "@/components/pcp/CroquiThumb";
 import {
   getItens, classGrupo, computePercentual, buildItensJson,
   statusPcpPorPercentual, STATUS_ITEM, MAQUINAS_CD,
-  localizarOpDoItem, saoPedidosIguais
+  localizarOpDoItem, saoPedidosIguais, normalizarUnidadeMedidaItem
 } from "@/lib/pedidoOdooHelper";
 import { formatDataBR, diasUteisRestantes } from "@/lib/sla";
 import { urgenciaPrazo } from "@/lib/prazoUrgencia";
@@ -395,7 +395,7 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                           descricao={item.descricao || item.produto}
                           quantidadeOdoo={item.quantidade}
                           espessura={item.espessura}
-                          unidade="un"
+                          unidade={normalizarUnidadeMedidaItem(item, "cd")}
                         />
 
                         {/* Cabeçalho do Item */}

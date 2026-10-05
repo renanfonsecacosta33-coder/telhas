@@ -20,7 +20,15 @@ export function getItens(pedido) {
   } else if (Array.isArray(pedido.itens_json)) {
     arr = pedido.itens_json;
   }
-  return arr.map((it, idx) => ({ ...STATUS_DEFAULTS, ...it, _idx: idx }));
+  return arr.map((it, idx) => {
+    const unid = normalizarUnidadeMedidaItem(it);
+    return {
+      ...STATUS_DEFAULTS,
+      ...it,
+      unidade: unid,
+      _idx: idx
+    };
+  });
 }
 
 // Aceita item individual (obj), Pedido/OF completo (obj com itens_json) ou categoria + produto (strings)
@@ -76,6 +84,129 @@ export function classGrupo(itemOrCat, produtoNome = "") {
   // Regra de ouro da fábrica: Bobininha (e variações: bobinina, fita, desbobinamento) vai SEMPRE para Telhas (máquina DESBOBINADOR),
   // assim como Telhas, Cumeeiras, Calhas, Rufos e todo o restante!
   return "telha";
+}
+
+/**
+ * Normaliza e auto-corrige a unidade de medida do item (KG, BR, UN, MT)
+ * Regra de Negócio AJL:
+ * - CORTE E DOBRA e FRISADAS: NUNCA usam MT (metros é exclusivo de Telhas!).
+ * - O padrão em Corte e Dobra é KG.
+ * - Perfis e barras (Padrão - BR, PERFIL, TRILHO, CANTONEIRA, BARRA, c/ 3000, c/ 6000, etc.) são BR.
+ * - Itens de contagem unitária (Padrão - UN, acessórios) são UN.
+ * - Se o Odoo enviar a unidade errada (ex: MT ou vazia para C&D/Perfis/Frisadas), auto-corrige para BR ou KG.
+ */
+export function normalizarUnidadeMedidaItem(item, setorHint = null) {
+  if (!item) return "UN";
+
+  const prod = String(item.produto || item.product || item.product_name || item.of_nome || "").trim();
+  const desc = String(item.descricao || item.description || item.observacao || item.obs || item.name || "").trim();
+  const textoCompleto = `${prod} ${desc}`.toUpperCase();
+  const rawUnidade = String(item.unidade || item.uom || item.product_uom || "").trim().toUpperCase();
+
+  // 1. Detecção explícita no texto do produto/descrição (padrão oficial de cadastro no Odoo AJL)
+  // Ex: "Frisada V Ch 28 (0,43) POR METRO (Padrão - BR)"
+  // Ex: "576 - Perfil 06 C/ 3000 Ch 1,25 (Trilho Lateral da porta de aço) (Padrão - BR)"
+  // Ex: "Perfil ... (Padrão - BR)"
+  if (
+    /\(PADR[AÃ]O\s*-\s*BR\)/i.test(textoCompleto) ||
+    /\[PADR[AÃ]O\s*-\s*BR\]/i.test(textoCompleto) ||
+    /\bPADR[AÃ]O\s*-\s*BR\b/i.test(textoCompleto) ||
+    /\bPOR\s+METRO\s*\(PADR[AÃ]O\s*-\s*BR\)/i.test(textoCompleto) ||
+    /\b\(BR\)/i.test(textoCompleto) ||
+    /\/BR\b/i.test(textoCompleto)
+  ) {
+    return "BR";
+  }
+
+  if (
+    /\(PADR[AÃ]O\s*-\s*UN\)/i.test(textoCompleto) ||
+    /\[PADR[AÃ]O\s*-\s*UN\]/i.test(textoCompleto) ||
+    /\bPADR[AÃ]O\s*-\s*UN\b/i.test(textoCompleto) ||
+    /\(PADR[AÃ]O\s*-\s*P[EÇ]A\)/i.test(textoCompleto) ||
+    /\[PADR[AÃ]O\s*-\s*P[EÇ]A\]/i.test(textoCompleto)
+  ) {
+    return "UN";
+  }
+
+  if (
+    /\(PADR[AÃ]O\s*-\s*KG\)/i.test(textoCompleto) ||
+    /\[PADR[AÃ]O\s*-\s*KG\]/i.test(textoCompleto) ||
+    /\bPADR[AÃ]O\s*-\s*KG\b/i.test(textoCompleto)
+  ) {
+    return "KG";
+  }
+
+  const setor = setorHint || classGrupo(item);
+
+  // 2. CORTE E DOBRA e FRISADAS:
+  // Regra inviolável: CORTE E DOBRA E FRISADAS NUNCA TRABALHAM COM "MT"
+  if (setor === "cd" || setor === "corte_dobra" || setor === "frisada") {
+    // Se a unidade já informada for BR ou se o produto indicar barra/perfil:
+    if (
+      ["BR", "BARRA", "BARRAS"].includes(rawUnidade) ||
+      /\bPERFIL\b/i.test(textoCompleto) ||
+      /\bTRILHO\b/i.test(textoCompleto) ||
+      /\bCANTONEIRA\b/i.test(textoCompleto) ||
+      /\bBARRA\b/i.test(textoCompleto) ||
+      /\bc\/\s*3000\b/i.test(textoCompleto) ||
+      /\bc\/\s*6000\b/i.test(textoCompleto) ||
+      /\bc\/\s*2000\b/i.test(textoCompleto) ||
+      /\b3000\s*MM\b/i.test(textoCompleto) ||
+      /\b6000\s*MM\b/i.test(textoCompleto)
+    ) {
+      return "BR";
+    }
+
+    // Se indicar expressamente UN / peça
+    if (["UN", "UND", "UNID", "UNIDADE", "UNIDADES", "PC", "PCS", "PÇ", "PÇS", "PECA", "PECAS"].includes(rawUnidade)) {
+      return "UN";
+    }
+
+    // Se a unidade informada for KG
+    if (["KG", "KGS", "QUILO", "QUILOS"].includes(rawUnidade)) {
+      return "KG";
+    }
+
+    // Frisadas (se não capturado acima)
+    if (setor === "frisada") {
+      if (/\bc\/\s*\d{3,4}\b/i.test(textoCompleto)) return "BR";
+      return "BR";
+    }
+
+    // PADRÃO DE CORTE E DOBRA: KG!
+    return "KG";
+  }
+
+  // 3. TELHAS:
+  if (setor === "telha") {
+    // Acessórios de telhas (cumeeira, parafuso, fita, vedação, calha, rufo avulso) são UN ou PC
+    if (
+      /\b(CUMEEIRA|PARAFUSO|FITA|VEDACAO|VEDA[CÇ][AÃ]O|PU\s*40|SILICONE|SOQUETE|BROCA)\b/i.test(textoCompleto)
+    ) {
+      if (["UN", "UND", "UNID", "UNIDADE", "UNIDADES", "PC", "PCS", "PÇ", "PÇS", "PECA", "PECAS"].includes(rawUnidade)) return "UN";
+      return "UN";
+    }
+    // Bobininha / Bobina em KG
+    if (["KG", "KGS"].includes(rawUnidade)) {
+      return "KG";
+    }
+    // Telhas perfiladas usam MT
+    if (["MT", "M", "METRO", "METROS"].includes(rawUnidade) || !rawUnidade) {
+      return "MT";
+    }
+    if (["UN", "PC", "BR"].includes(rawUnidade)) {
+      return rawUnidade;
+    }
+    return "MT";
+  }
+
+  // Fallback geral:
+  if (["BR", "BARRA", "BARRAS"].includes(rawUnidade)) return "BR";
+  if (["KG", "KGS", "QUILO", "QUILOS"].includes(rawUnidade)) return "KG";
+  if (["UN", "UND", "UNID", "UNIDADE", "UNIDADES", "PC", "PCS", "PÇ", "PÇS", "PECA", "PECAS"].includes(rawUnidade)) return "UN";
+  if (["MT", "M", "METRO", "METROS"].includes(rawUnidade)) return "MT";
+
+  return rawUnidade || "UN";
 }
 
 export function itensPorGrupo(itens, grupo) {
