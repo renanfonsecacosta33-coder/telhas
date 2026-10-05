@@ -1,13 +1,15 @@
 import React, { useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { Play, CheckCircle2, Inbox, Scissors, Calendar, User, Loader2, Layers, Plus } from "lucide-react";
+import {
+  Play, CheckCircle2, Inbox, Scissors, Calendar, User, Loader2, Layers, Plus,
+  AlertTriangle, Star, CalendarClock, Clock, Search, ArrowUpDown, Flame, Store
+} from "lucide-react";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
 import {
@@ -16,6 +18,9 @@ import {
   localizarOpDoItem, saoPedidosIguais
 } from "@/lib/pedidoOdooHelper";
 import { formatDataBR, diasUteisRestantes } from "@/lib/sla";
+import { urgenciaPrazo } from "@/lib/prazoUrgencia";
+import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
+import AlterarPrazoFabrilDialog from "@/components/pcp/AlterarPrazoFabrilDialog";
 import { notificarStatus } from "@/lib/biNotificador";
 import { useFilial } from "@/contexts/FilialContext";
 
@@ -23,6 +28,10 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [atualizando, setAtualizando] = useState(null);
+  const [termoBusca, setTermoBusca] = useState("");
+  const [filtroPrazo, setFiltroPrazo] = useState("todos"); // "todos" | "criticos" | "atrasados" | "hoje_amanha" | "prioritarios"
+  const [pedidoPrazoModal, setPedidoPrazoModal] = useState(null);
+
   const filialCtx = useFilial();
   const filialAtiva = filialCtx?.filialAtiva;
 
@@ -45,22 +54,71 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
   });
 
   // Pedidos distribuídos/em produção com itens de CD da filial ativa
-  const fila = pedidos
-    .filter(p => ["distribuido", "em_producao"].includes(p.status_pcp))
-    .filter(p => !filialAtiva || filialAtiva === "todas" || (p.unidade || "Matriz AJL") === filialAtiva)
-    .filter(p => getItens(p).some(i => classGrupo(i) === "cd"));
+  const filaBase = useMemo(() => {
+    return pedidos
+      .filter(p => ["distribuido", "em_producao"].includes(p.status_pcp))
+      .filter(p => !filialAtiva || filialAtiva === "todas" || (p.unidade || "Matriz AJL") === filialAtiva)
+      .filter(p => getItens(p).some(i => classGrupo(i) === "cd"));
+  }, [pedidos, filialAtiva]);
 
-  // Agrupar itens de CD por espessura (bitola) para otimizar setup de bobina
+  // Contadores executivos de prazo
+  const contadores = useMemo(() => {
+    let atrasados = 0;
+    let hojeAmanha = 0;
+    let prioritarios = 0;
+
+    filaBase.forEach(p => {
+      if (p.prioridade) prioritarios++;
+      const dataAlvo = p.data_previsao_fabrica || p.data_entrega;
+      const d = diasUteisRestantes(dataAlvo);
+      if (d != null && !isNaN(d)) {
+        if (d < 0) atrasados++;
+        else if (d <= 1) hojeAmanha++;
+      }
+    });
+
+    return {
+      total: filaBase.length,
+      atrasados,
+      hojeAmanha,
+      criticos: atrasados + hojeAmanha,
+      prioritarios
+    };
+  }, [filaBase]);
+
+  // Agrupar itens de CD por espessura (bitola) com filtros de prazo e busca
   const gruposEspessura = useMemo(() => {
     const mapa = new Map();
-    fila.forEach(pedido => {
+
+    filaBase.forEach(pedido => {
+      const dataAlvo = pedido.data_previsao_fabrica || pedido.data_entrega;
+      const d = diasUteisRestantes(dataAlvo);
+
+      // Filtros de Prazo
+      if (filtroPrazo === "atrasados" && !(d != null && d < 0)) return;
+      if (filtroPrazo === "hoje_amanha" && !(d != null && (d === 0 || d === 1))) return;
+      if (filtroPrazo === "criticos" && !(d != null && d <= 1)) return;
+      if (filtroPrazo === "prioritarios" && !pedido.prioridade) return;
+
+      // Filtro de busca textual
+      if (termoBusca.trim()) {
+        const q = termoBusca.toLowerCase().trim();
+        const num = String(pedido.numero_pedido || "").toLowerCase();
+        const ofNome = String(pedido.of_nome || "").toLowerCase();
+        const cliente = String(pedido.cliente_nome || "").toLowerCase();
+        const vendedor = String(pedido.vendedor_nome || "").toLowerCase();
+        const itensStr = String(pedido.itens_json || "").toLowerCase();
+        if (!num.includes(q) && !ofNome.includes(q) && !cliente.includes(q) && !vendedor.includes(q) && !itensStr.includes(q)) {
+          return;
+        }
+      }
+
       const itens = getItens(pedido);
       const algumItemTemDistribuido = itens.some(i => i.distribuido === true || i.distribuido === false);
 
       itens.forEach(item => {
         if (classGrupo(item) !== "cd") return;
 
-        // Se o pedido teve programação/distribuição granular de itens, exibe apenas os distribuídos ou em produção
         if (algumItemTemDistribuido) {
           const estaDistribuido = item.distribuido === true || item.status === "distribuido" || item.status === "em_producao" || item.status === "concluido";
           if (!estaDistribuido) return;
@@ -73,10 +131,11 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
         mapa.get(esp).push({ pedido, item, idx: item._idx != null ? item._idx : 0 });
       });
     });
+
     return Array.from(mapa.entries())
       .sort((a, b) => a[0].localeCompare(b[0], "pt-BR"))
       .map(([espessura, itens]) => ({ espessura, itens }));
-  }, [fila]);
+  }, [filaBase, filtroPrazo, termoBusca]);
 
   const handleAtualizar = async (pedido, idx, updates) => {
     setAtualizando(`${pedido.id}-${idx}`);
@@ -102,115 +161,298 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
   if (isLoading) {
     return (
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex items-center gap-3 text-slate-400">
-        <Loader2 className="w-5 h-5 animate-spin" /> Carregando fila PCP...
-      </div>
-    );
-  }
-
-  if (gruposEspessura.length === 0) {
-    return (
-      <div className="bg-white dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-8 flex flex-col items-center text-center">
-        <Inbox className="w-10 h-10 text-slate-300 mb-2" />
-        <p className="text-sm font-semibold text-slate-500">Nenhum pedido aguardando produção</p>
-        <p className="text-xs text-slate-400 mt-1">Os pedidos distribuídos pela Central PCP aparecerão aqui agrupados por bitola.</p>
+        <Loader2 className="w-5 h-5 animate-spin text-orange-500" /> Carregando fila PCP de Corte & Dobra...
       </div>
     );
   }
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-      <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Scissors className="w-4 h-4 text-orange-500" />
-          <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">Fila PCP — Aguardando Produção (Corte & Dobra)</h2>
-          <Badge className="bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30">{gruposEspessura.length} bitola(s)</Badge>
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+      {/* ══════════════ CABEÇALHO COM FILTROS DE PRAZO ══════════════ */}
+      <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="w-9 h-9 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+              <Scissors className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
+                  Fila PCP — Aguardando Produção (Corte & Dobra)
+                </h2>
+                <Badge className="bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30 font-bold text-xs">
+                  {contadores.total} pedido(s)
+                </Badge>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Ordens de corte, dobra e perfis organizadas por bitola e com controle de urgência de entrega
+              </p>
+            </div>
+          </div>
+
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Input
+              value={termoBusca}
+              onChange={(e) => setTermoBusca(e.target.value)}
+              placeholder="Buscar pedido, cliente, chapa..."
+              className="pl-8 h-9 text-xs bg-white dark:bg-slate-800"
+            />
+          </div>
+        </div>
+
+        {/* Filtros Rápidos de Prazo */}
+        <div className="flex items-center gap-1.5 flex-wrap pt-1">
+          <Button
+            size="sm"
+            variant={filtroPrazo === "todos" ? "default" : "outline"}
+            onClick={() => setFiltroPrazo("todos")}
+            className={`h-7 text-xs font-bold gap-1 ${
+              filtroPrazo === "todos" ? "bg-slate-900 text-white" : "text-slate-600"
+            }`}
+          >
+            Todos ({contadores.total})
+          </Button>
+
+          <Button
+            size="sm"
+            variant={filtroPrazo === "criticos" ? "default" : "outline"}
+            onClick={() => setFiltroPrazo("criticos")}
+            className={`h-7 text-xs font-bold gap-1 border-red-300 ${
+              filtroPrazo === "criticos" ? "bg-red-600 text-white hover:bg-red-700" : "text-red-600 hover:bg-red-50"
+            }`}
+          >
+            <Flame className="w-3.5 h-3.5 text-red-500" />
+            🚨 Críticos & Atrasados ({contadores.criticos})
+          </Button>
+
+          {contadores.atrasados > 0 && (
+            <Button
+              size="sm"
+              variant={filtroPrazo === "atrasados" ? "default" : "outline"}
+              onClick={() => setFiltroPrazo("atrasados")}
+              className={`h-7 text-xs font-bold gap-1 border-red-300 ${
+                filtroPrazo === "atrasados" ? "bg-red-700 text-white" : "text-red-600 hover:bg-red-50"
+              }`}
+            >
+              🔴 Atrasados ({contadores.atrasados})
+            </Button>
+          )}
+
+          <Button
+            size="sm"
+            variant={filtroPrazo === "hoje_amanha" ? "default" : "outline"}
+            onClick={() => setFiltroPrazo("hoje_amanha")}
+            className={`h-7 text-xs font-bold gap-1 border-amber-300 ${
+              filtroPrazo === "hoje_amanha" ? "bg-amber-600 text-white hover:bg-amber-700" : "text-amber-700 hover:bg-amber-50"
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5 text-amber-500" />
+            ⏳ Vence Hoje/Amanhã ({contadores.hojeAmanha})
+          </Button>
+
+          {contadores.prioritarios > 0 && (
+            <Button
+              size="sm"
+              variant={filtroPrazo === "prioritarios" ? "default" : "outline"}
+              onClick={() => setFiltroPrazo("prioritarios")}
+              className={`h-7 text-xs font-bold gap-1 border-amber-400 ${
+                filtroPrazo === "prioritarios" ? "bg-amber-500 text-white" : "text-amber-600 hover:bg-amber-50"
+              }`}
+            >
+              <Star className="w-3.5 h-3.5 fill-amber-500" />
+              ⭐ Prioritários ({contadores.prioritarios})
+            </Button>
+          )}
         </div>
       </div>
 
-      <div className="divide-y divide-slate-100 dark:divide-slate-800">
-        {gruposEspessura.map(grupo => (
-          <div key={grupo.espessura} className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Layers className="w-4 h-4 text-sky-500" />
-              <span className="text-sm font-bold text-slate-800 dark:text-slate-100">Chapa {grupo.espessura}mm</span>
-              <Badge variant="outline" className="text-[10px] text-slate-500">{grupo.itens.length} peça(s)</Badge>
-              <span className="text-[10px] text-slate-400 ml-auto">↑ Setup de bobina agrupado por bitola</span>
-            </div>
+      {/* ══════════════ LISTA DE GRUPOS POR BITOLA ══════════════ */}
+      {gruposEspessura.length === 0 ? (
+        <div className="p-12 flex flex-col items-center justify-center text-center">
+          <Inbox className="w-12 h-12 text-slate-300 dark:text-slate-600 mb-3" />
+          <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+            Nenhum pedido de Corte & Dobra nos filtros atuais
+          </p>
+          <p className="text-xs text-slate-400 mt-1 max-w-sm">
+            Alterne os filtros de prazo ou verifique se há ordens distribuídas para este setor.
+          </p>
+        </div>
+      ) : (
+        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+          {gruposEspessura.map(grupo => (
+            <div key={grupo.espessura} className="p-4 sm:p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Layers className="w-4 h-4 text-sky-500" />
+                <span className="text-sm font-black text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                  Chapa / Bitola {grupo.espessura}mm
+                </span>
+                <Badge variant="outline" className="text-[11px] font-bold text-sky-700 dark:text-sky-300 border-sky-300 bg-sky-50 dark:bg-sky-950/40">
+                  {grupo.itens.length} peça(s) a produzir
+                </Badge>
+                <span className="text-[10px] text-slate-400 ml-auto hidden sm:inline">
+                  ↑ Setup de bobina agrupado por bitola
+                </span>
+              </div>
 
-            <div className="space-y-2">
-              {grupo.itens.map(({ pedido, item, idx }) => {
-                // Determina status real a partir das OPs de corte e dobra
-                const opsDoPedido = [...ordensMaquina, ...ordensDesb].filter(o => {
-                  if (!o.numero_pedido || String(o.status || "").toLowerCase() === "cancelado") return false;
-                  if (o.pedido_odoo_id && pedido?.id) return o.pedido_odoo_id === pedido.id;
-                  if (pedido?.of_odoo_id && o.of_odoo_id) return String(o.of_odoo_id).trim().toUpperCase() === String(pedido.of_odoo_id).trim().toUpperCase();
-                  if (o.pedido_odoo_id || o.of_odoo_id) return false;
-                  return saoPedidosIguais(o.numero_pedido, pedido.numero_pedido);
-                });
-                const opReal = localizarOpDoItem(item, opsDoPedido, [item]);
+              <div className="space-y-3">
+                {grupo.itens.map(({ pedido, item, idx }) => {
+                  const opsDoPedido = [...ordensMaquina, ...ordensDesb].filter(o => {
+                    if (!o.numero_pedido || String(o.status || "").toLowerCase() === "cancelado") return false;
+                    if (o.pedido_odoo_id && pedido?.id) return o.pedido_odoo_id === pedido.id;
+                    if (pedido?.of_odoo_id && o.of_odoo_id) return String(o.of_odoo_id).trim().toUpperCase() === String(pedido.of_odoo_id).trim().toUpperCase();
+                    if (o.pedido_odoo_id || o.of_odoo_id) return false;
+                    return saoPedidosIguais(o.numero_pedido, pedido.numero_pedido);
+                  });
+                  const opReal = localizarOpDoItem(item, opsDoPedido, [item]);
 
-                let statusItem = "pendente";
-                let maquinaItem = item.maquina || "";
+                  let statusItem = "pendente";
+                  let maquinaItem = item.maquina || "";
 
-                if (opReal) {
-                  maquinaItem = opReal.maquina || maquinaItem;
-                  if (opReal.status === "finalizado") {
-                    statusItem = "concluido";
-                  } else if (["em_producao", "pausado", "aguardando_corte", "pendente"].includes(opReal.status)) {
-                    statusItem = "em_producao";
+                  if (opReal) {
+                    maquinaItem = opReal.maquina || maquinaItem;
+                    if (opReal.status === "finalizado") {
+                      statusItem = "concluido";
+                    } else if (["em_producao", "pausado", "aguardando_corte", "pendente"].includes(opReal.status)) {
+                      statusItem = "em_producao";
+                    }
                   }
-                }
 
-                const st = STATUS_ITEM[statusItem] || STATUS_ITEM.pendente;
-                const emProd = statusItem === "em_producao";
-                const concluido = statusItem === "concluido";
-                const key = `${pedido.id}-${idx}`;
-                const restantes = diasUteisRestantes(pedido.data_entrega);
+                  const st = STATUS_ITEM[statusItem] || STATUS_ITEM.pendente;
+                  const emProd = statusItem === "em_producao";
+                  const concluido = statusItem === "concluido";
+                  const key = `${pedido.id}-${idx}`;
 
-                return (
-                  <div key={key} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950/40 p-3 space-y-2">
-                    <div className="flex items-start gap-3">
-                    <CroquiThumb pedido={pedido} alt={`Croqui do pedido #${pedido.numero_pedido}`} />
-                    <div className="flex-1 min-w-0 space-y-2">
-                    <InstrucaoVendedorCard descricao={item.descricao || item.produto} quantidadeOdoo={item.quantidade} espessura={item.espessura} unidade="un" />
-                    <div className="flex items-start gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{item.produto || "—"}</span>
-                          <Badge className={`shrink-0 border text-[10px] ${st.cls}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${st.dot} mr-1`} />{st.label}
-                          </Badge>
+                  // ── CÁLCULO DE DATA E URGÊNCIA ──
+                  const dataAlvoUrgencia = pedido.data_previsao_fabrica || pedido.data_entrega;
+                  const restantes = diasUteisRestantes(dataAlvoUrgencia);
+                  const urgencia = urgenciaPrazo(dataAlvoUrgencia, { concluido });
+                  const isAtrasado = restantes != null && restantes < 0;
+                  const isHoje = restantes === 0;
+                  const isAmanha = restantes === 1;
+                  const isPrioritario = Boolean(pedido.prioridade);
+
+                  return (
+                    <div
+                      key={key}
+                      className={`rounded-xl border transition-all p-3.5 space-y-2.5 relative overflow-hidden shadow-2xs ${
+                        concluido
+                          ? "bg-emerald-50/40 dark:bg-emerald-950/10 border-emerald-300"
+                          : isPrioritario
+                          ? "border-l-4 border-l-amber-500 border-amber-300 bg-amber-50/20"
+                          : isAtrasado
+                          ? "border-l-4 border-l-red-600 border-red-300 bg-red-50/25"
+                          : isHoje || isAmanha
+                          ? "border-l-4 border-l-amber-500 border-amber-300 bg-amber-50/15"
+                          : "border-l-4 border-l-orange-500 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950/50"
+                      }`}
+                    >
+                      {urgencia && !concluido && (
+                        <div
+                          className={`pointer-events-none absolute inset-0 bg-red-500 ${urgencia.atrasado ? "animate-pulse" : ""}`}
+                          style={{ opacity: urgencia.opacidade }}
+                          aria-hidden="true"
+                        />
+                      )}
+
+                      <div className="relative z-10 space-y-2">
+                        {/* Instrução do Vendedor */}
+                        <InstrucaoVendedorCard
+                          descricao={item.descricao || item.produto}
+                          quantidadeOdoo={item.quantidade}
+                          espessura={item.espessura}
+                          unidade="un"
+                        />
+
+                        {/* Cabeçalho do Item */}
+                        <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
+                          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                            <CroquiThumb pedido={pedido} alt={`Croqui #${pedido.numero_pedido}`} />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {isPrioritario && (
+                                  <Badge className="bg-amber-500 text-white border-amber-600 animate-pulse text-[10px] gap-0.5 px-1.5 py-0">
+                                    <Star className="w-2.5 h-2.5 fill-white" /> URGENTE
+                                  </Badge>
+                                )}
+                                <span className="font-extrabold text-xs font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                                  #{pedido.numero_pedido}
+                                </span>
+                                {pedido.of_nome && (
+                                  <Badge variant="outline" className="text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 border-indigo-200">
+                                    OF: {pedido.of_nome}
+                                  </Badge>
+                                )}
+                                <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                                  {item.produto || "—"}
+                                </span>
+                                <Badge className={`shrink-0 border text-[10px] font-bold px-2 py-0.5 ${st.cls}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${st.dot} mr-1.5`} />
+                                  {st.label}
+                                </Badge>
+                              </div>
+
+                              <div className="flex items-center gap-3 text-xs text-slate-500 mt-1 flex-wrap">
+                                <span className="flex items-center gap-1 font-semibold text-slate-800 dark:text-slate-200">
+                                  <User className="w-3.5 h-3.5 text-slate-400" />
+                                  {pedido.cliente_nome || "—"}
+                                </span>
+                                <span>Medida: <strong>{item.medida || "—"}</strong></span>
+                                <span>Quantidade: <strong className="text-orange-600">{item.quantidade}x</strong></span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-0.5 flex-wrap">
-                          <span className="font-mono">#{pedido.numero_pedido}</span>
-                          <span className="flex items-center gap-1"><User className="w-3 h-3" />{pedido.cliente_nome || "—"}</span>
-                          <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{formatDataBR(pedido.data_entrega)}</span>
-                          <span>{item.medida || "—"}</span>
-                          <span className="font-semibold">Qtd: {item.quantidade}x</span>
-                          <span className={restantes < 0 ? "text-red-600 font-semibold" : ""}>
-                            {restantes < 0 ? `Atrasado ${restantes}d` : `${restantes}d úteis`}
-                          </span>
-                          {item.data_programada && (
-                            <span className="text-blue-600 dark:text-blue-400 font-semibold">
-                              · Previsto: {formatDataBR(item.data_programada)}
-                            </span>
-                          )}
+
+                        {/* Barra de Data e SLA do Item */}
+                        <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70 flex-wrap text-xs">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-0.5 rounded border text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+                              <Calendar className="w-3 h-3 text-blue-600" />
+                              <span>Entrega:</span>
+                              <strong>{formatDataBR(pedido.data_entrega)}</strong>
+                            </div>
+
+                            {pedido.data_previsao_fabrica && (
+                              <div className="flex items-center gap-1 bg-orange-50 dark:bg-orange-950/40 px-2 py-0.5 rounded border border-orange-300 text-[11px] font-semibold text-orange-900 dark:text-orange-200">
+                                <Factory className="w-3 h-3 text-orange-600" />
+                                <span>Fábrica:</span>
+                                <strong>{formatDataBR(pedido.data_previsao_fabrica)}</strong>
+                              </div>
+                            )}
+
+                            <SlaCountdownBadge
+                              dataPrometida={pedido.data_entrega}
+                              dataPrevisaoFabrica={pedido.data_previsao_fabrica}
+                            />
+                          </div>
+
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setPedidoPrazoModal(pedido)}
+                            className="h-6 text-[11px] font-bold text-orange-700 dark:text-orange-300 gap-1 hover:bg-orange-100/60 ml-auto"
+                          >
+                            <CalendarClock className="w-3 h-3 text-orange-600" />
+                            Ajustar Prazo Fabril
+                          </Button>
                         </div>
 
                         {/* Checklist individual: máquina + medição + qtd produzida */}
-                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        <div className="flex items-center gap-2 pt-1 flex-wrap">
                           <Select
                             value={maquinaItem || ""}
                             onValueChange={(v) => handleAtualizar(pedido, idx, { maquina: v })}
                             disabled={concluido}
                           >
-                            <SelectTrigger className="h-8 w-[160px] text-xs">
+                            <SelectTrigger className="h-8 w-[160px] text-xs font-semibold">
                               <SelectValue placeholder="Selecionar máquina..." />
                             </SelectTrigger>
                             <SelectContent>
                               {MAQUINAS_CD.map(m => <SelectItem key={m} value={m} className="text-xs">{m}</SelectItem>)}
                             </SelectContent>
                           </Select>
+
                           <Input
                             type="text"
                             placeholder="Medição (mm)"
@@ -221,74 +463,54 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                                 handleAtualizar(pedido, idx, { medicao: val });
                               }
                             }}
-                            className="h-8 w-28 text-xs"
+                            className="h-8 w-28 text-xs font-mono"
                             disabled={concluido}
                           />
+
                           <Input
                             type="number"
                             min="0"
                             placeholder="Qtd produzida"
-                            value={item.quantidade_produzida || ""}
-                            onChange={(e) => {}}
+                            defaultValue={item.quantidade_produzida || ""}
                             onBlur={(e) => {
                               const val = Number(e.target.value || 0);
                               if (val !== (item.quantidade_produzida || 0)) {
                                 handleAtualizar(pedido, idx, { quantidade_produzida: val });
                               }
                             }}
-                            defaultValue={item.quantidade_produzida || ""}
-                            className="h-8 w-28 text-xs"
+                            className="h-8 w-28 text-xs font-bold"
                             disabled={concluido}
                           />
-                          {onNovaOrdem && (
-                            <Button
-                              size="sm"
-                              onClick={() => {
-                                notificarStatus(pedido, "revisando_ordem", {
-                                  status_novo: "em_revisao",
-                                  item_nome: item.produto || item.descricao || "",
-                                  maquina_atual: maquinaItem || "PCP / C&D"
-                                });
-                                onNovaOrdem(pedido, { ...item, _idx: idx, maquina: maquinaItem, data: item.data_programada || pedido.data_entrega });
-                              }}
-                              className={
-                                concluido
-                                  ? "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 h-8 px-3 gap-1.5 text-xs font-semibold"
-                                  : emProd
-                                  ? "bg-amber-500 hover:bg-amber-600 text-white h-8 px-3 gap-1.5 text-xs font-semibold shadow-sm"
-                                  : "bg-orange-500 hover:bg-orange-600 text-white h-8 px-3 gap-1.5 text-xs font-semibold shadow-sm"
-                              }
-                            >
-                              {concluido ? (
-                                <>
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span>Ver / Revisar Ordem</span>
-                                </>
-                              ) : emProd ? (
-                                <>
-                                  <span>⚙️</span>
-                                  <span>Revisar Ordem ({maquinaItem || "Em Produção"})</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Play className="w-3.5 h-3.5 fill-current" />
-                                  <span>Revisar Ordem</span>
-                                </>
-                              )}
-                            </Button>
+
+                          {concluido && (
+                            <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-500/40 text-[10px] font-bold h-8 px-2 gap-1 ml-auto">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Concluído
+                            </Badge>
                           )}
                         </div>
                       </div>
                     </div>
-                    </div>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modal de Alteração de Prazo Fabril */}
+      {pedidoPrazoModal && (
+        <AlterarPrazoFabrilDialog
+          open={Boolean(pedidoPrazoModal)}
+          onOpenChange={(aberto) => { if (!aberto) setPedidoPrazoModal(null); }}
+          pedido={pedidoPrazoModal}
+          onPrazoAlterado={() => {
+            queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-cd"] });
+            queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+            setPedidoPrazoModal(null);
+          }}
+        />
+      )}
     </div>
   );
 }
