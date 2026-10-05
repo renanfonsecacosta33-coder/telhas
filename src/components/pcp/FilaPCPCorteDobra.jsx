@@ -24,6 +24,7 @@ import AlterarPrazoFabrilDialog from "@/components/pcp/AlterarPrazoFabrilDialog"
 import { notificarStatus } from "@/lib/biNotificador";
 import { useFilial } from "@/contexts/FilialContext";
 import FiltrosDataPCPBar from "@/components/pcp/FiltrosDataPCPBar";
+import LocalizacaoStatusHero from "@/components/pcp/LocalizacaoStatusHero";
 import {
   extrairDataISO,
   calcularIntervaloPreset,
@@ -349,6 +350,11 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                   const isAmanha = restantes === 1;
                   const isPrioritario = Boolean(pedido.prioridade);
 
+                  const ordensDoPedido = ordensMaquina.filter(o => {
+                    if (!o.numero_pedido) return false;
+                    return saoPedidosIguais(o.numero_pedido, pedido.numero_pedido);
+                  });
+
                   return (
                     <div
                       key={key}
@@ -372,7 +378,15 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                         />
                       )}
 
-                      <div className="relative z-10 space-y-2">
+                      <div className="relative z-10 space-y-2.5">
+                        {/* ══════════════ PAINEL HERO: ONDE ESTÁ & STATUS EM MÁXIMA EVIDÊNCIA ══════════════ */}
+                        <LocalizacaoStatusHero
+                          pedido={pedido}
+                          ops={ordensDoPedido}
+                          percentual={concluido ? 100 : (emProd ? 50 : 0)}
+                          setor="cd"
+                        />
+
                         {/* Instrução do Vendedor */}
                         <InstrucaoVendedorCard
                           descricao={item.descricao || item.produto}

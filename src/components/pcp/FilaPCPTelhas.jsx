@@ -24,6 +24,7 @@ import AlterarPrazoFabrilDialog from "@/components/pcp/AlterarPrazoFabrilDialog"
 import { notificarStatus } from "@/lib/biNotificador";
 import { useFilial } from "@/contexts/FilialContext";
 import FiltrosDataPCPBar from "@/components/pcp/FiltrosDataPCPBar";
+import LocalizacaoStatusHero from "@/components/pcp/LocalizacaoStatusHero";
 import {
   extrairDataISO,
   calcularIntervaloPreset,
@@ -352,6 +353,14 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                 )}
 
                 <div className="relative z-10 space-y-3">
+                  {/* ══════════════ PAINEL HERO: ONDE ESTÁ & STATUS EM MÁXIMA EVIDÊNCIA ══════════════ */}
+                  <LocalizacaoStatusHero
+                    pedido={pedido}
+                    ops={opsDoPedido}
+                    percentual={pctTelha}
+                    setor="telhas"
+                  />
+
                   {/* Cabeçalho do Card */}
                   <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
                     <div className="flex items-start gap-3 min-w-0 flex-1">

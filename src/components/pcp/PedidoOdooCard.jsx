@@ -15,6 +15,7 @@ import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
 import PedidoItensLista from "@/components/pcp/PedidoItensLista";
+import LocalizacaoStatusHero from "@/components/pcp/LocalizacaoStatusHero";
 import { notificarStatus } from "@/lib/biNotificador";
 import { toast } from "sonner";
 import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelper";
@@ -339,6 +340,15 @@ export default function PedidoOdooCard({
           </div>
         </div>
 
+        {/* Localização e Status em Evidência */}
+        <LocalizacaoStatusHero
+          pedido={pedido}
+          ops={pedidosProducao}
+          percentual={pct}
+          setor={grupoSetor}
+          compacto={true}
+        />
+
         {/* Lista de Itens Compacta */}
         <PedidoItensLista
           pedido={pedido}
@@ -573,6 +583,14 @@ export default function PedidoOdooCard({
           )}
         </div>
       </div>
+
+      {/* ══════════════ PAINEL HERO: ONDE ESTÁ & STATUS EM MÁXIMA EVIDÊNCIA ══════════════ */}
+      <LocalizacaoStatusHero
+        pedido={pedido}
+        ops={pedidosProducao}
+        percentual={pct}
+        setor={grupoSetor}
+      />
 
       {/* SLA Countdown (Regra 6) */}
       <SlaCountdownBadge dataPrometida={pedido.data_entrega} dataPrevisaoFabrica={pedido.data_previsao_fabrica} />
