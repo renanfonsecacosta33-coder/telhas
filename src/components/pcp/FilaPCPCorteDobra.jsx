@@ -25,6 +25,7 @@ import { notificarStatus } from "@/lib/biNotificador";
 import { useFilial } from "@/contexts/FilialContext";
 import FiltrosDataPCPBar from "@/components/pcp/FiltrosDataPCPBar";
 import LocalizacaoStatusHero from "@/components/pcp/LocalizacaoStatusHero";
+import BadgeDistribuicaoItem, { itemEstaDistribuido } from "@/components/pcp/BadgeDistribuicaoItem";
 import {
   extrairDataISO,
   calcularIntervaloPreset,
@@ -189,20 +190,11 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
       }
 
       const itens = getItens(pedido);
-      const algumItemTemDistribuido = itens.some(i => i.distribuido === true || i.distribuido === false);
-      const mostrandoNaoDistribuidos = filtroUrgencia === "nao_distribuidos";
 
+      // Exibe TODOS os itens de C&D do pedido — cada um ganha o selo
+      // "Distribuído → Máquina" ou "Não Distribuído" na renderização
       itens.forEach(item => {
         if (classGrupo(item) !== "cd") return;
-
-        if (!mostrandoNaoDistribuidos) {
-          if (algumItemTemDistribuido) {
-            const estaDistribuido = item.distribuido === true || item.status === "distribuido" || item.status === "em_producao" || item.status === "concluido";
-            if (!estaDistribuido) return;
-          } else if (item.distribuido === false) {
-            return;
-          }
-        }
 
         const esp = item.espessura || "—";
         if (!mapa.has(esp)) mapa.set(esp, []);
@@ -359,6 +351,12 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                     return saoPedidosIguais(o.numero_pedido, pedido.numero_pedido);
                   });
                   const opReal = localizarOpDoItem(item, opsDoPedido, [item]);
+                  const itemDistribuido = itemEstaDistribuido(
+                    item,
+                    opReal,
+                    pedido,
+                    getItens(pedido).some(i => i.distribuido === true || i.distribuido === false)
+                  );
 
                   let statusItem = "pendente";
                   let maquinaItem = item.maquina || "";
@@ -453,6 +451,7 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                                 <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
                                   {item.produto || "—"}
                                 </span>
+                                <BadgeDistribuicaoItem distribuido={itemDistribuido} maquina={maquinaItem} />
                                 <Badge className={`shrink-0 border text-[10px] font-bold px-2 py-0.5 ${st.cls}`}>
                                   <span className={`w-1.5 h-1.5 rounded-full ${st.dot} mr-1.5`} />
                                   {st.label}

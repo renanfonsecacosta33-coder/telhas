@@ -8,7 +8,7 @@ import { useToast } from "@/components/ui/use-toast";
 import {
   Play, CheckCircle2, Inbox, Factory, Calendar, User, Loader2, Plus,
   AlertTriangle, Star, CalendarClock, Clock, Search, ArrowUpDown, Flame,
-  Store, Building2, Layers
+  Store, Building2, Layers, XCircle
 } from "lucide-react";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
@@ -25,6 +25,7 @@ import { notificarStatus } from "@/lib/biNotificador";
 import { useFilial } from "@/contexts/FilialContext";
 import FiltrosDataPCPBar from "@/components/pcp/FiltrosDataPCPBar";
 import LocalizacaoStatusHero from "@/components/pcp/LocalizacaoStatusHero";
+import BadgeDistribuicaoItem, { itemEstaDistribuido } from "@/components/pcp/BadgeDistribuicaoItem";
 import {
   extrairDataISO,
   calcularIntervaloPreset,
@@ -458,21 +459,13 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
             const isAmanha = restantes === 1;
             const isPrioritario = Boolean(pedido.prioridade);
 
-            // Filtra apenas itens que foram distribuídos ou que já possuem OP criada na fábrica
-            // (no filtro "Não Distribuídos", exibe todos os itens pendentes)
+            // Exibe TODOS os itens do setor, cada um com selo de Distribuído / Não Distribuído
+            // (o filtro "Não Distribuídos" lista pedidos ainda não distribuídos pelo PCP)
             const algumItemTemDistribuido = telhas.some(i => i.distribuido === true || i.distribuido === false);
-            const telhasParaExibir = filtroUrgencia === "nao_distribuidos"
-              ? telhas
-              : telhas.filter(it => {
-              const opExistente = localizarOpDoItem(it, opsDoPedido, telhas);
-              if (opExistente) return true;
-              if (it.status === "em_producao" || it.status === "concluido") return true;
-              if (algumItemTemDistribuido) {
-                return it.distribuido === true || it.status === "distribuido";
-              }
-              if (it.distribuido === false) return false;
-              return ["distribuido", "em_producao"].includes(pedido.status_pcp);
-              });
+            const telhasParaExibir = telhas;
+            const qtdNaoDistribuidos = telhas.filter(t =>
+              !itemEstaDistribuido(t, localizarOpDoItem(t, opsDoPedido, telhas), pedido, algumItemTemDistribuido)
+            ).length;
 
             if (telhasParaExibir.length === 0) return null;
 
@@ -549,6 +542,15 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                           ) : (
                             <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 text-[10px] font-bold">
                               Aguardando Criação de OP
+                            </Badge>
+                          )}
+                          {!pacoteConcluido && qtdNaoDistribuidos > 0 && (
+                            <Badge
+                              className="bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40 text-[10px] font-black uppercase tracking-wide"
+                              title="Itens deste pedido ainda sem máquina designada"
+                            >
+                              <XCircle className="w-3 h-3 mr-0.5" />
+                              {qtdNaoDistribuidos} de {telhas.length} itens não distribuídos
                             </Badge>
                           )}
                         </div>
@@ -641,6 +643,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                   <div className="space-y-2 pt-1">
                     {telhasParaExibir.map((item, idx) => {
                       const opDoItem = localizarOpDoItem(item, opsDoPedido, telhas);
+                      const itemDistribuido = itemEstaDistribuido(item, opDoItem, pedido, algumItemTemDistribuido);
                       let statusItem = "pendente";
                       let maquinaItem = item.maquina || "";
 
@@ -689,6 +692,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                               </p>
                             </div>
 
+                            <BadgeDistribuicaoItem distribuido={itemDistribuido} maquina={maquinaItem} />
                             <Badge className={`shrink-0 border text-[10px] font-bold px-2 py-0.5 ${st.cls}`}>
                               <span className={`w-1.5 h-1.5 rounded-full ${st.dot} mr-1.5`} />
                               {st.label}
