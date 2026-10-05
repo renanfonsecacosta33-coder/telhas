@@ -90,7 +90,12 @@ export default function NovoOperadorModal({
         unidade: unidade,
         filiais_permitidas: [unidade],
         gerencia: false,
-        permitido_central_alertas: false
+        permitido_central_alertas: false,
+        avatar_url: "",
+        permissions: {},
+        layout_preferences: {},
+        tema: "claro",
+        nao_operador: false
       });
 
       toast.success(`Operador ${nomeLimpo} cadastrado com sucesso!`);

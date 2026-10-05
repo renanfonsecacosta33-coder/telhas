@@ -54,15 +54,18 @@
     },
     "avatar_url": {
       "type": "string",
+      "default": "",
       "description": "URL da foto de perfil do usuário"
     },
     "permissions": {
       "type": "object",
+      "default": {},
       "description": "Permissões granulares do usuário (ex: pular_foto_balanca, aprovar_reserva_automatica)",
       "additionalProperties": true
     },
     "layout_preferences": {
       "type": "object",
+      "default": {},
       "description": "Preferências de layout personalizadas do usuário (ex: modo compacto, exibição de cards)",
       "additionalProperties": true
     },
