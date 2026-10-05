@@ -17,10 +17,12 @@ import { getBobinaStatus, calcMetrosDisponiveis, compararBobinasTelhas } from "@
 import { validarBobina, filtrarBobinasCompativeis } from "@/lib/bobinaValidation";
 import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
 import BobinaComboboxTelhas from "@/components/producao/BobinaComboboxTelhas";
-import { Building2, X, Loader2, FileText, Plus, Trash2, Camera, ShieldAlert, Flame, Route, AlertTriangle, Target } from "lucide-react";
+import { Building2, X, Loader2, FileText, Plus, Trash2, Camera, ShieldAlert, Flame, Route, AlertTriangle, Target, Unlock, Lock, RefreshCw, Globe, CheckCircle2 } from "lucide-react";
 import { detectarTipoProdutoTelha, detectarMaquinaTelha, detectarEspessura, detectarOrigemAco, detectarEPSTelha, normalizarNumPedido, saoPedidosIguais } from "@/lib/pedidoOdooHelper";
 import { calcularDataPrometidaSLA, toISODate, formatDataBR } from "@/lib/sla";
 import { useMetasProducao } from "@/hooks/useMetasProducao";
+import { useFilial, FILIAIS } from "@/contexts/FilialContext";
+import { cn } from "@/lib/utils";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 const PRODUTOS = ["TELHA", "TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA", "BOBININHA", "CUMEEIRA", "PAINEL"];
@@ -168,22 +170,86 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     }
   };
 
-  const { data: bobinas = [] } = useQuery({
+  const filialCtx = useFilial();
+  const filialAtivaContexto = filialCtx?.filialAtiva || "Matriz AJL";
+  const [filtroFilial, setFiltroFilial] = useState("todas");
+  const [destravarTravaOdoo, setDestravarTravaOdoo] = useState(false);
+
+  const {
+    data: todasBobinas = [],
+    refetch: refetchBobinas,
+    isFetching: isFetchingBobinas
+  } = useQuery({
     queryKey: ["bobinas-ativas-telhas"],
     queryFn: async () => {
+      let raw = [];
+      // 1. Tentar list com limite alto
       try {
-        const list = await base44.entities.Bobina.filter({ setor: "telhas" }, "-created_date", 2000);
-        if (Array.isArray(list) && list.length > 0) {
-          return list.filter(b => !b.arquivada);
+        const res = await base44.entities.Bobina.list("-created_date", 2000);
+        if (Array.isArray(res) && res.length > 0) {
+          raw = res;
         }
-        const all = await base44.entities.Bobina.list("-created_date", 2000);
-        return Array.isArray(all) ? all.filter(b => !b.arquivada && (!b.setor || b.setor === "telhas")) : [];
-      } catch (err) {
-        console.error("Erro ao carregar bobinas:", err);
-        return [];
+      } catch (e1) {
+        console.warn("[PedidoFormDialog] Falha ao listar Bobinas via .list():", e1);
       }
+
+      // 2. Fallback: filter geral
+      if (raw.length === 0) {
+        try {
+          const res = await base44.entities.Bobina.filter({}, "-created_date", 2000);
+          if (Array.isArray(res) && res.length > 0) {
+            raw = res;
+          }
+        } catch (e2) {
+          console.warn("[PedidoFormDialog] Falha ao filtrar Bobinas via .filter({}):", e2);
+        }
+      }
+
+      // 3. Fallback: filter com setor
+      if (raw.length === 0) {
+        try {
+          const res = await base44.entities.Bobina.filter({ setor: "telhas" });
+          if (Array.isArray(res) && res.length > 0) {
+            raw = res;
+          }
+        } catch (e3) {
+          console.warn("[PedidoFormDialog] Falha ao filtrar Bobinas via .filter({ setor }):", e3);
+        }
+      }
+
+      // 4. Fallback final: Bobina.list() puro sem filtros
+      if (raw.length === 0) {
+        try {
+          const res = await base44.entities.Bobina.list();
+          if (Array.isArray(res)) {
+            raw = res;
+          }
+        } catch (e4) {
+          console.error("[PedidoFormDialog] Todas as tentativas de listar Bobinas falharam:", e4);
+        }
+      }
+
+      // Filtrar bobinas ativas (não arquivadas e não finalizadas)
+      const ativas = raw.filter(b => {
+        if (!b) return false;
+        if (b.arquivada === true || String(b.arquivada).toLowerCase() === "true") return false;
+        const st = String(b.status || "").toLowerCase().trim();
+        if (st === "finalizada" || st === "arquivada" || st === "descartada") return false;
+        return true;
+      });
+
+      // Se houver bobinas marcadas especificamente para telhas ou sem setor, priorizamos
+      const telhasOuGerais = ativas.filter(b => !b.setor || b.setor === "telhas" || b.setor === "ambos" || b.setor === "geral");
+      if (telhasOuGerais.length > 0) {
+        return telhasOuGerais;
+      }
+
+      // Se não encontrou nenhuma com setor telhas/geral, retorna todas as ativas para não ficar zerado
+      return ativas;
     },
-    enabled: open
+    enabled: open,
+    refetchOnWindowFocus: false,
+    staleTime: 10000
   });
 
   const { data: todasOrdens = [] } = useQuery({
@@ -291,6 +357,14 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   const precisaEPS = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(form.produto);
   const precisaBobinaInferior = ["TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(form.produto);
 
+  // Bobinas ativas filtradas por filial ou todas (com fallback automático se a filial selecionada estiver sem estoque)
+  const bobinas = useMemo(() => {
+    if (filtroFilial === "todas") return todasBobinas;
+    const alvo = filtroFilial === "unidade_pedido" ? (form.unidade || filialAtivaContexto) : filtroFilial;
+    const fil = todasBobinas.filter(b => !b.unidade || b.unidade === alvo);
+    return fil.length > 0 ? fil : todasBobinas;
+  }, [todasBobinas, filtroFilial, form.unidade, filialAtivaContexto]);
+
   // Bobinas compatíveis com requisitos Odoo
   const bobinasCompativeis = useMemo(() => {
     return filtrarBobinasCompativeis(bobinas, reqValidacao);
@@ -355,6 +429,9 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
 
   useEffect(() => {
     if (open) {
+      setDestravarTravaOdoo(false);
+      setIgnorarFiltroOdoo(false);
+      setFiltroFilial("todas");
       if (editItem && !editItem._presets && editItem.id) {
         setForm({
           data: editItem.data || format(new Date(), "yyyy-MM-dd"),
@@ -1415,42 +1492,111 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
             </div>
           </div>
 
-          {/* Requisitos do Pedido Odoo — trava de espessura + origem */}
-          <div className={`rounded-lg border-2 p-3 space-y-2 ${temReqOdoo ? "border-amber-400 bg-amber-50/50 dark:bg-amber-950/20" : "border-border bg-muted/30"}`}>
-            <div className="flex items-center gap-2">
-              <ShieldAlert className={`w-4 h-4 ${temReqOdoo ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`} />
-              <p className="text-sm font-bold">Requisitos do Pedido (Odoo) — Trava de Segurança</p>
-              {temReqOdoo && (
-                <span className={`text-[10px] text-white rounded-full px-2 py-0.5 font-bold ml-auto ${filtroOdooAtivo ? "bg-amber-600" : "bg-slate-500"}`}>
-                  {filtroOdooAtivo ? "FILTRO ATIVO" : "TODAS AS BOBINAS"}
-                </span>
-              )}
+          {/* Requisitos do Pedido Odoo — trava de espessura + origem com suporte a destravamento */}
+          <div className={`rounded-lg border-2 p-3 space-y-2.5 ${temReqOdoo ? "border-amber-400 bg-amber-50/50 dark:bg-amber-950/20" : "border-border bg-muted/30"}`}>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <ShieldAlert className={`w-4 h-4 ${temReqOdoo ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`} />
+                <p className="text-sm font-bold text-foreground">Requisitos do Pedido (Odoo) — Trava de Segurança</p>
+                {destravarTravaOdoo && (
+                  <Badge variant="outline" className="text-[10px] bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 font-bold">
+                    🔓 Requisitos Editáveis
+                  </Badge>
+                )}
+                {temReqOdoo && !destravarTravaOdoo && (
+                  <span className={`text-[10px] text-white rounded-full px-2 py-0.5 font-bold ${filtroOdooAtivo ? "bg-amber-600" : "bg-slate-500"}`}>
+                    {filtroOdooAtivo ? "FILTRO ATIVO" : "TODAS AS BOBINAS"}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                {form.trava_produto_pcp && (
+                  <Button
+                    type="button"
+                    variant={destravarTravaOdoo ? "secondary" : "outline"}
+                    size="sm"
+                    onClick={() => setDestravarTravaOdoo(v => !v)}
+                    className="h-7 text-xs px-2.5 gap-1.5 border-amber-300 dark:border-amber-800"
+                    title={destravarTravaOdoo ? "Bloquear novamente os requisitos" : "Destravar para permitir alterar espessura ou origem manualmente"}
+                  >
+                    {destravarTravaOdoo ? (
+                      <>
+                        <Lock className="w-3.5 h-3.5 text-slate-600" />
+                        <span>Bloquear</span>
+                      </>
+                    ) : (
+                      <>
+                        <Unlock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                        <span>Destravar Requisitos</span>
+                      </>
+                    )}
+                  </Button>
+                )}
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => refetchBobinas()}
+                  disabled={isFetchingBobinas}
+                  className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground gap-1 border border-border"
+                  title="Atualizar estoque de bobinas em tempo real"
+                >
+                  <RefreshCw className={cn("w-3.5 h-3.5", isFetchingBobinas && "animate-spin text-primary")} />
+                  <span className="hidden sm:inline">Atualizar</span>
+                </Button>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">Espessura Exigida</Label>
-                {form.trava_produto_pcp ? (
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Espessura Exigida</Label>
+                  {form.trava_produto_pcp && !destravarTravaOdoo && (
+                    <span className="text-[10px] text-muted-foreground font-medium">Origem Odoo</span>
+                  )}
+                </div>
+                {form.trava_produto_pcp && !destravarTravaOdoo ? (
                   <div className="flex items-center justify-between border border-border rounded-md px-3 py-2 bg-muted/60 min-h-[38px] text-xs font-bold text-foreground">
                     <span>{form.espessura_exigida || detectarEspessura(form.produto_rotulo_pcp) || "0,43"} mm</span>
                     <Badge variant="secondary" className="text-[9px] ml-1 shrink-0">Fixo</Badge>
                   </div>
                 ) : (
-                  <Input placeholder="ex: 0,43 / 1,30" value={form.espessura_exigida} onChange={(e) => set("espessura_exigida", e.target.value)} />
+                  <div className="relative">
+                    <Input
+                      placeholder="ex: 0,43 (ou deixe vazio para qualquer)"
+                      value={form.espessura_exigida || ""}
+                      onChange={(e) => set("espessura_exigida", e.target.value)}
+                      className={destravarTravaOdoo ? "border-amber-400 pr-8" : ""}
+                    />
+                    {destravarTravaOdoo && (
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-amber-600">
+                        mm
+                      </span>
+                    )}
+                  </div>
                 )}
                 <p className="text-[10px] text-muted-foreground">Apenas bobinas nesta espessura (ou faixa) serão listadas.</p>
               </div>
+
               <div className="space-y-1">
-                <Label className="text-xs">Origem do Aço Exigida</Label>
-                {form.trava_produto_pcp ? (
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Origem do Aço Exigida</Label>
+                  {form.trava_produto_pcp && !destravarTravaOdoo && (
+                    <span className="text-[10px] text-muted-foreground font-medium">Origem Odoo</span>
+                  )}
+                </div>
+                {form.trava_produto_pcp && !destravarTravaOdoo ? (
                   <div className="flex items-center justify-between border border-border rounded-md px-3 py-2 bg-muted/60 min-h-[38px] text-xs font-bold text-orange-600 dark:text-orange-400">
                     <span>{form.origem_exigida && form.origem_exigida !== "ambas" ? form.origem_exigida : (detectarOrigemAco(form.produto_rotulo_pcp) !== "ambas" ? detectarOrigemAco(form.produto_rotulo_pcp) : "Nacional")}</span>
                     <Badge variant="secondary" className="text-[9px] ml-1 shrink-0">Fixo</Badge>
                   </div>
                 ) : (
-                  <Select value={form.origem_exigida} onValueChange={(v) => set("origem_exigida", v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Select value={form.origem_exigida || "ambas"} onValueChange={(v) => set("origem_exigida", v)}>
+                    <SelectTrigger className={destravarTravaOdoo ? "border-amber-400" : ""}><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ambas">Ambas (sem restrição)</SelectItem>
+                      <SelectItem value="ambas">Ambas (sem restrição / livre)</SelectItem>
                       <SelectItem value="Nacional">Nacional</SelectItem>
                       <SelectItem value="Importado">Importado</SelectItem>
                     </SelectContent>
@@ -1459,28 +1605,50 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                 <p className="text-[10px] text-muted-foreground">Origem do aço exigida pelo cliente/pedido.</p>
               </div>
             </div>
+
             {temReqOdoo && (
-              <div className="flex items-center justify-between pt-1 border-t border-amber-200 dark:border-amber-900/40 text-xs">
-                {bobinasCompativeis.length > 0 ? (
-                  <p className="text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                    ✓ {bobinasCompativeis.length} bobina(s) compatível(eis) disponível(eis) no estoque ({bobinas.length} no total).
-                  </p>
-                ) : (
-                  <p className="text-amber-700 dark:text-amber-400 font-semibold flex items-center gap-1">
-                    ⚠ Nenhuma bobina atende 100% à espessura/origem. Exibindo todo o estoque da fábrica ({bobinas.length} bobinas).
-                  </p>
-                )}
-                {bobinas.length > 0 && bobinasCompativeis.length > 0 && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-amber-200 dark:border-amber-900/40 text-xs">
+                <div>
+                  {bobinasCompativeis.length > 0 ? (
+                    <p className="text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>{bobinasCompativeis.length} bobina(s) compatível(eis) disponível(eis) no estoque ({bobinas.length} no total).</span>
+                    </p>
+                  ) : (
+                    <p className="text-amber-700 dark:text-amber-400 font-semibold flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>Nenhuma bobina atende 100% à espessura/origem. {bobinas.length > 0 ? `Exibindo todo o estoque da fábrica (${bobinas.length} bobinas disponíveis).` : "Estoque sem bobinas ativas cadastradas."}</span>
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                  {bobinas.length > 0 && (
+                    <Button
+                      type="button"
+                      variant={ignorarFiltroOdoo ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setIgnorarFiltroOdoo(v => !v)}
+                      className="text-xs h-7 px-2.5 border-amber-300 dark:border-amber-800"
+                    >
+                      {ignorarFiltroOdoo
+                        ? `Reativar Trava Odoo (${bobinasCompativeis.length})`
+                        : `Ver todo o estoque (${bobinas.length})`}
+                    </Button>
+                  )}
+
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    onClick={() => setIgnorarFiltroOdoo(v => !v)}
-                    className="text-xs h-7 px-2 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-950/60"
+                    onClick={() => setFiltroFilial(f => f === "todas" ? "unidade_pedido" : "todas")}
+                    className="text-xs h-7 px-2 text-muted-foreground hover:text-foreground gap-1 border border-dashed border-border"
+                    title="Alternar entre ver estoque apenas da filial do pedido ou de todas as filiais"
                   >
-                    {ignorarFiltroOdoo ? `Reativar filtro Odoo (${bobinasCompativeis.length})` : `Ver todo o estoque (${bobinas.length})`}
+                    <Globe className="w-3 h-3 text-sky-600" />
+                    <span>{filtroFilial === "todas" ? "Todas as Filiais" : `Apenas ${form.unidade || filialAtivaContexto}`}</span>
                   </Button>
-                )}
+                </div>
               </div>
             )}
           </div>
@@ -1501,6 +1669,8 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                 statusMap={statusMap}
                 ordensAtivas={todasOrdens}
                 placeholder="Buscar código ou cor (ex: 001, Preta, Branca, Natural)..."
+                onVerTodoEstoque={() => setIgnorarFiltroOdoo(true)}
+                totalEstoque={bobinas.length}
               />
 
               {bobinaSuperiorObj && (() => {
@@ -1557,6 +1727,8 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                                 ordensAtivas={todasOrdens}
                                 placeholder="Buscar 2ª bobina por código ou cor..."
                                 className="bg-white border-amber-400 text-xs"
+                                onVerTodoEstoque={() => setIgnorarFiltroOdoo(true)}
+                                totalEstoque={bobinas.length}
                               />
 
                               {bobinaSecundariaObj && (() => {
@@ -1599,6 +1771,8 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                   statusMap={statusMap}
                   ordensAtivas={todasOrdens}
                   placeholder="Buscar código ou cor da bobina inferior..."
+                  onVerTodoEstoque={() => setIgnorarFiltroOdoo(true)}
+                  totalEstoque={bobinas.length}
                 />
                     {bobinaInferiorObj && (() => {
                     const pb = preBaixaMap[bobinaInferiorObj.id] || 0;
@@ -1773,6 +1947,8 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                           ordensAtivas={todasOrdens}
                           placeholder="Buscar bobina para esta medida..."
                           className="min-h-[38px] text-xs"
+                          onVerTodoEstoque={() => setIgnorarFiltroOdoo(true)}
+                          totalEstoque={bobinas.length}
                         />
 
                         {/* Card informativo da bobina selecionada para esta medida */}
@@ -1819,6 +1995,8 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                             ordensAtivas={todasOrdens}
                             placeholder="Buscar bobina inferior..."
                             className="min-h-[38px] text-xs"
+                            onVerTodoEstoque={() => setIgnorarFiltroOdoo(true)}
+                            totalEstoque={bobinas.length}
                           />
 
                           {(() => {

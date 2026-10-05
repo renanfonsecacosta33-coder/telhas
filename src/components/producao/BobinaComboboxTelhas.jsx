@@ -64,6 +64,8 @@ export default function BobinaComboboxTelhas({
   disabled = false,
   className = "",
   id = undefined,
+  onVerTodoEstoque,
+  totalEstoque = 0,
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -234,6 +236,12 @@ export default function BobinaComboboxTelhas({
             {b.fornecedor && (
               <span className="text-muted-foreground text-[10px] truncate max-w-[130px]">
                 · {b.fornecedor}
+              </span>
+            )}
+
+            {b.unidade && (
+              <span className="text-sky-700 dark:text-sky-400 font-medium text-[10px] truncate max-w-[120px]">
+                · 🏢 {b.unidade}
               </span>
             )}
           </div>
@@ -415,7 +423,7 @@ export default function BobinaComboboxTelhas({
               <p className="text-[11px] text-muted-foreground max-w-xs mx-auto">
                 {search
                   ? `Nenhuma bobina compatível com o termo "${search}".`
-                  : "Não há bobinas cadastradas para os filtros aplicados."}
+                  : "Não há bobinas cadastradas para os critérios atuais."}
               </p>
               {search && (
                 <Button
@@ -425,6 +433,18 @@ export default function BobinaComboboxTelhas({
                   onClick={() => setSearch("")}
                 >
                   Limpar busca
+                </Button>
+              )}
+              {!search && onVerTodoEstoque && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs h-7 mt-2 border-amber-400 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/60"
+                  onClick={() => {
+                    onVerTodoEstoque();
+                  }}
+                >
+                  Ver todo o estoque disponível {totalEstoque ? `(${totalEstoque})` : ""}
                 </Button>
               )}
             </div>
