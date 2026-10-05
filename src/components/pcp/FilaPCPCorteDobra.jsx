@@ -8,7 +8,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { useToast } from "@/components/ui/use-toast";
 import {
   Play, CheckCircle2, Inbox, Scissors, Calendar, User, Loader2, Layers, Plus,
-  AlertTriangle, Star, CalendarClock, Clock, Search, ArrowUpDown, Flame, Store
+  AlertTriangle, Star, CalendarClock, Clock, Search, ArrowUpDown, Flame, Store, Factory
 } from "lucide-react";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
