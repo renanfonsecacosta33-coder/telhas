@@ -3,15 +3,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Button } from "@/components/ui/button";
 import {
   Camera, Loader2, CheckCircle2, XCircle, ScanLine, AlertTriangle,
-  RefreshCw, FileText, Scissors, ShieldAlert
+  RefreshCw, FileText, Scissors, ShieldAlert, Zap
 } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import ImageLink from "@/components/ui/ImageLink";
 import { isPdfUrl } from "@/lib/imagemBase64";
+import { useRegrasProducao } from "@/lib/regrasProducao";
 
 export default function ValidacaoEtiquetaChapaDialog({ open, onClose, ordem, onAprovado, isGestor = false }) {
+  const regras = useRegrasProducao();
   const [fotoUrl, setFotoUrl] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [validando, setValidando] = useState(false);
@@ -163,6 +165,11 @@ Responda em formato JSON estrito:
     onAprovado(fotoUrl, "Aprovado manualmente por gestor/supervisor", "aprovado_manual");
   };
 
+  const handlePularFotoChapa = () => {
+    toast.info("⚡ Foto da etiqueta da chapa pulada pelo operador.");
+    onAprovado("", "Foto pulada pelo operador", "pulado");
+  };
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v && !validando) onClose(); }}>
       <DialogContent className="sm:max-w-md">
@@ -270,15 +277,29 @@ Responda em formato JSON estrito:
                     className="hidden"
                     onChange={(e) => handleUpload(e.target.files?.[0])}
                   />
-                  <UploadButton
-                    label="Tirar Foto da Etiqueta"
-                    icon={Camera}
-                    cameraRef={fotoInputRef}
-                    fileRef={fotoScanRef}
-                    uploading={uploading}
-                    size="default"
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
-                  />
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+                    <UploadButton
+                      label="Tirar Foto da Etiqueta"
+                      icon={Camera}
+                      cameraRef={fotoInputRef}
+                      fileRef={fotoScanRef}
+                      uploading={uploading}
+                      size="default"
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
+                    />
+                    {regras.permitirPularFotoEtiqueta && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handlePularFotoChapa}
+                        className="bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold gap-1.5 h-10 px-4 text-xs"
+                        title="Pular foto da etiqueta e iniciar a guilhotina agora"
+                      >
+                        <Zap className="w-4 h-4 text-amber-600" />
+                        Pular Foto da Etiqueta
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -319,7 +340,7 @@ Responda em formato JSON estrito:
                   )}
                   {!resultado.valido && (
                     <p className="text-[11px] text-red-600 dark:text-red-400 mt-1 font-semibold">
-                      ⚠️ O início do corte está bloqueado até a confirmação da etiqueta correta.
+                      ⚠️ A etiqueta não correspondeu à chapa esperada.
                     </p>
                   )}
                 </div>
@@ -329,7 +350,19 @@ Responda em formato JSON estrito:
         </div>
 
         <DialogFooter className="gap-1.5 sm:justify-between">
-          <div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {regras.permitirPularFotoEtiqueta && !resultado?.valido && !validando && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handlePularFotoChapa}
+                className="text-xs gap-1 border border-amber-300 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 hover:bg-amber-100 font-bold"
+                title="Pular foto da etiqueta e iniciar o corte na guilhotina agora"
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-600" />
+                Pular Foto e Iniciar
+              </Button>
+            )}
             {!resultado?.valido && !validando && isGestor && fotoUrl && (
               <Button
                 variant="secondary"

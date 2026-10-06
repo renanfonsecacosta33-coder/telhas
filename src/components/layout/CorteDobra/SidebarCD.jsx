@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, Circle, Factory, Users, Menu, X, ChevronRight, ChevronDown, ChevronLeft,
   LogOut, Layers, ShieldCheck, ArrowLeftRight, Calculator, BookOpen, Scissors,
-  FlaskConical, Wrench, Map, BookmarkPlus, Truck, Bell
+  FlaskConical, Wrench, Map, BookmarkPlus, Truck, Bell, Settings
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -209,14 +209,17 @@ export default function SidebarCD({ isOpen, onToggle }) {
                 </>
               )}
 
-              {(isSuperAdmin || user?.permitido_central_alertas === true) && (
+              {(isAdmin || isSuperAdmin || user?.permitido_central_alertas === true || isGerencia) && (
                 <>
                   {isOpen && (
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 mt-4 mb-2">
                       Configurações
                     </p>
                   )}
-                  {renderLink({ path: "/corte-dobra/alertas", label: "Central de Alertas", icon: Bell })}
+                  {renderLink({ path: "/corte-dobra/configuracoes", label: "Configurações da Fábrica", icon: Settings })}
+                  {(isSuperAdmin || user?.permitido_central_alertas === true) && (
+                    renderLink({ path: "/corte-dobra/alertas", label: "Central de Alertas", icon: Bell })
+                  )}
                 </>
               )}
             </>

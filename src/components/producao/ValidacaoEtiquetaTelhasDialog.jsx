@@ -1,15 +1,17 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Camera, Loader2, CheckCircle2, XCircle, ScanLine, AlertTriangle, RefreshCw, FileText } from "lucide-react";
+import { Camera, Loader2, CheckCircle2, XCircle, ScanLine, AlertTriangle, RefreshCw, FileText, Zap } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import ImageLink from "@/components/ui/ImageLink";
 import { useTolerancias } from "@/hooks/useTolerancias";
 import { validarBobina } from "@/lib/bobinaValidation";
+import { useRegrasProducao } from "@/lib/regrasProducao";
 
 export default function ValidacaoEtiquetaTelhasDialog({ open, onClose, pedido, onAprovado }) {
+  const regras = useRegrasProducao();
   const [fotoUrl, setFotoUrl] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [validando, setValidando] = useState(false);
@@ -146,6 +148,11 @@ Responda em JSON com:
     setResultado(null);
   };
 
+  const handlePularFoto = () => {
+    toast.info("⚡ Foto da etiqueta pulada pelo operador.");
+    onAprovado("", "Foto da etiqueta pulada pelo operador");
+  };
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v && !validando) onClose(); }}>
       <DialogContent className="sm:max-w-md">
@@ -233,7 +240,21 @@ Responda em JSON com:
                     onChange={e => handleUpload(e.target.files?.[0])} />
                   <input ref={fotoScanRef} type="file" accept="image/*,application/pdf" className="hidden"
                     onChange={e => handleUpload(e.target.files?.[0])} />
-                  <UploadButton label="Tirar / Selecionar Foto" icon={Camera} cameraRef={fotoInputRef} fileRef={fotoScanRef} uploading={uploading} size="default" />
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+                    <UploadButton label="Tirar / Selecionar Foto" icon={Camera} cameraRef={fotoInputRef} fileRef={fotoScanRef} uploading={uploading} size="default" />
+                    {regras.permitirPularFotoEtiqueta && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handlePularFoto}
+                        className="bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold gap-1.5 h-10 px-4 text-xs"
+                        title="Pular foto da etiqueta e iniciar a produção agora"
+                      >
+                        <Zap className="w-4 h-4 text-amber-600" />
+                        Pular Foto da Etiqueta
+                      </Button>
+                    )}
+                  </div>
                 </>
               )}
             </div>
@@ -271,7 +292,7 @@ Responda em JSON com:
                   )}
                   {!resultado.valido && (
                     <p className="text-[11px] text-red-600 mt-1.5 font-medium">
-                      ⚠️ A produção não pode ser iniciada. O encarregado foi notificado.
+                      ⚠️ A etiqueta não correspondeu à bobina esperada.
                     </p>
                   )}
                 </div>
@@ -280,17 +301,33 @@ Responda em JSON com:
           )}
         </div>
 
-        <DialogFooter>
-          {!resultado?.valido && !validando && (
-            <>
-              {fotoUrl && (
-                <Button variant="outline" onClick={tentarNovamente} className="gap-1">
-                  <RefreshCw className="w-3.5 h-3.5" /> Tirar outra foto
-                </Button>
-              )}
-              <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-            </>
-          )}
+        <DialogFooter className="gap-2 sm:justify-between">
+          <div className="flex items-center gap-1.5">
+            {regras.permitirPularFotoEtiqueta && !resultado?.valido && !validando && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handlePularFoto}
+                className="bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold gap-1.5 text-xs h-9"
+                title="Pular foto da etiqueta e iniciar a produção agora"
+              >
+                <Zap className="w-4 h-4 text-amber-600" />
+                Pular Foto e Iniciar
+              </Button>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            {!resultado?.valido && !validando && (
+              <>
+                {fotoUrl && (
+                  <Button variant="outline" size="sm" onClick={tentarNovamente} className="gap-1 text-xs h-9">
+                    <RefreshCw className="w-3.5 h-3.5" /> Tirar outra foto
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" onClick={onClose} className="text-xs h-9">Cancelar</Button>
+              </>
+            )}
+          </div>
           {resultado?.valido && (
             <div className="flex items-center gap-2 text-sm text-green-700 font-medium">
               <Loader2 className="w-4 h-4 animate-spin" /> Iniciando produção...
