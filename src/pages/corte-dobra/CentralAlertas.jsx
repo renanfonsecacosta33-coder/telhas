@@ -8,8 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
-import { Bell, Plus, Play, Volume2, Trash2, Edit3, UserCheck, Search, Lock, ShieldCheck, Mail, PhoneCall, Check } from "lucide-react";
+import { Bell, Plus, Play, Volume2, Trash2, Edit3, UserCheck, Search, Lock, ShieldCheck, Mail, PhoneCall, Check, AlertTriangle, Layers, Send, Factory, Scissors, TrendingDown, RefreshCw, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
+import { analisarEstoqueCriticoGeral, enviarAlertaComprasLeonardo, LIMITES_PADRAO_ESPESSURA } from "@/lib/alertaSuprimentosHelper";
 
 const EVENTO_LABELS = {
   estoque_baixo: "Estoque Crítico (KG)",
@@ -83,7 +85,58 @@ export default function CentralAlertas() {
     enabled: !!currentUser,
   });
 
-  // Mutations
+  const [tabAtiva, setTabAtiva] = useState("estoque_critico"); // "estoque_critico" | "regras"
+  const [filtroSetorEstoque, setFiltroSetorEstoque] = useState("todos"); // "todos" | "telha" | "cd"
+
+  // Dados de Matéria-Prima em Tempo Real para Análise Consolidada de Ponto de Ressuprimento
+  const { data: bobinas = [], isLoading: isLoadingBobinas } = useQuery({
+    queryKey: ["bobinas-central-alertas"],
+    queryFn: () => base44.entities.Bobina.filter({ arquivada: false }),
+    refetchInterval: 15000
+  });
+
+  const { data: chapas = [] } = useQuery({
+    queryKey: ["chapas-central-alertas"],
+    queryFn: () => base44.entities.ChapaCD.filter({ status: { $ne: "cancelado" } }),
+    refetchInterval: 15000
+  });
+
+  const { preBaixaMap } = usePreBaixaBobinas("all");
+
+  const analiseGeral = useMemo(() => {
+    return analisarEstoqueCriticoGeral({
+      bobinas,
+      chapas,
+      preBaixaMap
+    });
+  }, [bobinas, chapas, preBaixaMap]);
+
+  const [disparandoAlerta, setDisparandoAlerta] = useState({});
+
+  const handleAvisarLeonardoEspessura = async (itemEsp) => {
+    setDisparandoAlerta((prev) => ({ ...prev, [itemEsp.espessura]: true }));
+    try {
+      await enviarAlertaComprasLeonardo({
+        espessura: itemEsp.espessura,
+        setor: itemEsp.setor,
+        pesoNecessarioKg: itemEsp.minimo_kg,
+        saldoDisponivelKg: itemEsp.disponivel_real,
+        preBaixaTotalKg: itemEsp.pre_baixa_total,
+        pecasQueDa: 0,
+        pecasPedidas: 0,
+        motivo: `Espessura ${itemEsp.espessura}mm (${itemEsp.label}) atingiu o ponto crítico de ressuprimento! Saldo disponível real: ${itemEsp.disponivel_real.toLocaleString("pt-BR")} kg (Mínimo de segurança: ${itemEsp.minimo_kg.toLocaleString("pt-BR")} kg • ${itemEsp.pre_baixa_total.toLocaleString("pt-BR")} kg pré-baixados em OPs ativas).`
+      });
+      toast.success(`🚨 Alerta disparado para Leonardo (Compras)!`, {
+        description: `E-mail e WhatsApp enviados para reposição de ${itemEsp.label}.`
+      });
+    } catch (e) {
+      toast.error("Falha ao enviar alerta", { description: e.message });
+    } finally {
+      setDisparandoAlerta((prev) => ({ ...prev, [itemEsp.espessura]: false }));
+    }
+  };
+
+  // Queries
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.AlertaRegra.create(data),
     onSuccess: () => {
@@ -238,11 +291,267 @@ export default function CentralAlertas() {
         </Button>
       </div>
 
-      {/* Regras List */}
-      <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-border">
-          <h2 className="font-bold text-slate-800">Regras Ativas de Automação</h2>
+      {/* Abas Superiores */}
+      <div className="flex items-center gap-2 border-b border-border pb-1">
+        <button
+          type="button"
+          onClick={() => setTabAtiva("estoque_critico")}
+          className={`pb-2.5 px-3 text-xs sm:text-sm font-bold flex items-center gap-2 transition-all border-b-2 ${
+            tabAtiva === "estoque_critico"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          <span>Monitor de Estoque Crítico & Pré-Baixas</span>
+          {analiseGeral.filter(i => i.isCritico).length > 0 && (
+            <Badge className="bg-red-600 text-white text-[10px] px-1.5 py-0 h-4">
+              {analiseGeral.filter(i => i.isCritico).length} críticas
+            </Badge>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setTabAtiva("regras")}
+          className={`pb-2.5 px-3 text-xs sm:text-sm font-bold flex items-center gap-2 transition-all border-b-2 ${
+            tabAtiva === "regras"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <Bell className="w-4 h-4" />
+          <span>Regras de Automação ({regras.length})</span>
+        </button>
+      </div>
+
+      {tabAtiva === "estoque_critico" && (
+        <div className="space-y-6">
+          {/* Cards de Métricas Consolidada */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white border border-border rounded-xl p-4 shadow-sm flex items-center gap-3">
+              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl border border-blue-100">
+                <Layers className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Espessuras Cadastradas</p>
+                <h3 className="text-xl font-bold text-slate-800">{analiseGeral.length} espessuras</h3>
+              </div>
+            </div>
+
+            <div className="bg-white border border-border rounded-xl p-4 shadow-sm flex items-center gap-3">
+              <div className="p-3 bg-red-50 text-red-600 rounded-xl border border-red-100">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Ponto de Ressuprimento</p>
+                <h3 className="text-xl font-bold text-red-600">
+                  {analiseGeral.filter(i => i.isCritico).length} em nível crítico
+                </h3>
+              </div>
+            </div>
+
+            <div className="bg-white border border-border rounded-xl p-4 shadow-sm flex items-center gap-3">
+              <div className="p-3 bg-amber-50 text-amber-600 rounded-xl border border-amber-100">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Pré-Baixa Acumulada em OPs</p>
+                <h3 className="text-xl font-bold text-amber-700">
+                  {analiseGeral.reduce((a, b) => a + (b.pre_baixa_total || 0), 0).toLocaleString("pt-BR")} kg
+                </h3>
+              </div>
+            </div>
+
+            <div className="bg-white border border-border rounded-xl p-4 shadow-sm flex items-center gap-3">
+              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Disponível Real Líquido</p>
+                <h3 className="text-xl font-bold text-emerald-700">
+                  {analiseGeral.reduce((a, b) => a + (b.disponivel_real || 0), 0).toLocaleString("pt-BR")} kg
+                </h3>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabela de Monitoramento de Estoque por Espessura */}
+          <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="font-bold text-slate-800 text-base">Monitor Geral por Espessura (Telhas & Corte e Dobra)</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Estoque físico real descontando reservas e pré-baixas acumuladas de OPs ativas.
+                </p>
+              </div>
+
+              {/* Filtro por Setor */}
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setFiltroSetorEstoque("todos")}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                    filtroSetorEstoque === "todos"
+                      ? "bg-white text-slate-900 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Todas ({analiseGeral.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFiltroSetorEstoque("telha")}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1 ${
+                    filtroSetorEstoque === "telha"
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Factory className="w-3.5 h-3.5" /> Telhas ({analiseGeral.filter(i => i.setor === "telha").length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFiltroSetorEstoque("cd")}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1 ${
+                    filtroSetorEstoque === "cd"
+                      ? "bg-orange-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Scissors className="w-3.5 h-3.5" /> Corte & Dobra ({analiseGeral.filter(i => i.setor === "cd").length})
+                </button>
+              </div>
+            </div>
+
+            {isLoadingBobinas ? (
+              <div className="flex items-center justify-center py-16">
+                <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
+              </div>
+            ) : analiseGeral.length === 0 ? (
+              <div className="text-center py-12 text-slate-500 text-sm">
+                Nenhuma bobina ou chapa encontrada no estoque.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs min-w-[1000px]">
+                  <thead>
+                    <tr className="bg-slate-50/50 text-[10px] font-semibold text-slate-500 uppercase tracking-wide border-b border-border">
+                      <th className="text-left px-4 py-3">Espessura / Bitola</th>
+                      <th className="text-left px-4 py-3">Setor Fabril</th>
+                      <th className="text-center px-4 py-3">Bobinas</th>
+                      <th className="text-right px-4 py-3">Físico Bruto</th>
+                      <th className="text-right px-4 py-3">Pré-Baixa (OPs)</th>
+                      <th className="text-right px-4 py-3">Disponível Real</th>
+                      <th className="text-right px-4 py-3">Mínimo de Segurança</th>
+                      <th className="text-center px-4 py-3">Situação</th>
+                      <th className="text-right px-4 py-3">Ações de Compra</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border text-slate-700">
+                    {analiseGeral
+                      .filter(i => filtroSetorEstoque === "todos" || i.setor === filtroSetorEstoque)
+                      .map((item) => (
+                        <tr
+                          key={item.espessura}
+                          className={`transition-colors ${
+                            item.isCritico ? "bg-red-50/30 hover:bg-red-50/60" : "hover:bg-slate-50/50"
+                          }`}
+                        >
+                          <td className="px-4 py-3 font-bold text-slate-900">
+                            <div className="flex items-center gap-1.5">
+                              <span>{item.espessura}mm</span>
+                              <span className="text-[10px] text-slate-500 font-normal">({item.label})</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            {item.setor === "telha" ? (
+                              <span className="bg-blue-50 text-blue-700 border border-blue-200 font-bold px-2 py-0.5 rounded text-[10px] inline-flex items-center gap-1">
+                                <Factory className="w-3 h-3" /> Telhas
+                              </span>
+                            ) : (
+                              <span className="bg-orange-50 text-orange-700 border border-orange-200 font-bold px-2 py-0.5 rounded text-[10px] inline-flex items-center gap-1">
+                                <Scissors className="w-3 h-3" /> Corte & Dobra
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center font-semibold">
+                            {item.bobinas_count} bobina(s)
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium text-slate-600">
+                            {item.peso_total.toLocaleString("pt-BR")} kg
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {item.pre_baixa_total > 0 ? (
+                              <span className="font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                -{item.pre_baixa_total.toLocaleString("pt-BR")} kg
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">0 kg</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex flex-col items-end">
+                              <span className={`font-black ${item.isCritico ? "text-red-700" : "text-emerald-700"}`}>
+                                {item.disponivel_real.toLocaleString("pt-BR")} kg
+                              </span>
+                              <div className="w-24 bg-slate-200 rounded-full h-1.5 mt-1 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${
+                                    item.isCritico ? "bg-red-600" : "bg-emerald-600"
+                                  }`}
+                                  style={{ width: `${Math.min(100, item.pctSaldo)}%` }}
+                                />
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-slate-700">
+                            {item.minimo_kg.toLocaleString("pt-BR")} kg
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {item.isCritico ? (
+                              <Badge className="bg-red-600 text-white text-[10px] font-bold gap-1 px-2 py-0.5">
+                                <AlertTriangle className="w-3 h-3" /> Crítico (-{item.deficitKg.toLocaleString("pt-BR")} kg)
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-emerald-600 text-white text-[10px] font-bold gap-1 px-2 py-0.5">
+                                <CheckCircle2 className="w-3 h-3" /> Seguro ({item.pctSaldo}%)
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
+                            <Button
+                              size="sm"
+                              variant={item.isCritico ? "destructive" : "outline"}
+                              disabled={disparandoAlerta[item.espessura]}
+                              onClick={() => handleAvisarLeonardoEspessura(item)}
+                              className={`h-7 text-[11px] gap-1.5 font-bold ${
+                                item.isCritico
+                                  ? "bg-red-600 hover:bg-red-700 text-white"
+                                  : "text-slate-700 hover:bg-slate-100"
+                              }`}
+                            >
+                              <Send className="w-3 h-3" />
+                              {disparandoAlerta[item.espessura] ? "Enviando..." : "Avisar Compras (Leonardo)"}
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
+      )}
+
+      {tabAtiva === "regras" && (
+        <div className="space-y-6">
+          {/* Regras List */}
+          <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-border">
+              <h2 className="font-bold text-slate-800">Regras Ativas de Automação</h2>
+            </div>
         {isLoadingRegras ? (
           <div className="flex items-center justify-center py-16">
             <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
@@ -378,6 +687,8 @@ export default function CentralAlertas() {
             </div>
           )}
         </div>
+      )}
+      </div>
       )}
 
       {/* Regra Form Dialog */}

@@ -37,6 +37,7 @@ import { notificarStatus } from "@/lib/biNotificador";
 import { calcularProgressoRealPedido, statusPcpPorPercentual, enriquecerItensComStatusReal } from "@/lib/pedidoOdooHelper";
 import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
+import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 
 export default function CentralPCP() {
   const navigate = useNavigate();
@@ -255,10 +256,16 @@ export default function CentralPCP() {
     refetchInterval: 15000
   });
 
+  // Pré-baixas acumuladas em tempo real de todas as OPs ativas (Telhas + Corte e Dobra)
+  const { preBaixaMap, preBaixaMetrosMap, preBaixaOpsMap } = usePreBaixaBobinas("all");
+
   const estoqueContext = useMemo(() => ({
     bobinas: bobinasEstoque,
-    chapas: chapasEstoque
-  }), [bobinasEstoque, chapasEstoque]);
+    chapas: chapasEstoque,
+    preBaixaMap,
+    preBaixaMetrosMap,
+    preBaixaOpsMap
+  }), [bobinasEstoque, chapasEstoque, preBaixaMap, preBaixaMetrosMap, preBaixaOpsMap]);
 
   // Subscription: atualiza percentual/status em tempo real quando os galpões concluem itens
   useEffect(() => {

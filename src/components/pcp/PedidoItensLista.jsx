@@ -1,10 +1,12 @@
 import React, { useState } from "react";
-import { Factory, Scissors, Wind, Layers, Ruler, ClipboardList, ImageIcon, Sparkles, Home, CheckCircle2, AlertTriangle, Clock, Disc } from "lucide-react";
+import { Factory, Scissors, Wind, Layers, Ruler, ClipboardList, ImageIcon, Sparkles, Home, CheckCircle2, AlertTriangle, Clock, Disc, Bell, Loader2, Check } from "lucide-react";
+import { toast } from "sonner";
 import { stripHtml } from "@/lib/stripHtml";
 import { obterStatusDescritivoItem, extrairAnotacaoItem, localizarOpDoItem, classGrupo, normalizarUnidadeMedidaItem } from "@/lib/pedidoOdooHelper";
 import { extrairCroquiItem, extrairCroquiPedido } from "@/lib/croquiExtractor";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import { verificarEstoqueItem } from "@/lib/estoqueMaterialHelper";
+import { enviarAlertaComprasLeonardo } from "@/lib/alertaSuprimentosHelper";
 import ImageLink from "@/components/ui/ImageLink";
 import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
 
@@ -65,6 +67,38 @@ function detectarCategoria(item) {
 // Layout de alto contraste: quantidade GIGANTE em badge sólida colorida + barra de progresso individual + processo sanduíche.
 export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = [], ordensCD = [], compacto = false, estoqueContext = null }) {
   const [modalSimulacaoItem, setModalSimulacaoItem] = useState(null);
+  const [enviandoAlerta, setEnviandoAlerta] = useState({});
+  const [alertasEnviados, setAlertasEnviados] = useState({});
+
+  const handleAvisarLeonardo = async (it, estoqueItem, idx) => {
+    setEnviandoAlerta((prev) => ({ ...prev, [idx]: true }));
+    try {
+      await enviarAlertaComprasLeonardo({
+        pedido,
+        item: it,
+        espessura: estoqueItem.espessura,
+        setor: estoqueItem.setor,
+        pesoNecessarioKg: estoqueItem.calculoPeso?.pesoKg || 0,
+        saldoDisponivelKg: estoqueItem.saldo?.kg || 0,
+        preBaixaTotalKg: estoqueItem.totalPreComprometido || 0,
+        pecasQueDa: estoqueItem.pecasQueDa ?? 0,
+        pecasPedidas: estoqueItem.pecasPedidas ?? it.quantidade ?? 1,
+        motivo: estoqueItem.opaMensagem || estoqueItem.badgeText
+      });
+      setAlertasEnviados((prev) => ({ ...prev, [idx]: true }));
+      toast.success("🚨 Alerta enviado ao Leonardo (CEO / Compras)!", {
+        description: `E-mail e WhatsApp disparados para reposição da espessura ${estoqueItem.espessura || ""}mm.`
+      });
+    } catch (err) {
+      console.error("Erro ao enviar alerta ao Leonardo:", err);
+      toast.error("Falha ao enviar alerta de compras", {
+        description: err?.message || "Tente novamente."
+      });
+    } finally {
+      setEnviandoAlerta((prev) => ({ ...prev, [idx]: false }));
+    }
+  };
+
   let itens = [];
   try {
     const arr = JSON.parse(itensJson || "[]");
@@ -204,14 +238,20 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
                         className={`inline-flex items-center gap-1.5 font-bold px-2 py-1 rounded-md text-[10px] leading-tight transition-all cursor-pointer hover:shadow-xs hover:scale-[1.01] text-left group ${
                           estoqueItem.status === "disponivel"
                             ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-800/80 hover:bg-emerald-100 dark:hover:bg-emerald-900/60"
+                            : estoqueItem.status === "parcial_prebaixa"
+                            ? "bg-amber-500/15 text-amber-800 dark:text-amber-200 border border-amber-500/40 hover:bg-amber-500/25"
                             : estoqueItem.status === "parcial"
                             ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300/80 dark:border-amber-800/80 hover:bg-amber-100 dark:hover:bg-amber-900/60"
+                            : estoqueItem.status === "indisponivel_prebaixa"
+                            ? "bg-rose-500/15 text-rose-800 dark:text-rose-200 border border-rose-500/40 hover:bg-rose-500/25"
                             : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-300/80 dark:border-rose-800/80 hover:bg-rose-100 dark:hover:bg-rose-900/60"
                         }`}
                         title="Clique para ver a simulação detalhada de bobinas e quanto ficará o peso antes e depois do uso"
                       >
                         {estoqueItem.status === "disponivel" ? (
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        ) : estoqueItem.status === "parcial_prebaixa" ? (
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 animate-pulse" />
                         ) : estoqueItem.status === "parcial" ? (
                           <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                         ) : (
@@ -222,6 +262,40 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
                           🔍 Simulação
                         </span>
                       </button>
+
+                      {/* Botão de Disparo Direto de Alerta ao Leonardo (CEO / Compras) */}
+                      {(estoqueItem.status === "parcial_prebaixa" ||
+                        estoqueItem.status === "indisponivel_prebaixa" ||
+                        estoqueItem.status === "indisponivel" ||
+                        (estoqueItem.pecasFaltantes && estoqueItem.pecasFaltantes > 0)) && (
+                        <button
+                          type="button"
+                          disabled={enviandoAlerta[idx]}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAvisarLeonardo(it, estoqueItem, idx);
+                          }}
+                          className={`inline-flex items-center gap-1 font-bold px-2 py-1 rounded-md text-[10px] leading-tight transition-all cursor-pointer shadow-xs ${
+                            alertasEnviados[idx]
+                              ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700"
+                              : "bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white border border-red-700 hover:shadow-sm"
+                          }`}
+                          title="Disparar alerta urgente para Leonardo (Compras/CEO) por E-mail e WhatsApp"
+                        >
+                          {enviandoAlerta[idx] ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : alertasEnviados[idx] ? (
+                            <Check className="w-3 h-3 text-emerald-600" />
+                          ) : (
+                            <Bell className="w-3 h-3 animate-bounce" />
+                          )}
+                          <span>
+                            {alertasEnviados[idx]
+                              ? "Alerta Enviado ao Leonardo ✓"
+                              : "Avisar Leonardo (Compras)"}
+                          </span>
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
