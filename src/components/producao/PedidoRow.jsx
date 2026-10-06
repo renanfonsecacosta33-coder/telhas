@@ -25,6 +25,7 @@ import SmartImage from "@/components/ui/SmartImage";
 import { comprimirImagemParaUpload } from "@/lib/compressImage";
 import { isTelhaBandeja, verificarStatusComponentesBandeja } from "@/lib/bandejaHelper";
 import { useRegrasProducao } from "@/lib/regrasProducao";
+import { detectarTipoProdutoTelha, detectarEPSTelha } from "@/lib/pedidoOdooHelper";
 
 const PRODUTO_BG = {
   "TELHA":               "border-l-blue-400",
@@ -147,6 +148,49 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const isOperador = userRole === "operador";
   const podeGerenciar = !isOperador;
 
+  // Detecção inteligente e dinâmica do produto real (corrige OPs que foram salvas como TELHA + EPS mas têm TELHA + EPS + TELHA)
+  const produtoDetectado = useMemo(() => {
+    if (!pOriginal) return "TELHA";
+    const rawProd = pOriginal.produto || pOriginal._presets?.produto || "";
+    const textoContexto = [
+      pOriginal.item_produto,
+      pOriginal.produto_rotulo_pcp,
+      pOriginal.modelo,
+      pOriginal.observacoes_odoo,
+      pOriginal.observacoes,
+      pOriginal.eps,
+      pOriginal._presets?.item_produto,
+      pOriginal._presets?.produto_rotulo_pcp,
+      pOriginal._presets?.observacoes_odoo,
+      rawProd
+    ].filter(Boolean).join(" ");
+
+    const tipoDetectado = detectarTipoProdutoTelha(rawProd, textoContexto);
+    // Se no texto há clara indicação de TELHA + EPS + TELHA
+    if (tipoDetectado === "TELHA + EPS + TELHA") {
+      return "TELHA + EPS + TELHA";
+    }
+    if (tipoDetectado && tipoDetectado !== "TELHA" && (rawProd === "TELHA" || rawProd === "TELHA + EPS")) {
+      return tipoDetectado;
+    }
+    return rawProd || tipoDetectado || "TELHA";
+  }, [pOriginal]);
+
+  const epsDetectado = useMemo(() => {
+    if (!pOriginal) return "";
+    if (pOriginal.eps) return pOriginal.eps;
+    if (pOriginal._presets?.eps) return pOriginal._presets.eps;
+    const textoContexto = [
+      pOriginal.item_produto,
+      pOriginal.produto_rotulo_pcp,
+      pOriginal.modelo,
+      pOriginal.observacoes_odoo,
+      pOriginal.observacoes,
+      pOriginal.produto
+    ].filter(Boolean).join(" ");
+    return detectarEPSTelha(textoContexto, pOriginal.maquina || maquina);
+  }, [pOriginal, maquina]);
+
   // Normalização ultra-robusta com fallback completo para _presets (recupera OPs sem cabeçalho)
   const p = useMemo(() => {
     if (!pOriginal) return {};
@@ -154,7 +198,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     return {
       ...presets,
       ...pOriginal,
-      produto: pOriginal.produto || presets.produto || "TELHA",
+      produto: produtoDetectado || pOriginal.produto || presets.produto || "TELHA",
+      eps: pOriginal.eps || presets.eps || epsDetectado || "",
       numero_pedido: pOriginal.numero_pedido || presets.numero_pedido || "",
       cliente: pOriginal.cliente || presets.cliente || "",
       vendedor: pOriginal.vendedor || presets.vendedor || "",
@@ -169,8 +214,23 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       foto_pedido_url: pOriginal.foto_pedido_url || presets.foto_pedido_url || "",
       bobina_superior: pOriginal.bobina_superior || presets.bobina_superior || "",
       bobina_superior_id: pOriginal.bobina_superior_id || presets.bobina_superior_id || "",
+      bobina_inferior: pOriginal.bobina_inferior || presets.bobina_inferior || "",
+      bobina_inferior_id: pOriginal.bobina_inferior_id || presets.bobina_inferior_id || "",
+      rvm_inferior: pOriginal.rvm_inferior || presets.rvm_inferior || "",
     };
-  }, [pOriginal, maquina]);
+  }, [pOriginal, maquina, produtoDetectado, epsDetectado]);
+
+  // Auto-correção em tempo real no banco de dados se a OP estiver gravada como "TELHA + EPS" mas for "TELHA + EPS + TELHA"
+  useEffect(() => {
+    if (pOriginal?.id && pOriginal.produto !== "TELHA + EPS + TELHA" && produtoDetectado === "TELHA + EPS + TELHA") {
+      base44.entities.Pedido.update(pOriginal.id, {
+        produto: "TELHA + EPS + TELHA",
+        ...(epsDetectado && !pOriginal.eps ? { eps: epsDetectado } : {})
+      }).then(() => {
+        if (onUpdate) onUpdate();
+      }).catch(err => console.warn("[PedidoRow] Auto-correção produto:", err));
+    }
+  }, [pOriginal?.id, pOriginal?.produto, pOriginal?.eps, produtoDetectado, epsDetectado, onUpdate]);
   const regras = useRegrasProducao();
   const [etapasOk, setEtapasOk] = useState({});
   const [mostrarEtapas, setMostrarEtapas] = useState(false);
@@ -905,6 +965,16 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="font-bold text-base">{p.produto || "TELHA / PERFIL METÁLICO"}</span>
+              {p.produto === "TELHA + EPS + TELHA" && (
+                <Badge className="bg-indigo-600 text-white border-indigo-700 text-xs gap-1 font-bold shadow-xs">
+                  <Layers className="w-3 h-3" /> DUPLA TELHA (SANDUÍCHE)
+                </Badge>
+              )}
+              {p.eps && (
+                <Badge className="bg-emerald-600 text-white border-emerald-700 text-xs gap-1 font-bold shadow-xs">
+                  <Snowflake className="w-3 h-3" /> {p.eps}
+                </Badge>
+              )}
               {p.tipo_componente_bandeja === "telha_superior" && (
                 <Badge className="bg-blue-600 text-white border-blue-700 text-xs gap-1 font-bold shadow-xs">
                   <Layers className="w-3 h-3" /> TELHA SUPERIOR ({p.maquina})
@@ -1343,6 +1413,34 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
               origemExigida={p.origem_exigida}
               size="destaque"
             />
+          </div>
+        )}
+
+        {/* Se for TELHA + EPS + TELHA, exibe destaque da Bobina Inferior */}
+        {p.produto === "TELHA + EPS + TELHA" && (
+          <div className="w-full bg-indigo-50/70 dark:bg-indigo-950/40 border-2 border-indigo-200 dark:border-indigo-800 rounded-2xl p-3 sm:p-4 mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-800 text-white flex items-center justify-center shrink-0 shadow-md">
+                <Layers className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] uppercase font-bold text-indigo-700 dark:text-indigo-300 tracking-wider">
+                    Bobina da Chapa Inferior (2ª Telha / Sanduíche)
+                  </span>
+                  <span className="font-mono font-black text-sm text-foreground bg-white dark:bg-slate-800 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-700">
+                    {p.bobina_inferior || p.bobina_superior || "Mesma bobina superior"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
+                  <span>Cor / RVM: <strong className="text-foreground">{p.rvm_inferior || p.rvm_superior || "Natural"}</strong></span>
+                  {p.espessura_exigida && <span>Espessura: <strong className="text-foreground">{p.espessura_exigida} mm</strong></span>}
+                </div>
+              </div>
+            </div>
+            <Badge className="bg-indigo-700 text-white font-bold text-xs gap-1 self-start sm:self-center">
+              <Layers className="w-3 h-3" /> Chapa Inferior
+            </Badge>
           </div>
         )}
 

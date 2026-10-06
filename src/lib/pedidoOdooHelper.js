@@ -551,21 +551,51 @@ export const MAQUINAS_CD = [
   "Perfiladeira"
 ];
 
-// Detecta o tipo exato de produto para Telhas (compatível com PRODUTOS do formulário)
-export function detectarTipoProdutoTelha(produtoTexto = "") {
-  const p = String(produtoTexto || "").toUpperCase();
-  if (p.includes("MANTA") || p.includes("EPS50+MANTA") || p.includes("EPS+MANTA") || p.includes("EPS + MANTA")) {
+// Extrai a espessura numérica do EPS informada no produto (ex: EPS30, EPS 50mm -> "30mm")
+export function extrairEspessuraEPS(texto = "") {
+  const t = String(texto || "").toUpperCase();
+  const match = t.match(/(?:EPS|ISOPOR|PU|PIR)\s*(\d{2,3})(?:\s*MM)?/i);
+  if (match) {
+    return `${match[1]}mm`;
+  }
+  return "";
+}
+
+// Detecta o tipo exato de produto para Telhas (compatível com PRODUTOS do formulário e chão de fábrica)
+export function detectarTipoProdutoTelha(produtoTexto = "", descricaoTexto = "") {
+  const p = `${produtoTexto || ""} ${descricaoTexto || ""}`.toUpperCase();
+
+  // 1. TELHA + EPS + MANTA (Telha + EPS com acabamento inferior em manta de alumínio / filme)
+  const ehManta = (
+    /(MANTA|FILME|ALUMINIO|ALUMNIO)/i.test(p) &&
+    /(EPS|ISOPOR|SANDU|TERMOAC|TELHA)/i.test(p)
+  ) || /(EPS\s*\d*|ISOPOR|PU|PIR)\s*(\+|\/)\s*(MANTA|FILME)/i.test(p);
+  if (ehManta) {
     return "TELHA + EPS + MANTA";
   }
-  if (p.includes("EPS+TELHA") || p.includes("EPS + TELHA") || p.includes("TELHA+EPS+TELHA") || p.includes("TELHA + EPS + TELHA")) {
+
+  // 2. TELHA + EPS + TELHA (Dupla face / Sanduíche com chapa superior + EPS + chapa inferior)
+  // Suporta padrões Odoo: [telha+EPS30+telha], [telha+EPS50+telha], EPS30+TELHA, TELHA+EPS+TELHA, DUPLA FACE, etc.
+  const ehTelhaEpsTelha = (
+    /(TELHA|CHAPA|COLONIAL|ONDULADA|TP\s*40|TP\s*25)\s*(\+|\/)\s*(EPS\s*\d*|ISOPOR|PU|PIR)\s*(\+|\/)\s*(TELHA|CHAPA|COLONIAL|ONDULADA|TP\s*40|TP\s*25)/i.test(p) ||
+    /(EPS\s*\d*|ISOPOR|PU|PIR)\s*(\+|\/)\s*(TELHA|CHAPA|COLONIAL|ONDULADA|TP\s*40|TP\s*25)/i.test(p) ||
+    /(DUPLA\s*FACE|DUPLA\s*CHAPA|TELHA\s*DUPLA|SANDU[IÍ]CHE\s*DUPL|TELHA\s*(\+|\/)\s*TELHA)/i.test(p)
+  );
+  if (ehTelhaEpsTelha) {
     return "TELHA + EPS + TELHA";
   }
+
+  // 3. TELHA BANDEJA
   if (p.includes("BANDEJA")) {
     return "TELHA BANDEJA";
   }
-  if (p.includes("EPS") || p.includes("SANDUICHE") || p.includes("SANDUÍCHE") || p.includes("TERMOACUSTICA") || p.includes("TERMOACÚSTICA")) {
+
+  // 4. TELHA + EPS (Monoface: Chapa superior + EPS sem chapa ou manta inferior)
+  if (/(EPS|ISOPOR|SANDUICHE|SANDUÍCHE|TERMOACUSTICA|TERMOACÚSTICA|PIR|PUR)/i.test(p)) {
     return "TELHA + EPS";
   }
+
+  // 5. Demais tipos específicos
   if (/(BOBININ|BOBININH|BOBINA|FITA|DESBOBINAM)/i.test(p)) {
     return "BOBININHA";
   }
@@ -575,6 +605,7 @@ export function detectarTipoProdutoTelha(produtoTexto = "") {
   if (p.includes("PAINEL")) {
     return "PAINEL";
   }
+
   return "TELHA";
 }
 
@@ -608,28 +639,30 @@ export function detectarOrigemAco(produtoTexto = "") {
   return "ambas";
 }
 
-// Detecta o tipo de EPS a partir do texto do produto, modelo ou da máquina da telha
+// Detecta o tipo e espessura de EPS a partir do texto do produto, modelo ou da máquina da telha
 export function detectarEPSTelha(produtoTexto = "", maquina = "") {
   const p = String(produtoTexto || "").toUpperCase();
   const m = String(maquina || "").toUpperCase();
+  const espEps = extrairEspessuraEPS(produtoTexto);
+  const espSufixo = espEps ? ` (${espEps})` : "";
 
   // 1. Verifica no nome da máquina da telha
-  if (m.includes("COLONIAL") && (m.includes("BANDEJA") || p.includes("BANDEJA"))) return "EPS - COLONIAL BANDEJA";
-  if (m.includes("COLONIAL")) return "EPS - COLONIAL";
-  if (m.includes("BANDEJA")) return "EPS - TP 40 BANDEJA";
-  if (m.includes("TP 25") || m.includes("TP-25") || m.includes("TP25")) return "EPS - TP 25";
-  if (m.includes("TP 40") || m.includes("TP-40") || m.includes("TP40")) return "EPS - TP 40";
-  if (m.includes("ONDULAD")) return "EPS - ONDULADO";
+  if (m.includes("COLONIAL") && (m.includes("BANDEJA") || p.includes("BANDEJA"))) return `EPS - COLONIAL BANDEJA${espSufixo}`;
+  if (m.includes("COLONIAL")) return `EPS - COLONIAL${espSufixo}`;
+  if (m.includes("BANDEJA") || p.includes("BANDEJA")) return `EPS - TP 40 BANDEJA${espSufixo}`;
+  if (m.includes("TP 25") || m.includes("TP-25") || m.includes("TP25")) return `EPS - TP 25${espSufixo}`;
+  if (m.includes("TP 40") || m.includes("TP-40") || m.includes("TP40")) return `EPS - TP 40${espSufixo}`;
+  if (m.includes("ONDULAD")) return `EPS - ONDULADO${espSufixo}`;
 
   // 2. Verifica no texto do produto / rótulo PCP
-  if (p.includes("COLONIAL") && p.includes("BANDEJA")) return "EPS - COLONIAL BANDEJA";
-  if (p.includes("COLONIAL")) return "EPS - COLONIAL";
-  if (p.includes("BANDEJA") || p.includes("TP 40 BANDEJA") || p.includes("TP-40 BANDEJA")) return "EPS - TP 40 BANDEJA";
-  if (p.includes("TP 25") || p.includes("TP-25") || p.includes("TP25")) return "EPS - TP 25";
-  if (p.includes("TP 40") || p.includes("TP-40") || p.includes("TP40")) return "EPS - TP 40";
-  if (p.includes("ONDULAD")) return "EPS - ONDULADO";
+  if (p.includes("COLONIAL") && p.includes("BANDEJA")) return `EPS - COLONIAL BANDEJA${espSufixo}`;
+  if (p.includes("COLONIAL")) return `EPS - COLONIAL${espSufixo}`;
+  if (p.includes("BANDEJA") || p.includes("TP 40 BANDEJA") || p.includes("TP-40 BANDEJA")) return `EPS - TP 40 BANDEJA${espSufixo}`;
+  if (p.includes("TP 25") || p.includes("TP-25") || p.includes("TP25")) return `EPS - TP 25${espSufixo}`;
+  if (p.includes("TP 40") || p.includes("TP-40") || p.includes("TP40")) return `EPS - TP 40${espSufixo}`;
+  if (p.includes("ONDULAD")) return `EPS - ONDULADO${espSufixo}`;
 
-  return "";
+  return espEps ? `EPS ${espEps}` : "EPS";
 }
 
 import { calcularDataPrometidaSLA, toISODate } from "@/lib/sla";
@@ -638,22 +671,23 @@ import { extrairCroquiPedido } from "@/lib/croquiExtractor";
 
 // Monta o preset completo de Nova Ordem para Telhas
 export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
+  const descTexto = item?.descricao || item?.observacao || pedido?.observacoes || "";
   const produtoNome = item?.produto || item?.descricao || "";
-  const prodTipo = detectarTipoProdutoTelha(produtoNome);
+  const prodTipo = detectarTipoProdutoTelha(produtoNome, descTexto);
   const maq = detectarMaquinaTelha(produtoNome);
   const esp = item?.espessura ? String(item.espessura) : detectarEspessura(produtoNome);
   const origem = item?.origem || detectarOrigemAco(produtoNome);
   const isComEps = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(prodTipo) ||
-    /(eps|manta|sanduiche|isopor|termoacustica)/i.test(produtoNome);
-  const eps = isComEps ? detectarEPSTelha(produtoNome, maq) : "";
+    /(eps|manta|sanduiche|isopor|termoacustica)/i.test(produtoNome) ||
+    /(eps|manta|sanduiche|isopor|termoacustica)/i.test(descTexto);
+  const eps = isComEps ? detectarEPSTelha(`${produtoNome} ${descTexto}`, maq) : "";
 
   const dataReceb = pedido?.data_recebimento ? String(pedido.data_recebimento).slice(0, 10) : new Date().toISOString().slice(0, 10);
   const dataPrevista = pedido?.data_entrega
     ? String(pedido.data_entrega).slice(0, 10)
     : toISODate(calcularDataPrometidaSLA(dataReceb, 7));
 
-  // Extrai especificação inteligente da descrição (ex: "50 PÇS c/ 2000\")
-  const descTexto = item?.descricao || item?.observacao || pedido?.observacoes || "";
+  // Extrai especificação inteligente da descrição (ex: "50 PÇS c/ 2000")
   const espTec = extrairEspecificacao(descTexto, item?.quantidade, item?.unidade);
 
   // No formulário de Telhas:

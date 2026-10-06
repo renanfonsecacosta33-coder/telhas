@@ -314,14 +314,19 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     throw new Error("Pedido ou Item inválido para auto-roteamento.");
   }
 
+  const descTexto = item.descricao || item.observacao || pedido.observacoes || "";
   const produtoNome = item.produto || item.descricao || "";
-  const prodTipo = detectarTipoProdutoTelha(produtoNome);
+  const prodTipo = detectarTipoProdutoTelha(produtoNome, descTexto);
   let maquina = item.maquina || detectarMaquinaTelha(produtoNome);
   if (!maquina) maquina = "TP - 40"; // Padrão de fábrica de telhas
 
   const esp = item.espessura ? String(item.espessura) : detectarEspessura(produtoNome);
   const origem = item.origem || detectarOrigemAco(produtoNome);
-  const cor = detectarCorTelha(produtoNome, item.descricao || "");
+  const cor = detectarCorTelha(produtoNome, descTexto);
+  const eps = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(prodTipo) ||
+    /(eps|manta|sanduiche|isopor|termoacustica)/i.test(produtoNome)
+    ? detectarEPSTelha(produtoNome, maquina)
+    : "";
 
   // 1. Busca a melhor bobina com o algoritmo minucioso
   const bobinaEleita = selecionarMelhorBobinaTelhas({
@@ -333,7 +338,6 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
   });
 
   // 2. Extração de especificações físicas (peças, mm, metros lineares)
-  const descTexto = item.descricao || item.observacao || pedido.observacoes || "";
   const espTec = extrairEspecificacao(descTexto, item.quantidade, item.unidade);
 
   let qtdChapas = item.quantidade || 1;
@@ -368,6 +372,9 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
 
   const unidadeOp = filialAtiva && filialAtiva !== "todas" ? filialAtiva : (pedido.unidade || "Matriz AJL");
 
+  // Se for TELHA + EPS + TELHA, prepara bobina inferior
+  const isDuplaTelha = prodTipo === "TELHA + EPS + TELHA";
+
   // 3. Monta os dados da Ordem de Produção (tabela Pedido)
   const dadosOp = {
     data: dataReceb,
@@ -383,9 +390,13 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     status: "pendente",
     espessura_exigida: esp || "0.43",
     origem_exigida: origem || "ambas",
+    eps: eps,
     rvm_superior: bobinaEleita?.cor || (cor !== "NATURAL" ? cor : "Natural"),
     bobina_superior_id: bobinaEleita?.bobina_id || null,
     bobina_superior: bobinaEleita?.descricao || "",
+    rvm_inferior: isDuplaTelha ? (bobinaEleita?.cor || (cor !== "NATURAL" ? cor : "Natural")) : null,
+    bobina_inferior_id: isDuplaTelha ? (bobinaEleita?.bobina_id || null) : null,
+    bobina_inferior: isDuplaTelha ? (bobinaEleita?.descricao || "") : null,
     metros: Number(qtdChapas) || 1,
     metragem_mm: Number(metragemMm) || null,
     quantidade_telhas: Number(metragemTotalLinear) || 1,
@@ -409,14 +420,27 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     });
     const opValida = opsExistentes.find(o => o.status !== "cancelado");
     if (opValida) {
+      const updates = {};
       // Atualiza com a bobina selecionada se ainda estava vazia
       if (!opValida.bobina_superior_id && bobinaEleita?.bobina_id) {
-        opCriada = await base44.entities.Pedido.update(opValida.id, {
-          bobina_superior_id: bobinaEleita.bobina_id,
-          bobina_superior: bobinaEleita.descricao,
-          rvm_superior: bobinaEleita.cor,
-          maquina: maquina
-        });
+        updates.bobina_superior_id = bobinaEleita.bobina_id;
+        updates.bobina_superior = bobinaEleita.descricao;
+        updates.rvm_superior = bobinaEleita.cor;
+      }
+      // Corrige o produto se estava como "TELHA + EPS" e o Odoo é "TELHA + EPS + TELHA"
+      if (opValida.produto !== prodTipo) {
+        updates.produto = prodTipo;
+        if (isDuplaTelha) {
+          updates.bobina_inferior_id = opValida.bobina_inferior_id || bobinaEleita?.bobina_id || null;
+          updates.bobina_inferior = opValida.bobina_inferior || bobinaEleita?.descricao || "";
+          updates.rvm_inferior = opValida.rvm_inferior || bobinaEleita?.cor || "Natural";
+        }
+      }
+      if (eps && (!opValida.eps || opValida.eps !== eps)) {
+        updates.eps = eps;
+      }
+      if (Object.keys(updates).length > 0) {
+        opCriada = await base44.entities.Pedido.update(opValida.id, updates);
       } else {
         opCriada = opValida;
       }
