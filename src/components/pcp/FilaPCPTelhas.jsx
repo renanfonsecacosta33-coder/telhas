@@ -8,8 +8,10 @@ import { useToast } from "@/components/ui/use-toast";
 import {
   Play, CheckCircle2, Inbox, Factory, Calendar, User, Loader2, Plus,
   AlertTriangle, Star, CalendarClock, Clock, Search, ArrowUpDown, Flame,
-  Store, Building2, Layers, XCircle
+  Store, Building2, Layers, XCircle, Zap, CheckSquare, Square
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import ProducaoEmLoteModal from "@/components/pcp/ProducaoEmLoteModal";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
 import {
@@ -46,6 +48,8 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
   const [pedidoPrazoModal, setPedidoPrazoModal] = useState(null);
+  const [itensSelecionados, setItensSelecionados] = useState([]);
+  const [modalLoteOpen, setModalLoteOpen] = useState(false);
 
   const filialCtx = useFilial();
   const filialAtiva = filialCtx?.filialAtiva;
@@ -335,6 +339,30 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
     return ordenarPedidosPCP(lista, ordenacao);
   }, [filaBase, naoDistribuidos, termoBusca, filtroUrgencia, ordenacao, filtroDataCampo, dataInicio, dataFim]);
 
+  // Itens elegíveis para envio em lote (itens pendentes / não concluídos da fila atual)
+  const todosItensPendentes = useMemo(() => {
+    const list = [];
+    filaFiltrada.forEach(pedido => {
+      const itens = getItens(pedido);
+      const telhas = itensPorGrupo(itens, "telha");
+      const opsDoPedido = buscarOpsDoPedido(pedido, pedidosProducao);
+      telhas.forEach((item, idx) => {
+        const opDoItem = localizarOpDoItem(item, opsDoPedido, telhas);
+        const isConcluido = (opDoItem && opDoItem.status === "finalizado") || item.status === "concluido";
+        if (!isConcluido) {
+          const itemIdx = item._idx != null ? item._idx : idx;
+          list.push({
+            key: `${pedido.id}_${itemIdx}`,
+            pedido,
+            item,
+            idx: itemIdx
+          });
+        }
+      });
+    });
+    return list;
+  }, [filaFiltrada, pedidosProducao]);
+
   const handleAtualizar = async (pedido, idx, updates) => {
     setAtualizando(`${pedido.id}-${idx}`);
     try {
@@ -408,6 +436,54 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
         />
       </div>
 
+      {/* ══════════════ BARRA DE SELEÇÃO EM LOTE ══════════════ */}
+      {todosItensPendentes.length > 0 && (
+        <div className="mx-4 sm:mx-6 my-2 p-2.5 sm:p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                if (itensSelecionados.length === todosItensPendentes.length) {
+                  setItensSelecionados([]);
+                } else {
+                  setItensSelecionados(todosItensPendentes);
+                }
+              }}
+              className="h-8 text-xs font-semibold gap-1.5"
+            >
+              {itensSelecionados.length === todosItensPendentes.length ? (
+                <>
+                  <CheckSquare className="w-3.5 h-3.5 text-orange-600" />
+                  Desmarcar Todos ({itensSelecionados.length})
+                </>
+              ) : (
+                <>
+                  <Square className="w-3.5 h-3.5" />
+                  Selecionar Todos os Pendentes ({todosItensPendentes.length})
+                </>
+              )}
+            </Button>
+            {itensSelecionados.length > 0 && (
+              <span className="text-xs text-slate-500 font-medium">
+                {itensSelecionados.length} selecionado(s) · {itensSelecionados.reduce((a, b) => a + Number(b.item?.quantidade || 0), 0)} m
+              </span>
+            )}
+          </div>
+
+          {itensSelecionados.length > 0 && (
+            <Button
+              size="sm"
+              onClick={() => setModalLoteOpen(true)}
+              className="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs h-8 px-3 gap-1.5 shadow-sm ml-auto"
+            >
+              <Zap className="w-3.5 h-3.5 fill-current" />
+              Colocar {itensSelecionados.length} em Produção
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* ══════════════ LISTA DE PEDIDOS DA FILA ══════════════ */}
       {filaFiltrada.length === 0 ? (
         <div className="p-12 flex flex-col items-center justify-center text-center">
@@ -472,6 +548,16 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
 
             if (telhasParaExibir.length === 0) return null;
 
+            // Itens pendentes deste pedido específico para seleção em lote
+            const itensPendentesPedido = telhasParaExibir.map((t, i) => {
+              const op = localizarOpDoItem(t, opsDoPedido, telhas);
+              const isConc = (op && op.status === "finalizado") || t.status === "concluido";
+              const finalIdx = t._idx != null ? t._idx : i;
+              return { key: `${pedido.id}_${finalIdx}`, pedido, item: t, idx: finalIdx, isConc };
+            }).filter(x => !x.isConc);
+
+            const todosDestePedidoSelecionados = itensPendentesPedido.length > 0 && itensPendentesPedido.every(x => itensSelecionados.some(s => s.key === x.key));
+
             return (
               <div
                 key={pedido.id}
@@ -498,7 +584,26 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
 
                   {/* Cabeçalho do Card */}
                   <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
-                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                    <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                      {itensPendentesPedido.length > 0 && (
+                        <div className="pt-1.5 shrink-0" title="Selecionar todos os itens pendentes deste pedido">
+                          <Checkbox
+                            checked={todosDestePedidoSelecionados}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setItensSelecionados(prev => {
+                                  const novos = itensPendentesPedido.filter(p => !prev.some(s => s.key === p.key));
+                                  return [...prev, ...novos];
+                                });
+                              } else {
+                                const keysRemover = new Set(itensPendentesPedido.map(p => p.key));
+                                setItensSelecionados(prev => prev.filter(s => !keysRemover.has(s.key)));
+                              }
+                            }}
+                            aria-label={`Selecionar todos os itens pendentes do pedido #${pedido.numero_pedido}`}
+                          />
+                        </div>
+                      )}
                       <CroquiThumb pedido={pedido} alt={`Croqui do pedido #${pedido.numero_pedido}`} className="mt-1" />
                       
                       <div className="min-w-0 flex-1">
@@ -665,19 +770,47 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
 
                       const st = STATUS_ITEM[statusItem] || STATUS_ITEM.pendente;
                       const emProd = statusItem === "em_producao";
-                      const concluido = statusItem === "concluido";
+                      const finalIdx = item._idx != null ? item._idx : idx;
+                      const itemKey = `${pedido.id}_${finalIdx}`;
+                      const isItemSelecionado = itensSelecionados.some(s => s.key === itemKey);
 
                       return (
                         <div
-                          key={item._idx != null ? item._idx : idx}
-                          className="p-3 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-950/50 space-y-2 shadow-2xs"
+                          key={finalIdx}
+                          className={`p-3 rounded-xl border transition-all ${
+                            isItemSelecionado
+                              ? "border-orange-500/80 bg-orange-50/40 dark:bg-orange-950/20 shadow-xs ring-1 ring-orange-500/30"
+                              : "border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-950/50 shadow-2xs"
+                          } space-y-2`}
                         >
-                          <InstrucaoVendedorCard
-                            descricao={item.descricao || item.produto}
-                            quantidadeOdoo={item.quantidade}
-                            espessura={item.espessura}
-                            unidade={normalizarUnidadeMedidaItem(item, "telha")}
-                          />
+                          <div className="flex items-start gap-2.5">
+                            {!concluido && (
+                              <div className="pt-1 shrink-0" title="Selecionar para colocar em produção em lote">
+                                <Checkbox
+                                  checked={isItemSelecionado}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setItensSelecionados(prev => [
+                                        ...prev.filter(s => s.key !== itemKey),
+                                        { key: itemKey, pedido, item, idx: finalIdx }
+                                      ]);
+                                    } else {
+                                      setItensSelecionados(prev => prev.filter(s => s.key !== itemKey));
+                                    }
+                                  }}
+                                  aria-label={`Selecionar item ${item.produto}`}
+                                />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <InstrucaoVendedorCard
+                                descricao={item.descricao || item.produto}
+                                quantidadeOdoo={item.quantidade}
+                                espessura={item.espessura}
+                                unidade={normalizarUnidadeMedidaItem(item, "telha")}
+                              />
+                            </div>
+                          </div>
 
                           <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap pt-1">
                             <div className="flex-1 min-w-0">
@@ -786,6 +919,18 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
           }}
         />
       )}
+
+      {/* Modal de Produção em Lote */}
+      <ProducaoEmLoteModal
+        open={modalLoteOpen}
+        onOpenChange={setModalLoteOpen}
+        itensSelecionados={itensSelecionados}
+        onConcluido={() => {
+          setItensSelecionados([]);
+          queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-telhas"] });
+          queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+        }}
+      />
     </div>
   );
 }

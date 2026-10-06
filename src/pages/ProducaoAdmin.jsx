@@ -78,15 +78,25 @@ export default function ProducaoAdmin() {
       setFilaContext(null);
       if (ctx) {
         try {
-          const itens = getItens(ctx.pedido);
+          // Busca atômica do PedidoOdoo mais recente pelo ID para evitar concorrência entre aberturas rápidas
+          let pedFresco = null;
+          try {
+            pedFresco = await base44.entities.PedidoOdoo.get(ctx.pedidoId);
+          } catch {
+            const listP = await base44.entities.PedidoOdoo.filter({ id: ctx.pedidoId });
+            pedFresco = listP?.[0];
+          }
+          const pedParaAtualizar = pedFresco || ctx.pedido;
+          const itens = getItens(pedParaAtualizar);
+
           if (itens[ctx.itemIdx]) {
             itens[ctx.itemIdx] = {
               ...itens[ctx.itemIdx],
               status: "em_producao",
-              maquina: variables?.maquina || "",
+              maquina: variables?.maquina || itens[ctx.itemIdx]?.maquina || "",
             };
             const percentual = computePercentual(itens);
-            const status_pcp = statusPcpPorPercentual(percentual, ctx.pedido.status_pcp);
+            const status_pcp = statusPcpPorPercentual(percentual, pedParaAtualizar.status_pcp);
             const updated = await base44.entities.PedidoOdoo.update(ctx.pedidoId, {
               itens_json: buildItensJson(itens),
               percentual_concluido: percentual,
@@ -122,22 +132,30 @@ export default function ProducaoAdmin() {
     if (editItem && !editItem._presets && editItem.id) {
       updateMutation.mutate({ id: editItem.id, data });
     } else {
-      // Verificação anti-duplicação antes de criar
+      // Injeta identificadores atômicos
+      const pedOdooId = filaContext?.pedidoId || data.pedido_odoo_id || null;
+      const itemIdx = filaContext?.itemIdx != null ? filaContext.itemIdx : (data.item_idx != null ? data.item_idx : null);
+      if (pedOdooId) data.pedido_odoo_id = pedOdooId;
+      if (itemIdx != null) data.item_idx = itemIdx;
+
+      // Verificação anti-duplicação precisa (NUNCA colidir itens diferentes do mesmo pedido)
       try {
         const pedNum = data.numero_pedido ? String(data.numero_pedido).trim() : "";
-        const pedOdooId = filaContext?.pedidoId || data.pedido_odoo_id || null;
-        const itemIdx = filaContext?.itemIdx != null ? filaContext.itemIdx : (data.item_idx != null ? data.item_idx : null);
-
         if (pedNum) {
           const opsAtuais = await base44.entities.Pedido.filter({ numero_pedido: pedNum });
           const opExistente = opsAtuais.find(o => {
             if (o.status === "cancelado") return false;
-            if (pedOdooId && o.pedido_odoo_id && o.pedido_odoo_id === pedOdooId) {
-              if (itemIdx != null && o.item_idx != null) return o.item_idx === itemIdx;
-              return true;
+            // Se temos o itemIdx e a OP gravada tem item_idx:
+            if (itemIdx != null && o.item_idx != null) {
+              return o.item_idx === itemIdx;
             }
-            if (itemIdx != null && o.item_idx != null && o.item_idx === itemIdx) return true;
-            return o.produto === data.produto && String(o.metros) === String(data.metros);
+            // Se não tem item_idx, só é a mesma OP se baterem todas as especificações físicas do corte:
+            const mesmoCorteFisico = (
+              o.produto === data.produto &&
+              String(o.metros || 0) === String(data.metros || 0) &&
+              String(o.tamanho_corte || o.comprimento || "") === String(data.tamanho_corte || data.comprimento || "")
+            );
+            return mesmoCorteFisico;
           });
 
           if (opExistente && opExistente.id) {
