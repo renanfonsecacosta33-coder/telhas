@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Circle, ChevronLeft, ChevronRight, ArrowLeft, BarChart2, Plus, Star, Trash2, Edit3, Route, Search, X, Calendar, Filter, History, FileText } from "lucide-react";
+import { Circle, ChevronLeft, ChevronRight, ArrowLeft, BarChart2, Plus, Star, Trash2, Edit3, Route, Search, X, Calendar, Filter, History, FileText, AlertTriangle } from "lucide-react";
 import { format, addDays, subDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -535,10 +535,23 @@ export default function MaquinaPanel({ maquina }) {
     return baseParaFiltros.filter(p => pedidoAtendeFiltroMaterial(p, filtroMaterial));
   }, [baseParaFiltros, filtroMaterial]);
 
-  const ordenados = useMemo(() => {
+  const [limpandoDuplicadas, setLimpandoDuplicadas] = useState(false);
+
+  const { ordenados, duplicadasDetectadas } = useMemo(() => {
     const hoje = format(new Date(), "yyyy-MM-dd");
     const order = { em_producao: 0, pausado: 1, pendente: 2, aguardando_colagem: 3, finalizado: 4, cancelado: 5 };
-    return [...pedidosFiltrados].sort((a, b) => {
+
+    // 1. Remove duplicatas exatas de ID
+    const mapIds = new Map();
+    for (const p of pedidosFiltrados) {
+      const pid = p.id || Math.random().toString();
+      if (!mapIds.has(pid)) {
+        mapIds.set(pid, p);
+      }
+    }
+    const listaUnica = Array.from(mapIds.values());
+
+    const sorted = listaUnica.sort((a, b) => {
       // Prioridade 1 a 5 (P1 é a mais urgente de todas a fazer!)
       const priDiff = getPesoOrdenacaoPrioridade(a) - getPesoOrdenacaoPrioridade(b);
       if (priDiff !== 0) return priDiff;
@@ -548,7 +561,51 @@ export default function MaquinaPanel({ maquina }) {
       if (aAtrasado !== bAtrasado) return aAtrasado - bAtrasado;
       return (order[a.status] ?? 2) - (order[b.status] ?? 2);
     });
+
+    // 2. Detecta OPs duplicadas idênticas pendentes (mesmo pedido Odoo / número + item + metragem)
+    const vistos = new Map();
+    const dups = [];
+    const resultado = sorted.map(p => {
+      const presets = p._presets || {};
+      const numPed = p.numero_pedido || presets.numero_pedido || "";
+      const odooId = p.pedido_odoo_id || presets.pedido_odoo_id || "";
+      const itemIdx = p.item_idx != null ? p.item_idx : (presets.item_idx != null ? presets.item_idx : "");
+      const metros = p.metros != null ? p.metros : (presets.metros || 0);
+      const mm = p.metragem_mm != null ? p.metragem_mm : (presets.metragem_mm || 0);
+      const chave = odooId ? `${odooId}_${itemIdx}` : (numPed ? `${numPed}_${metros}_${mm}` : "");
+
+      if (chave && p.status === "pendente") {
+        if (vistos.has(chave)) {
+          dups.push(p);
+          return { ...p, _isDuplicada: true, _originalId: vistos.get(chave) };
+        } else {
+          vistos.set(chave, p.id);
+        }
+      }
+      return p;
+    });
+
+    return { ordenados: resultado, duplicadasDetectadas: dups };
   }, [pedidosFiltrados]);
+
+  const handleLimparDuplicadas = async () => {
+    if (duplicadasDetectadas.length === 0) return;
+    if (!confirm(`Foram detectadas ${duplicadasDetectadas.length} OP(s) duplicada(s) pendente(s) nesta máquina.\nDeseja remover todas as duplicadas agora?`)) return;
+    setLimpandoDuplicadas(true);
+    let removidos = 0;
+    for (const dup of duplicadasDetectadas) {
+      try {
+        await base44.entities.Pedido.delete(dup.id);
+        removidos++;
+      } catch (err) {
+        console.error("Erro ao remover duplicada:", err);
+      }
+    }
+    queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+    queryClient.invalidateQueries({ queryKey: ["pedidos-maquina", maquina] });
+    setLimpandoDuplicadas(false);
+    toast.success(`${removidos} OP(s) duplicada(s) removida(s) com sucesso!`);
+  };
 
   const handleSetPrioridade = (pedido, nivel) => {
     const novaPri = Boolean(nivel);
@@ -577,14 +634,13 @@ export default function MaquinaPanel({ maquina }) {
     setEditandoPedido(null);
   };
 
-  const handleDeletePedido = async (pedido) => {
-    if (!confirm(`Excluir pedido ${pedido.numero_pedido ? "#" + pedido.numero_pedido : ""}?\nEsta ação não pode ser desfeita.`)) return;
+  const handleDeletePedido = async (pedido, semConfirmacao = false) => {
+    if (!semConfirmacao && !confirm(`Excluir pedido ${pedido.numero_pedido ? "#" + pedido.numero_pedido : ""}?\nEsta ação não pode ser desfeita.`)) return;
     const histData = appendHistorico(pedido, "excluido", "Excluiu Pedido");
-    // Registra no histórico antes de excluir (best-effort — se o pedido for excluído, o log se perde,
-    // mas o usuário será notificado via toast)
     try {
       await base44.entities.Pedido.delete(pedido.id);
       toast.success("Pedido excluído!");
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos-maquina", maquina] });
     } catch (err) {
       toast.error("Erro ao excluir: " + (err.message || ""));
@@ -951,12 +1007,56 @@ export default function MaquinaPanel({ maquina }) {
         </div>
       ) : (
         <div className="space-y-4">
+          {/* Alerta inteligente: se houver OPs duplicadas detectadas nesta máquina */}
+          {duplicadasDetectadas.length > 0 && (
+            <div className="bg-amber-500/10 border-2 border-amber-500/40 rounded-xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3 text-amber-900 dark:text-amber-200 shadow-sm animate-in fade-in">
+              <div className="flex items-center gap-2.5">
+                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+                <div>
+                  <p className="font-bold text-sm">
+                    {duplicadasDetectadas.length} OP(s) duplicada(s) detectada(s) nesta máquina
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    Ordens repetidas com mesmas medidas e status pendente na fila.
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="font-bold text-xs gap-1.5 shadow-sm ml-auto"
+                disabled={limpandoDuplicadas}
+                onClick={handleLimparDuplicadas}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {limpandoDuplicadas ? "Removendo..." : `Limpar ${duplicadasDetectadas.length} Duplicada(s)`}
+              </Button>
+            </div>
+          )}
+
           {ordenados.map(p => {
             const dataPedido = p.data || p.data_perfilacao;
             const ehOutroDia = Boolean(termoBusca.trim() && dataPedido && dataPedido !== selectedDay);
 
             return (
               <div key={p.id}>
+                {/* Banner de OP Duplicada individual */}
+                {p._isDuplicada && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2 mb-2 flex items-center justify-between text-xs text-red-800 dark:text-red-300">
+                    <span className="font-semibold flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                      Aviso: Esta OP é uma cópia duplicada pendente.
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-red-600 hover:bg-red-500/20 font-bold h-7 px-2 text-xs"
+                      onClick={() => handleDeletePedido(p)}
+                    >
+                      <Trash2 className="w-3 h-3 mr-1" /> Excluir esta cópia
+                    </Button>
+                  </div>
+                )}
                 {ehOutroDia && (
                   <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-1.5 mb-1.5 text-xs text-amber-800 dark:text-amber-300">
                     <div className="flex items-center gap-1.5 font-medium">

@@ -63,16 +63,36 @@ export default function ProducaoEmLoteModal({
       const { pedido, item, idx } = itensSelecionados[i];
       try {
         const itemIdx = item._idx != null ? item._idx : idx;
-        const preset = prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva);
+        const presetObj = prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva);
+        const presetData = presetObj?._presets || presetObj || {};
 
         // Define a máquina
-        let maquinaFinal = preset.maquina || "TP - 40";
+        let maquinaFinal = presetData.maquina || "TP - 40";
         if (maquinaModo !== "auto") {
           maquinaFinal = maquinaModo;
         }
 
+        // Checagem anti-duplicação: verifica se já existe OP ativa para este mesmo pedido e item_idx
+        if (pedido.id) {
+          try {
+            const existentes = await base44.entities.Pedido.filter({
+              pedido_odoo_id: pedido.id,
+              item_idx: itemIdx,
+            });
+            const jaExisteAtivo = existentes?.find(e => e.status !== "cancelado");
+            if (jaExisteAtivo) {
+              console.warn(`[ProducaoEmLote] OP já existe para pedido ${pedido.numero_pedido} item ${itemIdx}. Ignorando criação duplicada.`);
+              criados++;
+              setProgresso(Math.round(((i + 1) / itensSelecionados.length) * 100));
+              continue;
+            }
+          } catch (dupErr) {
+            console.warn("[ProducaoEmLote] Erro ao checar duplicação:", dupErr);
+          }
+        }
+
         const novaOpData = {
-          ...preset,
+          ...presetData,
           data: dataProducao,
           maquina: maquinaFinal,
           pedido_odoo_id: pedido.id,

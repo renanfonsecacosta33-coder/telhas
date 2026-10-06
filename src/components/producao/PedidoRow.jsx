@@ -143,9 +143,34 @@ function formatTempo(segundos) {
   return `${String(m).padStart(2, "0")}m ${String(sec).padStart(2, "0")}s`;
 }
 
-export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRole, opRodando, maquina, user, filialAtiva, appendHistoricoFn, todosPedidos = [] }) {
+export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate, userRole, opRodando, maquina, user, filialAtiva, appendHistoricoFn, todosPedidos = [] }) {
   const isOperador = userRole === "operador";
   const podeGerenciar = !isOperador;
+
+  // Normalização ultra-robusta com fallback completo para _presets (recupera OPs sem cabeçalho)
+  const p = useMemo(() => {
+    if (!pOriginal) return {};
+    const presets = pOriginal._presets || {};
+    return {
+      ...presets,
+      ...pOriginal,
+      produto: pOriginal.produto || presets.produto || "TELHA",
+      numero_pedido: pOriginal.numero_pedido || presets.numero_pedido || "",
+      cliente: pOriginal.cliente || presets.cliente || "",
+      vendedor: pOriginal.vendedor || presets.vendedor || "",
+      maquina: pOriginal.maquina || presets.maquina || maquina || "",
+      metros: (pOriginal.metros !== undefined && pOriginal.metros !== null && pOriginal.metros !== "") ? pOriginal.metros : (presets.metros ?? 0),
+      metragem_mm: (pOriginal.metragem_mm !== undefined && pOriginal.metragem_mm !== null && pOriginal.metragem_mm !== "") ? pOriginal.metragem_mm : (presets.metragem_mm ?? 0),
+      quantidade_telhas: (pOriginal.quantidade_telhas !== undefined && pOriginal.quantidade_telhas !== null && pOriginal.quantidade_telhas !== "") ? pOriginal.quantidade_telhas : (presets.quantidade_telhas ?? 0),
+      variacoes_telhas: pOriginal.variacoes_telhas || presets.variacoes_telhas || "",
+      espessura_exigida: pOriginal.espessura_exigida || presets.espessura_exigida || "",
+      origem_exigida: pOriginal.origem_exigida || presets.origem_exigida || "",
+      observacoes_odoo: pOriginal.observacoes_odoo || presets.observacoes_odoo || "",
+      foto_pedido_url: pOriginal.foto_pedido_url || presets.foto_pedido_url || "",
+      bobina_superior: pOriginal.bobina_superior || presets.bobina_superior || "",
+      bobina_superior_id: pOriginal.bobina_superior_id || presets.bobina_superior_id || "",
+    };
+  }, [pOriginal, maquina]);
   const regras = useRegrasProducao();
   const [etapasOk, setEtapasOk] = useState({});
   const [mostrarEtapas, setMostrarEtapas] = useState(false);
@@ -879,7 +904,7 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className="font-bold text-base">{p.produto}</span>
+              <span className="font-bold text-base">{p.produto || "TELHA / PERFIL METÁLICO"}</span>
               {p.tipo_componente_bandeja === "telha_superior" && (
                 <Badge className="bg-blue-600 text-white border-blue-700 text-xs gap-1 font-bold shadow-xs">
                   <Layers className="w-3 h-3" /> TELHA SUPERIOR ({p.maquina})
@@ -962,14 +987,12 @@ export default function PedidoRow({ pedido: p, onStatusChange, onUpdate, userRol
                 </Badge>
               )}
             </div>
-            {(p.numero_pedido || p.cliente) && (
+            {(p.numero_pedido || p.cliente || p.id) && (
               <div className="flex flex-wrap items-center gap-2 my-1.5 p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/80 shadow-xs">
-                {p.numero_pedido && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs sm:text-sm font-black font-mono bg-blue-600 text-white shadow-xs tracking-wide">
-                    <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
-                    #{p.numero_pedido}
-                  </span>
-                )}
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs sm:text-sm font-black font-mono bg-blue-600 text-white shadow-xs tracking-wide">
+                  <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
+                  {p.numero_pedido ? `#${p.numero_pedido}` : `OP #${String(p.id || "").slice(-6).toUpperCase()}`}
+                </span>
                 {p.cliente && (
                   <div className="inline-flex items-center gap-1.5 text-xs sm:text-sm md:text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">
                     <User className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
