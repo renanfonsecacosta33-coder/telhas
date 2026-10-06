@@ -77,7 +77,7 @@ const STATUS_PCP = {
 export default function PedidoOdooCard({
   pedido, onClick, onDelete, onRetirarFila, onTogglePrioridade, onSetPrioridade,
   progressoReal, pedidosProducao = [], ordensCD = [],
-  selecionado = false, onToggleSelect, onDistribuir, onTransferir,
+  selecionado = false, onToggleSelect, onDistribuir, onTransferir, onFinalizar100,
   defaultMinimizado, compacto = false, dentroDeGrupo = false,
   estoqueContext = null
 }) {
@@ -306,6 +306,16 @@ export default function PedidoOdooCard({
                 <ArrowRightLeft className="w-3 h-3" />
               </button>
             )}
+            {onFinalizar100 && !isConcluido && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onFinalizar100(pedido); }}
+                title="Finalizar pedido em 100% (exige senha de gestor)"
+                className="p-1 rounded text-emerald-500 hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors"
+              >
+                <CheckCircle2 className="w-3 h-3" />
+              </button>
+            )}
             {(onSetPrioridade || onTogglePrioridade) && (
               <div onClick={(e) => e.stopPropagation()}>
                 <SeletorPrioridadeDropdown
@@ -475,6 +485,16 @@ export default function PedidoOdooCard({
                 className="p-1 rounded-md text-indigo-500 hover:text-indigo-600 hover:bg-indigo-500/10 transition-colors"
               >
                 <ArrowRightLeft className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {onFinalizar100 && !isConcluido && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onFinalizar100(pedido); }}
+                title="Finalizar pedido em 100% (exige senha de gestor)"
+                className="p-1 rounded-md text-emerald-500 hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
               </button>
             )}
             {(onSetPrioridade || onTogglePrioridade) && (

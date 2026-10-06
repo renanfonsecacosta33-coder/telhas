@@ -88,6 +88,10 @@ export default function CentralPCP() {
     localStorage.setItem("pcp_loja_selecionada", lojaId);
   };
 
+  // Finalizar 100% com Senha de Gestor (PIN 0000)
+  const [senhaFinalizarOpen, setSenhaFinalizarOpen] = useState(false);
+  const [finalizarPendentes, setFinalizarPendentes] = useState(null);
+
   // Modal de Transferência de Loja entre Centrais PCP
   const [modalTransferir, setModalTransferir] = useState({
     aberto: false,
@@ -602,6 +606,33 @@ export default function CentralPCP() {
       setPedidoSelecionado((prev) => prev ? { ...prev, ...atualizado } : prev);
     } catch (e) {
       toast({ title: "Erro ao atualizar item", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const handleSolicitarFinalizar100 = (pedidosLista) => {
+    const lista = (pedidosLista || []).filter(Boolean);
+    if (!lista.length) return;
+    setFinalizarPendentes(lista);
+    setSenhaFinalizarOpen(true);
+  };
+
+  const confirmarFinalizar100 = async () => {
+    if (!finalizarPendentes?.length) return;
+    try {
+      await Promise.all(finalizarPendentes.map(async (pedido) => {
+        const itens = parseItensPedido(pedido.itens_json).map(i => ({ ...i, concluido: true, status: "concluido" }));
+        return base44.entities.PedidoOdoo.update(pedido.id, {
+          ...(itens.length ? { itens_json: JSON.stringify(itens) } : {}),
+          percentual_concluido: 100,
+          status_pcp: "concluido"
+        });
+      }));
+      toast({ title: "Pedido finalizado (100%)", description: `${finalizarPendentes.length} OF(s) marcada(s) como concluída(s).` });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+    } catch (e) {
+      toast({ title: "Erro ao finalizar", description: e.message, variant: "destructive" });
+    } finally {
+      setFinalizarPendentes(null);
     }
   };
 
@@ -1920,6 +1951,7 @@ export default function CentralPCP() {
                     onSetPrioridade={handleSetPrioridade}
                     onTransferir={(p) => setModalTransferir({ aberto: true, pedidos: [p] })}
                     onTransferirGrupo={(g) => setModalTransferir({ aberto: true, pedidos: g.ofs || [] })}
+                    onFinalizarGrupo100={(g) => handleSolicitarFinalizar100(g.ofs)}
                     estoqueContext={estoqueContext}
                   />
                 ))}
@@ -1942,6 +1974,7 @@ export default function CentralPCP() {
                     onTogglePrioridade={handleTogglePrioridade}
                     onSetPrioridade={handleSetPrioridade}
                     onTransferir={(ped) => setModalTransferir({ aberto: true, pedidos: [ped] })}
+                    onFinalizar100={(ped) => handleSolicitarFinalizar100([ped])}
                     estoqueContext={estoqueContext}
                   />
                 ))}
@@ -2007,6 +2040,7 @@ export default function CentralPCP() {
                           onSetPrioridade={handleSetPrioridade}
                           onTransferir={(p) => setModalTransferir({ aberto: true, pedidos: [p] })}
                           onTransferirGrupo={(g) => setModalTransferir({ aberto: true, pedidos: g.ofs || [] })}
+                          onFinalizarGrupo100={(g) => handleSolicitarFinalizar100(g.ofs)}
                           estoqueContext={estoqueContext}
                         />
                       ))}
@@ -2029,6 +2063,7 @@ export default function CentralPCP() {
                           onTogglePrioridade={handleTogglePrioridade}
                           onSetPrioridade={handleSetPrioridade}
                           onTransferir={(ped) => setModalTransferir({ aberto: true, pedidos: [ped] })}
+                          onFinalizar100={(ped) => handleSolicitarFinalizar100([ped])}
                           estoqueContext={estoqueContext}
                         />
                       ))}
@@ -2070,12 +2105,20 @@ export default function CentralPCP() {
         titulo="Autorizar Prioridade Alta"
         descricao="Para marcar este pedido como Prioridade Alta / Urgente (P1 ou P2), digite o PIN de liberação do PCP/Gestor."
         onAutorizado={() => {
-          if (pedidoPrioridadePendente) {
-            confirmarPrioridade(pedidoPrioridadePendente.pedido, pedidoPrioridadePendente.nivel ?? 1);
-            setPedidoPrioridadePendente(null);
-          }
+        if (pedidoPrioridadePendente) {
+          confirmarPrioridade(pedidoPrioridadePendente.pedido, pedidoPrioridadePendente.nivel ?? 1);
+          setPedidoPrioridadePendente(null);
+        }
         }}
-      />
+        />
+        <SenhaGestorDialog
+        open={senhaFinalizarOpen}
+        onOpenChange={setSenhaFinalizarOpen}
+        titulo="Finalizar Pedido em 100%"
+        descricao="Para marcar este(s) pedido(s) como 100% concluído(s) imediatamente, digite o PIN de liberação do Gestor."
+        aviso="Finalizar 100% exige autorização do Gestor."
+        onAutorizado={confirmarFinalizar100}
+        />
       <WebhookSimulatorDialog
         open={webhookOpen}
         onOpenChange={setWebhookOpen}

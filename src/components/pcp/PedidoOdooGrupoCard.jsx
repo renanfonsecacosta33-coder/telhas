@@ -33,6 +33,7 @@ export default function PedidoOdooGrupoCard({
   onDistribuirGrupo,
   onTransferir,
   onTransferirGrupo,
+  onFinalizarGrupo100,
   onClickPedido,
   onDelete,
   onDeleteGrupo,
@@ -58,6 +59,7 @@ export default function PedidoOdooGrupoCard({
     if (p.percentual_concluido != null && p.percentual_concluido >= 100) return true;
     return false;
   };
+  const grupoConcluido = totalOfs > 0 && ofs.every(isOfConcluida);
 
   // Contagens de status das OFs filhas
   const pendentes = ofs.filter(p => p.status_pcp === "pendente_distribuicao" && !isOfConcluida(p));
@@ -330,6 +332,21 @@ export default function PedidoOdooGrupoCard({
                 </Button>
               )}
 
+              {onFinalizarGrupo100 && !grupoConcluido && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onFinalizarGrupo100(ofs);
+                  }}
+                  className="h-8 px-2.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"
+                  title={`Finalizar Pedido #${grupo.numero_pedido} em 100% (exige senha de gestor)`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Finalizar 100%
+                </button>
+              )}
+
               {onTransferirGrupo && (
                 <button
                   type="button"
@@ -405,6 +422,7 @@ export default function PedidoOdooGrupoCard({
                 onToggleSelect={onToggleSelect}
                 onDistribuir={onDistribuir}
                 onTransferir={onTransferir}
+                onFinalizar100={onFinalizarGrupo100 ? (p) => onFinalizarGrupo100([p]) : null}
                 onClick={() => onClickPedido && onClickPedido(p)}
                 onDelete={onDelete}
                 onRetirarFila={onRetirarFila}
