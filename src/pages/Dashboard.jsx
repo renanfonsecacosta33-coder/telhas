@@ -297,7 +297,22 @@ export default function Dashboard() {
       <FilaPCPTelhas onNovaOrdem={(pedido, item) => {
         setFilaContext({ pedidoId: pedido.id, itemIdx: item._idx, pedido, produtoFixo: item.produto || "" });
         if (item.existingOp) {
-          setEditPreset(item.existingOp);
+          const op = item.existingOp;
+          const presets = op._presets || {};
+          setEditPreset({
+            ...presets,
+            ...op,
+            produto: op.produto || presets.produto || item.produto || "",
+            numero_pedido: op.numero_pedido || presets.numero_pedido || pedido.numero_pedido || "",
+            cliente: op.cliente || presets.cliente || pedido.cliente_nome || "",
+            vendedor: op.vendedor || presets.vendedor || pedido.vendedor_nome || "",
+            unidade: op.unidade || presets.unidade || pedido.unidade || filialAtiva || "Matriz AJL",
+            metros: op.metros != null ? op.metros : (presets.metros != null ? presets.metros : item.quantidade),
+            metragem_mm: op.metragem_mm != null ? op.metragem_mm : (presets.metragem_mm != null ? presets.metragem_mm : ""),
+            quantidade_telhas: op.quantidade_telhas != null ? op.quantidade_telhas : (presets.quantidade_telhas != null ? presets.quantidade_telhas : item.quantidade),
+            observacoes_odoo: op.observacoes_odoo || presets.observacoes_odoo || item.descricao || "",
+            _presets: undefined,
+          });
         } else {
           setEditPreset(prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva));
         }

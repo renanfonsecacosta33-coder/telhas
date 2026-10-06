@@ -8,12 +8,14 @@ import { useToast } from "@/components/ui/use-toast";
 import {
   Play, CheckCircle2, Inbox, Factory, Calendar, User, Loader2, Plus,
   AlertTriangle, Star, CalendarClock, Clock, Search, ArrowUpDown, Flame,
-  Store, Building2, Layers, XCircle, Zap, CheckSquare, Square
+  Store, Building2, Layers, XCircle, Zap, CheckSquare, Square,
+  Undo2, ShieldAlert, Sparkles, PackageCheck, Trash2, ExternalLink, FileText, Send
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import ProducaoEmLoteModal from "@/components/pcp/ProducaoEmLoteModal";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
+import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import {
   getItens, itensPorGrupo, computePercentual, computePercentualGrupo,
   buildItensJson, statusPcpPorPercentual, STATUS_ITEM, saoPedidosIguais,
@@ -50,6 +52,8 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
   const [pedidoPrazoModal, setPedidoPrazoModal] = useState(null);
   const [itensSelecionados, setItensSelecionados] = useState([]);
   const [modalLoteOpen, setModalLoteOpen] = useState(false);
+  const [senhaFinalizarOpen, setSenhaFinalizarOpen] = useState(false);
+  const [pedidoParaFinalizar100, setPedidoParaFinalizar100] = useState(null);
 
   const filialCtx = useFilial();
   const filialAtiva = filialCtx?.filialAtiva;
@@ -384,6 +388,235 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
     }
   };
 
+  // ── DEVOLVER PEDIDO INTEIRO PARA A CENTRAL PCP (ESTORNO DE FILA) ──
+  const handleDevolverPedidoCentralPCP = async (pedido) => {
+    if (!window.confirm(
+      `↩️ DEVOLVER PARA A CENTRAL PCP\n\nDeseja retirar o pedido #${pedido.numero_pedido} da fila das máquinas e devolvê-lo para a Central PCP?\n\n• As OPs vinculadas nas máquinas serão canceladas.\n• O pedido voltará para "Pendente de Distribuição" na Central PCP.`
+    )) return;
+
+    setAtualizando(`devolver-${pedido.id}`);
+    try {
+      const todayIso = new Date().toISOString().slice(0, 10);
+
+      // 1. Cancela Ordens de Produção vinculadas nas perfiladeiras/máquinas da fábrica
+      try {
+        const ops = await base44.entities.Pedido.filter({
+          pedido_odoo_id: pedido.id
+        }).catch(() => []);
+
+        for (const op of ops) {
+          if (op.status !== "finalizado" && op.status !== "cancelado") {
+            await base44.entities.Pedido.update(op.id, {
+              status: "cancelado",
+              data_finalizacao: todayIso
+            });
+          }
+        }
+      } catch (errOps) {
+        console.warn("[FilaPCPTelhas] Erro ao cancelar OPs locais:", errOps);
+      }
+
+      // 2. Reseta itens do pedido para pendente de máquina
+      const itens = getItens(pedido);
+      const itensZerados = itens.map(i => ({
+        ...i,
+        status: "pendente",
+        status_detalhado: "Pendente de Distribuição",
+        concluido: false,
+        distribuido: false,
+        maquina: ""
+      }));
+
+      // 3. Atualiza PedidoOdoo
+      const logExistente = (() => {
+        try { return JSON.parse(pedido.historico_log || "[]"); }
+        catch { return []; }
+      })();
+      const novoLog = [...logExistente, {
+        data: new Date().toISOString(),
+        usuario: filialCtx?.user?.full_name || filialCtx?.user?.email || "PCP",
+        acao: "devolvido_central_pcp",
+        detalhes: `Pedido #${pedido.numero_pedido} devolvido da Fila de Telhas para a Central PCP.`
+      }];
+
+      await base44.entities.PedidoOdoo.update(pedido.id, {
+        status_pcp: "pendente_distribuicao",
+        percentual_concluido: 0,
+        maquinas_json: "[]",
+        etapas_telha_json: "[]",
+        itens_json: buildItensJson(itensZerados),
+        historico_log: JSON.stringify(novoLog)
+      });
+
+      // 4. Notifica Mini BI
+      await notificarStatus(pedido, "retirada_fila_galpao", {
+        status_novo: "pendente_distribuicao",
+        percentual_concluido: 0
+      }).catch(() => {});
+
+      // 5. Invalida queries
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-telhas"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+
+      toast({
+        title: "↩️ Pedido devolvido ao PCP!",
+        description: `Pedido #${pedido.numero_pedido} retornou para a Central PCP com sucesso.`
+      });
+    } catch (err) {
+      toast({
+        title: "Erro ao devolver pedido",
+        description: err.message,
+        variant: "destructive"
+      });
+    } finally {
+      setAtualizando(null);
+    }
+  };
+
+  // ── DEVOLVER ITEM INDIVIDUAL PARA A CENTRAL PCP ──
+  const handleDevolverItemCentralPCP = async (pedido, itemIdx) => {
+    if (!window.confirm(`Deseja devolver este item do pedido #${pedido.numero_pedido} para a Central PCP?`)) return;
+
+    setAtualizando(`devolver-item-${pedido.id}-${itemIdx}`);
+    try {
+      // 1. Cancela OP específica deste item se existir
+      try {
+        const ops = await base44.entities.Pedido.filter({
+          pedido_odoo_id: pedido.id,
+          item_idx: itemIdx
+        }).catch(() => []);
+
+        for (const op of ops) {
+          if (op.status !== "finalizado" && op.status !== "cancelado") {
+            await base44.entities.Pedido.update(op.id, {
+              status: "cancelado"
+            });
+          }
+        }
+      } catch (errOp) {
+        console.warn("[FilaPCPTelhas] Erro ao cancelar OP do item:", errOp);
+      }
+
+      // 2. Atualiza item no PedidoOdoo
+      const itens = getItens(pedido);
+      if (itens[itemIdx]) {
+        itens[itemIdx] = {
+          ...itens[itemIdx],
+          status: "pendente",
+          distribuido: false,
+          maquina: ""
+        };
+      }
+      const pct = computePercentual(itens);
+      const statusPcp = statusPcpPorPercentual(pct, pedido.status_pcp);
+
+      await base44.entities.PedidoOdoo.update(pedido.id, {
+        itens_json: buildItensJson(itens),
+        percentual_concluido: pct,
+        status_pcp: statusPcp
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-telhas"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+
+      toast({
+        title: "↩️ Item devolvido!",
+        description: `Item devolvido para a triagem da Central PCP.`
+      });
+    } catch (err) {
+      toast({
+        title: "Erro ao devolver item",
+        description: err.message,
+        variant: "destructive"
+      });
+    } finally {
+      setAtualizando(null);
+    }
+  };
+
+  // ── FINALIZAR 100% FORÇADO COM SENHA DO GESTOR (PIN 0000) ──
+  const solicitarFinalizar100 = (pedido) => {
+    setPedidoParaFinalizar100(pedido);
+    setSenhaFinalizarOpen(true);
+  };
+
+  const confirmarFinalizar100 = async () => {
+    if (!pedidoParaFinalizar100) return;
+    const pedido = pedidoParaFinalizar100;
+    setAtualizando(`finalizar-100-${pedido.id}`);
+
+    try {
+      // 1. Marca todos os itens como concluído
+      const itens = getItens(pedido).map(i => ({
+        ...i,
+        concluido: true,
+        status: "concluido",
+        status_detalhado: "Concluído"
+      }));
+
+      const atualizado = await base44.entities.PedidoOdoo.update(pedido.id, {
+        itens_json: buildItensJson(itens),
+        percentual_concluido: 100,
+        status_pcp: "concluido"
+      });
+
+      // 2. Notifica Odoo ERP via webhook como concluído (100%)
+      try {
+        await notificarStatus(
+          {
+            ...pedido,
+            ...atualizado,
+            percentual_concluido: 100,
+            status_pcp: "concluido",
+            itens_json: buildItensJson(itens)
+          },
+          "concluido",
+          {
+            percentual_concluido: 100,
+            status_novo: "concluido",
+            item_nome: `Pedido #${pedido.numero_pedido}`
+          }
+        );
+      } catch (notifErr) {
+        console.warn("[FilaPCPTelhas] Falha ao notificar Odoo em finalizar 100%:", notifErr);
+      }
+
+      // 3. Finaliza OPs locais vinculadas na fábrica
+      try {
+        const opsTelhas = await base44.entities.Pedido.filter({ pedido_odoo_id: pedido.id }).catch(() => []);
+        for (const op of opsTelhas) {
+          if (op.status !== "finalizado" && op.status !== "cancelado") {
+            await base44.entities.Pedido.update(op.id, { status: "finalizado", concluido: true });
+          }
+        }
+      } catch (opErr) {
+        console.warn("[FilaPCPTelhas] Falha ao finalizar OPs locais:", opErr);
+      }
+
+      toast({
+        title: "⚡ Pedido 100% Concluído!",
+        description: `Pedido #${pedido.numero_pedido} marcado como 100% concluído e sincronizado com o Odoo ERP.`
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-telhas"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+    } catch (e) {
+      toast({
+        title: "Erro ao finalizar pedido",
+        description: e.message,
+        variant: "destructive"
+      });
+    } finally {
+      setPedidoParaFinalizar100(null);
+      setAtualizando(null);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex items-center gap-3 text-slate-400">
@@ -498,7 +731,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
           </p>
         </div>
       ) : (
-        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+        <div className="p-3 sm:p-5 space-y-4 bg-slate-50/50 dark:bg-slate-950/40">
           {filaFiltrada.map(pedido => {
             const itens = getItens(pedido);
             const telhas = itensPorGrupo(itens, "telha");
@@ -532,14 +765,12 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
             // ── CÁLCULO DE DATA E URGÊNCIA ──
             const dataAlvoUrgencia = pedido.data_previsao_fabrica || pedido.data_entrega;
             const restantes = diasUteisRestantes(dataAlvoUrgencia);
-            const urgencia = urgenciaPrazo(dataAlvoUrgencia, { concluido: pacoteConcluido });
             const isAtrasado = restantes != null && restantes < 0;
             const isHoje = restantes === 0;
             const isAmanha = restantes === 1;
             const isPrioritario = Boolean(pedido.prioridade);
 
-            // Exibe TODOS os itens do setor, cada um com selo de Distribuído / Não Distribuído
-            // (o filtro "Não Distribuídos" lista pedidos ainda não distribuídos pelo PCP)
+            // Itens do setor
             const algumItemTemDistribuido = telhas.some(i => i.distribuido === true || i.distribuido === false);
             const telhasParaExibir = telhas;
             const qtdNaoDistribuidos = telhas.filter(t =>
@@ -561,19 +792,19 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
             return (
               <div
                 key={pedido.id}
-                className={`p-4 sm:p-5 transition-all relative overflow-hidden bg-card ${
+                className={`p-4 sm:p-5 rounded-2xl border-2 transition-all relative overflow-hidden bg-card shadow-sm hover:shadow-md ${
                   pacoteConcluido
-                    ? "bg-emerald-50/20 dark:bg-emerald-950/10"
+                    ? "border-emerald-300 dark:border-emerald-800/80 bg-emerald-50/15 dark:bg-emerald-950/10"
                     : isPrioritario
-                    ? "border-l-4 border-l-amber-500 hover:bg-slate-50/40 dark:hover:bg-slate-900/20"
+                    ? "border-amber-400 dark:border-amber-600/80 ring-1 ring-amber-400/20"
                     : isAtrasado
-                    ? "border-l-4 border-l-red-600 ring-1 ring-red-400/20 hover:bg-slate-50/40 dark:hover:bg-slate-900/20"
+                    ? "border-red-400 dark:border-red-800/80 ring-2 ring-red-500/20 bg-red-50/10 dark:bg-red-950/10"
                     : isHoje || isAmanha
-                    ? "border-l-4 border-l-amber-500 hover:bg-slate-50/40 dark:hover:bg-slate-900/20"
-                    : "border-l-4 border-l-blue-600 hover:bg-slate-50/40 dark:hover:bg-slate-900/20"
+                    ? "border-amber-300 dark:border-amber-700/80"
+                    : "border-blue-200 dark:border-blue-800/60"
                 }`}
               >
-                <div className="relative z-10 space-y-3">
+                <div className="relative z-10 space-y-3.5">
                   {/* ══════════════ PAINEL HERO: ONDE ESTÁ & STATUS EM MÁXIMA EVIDÊNCIA ══════════════ */}
                   <LocalizacaoStatusHero
                     pedido={pedido}
@@ -582,9 +813,9 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                     setor="telhas"
                   />
 
-                  {/* Cabeçalho do Card */}
-                  <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
-                    <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                  {/* ══════════════ CABEÇALHO DO BLOCO (CARD VISUAL TOP) ══════════════ */}
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
                       {itensPendentesPedido.length > 0 && (
                         <div className="pt-1.5 shrink-0" title="Selecionar todos os itens pendentes deste pedido">
                           <Checkbox
@@ -600,23 +831,25 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                                 setItensSelecionados(prev => prev.filter(s => !keysRemover.has(s.key)));
                               }
                             }}
-                            aria-label={`Selecionar todos os itens pendentes do pedido #${pedido.numero_pedido}`}
+                            aria-label={`Selecionar todos os itens do pedido #${pedido.numero_pedido}`}
                           />
                         </div>
                       )}
-                      <CroquiThumb pedido={pedido} alt={`Croqui do pedido #${pedido.numero_pedido}`} className="mt-1" />
+                      <CroquiThumb pedido={pedido} alt={`Croqui #${pedido.numero_pedido}`} className="mt-0.5" />
                       
-                      <div className="min-w-0 flex-1">
-                        {/* Linha 1: Número, OF, Prioridade e Status da Fábrica */}
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          {isPrioritario && (
-                            <Badge className="bg-amber-500 text-white border-amber-600 animate-pulse text-[10px] gap-0.5 px-1.5 py-0 shadow-xs">
-                              <Star className="w-2.5 h-2.5 fill-white" /> URGENTE
-                            </Badge>
-                          )}
-                          <span className="text-base font-black text-slate-900 dark:text-white font-mono">
+                      <div className="min-w-0 flex-1 space-y-1">
+                        {/* Linha 1: Número, Badges de Urgência e Status Fábrica */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-lg font-black text-slate-900 dark:text-white font-mono tracking-tight bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
                             #{pedido.numero_pedido}
                           </span>
+
+                          {isPrioritario && (
+                            <Badge className="bg-amber-500 text-white border-amber-600 animate-pulse text-[10px] gap-1 px-2 py-0.5 font-bold shadow-xs">
+                              <Star className="w-3 h-3 fill-white" /> URGENTE
+                            </Badge>
+                          )}
+
                           {pedido._isOpAvulsa ? (
                             <Badge variant="outline" className="text-[10px] font-mono font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300">
                               OP Fábrica ({pedido._opOrigem?.maquina || "Telhas"})
@@ -630,18 +863,19 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                               OF: {pedido.of_odoo_id}
                             </Badge>
                           ) : null}
+
                           {(contagemPorPedido.get(String(pedido.numero_pedido || "").trim()) || 1) > 1 && (
                             <Badge
                               className="bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/40 text-[10px] font-bold"
-                              title="Este número de pedido possui múltiplas OFs/itens na fila"
+                              title="Este número de pedido possui múltiplos itens na fila"
                             >
-                              <Layers className="w-3 h-3 mr-0.5" /> {contagemPorPedido.get(String(pedido.numero_pedido || "").trim())} itens deste pedido
+                              <Layers className="w-3 h-3 mr-0.5" /> {contagemPorPedido.get(String(pedido.numero_pedido || "").trim())} itens
                             </Badge>
                           )}
 
                           {pacoteConcluido ? (
                             <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40 text-[10px] font-bold">
-                              <CheckCircle2 className="w-3 h-3 mr-0.5" /> Pacote Telhas Concluído
+                              <CheckCircle2 className="w-3 h-3 mr-0.5" /> Pacote Concluído
                             </Badge>
                           ) : opsDoPedido.length > 0 ? (
                             <Badge className="bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/40 text-[10px] font-bold">
@@ -649,63 +883,106 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                             </Badge>
                           ) : (
                             <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 text-[10px] font-bold">
-                              Aguardando Criação de OP
+                              Aguardando Produção
                             </Badge>
                           )}
+
                           {!pacoteConcluido && qtdNaoDistribuidos > 0 && (
                             <Badge
-                              className="bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40 text-[10px] font-black uppercase tracking-wide"
-                              title="Itens deste pedido ainda sem máquina designada"
+                              className="bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40 text-[10px] font-black uppercase"
+                              title="Itens deste pedido ainda sem máquina"
                             >
                               <XCircle className="w-3 h-3 mr-0.5" />
-                              {qtdNaoDistribuidos} de {telhas.length} itens não distribuídos
+                              {qtdNaoDistribuidos} não distribuído(s)
                             </Badge>
                           )}
                         </div>
 
-                        {/* Linha 2: Cliente, Vendedor e Filial */}
-                        <div className="flex items-center gap-3 text-xs text-slate-600 dark:text-slate-300 flex-wrap">
-                          <span className="flex items-center gap-1 font-semibold text-slate-900 dark:text-slate-100">
-                            <User className="w-3.5 h-3.5 text-slate-400" />
-                            {pedido.cliente_nome || "Cliente não informado"}
+                        {/* Linha 2: Cliente, Vendedor e Loja */}
+                        <div className="flex items-center gap-3 text-xs text-slate-600 dark:text-slate-300 flex-wrap pt-0.5">
+                          <span className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-slate-100 text-sm">
+                            <User className="w-4 h-4 text-blue-600 shrink-0" />
+                            {pedido.cliente_nome || "Cliente Balcão"}
                           </span>
                           {pedido.vendedor_nome && pedido.vendedor_nome !== "—" && (
-                            <span className="text-slate-500">
-                              Vendedor: <strong className="text-slate-700 dark:text-slate-200">{pedido.vendedor_nome}</strong>
+                            <span className="text-slate-500 font-medium">
+                              Vendedor: <strong className="text-slate-800 dark:text-slate-200">{pedido.vendedor_nome}</strong>
                             </span>
                           )}
                           {pedido.loja_venda && (
-                            <span className="text-slate-400 flex items-center gap-1">
-                              <Store className="w-3 h-3" /> {pedido.loja_venda}
+                            <span className="text-slate-500 flex items-center gap-1">
+                              <Store className="w-3 h-3 text-slate-400" /> {pedido.loja_venda}
                             </span>
                           )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Lado Direito: Barras e Percentual de Conclusão */}
-                    <div className="text-right shrink-0 flex flex-col justify-center min-w-[120px]">
-                      <div className="flex items-center gap-2 justify-end">
-                        <span className="text-[10px] uppercase font-bold text-slate-400">Telhas</span>
+                    {/* Lado Direito Superior: Progresso e Ações Rápidas do Pedido */}
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] uppercase font-bold text-slate-400">Progresso Telhas</span>
                         <span className={`text-base font-black ${pctTelha >= 100 ? "text-emerald-600" : "text-orange-600"}`}>
                           {pctTelha}%
                         </span>
                       </div>
-                      <div className="w-28 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden ml-auto mt-0.5">
+                      <div className="w-32 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all ${pctTelha >= 100 ? "bg-emerald-500" : "bg-gradient-to-r from-orange-500 to-amber-500"}`}
                           style={{ width: `${pctTelha}%` }}
                         />
                       </div>
-                      <span className="text-[10px] text-slate-400 mt-1">Geral Pedido: <strong>{pctGeral}%</strong></span>
+
+                      {/* ══════════════ BOTÕES DE AÇÃO DO PEDIDO (DEVOLVER AO PCP & FINALIZAR 100%) ══════════════ */}
+                      <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                        {/* 1. DEVOLVER PARA A CENTRAL PCP */}
+                        {!pedido._isOpAvulsa && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={atualizando === `devolver-${pedido.id}`}
+                            onClick={() => handleDevolverPedidoCentralPCP(pedido)}
+                            className="h-7 px-2.5 text-xs font-bold gap-1 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 hover:bg-amber-100/70 dark:hover:bg-amber-950/40 shadow-2xs"
+                            title="Retirar da fila de produção e devolver para a triagem da Central PCP"
+                          >
+                            <Undo2 className="w-3.5 h-3.5 text-amber-600" />
+                            <span>{atualizando === `devolver-${pedido.id}` ? "Devolvendo..." : "Devolver ao PCP"}</span>
+                          </Button>
+                        )}
+
+                        {/* 2. FINALIZAR 100% FORÇADO COM SENHA 0000 */}
+                        {!pacoteConcluido && (
+                          <Button
+                            size="sm"
+                            disabled={atualizando === `finalizar-100-${pedido.id}`}
+                            onClick={() => solicitarFinalizar100(pedido)}
+                            className="h-7 px-2.5 text-xs font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs"
+                            title="Forçar conclusão em 100% com PIN de Gestor (0000) e sincronizar com o Odoo ERP"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>{atualizando === `finalizar-100-${pedido.id}` ? "Finalizando..." : "Finalizar 100%"}</span>
+                          </Button>
+                        )}
+
+                        {/* 3. AJUSTAR PRAZO FABRIL */}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setPedidoPrazoModal(pedido)}
+                          className="h-7 px-2 text-xs font-semibold gap-1 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                          title="Reprogramar data da fábrica e notificar vendedor"
+                        >
+                          <CalendarClock className="w-3.5 h-3.5 text-orange-600" />
+                          <span className="hidden sm:inline">Prazo</span>
+                        </Button>
+                      </div>
                     </div>
                   </div>
 
-                  {/* ══════════════ BLOCO PREMIUM DE DATAS, PRAZO FABRIL & SLA ══════════════ */}
-                  <div className="flex items-center justify-between gap-2.5 p-2.5 rounded-xl bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex-wrap">
+                  {/* ══════════════ BLOCO DE DATAS, PRAZO FABRIL & SLA ══════════════ */}
+                  <div className="flex items-center justify-between gap-2.5 p-2.5 rounded-xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex-wrap">
                     <div className="flex items-center gap-2 flex-wrap text-xs">
-                      {/* Badge da Data Prometida Comercial */}
-                      <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 font-semibold text-slate-700 dark:text-slate-200">
+                      <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 font-semibold text-slate-700 dark:text-slate-200 shadow-2xs">
                         <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                         <span>Entrega Prometida:</span>
                         <strong className="text-slate-900 dark:text-white font-mono">
@@ -713,10 +990,9 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                         </strong>
                       </div>
 
-                      {/* Se houver Previsão da Fábrica reprogramada */}
                       {pedido.data_previsao_fabrica && (
                         <div
-                          className="flex items-center gap-1 bg-orange-50 dark:bg-orange-950/40 px-2.5 py-1 rounded-lg border border-orange-300 dark:border-orange-800 font-semibold text-orange-900 dark:text-orange-200"
+                          className="flex items-center gap-1.5 bg-orange-50 dark:bg-orange-950/40 px-2.5 py-1 rounded-lg border border-orange-300 dark:border-orange-800 font-semibold text-orange-900 dark:text-orange-200 shadow-2xs"
                           title={pedido.motivo_alteracao_prazo ? `Motivo: ${pedido.motivo_alteracao_prazo}` : "Previsão calculada pela fábrica"}
                         >
                           <Factory className="w-3.5 h-3.5 text-orange-600 shrink-0" />
@@ -727,28 +1003,15 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                         </div>
                       )}
 
-                      {/* Badge Inteligente de SLA Countdown */}
                       <SlaCountdownBadge
                         dataPrometida={pedido.data_entrega}
                         dataPrevisaoFabrica={pedido.data_previsao_fabrica}
                       />
                     </div>
-
-                    {/* Botão de Reprogramar / Ajustar Prazo Fabril Direto da Fila */}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setPedidoPrazoModal(pedido)}
-                      className="h-7 text-xs font-bold gap-1 border-orange-300 dark:border-orange-800 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/40 ml-auto"
-                      title="Reprogramar data da fábrica e notificar o vendedor"
-                    >
-                      <CalendarClock className="w-3.5 h-3.5 text-orange-600" />
-                      Ajustar Prazo Fabril
-                    </Button>
                   </div>
 
-                  {/* ══════════════ ITENS DO PEDIDO / INSTRUÇÃO DE CORTE ══════════════ */}
-                  <div className="space-y-2 pt-1">
+                  {/* ══════════════ SUB-BLOCOS DE ITENS DO PEDIDO ══════════════ */}
+                  <div className="space-y-2.5 pt-1">
                     {telhasParaExibir.map((item, idx) => {
                       const opDoItem = localizarOpDoItem(item, opsDoPedido, telhas);
                       const itemDistribuido = itemEstaDistribuido(item, opDoItem, pedido, algumItemTemDistribuido);
@@ -778,15 +1041,15 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                       return (
                         <div
                           key={finalIdx}
-                          className={`p-3 rounded-xl border transition-all ${
+                          className={`p-3.5 rounded-xl border-2 transition-all ${
                             isItemSelecionado
-                              ? "border-orange-500/80 bg-orange-50/40 dark:bg-orange-950/20 shadow-xs ring-1 ring-orange-500/30"
-                              : "border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-950/50 shadow-2xs"
-                          } space-y-2`}
+                              ? "border-orange-500 bg-orange-50/40 dark:bg-orange-950/20 shadow-xs ring-1 ring-orange-500/30"
+                              : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 shadow-2xs hover:border-slate-300 dark:hover:border-slate-700"
+                          } space-y-2.5`}
                         >
                           <div className="flex items-start gap-2.5">
                             {!concluido && (
-                              <div className="pt-1 shrink-0" title="Selecionar para colocar em produção em lote">
+                              <div className="pt-1 shrink-0" title="Selecionar item para envio em lote">
                                 <Checkbox
                                   checked={isItemSelecionado}
                                   onCheckedChange={(checked) => {
@@ -813,20 +1076,21 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap pt-1">
+                          <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap pt-1 border-t border-slate-100 dark:border-slate-800/80">
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
-                                {item.produto || "—"}
+                              <p className="text-sm font-black text-slate-900 dark:text-slate-100 truncate">
+                                {item.produto || item.descricao || "Telha / Perfil"}
                               </p>
-                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                {item.medida || "—"} · <strong>{item.quantidade} MT</strong>
-                                {item.espessura ? ` · Chapa ${item.espessura}mm` : ""}
-                                {maquinaItem ? (
-                                  <strong className="text-orange-600 dark:text-orange-400 ml-1.5 font-bold">
+                              <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex-wrap">
+                                {item.medida && <span>Medida: <strong className="text-foreground">{item.medida}</strong></span>}
+                                <span>Metragem Linear: <strong className="text-orange-600 dark:text-orange-400 font-bold">{item.quantidade} MT</strong></span>
+                                {item.espessura && <span>· Chapa <strong>{item.espessura}mm</strong></span>}
+                                {maquinaItem && (
+                                  <span className="text-blue-600 dark:text-blue-400 font-bold">
                                     · Máquina: {maquinaItem}
-                                  </strong>
-                                ) : ""}
-                              </p>
+                                  </span>
+                                )}
+                              </div>
                             </div>
 
                             <BadgeDistribuicaoItem distribuido={itemDistribuido} maquina={maquinaItem} />
@@ -835,66 +1099,84 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                               {st.label}
                             </Badge>
 
-                            {onNovaOrdem && (
-                              <Button
-                                size="sm"
-                                onClick={() => {
-                                  if (pedido._isOpAvulsa && pedido._opOrigem) {
+                            {/* AÇÕES DO ITEM */}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {/* Devolver Item individual ao PCP */}
+                              {!pedido._isOpAvulsa && !concluido && itemDistribuido && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={atualizando === `devolver-item-${pedido.id}-${finalIdx}`}
+                                  onClick={() => handleDevolverItemCentralPCP(pedido, finalIdx)}
+                                  className="h-8 px-2 text-xs text-amber-700 dark:text-amber-400 hover:bg-amber-100/60 dark:hover:bg-amber-950/40 gap-1 font-semibold"
+                                  title="Devolver este item específico para triagem da Central PCP"
+                                >
+                                  <Undo2 className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline">Devolver Item</span>
+                                </Button>
+                              )}
+
+                              {onNovaOrdem && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    if (pedido._isOpAvulsa && pedido._opOrigem) {
+                                      onNovaOrdem(pedido, {
+                                        ...item,
+                                        _idx: 0,
+                                        maquina: item.maquina || pedido._opOrigem.maquina,
+                                        data: pedido.data_entrega,
+                                        existingOp: pedido._opOrigem
+                                      });
+                                      return;
+                                    }
+                                    notificarStatus(pedido, "revisando_ordem", {
+                                      status_novo: "em_revisao",
+                                      item_nome: item.produto || item.descricao || "",
+                                      maquina_atual: maquinaItem || "PCP / Fábrica"
+                                    });
                                     onNovaOrdem(pedido, {
                                       ...item,
-                                      _idx: 0,
-                                      maquina: item.maquina || pedido._opOrigem.maquina,
-                                      data: pedido.data_entrega,
-                                      existingOp: pedido._opOrigem
+                                      _idx: finalIdx,
+                                      maquina: maquinaItem,
+                                      data: item.data_programada || pedido.data_previsao_fabrica || pedido.data_entrega,
+                                      existingOp: opDoItem || null
                                     });
-                                    return;
+                                  }}
+                                  className={
+                                    concluido
+                                      ? "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 h-8 px-3 gap-1.5 text-xs font-semibold"
+                                      : emProd
+                                      ? "bg-amber-500 hover:bg-amber-600 text-white h-8 px-3 gap-1.5 text-xs font-semibold shadow-xs"
+                                      : "bg-orange-500 hover:bg-orange-600 text-white h-8 px-3 gap-1.5 text-xs font-semibold shadow-xs"
                                   }
-                                  notificarStatus(pedido, "revisando_ordem", {
-                                    status_novo: "em_revisao",
-                                    item_nome: item.produto || item.descricao || "",
-                                    maquina_atual: maquinaItem || "PCP / Fábrica"
-                                  });
-                                  onNovaOrdem(pedido, {
-                                    ...item,
-                                    _idx: item._idx != null ? item._idx : idx,
-                                    maquina: maquinaItem,
-                                    data: item.data_programada || pedido.data_previsao_fabrica || pedido.data_entrega,
-                                    existingOp: opDoItem || null
-                                  });
-                                }}
-                                className={
-                                  concluido
-                                    ? "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 h-8 px-3 gap-1.5 text-xs font-semibold"
-                                    : emProd
-                                    ? "bg-amber-500 hover:bg-amber-600 text-white h-8 px-3 gap-1.5 text-xs font-semibold shadow-xs"
-                                    : "bg-orange-500 hover:bg-orange-600 text-white h-8 px-3 gap-1.5 text-xs font-semibold shadow-xs"
-                                }
-                              >
-                                {concluido ? (
-                                  <>
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                    <span>Concluído</span>
-                                  </>
-                                ) : emProd ? (
-                                  <>
-                                    <Play className="w-3.5 h-3.5 fill-white" />
-                                    <span>Revisar Ordem {maquinaItem ? `[${maquinaItem}]` : ""}</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Play className="w-3.5 h-3.5 fill-white" />
-                                    <span>Iniciar Produção</span>
-                                  </>
-                                )}
-                              </Button>
-                            )}
+                                >
+                                  {concluido ? (
+                                    <>
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                      <span>Concluído</span>
+                                    </>
+                                  ) : emProd ? (
+                                    <>
+                                      <Play className="w-3.5 h-3.5 fill-white" />
+                                      <span>Revisar Ordem {maquinaItem ? `[${maquinaItem}]` : ""}</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Play className="w-3.5 h-3.5 fill-white" />
+                                      <span>Iniciar Produção</span>
+                                    </>
+                                  )}
+                                </Button>
+                              )}
 
-                            {isAdmin && !pedido._isOpAvulsa && !concluido && (
-                              <FinalizarItemRapidoButton
-                                carregando={atualizando === `${pedido.id}-${item._idx}`}
-                                onFinalizar={() => handleAtualizar(pedido, item._idx, { status: "concluido", concluido: true })}
-                              />
-                            )}
+                              {isAdmin && !pedido._isOpAvulsa && !concluido && (
+                                <FinalizarItemRapidoButton
+                                  carregando={atualizando === `${pedido.id}-${item._idx}`}
+                                  onFinalizar={() => handleAtualizar(pedido, item._idx, { status: "concluido", concluido: true })}
+                                />
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
@@ -906,6 +1188,20 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
           })}
         </div>
       )}
+
+      {/* Modal de Validação de Senha do Gestor (PIN 0000) para Finalizar 100% Forçado */}
+      <SenhaGestorDialog
+        open={senhaFinalizarOpen}
+        onOpenChange={setSenhaFinalizarOpen}
+        titulo="Finalizar Pedido em 100% (Forçado)"
+        descricao={
+          pedidoParaFinalizar100
+            ? `Digite o PIN do Gestor (0000) para concluir imediatamente o Pedido #${pedidoParaFinalizar100.numero_pedido}, marcar todas as OPs como concluídas e notificar o Odoo ERP.`
+            : "Digite o PIN do Gestor (0000) para concluir o pedido."
+        }
+        aviso="Finalizar 100% forçado exige autorização do Gestor (PIN 0000)."
+        onAutorizado={confirmarFinalizar100}
+      />
 
       {/* Modal de Alteração de Prazo Fabril acessível diretamente da Fila PCP */}
       {pedidoPrazoModal && (
