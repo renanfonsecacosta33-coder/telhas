@@ -5,6 +5,7 @@ import {
   ChevronLeft, ArrowLeftRight, Menu, ArrowUpRight, BookmarkCheck, Truck, Archive
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usuarioTemPermissaoAba } from "@/lib/permissoesAbas";
 
 const NAV = [
   { to: "/expedicao",             label: "Dashboard",          icon: LayoutDashboard, end: true },
@@ -59,7 +60,7 @@ export default function SidebarExpedicao({ isOpen, onToggle, user }) {
 
         {/* Nav Items Otimizados para Tablet (Touch Targets de 48px) */}
         <nav className="flex-1 py-3 space-y-1 px-2 overflow-y-auto no-scrollbar">
-          {NAV.map(({ to, label, icon: Icon, end }) => (
+          {NAV.filter(item => usuarioTemPermissaoAba(user, item.to)).map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}

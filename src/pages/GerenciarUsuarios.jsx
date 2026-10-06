@@ -64,6 +64,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ESTRUTURA_ABAS_APLICATIVOS, extrairAbasPermitidas } from "@/lib/permissoesAbas";
 
 const MAQUINAS_TELHAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM", "CORTE DE EPS"];
 const MAQUINAS_CD = ["CORTE 3M", "CORTE 6M", "DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M", "PERFILADEIRA", "DESBOBINADEIRA 01", "DESBOBINADEIRA 02"];
@@ -406,6 +407,7 @@ export default function GerenciarUsuarios() {
 
   const handleSaveUser = () => {
     if (!editingUser) return;
+    const abasPermitidas = editingUser.abas_permitidas || [];
     updateMutation.mutate({ 
       id: editingUser.id, 
       data: {
@@ -415,9 +417,56 @@ export default function GerenciarUsuarios() {
         unidade: editingUser.unidade || "",
         setor: editingUser.setor || "telhas",
         gerencia: editingUser.gerencia || false,
-        permissions: editingUser.permissions || getDefaultPermissionsForRole(editingUser.role)
+        abas_permitidas: abasPermitidas,
+        permissions: {
+          ...(editingUser.permissions || getDefaultPermissionsForRole(editingUser.role)),
+          abas_permitidas: abasPermitidas
+        }
       }
     });
+  };
+
+  const handleToggleAba = (abaId) => {
+    setEditingUser(u => {
+      let atuais = u.abas_permitidas;
+      if (!atuais || atuais.length === 0) {
+        const todas = [];
+        ESTRUTURA_ABAS_APLICATIVOS.forEach(app => app.abas.forEach(a => todas.push(a.id)));
+        atuais = todas;
+      }
+      const existe = atuais.includes(abaId);
+      const novas = existe ? atuais.filter(id => id !== abaId) : [...atuais, abaId];
+      return { ...u, abas_permitidas: novas };
+    });
+  };
+
+  const handleMarcarTodasAbasApp = (appId) => {
+    setEditingUser(u => {
+      const app = ESTRUTURA_ABAS_APLICATIVOS.find(a => a.appId === appId);
+      if (!app) return u;
+      const abasApp = app.abas.map(a => a.id);
+      const atuais = u.abas_permitidas || [];
+      const combinadas = Array.from(new Set([...atuais, ...abasApp]));
+      return { ...u, abas_permitidas: combinadas };
+    });
+    toast.success("Todas as abas do aplicativo foram marcadas!");
+  };
+
+  const handleDesmarcarTodasAbasApp = (appId) => {
+    setEditingUser(u => {
+      const app = ESTRUTURA_ABAS_APLICATIVOS.find(a => a.appId === appId);
+      if (!app) return u;
+      const abasApp = new Set(app.abas.map(a => a.id));
+      let atuais = u.abas_permitidas;
+      if (!atuais || atuais.length === 0) {
+        const todas = [];
+        ESTRUTURA_ABAS_APLICATIVOS.forEach(a => a.abas.forEach(x => todas.push(x.id)));
+        atuais = todas;
+      }
+      const restantes = atuais.filter(id => !abasApp.has(id));
+      return { ...u, abas_permitidas: restantes };
+    });
+    toast.info("Todas as abas do aplicativo foram desmarcadas.");
   };
 
   const toggleMaquina = (m) => {
@@ -530,18 +579,22 @@ export default function GerenciarUsuarios() {
 
           {/* Abas Amplas (Full Width Tabs) */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
-            <TabsList className="grid w-full grid-cols-3 max-w-2xl h-12 p-1 bg-muted/60 rounded-xl">
-              <TabsTrigger value="perfil" className="gap-2 text-sm font-medium">
+            <TabsList className="grid w-full grid-cols-4 max-w-3xl h-12 p-1 bg-muted/60 rounded-xl">
+              <TabsTrigger value="perfil" className="gap-2 text-xs sm:text-sm font-medium">
                 <User className="w-4 h-4" />
                 Perfil & Máquinas
               </TabsTrigger>
-              <TabsTrigger value="aplicativos" className="gap-2 text-sm font-medium">
+              <TabsTrigger value="aplicativos" className="gap-2 text-xs sm:text-sm font-medium">
                 <AppWindow className="w-4 h-4 text-purple-500" />
-                Aplicativos Visíveis
+                Apps do Menu
               </TabsTrigger>
-              <TabsTrigger value="permissoes" className="gap-2 text-sm font-medium">
+              <TabsTrigger value="abas_menus" className="gap-2 text-xs sm:text-sm font-medium">
+                <Layers className="w-4 h-4 text-emerald-500" />
+                Abas & Telas
+              </TabsTrigger>
+              <TabsTrigger value="permissoes" className="gap-2 text-xs sm:text-sm font-medium">
                 <Shield className="w-4 h-4 text-blue-500" />
-                Regras Granulares (50+)
+                Regras (50+)
               </TabsTrigger>
             </TabsList>
 
@@ -731,6 +784,103 @@ export default function GerenciarUsuarios() {
                       );
                     })}
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* ABA: ABAS & TELAS INTERNAS DOS APLICATIVOS */}
+            <TabsContent value="abas_menus" className="space-y-6">
+              <Card className="border border-border/80 shadow-sm bg-card/80 backdrop-blur">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-emerald-500" />
+                    Controle Granular de Abas e Telas por Usuário
+                  </CardTitle>
+                  <CardDescription>
+                    Selecione quais telas e menus internos o colaborador pode visualizar e acessar dentro de cada aplicativo. Se nenhuma restrição for configurada, o colaborador tem acesso padrão a todas as abas do seu setor.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {ESTRUTURA_ABAS_APLICATIVOS.map(app => {
+                    const permitidas = editingUser.abas_permitidas;
+                    const semRestricao = !permitidas || permitidas.length === 0;
+                    const ativasNoApp = app.abas.filter(aba => semRestricao || permitidas.includes(aba.id));
+
+                    return (
+                      <div key={app.appId} className="border border-border/70 rounded-2xl p-4 sm:p-5 bg-muted/20 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-bold text-base text-foreground">{app.appNome}</h3>
+                              <Badge variant="outline" className="text-xs bg-background">
+                                {ativasNoApp.length} de {app.abas.length} abas liberadas
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Personalize a barra lateral e navegação do {app.appNome.replace(/^[^\s]+\s/, "")}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 self-start sm:self-auto">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs gap-1 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                              onClick={() => handleMarcarTodasAbasApp(app.appId)}
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              Marcar Todas
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs gap-1 border-destructive/30 text-destructive hover:bg-destructive/10"
+                              onClick={() => handleDesmarcarTodasAbasApp(app.appId)}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                              Desmarcar Todas
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {app.abas.map(aba => {
+                            const isAtiva = semRestricao || (permitidas && permitidas.includes(aba.id));
+
+                            return (
+                              <div
+                                key={aba.id}
+                                onClick={() => handleToggleAba(aba.id)}
+                                className={cn(
+                                  "flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer select-none",
+                                  isAtiva
+                                    ? "bg-card border-emerald-500/40 shadow-xs"
+                                    : "bg-muted/40 border-border/50 opacity-60 hover:opacity-85"
+                                )}
+                              >
+                                <div className="min-w-0 pr-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className={cn("text-xs font-bold truncate", isAtiva ? "text-foreground" : "text-muted-foreground")}>
+                                      {aba.label}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] font-mono text-muted-foreground truncate mt-0.5">
+                                    {aba.path}
+                                  </p>
+                                </div>
+                                <Switch
+                                  checked={isAtiva}
+                                  onCheckedChange={() => handleToggleAba(aba.id)}
+                                  className="data-[state=checked]:bg-emerald-600 shrink-0"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -971,6 +1121,7 @@ export default function GerenciarUsuarios() {
                         setEditingUser({ 
                           ...u, 
                           maquinas: userMaquinas,
+                          abas_permitidas: extrairAbasPermitidas(u) || [],
                           permissions: u.permissions || getDefaultPermissionsForRole(u.role)
                         }); 
                         setActiveTab("perfil");

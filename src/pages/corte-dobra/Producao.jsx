@@ -368,15 +368,24 @@ export default function ProducaoCD() {
     const qtdFinal = esp.quantidade || item.quantidade || "";
     const pesoKgFinal = String(item.unidade || "").toLowerCase().includes("kg") ? item.quantidade : (item.peso_kg || "");
 
+    const dimensoesFinais = esp.dimensoes_fmt || item.medida || (esp.comprimento_mm ? `${esp.comprimento_mm}mm` : "");
+    const tipoPecaFinal = esp.tipo_label || item.produto || "";
+
+    setMaquinaAtiva(item.maquina || null);
     setEditMaq({
       data: selectedDay,
+      maquina: item.maquina || "",
       numero_pedido: pedido.numero_pedido || "",
       cliente: pedido.cliente_nome || "",
       vendedor: pedido.vendedor_nome || "",
-      tipo_peca: item.produto || "",
-      dimensoes_livres: item.medida || (esp.comprimento_mm ? `${esp.comprimento_mm}mm` : ""),
+      tipo_peca: tipoPecaFinal,
+      dimensoes_livres: dimensoesFinais,
       quantidade: qtdFinal,
       peso_kg: pesoKgFinal,
+      chapa_cd_id: item.chapa_cd_id || (item.material_tipo === "chapa" ? item.material_id : "") || "",
+      bobina_id: item.bobina_id || (item.material_tipo === "bobina" ? item.material_id : "") || "",
+      chapa_descricao: item.material_descricao || item.chapa_descricao || "",
+      chapa_origem: item.material_tipo === "bobina" ? "bobina" : "chaparia",
       material_espessura: item.espessura ? String(item.espessura) : "",
       observacoes: descItem,
       foto_pedido_url: item.foto_url || item.imagem_url || pedido.foto_pedido_url || extrairCroquiPedido(pedido) || "",

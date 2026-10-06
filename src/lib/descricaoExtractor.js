@@ -76,6 +76,22 @@ export function parseComprimento(str, rawUnidade = "") {
   }
 }
 
+function extrairCorEEspessura(t, out) {
+  const mCor = t.match(/(?:pr[eé]\s*)?pintad[oa]s?\s+em\s+([a-zç]{3,})/i);
+  if (mCor) {
+    out.cor = capitalizar(mCor[1]);
+  } else {
+    const tLower = t.toLowerCase();
+    for (const c of CORES) {
+      if (new RegExp(`\\b${c}\\b`, "i").test(tLower)) {
+        out.cor = capitalizar(c);
+        break;
+      }
+    }
+  }
+  return out;
+}
+
 export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
   const t = String(texto || "").trim();
   const out = {
@@ -83,6 +99,12 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
     pecas: null,
     comprimento_mm: null,
     comprimento_m: null,
+    largura_mm: null,
+    dimensoes_fmt: null,
+    tipo_conformacao: null, // "chapa_lisa" | "perfil_dobrado" | "linear"
+    tipo_label: null,
+    abas: null,
+    desenvolvimento_mm: null,
     metragem_total: null,
     cor: null,
     variacoes: [],
@@ -91,16 +113,145 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
   };
   if (!t) return out;
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // A. DETECÇÃO INTELIGENTE DE CHAPA LISA / BLANK (Ex: 1200X3000 - 10 PÇS)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Padrão 1: "1200X3000 - 10 PÇS" ou "1200 x 3000 c/ 10 pcs" ou "1000X2000 5 PCS"
+  const regexChapaQtdFim = /\b(\d{3,4})\s*[xX*]\s*(\d{3,4})(?:\s*mm)?\s*(?:[-–—:]|\s+c\/|\s+com|\s+de)?\s*(\d+)\s*(?:p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|chapas?|unidades?|un\.?|pc\.?)\b/i;
+  // Padrão 2: "10 PÇS 1200X3000" ou "10 chapas 1200 x 3000"
+  const regexChapaQtdInicio = /\b(\d+)\s*(?:p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|chapas?|unidades?|un\.?|pc\.?)\s*(?:de|com|c\/|[-–—:])?\s*(\d{3,4})\s*[xX*]\s*(\d{3,4})(?:\s*mm)?\b/i;
+  // Padrão 3: Apenas as medidas "1200X3000" ou "CHAPA 1200X3000" (usa quantidade do Odoo se disponível)
+  const regexChapaApenasMedida = /(?:chapa|blank)?\s*(\d{3,4})\s*[xX*]\s*(\d{3,4})(?:\s*mm)?/i;
+
+  let matchChapa = t.match(regexChapaQtdFim);
+  let larguraChapa = null;
+  let compChapa = null;
+  let qtdChapa = null;
+
+  if (matchChapa) {
+    larguraChapa = parseInt(matchChapa[1], 10);
+    compChapa = parseInt(matchChapa[2], 10);
+    qtdChapa = parseInt(matchChapa[3], 10);
+  } else {
+    matchChapa = t.match(regexChapaQtdInicio);
+    if (matchChapa) {
+      qtdChapa = parseInt(matchChapa[1], 10);
+      larguraChapa = parseInt(matchChapa[2], 10);
+      compChapa = parseInt(matchChapa[3], 10);
+    } else {
+      matchChapa = t.match(regexChapaApenasMedida);
+      if (matchChapa) {
+        const w = parseInt(matchChapa[1], 10);
+        const l = parseInt(matchChapa[2], 10);
+        // Validar se está na escala típica de chapa (>= 400x800)
+        if (w >= 400 && l >= 800) {
+          larguraChapa = w;
+          compChapa = l;
+          qtdChapa = Number(qtdOdoo) || 1;
+        }
+      }
+    }
+  }
+
+  // Se detectou medidas de chapa lisa válidas (ex: 1200x3000, 1000x2000, 1250x3000, etc.)
+  if (larguraChapa && compChapa && larguraChapa >= 300 && compChapa >= 500) {
+    const q = qtdChapa || Number(qtdOdoo) || 1;
+    const lM = +(compChapa / 1000).toFixed(3);
+    const totalM = +(q * lM).toFixed(2);
+
+    out.tipo_conformacao = "chapa_lisa";
+    out.tipo_label = "Chapa Lisa / Blank";
+    out.largura_mm = larguraChapa;
+    out.comprimento_mm = compChapa;
+    out.comprimento_m = lM;
+    out.quantidade = q;
+    out.pecas = q;
+    out.metragem_total = totalM;
+    out.dimensoes_fmt = `${larguraChapa} × ${compChapa} mm`;
+    out.resumo_formatado = `${q} pçs de ${larguraChapa}×${compChapa}mm (Chapa Lisa)`;
+    out.tem_especificacao = true;
+    out.variacoes.push({
+      qty: q,
+      mm: compChapa,
+      m: lM,
+      total_m: totalM,
+      largura_mm: larguraChapa,
+      tipo: "chapa_lisa"
+    });
+    return extrairCorEEspessura(t, out);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // B. DETECÇÃO DE PERFIL DOBRADO (Ex: 40x75x40 - 10 PÇS ou 75x40 - 6M - 5 PCS)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Padrão 3 ou mais abas: "40x75x40" ou "50x100x50" ou "20x40x75x40x20"
+  const regexPerfil3Abas = /\b(\d{1,3})\s*[xX*]\s*(\d{1,3})\s*[xX*]\s*(\d{1,3})(?:\s*[xX*]\s*(\d{1,3}))?(?:\s*[xX*]\s*(\d{1,3}))?\b/;
+  const matchPerfil3 = t.match(regexPerfil3Abas);
+
+  // Padrão 2 abas pequenas: "75x40" ou "50x50" ou "40x40" (onde abas <= 350)
+  const regexPerfil2Abas = /\b(\d{1,3})\s*[xX*]\s*(\d{1,3})\b/;
+  const matchPerfil2 = !matchPerfil3 ? t.match(regexPerfil2Abas) : null;
+
+  if (matchPerfil3 || (matchPerfil2 && parseInt(matchPerfil2[1], 10) <= 350 && parseInt(matchPerfil2[2], 10) <= 350)) {
+    const abas = [];
+    if (matchPerfil3) {
+      abas.push(parseInt(matchPerfil3[1], 10));
+      abas.push(parseInt(matchPerfil3[2], 10));
+      abas.push(parseInt(matchPerfil3[3], 10));
+      if (matchPerfil3[4]) abas.push(parseInt(matchPerfil3[4], 10));
+      if (matchPerfil3[5]) abas.push(parseInt(matchPerfil3[5], 10));
+    } else if (matchPerfil2) {
+      abas.push(parseInt(matchPerfil2[1], 10));
+      abas.push(parseInt(matchPerfil2[2], 10));
+    }
+
+    const desenvTotal = abas.reduce((acc, a) => acc + a, 0);
+
+    // Buscar quantidade de peças no texto (ex: "10 PÇS", "5 barras", "10 UN")
+    const matchQtd = t.match(/(\d+)\s*(?:p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|barras?|unidades?|un\.?|pc\.?)\b/i);
+    const q = matchQtd ? parseInt(matchQtd[1], 10) : (Number(qtdOdoo) || 1);
+
+    // Buscar comprimento de barra (ex: "6m", "3000mm", "c/ 6000", "- 6m")
+    const matchComp = t.match(/(?:c\/|com|de|-|–|—)?\s*(\d{1,2}\.\d{3}|\d{3,5}\s*mm|\d+(?:[.,]\d+)?\s*(?:m|mts?|metros?))\b/i);
+    let compMm = 6000; // padrão industrial
+    let compM = 6.0;
+    if (matchComp) {
+      const parsed = parseComprimento(matchComp[1]);
+      if (parsed.mm) {
+        compMm = parsed.mm;
+        compM = parsed.m;
+      }
+    }
+
+    const totalM = +(q * compM).toFixed(2);
+    out.tipo_conformacao = "perfil_dobrado";
+    out.tipo_label = `Perfil Dobrado (${abas.join("×")})`;
+    out.abas = abas;
+    out.desenvolvimento_mm = desenvTotal;
+    out.dimensoes_fmt = `${abas.join("×")} mm`;
+    out.comprimento_mm = compMm;
+    out.comprimento_m = compM;
+    out.quantidade = q;
+    out.pecas = q;
+    out.metragem_total = totalM;
+    out.resumo_formatado = `${q} pçs de ${abas.join("×")}mm c/ ${compM}m (Perfil Dobrado)`;
+    out.tem_especificacao = true;
+    out.variacoes.push({
+      qty: q,
+      mm: compMm,
+      m: compM,
+      total_m: totalM,
+      abas,
+      desenvolvimento_mm: desenvTotal,
+      tipo: "perfil_dobrado"
+    });
+    return extrairCorEEspessura(t, out);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // C. CORTES COMPOSTOS LINEARES TRADICIONAIS (Telhas e Barras Simples)
+  // ═══════════════════════════════════════════════════════════════════════════
   // 1. Regex para cortes compostos: QTD + (palavra de peça opcional) + (separador opcional c/, com, de, -, :, x) + COMPRIMENTO
-  // Suporta:
-  // - "50 PÇS c/ 2000"
-  // - "50 pcs c/ 2.000 mm"
-  // - "50 pçs de 2,00m"
-  // - "50 pçs - 6000"
-  // - "50 - 6000" ou "50 - 6.000" ou "50 - 6m"
-  // - "50 c/ 6000" ou "50 c/ 6.000 mm"
-  // - "50 com 6000" ou "50 com 6m"
-  // - "50 de 6000" ou "50 de 6,5m"
   const regexCorteComposto = /(\d+)\s*(?:p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|barras?|telhas?|chapas?|unidades?|un\.?|pc\.?)?\s*(?:c\/|com|de|x|\*|\:|-|–|—)\s*(\d+(?:[.,]\d+)?\s*(?:mm|mts?|metros?|m\b)?)[\\\/]*/gi;
 
   let match;
@@ -119,7 +270,6 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
   }
 
   // 2. Se não encontrou no formato composto acima, tenta padrão NxM grande
-  // Ex: 50x2000, 50 x 2000mm, 50*3000 (exige M >= 500 para não confundir com perfil 75x40)
   if (out.variacoes.length === 0) {
     const regexNxM = /(\d+)\s*[xX*]\s*(\d{3,5}\s*(?:mm)?|\d+[.,]\d+\s*(?:m|mts?|metros?)?)[\\\/]*/g;
     while ((match = regexNxM.exec(t)) !== null) {

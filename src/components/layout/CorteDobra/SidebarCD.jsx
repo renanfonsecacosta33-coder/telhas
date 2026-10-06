@@ -7,6 +7,7 @@ import {
   FlaskConical, Wrench, Map, BookmarkPlus, Truck, Bell, Settings
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usuarioTemPermissaoAba } from "@/lib/permissoesAbas";
 
 const NAV = [
   { path: "/corte-dobra", label: "Dashboard", icon: LayoutDashboard },
@@ -157,7 +158,7 @@ export default function SidebarCD({ isOpen, onToggle }) {
                   Principal
                 </p>
               )}
-              {NAV.map(renderLink)}
+              {NAV.filter(item => usuarioTemPermissaoAba(user, item.path)).map(renderLink)}
 
               {/* Máquinas individuais */}
               <div>

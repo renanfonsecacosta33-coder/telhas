@@ -8,6 +8,7 @@ import {
   Truck, BarChart2, FileText, Tag, Archive, Zap, Users, LogOut, Cog, FlaskConical, ArrowLeftRight, Map, BookmarkPlus, Scissors, Home
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usuarioTemPermissaoAba } from "@/lib/permissoesAbas";
 
 const ICON_MAP = {
   LayoutDashboard, Circle, Snowflake, Package, Factory, Settings,
@@ -160,7 +161,7 @@ export default function Sidebar({ isOpen, onToggle }) {
                   Principal
                 </p>
               )}
-              {FIXED_NAV.map(renderLink)}
+              {FIXED_NAV.filter(item => usuarioTemPermissaoAba(user, item.path)).map(renderLink)}
 
               {dynamicItems.length > 0 && (
                 <>
