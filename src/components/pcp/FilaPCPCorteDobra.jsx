@@ -26,6 +26,7 @@ import { useFilial } from "@/contexts/FilialContext";
 import FiltrosDataPCPBar from "@/components/pcp/FiltrosDataPCPBar";
 import LocalizacaoStatusHero from "@/components/pcp/LocalizacaoStatusHero";
 import BadgeDistribuicaoItem, { itemEstaDistribuido } from "@/components/pcp/BadgeDistribuicaoItem";
+import FinalizarItemRapidoButton from "@/components/pcp/FinalizarItemRapidoButton";
 import {
   extrairDataISO,
   calcularIntervaloPreset,
@@ -47,6 +48,8 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
 
   const filialCtx = useFilial();
   const filialAtiva = filialCtx?.filialAtiva;
+  // Finalização rápida de item — exclusiva de administradores
+  const isAdmin = ["admin", "super_admin"].includes(filialCtx?.user?.role);
 
   const { data: pedidos = [], isLoading } = useQuery({
     queryKey: ["pedidos-odoo-cd"],
@@ -552,6 +555,14 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                             <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-500/40 text-[10px] font-bold h-8 px-2 gap-1 ml-auto">
                               <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Concluído
                             </Badge>
+                          )}
+
+                          {isAdmin && !concluido && (
+                            <FinalizarItemRapidoButton
+                              carregando={atualizando === `${pedido.id}-${idx}`}
+                              onFinalizar={() => handleAtualizar(pedido, idx, { status: "concluido", concluido: true })}
+                              className="ml-auto"
+                            />
                           )}
                         </div>
                       </div>

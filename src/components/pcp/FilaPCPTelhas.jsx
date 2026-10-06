@@ -26,6 +26,7 @@ import { useFilial } from "@/contexts/FilialContext";
 import FiltrosDataPCPBar from "@/components/pcp/FiltrosDataPCPBar";
 import LocalizacaoStatusHero from "@/components/pcp/LocalizacaoStatusHero";
 import BadgeDistribuicaoItem, { itemEstaDistribuido } from "@/components/pcp/BadgeDistribuicaoItem";
+import FinalizarItemRapidoButton from "@/components/pcp/FinalizarItemRapidoButton";
 import {
   extrairDataISO,
   calcularIntervaloPreset,
@@ -48,6 +49,8 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
 
   const filialCtx = useFilial();
   const filialAtiva = filialCtx?.filialAtiva;
+  // Finalização rápida de item — exclusiva de administradores
+  const isAdmin = ["admin", "super_admin"].includes(filialCtx?.user?.role);
 
   const { data: pedidos = [], isLoading } = useQuery({
     queryKey: ["pedidos-odoo-telhas"],
@@ -750,6 +753,13 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                                   </>
                                 )}
                               </Button>
+                            )}
+
+                            {isAdmin && !pedido._isOpAvulsa && !concluido && (
+                              <FinalizarItemRapidoButton
+                                carregando={atualizando === `${pedido.id}-${item._idx}`}
+                                onFinalizar={() => handleAtualizar(pedido, item._idx, { status: "concluido", concluido: true })}
+                              />
                             )}
                           </div>
                         </div>
