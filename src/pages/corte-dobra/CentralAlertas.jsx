@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
-import { Bell, Plus, Play, Volume2, Trash2, Edit3, UserCheck, Search, Lock, ShieldCheck, Mail, PhoneCall, Check, AlertTriangle, Layers, Send, Factory, Scissors, TrendingDown, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Bell, Plus, Play, Volume2, Trash2, Edit3, UserCheck, Search, Lock, ShieldCheck, Mail, PhoneCall, Check, AlertTriangle, Layers, Send, Factory, Scissors, TrendingDown, RefreshCw, CheckCircle2, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 import { analisarEstoqueCriticoGeral, enviarAlertaComprasLeonardo, LIMITES_PADRAO_ESPESSURA } from "@/lib/alertaSuprimentosHelper";

@@ -7,7 +7,7 @@ export default function PageTransition({ children }) {
   return (
     <div
       key={location.pathname}
-      className="animate-page-enter transition-all duration-300 ease-out"
+      className="animate-page-enter"
     >
       {children}
     </div>
