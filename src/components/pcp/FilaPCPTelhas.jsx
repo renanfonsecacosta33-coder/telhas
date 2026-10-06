@@ -770,6 +770,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
 
                       const st = STATUS_ITEM[statusItem] || STATUS_ITEM.pendente;
                       const emProd = statusItem === "em_producao";
+                      const concluido = statusItem === "concluido";
                       const finalIdx = item._idx != null ? item._idx : idx;
                       const itemKey = `${pedido.id}_${finalIdx}`;
                       const isItemSelecionado = itensSelecionados.some(s => s.key === itemKey);
