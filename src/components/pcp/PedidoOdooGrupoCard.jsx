@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import {
   ChevronDown, ChevronUp, Layers, User, Calendar, Zap, Send,
   Star, CheckCircle2, AlertTriangle, Factory, Clock, Trash2,
-  Building2, ArrowRightLeft, Store
+  Building2, ArrowRightLeft, Store, RefreshCw
 } from "lucide-react";
 import { formatDataBR } from "@/lib/sla";
 import { urgenciaPrazo } from "@/lib/prazoUrgencia";
@@ -34,6 +34,7 @@ export default function PedidoOdooGrupoCard({
   onTransferir,
   onTransferirGrupo,
   onFinalizarGrupo100,
+  onSincronizarGrupoOdoo,
   onClickPedido,
   onDelete,
   onDeleteGrupo,
@@ -344,6 +345,25 @@ export default function PedidoOdooGrupoCard({
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   Finalizar 100%
+                </button>
+              )}
+
+              {onSincronizarGrupoOdoo && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSincronizarGrupoOdoo(ofs);
+                  }}
+                  className={`h-8 px-2.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 transition-colors ${
+                    isPedidoTotalConcluido
+                      ? "border border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 shadow-xs"
+                      : "border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  }`}
+                  title={`Sincronizar/Reenviar Pedido #${grupo.numero_pedido} (${totalOfs} OFs) com o Odoo ERP`}
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span className="hidden sm:inline">Sincronizar Odoo</span>
                 </button>
               )}
 

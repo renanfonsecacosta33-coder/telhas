@@ -623,19 +623,120 @@ export default function CentralPCP() {
     setSenhaFinalizarOpen(true);
   };
 
+  const [sincronizandoOdoo, setSincronizandoOdoo] = useState(false);
+
+  const handleSincronizarLoteOdoo = async (pedidosParaSincronizar) => {
+    const lista = (pedidosParaSincronizar || []).filter(Boolean);
+    if (!lista.length) return;
+    setSincronizandoOdoo(true);
+    let okCount = 0;
+    let failCount = 0;
+
+    for (const p of lista) {
+      try {
+        const itens = parseItensPedido(p.itens_json);
+        const isConc = isPedidoConcluido(p);
+        const itensSinc = isConc
+          ? itens.map(i => ({ ...i, concluido: true, status: "concluido", status_detalhado: "Concluído" }))
+          : itens;
+
+        const res = await notificarStatus(
+          {
+            ...p,
+            percentual_concluido: isConc ? 100 : (p.percentual_concluido || 0),
+            status_pcp: isConc ? "concluido" : (p.status_pcp || "em_producao"),
+            itens_json: JSON.stringify(itensSinc)
+          },
+          isConc ? "concluido" : "sincronizacao_manual",
+          {
+            percentual_concluido: isConc ? 100 : (p.percentual_concluido || 0),
+            status_novo: isConc ? "concluido" : (p.status_pcp || "em_producao"),
+            item_nome: `Pedido #${p.numero_pedido}`
+          }
+        );
+        if (res && res.ok) okCount++;
+        else failCount++;
+      } catch (err) {
+        console.error("Erro sincronizando pedido com Odoo:", p.numero_pedido, err);
+        failCount++;
+      }
+    }
+
+    setSincronizandoOdoo(false);
+    if (failCount === 0) {
+      toast({
+        title: "Sincronização com Odoo concluída!",
+        description: `${okCount} OF(s) sincronizada(s) com sucesso no Odoo ERP como Finalizado/Concluído.`
+      });
+    } else {
+      toast({
+        title: "Sincronização com Odoo realizada",
+        description: `${okCount} enviada(s) com sucesso, ${failCount} falha(s).`,
+        variant: failCount > 0 && okCount === 0 ? "destructive" : "default"
+      });
+    }
+    queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+  };
+
   const confirmarFinalizar100 = async () => {
     if (!finalizarPendentes?.length) return;
     try {
       await Promise.all(finalizarPendentes.map(async (pedido) => {
-        const itens = parseItensPedido(pedido.itens_json).map(i => ({ ...i, concluido: true, status: "concluido" }));
-        return base44.entities.PedidoOdoo.update(pedido.id, {
+        const itens = parseItensPedido(pedido.itens_json).map(i => ({
+          ...i,
+          concluido: true,
+          status: "concluido",
+          status_detalhado: "Concluído"
+        }));
+
+        const atualizado = await base44.entities.PedidoOdoo.update(pedido.id, {
           ...(itens.length ? { itens_json: JSON.stringify(itens) } : {}),
           percentual_concluido: 100,
           status_pcp: "concluido"
         });
+
+        // 1. Notifica o Odoo ERP imediatamente como CONCLUÍDO (100%)
+        try {
+          await notificarStatus(
+            {
+              ...pedido,
+              ...atualizado,
+              percentual_concluido: 100,
+              status_pcp: "concluido",
+              itens_json: JSON.stringify(itens)
+            },
+            "concluido",
+            {
+              percentual_concluido: 100,
+              status_novo: "concluido",
+              item_nome: `Pedido #${pedido.numero_pedido}`
+            }
+          );
+        } catch (notifErr) {
+          console.warn("[CentralPCP] Falha ao notificar Odoo em finalizar 100%:", notifErr);
+        }
+
+        // 2. Finaliza OPs locais vinculadas na fábrica
+        try {
+          const opsTelhas = await base44.entities.Pedido.filter({ pedido_odoo_id: pedido.id });
+          for (const op of opsTelhas) {
+            if (op.status !== "finalizado" && op.status !== "cancelado") {
+              await base44.entities.Pedido.update(op.id, { status: "finalizado", concluido: true });
+            }
+          }
+        } catch (opErr) {
+          console.warn("[CentralPCP] Falha ao finalizar OPs locais:", opErr);
+        }
+
+        return atualizado;
       }));
-      toast({ title: "Pedido finalizado (100%)", description: `${finalizarPendentes.length} OF(s) marcada(s) como concluída(s).` });
+
+      toast({
+        title: "Pedido finalizado e enviado ao Odoo!",
+        description: `${finalizarPendentes.length} OF(s) marcada(s) como 100% concluída(s) e notificadas no Odoo ERP.`
+      });
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
     } catch (e) {
       toast({ title: "Erro ao finalizar", description: e.message, variant: "destructive" });
     } finally {
@@ -1801,6 +1902,37 @@ export default function CentralPCP() {
                   </Button>
                 )}
 
+                {/* Sincronizar Selecionadas com o Odoo */}
+                {selecionados.size > 0 && (
+                  <Button
+                    size="sm"
+                    disabled={sincronizandoOdoo || distribuindo || excluindo}
+                    onClick={() => {
+                      const lista = pedidos.filter(p => selecionados.has(p.id));
+                      handleSincronizarLoteOdoo(lista);
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 gap-1.5 shadow-sm font-bold"
+                    title="Enviar e sincronizar status de todas as ordens selecionadas com o Odoo ERP"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${sincronizandoOdoo ? "animate-spin" : ""}`} />
+                    {sincronizandoOdoo ? "Sincronizando..." : `Sincronizar Odoo (${selecionados.size})`}
+                  </Button>
+                )}
+
+                {/* Sincronizar TODOS os Concluídos da lista com o Odoo */}
+                {filtro === "concluido" && selecionados.size === 0 && pedidosFiltrados.length > 0 && (
+                  <Button
+                    size="sm"
+                    disabled={sincronizandoOdoo || distribuindo || excluindo}
+                    onClick={() => handleSincronizarLoteOdoo(pedidosFiltrados)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 gap-1.5 shadow-sm font-bold"
+                    title="Enviar todas as ordens desta lista para o Odoo ERP como Finalizado/Concluído"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${sincronizandoOdoo ? "animate-spin" : ""}`} />
+                    {sincronizandoOdoo ? "Sincronizando..." : `Sincronizar Todos com Odoo (${pedidosFiltrados.length})`}
+                  </Button>
+                )}
+
                 {/* Distribuir TODOS os Pendentes da fila */}
                 {selecionados.size === 0 && pedidosFiltrados.filter(p => p.status_pcp === "pendente_distribuicao").length > 0 && (
                   <Button
@@ -1959,6 +2091,7 @@ export default function CentralPCP() {
                     onTransferir={(p) => setModalTransferir({ aberto: true, pedidos: [p] })}
                     onTransferirGrupo={(g) => setModalTransferir({ aberto: true, pedidos: g.ofs || [] })}
                     onFinalizarGrupo100={(lista) => handleSolicitarFinalizar100(lista)}
+                    onSincronizarGrupoOdoo={(lista) => handleSincronizarLoteOdoo(lista)}
                     estoqueContext={estoqueContext}
                   />
                 ))}
@@ -2048,6 +2181,7 @@ export default function CentralPCP() {
                           onTransferir={(p) => setModalTransferir({ aberto: true, pedidos: [p] })}
                           onTransferirGrupo={(g) => setModalTransferir({ aberto: true, pedidos: g.ofs || [] })}
                           onFinalizarGrupo100={(lista) => handleSolicitarFinalizar100(lista)}
+                          onSincronizarGrupoOdoo={(lista) => handleSincronizarLoteOdoo(lista)}
                           estoqueContext={estoqueContext}
                         />
                       ))}
