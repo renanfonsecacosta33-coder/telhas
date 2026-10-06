@@ -1958,7 +1958,7 @@ export default function CentralPCP() {
                     onSetPrioridade={handleSetPrioridade}
                     onTransferir={(p) => setModalTransferir({ aberto: true, pedidos: [p] })}
                     onTransferirGrupo={(g) => setModalTransferir({ aberto: true, pedidos: g.ofs || [] })}
-                    onFinalizarGrupo100={(g) => handleSolicitarFinalizar100(g.ofs)}
+                    onFinalizarGrupo100={(lista) => handleSolicitarFinalizar100(lista)}
                     estoqueContext={estoqueContext}
                   />
                 ))}
@@ -2047,7 +2047,7 @@ export default function CentralPCP() {
                           onSetPrioridade={handleSetPrioridade}
                           onTransferir={(p) => setModalTransferir({ aberto: true, pedidos: [p] })}
                           onTransferirGrupo={(g) => setModalTransferir({ aberto: true, pedidos: g.ofs || [] })}
-                          onFinalizarGrupo100={(g) => handleSolicitarFinalizar100(g.ofs)}
+                          onFinalizarGrupo100={(lista) => handleSolicitarFinalizar100(lista)}
                           estoqueContext={estoqueContext}
                         />
                       ))}
