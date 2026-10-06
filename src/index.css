@@ -277,6 +277,25 @@
   }
 }
 
+/* ── Correção de Artefatos de GPU em Celulares/Tablets (cards "fantasma" sobrepostos) ──
+   Em telas touch (Android/iOS), backdrop-filter sobre conteúdo rolável e animações
+   infinitas (pulse/ping) forçam camadas de composição persistentes que deixam
+   "camadas fantasma" dos cards sobrepostas. Desligamos ambos apenas nesses aparelhos. */
+@media (hover: none) and (pointer: coarse) {
+  .animate-pulse,
+  .animate-ping {
+    animation: none !important;
+  }
+  .backdrop-blur,
+  .backdrop-blur-sm,
+  .backdrop-blur-md,
+  .backdrop-blur-lg,
+  .backdrop-blur-xl {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+}
+
 /* ── Animação Chique de Transição de Página (SPA Feel) ── */
 @keyframes pageEnter {
   0% {
@@ -288,7 +307,7 @@
 }
 
 .animate-page-enter {
-  animation: pageEnter 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: pageEnter 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* ── Barra de Rolagem Lateral Evidente, Ergonômica e Nítida em Todas as Guias ── */

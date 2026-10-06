@@ -47,7 +47,7 @@ export default function EcosystemHeaderBar({ user, sidebarOpen, onToggleSidebar,
   const { isDark, toggleTema } = useTheme();
 
   return (
-    <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2 shadow-sm relative overflow-hidden">
+    <header className="sticky top-0 z-30 bg-background border-b border-border px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2 shadow-sm relative overflow-hidden">
       {/* Linha Fina Brilhante de Topo do Ecossistema */}
       <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-teal-500 via-orange-500 to-blue-500 opacity-80" />
 
