@@ -12,10 +12,17 @@ import {
   Undo2, ShieldAlert, Sparkles, PackageCheck, Trash2, ExternalLink, FileText, Send
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import ProducaoEmLoteModal from "@/components/pcp/ProducaoEmLoteModal";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
+import {
+  isAutoRoteamentoTelhasAtivo,
+  setAutoRoteamentoTelhasAtivo,
+  rotearPedidoTelhaDiretoParaMaquina,
+  processarLoteAutoRoteamentoTelhas
+} from "@/lib/autoBobinaTelhasHelper";
 import {
   getItens, itensPorGrupo, computePercentual, computePercentualGrupo,
   buildItensJson, statusPcpPorPercentual, STATUS_ITEM, saoPedidosIguais,
@@ -54,6 +61,8 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
   const [modalLoteOpen, setModalLoteOpen] = useState(false);
   const [senhaFinalizarOpen, setSenhaFinalizarOpen] = useState(false);
   const [pedidoParaFinalizar100, setPedidoParaFinalizar100] = useState(null);
+  const [autoRoteamentoAtivo, setAutoRoteamentoAtivo] = useState(() => isAutoRoteamentoTelhasAtivo());
+  const [processandoAutoRoteamento, setProcessandoAutoRoteamento] = useState(false);
 
   const filialCtx = useFilial();
   const filialAtiva = filialCtx?.filialAtiva;
@@ -71,6 +80,20 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
     queryKey: ["pedidos-producao-todos"],
     queryFn: () => base44.entities.Pedido.list("-data", 500),
     refetchInterval: 10000
+  });
+
+  // Consulta estoque de Bobinas de Telhas para seleção automática minuciosa
+  const { data: bobinasEstoque = [] } = useQuery({
+    queryKey: ["bobinas-estoque-telhas-pcp"],
+    queryFn: () => base44.entities.Bobina.list("-created_date", 400),
+    refetchInterval: 12000
+  });
+
+  // Consulta tolerâncias configuradas de espessura
+  const { data: tolerancias = [] } = useQuery({
+    queryKey: ["tolerancias-espessura"],
+    queryFn: () => base44.entities.ToleranciaEspessura.list().catch(() => []),
+    staleTime: 60000
   });
 
   const MAQUINAS_TELHAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
@@ -367,6 +390,179 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
     return list;
   }, [filaFiltrada, pedidosProducao]);
 
+  // Itens de telha que ainda NÃO possuem OP criada em máquina na fábrica
+  const itensTelhasSemOp = useMemo(() => {
+    const list = [];
+    filaFiltrada.forEach(pedido => {
+      if (pedido._isOpAvulsa) return;
+      const itens = getItens(pedido);
+      const telhas = itensPorGrupo(itens, "telha");
+      const opsDoPedido = buscarOpsDoPedido(pedido, pedidosProducao);
+      telhas.forEach((item, idx) => {
+        const op = localizarOpDoItem(item, opsDoPedido, telhas);
+        const hasOpValida = op && op.status !== "cancelado";
+        const isConcluido = item.status === "concluido" || (op && op.status === "finalizado");
+        if (!hasOpValida && !isConcluido) {
+          const itemIdx = item._idx != null ? item._idx : idx;
+          list.push({ pedido, item, itemIdx, key: `${pedido.id}_${itemIdx}` });
+        }
+      });
+    });
+    return list;
+  }, [filaFiltrada, pedidosProducao]);
+
+  const handleToggleAutoRoteamento = (checked) => {
+    setAutoRoteamentoAtivo(checked);
+    setAutoRoteamentoTelhasAtivo(checked);
+    toast({
+      title: checked ? "⚡ Piloto Automático Ativado!" : "Piloto Automático Desativado",
+      description: checked
+        ? "Pedidos de telhas serão direcionados às máquinas com seleção automática de bobina compatível."
+        : "Distribuição automática de telhas pausada. Modo manual mantido.",
+      className: checked ? "border-amber-500/40" : undefined
+    });
+  };
+
+  // ── AUTO-ROTEAR ITEM INDIVIDUAL PARA MÁQUINA COM SELEÇÃO DE BOBINA ──
+  const handleAutoRotearItem = async (pedido, item, itemIdx) => {
+    setAtualizando(`auto-rotear-${pedido.id}-${itemIdx}`);
+    try {
+      const res = await rotearPedidoTelhaDiretoParaMaquina({
+        pedido,
+        item,
+        itemIdx,
+        todasBobinas: bobinasEstoque,
+        filialAtiva: pedido.unidade || filialAtiva,
+        tolerancias
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-telhas"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      queryClient.invalidateQueries({ queryKey: ["bobinas-estoque-telhas-pcp"] });
+
+      if (res.bobina) {
+        toast({
+          title: `⚡ Enviado para ${res.maquina}!`,
+          description: `Bobina ${res.bobina.codigo} (${res.bobina.cor || 'Natural'} - Chapa ${res.bobina.espessura}) vinculada automaticamente.`,
+          className: "border-emerald-500/40"
+        });
+      } else {
+        toast({
+          title: `⚠️ Enviado para ${res.maquina} sem bobina`,
+          description: `Nenhuma bobina compatível em estoque. OP criada aguardando seleção manual na máquina.`,
+          variant: "destructive"
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "Erro ao rotear item",
+        description: err.message,
+        variant: "destructive"
+      });
+    } finally {
+      setAtualizando(null);
+    }
+  };
+
+  // ── AUTO-ROTEAR TODOS OS ITENS DE TELHA DE UM PEDIDO ──
+  const handleAutoRotearPedido = async (pedido) => {
+    setAtualizando(`auto-rotear-ped-${pedido.id}`);
+    try {
+      const itens = getItens(pedido);
+      const telhas = itensPorGrupo(itens, "telha");
+      const opsDoPedido = buscarOpsDoPedido(pedido, pedidosProducao);
+
+      let vinculados = 0;
+      let bobinasCount = 0;
+
+      for (let i = 0; i < itens.length; i++) {
+        const it = itens[i];
+        const ehTelha = telhas.some(t => (t._idx != null ? t._idx === i : t.produto === it.produto));
+        if (!ehTelha) continue;
+
+        const op = localizarOpDoItem(it, opsDoPedido, telhas);
+        const hasOp = op && op.status !== "cancelado";
+        if (hasOp || it.status === "concluido") continue;
+
+        const res = await rotearPedidoTelhaDiretoParaMaquina({
+          pedido,
+          item: it,
+          itemIdx: i,
+          todasBobinas: bobinasEstoque,
+          filialAtiva: pedido.unidade || filialAtiva,
+          tolerancias
+        });
+        vinculados++;
+        if (res.bobina) bobinasCount++;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-telhas"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      queryClient.invalidateQueries({ queryKey: ["bobinas-estoque-telhas-pcp"] });
+
+      toast({
+        title: `⚡ Pedido #${pedido.numero_pedido} roteado!`,
+        description: `${vinculados} item(ns) enviado(s) para as máquinas (${bobinasCount} com bobina vinculada automaticamente).`,
+        className: "border-emerald-500/40"
+      });
+    } catch (err) {
+      toast({
+        title: "Erro ao rotear pedido",
+        description: err.message,
+        variant: "destructive"
+      });
+    } finally {
+      setAtualizando(null);
+    }
+  };
+
+  // ── AUTO-ROTEAR EM LOTE TODOS OS ITENS PENDENTES DA FILA ──
+  const handleAutoRotearLote = async () => {
+    if (itensTelhasSemOp.length === 0) return;
+    setProcessandoAutoRoteamento(true);
+    try {
+      // Agrupa itens por pedido
+      const pedidosUnicosMap = new Map();
+      itensTelhasSemOp.forEach(e => {
+        if (!pedidosUnicosMap.has(e.pedido.id)) {
+          pedidosUnicosMap.set(e.pedido.id, e.pedido);
+        }
+      });
+      const listaPedidos = Array.from(pedidosUnicosMap.values());
+
+      const res = await processarLoteAutoRoteamentoTelhas({
+        pedidos: listaPedidos,
+        todasBobinas: bobinasEstoque,
+        filialAtiva,
+        tolerancias
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-telhas"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      queryClient.invalidateQueries({ queryKey: ["bobinas-estoque-telhas-pcp"] });
+
+      toast({
+        title: `🚀 Roteamento Automático Concluído!`,
+        description: `${res.sucessos} item(ns) de telhas distribuídos para as máquinas (${res.comBobina} com bobina automática eleita).`,
+        className: "border-emerald-500/40"
+      });
+    } catch (err) {
+      toast({
+        title: "Erro no auto-roteamento em lote",
+        description: err.message,
+        variant: "destructive"
+      });
+    } finally {
+      setProcessandoAutoRoteamento(false);
+    }
+  };
+
   const handleAtualizar = async (pedido, idx, updates) => {
     setAtualizando(`${pedido.id}-${idx}`);
     try {
@@ -629,22 +825,64 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
       {/* ══════════════ CABEÇALHO EXECUTIVO E BARRA AVANÇADA DE FILTROS PCP ══════════════ */}
       <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 space-y-3">
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <div className="w-9 h-9 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
-            <Factory className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
-                Fila PCP — Aguardando Produção (Telhas)
-              </h2>
-              <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30 font-bold text-xs">
-                {contadores.total} pedido(s)
-              </Badge>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="w-9 h-9 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+              <Factory className="w-5 h-5" />
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Ordens distribuídas pelo PCP com controle de prazo de entrega, pesquisa e filtros de data
-            </p>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
+                  Fila PCP — Aguardando Produção (Telhas)
+                </h2>
+                <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30 font-bold text-xs">
+                  {contadores.total} pedido(s)
+                </Badge>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Ordens do barracão de telhas com controle de prazo de entrega e roteamento direto às máquinas
+              </p>
+            </div>
+          </div>
+
+          {/* PAINEL DE CONTROLE DE AUTOMAÇÃO DE BOBINAS & MÁQUINAS (EXCLUSIVO TELHAS) */}
+          <div className="flex items-center gap-2.5 flex-wrap ml-auto">
+            <div
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all ${
+                autoRoteamentoAtivo
+                  ? "bg-amber-500/10 border-amber-500/40 text-amber-900 dark:text-amber-200 shadow-2xs"
+                  : "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"
+              }`}
+              title="Ativa o roteamento direto para as máquinas com seleção automática minuciosa de bobina pelo Odoo"
+            >
+              <Zap className={`w-4 h-4 ${autoRoteamentoAtivo ? "text-amber-600 dark:text-amber-400 fill-amber-500" : "text-slate-400"}`} />
+              <div className="text-xs font-bold leading-tight">
+                <span>Piloto Automático Telhas</span>
+                <span className="block text-[10px] font-normal text-muted-foreground">Auto-Bobina Odoo</span>
+              </div>
+              <Switch
+                checked={autoRoteamentoAtivo}
+                onCheckedChange={handleToggleAutoRoteamento}
+                className="data-[state=checked]:bg-amber-500"
+              />
+            </div>
+
+            {itensTelhasSemOp.length > 0 && (
+              <Button
+                size="sm"
+                onClick={handleAutoRotearLote}
+                disabled={processandoAutoRoteamento}
+                className="bg-linear-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-extrabold text-xs h-9 px-3 gap-1.5 shadow-sm rounded-xl cursor-pointer"
+                title="Roteia todos os itens de telha pendentes direto para as máquinas elegendo a melhor bobina no estoque"
+              >
+                {processandoAutoRoteamento ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="w-3.5 h-3.5 fill-current" />
+                )}
+                <span>Rotear Direto ({itensTelhasSemOp.length})</span>
+              </Button>
+            )}
           </div>
         </div>
 
@@ -933,8 +1171,26 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                         />
                       </div>
 
-                      {/* ══════════════ BOTÕES DE AÇÃO DO PEDIDO (DEVOLVER AO PCP & FINALIZAR 100%) ══════════════ */}
+                      {/* ══════════════ BOTÕES DE AÇÃO DO PEDIDO (AUTO-ROTEAR, DEVOLVER AO PCP & FINALIZAR 100%) ══════════════ */}
                       <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                        {/* 0. AUTO-ROTEAR PEDIDO DIRETO PARA MÁQUINAS COM BOBINA */}
+                        {!pedido._isOpAvulsa && !pacoteConcluido && (
+                          <Button
+                            size="sm"
+                            disabled={atualizando === `auto-rotear-ped-${pedido.id}`}
+                            onClick={() => handleAutoRotearPedido(pedido)}
+                            className="h-7 px-2.5 text-xs font-bold gap-1 bg-amber-500 hover:bg-amber-600 text-white shadow-2xs cursor-pointer"
+                            title="Roteia itens de telha deste pedido direto para as máquinas perfiladeiras elegendo a melhor bobina no estoque"
+                          >
+                            {atualizando === `auto-rotear-ped-${pedido.id}` ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Zap className="w-3.5 h-3.5 fill-current" />
+                            )}
+                            <span>Rotear Telhas</span>
+                          </Button>
+                        )}
+
                         {/* 1. DEVOLVER PARA A CENTRAL PCP */}
                         {!pedido._isOpAvulsa && (
                           <Button
@@ -1113,6 +1369,24 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                                 >
                                   <Undo2 className="w-3.5 h-3.5" />
                                   <span className="hidden sm:inline">Devolver Item</span>
+                                </Button>
+                              )}
+
+                              {/* Roteamento Automático Direto com Bobina deste Item */}
+                              {!pedido._isOpAvulsa && !concluido && (!opDoItem || opDoItem.status === "cancelado") && (
+                                <Button
+                                  size="sm"
+                                  disabled={atualizando === `auto-rotear-${pedido.id}-${finalIdx}`}
+                                  onClick={() => handleAutoRotearItem(pedido, item, finalIdx)}
+                                  className="h-8 px-2.5 text-xs font-bold gap-1 bg-amber-500 hover:bg-amber-600 text-white shadow-xs cursor-pointer"
+                                  title="Enviar este item direto para a perfiladeira com melhor bobina compatível do estoque selecionada pelo Odoo"
+                                >
+                                  {atualizando === `auto-rotear-${pedido.id}-${finalIdx}` ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Zap className="w-3.5 h-3.5 fill-current" />
+                                  )}
+                                  <span>Auto-Máquina</span>
                                 </Button>
                               )}
 

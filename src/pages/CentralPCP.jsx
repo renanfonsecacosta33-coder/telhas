@@ -34,7 +34,16 @@ import { FILIAIS_PCP } from "@/lib/roteamentoPCP";
 import { calcularDataPrometidaSLA, toISODate, slaDiasPorCategoria, diasUteisRestantes, formatDataBR } from "@/lib/sla";
 import { parseItensPedido } from "@/lib/regrasFabrica";
 import { notificarStatus } from "@/lib/biNotificador";
-import { calcularProgressoRealPedido, statusPcpPorPercentual, enriquecerItensComStatusReal } from "@/lib/pedidoOdooHelper";
+import {
+  calcularProgressoRealPedido,
+  statusPcpPorPercentual,
+  enriquecerItensComStatusReal,
+  itensPorGrupo
+} from "@/lib/pedidoOdooHelper";
+import {
+  isAutoRoteamentoTelhasAtivo,
+  rotearPedidoTelhaDiretoParaMaquina
+} from "@/lib/autoBobinaTelhasHelper";
 import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
@@ -792,14 +801,57 @@ export default function CentralPCP() {
   const handleDistribuir = async (pedido) => {
     setDistribuindo(true);
     try {
+      const autoTelhasAtivo = isAutoRoteamentoTelhasAtivo();
+      let telhasAutoRoteadas = 0;
+      let bobinasVinculadas = 0;
+
       const logExistente = (() => { try { return JSON.parse(pedido.historico_log || "[]"); } catch { return []; } })();
       const novoLog = [...logExistente, {
         data: new Date().toISOString(),
         usuario: "PCP",
-        acao: "distribuicao_automatica",
-        detalhes: "Pedido distribuído automaticamente para os galpões (Telhas→Barracão Telhas, C&D→Barracão C&D, Frisada→Expedição)."
+        acao: autoTelhasAtivo ? "distribuicao_automatica_telhas_bobina" : "distribuicao_automatica",
+        detalhes: autoTelhasAtivo
+          ? "Pedido distribuído com Piloto Automático de Telhas (encaminhado direto às perfiladeiras com bobina selecionada pelo Odoo)."
+          : "Pedido distribuído automaticamente para os galpões (Telhas→Barracão Telhas, C&D→Barracão C&D, Frisada→Expedição)."
       }];
+
       const itens = parseItensPedido(pedido.itens_json);
+      const telhas = itensPorGrupo(itens, "telha");
+
+      // SE PILOTO AUTOMÁTICO DE TELHAS ESTIVER ATIVO:
+      // Apenas itens de TELHAS vão direto para as perfiladeiras com seleção automática de bobina!
+      // ITENS DE CORTE E DOBRA NÃO SÃO TOCADOS (permanecem no fluxo anterior)!
+      if (autoTelhasAtivo && telhas.length > 0) {
+        for (let i = 0; i < itens.length; i++) {
+          const it = itens[i];
+          const ehTelha = telhas.some(t => (t._idx != null ? t._idx === i : t.produto === it.produto));
+          if (ehTelha && it.status !== "concluido") {
+            try {
+              const resAuto = await rotearPedidoTelhaDiretoParaMaquina({
+                pedido,
+                item: it,
+                itemIdx: i,
+                todasBobinas: bobinasEstoque,
+                filialAtiva: pedido.unidade || filialAtiva
+              });
+              telhasAutoRoteadas++;
+              if (resAuto.bobina) bobinasVinculadas++;
+              itens[i] = {
+                ...it,
+                distribuido: true,
+                status: "em_producao",
+                maquina: resAuto.maquina || "TP - 40",
+                bobina_superior_id: resAuto.bobina?.bobina_id || "",
+                bobina_superior: resAuto.bobina?.codigo || ""
+              };
+            } catch (errAuto) {
+              console.warn("[CentralPCP] Falha no auto-roteamento do item de telha:", errAuto);
+            }
+          }
+        }
+      }
+
+      // Distribui os demais itens (C&D continua intacto)
       const itensDistribuidos = itens.map(it => ({
         ...it,
         status: it.status === "concluido" ? "concluido" : (it.status === "em_producao" ? "em_producao" : "distribuido"),
@@ -812,14 +864,26 @@ export default function CentralPCP() {
         percentual_concluido: 15,
         historico_log: JSON.stringify(novoLog)
       });
+
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+      queryClient.invalidateQueries({ queryKey: ["bobinas-estoque-pcp"] });
       setPedidoSelecionado({ ...pedido, ...atualizado });
       setDistribuindo(false);
-      toast({
-        title: "Pedido distribuído!",
-        description: `#${pedido.numero_pedido} enviado para os galpões.`,
-        className: "border-blue-500/40"
-      });
+
+      if (autoTelhasAtivo && telhasAutoRoteadas > 0) {
+        toast({
+          title: "⚡ Telhas Roteadas Direto p/ Máquinas!",
+          description: `#${pedido.numero_pedido}: ${telhasAutoRoteadas} telha(s) nas perfiladeiras (${bobinasVinculadas} com bobina vinculada pelo Odoo). C&D na fila normal.`,
+          className: "border-amber-500/40"
+        });
+      } else {
+        toast({
+          title: "Pedido distribuído!",
+          description: `#${pedido.numero_pedido} enviado para os galpões.`,
+          className: "border-blue-500/40"
+        });
+      }
       // Mini BI — notificação em segundo plano (não trava a interface do operador)
       notificarStatus(atualizado, "distribuido", { status_novo: "distribuido", percentual_concluido: 15 }).catch(() => {});
     } catch (e) {
@@ -834,21 +898,67 @@ export default function CentralPCP() {
     if (!pedidosADistribuir || pedidosADistribuir.length === 0) return;
     setDistribuindo(true);
     try {
+      const autoTelhasAtivo = isAutoRoteamentoTelhasAtivo();
       let sucesso = 0;
+      let telhasCount = 0;
+
       for (const ped of pedidosADistribuir) {
         try {
+          const itens = parseItensPedido(ped.itens_json);
+          const telhas = itensPorGrupo(itens, "telha");
+
+          if (autoTelhasAtivo && telhas.length > 0) {
+            for (let i = 0; i < itens.length; i++) {
+              const it = itens[i];
+              const ehTelha = telhas.some(t => (t._idx != null ? t._idx === i : t.produto === it.produto));
+              if (ehTelha && it.status !== "concluido") {
+                try {
+                  const resAuto = await rotearPedidoTelhaDiretoParaMaquina({
+                    pedido: ped,
+                    item: it,
+                    itemIdx: i,
+                    todasBobinas: bobinasEstoque,
+                    filialAtiva: ped.unidade || filialAtiva
+                  });
+                  telhasCount++;
+                  itens[i] = {
+                    ...it,
+                    distribuido: true,
+                    status: "em_producao",
+                    maquina: resAuto.maquina || "TP - 40",
+                    bobina_superior_id: resAuto.bobina?.bobina_id || "",
+                    bobina_superior: resAuto.bobina?.codigo || ""
+                  };
+                } catch (errAuto) {
+                  console.warn("[CentralPCP Lote] Falha no auto-roteamento de telha:", errAuto);
+                }
+              }
+            }
+          }
+
+          const itensDistribuidos = itens.map(it => ({
+            ...it,
+            status: it.status === "concluido" ? "concluido" : (it.status === "em_producao" ? "em_producao" : "distribuido"),
+            distribuido: true
+          }));
+
           const logExistente = (() => { try { return JSON.parse(ped.historico_log || "[]"); } catch { return []; } })();
           const novoLog = [...logExistente, {
             data: new Date().toISOString(),
             usuario: "PCP",
             acao: "distribuicao_lote",
-            detalhes: "Pedido distribuído em lote para os galpões de produção (Telhas, C&D e Frisada)."
+            detalhes: autoTelhasAtivo
+              ? "Pedido distribuído em lote com Piloto Automático de Telhas direto para as perfiladeiras."
+              : "Pedido distribuído em lote para os galpões de produção (Telhas, C&D e Frisada)."
           }];
+
           const atualizado = await base44.entities.PedidoOdoo.update(ped.id, {
+            itens_json: JSON.stringify(itensDistribuidos),
             status_pcp: "distribuido",
             percentual_concluido: 15,
             historico_log: JSON.stringify(novoLog)
           });
+
           // Notificação em segundo plano sem bloquear o loop
           notificarStatus(atualizado, "distribuido", { status_novo: "distribuido", percentual_concluido: 15 }).catch(() => {});
           sucesso++;
@@ -857,11 +967,15 @@ export default function CentralPCP() {
         }
       }
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+      queryClient.invalidateQueries({ queryKey: ["bobinas-estoque-pcp"] });
       setSelecionados(new Set());
       setDistribuindo(false);
       toast({
         title: `🚀 ${sucesso} pedidos distribuídos!`,
-        description: `Todas as ordens selecionadas foram encaminhadas simultaneamente para as filas dos galpões.`,
+        description: autoTelhasAtivo && telhasCount > 0
+          ? `${sucesso} pedido(s) distribuído(s) — ${telhasCount} item(ns) de telhas enviados direto às máquinas com bobina automática. C&D na fila normal.`
+          : `Todas as ordens selecionadas foram encaminhadas simultaneamente para as filas dos galpões.`,
         className: "border-emerald-500/40"
       });
     } catch (e) {
