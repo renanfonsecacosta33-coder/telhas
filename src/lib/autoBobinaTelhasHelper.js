@@ -22,6 +22,7 @@ import { isEspessuraCompatible, isOrigemCompatible, removerAcentos, detectarCorT
 import { isBobinaAberta, isBobinaNatural } from "@/lib/bobinaStatusHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import { calcularDataPrometidaSLA, toISODate } from "@/lib/sla";
+import { getPrioridadeNivel } from "@/lib/prioridadeHelper";
 
 export const LOCAL_STORAGE_KEY_AUTO_TELHAS = "pcp_auto_roteamento_telhas";
 
@@ -469,4 +470,209 @@ export async function processarLoteAutoRoteamentoTelhas({
   }
 
   return resultados;
+}
+
+/**
+ * ROTEIA AUTOMATICAMENTE ITENS DE TELHA DE UM PEDIDO PARA AS MÁQUINAS,
+ * CONSOLIDANDO ITENS IDÊNTICOS (mesma máquina, mesmo tipo, espessura e cor)
+ * EM UMA ÚNICA OP NA MÁQUINA COM MÚLTIPLOS CORTES (variacoes_telhas).
+ */
+export async function rotearLoteTelhasAgrupadas({
+  pedido,
+  itensTelhas = [],
+  todasBobinas = [],
+  filialAtiva = "Matriz AJL",
+  tolerancias = []
+}) {
+  if (!pedido || !itensTelhas || itensTelhas.length === 0) {
+    return { opsCriadas: [], itensAtualizadosMap: {} };
+  }
+
+  // 1. Agrupar itens de telha por modelo idêntico
+  // Chave: maquina__prodTipo__espessura__cor
+  const grupos = new Map();
+
+  for (const it of itensTelhas) {
+    const descTexto = it.descricao || it.observacao || "";
+    const produtoNome = it.produto || it.descricao || "";
+    const prodTipo = detectarTipoProdutoTelha(produtoNome, descTexto);
+    let maquina = it.maquina || detectarMaquinaTelha(produtoNome);
+    if (!maquina) maquina = "TP - 40";
+    const esp = it.espessura ? String(it.espessura) : (detectarEspessura(produtoNome) || "0.43");
+    const cor = detectarCorTelha(produtoNome, descTexto) || "NATURAL";
+    const chave = `${maquina}___${prodTipo}___${esp}___${cor}`.toUpperCase();
+
+    if (!grupos.has(chave)) {
+      grupos.set(chave, {
+        chave,
+        maquina,
+        prodTipo,
+        esp,
+        cor,
+        itens: []
+      });
+    }
+    grupos.get(chave).itens.push(it);
+  }
+
+  const opsCriadas = [];
+  const itensAtualizadosMap = {}; // idx -> dados atualizados
+
+  // 2. Para cada grupo de modelo idêntico:
+  for (const g of grupos.values()) {
+    const itensDoGrupo = g.itens;
+    const primeiroItem = itensDoGrupo[0];
+    const itemPrincipalIdx = primeiroItem._idx != null ? primeiroItem._idx : 0;
+    const todosIndices = itensDoGrupo.map(it => (it._idx != null ? it._idx : 0));
+
+    // Consolidar cortes / variações e metragens
+    const variacoesConsolidadas = [];
+    let somaPecas = 0;
+    let somaMetrosLineares = 0;
+    let textoObservacoes = [];
+
+    itensDoGrupo.forEach(it => {
+      const descTexto = it.descricao || it.observacao || "";
+      if (descTexto) textoObservacoes.push(descTexto);
+      const espTec = extrairEspecificacao(descTexto, it.quantidade, it.unidade);
+
+      if (espTec.tem_especificacao && espTec.variacoes && espTec.variacoes.length > 0) {
+        espTec.variacoes.forEach(v => {
+          const qty = Number(v.qty) || 1;
+          const mm = Number(v.mm) || 0;
+          const m = Number(v.m) || (mm ? +(mm / 1000).toFixed(3) : 0);
+          const total_m = +(qty * m).toFixed(2);
+          variacoesConsolidadas.push({ qty, mm, m, total_m });
+          somaPecas += qty;
+          somaMetrosLineares += total_m;
+        });
+      } else {
+        // Corte único ou item sem quebra em variações
+        const qty = Number(espTec?.quantidade || it.quantidade) || 1;
+        const mm = Number(espTec?.comprimento_mm) || null;
+        const m = mm ? +(mm / 1000).toFixed(3) : (Number(espTec?.metragem_total || it.quantidade) || 1);
+        const total_m = +(qty * m).toFixed(2);
+        variacoesConsolidadas.push({
+          qty,
+          mm: mm || (m ? Math.round(m * 1000) : null),
+          m,
+          total_m
+        });
+        somaPecas += qty;
+        somaMetrosLineares += total_m;
+      }
+    });
+
+    if (somaPecas === 0) somaPecas = itensDoGrupo.reduce((acc, it) => acc + (Number(it.quantidade) || 1), 0);
+    if (somaMetrosLineares === 0) somaMetrosLineares = somaPecas;
+
+    // Item representativo para seleção da melhor bobina com a metragem total acumulada
+    const itemVirtualParaBobina = {
+      ...primeiroItem,
+      quantidade: somaMetrosLineares,
+      metragem_total: somaMetrosLineares
+    };
+
+    const bobinaEleita = selecionarMelhorBobinaTelhas({
+      item: itemVirtualParaBobina,
+      pedido,
+      todasBobinas,
+      filialAtiva,
+      tolerancias
+    });
+
+    const dataReceb = pedido.data_recebimento
+      ? String(pedido.data_recebimento).slice(0, 10)
+      : new Date().toISOString().slice(0, 10);
+
+    const dataPrevista = pedido.data_entrega
+      ? String(pedido.data_entrega).slice(0, 10)
+      : toISODate(calcularDataPrometidaSLA(dataReceb, 7));
+
+    const unidadeOp = filialAtiva && filialAtiva !== "todas" ? filialAtiva : (pedido.unidade || "Matriz AJL");
+    const isDuplaTelha = g.prodTipo === "TELHA + EPS + TELHA";
+    const eps = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(g.prodTipo)
+      ? detectarEPSTelha(primeiroItem.produto || primeiroItem.descricao || "", g.maquina)
+      : "";
+
+    const nivelPrioridade = getPrioridadeNivel(pedido);
+
+    const dadosOp = {
+      data: dataReceb,
+      data_pedido: dataReceb,
+      data_prevista: dataPrevista,
+      numero_pedido: pedido.numero_pedido || "",
+      cliente: pedido.cliente_nome || pedido.cliente || "",
+      vendedor: pedido.vendedor_nome || pedido.vendedor || "",
+      unidade: unidadeOp,
+      produto: g.prodTipo,
+      modelo: `${g.maquina} ${g.cor !== "NATURAL" ? g.cor : "Galvalume"}`,
+      maquina: g.maquina,
+      status: "pendente",
+      prioridade_nivel: nivelPrioridade,
+      prioridade: Boolean(nivelPrioridade),
+      is_rota: nivelPrioridade === "ROTA",
+      espessura_exigida: g.esp || "0.43",
+      origem_exigida: primeiroItem.origem || detectarOrigemAco(primeiroItem.produto || "") || "ambas",
+      cor_exigida: g.cor || "NATURAL",
+      eps: eps,
+      rvm_superior: bobinaEleita?.cor || (g.cor !== "NATURAL" ? g.cor : "Natural"),
+      bobina_superior_id: bobinaEleita?.bobina_id || null,
+      bobina_superior: bobinaEleita?.descricao || "",
+      rvm_inferior: isDuplaTelha ? (bobinaEleita?.cor || (g.cor !== "NATURAL" ? g.cor : "Natural")) : null,
+      bobina_inferior_id: isDuplaTelha ? (bobinaEleita?.bobina_id || null) : null,
+      bobina_inferior: isDuplaTelha ? (bobinaEleita?.descricao || "") : null,
+      metros: Number(somaPecas) || 1,
+      metragem_mm: variacoesConsolidadas.length === 1 ? (variacoesConsolidadas[0].mm || null) : null,
+      quantidade_telhas: Number(somaMetrosLineares) || 1,
+      metragem_planejada: Number(somaMetrosLineares) || 1,
+      variacoes_telhas: JSON.stringify(variacoesConsolidadas),
+      observacoes: `Auto-Roteado PCP (${itensDoGrupo.length > 1 ? `${itensDoGrupo.length} itens agrupados — ` : ""}${g.maquina}) — ${textoObservacoes.join(" | ")}`.trim(),
+      pedido_odoo_id: pedido.id,
+      of_odoo_id: pedido.of_odoo_id || "",
+      of_nome: pedido.of_nome || "",
+      item_idx: itemPrincipalIdx,
+      itens_indices: JSON.stringify(todosIndices),
+      item_produto: primeiroItem.produto || primeiroItem.descricao || "",
+      foto_pedido_url: primeiroItem.foto_url || primeiroItem.imagem_url || pedido.foto_pedido_url || extrairCroquiPedido(pedido) || ""
+    };
+
+    // Verificação anti-duplicação:
+    let opCriada = null;
+    try {
+      const opsExistentes = await base44.entities.Pedido.filter({
+        pedido_odoo_id: pedido.id,
+        item_idx: itemPrincipalIdx
+      });
+      const opValida = opsExistentes.find(o => o.status !== "cancelado");
+      if (opValida) {
+        opCriada = await base44.entities.Pedido.update(opValida.id, {
+          ...dadosOp,
+          status: opValida.status || "pendente"
+        });
+      }
+    } catch (errCheck) {
+      console.warn("[AutoBobinaTelhas Lote] Erro checagem anti-duplicidade:", errCheck);
+    }
+
+    if (!opCriada) {
+      opCriada = await base44.entities.Pedido.create(dadosOp);
+    }
+    opsCriadas.push(opCriada);
+
+    // Mapear atualizações para todos os itens do grupo
+    itensDoGrupo.forEach(it => {
+      const idx = it._idx != null ? it._idx : 0;
+      itensAtualizadosMap[idx] = {
+        distribuido: true,
+        status: "em_producao",
+        maquina: g.maquina,
+        bobina_superior_id: bobinaEleita?.bobina_id || "",
+        bobina_superior: bobinaEleita?.codigo || "",
+        op_agrupada_id: opCriada.id
+      };
+    });
+  }
+
+  return { opsCriadas, itensAtualizadosMap };
 }

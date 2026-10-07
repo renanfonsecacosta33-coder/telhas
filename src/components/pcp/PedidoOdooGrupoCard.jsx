@@ -10,9 +10,10 @@ import { formatDataBR } from "@/lib/sla";
 import { urgenciaPrazo } from "@/lib/prazoUrgencia";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import PedidoOdooCard from "@/components/pcp/PedidoOdooCard";
-import { calcularProgressoRealPedido, classGrupo } from "@/lib/pedidoOdooHelper";
+import { calcularProgressoRealPedido, classGrupo, obterStatusExecucaoPedido } from "@/lib/pedidoOdooHelper";
 import { verificarEstoqueGrupo } from "@/lib/estoqueMaterialHelper";
 import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
+import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelper";
 
 /**
  * Card Consolidado do Pedido de Venda (Acordeon Executivo).
@@ -41,6 +42,7 @@ export default function PedidoOdooGrupoCard({
   onRetirarFila,
   onTogglePrioridade,
   onSetPrioridade,
+  onSetPrioridadeGrupo,
   estoqueContext = null
 }) {
   const [simulacaoGrupoOpen, setSimulacaoGrupoOpen] = useState(false);
@@ -60,12 +62,19 @@ export default function PedidoOdooGrupoCard({
     if (p.percentual_concluido != null && p.percentual_concluido >= 100) return true;
     return false;
   };
-  const grupoConcluido = totalOfs > 0 && ofs.every(isOfConcluida);
+  // Diagnóstico preciso em tempo real de execução no chão de fábrica
+  const statusExecucaoOfs = useMemo(() => {
+    return ofs.map(p => ({
+      pedido: p,
+      isConcluida: isOfConcluida(p),
+      diag: obterStatusExecucaoPedido(p, pedidosProducao, ordensCD)
+    }));
+  }, [ofs, pedidosProducao, ordensCD]);
 
-  // Contagens de status das OFs filhas
+  const produzindoAgora = statusExecucaoOfs.filter(s => !s.isConcluida && s.diag.produzindoAgora);
+  const aguardandoInicio = statusExecucaoOfs.filter(s => !s.isConcluida && s.diag.aguardandoInicio);
   const pendentes = ofs.filter(p => p.status_pcp === "pendente_distribuicao" && !isOfConcluida(p));
-  const distribuidos = ofs.filter(p => p.status_pcp === "distribuido" && !isOfConcluida(p));
-  const emProducao = ofs.filter(p => p.status_pcp === "em_producao" && !isOfConcluida(p));
+  const distribuidos = ofs.filter(p => p.status_pcp === "distribuido" && !isOfConcluida(p) && !produzindoAgora.some(x => x.pedido.id === p.id) && !aguardandoInicio.some(x => x.pedido.id === p.id));
   const concluidas = ofs.filter(p => isOfConcluida(p));
 
   // Progresso Consolidado do Pedido (média do progresso de todas as OFs)
@@ -76,7 +85,7 @@ export default function PedidoOdooGrupoCard({
   const isPedidoTotalConcluido = concluidas.length === totalOfs && totalOfs > 0;
 
   // Prioridade / Urgência
-  const isPrioritario = grupo.prioridade || ofs.some(p => p.prioridade);
+  const isPrioritario = grupo.prioridade || ofs.some(p => p.prioridade || p.prioridade_nivel);
 
   // Contagem de OFs por setor no grupo
   const contagemSetores = useMemo(() => {
@@ -187,6 +196,7 @@ export default function PedidoOdooGrupoCard({
                 <h3 className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-slate-100 leading-tight">
                   Pedido #{grupo.numero_pedido}
                 </h3>
+                <PrioridadeBadge pedido={grupo} />
                 <Badge
                   variant="outline"
                   className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 font-bold text-xs"
@@ -297,30 +307,50 @@ export default function PedidoOdooGrupoCard({
 
             {/* Badges de Status das OFs */}
             <div className="flex items-center gap-1.5 flex-wrap">
-              {pendentes.length > 0 && (
-                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60" title={`${pendentes.length} OF(s) pendente(s) de distribuição`}>
-                  {pendentes.length} pendente{pendentes.length > 1 ? "s" : ""}
+              {produzindoAgora.length > 0 && (
+                <span className="px-2 py-0.5 rounded-md text-[11px] font-black bg-blue-600 text-white animate-pulse shadow-xs" title={`${produzindoAgora.length} OF(s) com operador rodando na máquina agora`}>
+                  ⚡ {produzindoAgora.length} rodando agora
+                </span>
+              )}
+              {aguardandoInicio.length > 0 && (
+                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-400/60" title={`${aguardandoInicio.length} OF(s) na máquina aguardando início do operador`}>
+                  ⏳ {aguardandoInicio.length} na fila da máquina
                 </span>
               )}
               {distribuidos.length > 0 && (
-                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900/60" title={`${distribuidos.length} OF(s) distribuída(s)`}>
-                  {distribuidos.length} distribuída{distribuidos.length > 1 ? "s" : ""}
+                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900/60" title={`${distribuidos.length} OF(s) distribuída(s) no galpão`}>
+                  📦 {distribuidos.length} distribuída{distribuidos.length > 1 ? "s" : ""}
                 </span>
               )}
-              {emProducao.length > 0 && (
-                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900/60" title={`${emProducao.length} OF(s) em produção nas máquinas`}>
-                  {emProducao.length} em produção
+              {pendentes.length > 0 && (
+                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60" title={`${pendentes.length} OF(s) pendente(s) de distribuição no PCP`}>
+                  📥 {pendentes.length} pendente{pendentes.length > 1 ? "s" : ""}
                 </span>
               )}
               {concluidas.length > 0 && (
                 <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/60" title={`${concluidas.length} OF(s) 100% concluída(s)`}>
-                  {concluidas.length} concluída{concluidas.length > 1 ? "s" : ""}
+                  ✓ {concluidas.length} concluída{concluidas.length > 1 ? "s" : ""}
                 </span>
               )}
             </div>
 
             {/* Botões de Ação do Grupo */}
             <div className="flex items-center gap-2">
+              {(onSetPrioridadeGrupo || onSetPrioridade) && (
+                <div onClick={(e) => e.stopPropagation()} title="Definir prioridade ou rota para todo o pedido">
+                  <SeletorPrioridadeDropdown
+                    pedido={grupo}
+                    onSelectPrioridade={(nivel) => {
+                      if (onSetPrioridadeGrupo) onSetPrioridadeGrupo(grupo, nivel);
+                      else if (onSetPrioridade) onSetPrioridade(grupo, nivel);
+                    }}
+                    size="sm"
+                    variant="outline"
+                    className="h-8 px-2 font-bold border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  />
+                </div>
+              )}
+
               {pendentes.length > 0 && onDistribuirGrupo && (
                 <Button
                   size="sm"

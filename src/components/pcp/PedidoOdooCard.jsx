@@ -19,7 +19,7 @@ import LocalizacaoStatusHero from "@/components/pcp/LocalizacaoStatusHero";
 import { notificarStatus } from "@/lib/biNotificador";
 import { toast } from "sonner";
 import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelper";
-import { classGrupo } from "@/lib/pedidoOdooHelper";
+import { classGrupo, obterStatusExecucaoPedido } from "@/lib/pedidoOdooHelper";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
 
@@ -93,6 +93,10 @@ export default function PedidoOdooCard({
     if (!estoqueContext) return null;
     return verificarEstoquePedido(pedido, estoqueContext);
   }, [pedido, estoqueContext]);
+
+  const statusExecucao = useMemo(() => {
+    return obterStatusExecucaoPedido(pedido, pedidosProducao, ordensCD);
+  }, [pedido, pedidosProducao, ordensCD]);
 
   const st = STATUS_PCP[pedido.status_pcp] || (isConcluido ? STATUS_PCP.concluido : STATUS_PCP.pendente_distribuicao);
   const sla = slaDiasPorCategoria(pedido);
@@ -251,11 +255,7 @@ export default function PedidoOdooCard({
                 />
               </div>
             )}
-            {isPrioritario && (
-              <Badge className="bg-amber-500 text-white border-amber-600 animate-pulse text-[9px] px-1 py-0 gap-0.5">
-                <Star className="w-2.5 h-2.5 fill-white" /> URGENTE
-              </Badge>
-            )}
+            <PrioridadeBadge pedido={pedido} />
             <Badge className={`text-[9px] font-black uppercase tracking-wide px-1.5 py-0 leading-tight ${cfgSetor.badgeCls}`}>
               {cfgSetor.curto}
             </Badge>
@@ -265,7 +265,9 @@ export default function PedidoOdooCard({
             >
               {pedido.of_nome || (pedido.of_odoo_id ? `OF: ${pedido.of_odoo_id}` : `#${pedido.numero_pedido}`)}
             </span>
-            <Badge className={`border text-[9px] px-1.5 py-0 leading-tight ${st.cls}`}>{st.label}</Badge>
+            <Badge className={`border text-[9px] px-1.5 py-0 leading-tight ${statusExecucao.badgeCls}`}>
+              {statusExecucao.label}
+            </Badge>
             {statusEstoque && (
               <Badge
                 onClick={(e) => {
@@ -440,11 +442,7 @@ export default function PedidoOdooCard({
         <div className="flex items-start justify-between gap-2 flex-1 min-w-0">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              {isPrioritario && (
-                <Badge className="bg-amber-500 text-white border-amber-600 animate-pulse text-[10px] gap-0.5">
-                  <Star className="w-3 h-3 fill-white" /> URGENTE
-                </Badge>
-              )}
+              <PrioridadeBadge pedido={pedido} />
               <Badge className={`text-[10px] font-black uppercase tracking-wide px-2 py-0.5 leading-tight ${cfgSetor.badgeCls}`}>
                 {cfgSetor.curto}
               </Badge>
@@ -522,7 +520,7 @@ export default function PedidoOdooCard({
               </button>
             )}
             <PrioridadeBadge pedido={pedido} />
-            <Badge className={`border ${st.cls}`}>{st.label}</Badge>
+            <Badge className={`border font-bold ${statusExecucao.badgeCls}`}>{statusExecucao.label}</Badge>
             {statusEstoque && (
               <Badge
                 onClick={(e) => {

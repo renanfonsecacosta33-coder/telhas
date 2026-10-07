@@ -73,16 +73,40 @@ export default function LocalizacaoStatusHero({
       dotCor: "bg-emerald-500",
       stepIndex: 4
     };
-  } else if (temOpEmExecucao || maquinasLista.length > 0 || statusPcp === "em_producao" || pct > 0) {
+  } else if (temOpEmExecucao) {
     const nomeMaq = maquinasLista.length > 0 ? maquinasLista.join(" + ") : "Chão de Fábrica";
     localizacao = {
       titulo: `Máquina: ${nomeMaq}`,
-      subtitulo: temOpPausada ? "Produção Pausada pelo Operador" : `Produzindo no Chão de Fábrica (${pct}% concluído)`,
-      posto: nomeMaq,
-      icon: Cpu,
+      subtitulo: `⚡ Em produção agora pelo operador (${pct}% concluído)`,
+      posto: `⚡ Produzindo: ${nomeMaq}`,
+      icon: Play,
       corTexto: "text-blue-700 dark:text-blue-300",
       corBg: "bg-blue-500/15 dark:bg-blue-950/40 border-blue-400 dark:border-blue-700",
       dotCor: "bg-blue-500 animate-ping",
+      stepIndex: 3
+    };
+  } else if (temOpPausada) {
+    const nomeMaq = maquinasLista.length > 0 ? maquinasLista.join(" + ") : "Chão de Fábrica";
+    localizacao = {
+      titulo: `Máquina: ${nomeMaq}`,
+      subtitulo: "⏸️ Produção Pausada pelo Operador",
+      posto: `Pausado: ${nomeMaq}`,
+      icon: Pause,
+      corTexto: "text-amber-700 dark:text-amber-300",
+      corBg: "bg-amber-500/15 dark:bg-amber-950/40 border-amber-400 dark:border-amber-700",
+      dotCor: "bg-amber-500",
+      stepIndex: 3
+    };
+  } else if (maquinasLista.length > 0 || statusPcp === "em_producao") {
+    const nomeMaq = maquinasLista.length > 0 ? maquinasLista.join(" + ") : "Perfiladeira / Máquina";
+    localizacao = {
+      titulo: `Máquina: ${nomeMaq}`,
+      subtitulo: "⏳ Na fila da máquina — Aguardando início pelo operador",
+      posto: `Fila da Máquina: ${nomeMaq}`,
+      icon: Clock,
+      corTexto: "text-amber-700 dark:text-amber-300",
+      corBg: "bg-amber-500/10 dark:bg-amber-950/30 border-amber-300/60 dark:border-amber-800/60",
+      dotCor: "bg-amber-500",
       stepIndex: 3
     };
   } else if (statusPcp === "distribuido") {
@@ -117,11 +141,17 @@ export default function LocalizacaoStatusHero({
       cls: "bg-orange-600 text-white border-orange-700 shadow-xs",
       icon: Pause
     };
-  } else if (temOpEmExecucao || statusPcp === "em_producao" || pct > 0) {
+  } else if (temOpEmExecucao) {
     statusBadge = {
-      label: `Em Produção na Máquina (${pct}%)`,
-      cls: "bg-blue-600 text-white border-blue-700 shadow-blue-500/20 shadow-sm animate-subtle",
+      label: `⚡ Produzindo Agora (${pct}%)`,
+      cls: "bg-blue-600 hover:bg-blue-700 text-white border-blue-700 shadow-blue-500/20 shadow-sm animate-pulse",
       icon: Play
+    };
+  } else if (maquinasLista.length > 0 || statusPcp === "em_producao") {
+    statusBadge = {
+      label: "⏳ Aguardando Início (Máquina)",
+      cls: "bg-amber-500/20 text-amber-800 dark:text-amber-200 border-amber-400 font-bold",
+      icon: Clock
     };
   } else if (statusPcp === "distribuido") {
     statusBadge = {

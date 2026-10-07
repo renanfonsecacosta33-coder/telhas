@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Flame, Zap, Star, Shield, ArrowDown, Ban, ChevronDown } from "lucide-react";
+import { Flame, Zap, Star, Shield, ArrowDown, Ban, ChevronDown, Truck } from "lucide-react";
 
 export const NIVEIS_PRIORIDADE = [
   {
@@ -21,6 +21,17 @@ export const NIVEIS_PRIORIDADE = [
     menuCls: "text-red-600 font-bold focus:bg-red-50 dark:focus:bg-red-950/40",
     cor: "text-red-600",
     peso: 0
+  },
+  {
+    nivel: "ROTA",
+    label: "🚚 Pedido de Rota",
+    tag: "🚚 ROTA",
+    desc: "Carga programada para rota de entrega",
+    Icon: Truck,
+    badgeCls: "bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-700 shadow-sm font-black text-xs",
+    menuCls: "text-indigo-600 font-bold focus:bg-indigo-50 dark:focus:bg-indigo-950/40",
+    cor: "text-indigo-600 dark:text-indigo-400",
+    peso: 0.5
   },
   {
     nivel: 2,
@@ -70,6 +81,9 @@ export const NIVEIS_PRIORIDADE = [
 
 export function getPrioridadeNivel(pedido) {
   if (!pedido) return null;
+  if (pedido.prioridade_nivel === "ROTA" || pedido.is_rota === true || pedido.rota === true) {
+    return "ROTA";
+  }
   const n = Number(pedido.prioridade_nivel);
   if (n >= 1 && n <= 5) return n;
   if (pedido.prioridade === true || pedido.prioridade === 1) return 1;
@@ -85,7 +99,7 @@ export function getPrioridadeConfig(pedido) {
 export function getPesoOrdenacaoPrioridade(pedido) {
   const nivel = getPrioridadeNivel(pedido);
   if (nivel === 1) return 0; // P1 é a mais urgente absoluta
-  if (pedido?.rota) return 0.5; // Pedido de Rota
+  if (nivel === "ROTA") return 0.5; // Pedido de Rota (acima de P2)
   if (nivel === 2) return 1;
   if (nivel === 3) return 2;
   if (nivel === 4) return 3;
@@ -129,12 +143,12 @@ export function SeletorPrioridadeDropdown({
               ? `${cfgAtual.cor} border border-current/20 bg-current/5 hover:bg-current/10`
               : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
           } ${className}`}
-          title="Definir nível de prioridade (P1 a P5)"
+          title="Definir nível de prioridade (P1 a P5 ou ROTA)"
         >
           {cfgAtual ? (
             <>
               <cfgAtual.Icon className="w-3.5 h-3.5 fill-current" />
-              <span>P{cfgAtual.nivel}</span>
+              <span>{cfgAtual.nivel === "ROTA" ? "Rota" : `P${cfgAtual.nivel}`}</span>
             </>
           ) : (
             <>
@@ -147,7 +161,7 @@ export function SeletorPrioridadeDropdown({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56 p-1">
         <div className="px-2 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wide">
-          Escolher Prioridade (1 a 5)
+          Escolher Prioridade / Rota
         </div>
         {NIVEIS_PRIORIDADE.map((p) => {
           const isAtivo = nivelAtual === p.nivel;

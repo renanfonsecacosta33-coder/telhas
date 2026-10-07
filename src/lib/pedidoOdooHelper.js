@@ -251,9 +251,19 @@ export function computePercentualGrupo(itens, grupo) {
 export function localizarOpDoItem(it, opsList = [], todosItens = []) {
   if (!opsList || opsList.length === 0 || !it) return null;
 
-  // 1. Vínculo exato por índice do item se a OP registrou item_idx
+  // 1. Vínculo exato por índice do item se a OP registrou item_idx ou itens_indices agrupados
   if (it._idx != null) {
-    const opPorIdx = opsList.find(o => o.item_idx != null && o.item_idx === it._idx);
+    const opPorIdx = opsList.find(o => {
+      if (o.item_idx != null && o.item_idx === it._idx) return true;
+      const rawIndices = o.itens_indices || o.item_indices;
+      if (rawIndices) {
+        try {
+          const list = Array.isArray(rawIndices) ? rawIndices : JSON.parse(rawIndices);
+          if (Array.isArray(list) && list.includes(it._idx)) return true;
+        } catch {}
+      }
+      return false;
+    });
     if (opPorIdx) return opPorIdx;
   }
 
@@ -878,4 +888,112 @@ export function extrairAnotacaoItem(item) {
   }
 
   return resto;
+}
+
+/**
+ * Retorna diagnóstico preciso do estado de execução do pedido ou OF no chão de fábrica:
+ * - isConcluido: true se 100% concluído
+ * - produzindoAgora: true se operador deu play e máquina está em operação ativa
+ * - aguardandoInicio: true se OP já está na máquina mas aguarda play do operador
+ * - pausado: true se operador pausou
+ * - pendentePcp: true se ainda não foi distribuído
+ */
+export function obterStatusExecucaoPedido(pedido, pedidosProducao = [], ordensCD = []) {
+  if (!pedido) {
+    return {
+      statusChave: "pendente_pcp",
+      label: "Pendente",
+      badgeCls: "bg-slate-100 text-slate-700",
+      produzindoAgora: false,
+      aguardandoInicio: false,
+      isConcluido: false,
+      maquinas: []
+    };
+  }
+
+  const progresso = calcularProgressoRealPedido(pedido, pedidosProducao, ordensCD);
+  if (progresso >= 100 || pedido.status_pcp === "concluido") {
+    return {
+      statusChave: "concluido",
+      label: "Concluído 100%",
+      badgeCls: "bg-emerald-600 text-white border-emerald-700 font-bold",
+      produzindoAgora: false,
+      aguardandoInicio: false,
+      isConcluido: true,
+      maquinas: []
+    };
+  }
+
+  const numPed = String(pedido.numero_pedido || "").trim().toUpperCase();
+  const ofId = String(pedido.of_odoo_id || pedido.odoo_id || "").trim().toUpperCase();
+  const ofNome = String(pedido.of_nome || "").trim().toUpperCase();
+
+  const matchOp = (op) => {
+    if (!op || op.status === "cancelado") return false;
+    if (op.pedido_odoo_id && pedido?.id) return op.pedido_odoo_id === pedido.id;
+    if (ofId && op.of_odoo_id) return String(op.of_odoo_id).trim().toUpperCase() === ofId;
+    if (ofNome && op.of_nome) return String(op.of_nome).trim().toUpperCase() === ofNome;
+    if (op.pedido_odoo_id || op.of_odoo_id) return false;
+    if (op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed) return true;
+    return false;
+  };
+
+  const opsVinculadas = [
+    ...(pedidosProducao || []).filter(matchOp),
+    ...(ordensCD || []).filter(matchOp)
+  ];
+
+  const temEmProducao = opsVinculadas.some(o => ["em_producao", "executando"].includes(o.status));
+  const temPausado = opsVinculadas.some(o => o.status === "pausado");
+  const temPendenteMaquina = opsVinculadas.some(o => o.status === "pendente" || Boolean(o.maquina));
+
+  const maquinas = Array.from(new Set(opsVinculadas.map(o => o.maquina || o.maquina_nome))).filter(Boolean);
+
+  if (temEmProducao) {
+    const maqsStr = maquinas.length > 0 ? ` (${maquinas.join(", ")})` : "";
+    return {
+      statusChave: "produzindo_agora",
+      label: `⚡ Produzindo Agora${maqsStr}`,
+      badgeCls: "bg-blue-600 hover:bg-blue-700 text-white border-blue-700 shadow-sm animate-pulse font-black",
+      produzindoAgora: true,
+      aguardandoInicio: false,
+      isConcluido: false,
+      maquinas
+    };
+  }
+
+  if (temPausado) {
+    return {
+      statusChave: "pausado",
+      label: "⏸️ Produção Pausada",
+      badgeCls: "bg-amber-600 text-white border-amber-700 font-bold",
+      produzindoAgora: false,
+      aguardandoInicio: false,
+      isConcluido: false,
+      maquinas
+    };
+  }
+
+  if (temPendenteMaquina || pedido.status_pcp === "em_producao" || pedido.status_pcp === "distribuido") {
+    const maqsStr = maquinas.length > 0 ? ` (${maquinas.join(", ")})` : "";
+    return {
+      statusChave: "aguardando_inicio",
+      label: `⏳ Na Fila da Máquina${maqsStr}`,
+      badgeCls: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 font-bold",
+      produzindoAgora: false,
+      aguardandoInicio: true,
+      isConcluido: false,
+      maquinas
+    };
+  }
+
+  return {
+    statusChave: "pendente_pcp",
+    label: "Pendente Distribuição",
+    badgeCls: "bg-slate-100 dark:bg-slate-800 text-slate-600 border-slate-300",
+    produzindoAgora: false,
+    aguardandoInicio: false,
+    isConcluido: false,
+    maquinas: []
+  };
 }

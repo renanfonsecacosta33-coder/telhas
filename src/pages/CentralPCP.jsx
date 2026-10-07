@@ -38,11 +38,13 @@ import {
   calcularProgressoRealPedido,
   statusPcpPorPercentual,
   enriquecerItensComStatusReal,
-  itensPorGrupo
+  itensPorGrupo,
+  obterStatusExecucaoPedido
 } from "@/lib/pedidoOdooHelper";
 import {
   isAutoRoteamentoTelhasAtivo,
-  rotearPedidoTelhaDiretoParaMaquina
+  rotearPedidoTelhaDiretoParaMaquina,
+  rotearLoteTelhasAgrupadas
 } from "@/lib/autoBobinaTelhasHelper";
 import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
@@ -754,13 +756,12 @@ export default function CentralPCP() {
   };
 
   const handleSetPrioridade = (pedido, nivel) => {
-    const nivelNum = nivel ? Number(nivel) : null;
     // Se for P1 ou P2 (alta urgência), exige PIN do gestor caso não seja admin
-    if (nivelNum === 1 || nivelNum === 2) {
-      setPedidoPrioridadePendente({ pedido, nivel: nivelNum });
+    if (nivel === 1 || nivel === 2 || nivel === "1" || nivel === "2") {
+      setPedidoPrioridadePendente({ pedido, nivel: Number(nivel), isGrupo: false });
       setSenhaGestorOpen(true);
     } else {
-      confirmarPrioridade(pedido, nivelNum);
+      confirmarPrioridade(pedido, nivel);
     }
   };
 
@@ -772,29 +773,120 @@ export default function CentralPCP() {
     }
   };
 
-  const confirmarPrioridade = async (pedido, nivelNum) => {
+  const confirmarPrioridade = async (pedido, nivel) => {
     try {
-      const ativa = Boolean(nivelNum);
+      const ativa = Boolean(nivel);
+      const isRota = nivel === "ROTA";
+      const nivelVal = isRota ? "ROTA" : (nivel ? Number(nivel) : null);
       const logExistente = (() => { try { return JSON.parse(pedido.historico_log || "[]"); } catch { return []; } })();
+      const descr = isRota
+        ? "OF marcada como 🚚 Pedido de Rota."
+        : ativa
+        ? `OF marcada como Prioridade P${nivelVal} (1 a 5 - sendo 1 mais urgente).`
+        : "Prioridade removida.";
+
       const novoLog = [...logExistente, {
         data: new Date().toISOString(),
         usuario: "PCP",
-        acao: ativa ? `prioridade_p${nivelNum}` : "prioridade_removida",
-        detalhes: ativa ? `Pedido marcado como Prioridade P${nivelNum} (1 a 5 - sendo 1 a mais urgente).` : "Prioridade removida."
+        acao: ativa ? (isRota ? "prioridade_rota" : `prioridade_p${nivelVal}`) : "prioridade_removida",
+        detalhes: descr
       }];
+
       await base44.entities.PedidoOdoo.update(pedido.id, {
         prioridade: ativa,
-        prioridade_nivel: nivelNum,
+        prioridade_nivel: nivelVal,
+        is_rota: isRota,
         historico_log: JSON.stringify(novoLog)
       });
+
+      // Propaga para as ordens ativas vinculadas daquela OF
+      if (pedido.numero_pedido) {
+        await base44.entities.Pedido.updateMany(
+          { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
+          { $set: { prioridade: ativa, prioridade_nivel: nivelVal, is_rota: isRota } }
+        ).catch(() => {});
+        await base44.entities.OrdemMaquinaCD.updateMany(
+          { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
+          { $set: { prioridade: ativa, prioridade_nivel: nivelVal, is_rota: isRota } }
+        ).catch(() => {});
+      }
+
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-cd-todos"] });
+
       toast({
-        title: ativa ? `Prioridade P${nivelNum} Definida` : "Prioridade Removida",
-        description: `#${pedido.numero_pedido} ${ativa ? `marcado com Prioridade P${nivelNum} (1 mais urgente)` : "voltou para fila normal"}.`,
-        className: ativa ? "border-amber-500/40" : "border-slate-400/40"
+        title: isRota ? "🚚 Pedido de Rota Definido" : ativa ? `Prioridade P${nivelVal} Definida` : "Prioridade Removida",
+        description: `#${pedido.numero_pedido} ${isRota ? "marcado como rota de entrega" : ativa ? `marcado com Prioridade P${nivelVal}` : "voltou para fila normal"}.`,
+        className: isRota ? "border-indigo-500/40" : ativa ? "border-amber-500/40" : "border-slate-400/40"
       });
     } catch (e) {
       toast({ title: "Erro ao alterar prioridade", description: e.message, variant: "destructive" });
+    }
+  };
+
+  // DEFINIR PRIORIDADE PARA O PEDIDO TODO (Propaga para todas as OFs do grupo)
+  const handleSetPrioridadeGrupo = (grupo, nivel) => {
+    if (nivel === 1 || nivel === 2 || nivel === "1" || nivel === "2") {
+      setPedidoPrioridadePendente({ grupo, nivel: Number(nivel), isGrupo: true });
+      setSenhaGestorOpen(true);
+    } else {
+      confirmarPrioridadeGrupo(grupo, nivel);
+    }
+  };
+
+  const confirmarPrioridadeGrupo = async (grupo, nivel) => {
+    try {
+      const ofs = grupo.ofs || [];
+      const ativa = Boolean(nivel);
+      const isRota = nivel === "ROTA";
+      const nivelVal = isRota ? "ROTA" : (nivel ? Number(nivel) : null);
+      const descr = isRota
+        ? `Todo o Pedido #${grupo.numero_pedido} marcado como 🚚 Pedido de Rota.`
+        : ativa
+        ? `Todo o Pedido #${grupo.numero_pedido} marcado como Prioridade P${nivelVal}.`
+        : `Prioridade removida de todo o Pedido #${grupo.numero_pedido}.`;
+
+      for (const ofItem of ofs) {
+        const logExistente = (() => { try { return JSON.parse(ofItem.historico_log || "[]"); } catch { return []; } })();
+        const novoLog = [...logExistente, {
+          data: new Date().toISOString(),
+          usuario: "PCP",
+          acao: ativa ? (isRota ? "prioridade_grupo_rota" : `prioridade_grupo_p${nivelVal}`) : "prioridade_grupo_removida",
+          detalhes: descr
+        }];
+
+        await base44.entities.PedidoOdoo.update(ofItem.id, {
+          prioridade: ativa,
+          prioridade_nivel: nivelVal,
+          is_rota: isRota,
+          historico_log: JSON.stringify(novoLog)
+        });
+      }
+
+      // Propaga imediatamente para todas as OPs das perfiladeiras e Corte & Dobra
+      if (grupo.numero_pedido) {
+        await base44.entities.Pedido.updateMany(
+          { numero_pedido: grupo.numero_pedido, status: { $ne: "cancelado" } },
+          { $set: { prioridade: ativa, prioridade_nivel: nivelVal, is_rota: isRota } }
+        ).catch(() => {});
+        await base44.entities.OrdemMaquinaCD.updateMany(
+          { numero_pedido: grupo.numero_pedido, status: { $ne: "cancelado" } },
+          { $set: { prioridade: ativa, prioridade_nivel: nivelVal, is_rota: isRota } }
+        ).catch(() => {});
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-cd-todos"] });
+
+      toast({
+        title: isRota ? "🚚 Pedido de Rota Definido" : ativa ? `Prioridade P${nivelVal} no Pedido Todo` : "Prioridade Removida",
+        description: `Todas as ${ofs.length} OFs do Pedido #${grupo.numero_pedido} foram atualizadas com sucesso!`,
+        className: isRota ? "border-indigo-500/40" : ativa ? "border-amber-500/40" : "border-slate-400/40"
+      });
+    } catch (e) {
+      toast({ title: "Erro ao alterar prioridade do pedido", description: e.message, variant: "destructive" });
     }
   };
 
@@ -819,34 +911,40 @@ export default function CentralPCP() {
       const telhas = itensPorGrupo(itens, "telha");
 
       // SE PILOTO AUTOMÁTICO DE TELHAS ESTIVER ATIVO:
-      // Apenas itens de TELHAS vão direto para as perfiladeiras com seleção automática de bobina!
+      // Agrupa automaticamente itens idênticos (mesma máquina, modelo, espessura e cor)
+      // em 1 ÚNICA OP na máquina com múltiplos cortes consolidados!
       // ITENS DE CORTE E DOBRA NÃO SÃO TOCADOS (permanecem no fluxo anterior)!
       if (autoTelhasAtivo && telhas.length > 0) {
-        for (let i = 0; i < itens.length; i++) {
-          const it = itens[i];
-          const ehTelha = telhas.some(t => (t._idx != null ? t._idx === i : t.produto === it.produto));
-          if (ehTelha && it.status !== "concluido") {
-            try {
-              const resAuto = await rotearPedidoTelhaDiretoParaMaquina({
-                pedido,
-                item: it,
-                itemIdx: i,
-                todasBobinas: bobinasEstoque,
-                filialAtiva: pedido.unidade || filialAtiva
-              });
-              telhasAutoRoteadas++;
-              if (resAuto.bobina) bobinasVinculadas++;
-              itens[i] = {
-                ...it,
-                distribuido: true,
-                status: "em_producao",
-                maquina: resAuto.maquina || "TP - 40",
-                bobina_superior_id: resAuto.bobina?.bobina_id || "",
-                bobina_superior: resAuto.bobina?.codigo || ""
-              };
-            } catch (errAuto) {
-              console.warn("[CentralPCP] Falha no auto-roteamento do item de telha:", errAuto);
-            }
+        const telhasParaRoteamento = itens
+          .map((it, idx) => ({ ...it, _idx: idx }))
+          .filter((it, idx) => {
+            const ehTelha = telhas.some(t => (t._idx != null ? t._idx === idx : t.produto === it.produto));
+            return ehTelha && it.status !== "concluido";
+          });
+
+        if (telhasParaRoteamento.length > 0) {
+          try {
+            const resAgrupado = await rotearLoteTelhasAgrupadas({
+              pedido,
+              itensTelhas: telhasParaRoteamento,
+              todasBobinas: bobinasEstoque,
+              filialAtiva: pedido.unidade || filialAtiva
+            });
+
+            telhasAutoRoteadas = telhasParaRoteamento.length;
+            bobinasVinculadas = resAgrupado.opsCriadas.filter(op => op.bobina_superior_id).length;
+
+            Object.entries(resAgrupado.itensAtualizadosMap || {}).forEach(([idxStr, dadosItem]) => {
+              const i = Number(idxStr);
+              if (itens[i]) {
+                itens[i] = {
+                  ...itens[i],
+                  ...dadosItem
+                };
+              }
+            });
+          } catch (errAuto) {
+            console.warn("[CentralPCP] Falha no roteamento agrupado de telhas:", errAuto);
           }
         }
       }
@@ -908,30 +1006,35 @@ export default function CentralPCP() {
           const telhas = itensPorGrupo(itens, "telha");
 
           if (autoTelhasAtivo && telhas.length > 0) {
-            for (let i = 0; i < itens.length; i++) {
-              const it = itens[i];
-              const ehTelha = telhas.some(t => (t._idx != null ? t._idx === i : t.produto === it.produto));
-              if (ehTelha && it.status !== "concluido") {
-                try {
-                  const resAuto = await rotearPedidoTelhaDiretoParaMaquina({
-                    pedido: ped,
-                    item: it,
-                    itemIdx: i,
-                    todasBobinas: bobinasEstoque,
-                    filialAtiva: ped.unidade || filialAtiva
-                  });
-                  telhasCount++;
-                  itens[i] = {
-                    ...it,
-                    distribuido: true,
-                    status: "em_producao",
-                    maquina: resAuto.maquina || "TP - 40",
-                    bobina_superior_id: resAuto.bobina?.bobina_id || "",
-                    bobina_superior: resAuto.bobina?.codigo || ""
-                  };
-                } catch (errAuto) {
-                  console.warn("[CentralPCP Lote] Falha no auto-roteamento de telha:", errAuto);
-                }
+            const telhasParaRoteamento = itens
+              .map((it, idx) => ({ ...it, _idx: idx }))
+              .filter((it, idx) => {
+                const ehTelha = telhas.some(t => (t._idx != null ? t._idx === idx : t.produto === it.produto));
+                return ehTelha && it.status !== "concluido";
+              });
+
+            if (telhasParaRoteamento.length > 0) {
+              try {
+                const resAgrupado = await rotearLoteTelhasAgrupadas({
+                  pedido: ped,
+                  itensTelhas: telhasParaRoteamento,
+                  todasBobinas: bobinasEstoque,
+                  filialAtiva: ped.unidade || filialAtiva
+                });
+
+                telhasCount += telhasParaRoteamento.length;
+
+                Object.entries(resAgrupado.itensAtualizadosMap || {}).forEach(([idxStr, dadosItem]) => {
+                  const i = Number(idxStr);
+                  if (itens[i]) {
+                    itens[i] = {
+                      ...itens[i],
+                      ...dadosItem
+                    };
+                  }
+                });
+              } catch (errAuto) {
+                console.warn("[CentralPCP Lote] Falha no auto-roteamento de telha:", errAuto);
               }
             }
           }
@@ -1149,21 +1252,58 @@ export default function CentralPCP() {
     return pedidos.filter(p => (p.unidade || "Matriz AJL") === lojaSelecionada);
   }, [pedidos, lojaSelecionada]);
 
-  const stats = {
-    total: pedidosDaLoja.length,
-    ativos: pedidosDaLoja.filter(p => !isPedidoConcluido(p)).length,
-    pendentes: pedidosDaLoja.filter(p => p.status_pcp === "pendente_distribuicao" && !isPedidoConcluido(p)).length,
-    distribuidos: pedidosDaLoja.filter(p => p.status_pcp === "distribuido" && !isPedidoConcluido(p)).length,
-    em_producao: pedidosDaLoja.filter(p => p.status_pcp === "em_producao" && !isPedidoConcluido(p)).length,
-    concluidos: pedidosDaLoja.filter(p => isPedidoConcluido(p)).length,
-    atrasados: pedidosDaLoja.filter(p => diasUteisRestantes(p.data_entrega) < 0 && !isPedidoConcluido(p)).length
-  };
+  // Diagnóstico em tempo real do chão de fábrica para cada pedido
+  const mapaExecucaoPorId = useMemo(() => {
+    const map = new Map();
+    pedidosDaLoja.forEach(p => {
+      map.set(p.id, obterStatusExecucaoPedido(p, pedidosProducao, ordensCD));
+    });
+    return map;
+  }, [pedidosDaLoja, pedidosProducao, ordensCD]);
+
+  const stats = useMemo(() => {
+    let ativos = 0;
+    let pendentes = 0;
+    let distribuidos = 0;
+    let produzindoAgora = 0;
+    let aguardandoMaquina = 0;
+    let concluidos = 0;
+    let atrasados = 0;
+
+    pedidosDaLoja.forEach(p => {
+      const conc = isPedidoConcluido(p);
+      const diag = mapaExecucaoPorId.get(p.id);
+
+      if (conc) {
+        concluidos++;
+      } else {
+        ativos++;
+        if (p.status_pcp === "pendente_distribuicao") pendentes++;
+        if (p.status_pcp === "distribuido") distribuidos++;
+        if (diag?.produzindoAgora) produzindoAgora++;
+        if (diag?.aguardandoInicio) aguardandoMaquina++;
+        if (diasUteisRestantes(p.data_entrega) < 0) atrasados++;
+      }
+    });
+
+    return {
+      total: pedidosDaLoja.length,
+      ativos,
+      pendentes,
+      distribuidos,
+      produzindo_agora: produzindoAgora,
+      aguardando_maquina: aguardandoMaquina,
+      concluidos,
+      atrasados
+    };
+  }, [pedidosDaLoja, mapaExecucaoPorId]);
 
   const FILTROS = [
     { id: "ativos", label: "Fila Ativa", count: stats.ativos, icon: Zap, color: "text-orange-500" },
-    { id: "pendente_distribuicao", label: "Pendentes", count: stats.pendentes, icon: AlertTriangle, color: "text-amber-500" },
-    { id: "distribuido", label: "Distribuídos", count: stats.distribuidos, icon: CheckCircle2, color: "text-blue-500" },
-    { id: "em_producao", label: "Em Produção", count: stats.em_producao, icon: Factory, color: "text-indigo-500" },
+    { id: "produzindo_agora", label: "⚡ Produzindo Agora", count: stats.produzindo_agora, icon: Zap, color: "text-blue-500" },
+    { id: "aguardando_maquina", label: "⏳ Na Máquina", count: stats.aguardando_maquina, icon: Clock, color: "text-amber-500" },
+    { id: "pendente_distribuicao", label: "Pendentes PCP", count: stats.pendentes, icon: AlertTriangle, color: "text-amber-500" },
+    { id: "distribuido", label: "Distribuídos", count: stats.distribuidos, icon: Factory, color: "text-indigo-500" },
     { id: "concluido", label: "Concluídos", count: stats.concluidos, icon: CheckCircle2, color: "text-emerald-500" },
     { id: "todos", label: "Todos", count: stats.total, icon: Layers, color: "text-slate-500" }
   ];
@@ -1186,11 +1326,16 @@ export default function CentralPCP() {
   // Filtros + busca
   const pedidosFiltrados = pedidosDaLoja.filter(p => {
     const concluido = isPedidoConcluido(p);
+    const diag = mapaExecucaoPorId.get(p.id);
 
     if (filtro === "ativos") {
       if (concluido) return false;
     } else if (filtro === "concluido") {
       if (!concluido) return false;
+    } else if (filtro === "produzindo_agora") {
+      if (concluido || !diag?.produzindoAgora) return false;
+    } else if (filtro === "aguardando_maquina") {
+      if (concluido || !diag?.aguardandoInicio) return false;
     } else if (filtro === "pendente_distribuicao") {
       if (concluido || p.status_pcp !== "pendente_distribuicao") return false;
     } else if (filtro === "distribuido") {
@@ -1287,15 +1432,31 @@ export default function CentralPCP() {
       if (!jaExiste) {
         g.ofs.push(p);
       }
-      if (p.prioridade && !g.prioridade) {
+      if (p.prioridade) {
         g.prioridade = true;
-        g.prioridade_nivel = p.prioridade_nivel;
+      }
+      if (p.prioridade_nivel) {
+        if (!g.prioridade_nivel || getPesoOrdenacaoPrioridade(p) < getPesoOrdenacaoPrioridade(g)) {
+          g.prioridade_nivel = p.prioridade_nivel;
+        }
+      }
+      if (p.is_rota || p.prioridade_nivel === "ROTA") {
+        g.is_rota = true;
+        if (!g.prioridade_nivel || getPesoOrdenacaoPrioridade(g) > 0.5) {
+          g.prioridade_nivel = "ROTA";
+        }
       }
       if (!g.cliente_nome || g.cliente_nome === "—") g.cliente_nome = p.cliente_nome;
       if (!g.vendedor_nome || g.vendedor_nome === "—") g.vendedor_nome = p.vendedor_nome;
       if (!g.data_entrega) g.data_entrega = p.data_entrega;
     });
-    return Array.from(map.values());
+    return Array.from(map.values()).sort((a, b) => {
+      const priDiff = getPesoOrdenacaoPrioridade(a) - getPesoOrdenacaoPrioridade(b);
+      if (priDiff !== 0) return priDiff;
+      const da = new Date(a.ofs[0]?.data_recebimento || 0).getTime();
+      const db = new Date(b.ofs[0]?.data_recebimento || 0).getTime();
+      return da - db;
+    });
   }, [pedidosFiltrados, pedidosAtivosEmTodos, filtro]);
 
   const gruposConcluidosEmTodos = useMemo(() => {
@@ -2202,6 +2363,7 @@ export default function CentralPCP() {
                     onRetirarFila={handleRetirarFila}
                     onTogglePrioridade={handleTogglePrioridade}
                     onSetPrioridade={handleSetPrioridade}
+                    onSetPrioridadeGrupo={handleSetPrioridadeGrupo}
                     onTransferir={(p) => setModalTransferir({ aberto: true, pedidos: [p] })}
                     onTransferirGrupo={(g) => setModalTransferir({ aberto: true, pedidos: g.ofs || [] })}
                     onFinalizarGrupo100={(lista) => handleSolicitarFinalizar100(lista)}
@@ -2292,6 +2454,7 @@ export default function CentralPCP() {
                           onRetirarFila={handleRetirarFila}
                           onTogglePrioridade={handleTogglePrioridade}
                           onSetPrioridade={handleSetPrioridade}
+                          onSetPrioridadeGrupo={handleSetPrioridadeGrupo}
                           onTransferir={(p) => setModalTransferir({ aberto: true, pedidos: [p] })}
                           onTransferirGrupo={(g) => setModalTransferir({ aberto: true, pedidos: g.ofs || [] })}
                           onFinalizarGrupo100={(lista) => handleSolicitarFinalizar100(lista)}
@@ -2360,10 +2523,14 @@ export default function CentralPCP() {
         titulo="Autorizar Prioridade Alta"
         descricao="Para marcar este pedido como Prioridade Alta / Urgente (P1 ou P2), digite o PIN de liberação do PCP/Gestor."
         onAutorizado={() => {
-        if (pedidoPrioridadePendente) {
-          confirmarPrioridade(pedidoPrioridadePendente.pedido, pedidoPrioridadePendente.nivel ?? 1);
-          setPedidoPrioridadePendente(null);
-        }
+          if (pedidoPrioridadePendente) {
+            if (pedidoPrioridadePendente.isGrupo) {
+              confirmarPrioridadeGrupo(pedidoPrioridadePendente.grupo, pedidoPrioridadePendente.nivel ?? 1);
+            } else {
+              confirmarPrioridade(pedidoPrioridadePendente.pedido, pedidoPrioridadePendente.nivel ?? 1);
+            }
+            setPedidoPrioridadePendente(null);
+          }
         }}
         />
         <SenhaGestorDialog
