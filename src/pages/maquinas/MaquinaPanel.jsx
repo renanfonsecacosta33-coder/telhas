@@ -5,10 +5,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Circle, ChevronLeft, ChevronRight, ArrowLeft, BarChart2, Plus, Star, Trash2, Edit3, Route, Search, X, Calendar, Filter, History, FileText, AlertTriangle } from "lucide-react";
+import { Circle, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, ArrowLeft, BarChart2, Plus, Star, Trash2, Edit3, Route, Search, X, Calendar, Filter, History, FileText, AlertTriangle } from "lucide-react";
 import { format, addDays, subDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import PedidoRow from "@/components/producao/PedidoRow";
 import PedidoFormDialog from "@/components/producao/PedidoFormDialog";
 import { useFilial } from "@/contexts/FilialContext";
@@ -36,6 +37,45 @@ const STATUS_LABELS_TELHAS = {
   finalizado: "Finalizado",
   cancelado: "Cancelado",
 };
+
+/**
+ * Identifica se um pedido já foi concluído / finalizado no contexto específico desta máquina.
+ * - Na Colagem: apenas status 'finalizado' ou 'cancelado' é considerado concluído.
+ * - Em perfiladeiras (TP-25, TP-40, Bandeja, etc.): status 'finalizado', 'cancelado' ou se as peças
+ *   já foram perfiladas/tiradas nesta máquina e encaminhadas para a colagem/etapa seguinte.
+ */
+export function isPedidoConcluidoNaMaquina(p, maquina) {
+  if (!p) return false;
+  if (p.status === "finalizado" || p.status === "cancelado") return true;
+
+  const norm = (m) => String(m || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  const mPainelNorm = norm(maquina);
+  if (!mPainelNorm || mPainelNorm === "COLAGEM") {
+    return p.status === "finalizado" || p.status === "cancelado";
+  }
+
+  const mAtualNorm = norm(p.maquina);
+  const mOrigemNorm = norm(p.maquina_origem);
+
+  // 1. Se já avançou para a colagem ou aguardando colagem
+  if (mAtualNorm !== mPainelNorm && (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem")) {
+    return true;
+  }
+  // 2. Se a perfilação já foi concluída
+  if (p.perfilacao_concluida && (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem" || mAtualNorm !== mPainelNorm)) {
+    return true;
+  }
+  // 3. Regra de isPerfiladoNestaMaquina do PedidoRow
+  if (
+    mAtualNorm !== mPainelNorm &&
+    (mOrigemNorm === mPainelNorm || p.etapa_anterior_concluida === maquina || (!p.maquina_origem && (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem"))) &&
+    (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem" || p.status === "finalizado" || p.perfilacao_concluida)
+  ) {
+    return true;
+  }
+
+  return false;
+}
 
 
 
@@ -441,29 +481,16 @@ export default function MaquinaPanel({ maquina }) {
   const totalMetros = pedidosDia.reduce((s, p) => s + calcularMetrosPedido(p), 0);
   
   // Para o painel da máquina:
-  // - Na COLAGEM: segue o fluxo padrão de colagem.
-  // - Na perfiladeira (TP - 25, BANDEJA, etc.): se o pedido já avançou para a máquina seguinte (ex: COLAGEM),
-  //   as peças já foram TIRADAS nesta máquina! Conta como concluído/pronto nesta máquina.
-  // - Se o pedido está atribuído a esta máquina atual (mesmo em fluxo multi-etapa como BANDEJA), ele é Pendente/Em Produção aqui.
-  const finalizados = pedidosDia.filter(p => {
-    if (p.status === "finalizado") return true;
-    if (maquinaNorm(p.maquina) !== targetNorm && (p.status === "aguardando_colagem" || maquinaNorm(p.maquina) === "COLAGEM")) {
-      return true;
-    }
-    return false;
-  }).length;
+  // - Pedidos finalizados ou já perfilados nesta máquina e encaminhados
+  const finalizados = pedidosDia.filter(p => isPedidoConcluidoNaMaquina(p, maquina)).length;
 
   const emProducao = pedidosDia.filter(p => {
-    if (maquinaNorm(p.maquina) !== targetNorm && (p.status === "aguardando_colagem" || maquinaNorm(p.maquina) === "COLAGEM")) {
-      return false;
-    }
+    if (isPedidoConcluidoNaMaquina(p, maquina)) return false;
     return p.status === "em_producao" || p.status === "pausado";
   }).length;
 
   const pendentes = pedidosDia.filter(p => {
-    if (maquinaNorm(p.maquina) !== targetNorm && (p.status === "aguardando_colagem" || maquinaNorm(p.maquina) === "COLAGEM")) {
-      return false;
-    }
+    if (isPedidoConcluidoNaMaquina(p, maquina)) return false;
     if (p.status === "pendente") return true;
     if (maquinaNorm(p.maquina) === targetNorm && p.status === "aguardando_colagem") return true;
     return false;
@@ -536,10 +563,16 @@ export default function MaquinaPanel({ maquina }) {
   }, [baseParaFiltros, filtroMaterial]);
 
   const [limpandoDuplicadas, setLimpandoDuplicadas] = useState(false);
+  const [finalizadosAbertos, setFinalizadosAbertos] = useState(false);
 
-  const { ordenados, duplicadasDetectadas } = useMemo(() => {
+  const {
+    ordenadosAFazer,
+    ordenadosFinalizados,
+    ordenados,
+    duplicadasDetectadas,
+  } = useMemo(() => {
     const hoje = format(new Date(), "yyyy-MM-dd");
-    const order = { em_producao: 0, pausado: 1, pendente: 2, aguardando_colagem: 3, finalizado: 4, cancelado: 5 };
+    const orderAtivo = { em_producao: 0, pausado: 1, pendente: 2, aguardando_colagem: 3 };
 
     // 1. Remove duplicatas exatas de ID
     const mapIds = new Map();
@@ -551,21 +584,54 @@ export default function MaquinaPanel({ maquina }) {
     }
     const listaUnica = Array.from(mapIds.values());
 
-    const sorted = listaUnica.sort((a, b) => {
-      // Prioridade 1 a 5 (P1 é a mais urgente de todas a fazer!)
+    // 2. Separa estritamente: Pedidos a Fazer (Ativos) vs Pedidos Concluídos/Finalizados
+    const aFazer = [];
+    const concluidos = [];
+
+    for (const p of listaUnica) {
+      if (isPedidoConcluidoNaMaquina(p, maquina)) {
+        concluidos.push(p);
+      } else {
+        aFazer.push(p);
+      }
+    }
+
+    // 3. Ordenação rigorosa dos PEDIDOS A FAZER:
+    //    - 1º: Status imediato (em_producao em 1º absoluto, depois pausado, depois pendente)
+    //    - 2º: Prioridade P1 a P5 (P1 mais urgente de todas)
+    //    - 3º: Atrasados primeiro
+    //    - 4º: Data planejada mais antiga primeiro (FIFO)
+    const sortedAFazer = aFazer.sort((a, b) => {
+      const statusA = orderAtivo[a.status] ?? 2;
+      const statusB = orderAtivo[b.status] ?? 2;
+      if (statusA !== statusB) return statusA - statusB;
+
       const priDiff = getPesoOrdenacaoPrioridade(a) - getPesoOrdenacaoPrioridade(b);
       if (priDiff !== 0) return priDiff;
 
       const aAtrasado = (a.data && a.data < hoje) ? 0 : 1;
       const bAtrasado = (b.data && b.data < hoje) ? 0 : 1;
       if (aAtrasado !== bAtrasado) return aAtrasado - bAtrasado;
-      return (order[a.status] ?? 2) - (order[b.status] ?? 2);
+
+      const dataDiff = String(a.data || "").localeCompare(String(b.data || ""));
+      if (dataDiff !== 0) return dataDiff;
+
+      return (b.metros || 0) - (a.metros || 0);
     });
 
-    // 2. Detecta OPs duplicadas idênticas pendentes (mesmo pedido Odoo / número + item + metragem)
+    // 4. Ordenação dos PEDIDOS FINALIZADOS:
+    //    - Mais recentemente finalizado/perfilado no topo dos finalizados
+    const sortedFinalizados = concluidos.sort((a, b) => {
+      const timeA = new Date(a.data_finalizacao || a.hora_perfilacao || a.data_perfilacao || a.updated_at || a.created_at || 0).getTime();
+      const timeB = new Date(b.data_finalizacao || b.hora_perfilacao || b.data_perfilacao || b.updated_at || b.created_at || 0).getTime();
+      if (timeB !== timeA) return timeB - timeA;
+      return getPesoOrdenacaoPrioridade(a) - getPesoOrdenacaoPrioridade(b);
+    });
+
+    // 5. Detecta OPs duplicadas idênticas pendentes (apenas entre as que estão a fazer)
     const vistos = new Map();
     const dups = [];
-    const resultado = sorted.map(p => {
+    const marcarDups = (lista) => lista.map(p => {
       const presets = p._presets || {};
       const numPed = p.numero_pedido || presets.numero_pedido || "";
       const odooId = p.pedido_odoo_id || presets.pedido_odoo_id || "";
@@ -585,8 +651,16 @@ export default function MaquinaPanel({ maquina }) {
       return p;
     });
 
-    return { ordenados: resultado, duplicadasDetectadas: dups };
-  }, [pedidosFiltrados]);
+    const afazerProcessado = marcarDups(sortedAFazer);
+    const finalizadosProcessados = sortedFinalizados;
+
+    return {
+      ordenadosAFazer: afazerProcessado,
+      ordenadosFinalizados: finalizadosProcessados,
+      ordenados: [...afazerProcessado, ...finalizadosProcessados],
+      duplicadasDetectadas: dups,
+    };
+  }, [pedidosFiltrados, maquina]);
 
   const handleLimparDuplicadas = async () => {
     if (duplicadasDetectadas.length === 0) return;
@@ -1034,7 +1108,8 @@ export default function MaquinaPanel({ maquina }) {
             </div>
           )}
 
-          {ordenados.map(p => {
+          {/* 1. Pedidos A Fazer (Em Produção, Pausados, Pendentes) */}
+          {ordenadosAFazer.map(p => {
             const dataPedido = p.data || p.data_perfilacao;
             const ehOutroDia = Boolean(termoBusca.trim() && dataPedido && dataPedido !== selectedDay);
 
@@ -1102,6 +1177,118 @@ export default function MaquinaPanel({ maquina }) {
               </div>
             );
           })}
+
+          {/* Banner quando não há mais pedidos a fazer hoje */}
+          {ordenadosAFazer.length === 0 && ordenadosFinalizados.length > 0 && (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-6 text-center shadow-xs">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-400 flex items-center justify-center mx-auto mb-2 font-bold text-lg">
+                ✓
+              </div>
+              <h3 className="font-bold text-base text-emerald-950 dark:text-emerald-100">
+                Fila de Produção Deste Dia Concluída!
+              </h3>
+              <p className="text-xs text-emerald-800/80 dark:text-emerald-300/80 mt-1 max-w-md mx-auto">
+                Não há pedidos pendentes nesta máquina. Todos os {ordenadosFinalizados.length} pedidos já foram perfilados/finalizados.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-3 text-xs h-7 gap-1.5 border-emerald-400 text-emerald-800 hover:bg-emerald-100"
+                onClick={() => setFinalizadosAbertos(true)}
+              >
+                Visualizar Pedidos Finalizados ({ordenadosFinalizados.length})
+              </Button>
+            </div>
+          )}
+
+          {/* 2. Pedidos Finalizados / Concluídos (Minimizados lá para baixo) */}
+          {ordenadosFinalizados.length > 0 && (
+            <div className="mt-8 pt-6 border-t-2 border-dashed border-slate-200 dark:border-slate-800">
+              <div className="bg-slate-50/90 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs transition-all">
+                <button
+                  type="button"
+                  onClick={() => setFinalizadosAbertos(v => !v)}
+                  className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-100/80 dark:hover:bg-slate-800/60 transition-colors cursor-pointer select-none"
+                  title={finalizadosAbertos ? "Clique para recolher e minimizar" : "Clique para expandir e ver detalhes"}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-bold text-sm shrink-0 border border-emerald-200 dark:border-emerald-800">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
+                          Pedidos Finalizados / Concluídos
+                        </span>
+                        <Badge className="bg-emerald-600 text-white font-bold text-xs h-5 px-2">
+                          {ordenadosFinalizados.length}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {finalizadosAbertos || Boolean(termoBusca.trim())
+                          ? "Lista expandida · Clique para recolher e manter minimizado"
+                          : "Minimizados no final da fila · Clique para expandir detalhes"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                    <span className="hidden sm:inline">
+                      {finalizadosAbertos || Boolean(termoBusca.trim()) ? "Minimizar" : "Expandir"}
+                    </span>
+                    <div className="p-1 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                      <ChevronDown className={cn("w-4 h-4 transition-transform duration-200", (finalizadosAbertos || Boolean(termoBusca.trim())) && "rotate-180")} />
+                    </div>
+                  </div>
+                </button>
+
+                {(finalizadosAbertos || Boolean(termoBusca.trim())) && (
+                  <div className="p-4 pt-1 border-t border-slate-200/70 dark:border-slate-800/70 space-y-4 bg-white/50 dark:bg-slate-950/30">
+                    {ordenadosFinalizados.map(p => {
+                      const dataPedido = p.data || p.data_perfilacao;
+                      const ehOutroDia = Boolean(termoBusca.trim() && dataPedido && dataPedido !== selectedDay);
+
+                      return (
+                        <div key={p.id}>
+                          {ehOutroDia && (
+                            <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-1.5 mb-1.5 text-xs text-amber-800 dark:text-amber-300">
+                              <div className="flex items-center gap-1.5 font-medium">
+                                <Calendar className="w-3.5 h-3.5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                                <span>
+                                  Agendado para: <strong>{format(new Date(dataPedido + "T12:00:00"), "dd/MM/yyyy (EEEE)", { locale: ptBR })}</strong>
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedDay(dataPedido);
+                                }}
+                                className="underline font-semibold hover:text-amber-900 dark:hover:text-amber-100 cursor-pointer ml-2"
+                              >
+                                Ir para este dia
+                              </button>
+                            </div>
+                          )}
+                          {podeGerenciar && (
+                            <div className="flex justify-end gap-1 mb-1">
+                              <HistoricoPedidoTelhasButton pedido={p} />
+                              <Button size="sm" variant="ghost" className="text-xs h-6 px-2 text-muted-foreground hover:text-blue-600" onClick={() => setEditandoPedido(p)}>
+                                <Edit3 className="w-3 h-3 mr-1" /> Editar
+                              </Button>
+                              <Button size="sm" variant="ghost" className="text-xs h-6 px-2 text-muted-foreground hover:text-red-600" onClick={() => handleDeletePedido(p)}>
+                                <Trash2 className="w-3 h-3 mr-1" /> Excluir
+                              </Button>
+                            </div>
+                          )}
+                          <PedidoRow pedido={p} onStatusChange={handleStatusChange} onUpdate={handleStatusChange} userRole={user?.role} opRodando={opRodando} maquina={maquina} user={user} filialAtiva={filialAtiva} appendHistoricoFn={(pedido, acao, label, detalhes) => appendHistorico(pedido, acao, label, detalhes)} todosPedidos={todosPedidos} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
