@@ -18,7 +18,7 @@ import {
 } from "@/lib/pedidoOdooHelper";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import { extrairCroquiPedido } from "@/lib/croquiExtractor";
-import { isEspessuraCompatible, isOrigemCompatible } from "@/lib/bobinaValidation";
+import { isEspessuraCompatible, isOrigemCompatible, removerAcentos, detectarCorTelha, isCorCompativel } from "@/lib/bobinaValidation";
 import { isBobinaAberta, isBobinaNatural } from "@/lib/bobinaStatusHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import { calcularDataPrometidaSLA, toISODate } from "@/lib/sla";
@@ -50,101 +50,7 @@ export function setAutoRoteamentoTelhasAtivo(ativo) {
   }
 }
 
-/**
- * Remove acentuação e caracteres especiais para normalização
- */
-function removerAcentos(str = "") {
-  return String(str || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .trim();
-}
-
-/**
- * Detecta a cor/RVM exigida pelo pedido de telha com base no texto do produto e observações.
- * Retorna uma chave padronizada (ex: "NATURAL", "BRANCO", "PRETO", "AZUL", "CINZA", etc.).
- */
-export function detectarCorTelha(produtoTexto = "", descricaoTexto = "") {
-  const combined = removerAcentos(`${produtoTexto} ${descricaoTexto}`);
-
-  // 1. Cores Pré-Pintadas Específicas
-  if (/(PRETO\s*9005|PRETO|PRETA|BLACK)/i.test(combined)) return "PRETO";
-  if (/(BRANCO|BRANCA|WHITE)/i.test(combined)) return "BRANCO";
-  if (/(AZUL|BLUE)/i.test(combined)) return "AZUL";
-  if (/(BEGE|AREIA|BEIGE)/i.test(combined)) return "BEGE";
-  if (/(GRAFITE)/i.test(combined)) return "GRAFITE";
-  if (/(CINZA\s*ESCURO|CINZA)/i.test(combined)) return "CINZA";
-  if (/(TERRACOTA|CERAMICA)/i.test(combined)) return "TERRACOTA";
-  if (/(VERMELHO|VERMELHA|RED)/i.test(combined)) return "VERMELHO";
-  if (/(MARROM|BROWN)/i.test(combined)) return "MARROM";
-  if (/(VERDE|GREEN)/i.test(combined)) return "VERDE";
-  if (/(AMARELO|AMARELA|YELLOW)/i.test(combined)) return "AMARELO";
-
-  // 2. Cores Naturais / Galvalume / Galvanizadas
-  if (/(NATURAL|GALVALUME|GALVANIZAD|GL|GV|CRU|SEM\s*PINTURA)/i.test(combined)) {
-    return "NATURAL";
-  }
-
-  // Padrão de fábrica de telhas quando não menciona cor pré-pintada é Galvalume Natural
-  return "NATURAL";
-}
-
-/**
- * Avalia se a cor e qualidade de uma bobina física atendem à cor exigida pelo pedido.
- */
-export function isCorCompativel(bobina, corExigida) {
-  if (!corExigida) return true;
-  const corBobina = removerAcentos(bobina?.cor || "");
-  const rvmBobina = removerAcentos(bobina?.rvm || "");
-  const qualBobina = removerAcentos(bobina?.qualidade || "");
-  const corAlvo = removerAcentos(corExigida);
-
-  // Caso 1: Pedido exige NATURAL / GALVALUME
-  if (corAlvo === "NATURAL" || corAlvo === "GALVALUME") {
-    // Bobina NÃO pode ser pré-pintada colorida (Branca, Preta, etc.)
-    const ehColorida = /(BRANC|PRET|AZUL|BEGE|GRAFIT|CINZA|TERRACOT|VERMELH|MARROM|VERD)/i.test(corBobina);
-    if (ehColorida) return false;
-    // Se for qualidade PP (pré-pintada) com cor definida, não serve para natural
-    if (qualBobina === "PP" && corBobina) return false;
-    return true;
-  }
-
-  // Caso 2: Pedido exige cor pré-pintada (ex: BRANCO, PRETO, etc.)
-  if (corAlvo === "PRETO") {
-    return /(PRETO|PRETA|9005|BLACK)/i.test(corBobina) || /(PRETO|PRETA|9005)/i.test(rvmBobina);
-  }
-  if (corAlvo === "BRANCO") {
-    return /(BRANCO|BRANCA|WHITE)/i.test(corBobina) || /(BRANCO|BRANCA)/i.test(rvmBobina);
-  }
-  if (corAlvo === "AZUL") {
-    return /(AZUL|BLUE)/i.test(corBobina) || /(AZUL)/i.test(rvmBobina);
-  }
-  if (corAlvo === "BEGE") {
-    return /(BEGE|AREIA|BEIGE)/i.test(corBobina) || /(BEGE|AREIA)/i.test(rvmBobina);
-  }
-  if (corAlvo === "GRAFITE") {
-    return /(GRAFITE)/i.test(corBobina) || /(GRAFITE)/i.test(rvmBobina);
-  }
-  if (corAlvo === "CINZA") {
-    return /(CINZA)/i.test(corBobina) || /(CINZA)/i.test(rvmBobina);
-  }
-  if (corAlvo === "TERRACOTA") {
-    return /(TERRACOTA|CERAMICA)/i.test(corBobina) || /(TERRACOTA)/i.test(rvmBobina);
-  }
-  if (corAlvo === "VERMELHO") {
-    return /(VERMELHO|VERMELHA|RED)/i.test(corBobina) || /(VERMELHO)/i.test(rvmBobina);
-  }
-  if (corAlvo === "MARROM") {
-    return /(MARROM|BROWN)/i.test(corBobina) || /(MARROM)/i.test(rvmBobina);
-  }
-  if (corAlvo === "VERDE") {
-    return /(VERDE|GREEN)/i.test(corBobina) || /(VERDE)/i.test(rvmBobina);
-  }
-
-  // Fallback: substring
-  return corBobina.includes(corAlvo) || rvmBobina.includes(corAlvo);
-}
+export { removerAcentos, detectarCorTelha, isCorCompativel };
 
 /**
  * Estima a metragem restante utilizável de uma bobina.
@@ -390,6 +296,7 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     status: "pendente",
     espessura_exigida: esp || "0.43",
     origem_exigida: origem || "ambas",
+    cor_exigida: cor || "NATURAL",
     eps: eps,
     rvm_superior: bobinaEleita?.cor || (cor !== "NATURAL" ? cor : "Natural"),
     bobina_superior_id: bobinaEleita?.bobina_id || null,
@@ -438,6 +345,9 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
       }
       if (eps && (!opValida.eps || opValida.eps !== eps)) {
         updates.eps = eps;
+      }
+      if (cor && (!opValida.cor_exigida || opValida.cor_exigida !== cor)) {
+        updates.cor_exigida = cor;
       }
       if (Object.keys(updates).length > 0) {
         opCriada = await base44.entities.Pedido.update(opValida.id, updates);

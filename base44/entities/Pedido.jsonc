@@ -117,7 +117,11 @@
         "Importado"
       ],
       "default": "ambas",
-      "description": "Origem do a\u00e7o exigida pelo pedido Odoo (trava de seguran\u00e7a Nacional/Importado)"
+      "description": "Origem do aço exigida pelo pedido Odoo (trava de segurança Nacional/Importado)"
+    },
+    "cor_exigida": {
+      "type": "string",
+      "description": "Cor exigida pelo pedido Odoo (trava de segurança de cor — ex: NATURAL, BRANCO, PRETO, etc.)"
     },
     "eps": {
       "type": "string",

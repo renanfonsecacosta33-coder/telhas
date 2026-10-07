@@ -310,6 +310,7 @@ export default function Dashboard() {
             metros: op.metros != null ? op.metros : (presets.metros != null ? presets.metros : item.quantidade),
             metragem_mm: op.metragem_mm != null ? op.metragem_mm : (presets.metragem_mm != null ? presets.metragem_mm : ""),
             quantidade_telhas: op.quantidade_telhas != null ? op.quantidade_telhas : (presets.quantidade_telhas != null ? presets.quantidade_telhas : item.quantidade),
+            cor_exigida: op.cor_exigida || presets.cor_exigida || op.rvm_superior || "",
             observacoes_odoo: op.observacoes_odoo || presets.observacoes_odoo || item.descricao || "",
             _presets: undefined,
           });

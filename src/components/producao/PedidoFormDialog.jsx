@@ -14,10 +14,10 @@ import ImageLink from "@/components/ui/ImageLink";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 import { useTolerancias } from "@/hooks/useTolerancias";
 import { getBobinaStatus, calcMetrosDisponiveis, compararBobinasTelhas } from "@/lib/bobinaStatusHelper";
-import { validarBobina, filtrarBobinasCompativeis } from "@/lib/bobinaValidation";
+import { validarBobina, filtrarBobinasCompativeis, detectarCorTelha } from "@/lib/bobinaValidation";
 import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
 import BobinaComboboxTelhas from "@/components/producao/BobinaComboboxTelhas";
-import { Building2, X, Loader2, FileText, Plus, Trash2, Camera, ShieldAlert, Flame, Route, AlertTriangle, Target, Unlock, Lock, RefreshCw, Globe, CheckCircle2 } from "lucide-react";
+import { Building2, X, Loader2, FileText, Plus, Trash2, Camera, ShieldAlert, Flame, Route, AlertTriangle, Target, Unlock, Lock, RefreshCw, Globe, CheckCircle2, Paintbrush } from "lucide-react";
 import { detectarTipoProdutoTelha, detectarMaquinaTelha, detectarEspessura, detectarOrigemAco, detectarEPSTelha, normalizarNumPedido, saoPedidosIguais } from "@/lib/pedidoOdooHelper";
 import { calcularDataPrometidaSLA, toISODate, formatDataBR } from "@/lib/sla";
 import { useMetasProducao } from "@/hooks/useMetasProducao";
@@ -133,6 +133,7 @@ const emptyForm = {
   variacoes_telhas: "",
   espessura_exigida: "",
   origem_exigida: "ambas",
+  cor_exigida: "",
   rota: false,
   prioridade: false,
   prioridade_nivel: null,
@@ -350,10 +351,15 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   const reqValidacao = useMemo(() => ({
     espessuraExigida: form.espessura_exigida,
     origemExigida: form.origem_exigida,
+    corExigida: form.cor_exigida,
     tolerancias
-  }), [form.espessura_exigida, form.origem_exigida, tolerancias]);
+  }), [form.espessura_exigida, form.origem_exigida, form.cor_exigida, tolerancias]);
 
-  const temReqOdoo = !!(form.espessura_exigida || (form.origem_exigida && form.origem_exigida !== "ambas"));
+  const temReqOdoo = !!(
+    form.espessura_exigida ||
+    (form.origem_exigida && form.origem_exigida !== "ambas") ||
+    (form.cor_exigida && form.cor_exigida !== "todas" && form.cor_exigida !== "qualquer" && form.cor_exigida !== "ambas")
+  );
   const precisaEPS = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(form.produto);
   const precisaBobinaInferior = ["TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(form.produto);
 
@@ -467,6 +473,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           variacoes_telhas: editItem.variacoes_telhas || "",
           espessura_exigida: editItem.espessura_exigida || "",
           origem_exigida: editItem.origem_exigida || "ambas",
+          cor_exigida: editItem.cor_exigida || editItem.rvm_superior || detectarCorTelha(editItem.item_produto || editItem.produto_rotulo_pcp || editItem.modelo || "", editItem.observacoes || "") || "NATURAL",
           rota: editItem.rota || false,
           prioridade: editItem.prioridade || false,
           prioridade_nivel: editItem.prioridade_nivel ? Number(editItem.prioridade_nivel) : (editItem.prioridade ? 1 : null),
@@ -487,6 +494,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
         const origem = presets.origem_exigida && presets.origem_exigida !== "ambas"
           ? presets.origem_exigida
           : detectarOrigemAco(rawProd);
+        const cor = presets.cor_exigida || presets.rvm_superior || presets.cor || detectarCorTelha(rawProd, presets.observacoes_odoo || presets.observacoes || "");
 
         const isComEps = PRODUTOS_COM_EPS.includes(prodTipo) ||
           /(eps|manta|sanduiche|isopor|termoacustica)/i.test(rawProd) ||
@@ -506,6 +514,8 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           eps: epsAuto || "",
           espessura_exigida: esp || "",
           origem_exigida: origem || "ambas",
+          cor_exigida: cor || "NATURAL",
+          rvm_superior: presets.rvm_superior || (cor === "NATURAL" ? "Natural" : cor) || "",
           cliente: presets.cliente || "",
           numero_pedido: presets.numero_pedido || "",
           vendedor: presets.vendedor || "",
@@ -1549,7 +1559,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs">Espessura Exigida</Label>
@@ -1604,6 +1614,49 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                 )}
                 <p className="text-[10px] text-muted-foreground">Origem do aço exigida pelo cliente/pedido.</p>
               </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Cor Exigida</Label>
+                  {form.trava_produto_pcp && !destravarTravaOdoo && (
+                    <span className="text-[10px] text-muted-foreground font-medium">Origem Odoo</span>
+                  )}
+                </div>
+                {form.trava_produto_pcp && !destravarTravaOdoo ? (
+                  <div className="flex items-center justify-between border border-border rounded-md px-3 py-2 bg-muted/60 min-h-[38px] text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                    <div className="flex items-center gap-1.5 truncate">
+                      <Paintbrush className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                      <span className="truncate">{form.cor_exigida || "NATURAL"}</span>
+                    </div>
+                    <Badge variant="secondary" className="text-[9px] ml-1 shrink-0">Fixo</Badge>
+                  </div>
+                ) : (
+                  <Select value={form.cor_exigida || "NATURAL"} onValueChange={(v) => {
+                    set("cor_exigida", v);
+                    if (!form.rvm_superior || form.rvm_superior === "Natural") {
+                      set("rvm_superior", v === "NATURAL" ? "Natural" : v);
+                    }
+                  }}>
+                    <SelectTrigger className={destravarTravaOdoo ? "border-amber-400" : ""}><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="NATURAL">Natural (Galvalume)</SelectItem>
+                      <SelectItem value="BRANCO">Branca</SelectItem>
+                      <SelectItem value="PRETO">Preta (9005)</SelectItem>
+                      <SelectItem value="AZUL">Azul</SelectItem>
+                      <SelectItem value="BEGE">Bege</SelectItem>
+                      <SelectItem value="GRAFITE">Grafite</SelectItem>
+                      <SelectItem value="CINZA">Cinza</SelectItem>
+                      <SelectItem value="TERRACOTA">Terracota</SelectItem>
+                      <SelectItem value="VERMELHO">Vermelha</SelectItem>
+                      <SelectItem value="MARROM">Marrom</SelectItem>
+                      <SelectItem value="VERDE">Verde</SelectItem>
+                      <SelectItem value="AMARELO">Amarela</SelectItem>
+                      <SelectItem value="todas">Qualquer cor (livre)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+                <p className="text-[10px] text-muted-foreground">Cor/Pintura exigida pelo cliente/pedido.</p>
+              </div>
             </div>
 
             {temReqOdoo && (
@@ -1617,7 +1670,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                   ) : (
                     <p className="text-amber-700 dark:text-amber-400 font-semibold flex items-center gap-1">
                       <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                      <span>Nenhuma bobina atende 100% à espessura/origem. {bobinas.length > 0 ? `Exibindo todo o estoque da fábrica (${bobinas.length} bobinas disponíveis).` : "Estoque sem bobinas ativas cadastradas."}</span>
+                      <span>Nenhuma bobina atende 100% aos requisitos de espessura, origem e cor. {bobinas.length > 0 ? `Exibindo todo o estoque da fábrica (${bobinas.length} bobinas disponíveis).` : "Estoque sem bobinas ativas cadastradas."}</span>
                     </p>
                   )}
                 </div>

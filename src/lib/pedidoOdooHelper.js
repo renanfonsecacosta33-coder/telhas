@@ -668,6 +668,7 @@ export function detectarEPSTelha(produtoTexto = "", maquina = "") {
 import { calcularDataPrometidaSLA, toISODate } from "@/lib/sla";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import { extrairCroquiPedido } from "@/lib/croquiExtractor";
+import { detectarCorTelha } from "@/lib/bobinaValidation";
 
 // Monta o preset completo de Nova Ordem para Telhas
 export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
@@ -677,6 +678,7 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
   const maq = detectarMaquinaTelha(produtoNome);
   const esp = item?.espessura ? String(item.espessura) : detectarEspessura(produtoNome);
   const origem = item?.origem || detectarOrigemAco(produtoNome);
+  const cor = item?.cor || detectarCorTelha(produtoNome, descTexto);
   const isComEps = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(prodTipo) ||
     /(eps|manta|sanduiche|isopor|termoacustica)/i.test(produtoNome) ||
     /(eps|manta|sanduiche|isopor|termoacustica)/i.test(descTexto);
@@ -731,6 +733,8 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
       eps: eps,
       espessura_exigida: esp,
       origem_exigida: origem,
+      cor_exigida: cor,
+      rvm_superior: cor === "NATURAL" ? "Natural" : cor,
       quantidade_telhas: metragemTotalLinear,
       metros: qtdChapas,
       metragem_mm: metragemMm,
