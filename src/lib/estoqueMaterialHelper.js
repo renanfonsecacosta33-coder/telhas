@@ -5,7 +5,7 @@ import {
   extrairDimensoesChapa,
   extrairPecasDaObs
 } from "./descricaoExtractor.js";
-import { getItens, classGrupo } from "./pedidoOdooHelper.js";
+import { getItens, classGrupo, extrairAnotacaoItem } from "./pedidoOdooHelper.js";
 
 /**
  * Normaliza espessura para formato numérico float.
@@ -183,10 +183,11 @@ export function extrairDemandaItem(item) {
   const prod = String(item.produto || item.descricao || item.name || "").trim();
   const desc = item.descricao || item.observacao || item.obs || "";
   const obs = item.observacao || item.obs || "";
+  const anotacao = typeof extrairAnotacaoItem === "function" ? extrairAnotacaoItem(item) : (item.anotacao || "");
   const qtdOdoo = Number(item.quantidade || item.qtd || 1);
   const unid = String(item.unidade || "UN").toUpperCase();
 
-  const isKg = unid === "KG" || unid === "KGS" || unid === "QUILOS";
+  let isKg = unid === "KG" || unid === "KGS" || unid === "QUILOS";
   const setor = classGrupo(item);
 
   // Espessura para cálculos físicos
@@ -198,7 +199,8 @@ export function extrairDemandaItem(item) {
     item.esp ||
     extrairEspessuraDoTexto(prod) ||
     extrairEspessuraDoTexto(desc) ||
-    extrairEspessuraDoTexto(obs);
+    extrairEspessuraDoTexto(obs) ||
+    extrairEspessuraDoTexto(anotacao);
   const espNum = parseEspessuraToNumber(rawEsp) || (setor === "telha" ? 0.43 : 0.50);
 
   let pecas = qtdOdoo;
@@ -206,16 +208,24 @@ export function extrairDemandaItem(item) {
   let metros = 0;
   let compMm = 0;
 
-  // 1. Tentar extrair especificação completa (ex: 2 pcs de 3000mm)
-  const spec = extrairEspecificacao(desc, qtdOdoo, unid) || extrairEspecificacao(obs, qtdOdoo, unid);
-  const pecasObs = extrairPecasDaObs(obs) || extrairPecasDaObs(desc);
+  // 1. Tentar extrair especificação completa combinando todas as fontes de texto
+  const textoCompletoItem = [anotacao, obs, desc, prod].filter(Boolean).join(" ");
+  const spec = extrairEspecificacao(textoCompletoItem, qtdOdoo, unid) || extrairEspecificacao(desc, qtdOdoo, unid) || extrairEspecificacao(obs, qtdOdoo, unid);
+  const pecasObs = extrairPecasDaObs(anotacao) || extrairPecasDaObs(obs) || extrairPecasDaObs(desc);
+
+  // 🛡️ Auto-detecção de peso (KG):
+  // Se a unidade no banco ficou gravada como BR ou UN mas a quantidade do Odoo for muito maior
+  // que as peças da OBS (ex: 2.121 de quantidade vs 70 peças na OBS), então a quantidade do Odoo é KG!
+  if (!isKg && ((pecasObs != null && pecasObs > 0 && qtdOdoo >= pecasObs * 3 && qtdOdoo > 50) || (spec && spec.pecas > 0 && qtdOdoo >= spec.pecas * 3 && qtdOdoo > 50))) {
+    isKg = true;
+  }
 
   const isContagemDireta = ["UN", "UND", "UNID", "UNIDADE", "UNIDADES", "BR", "BARRA", "BARRAS", "PC", "PCS", "PECA", "PECAS", "FL", "FOLHA"].includes(unid);
 
   if (isKg) {
     // Quando vem em KG do Odoo (conforme conversão feita pelo Gui):
     // Prioridade 1: Quantidade de barras/peças informada pelo vendedor na OBS/descrição
-    if (pecasObs != null) {
+    if (pecasObs != null && pecasObs > 0) {
       pecas = pecasObs;
       pecasOrigem = "obs";
       if (spec && spec.metragem_total) metros = spec.metragem_total;
@@ -302,7 +312,7 @@ export function extrairDemandaItem(item) {
     pesoCorrigidoDuplicado,
     isKg,
     qtdOdoo,
-    unidade: unid
+    unidade: isKg ? "KG" : unid
   };
 }
 

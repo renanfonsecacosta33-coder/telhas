@@ -182,24 +182,25 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // B. DETECÇÃO DE PERFIL DOBRADO (Ex: 40x75x40 - 10 PÇS ou 75x40 - 6M - 5 PCS)
+  // B. DETECÇÃO DE PERFIL DOBRADO (Ex: 40x75x40 - 10 PÇS ou 127X50X17X50X17MM 6000MM)
   // ═══════════════════════════════════════════════════════════════════════════
-  // Padrão 3 ou mais abas: "40x75x40" ou "50x100x50" ou "20x40x75x40x20"
-  const regexPerfil3Abas = /\b(\d{1,3})\s*[xX*]\s*(\d{1,3})\s*[xX*]\s*(\d{1,3})(?:\s*[xX*]\s*(\d{1,3}))?(?:\s*[xX*]\s*(\d{1,3}))?\b/;
-  const matchPerfil3 = t.match(regexPerfil3Abas);
+  // Padrão 3 a 5 abas (U simples, U enrijecido com 5 abas):
+  // Ex: "127X50X17X50X17MM", "75X40X17X40X17MM", "127X50X17", "75x40x17"
+  const regexPerfilMultiAbas = /\b(\d{1,3})\s*[xX*]\s*(\d{1,3})\s*[xX*]\s*(\d{1,3})(?:\s*[xX*]\s*(\d{1,3}))?(?:\s*[xX*]\s*(\d{1,3}))?(?:\s*mm)?(?![0-9a-z])/i;
+  const matchPerfilMulti = t.match(regexPerfilMultiAbas);
 
-  // Padrão 2 abas pequenas: "75x40" ou "50x50" ou "40x40" (onde abas <= 350)
-  const regexPerfil2Abas = /\b(\d{1,3})\s*[xX*]\s*(\d{1,3})\b/;
-  const matchPerfil2 = !matchPerfil3 ? t.match(regexPerfil2Abas) : null;
+  // Padrão 2 abas pequenas: "92x30", "125x50", "75x40", "50x50" (onde abas <= 350)
+  const regexPerfil2Abas = /\b(\d{1,3})\s*[xX*]\s*(\d{1,3})(?:\s*mm)?(?![0-9a-z])/i;
+  const matchPerfil2 = !matchPerfilMulti ? t.match(regexPerfil2Abas) : null;
 
-  if (matchPerfil3 || (matchPerfil2 && parseInt(matchPerfil2[1], 10) <= 350 && parseInt(matchPerfil2[2], 10) <= 350)) {
+  if (matchPerfilMulti || (matchPerfil2 && parseInt(matchPerfil2[1], 10) <= 350 && parseInt(matchPerfil2[2], 10) <= 350)) {
     const abas = [];
-    if (matchPerfil3) {
-      abas.push(parseInt(matchPerfil3[1], 10));
-      abas.push(parseInt(matchPerfil3[2], 10));
-      abas.push(parseInt(matchPerfil3[3], 10));
-      if (matchPerfil3[4]) abas.push(parseInt(matchPerfil3[4], 10));
-      if (matchPerfil3[5]) abas.push(parseInt(matchPerfil3[5], 10));
+    if (matchPerfilMulti) {
+      abas.push(parseInt(matchPerfilMulti[1], 10));
+      abas.push(parseInt(matchPerfilMulti[2], 10));
+      abas.push(parseInt(matchPerfilMulti[3], 10));
+      if (matchPerfilMulti[4]) abas.push(parseInt(matchPerfilMulti[4], 10));
+      if (matchPerfilMulti[5]) abas.push(parseInt(matchPerfilMulti[5], 10));
     } else if (matchPerfil2) {
       abas.push(parseInt(matchPerfil2[1], 10));
       abas.push(parseInt(matchPerfil2[2], 10));
@@ -207,16 +208,29 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
 
     const desenvTotal = abas.reduce((acc, a) => acc + a, 0);
 
-    // Buscar quantidade de peças no texto (ex: "10 PÇS", "5 barras", "10 UN")
-    const matchQtd = t.match(/(\d+)\s*(?:p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|barras?|unidades?|un\.?|pc\.?)\b/i);
-    const q = matchQtd ? parseInt(matchQtd[1], 10) : (Number(qtdOdoo) || 1);
+    // Buscar quantidade de peças/barras no texto (ex: "70 PCS", "10 PÇS", "5 barras", "10 UN")
+    const matchQtd = t.match(/\b(\d+)\s*(?:p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|barras?|brs?|unidades?|un\.?|pc\.?)\b/i);
+    let q = matchQtd ? parseInt(matchQtd[1], 10) : null;
+    if (!q || q <= 0) {
+      if (unidadeOdoo === "KG" && Number(qtdOdoo) > 50) {
+        q = 1;
+      } else {
+        q = Number(qtdOdoo) || 1;
+      }
+    }
 
-    // Buscar comprimento de barra (ex: "6m", "3000mm", "c/ 6000", "- 6m")
-    const matchComp = t.match(/(?:c\/|com|de|-|–|—)?\s*(\d{1,2}\.\d{3}|\d{3,5}\s*mm|\d+(?:[.,]\d+)?\s*(?:m|mts?|metros?))\b/i);
+    // Buscar comprimento de barra com prioridade para milímetros explícitos ou metros industriais
+    const matchCompForte =
+      t.match(/\b([2-9]\d{3}|1[0-2]\d{3})\s*mm\b/i) ||
+      t.match(/(?:c\/|com|de)\s*(\d{1,2}\.\d{3}|\d{3,5}\s*mm|\d+(?:[.,]\d+)?\s*(?:m\b|mts?\b|metros?\b))/i) ||
+      t.match(/(?:c\/|com|de)\s*([2-9]\d{3}|1[0-2]\d{3})\b/i) ||
+      t.match(/\b([2-9]\d{3}|1[0-2]\d{3})\b/) ||
+      t.match(/\b(\d+(?:[.,]\d+)?)\s*(?:m\b|mts?\b|metros?\b)/i);
+
     let compMm = 6000; // padrão industrial
     let compM = 6.0;
-    if (matchComp) {
-      const parsed = parseComprimento(matchComp[1]);
+    if (matchCompForte) {
+      const parsed = parseComprimento(matchCompForte[1]);
       if (parsed.mm) {
         compMm = parsed.mm;
         compM = parsed.m;
@@ -224,8 +238,12 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
     }
 
     const totalM = +(q * compM).toFixed(2);
+    const labelBarra = (q === 1) ? "barra" : "barras";
+    const compFmt = (compMm >= 1000) ? compMm.toLocaleString("pt-BR") + " mm" : `${compM}m`;
+    const perfilNome = abas.length >= 5 ? "Perfil U Enrijecido" : "Perfil U";
+
     out.tipo_conformacao = "perfil_dobrado";
-    out.tipo_label = `Perfil Dobrado (${abas.join("×")})`;
+    out.tipo_label = `${perfilNome} (${abas.join("×")})`;
     out.abas = abas;
     out.desenvolvimento_mm = desenvTotal;
     out.dimensoes_fmt = `${abas.join("×")} mm`;
@@ -234,7 +252,7 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
     out.quantidade = q;
     out.pecas = q;
     out.metragem_total = totalM;
-    out.resumo_formatado = `${q} pçs de ${abas.join("×")}mm c/ ${compM}m (Perfil Dobrado)`;
+    out.resumo_formatado = `${q} ${labelBarra} c/ ${compFmt} (${perfilNome} ${abas.join("×")})`;
     out.tem_especificacao = true;
     out.variacoes.push({
       qty: q,
@@ -258,6 +276,16 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
   while ((match = regexCorteComposto.exec(t)) !== null) {
     const q = parseInt(match[1], 10);
     const compRaw = match[2];
+    if (!q || isNaN(q)) continue;
+
+    // Se o separador foi 'x' ou '*' e não tem unidade explícita (m ou mm) e comp < 500,
+    // trata-se de seção transversal dimensional (ex: 50x50, 92x30), NÃO de corte linear!
+    const temUnidadeLinear = /(?:mm|mts?|metros?|m\b)/i.test(compRaw);
+    const numComp = parseFloat(compRaw.replace(",", "."));
+    if (/[x*]/i.test(match[0].replace(compRaw, "")) && !temUnidadeLinear && numComp < 500) {
+      continue;
+    }
+
     const { mm, m } = parseComprimento(compRaw);
     if (q > 0 && mm) {
       out.variacoes.push({

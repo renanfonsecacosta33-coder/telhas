@@ -5,7 +5,7 @@ import { stripHtml } from "@/lib/stripHtml";
 import { obterStatusDescritivoItem, extrairAnotacaoItem, localizarOpDoItem, classGrupo, normalizarUnidadeMedidaItem } from "@/lib/pedidoOdooHelper";
 import { extrairCroquiItem, extrairCroquiPedido } from "@/lib/croquiExtractor";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
-import { verificarEstoqueItem } from "@/lib/estoqueMaterialHelper";
+import { verificarEstoqueItem, extrairDemandaItem } from "@/lib/estoqueMaterialHelper";
 import { enviarAlertaComprasLeonardo } from "@/lib/alertaSuprimentosHelper";
 import ImageLink from "@/components/ui/ImageLink";
 import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
@@ -139,12 +139,50 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
           const desc = stripHtml(it.descricao || it.produto || "Item sem descrição");
           const produtoLimpo = stripHtml(it.produto);
           const anotacao = extrairAnotacaoItem(it);
-          // Verificação de Matéria-Prima em Tempo Real
-          const estoqueItem = estoqueContext ? verificarEstoqueItem(it, estoqueContext, pedido) : null;
-          const qtd = (estoqueItem?.demanda?.isKg && estoqueItem?.demanda?.pesoKgInformado)
-            ? estoqueItem.demanda.pesoKgInformado
-            : it.quantidade;
           const unidade = normalizarUnidadeMedidaItem(it, g);
+
+          // Verificação de Matéria-Prima em Tempo Real e Demanda Física
+          const estoqueItem = estoqueContext ? verificarEstoqueItem(it, estoqueContext, pedido) : null;
+          const demanda = estoqueItem?.demanda || extrairDemandaItem(it);
+
+          // Texto combinado para extrair especificação técnica e cortes (com anotação e produto)
+          const textoParaEspecificacao = [anotacao, it.observacao, it.descricao, it.produto].filter(Boolean).join(" ");
+          const espTec = extrairEspecificacao(textoParaEspecificacao, it.quantidade, unidade);
+
+          // Quantidade física e Peso (Regra AJL: Fabricação em BARRAS/PEÇAS, Peso em KG)
+          const pecasReal = (demanda?.pecas && demanda.pecas > 0) ? demanda.pecas : (espTec?.pecas > 0 ? espTec.pecas : null);
+          const isVendidoEmKg = demanda?.isKg || unidade === "KG" || (it.quantidade > 50 && pecasReal && it.quantidade >= pecasReal * 3);
+
+          let displayQtd = it.quantidade;
+          let displayUnidade = unidade;
+          let displaySubBadge = null;
+
+          if (isVendidoEmKg && pecasReal && pecasReal > 0) {
+            displayQtd = pecasReal;
+            displayUnidade = (g === "cd" || g === "frisada" || espTec?.tipo_conformacao === "perfil_dobrado") ? "BARRAS" : "PEÇAS";
+            const pesoVal = Math.round(demanda?.pesoKgInformado || it.quantidade);
+            displaySubBadge = {
+              label: `${pesoVal.toLocaleString("pt-BR")} kg`,
+              title: `Peso total da ordem no Odoo: ${pesoVal.toLocaleString("pt-BR")} kg (${pecasReal} ${displayUnidade.toLowerCase()})`
+            };
+          } else if (unidade === "KG") {
+            const pesoVal = Math.round(demanda?.pesoKgInformado || it.quantidade);
+            displayQtd = pesoVal;
+            displayUnidade = "KG";
+            if (pecasReal && pecasReal > 0) {
+              displaySubBadge = {
+                label: `${pecasReal} barras`,
+                title: `${pecasReal} barras informadas na observação`
+              };
+            }
+          } else if (demanda?.pesoKgInformado && demanda.pesoKgInformado > 0) {
+            const pesoVal = Math.round(demanda.pesoKgInformado);
+            displaySubBadge = {
+              label: `${pesoVal.toLocaleString("pt-BR")} kg`,
+              title: `Peso estimado da matéria-prima: ${pesoVal.toLocaleString("pt-BR")} kg`
+            };
+          }
+
           const esp = it.espessura || it.chapa;
 
           // Detecção de produto composto: Telha + EPS + Manta (Sanduíche / Termoacústica)
@@ -186,19 +224,15 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
                     )}
                   </div>
 
-                  {/* Especificação técnica inteligente extraída da descrição (ex: 50 pçs c/ 2000mm ou 60 peças) */}
-                  {(() => {
-                    const espTec = extrairEspecificacao(it.descricao || it.observacao, it.quantidade, unidade);
-                    if (!espTec.tem_especificacao || !espTec.resumo_formatado) return null;
-                    return (
-                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                        <span className={`inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md border ${cfg.highlightBg} shadow-xs`}>
-                          <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
-                          <span>{espTec.resumo_formatado}</span>
-                        </span>
-                      </div>
-                    );
-                  })()}
+                  {/* Especificação técnica inteligente extraída da descrição (ex: 70 barras c/ 6.000 mm) */}
+                  {espTec && espTec.tem_especificacao && espTec.resumo_formatado && (
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      <span className={`inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md border ${cfg.highlightBg} shadow-xs`}>
+                        <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
+                        <span>{espTec.resumo_formatado}</span>
+                      </span>
+                    </div>
+                  )}
 
                   {/* Anotação/Observação real do vendedor (itálico azul) — limpa de repetições do produto */}
                   {anotacao && (
@@ -325,22 +359,20 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
                 })()}
 
                 {/* Coluna direita: QUANTIDADE em badge sólida colorida por categoria */}
-                {qtd != null && (
-                  <div className={`shrink-0 flex flex-col items-center justify-center ${compacto ? "min-w-[40px]" : "min-w-[56px]"}`}>
+                {displayQtd != null && (
+                  <div className={`shrink-0 flex flex-col items-center justify-center ${compacto ? "min-w-[44px]" : "min-w-[60px]"}`}>
                     <span className={`${compacto ? "text-lg font-black px-1.5 py-0.5" : "text-2xl sm:text-3xl font-black px-2 py-0.5"} leading-none rounded-md ${cfg.qtdBg} ${cfg.qtdText}`}>
-                      {qtd}
+                      {displayQtd}
                     </span>
                     <span className="text-[8px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mt-0.5">
-                      {unidade}
+                      {displayUnidade}
                     </span>
-                    {estoqueItem?.demanda?.isKg && estoqueItem?.demanda?.pecas > 0 && (
+                    {displaySubBadge && (
                       <span
-                        className="text-[9px] font-extrabold text-orange-700 dark:text-orange-300 mt-0.5 bg-orange-50 dark:bg-orange-950/50 px-1 py-0.5 rounded border border-orange-200/60 dark:border-orange-900/40 leading-none whitespace-nowrap"
-                        title={estoqueItem.demanda.pecasOrigem === "obs" ? "Quantidade de peças informada nas observações" : "Quantidade de peças estimada pelo peso do item"}
+                        className="text-[9px] font-extrabold text-amber-800 dark:text-amber-200 mt-0.5 bg-amber-500/15 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-500/30 leading-none whitespace-nowrap shadow-2xs"
+                        title={displaySubBadge.title}
                       >
-                        {estoqueItem.demanda.pecasOrigem === "obs"
-                          ? `${estoqueItem.demanda.pecas} pç`
-                          : `~${estoqueItem.demanda.pecas} pç est.`}
+                        {displaySubBadge.label}
                       </span>
                     )}
                   </div>

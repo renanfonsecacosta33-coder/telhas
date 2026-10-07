@@ -131,6 +131,11 @@ function normalizarUnidadeMedidaOdoo(it: any): string {
   const textoCompleto = `${prod} ${desc}`.toUpperCase();
   const rawUnidade = String(it.unidade || it.uom || it.product_uom || "").trim().toUpperCase();
 
+  // 0. Soberania da unidade comercial do Odoo: se a cotação/pedido veio expressamente em KG, respeitar KG!
+  if (["KG", "KGS", "QUILO", "QUILOS"].includes(rawUnidade)) {
+    return "KG";
+  }
+
   // 1. Detecção explícita no texto do produto/descrição (padrão oficial de cadastro no Odoo AJL)
   if (
     /\(PADR[AÃ]O\s*-\s*BR\)/i.test(textoCompleto) ||

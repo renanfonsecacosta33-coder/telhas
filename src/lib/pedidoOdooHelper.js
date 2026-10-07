@@ -103,6 +103,11 @@ export function normalizarUnidadeMedidaItem(item, setorHint = null) {
   const textoCompleto = `${prod} ${desc}`.toUpperCase();
   const rawUnidade = String(item.unidade || item.uom || item.product_uom || "").trim().toUpperCase();
 
+  // 0. Soberania da unidade comercial do Odoo: se a cotação/pedido veio expressamente em KG, respeitar KG!
+  if (["KG", "KGS", "QUILO", "QUILOS"].includes(rawUnidade)) {
+    return "KG";
+  }
+
   // 1. Detecção explícita no texto do produto/descrição (padrão oficial de cadastro no Odoo AJL)
   // Ex: "Frisada V Ch 28 (0,43) POR METRO (Padrão - BR)"
   // Ex: "576 - Perfil 06 C/ 3000 Ch 1,25 (Trilho Lateral da porta de aço) (Padrão - BR)"
