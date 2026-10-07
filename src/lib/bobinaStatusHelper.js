@@ -488,13 +488,78 @@ export function matchBobinaBuscaGeral(bobina, query) {
 }
 
 /**
+ * Normaliza uma string ou valor de espessura para o padrão brasileiro "0,43", "0,50", "0,65" etc.
+ */
+export function normalizarEspessura(val) {
+  if (!val) return null;
+  const str = String(val).trim().replace(/\s+/g, " ");
+
+  // 1. Decimais explícitos: 0.43, 0,43, 0.50, 0,50, 0.5, 0,5, 0.65, 0,65, 0.38, 0,38, 0.80, 0,80, 0.95, 0,95, 1.25, 1,25
+  const matchDec = str.match(/(?:0[.,]\d{1,2}|1[.,]\d{1,2})/);
+  if (matchDec) {
+    const f = parseFloat(matchDec[0].replace(",", "."));
+    if (!isNaN(f) && f > 0) {
+      return f.toFixed(2).replace(".", ",");
+    }
+  }
+
+  // 2. Chapa/Número comum de telhas: 28 -> 0,43 | 26 -> 0,50 | 24 -> 0,65 | 22 -> 0,80
+  const matchChapa = str.match(/\b(?:ch|chapa)?\s*(28|26|24|22|20|43|50|65|38|80|95)\b/i);
+  if (matchChapa) {
+    const n = matchChapa[1];
+    if (n === "43" || n === "28") return "0,43";
+    if (n === "50" || n === "26") return "0,50";
+    if (n === "65" || n === "24") return "0,65";
+    if (n === "38") return "0,38";
+    if (n === "80" || n === "22") return "0,80";
+    if (n === "95" || n === "20") return "0,95";
+  }
+
+  return null;
+}
+
+/**
+ * Extrai todas as espessuras únicas encontradas em uma lista de strings
+ */
+export function extrairTodasEspessuras(listaTextos = []) {
+  const encontradas = new Set();
+  listaTextos.forEach(txt => {
+    if (!txt) return;
+    const s = String(txt);
+
+    // Matches de números decimais
+    const decMatches = s.match(/(?:0[.,]\d{1,2}|1[.,]\d{1,2})/g);
+    if (decMatches) {
+      decMatches.forEach(m => {
+        const norm = normalizarEspessura(m);
+        if (norm) encontradas.add(norm);
+      });
+    }
+
+    // Matches de bitola/chapa
+    const chMatches = s.match(/\b(?:ch|chapa)\s*(28|26|24|22|20|43|50|65|38|80)\b/gi);
+    if (chMatches) {
+      chMatches.forEach(cm => {
+        const norm = normalizarEspessura(cm);
+        if (norm) encontradas.add(norm);
+      });
+    }
+  });
+  return encontradas;
+}
+
+/**
  * Extrai informações e flags de materiais/bobinas de um pedido
- * (Galvalume/Natural, Importado, Nacional, Cores)
+ * (Galvalume/Natural, Importado, Nacional, Cores e Espessuras de Natural)
  */
 export function extrairInfoBobinasPedido(p) {
-  if (!p) return { isNatural: false, isImportada: false, isNacional: false };
+  if (!p) return { isNatural: false, isImportada: false, isNacional: false, espessurasNaturais: new Set() };
 
   const textos = [];
+  if (p.espessura) textos.push(String(p.espessura));
+  if (p.chapa) textos.push(String(p.chapa));
+  if (p.espessura_superior) textos.push(String(p.espessura_superior));
+  if (p.espessura_inferior) textos.push(String(p.espessura_inferior));
   if (p.bobina_superior) textos.push(String(p.bobina_superior));
   if (p.bobina_inferior) textos.push(String(p.bobina_inferior));
   if (p.bobina_secundaria) textos.push(String(p.bobina_secundaria));
@@ -503,11 +568,14 @@ export function extrairInfoBobinasPedido(p) {
   if (p.cor) textos.push(String(p.cor));
   if (p.modelo) textos.push(String(p.modelo));
   if (p.produto) textos.push(String(p.produto));
+  if (p.descricao) textos.push(String(p.descricao));
 
   try {
     const vars = JSON.parse(p.variacoes_telhas || "[]");
     if (Array.isArray(vars)) {
       vars.forEach(v => {
+        if (v.espessura) textos.push(String(v.espessura));
+        if (v.chapa) textos.push(String(v.chapa));
         if (v.bobina_desc) textos.push(String(v.bobina_desc));
         if (v.bobina_inf_desc) textos.push(String(v.bobina_inf_desc));
         if (v.cor) textos.push(String(v.cor));
@@ -538,6 +606,13 @@ export function extrairInfoBobinasPedido(p) {
   const isImportada = fullText.includes("imp") || fullText.includes("(imp)") || fullText.includes("importad");
   const isNacional = fullText.includes("nac") || fullText.includes("(nac)") || fullText.includes("nacional") || fullText.includes("csn") || fullText.includes("arcelor");
 
+  // 4. Espessuras de Natural
+  const espessurasEncontradas = extrairTodasEspessuras(textos);
+  const espessurasNaturais = new Set();
+  if (isNatural) {
+    espessurasEncontradas.forEach(e => espessurasNaturais.add(e));
+  }
+
   return {
     isNatural,
     isImportada,
@@ -551,17 +626,21 @@ export function extrairInfoBobinasPedido(p) {
     isVermelha: temVermelha,
     isVerde: temVerde,
     isMarrom: temMarrom,
+    espessurasNaturais,
     fullText
   };
 }
 
 /**
  * Retorna os filtros disponíveis dinamicamente com base APENAS nos pedidos existentes.
- * Se nenhum pedido contiver um item (ex: bobina branca), esse filtro NÃO é retornado!
+ * Desmembra Natural nas espessuras existentes (ex: Natural 0,43, Natural 0,50, Natural 0,65)
+ * e mantém o botão 'Natural (Todos)'.
  */
 export function calcularFiltrosDisponiveis(pedidos = []) {
-  const contagens = {
-    naturais: 0,
+  let countNaturaisTotal = 0;
+  const contagemNaturaisPorEspessura = {};
+
+  const contagensCores = {
     importados: 0,
     nacionais: 0,
     preta: 0,
@@ -577,37 +656,82 @@ export function calcularFiltrosDisponiveis(pedidos = []) {
 
   pedidos.forEach(p => {
     const info = extrairInfoBobinasPedido(p);
-    if (info.isNatural) contagens.naturais++;
-    if (info.isImportada) contagens.importados++;
-    if (info.isNacional) contagens.nacionais++;
-    if (info.isPreta) contagens.preta++;
-    if (info.isBranca) contagens.branca++;
-    if (info.isAzul) contagens.azul++;
-    if (info.isCinza) contagens.cinza++;
-    if (info.isCeramica) contagens.ceramica++;
-    if (info.isBege) contagens.bege++;
-    if (info.isVermelha) contagens.vermelha++;
-    if (info.isVerde) contagens.verde++;
-    if (info.isMarrom) contagens.marrom++;
+    if (info.isNatural) {
+      countNaturaisTotal++;
+      info.espessurasNaturais.forEach(esp => {
+        contagemNaturaisPorEspessura[esp] = (contagemNaturaisPorEspessura[esp] || 0) + 1;
+      });
+    }
+    if (info.isImportada) contagensCores.importados++;
+    if (info.isNacional) contagensCores.nacionais++;
+    if (info.isPreta) contagensCores.preta++;
+    if (info.isBranca) contagensCores.branca++;
+    if (info.isAzul) contagensCores.azul++;
+    if (info.isCinza) contagensCores.cinza++;
+    if (info.isCeramica) contagensCores.ceramica++;
+    if (info.isBege) contagensCores.bege++;
+    if (info.isVermelha) contagensCores.vermelha++;
+    if (info.isVerde) contagensCores.verde++;
+    if (info.isMarrom) contagensCores.marrom++;
   });
 
-  const filtrosDef = [
-    { key: "naturais", label: "Naturais / Galvalume", icone: "⚪", count: contagens.naturais, corBadge: "bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200" },
-    { key: "importados", label: "Importados (IMP)", icone: "🌐", count: contagens.importados, corBadge: "bg-sky-50 text-sky-800 border-sky-300 dark:bg-sky-950 dark:text-sky-300" },
-    { key: "nacionais", label: "Nacionais (NAC)", icone: "🇧🇷", count: contagens.nacionais, corBadge: "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300" },
-    { key: "preta", label: "Preta", icone: "⚫", count: contagens.preta, corBadge: "bg-neutral-800 text-neutral-100 border-neutral-700" },
-    { key: "branca", label: "Branca", icone: "⚪", count: contagens.branca, corBadge: "bg-slate-50 text-slate-900 border-slate-300" },
-    { key: "azul", label: "Azul", icone: "🔵", count: contagens.azul, corBadge: "bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950 dark:text-blue-200" },
-    { key: "cinza", label: "Cinza / Grafite", icone: "🔘", count: contagens.cinza, corBadge: "bg-stone-200 text-stone-800 border-stone-400 dark:bg-stone-800 dark:text-stone-300" },
-    { key: "ceramica", label: "Cerâmica", icone: "🧱", count: contagens.ceramica, corBadge: "bg-amber-100 text-amber-900 border-amber-400 dark:bg-amber-950 dark:text-amber-200" },
-    { key: "bege", label: "Bege / Areia", icone: "🏜️", count: contagens.bege, corBadge: "bg-orange-100 text-orange-900 border-orange-300 dark:bg-orange-950 dark:text-orange-200" },
-    { key: "vermelha", label: "Vermelha", icone: "🔴", count: contagens.vermelha, corBadge: "bg-red-100 text-red-900 border-red-300 dark:bg-red-950 dark:text-red-200" },
-    { key: "verde", label: "Verde", icone: "🟢", count: contagens.verde, corBadge: "bg-green-100 text-green-900 border-green-300 dark:bg-green-950 dark:text-green-200" },
-    { key: "marrom", label: "Marrom", icone: "🟤", count: contagens.marrom, corBadge: "bg-amber-900 text-amber-100 border-amber-800" },
+  const filtrosDef = [];
+
+  // 1. Filtros de Naturais / Galvalume
+  if (countNaturaisTotal > 0) {
+    // Chip Geral: Natural (Todos)
+    filtrosDef.push({
+      key: "naturais",
+      label: "Natural (Todos)",
+      icone: "⚪",
+      count: countNaturaisTotal,
+      corBadge: "bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200"
+    });
+
+    // Chips específicos por Espessura (ordenados numericamente: 0,38, 0,43, 0,50, 0,65, etc.)
+    const espessurasOrdenadas = Object.keys(contagemNaturaisPorEspessura).sort((a, b) => {
+      const numA = parseFloat(a.replace(",", ".")) || 0;
+      const numB = parseFloat(b.replace(",", ".")) || 0;
+      return numA - numB;
+    });
+
+    espessurasOrdenadas.forEach(esp => {
+      filtrosDef.push({
+        key: `natural_${esp}`,
+        label: `Natural ${esp}`,
+        icone: "⚪",
+        count: contagemNaturaisPorEspessura[esp],
+        corBadge: "bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200 font-bold"
+      });
+    });
+  }
+
+  // 2. Filtros de Cores Pré-Pintadas
+  const filtrosCores = [
+    { key: "preta", label: "Preta", icone: "⚫", count: contagensCores.preta, corBadge: "bg-neutral-800 text-neutral-100 border-neutral-700" },
+    { key: "branca", label: "Branca", icone: "⚪", count: contagensCores.branca, corBadge: "bg-slate-50 text-slate-900 border-slate-300" },
+    { key: "azul", label: "Azul", icone: "🔵", count: contagensCores.azul, corBadge: "bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950 dark:text-blue-200" },
+    { key: "cinza", label: "Cinza / Grafite", icone: "🔘", count: contagensCores.cinza, corBadge: "bg-stone-200 text-stone-800 border-stone-400 dark:bg-stone-800 dark:text-stone-300" },
+    { key: "ceramica", label: "Cerâmica", icone: "🧱", count: contagensCores.ceramica, corBadge: "bg-amber-100 text-amber-900 border-amber-400 dark:bg-amber-950 dark:text-amber-200" },
+    { key: "bege", label: "Bege / Areia", icone: "🏜️", count: contagensCores.bege, corBadge: "bg-orange-100 text-orange-900 border-orange-300 dark:bg-orange-950 dark:text-orange-200" },
+    { key: "vermelha", label: "Vermelha", icone: "🔴", count: contagensCores.vermelha, corBadge: "bg-red-100 text-red-900 border-red-300 dark:bg-red-950 dark:text-red-200" },
+    { key: "verde", label: "Verde", icone: "🟢", count: contagensCores.verde, corBadge: "bg-green-100 text-green-900 border-green-300 dark:bg-green-950 dark:text-green-200" },
+    { key: "marrom", label: "Marrom", icone: "🟤", count: contagensCores.marrom, corBadge: "bg-amber-900 text-amber-100 border-amber-800" },
   ];
 
-  // FILTRA APENAS OS QUE EXISTEM (count > 0)
-  return filtrosDef.filter(f => f.count > 0);
+  filtrosCores.forEach(fc => {
+    if (fc.count > 0) filtrosDef.push(fc);
+  });
+
+  // 3. Origem (se houver e não for redundante)
+  if (contagensCores.importados > 0) {
+    filtrosDef.push({ key: "importados", label: "Importados (IMP)", icone: "🌐", count: contagensCores.importados, corBadge: "bg-sky-50 text-sky-800 border-sky-300 dark:bg-sky-950 dark:text-sky-300" });
+  }
+  if (contagensCores.nacionais > 0) {
+    filtrosDef.push({ key: "nacionais", label: "Nacionais (NAC)", icone: "🇧🇷", count: contagensCores.nacionais, corBadge: "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300" });
+  }
+
+  return filtrosDef;
 }
 
 /**
@@ -616,8 +740,19 @@ export function calcularFiltrosDisponiveis(pedidos = []) {
 export function pedidoAtendeFiltroMaterial(pedido, filtroKey) {
   if (!filtroKey || filtroKey === "todos") return true;
   const info = extrairInfoBobinasPedido(pedido);
+
+  // Filtro geral de naturais
+  if (filtroKey === "naturais") {
+    return Boolean(info.isNatural);
+  }
+
+  // Filtro específico de Natural por espessura (ex: natural_0,43, natural_0,50, natural_0,65)
+  if (filtroKey.startsWith("natural_")) {
+    const espAlvo = filtroKey.replace("natural_", "");
+    return Boolean(info.isNatural && info.espessurasNaturais.has(espAlvo));
+  }
+
   switch (filtroKey) {
-    case "naturais": return Boolean(info.isNatural);
     case "importados": return Boolean(info.isImportada);
     case "nacionais": return Boolean(info.isNacional);
     case "preta": return Boolean(info.isPreta);
