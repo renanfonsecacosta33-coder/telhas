@@ -133,7 +133,7 @@ export default function ProducaoEmLoteModal({
             // Dispara webhook
             notificarStatus(updated, "maquina_inicio", {
               maquina_atual: maquinaFinal,
-              item_nome: itens[itemIdx]?.produto || preset.produto || "",
+              item_nome: itens[itemIdx]?.produto || presetData?.produto || "",
               inicio_fmt: new Date().toISOString(),
               status_novo: status_pcp,
             }).catch(() => {});

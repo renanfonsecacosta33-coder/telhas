@@ -363,7 +363,7 @@ export default function PedidoOdooGrupoCard({
                 </Button>
               )}
 
-              {onFinalizarGrupo100 && !grupoConcluido && (
+              {onFinalizarGrupo100 && !isPedidoTotalConcluido && (
                 <button
                   type="button"
                   onClick={(e) => {
