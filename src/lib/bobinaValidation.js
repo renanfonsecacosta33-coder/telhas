@@ -234,3 +234,22 @@ export function filtrarBobinasCompativeis(bobinas, opts) {
   if (!temFiltro) return bobinas;
   return bobinas.filter((b) => validarBobina(b, opts).ok);
 }
+
+/**
+ * Normaliza e compara filiais de forma rigorosa:
+ * - Vazio, null, "Matriz" ou "Matriz AJL" -> "matriz"
+ * - "Pinhais" -> "pinhais"
+ * - "Ivaiporã" / "Ivaipora" -> "ivaipora"
+ * - "Ponta Grossa" / "PG" -> "pontagrossa"
+ */
+export function isMesmaFilial(unidadeA, unidadeB) {
+  const norm = (u) => {
+    const s = String(u || "Matriz AJL").trim().toLowerCase();
+    if (s.includes("matriz")) return "matriz";
+    if (s.includes("pinhais")) return "pinhais";
+    if (s.includes("ivaipor")) return "ivaipora";
+    if (s.includes("ponta grossa") || s.includes("pg")) return "pontagrossa";
+    return s;
+  };
+  return norm(unidadeA) === norm(unidadeB);
+}

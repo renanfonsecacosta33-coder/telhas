@@ -14,7 +14,7 @@ import ImageLink from "@/components/ui/ImageLink";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 import { useTolerancias } from "@/hooks/useTolerancias";
 import { getBobinaStatus, calcMetrosDisponiveis, compararBobinasTelhas } from "@/lib/bobinaStatusHelper";
-import { validarBobina, filtrarBobinasCompativeis, detectarCorTelha } from "@/lib/bobinaValidation";
+import { validarBobina, filtrarBobinasCompativeis, detectarCorTelha, isMesmaFilial } from "@/lib/bobinaValidation";
 import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
 import BobinaComboboxTelhas from "@/components/producao/BobinaComboboxTelhas";
 import { Building2, X, Loader2, FileText, Plus, Trash2, Camera, ShieldAlert, Flame, Route, AlertTriangle, Target, Unlock, Lock, RefreshCw, Globe, CheckCircle2, Paintbrush } from "lucide-react";
@@ -173,7 +173,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
 
   const filialCtx = useFilial();
   const filialAtivaContexto = filialCtx?.filialAtiva || "Matriz AJL";
-  const [filtroFilial, setFiltroFilial] = useState("todas");
+  const [filtroFilial, setFiltroFilial] = useState("unidade_pedido");
   const [destravarTravaOdoo, setDestravarTravaOdoo] = useState(false);
 
   const {
@@ -363,12 +363,11 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
   const precisaEPS = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(form.produto);
   const precisaBobinaInferior = ["TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(form.produto);
 
-  // Bobinas ativas filtradas por filial ou todas (com fallback automático se a filial selecionada estiver sem estoque)
+  // Bobinas ativas filtradas estritamente pela filial do pedido (Matriz AJL, Pinhais, Ivaiporã, etc.)
   const bobinas = useMemo(() => {
     if (filtroFilial === "todas") return todasBobinas;
-    const alvo = filtroFilial === "unidade_pedido" ? (form.unidade || filialAtivaContexto) : filtroFilial;
-    const fil = todasBobinas.filter(b => !b.unidade || b.unidade === alvo);
-    return fil.length > 0 ? fil : todasBobinas;
+    const alvo = filtroFilial === "unidade_pedido" ? (form.unidade || filialAtivaContexto || "Matriz AJL") : filtroFilial;
+    return todasBobinas.filter(b => isMesmaFilial(b.unidade, alvo));
   }, [todasBobinas, filtroFilial, form.unidade, filialAtivaContexto]);
 
   // Bobinas compatíveis com requisitos Odoo
@@ -437,7 +436,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     if (open) {
       setDestravarTravaOdoo(false);
       setIgnorarFiltroOdoo(false);
-      setFiltroFilial("todas");
+      setFiltroFilial("unidade_pedido");
       if (editItem && !editItem._presets && editItem.id) {
         setForm({
           data: editItem.data || format(new Date(), "yyyy-MM-dd"),
@@ -1692,14 +1691,19 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
 
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant={filtroFilial === "todas" ? "secondary" : "outline"}
                     size="sm"
                     onClick={() => setFiltroFilial(f => f === "todas" ? "unidade_pedido" : "todas")}
-                    className="text-xs h-7 px-2 text-muted-foreground hover:text-foreground gap-1 border border-dashed border-border"
+                    className={cn(
+                      "text-xs h-7 px-2.5 gap-1.5 border transition-colors",
+                      filtroFilial === "todas"
+                        ? "bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300 dark:bg-amber-950 dark:text-amber-200 font-semibold"
+                        : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium"
+                    )}
                     title="Alternar entre ver estoque apenas da filial do pedido ou de todas as filiais"
                   >
-                    <Globe className="w-3 h-3 text-sky-600" />
-                    <span>{filtroFilial === "todas" ? "Todas as Filiais" : `Apenas ${form.unidade || filialAtivaContexto}`}</span>
+                    <Globe className="w-3.5 h-3.5 text-sky-600" />
+                    <span>{filtroFilial === "todas" ? "🌐 Todas as Filiais (Global)" : `🏢 ${form.unidade || filialAtivaContexto || "Matriz AJL"}`}</span>
                   </Button>
                 </div>
               </div>

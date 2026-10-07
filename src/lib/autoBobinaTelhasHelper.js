@@ -18,7 +18,7 @@ import {
 } from "@/lib/pedidoOdooHelper";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import { extrairCroquiPedido } from "@/lib/croquiExtractor";
-import { isEspessuraCompatible, isOrigemCompatible, removerAcentos, detectarCorTelha, isCorCompativel } from "@/lib/bobinaValidation";
+import { isEspessuraCompatible, isOrigemCompatible, removerAcentos, detectarCorTelha, isCorCompativel, isMesmaFilial } from "@/lib/bobinaValidation";
 import { isBobinaAberta, isBobinaNatural } from "@/lib/bobinaStatusHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import { calcularDataPrometidaSLA, toISODate } from "@/lib/sla";
@@ -117,8 +117,8 @@ export function selecionarMelhorBobinaTelhas({
     // Setor deve ser telhas ou não restrito
     if (b.setor && b.setor !== "telhas") return false;
 
-    // Unidade deve corresponder à filial (ou matriz padrão)
-    if (b.unidade && filialAlvo && b.unidade !== filialAlvo) return false;
+    // Unidade deve corresponder estritamente à filial do pedido (ex: Matriz só usa Matriz)
+    if (!isMesmaFilial(b.unidade, filialAlvo)) return false;
 
     // Não pode estar reservada para outro pedido
     if (b.reservada) {
