@@ -132,7 +132,7 @@ const AuthenticatedApp = () => {
     <AutoRefreshInactivity />
     <Routes>
       <Route element={<AppLayout />}>
-        <Route path="/" element={<Dashboard />} />
+        <Route path="/" element={<DashboardTelhas />} />
         <Route path="/bobinas" element={<Bobinas />} />
         <Route path="/isopor" element={<Isopor />} />
         <Route path="/estoque" element={<Estoque />} />
