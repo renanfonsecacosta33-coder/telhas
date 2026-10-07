@@ -25,6 +25,12 @@ import { SeletorPrioridadeDropdown, getPesoOrdenacaoPrioridade } from "@/lib/pri
 import { normalizarTextoBusca, calcularFiltrosDisponiveis, pedidoAtendeFiltroMaterial } from "@/lib/bobinaStatusHelper";
 import TimerProducao from "@/components/producao/TimerProducao";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
+import CardBobinaInstalada from "@/components/maquinas/CardBobinaInstalada";
+import {
+  detectarBobinaInstaladaNaMaquina,
+  sequenciarFilaPorSetupBobina,
+  inserirDivisoresTrocaSetup
+} from "@/lib/sequenciamentoBobinaHelper";
 import { isOperadorDestaMaquina } from "@/lib/somPermissaoHelper";
 import { salvarCacheLocal, obterCacheLocal, enfileirarAcaoOffline } from "@/lib/offlineStorage";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
@@ -104,8 +110,16 @@ export default function MaquinaPanel({ maquina }) {
   const [user, setUser] = useState(null);
   const [modalHistoricoOpen, setModalHistoricoOpen] = useState(false);
   const [modalHistoricoTab, setModalHistoricoTab] = useState("relatorio");
+  const [bobinaInstaladaManual, setBobinaInstaladaManual] = useState(null);
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
+
+  // Consulta catálogo de bobinas para checagem de estoque e sequenciamento de setup
+  const { data: todasBobinas = [] } = useQuery({
+    queryKey: ["bobinas"],
+    queryFn: () => base44.entities.Bobina.list(),
+    staleTime: 60000,
+  });
 
   const isOperador = user?.role === "operador";
   const podeGerenciar = !isOperador;
@@ -203,6 +217,11 @@ export default function MaquinaPanel({ maquina }) {
       return false;
     });
   }, [todosPedidos, targetNorm]);
+
+  // Bobina instalada no desbobinador desta máquina (híbrido automático + manual)
+  const bobinaInstalada = useMemo(() => {
+    return bobinaInstaladaManual || detectarBobinaInstaladaNaMaquina(maquina, pedidos, todasBobinas);
+  }, [bobinaInstaladaManual, maquina, pedidos, todasBobinas]);
 
   // Detectar novas OPs e anunciar por voz
   const prevOrderIds = useRef(new Set());
@@ -596,28 +615,13 @@ export default function MaquinaPanel({ maquina }) {
       }
     }
 
-    // 3. Ordenação rigorosa dos PEDIDOS A FAZER:
-    //    - 1º: Status imediato (em_producao em 1º absoluto, depois pausado, depois pendente)
-    //    - 2º: Prioridade P1 a P5 (P1 mais urgente de todas)
-    //    - 3º: Atrasados primeiro
-    //    - 4º: Data planejada mais antiga primeiro (FIFO)
-    const sortedAFazer = aFazer.sort((a, b) => {
-      const statusA = orderAtivo[a.status] ?? 2;
-      const statusB = orderAtivo[b.status] ?? 2;
-      if (statusA !== statusB) return statusA - statusB;
-
-      const priDiff = getPesoOrdenacaoPrioridade(a) - getPesoOrdenacaoPrioridade(b);
-      if (priDiff !== 0) return priDiff;
-
-      const aAtrasado = (a.data && a.data < hoje) ? 0 : 1;
-      const bAtrasado = (b.data && b.data < hoje) ? 0 : 1;
-      if (aAtrasado !== bAtrasado) return aAtrasado - bAtrasado;
-
-      const dataDiff = String(a.data || "").localeCompare(String(b.data || ""));
-      if (dataDiff !== 0) return dataDiff;
-
-      return (b.metros || 0) - (a.metros || 0);
-    });
+    // 3. Sequenciamento Inteligente para Redução de Setup de Bobinas:
+    //    - 1º: Em Produção e Pausados no topo absoluto
+    //    - 2º: P1 Urgência Máxima (nunca ultrapassados)
+    //    - 3º: Mesma Bobina Instalada no desbobinador (campanha contínua sem troca de setup)
+    //    - 4º: Agrupamento em blocos das próximas bobinas/materiais (mesma cor e espessura juntas)
+    //    - 5º: Rota, Atrasados e FIFO
+    const sortedAFazer = sequenciarFilaPorSetupBobina(aFazer, bobinaInstalada, hoje);
 
     // 4. Ordenação dos PEDIDOS FINALIZADOS:
     //    - Mais recentemente finalizado/perfilado no topo dos finalizados
@@ -652,15 +656,24 @@ export default function MaquinaPanel({ maquina }) {
     });
 
     const afazerProcessado = marcarDups(sortedAFazer);
+    // Insere divisores visuais de troca de bobina na fila para sinalizar trocas de setup
+    const afazerComDivisores = inserirDivisoresTrocaSetup(afazerProcessado);
     const finalizadosProcessados = sortedFinalizados;
 
     return {
-      ordenadosAFazer: afazerProcessado,
+      ordenadosAFazer: afazerComDivisores,
       ordenadosFinalizados: finalizadosProcessados,
       ordenados: [...afazerProcessado, ...finalizadosProcessados],
       duplicadasDetectadas: dups,
     };
-  }, [pedidosFiltrados, maquina]);
+  }, [pedidosFiltrados, maquina, bobinaInstalada]);
+
+  // Métricas da campanha da bobina instalada na fila
+  const { pedidosCampanhaAtual, metrosCampanhaAtual } = useMemo(() => {
+    const daCampanha = (ordenadosAFazer || []).filter(p => !p._isDivisorTrocaBobina && p._mesmaBobinaInstalada && p.status !== "finalizado");
+    const metros = daCampanha.reduce((sum, p) => sum + Number(p.metros || 0), 0);
+    return { pedidosCampanhaAtual: daCampanha, metrosCampanhaAtual: metros };
+  }, [ordenadosAFazer]);
 
   const handleLimparDuplicadas = async () => {
     if (duplicadasDetectadas.length === 0) return;
@@ -856,6 +869,16 @@ export default function MaquinaPanel({ maquina }) {
           tipoSetor="telhas"
         />
       )}
+
+      {/* Card da Bobina Montada no Desbobinador e Sequenciamento Inteligente de Setup */}
+      <CardBobinaInstalada
+        maquinaNome={maquina}
+        bobinaInstalada={bobinaInstalada}
+        onAlterarBobina={setBobinaInstaladaManual}
+        pedidosCampanha={pedidosCampanhaAtual}
+        metrosCampanha={metrosCampanhaAtual}
+        todasBobinas={todasBobinas}
+      />
 
       {/* Navegação de dia */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -1110,6 +1133,33 @@ export default function MaquinaPanel({ maquina }) {
 
           {/* 1. Pedidos A Fazer (Em Produção, Pausados, Pendentes) */}
           {ordenadosAFazer.map(p => {
+            if (p._isDivisorTrocaBobina) {
+              return (
+                <div
+                  key={p._idDivisor}
+                  className="my-3 py-3 px-4 rounded-xl bg-gradient-to-r from-orange-500/15 via-amber-500/10 to-transparent border-l-4 border-orange-500 flex flex-wrap items-center justify-between gap-3 shadow-2xs animate-in fade-in"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-orange-500/20 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+                      <RefreshCw className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="font-black text-xs sm:text-sm text-foreground">
+                        🔄 Próxima Troca de Setup: {p.proximoMaterialNome}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Fim da sequência anterior · Chamar ponte rolante para bobina de {p.proximoMaterialNome} ({p.qtdPedidos} pedidos · {Math.round(p.metrosTotal)}m)
+                      </p>
+                    </div>
+                  </div>
+
+                  <Badge variant="outline" className="text-xs font-bold border-orange-300 text-orange-700 bg-orange-50 dark:border-orange-800 dark:text-orange-300 dark:bg-orange-950/60 shrink-0">
+                    {p.qtdPedidos} OP(s) nesta sequência
+                  </Badge>
+                </div>
+              );
+            }
+
             const dataPedido = p.data || p.data_perfilacao;
             const ehOutroDia = Boolean(termoBusca.trim() && dataPedido && dataPedido !== selectedDay);
 

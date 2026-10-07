@@ -1004,6 +1004,11 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                 </>
               )}
               <PrioridadeBadge pedido={p} />
+              {p._mesmaBobinaInstalada && p.status === "pendente" && (
+                <Badge className="bg-emerald-600 text-white border-emerald-700 text-xs gap-1 font-bold shadow-xs">
+                  <Zap className="w-3 h-3 text-emerald-200 fill-emerald-200" /> Mesma Bobina Montada
+                </Badge>
+              )}
               {p.rota && (
                 <Badge className="bg-red-600 text-white border-red-700 text-xs gap-1 animate-pulse">
                   <Route className="w-3 h-3" /> ROTA
