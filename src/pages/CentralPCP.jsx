@@ -32,6 +32,7 @@ import PedidoOdooCard from "@/components/pcp/PedidoOdooCard";
 import PedidoOdooGrupoCard from "@/components/pcp/PedidoOdooGrupoCard";
 import PedidoOdooDetalheDialog from "@/components/pcp/PedidoOdooDetalheDialog";
 import WebhookSimulatorDialog from "@/components/pcp/WebhookSimulatorDialog";
+import RecuperarPedidoOdooDialog from "@/components/pcp/RecuperarPedidoOdooDialog";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import TransferirLojaDialog from "@/components/pcp/TransferirLojaDialog";
@@ -87,6 +88,7 @@ export default function CentralPCP() {
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
   const [detalheOpen, setDetalheOpen] = useState(false);
   const [webhookOpen, setWebhookOpen] = useState(false);
+  const [recuperarModalOpen, setRecuperarModalOpen] = useState(false);
   const [distribuindo, setDistribuindo] = useState(false);
   const [selecionados, setSelecionados] = useState(new Set());
   const [senhaGestorOpen, setSenhaGestorOpen] = useState(false);
@@ -214,13 +216,36 @@ export default function CentralPCP() {
     }
   };
 
-  const { data: pedidosRaw = [], isLoading: carregando, refetch } = useQuery({
+  const { data: pedidosRaw = [], isLoading: carregando, refetch, dataUpdatedAt } = useQuery({
     queryKey: ["pedidos-odoo-pcp"],
-    queryFn: () => base44.entities.PedidoOdoo.list("-data_recebimento", 200),
-    refetchInterval: 10000
+    queryFn: () => base44.entities.PedidoOdoo.list("-data_recebimento", 1000),
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true
   });
 
-  // Deduplicação estrita de OFs: garante exibição de cada OF apenas uma vez
+  // Contador de segundos decorridos desde a última sincronização automática com o Odoo
+  const [segundosDesdeSync, setSegundosDesdeSync] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (dataUpdatedAt) {
+        const seg = Math.max(0, Math.round((Date.now() - dataUpdatedAt) / 1000));
+        setSegundosDesdeSync(seg);
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [dataUpdatedAt]);
+
+  const handleRefetchComFeedback = async () => {
+    try {
+      const res = await refetch();
+      const total = res.data?.length || pedidos.length;
+      toast.success(`Central PCP sincronizada com sucesso! ${total} ordens carregadas do Odoo ERP.`);
+    } catch {
+      toast.error("Falha ao sincronizar pedidos com o Odoo.");
+    }
+  };
+
+  // Deduplicação estrita de OFs em memória: garante exibição de cada OF apenas uma vez SEM APAGAR nada do banco!
   const pedidos = useMemo(() => {
     const vistos = new Set();
     const lista = [];
@@ -236,37 +261,6 @@ export default function CentralPCP() {
     }
     return lista;
   }, [pedidosRaw]);
-
-  // Auto-limpeza silenciosa em segundo plano: remove registros clones redundantes no banco
-  const limpezaExecutadaRef = useRef(false);
-  useEffect(() => {
-    if (!pedidosRaw.length || limpezaExecutadaRef.current) return;
-
-    const vistos = new Map();
-    const duplicadosParaRemover = [];
-
-    pedidosRaw.forEach(p => {
-      if (!p.id || !p.numero_pedido) return;
-      const ofIdent = p.of_nome || p.of_odoo_id;
-      if (!ofIdent) return;
-      const chave = `${p.numero_pedido}___${ofIdent}`;
-      if (vistos.has(chave)) {
-        duplicadosParaRemover.push(p.id);
-      } else {
-        vistos.set(chave, p.id);
-      }
-    });
-
-    if (duplicadosParaRemover.length > 0) {
-      limpezaExecutadaRef.current = true;
-      console.log(`[CentralPCP] Limpando ${duplicadosParaRemover.length} registros duplicados de PedidoOdoo...`);
-      Promise.allSettled(
-        duplicadosParaRemover.map(id => base44.entities.PedidoOdoo.delete(id))
-      ).then(() => {
-        queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
-      });
-    }
-  }, [pedidosRaw, queryClient]);
 
   const { data: pedidosProducao = [] } = useQuery({
     queryKey: ["pedidos-producao-todos"],
@@ -1800,16 +1794,43 @@ export default function CentralPCP() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Button variant="ghost" size="icon" onClick={() => refetch()} disabled={carregando}>
-              <RefreshCw className={`w-4 h-4 ${carregando ? "animate-spin" : ""}`} />
+            {/* Indicador de Sincronização em Tempo Real */}
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <span>Sincronizado {segundosDesdeSync === 0 ? "agora" : `há ${segundosDesdeSync}s`}</span>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefetchComFeedback}
+              disabled={carregando}
+              className="h-8 gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
+              title="Forçar atualização e sincronização imediata com o Odoo ERP"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${carregando ? "animate-spin text-orange-500" : "text-emerald-600"}`} />
+              <span className="hidden md:inline">Sincronizar</span>
             </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRecuperarModalOpen(true)}
+              className="h-8 gap-1.5 text-xs font-bold text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-800 hover:bg-orange-50 dark:hover:bg-orange-950/40"
+              title="Localizar pedido ou OF que sumiu ou verificar status no banco"
+            >
+              <Search className="w-3.5 h-3.5 text-orange-500" />
+              <span>Recuperar Pedido</span>
+            </Button>
+
             <Button
               onClick={() => setWebhookOpen(true)}
-              className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white"
+              size="sm"
+              className="h-8 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold"
             >
-              <Radio className="w-4 h-4" />
-              <span className="hidden sm:inline">Receber / Simular Webhook Odoo</span>
-              <span className="sm:hidden">Webhook</span>
+              <Radio className="w-3.5 h-3.5 mr-1" />
+              <span className="hidden lg:inline">Receber / Simular Webhook Odoo</span>
+              <span className="lg:hidden">Webhook</span>
             </Button>
           </div>
         </div>
@@ -2691,6 +2712,16 @@ export default function CentralPCP() {
         open={webhookOpen}
         onOpenChange={setWebhookOpen}
         onReceber={handleReceberWebhook}
+      />
+      <RecuperarPedidoOdooDialog
+        open={recuperarModalOpen}
+        onOpenChange={setRecuperarModalOpen}
+        onSucesso={() => {
+          refetch();
+        }}
+        onAbrirSimuladorWebhook={(numero) => {
+          setWebhookOpen(true);
+        }}
       />
       <TransferirLojaDialog
         open={modalTransferir.aberto}
