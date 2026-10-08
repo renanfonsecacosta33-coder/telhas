@@ -267,14 +267,23 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     },
   });
 
-  // Prioridade 1 a 5: P1 e P2 exigem autorização do gestor
+  // Prioridade 1 a 5 ou ROTA: P1 e P2 exigem autorização do gestor
   const handleSetPrioridade = (o, nivel) => {
-    const nivelNum = nivel ? Number(nivel) : null;
+    const ehRota = nivel === "ROTA";
+    const nivelNum = !ehRota && nivel ? Number(nivel) : null;
     if (nivelNum === 1 || nivelNum === 2) {
       setPrioridadePendente({ ordem: o, nivel: nivelNum });
       setSenhaGestorOpen(true);
     } else {
-      updateMaq.mutate({ id: o.id, data: { prioridade: Boolean(nivelNum), prioridade_nivel: nivelNum } });
+      updateMaq.mutate({
+        id: o.id,
+        data: {
+          prioridade: Boolean(nivelNum || ehRota),
+          prioridade_nivel: ehRota ? "ROTA" : nivelNum,
+          is_rota: ehRota,
+          rota: ehRota
+        }
+      });
     }
   };
 

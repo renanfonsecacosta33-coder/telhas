@@ -221,7 +221,7 @@ export default function CentralPCP() {
   const { data: pedidosRaw = [], isLoading: carregando, refetch, dataUpdatedAt } = useQuery({
     queryKey: ["pedidos-odoo-pcp"],
     queryFn: () => base44.entities.PedidoOdoo.list("-data_recebimento", 1000),
-    refetchInterval: 10000,
+    refetchInterval: 25000,
     refetchOnWindowFocus: true
   });
 
@@ -267,26 +267,26 @@ export default function CentralPCP() {
   const { data: pedidosProducao = [] } = useQuery({
     queryKey: ["pedidos-producao-todos"],
     queryFn: () => base44.entities.Pedido.list("-data", 500),
-    refetchInterval: 10000
+    refetchInterval: 25000
   });
 
   const { data: ordensCD = [] } = useQuery({
     queryKey: ["ordens-cd-todos"],
     queryFn: () => base44.entities.OrdemMaquinaCD.list("-data", 500),
-    refetchInterval: 10000
+    refetchInterval: 25000
   });
 
   // Consultas de Matéria-Prima em Tempo Real para Análise de Disponibilidade no PCP
   const { data: bobinasEstoque = [] } = useQuery({
     queryKey: ["bobinas-estoque-pcp"],
     queryFn: () => base44.entities.Bobina.filter({ arquivada: false }),
-    refetchInterval: 15000
+    refetchInterval: 30000
   });
 
   const { data: chapasEstoque = [] } = useQuery({
     queryKey: ["chapas-estoque-pcp"],
     queryFn: () => base44.entities.ChapaCD.filter({ status: { $ne: "cancelado" } }),
-    refetchInterval: 15000
+    refetchInterval: 30000
   });
 
   // Pré-baixas acumuladas em tempo real de todas as OPs ativas (Telhas + Corte e Dobra)
@@ -795,47 +795,98 @@ export default function CentralPCP() {
     }
   };
 
-  const confirmarPrioridade = async (pedido, nivel) => {
-    try {
-      const ativa = Boolean(nivel);
-      const isRota = nivel === "ROTA";
-      const nivelVal = isRota ? "ROTA" : (nivel ? Number(nivel) : null);
-      const logExistente = (() => { try { return JSON.parse(pedido.historico_log || "[]"); } catch { return []; } })();
-      const descr = isRota
-        ? "OF marcada como 🚚 Pedido de Rota."
-        : ativa
-        ? `OF marcada como Prioridade P${nivelVal} (1 a 5 - sendo 1 mais urgente).`
-        : "Prioridade removida.";
+  // Helper resiliente com retry exponencial para evitar e contornar erros de Rate Limit da API
+  const executarComRetryRateLimit = async (fn, maxTentativas = 4, delayBase = 350) => {
+    let ultimoErro = null;
+    for (let tentativa = 1; tentativa <= maxTentativas; tentativa++) {
+      try {
+        return await fn();
+      } catch (err) {
+        ultimoErro = err;
+        const msg = String(err?.message || "").toLowerCase();
+        const isRateLimit =
+          err?.status === 429 ||
+          err?.statusCode === 429 ||
+          msg.includes("rate limit") ||
+          msg.includes("too many");
 
-      const novoLog = [...logExistente, {
-        data: new Date().toISOString(),
-        usuario: "PCP",
-        acao: ativa ? (isRota ? "prioridade_rota" : `prioridade_p${nivelVal}`) : "prioridade_removida",
-        detalhes: descr
-      }];
-
-      await base44.entities.PedidoOdoo.update(pedido.id, {
-        prioridade: ativa,
-        prioridade_nivel: nivelVal,
-        is_rota: isRota,
-        historico_log: JSON.stringify(novoLog)
-      });
-
-      // Propaga para as ordens ativas vinculadas daquela OF
-      if (pedido.numero_pedido) {
-        await base44.entities.Pedido.updateMany(
-          { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
-          { $set: { prioridade: ativa, prioridade_nivel: nivelVal, is_rota: isRota } }
-        ).catch(() => {});
-        await base44.entities.OrdemMaquinaCD.updateMany(
-          { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
-          { $set: { prioridade: ativa, prioridade_nivel: nivelVal, is_rota: isRota } }
-        ).catch(() => {});
+        if (isRateLimit && tentativa < maxTentativas) {
+          const waitMs = delayBase * Math.pow(2, tentativa - 1) + Math.floor(Math.random() * 150);
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
+          continue;
+        }
+        throw err;
       }
+    }
+    throw ultimoErro;
+  };
 
-      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
-      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
-      queryClient.invalidateQueries({ queryKey: ["ordens-cd-todos"] });
+  const confirmarPrioridade = async (pedido, nivel) => {
+    const ativa = Boolean(nivel);
+    const isRota = nivel === "ROTA";
+    const nivelVal = isRota ? "ROTA" : (nivel ? Number(nivel) : null);
+    const logExistente = (() => { try { return JSON.parse(pedido.historico_log || "[]"); } catch { return []; } })();
+    const descr = isRota
+      ? "OF marcada como 🚚 Pedido de Rota."
+      : ativa
+      ? `OF marcada como Prioridade P${nivelVal} (1 a 5 - sendo 1 mais urgente).`
+      : "Prioridade removida.";
+
+    const novoLog = [...logExistente, {
+      data: new Date().toISOString(),
+      usuario: "PCP",
+      acao: ativa ? (isRota ? "prioridade_rota" : `prioridade_p${nivelVal}`) : "prioridade_removida",
+      detalhes: descr
+    }];
+
+    // 1. Atualização Otimista Imediata no Cache do React Query
+    const snapshotAnterior = queryClient.getQueryData(["pedidos-odoo-pcp"]);
+    queryClient.setQueryData(["pedidos-odoo-pcp"], (antigos = []) => {
+      return antigos.map((p) => {
+        if (p.id === pedido.id) {
+          return {
+            ...p,
+            prioridade: ativa,
+            prioridade_nivel: nivelVal,
+            is_rota: isRota,
+            historico_log: JSON.stringify(novoLog)
+          };
+        }
+        return p;
+      });
+    });
+
+    try {
+      // 2. Persiste a alteração no PedidoOdoo com proteção contra Rate Limit
+      await executarComRetryRateLimit(() =>
+        base44.entities.PedidoOdoo.update(pedido.id, {
+          prioridade: ativa,
+          prioridade_nivel: nivelVal,
+          is_rota: isRota,
+          historico_log: JSON.stringify(novoLog)
+        })
+      );
+
+      // 3. Propaga para as ordens ativas vinculadas daquela OF caso já existam nas máquinas
+      if (pedido.numero_pedido) {
+        try {
+          await executarComRetryRateLimit(() =>
+            base44.entities.Pedido.updateMany(
+              { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
+              { $set: { prioridade: ativa, prioridade_nivel: nivelVal, is_rota: isRota } }
+            )
+          ).catch(() => {});
+        } catch (_) {}
+
+        try {
+          await executarComRetryRateLimit(() =>
+            base44.entities.OrdemMaquinaCD.updateMany(
+              { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
+              { $set: { prioridade: ativa, prioridade_nivel: nivelVal, is_rota: isRota } }
+            )
+          ).catch(() => {});
+        } catch (_) {}
+      }
 
       toast({
         title: isRota ? "🚚 Pedido de Rota Definido" : ativa ? `Prioridade P${nivelVal} Definida` : "Prioridade Removida",
@@ -843,6 +894,10 @@ export default function CentralPCP() {
         className: isRota ? "border-indigo-500/40" : ativa ? "border-amber-500/40" : "border-slate-400/40"
       });
     } catch (e) {
+      // Reverte em caso de falha irreversível
+      if (snapshotAnterior) {
+        queryClient.setQueryData(["pedidos-odoo-pcp"], snapshotAnterior);
+      }
       toast({ title: "Erro ao alterar prioridade", description: e.message, variant: "destructive" });
     }
   };
@@ -858,18 +913,50 @@ export default function CentralPCP() {
   };
 
   const confirmarPrioridadeGrupo = async (grupo, nivel) => {
-    try {
-      const ofs = grupo.ofs || [];
-      const ativa = Boolean(nivel);
-      const isRota = nivel === "ROTA";
-      const nivelVal = isRota ? "ROTA" : (nivel ? Number(nivel) : null);
-      const descr = isRota
-        ? `Todo o Pedido #${grupo.numero_pedido} marcado como 🚚 Pedido de Rota.`
-        : ativa
-        ? `Todo o Pedido #${grupo.numero_pedido} marcado como Prioridade P${nivelVal}.`
-        : `Prioridade removida de todo o Pedido #${grupo.numero_pedido}.`;
+    const ofs = grupo.ofs || [];
+    const ativa = Boolean(nivel);
+    const isRota = nivel === "ROTA";
+    const nivelVal = isRota ? "ROTA" : (nivel ? Number(nivel) : null);
+    const descr = isRota
+      ? `Todo o Pedido #${grupo.numero_pedido} marcado como 🚚 Pedido de Rota.`
+      : ativa
+      ? `Todo o Pedido #${grupo.numero_pedido} marcado como Prioridade P${nivelVal}.`
+      : `Prioridade removida de todo o Pedido #${grupo.numero_pedido}.`;
 
-      for (const ofItem of ofs) {
+    const ofIdsSet = new Set(ofs.map((o) => o.id));
+
+    // 1. Atualização Otimista Imediata no Cache do React Query
+    const snapshotAnterior = queryClient.getQueryData(["pedidos-odoo-pcp"]);
+    queryClient.setQueryData(["pedidos-odoo-pcp"], (antigos = []) => {
+      return antigos.map((p) => {
+        if (ofIdsSet.has(p.id)) {
+          const logExistente = (() => { try { return JSON.parse(p.historico_log || "[]"); } catch { return []; } })();
+          const novoLog = [...logExistente, {
+            data: new Date().toISOString(),
+            usuario: "PCP",
+            acao: ativa ? (isRota ? "prioridade_grupo_rota" : `prioridade_grupo_p${nivelVal}`) : "prioridade_grupo_removida",
+            detalhes: descr
+          }];
+          return {
+            ...p,
+            prioridade: ativa,
+            prioridade_nivel: nivelVal,
+            is_rota: isRota,
+            historico_log: JSON.stringify(novoLog)
+          };
+        }
+        return p;
+      });
+    });
+
+    try {
+      // 2. Atualiza cada OF sequencialmente com pequeno intervalo (120ms) e retry contra Rate Limit
+      for (let i = 0; i < ofs.length; i++) {
+        const ofItem = ofs[i];
+        if (i > 0) {
+          await new Promise((r) => setTimeout(r, 120));
+        }
+
         const logExistente = (() => { try { return JSON.parse(ofItem.historico_log || "[]"); } catch { return []; } })();
         const novoLog = [...logExistente, {
           data: new Date().toISOString(),
@@ -878,29 +965,36 @@ export default function CentralPCP() {
           detalhes: descr
         }];
 
-        await base44.entities.PedidoOdoo.update(ofItem.id, {
-          prioridade: ativa,
-          prioridade_nivel: nivelVal,
-          is_rota: isRota,
-          historico_log: JSON.stringify(novoLog)
-        });
+        await executarComRetryRateLimit(() =>
+          base44.entities.PedidoOdoo.update(ofItem.id, {
+            prioridade: ativa,
+            prioridade_nivel: nivelVal,
+            is_rota: isRota,
+            historico_log: JSON.stringify(novoLog)
+          })
+        );
       }
 
-      // Propaga imediatamente para todas as OPs das perfiladeiras e Corte & Dobra
+      // 3. Propaga para as máquinas (perfiladeiras e Corte & Dobra) de forma blindada
       if (grupo.numero_pedido) {
-        await base44.entities.Pedido.updateMany(
-          { numero_pedido: grupo.numero_pedido, status: { $ne: "cancelado" } },
-          { $set: { prioridade: ativa, prioridade_nivel: nivelVal, is_rota: isRota } }
-        ).catch(() => {});
-        await base44.entities.OrdemMaquinaCD.updateMany(
-          { numero_pedido: grupo.numero_pedido, status: { $ne: "cancelado" } },
-          { $set: { prioridade: ativa, prioridade_nivel: nivelVal, is_rota: isRota } }
-        ).catch(() => {});
-      }
+        try {
+          await executarComRetryRateLimit(() =>
+            base44.entities.Pedido.updateMany(
+              { numero_pedido: grupo.numero_pedido, status: { $ne: "cancelado" } },
+              { $set: { prioridade: ativa, prioridade_nivel: nivelVal, is_rota: isRota } }
+            )
+          ).catch(() => {});
+        } catch (_) {}
 
-      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
-      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
-      queryClient.invalidateQueries({ queryKey: ["ordens-cd-todos"] });
+        try {
+          await executarComRetryRateLimit(() =>
+            base44.entities.OrdemMaquinaCD.updateMany(
+              { numero_pedido: grupo.numero_pedido, status: { $ne: "cancelado" } },
+              { $set: { prioridade: ativa, prioridade_nivel: nivelVal, is_rota: isRota } }
+            )
+          ).catch(() => {});
+        } catch (_) {}
+      }
 
       toast({
         title: isRota ? "🚚 Pedido de Rota Definido" : ativa ? `Prioridade P${nivelVal} no Pedido Todo` : "Prioridade Removida",
@@ -908,6 +1002,10 @@ export default function CentralPCP() {
         className: isRota ? "border-indigo-500/40" : ativa ? "border-amber-500/40" : "border-slate-400/40"
       });
     } catch (e) {
+      // Reverte cache se deu erro após todas as tentativas
+      if (snapshotAnterior) {
+        queryClient.setQueryData(["pedidos-odoo-pcp"], snapshotAnterior);
+      }
       toast({ title: "Erro ao alterar prioridade do pedido", description: e.message, variant: "destructive" });
     }
   };

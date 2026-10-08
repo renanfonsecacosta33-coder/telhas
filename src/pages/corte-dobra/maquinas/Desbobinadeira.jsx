@@ -678,7 +678,19 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
                             {o.status !== "finalizado" && o.status !== "cancelado" && (
                               <SeletorPrioridadeDropdown
                                 pedido={o}
-                                onSelectPrioridade={(nivel) => updateOrdem.mutate({ id: o.id, data: { prioridade: Boolean(nivel), prioridade_nivel: nivel } })}
+                                onSelectPrioridade={(nivel) => {
+                                  const ehRota = nivel === "ROTA";
+                                  const nivelVal = ehRota ? "ROTA" : (nivel ? Number(nivel) : null);
+                                  updateOrdem.mutate({
+                                    id: o.id,
+                                    data: {
+                                      prioridade: Boolean(nivel),
+                                      prioridade_nivel: nivelVal,
+                                      is_rota: ehRota,
+                                      rota: ehRota
+                                    }
+                                  });
+                                }}
                               />
                             )}
                             {o.status !== "cancelado" && (
@@ -746,7 +758,19 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
                       {o.status !== "finalizado" && o.status !== "cancelado" && (
                         <SeletorPrioridadeDropdown
                           pedido={o}
-                          onSelectPrioridade={(nivel) => updateOrdem.mutate({ id: o.id, data: { prioridade: Boolean(nivel), prioridade_nivel: nivel } })}
+                          onSelectPrioridade={(nivel) => {
+                            const ehRota = nivel === "ROTA";
+                            const nivelVal = ehRota ? "ROTA" : (nivel ? Number(nivel) : null);
+                            updateOrdem.mutate({
+                              id: o.id,
+                              data: {
+                                prioridade: Boolean(nivel),
+                                prioridade_nivel: nivelVal,
+                                is_rota: ehRota,
+                                rota: ehRota
+                              }
+                            });
+                          }}
                         />
                       )}
                       {o.status !== "cancelado" && (

@@ -748,10 +748,10 @@ export default function MaquinaPanel({ maquina }) {
     updateMutation.mutate({
       id: pedido.id,
       data: {
-        // P4 (Normal) e P5 (Baixa) NÃO são OPs prioritárias de verdade
-        prioridade: Boolean(nivelNum && nivelNum >= 1 && nivelNum <= 3),
-        prioridade_nivel: nivelNum,
-        ...(ehRota ? { rota: true } : {}),
+        prioridade: Boolean((nivelNum && nivelNum >= 1 && nivelNum <= 3) || ehRota),
+        prioridade_nivel: ehRota ? "ROTA" : nivelNum,
+        rota: ehRota,
+        is_rota: ehRota,
         ...histData
       }
     });
