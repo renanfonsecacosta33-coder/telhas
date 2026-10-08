@@ -241,9 +241,9 @@ export default function CentralPCP() {
     try {
       const res = await refetch();
       const total = res.data?.length || pedidos.length;
-      toast.success(`Central PCP sincronizada com sucesso! ${total} ordens carregadas do Odoo ERP.`);
-    } catch {
-      toast.error("Falha ao sincronizar pedidos com o Odoo.");
+      toast({ title: "Central PCP sincronizada!", description: `${total} ordens carregadas do Odoo ERP.` });
+    } catch (e) {
+      toast({ title: "Falha ao sincronizar pedidos com o Odoo.", description: e.message, variant: "destructive" });
     }
   };
 
