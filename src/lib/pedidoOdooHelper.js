@@ -583,7 +583,7 @@ export function detectarTipoProdutoTelha(produtoTexto = "", descricaoTexto = "")
   // 1. TELHA + EPS + MANTA (Telha + EPS com acabamento inferior em manta de alumínio / filme)
   const ehManta = (
     /(MANTA|FILME|ALUMINIO|ALUMNIO)/i.test(p) &&
-    /(EPS|ISOPOR|SANDU|TERMOAC|TELHA)/i.test(p)
+    /(EPS|ISOPOR|SANDU|TERMOAC)/i.test(p)
   ) || /(EPS\s*\d*|ISOPOR|PU|PIR)\s*(\+|\/)\s*(MANTA|FILME)/i.test(p);
   if (ehManta) {
     return "TELHA + EPS + MANTA";
@@ -601,12 +601,13 @@ export function detectarTipoProdutoTelha(produtoTexto = "", descricaoTexto = "")
   }
 
   // 3. TELHA BANDEJA
-  if (p.includes("BANDEJA")) {
+  if (/\bBANDEJA\b/i.test(p)) {
     return "TELHA BANDEJA";
   }
 
   // 4. TELHA + EPS (Monoface: Chapa superior + EPS sem chapa ou manta inferior)
-  if (/(EPS|ISOPOR|SANDUICHE|SANDUÍCHE|TERMOACUSTICA|TERMOACÚSTICA|PIR|PUR)/i.test(p)) {
+  // Exige termos explícitos com limites de palavra para nunca confundir telha simples
+  if (/\b(EPS|ISOPOR|SANDUICHE|SANDUÍCHE|TERMOACUSTICA|TERMOACÚSTICA|PIR|PUR)\b/i.test(p) || /(EPS\s*\d+|ISOPOR\s*\d+)/i.test(p)) {
     return "TELHA + EPS";
   }
 
@@ -655,9 +656,21 @@ export function detectarOrigemAco(produtoTexto = "") {
 }
 
 // Detecta o tipo e espessura de EPS a partir do texto do produto, modelo ou da máquina da telha
+// REGRA DE OURO: Telha simples NUNCA tem EPS. Retorna vazio se não houver indício claro de EPS.
 export function detectarEPSTelha(produtoTexto = "", maquina = "") {
   const p = String(produtoTexto || "").toUpperCase();
   const m = String(maquina || "").toUpperCase();
+
+  // Se nem o texto nem a máquina mencionam EPS/termoacústica/sanduíche/isopor/bandeja, RETORNA VAZIO!
+  const temIndicioEps =
+    /\b(EPS|ISOPOR|SANDU|TERMOAC|PIR|PUR|BANDEJA)\b/i.test(p) ||
+    /(EPS\s*\d+|ISOPOR\s*\d+)/i.test(p) ||
+    /(CORTE DE EPS|CORTE EPS|COLAGEM)/i.test(m);
+
+  if (!temIndicioEps) {
+    return "";
+  }
+
   const espEps = extrairEspessuraEPS(produtoTexto);
   const espSufixo = espEps ? ` (${espEps})` : "";
 

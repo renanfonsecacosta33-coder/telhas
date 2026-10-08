@@ -148,22 +148,31 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const isOperador = userRole === "operador";
   const podeGerenciar = !isOperador;
 
-  // Detecção inteligente e dinâmica do produto real (corrige OPs que foram salvas como TELHA + EPS mas têm TELHA + EPS + TELHA)
+  // Detecção inteligente e dinâmica do produto real (corrige OPs que foram salvas como TELHA + EPS mas têm TELHA + EPS + TELHA, ou OPs salvas como TELHA + EPS que na verdade são TELHAS SIMPLES)
   const produtoDetectado = useMemo(() => {
     if (!pOriginal) return "TELHA";
     const rawProd = pOriginal.produto || pOriginal._presets?.produto || "";
+    // NUNCA incluir pOriginal.eps no textoContexto para não criar loop de falso positivo
     const textoContexto = [
       pOriginal.item_produto,
       pOriginal.produto_rotulo_pcp,
       pOriginal.modelo,
       pOriginal.observacoes_odoo,
       pOriginal.observacoes,
-      pOriginal.eps,
       pOriginal._presets?.item_produto,
       pOriginal._presets?.produto_rotulo_pcp,
       pOriginal._presets?.observacoes_odoo,
       rawProd
     ].filter(Boolean).join(" ");
+
+    // Checa se o texto do item / cadastro Odoo tem indício real de termoacústica / EPS / sanduíche / bandeja
+    const temIndicioEpsReal = /\b(eps|isopor|sanduiche|sanduíche|termoacustica|termoacústica|manta|bandeja|pir|pur)\b/i.test(textoContexto) ||
+      /(eps\s*\d+|isopor\s*\d+)/i.test(textoContexto);
+
+    // Se o pedido original foi gravado como TELHA + EPS mas o item Odoo é TELHA SIMPLES (sem EPS nenhum):
+    if (!temIndicioEpsReal && (rawProd === "TELHA + EPS" || rawProd === "TELHA + EPS + MANTA" || rawProd === "TELHA + EPS + TELHA")) {
+      return "TELHA";
+    }
 
     const tipoDetectado = detectarTipoProdutoTelha(rawProd, textoContexto);
     // Se no texto há clara indicação de TELHA + EPS + TELHA
@@ -171,15 +180,13 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       return "TELHA + EPS + TELHA";
     }
     if (tipoDetectado && tipoDetectado !== "TELHA" && (rawProd === "TELHA" || rawProd === "TELHA + EPS")) {
-      return tipoDetectado;
+      return temIndicioEpsReal ? tipoDetectado : "TELHA";
     }
-    return rawProd || tipoDetectado || "TELHA";
+    return (!temIndicioEpsReal && rawProd?.includes("EPS")) ? "TELHA" : (rawProd || tipoDetectado || "TELHA");
   }, [pOriginal]);
 
   const epsDetectado = useMemo(() => {
     if (!pOriginal) return "";
-    if (pOriginal.eps) return pOriginal.eps;
-    if (pOriginal._presets?.eps) return pOriginal._presets.eps;
     const textoContexto = [
       pOriginal.item_produto,
       pOriginal.produto_rotulo_pcp,
@@ -188,6 +195,15 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       pOriginal.observacoes,
       pOriginal.produto
     ].filter(Boolean).join(" ");
+
+    const temIndicioEpsReal = /\b(eps|isopor|sanduiche|sanduíche|termoacustica|termoacústica|manta|bandeja|pir|pur)\b/i.test(textoContexto) ||
+      /(eps\s*\d+|isopor\s*\d+)/i.test(textoContexto);
+
+    // Se o produto NÃO tem EPS real, SEMPRE retorna vazio (telha simples nunca tem EPS)
+    if (!temIndicioEpsReal) return "";
+
+    if (pOriginal.eps) return pOriginal.eps;
+    if (pOriginal._presets?.eps) return pOriginal._presets.eps;
     return detectarEPSTelha(textoContexto, pOriginal.maquina || maquina);
   }, [pOriginal, maquina]);
 
@@ -195,11 +211,13 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const p = useMemo(() => {
     if (!pOriginal) return {};
     const presets = pOriginal._presets || {};
+    const prodFinal = produtoDetectado || pOriginal.produto || presets.produto || "TELHA";
+    const ehComEps = PRODUTOS_COM_EPS.includes(prodFinal) || Boolean(epsDetectado);
     return {
       ...presets,
       ...pOriginal,
-      produto: produtoDetectado || pOriginal.produto || presets.produto || "TELHA",
-      eps: pOriginal.eps || presets.eps || epsDetectado || "",
+      produto: prodFinal,
+      eps: ehComEps ? (pOriginal.eps || presets.eps || epsDetectado || "") : "",
       numero_pedido: pOriginal.numero_pedido || presets.numero_pedido || "",
       cliente: pOriginal.cliente || presets.cliente || "",
       vendedor: pOriginal.vendedor || presets.vendedor || "",
@@ -220,17 +238,44 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     };
   }, [pOriginal, maquina, produtoDetectado, epsDetectado]);
 
-  // Auto-correção em tempo real no banco de dados se a OP estiver gravada como "TELHA + EPS" mas for "TELHA + EPS + TELHA"
+  // Auto-correção em tempo real no banco de dados:
+  // 1) Se estava como "TELHA + EPS" mas o Odoo é "TELHA + EPS + TELHA" -> corrige para TELHA + EPS + TELHA
+  // 2) Se estava como "TELHA + EPS" (ou com eps preenchido) mas é TELHA SIMPLES -> limpa EPS e volta para TELHA!
   useEffect(() => {
-    if (pOriginal?.id && pOriginal.produto !== "TELHA + EPS + TELHA" && produtoDetectado === "TELHA + EPS + TELHA") {
+    if (!pOriginal?.id) return;
+
+    // Caso 1: Dupla Telha
+    if (pOriginal.produto !== "TELHA + EPS + TELHA" && produtoDetectado === "TELHA + EPS + TELHA") {
       base44.entities.Pedido.update(pOriginal.id, {
         produto: "TELHA + EPS + TELHA",
         ...(epsDetectado && !pOriginal.eps ? { eps: epsDetectado } : {})
       }).then(() => {
         if (onUpdate) onUpdate();
-      }).catch(err => console.warn("[PedidoRow] Auto-correção produto:", err));
+      }).catch(err => console.warn("[PedidoRow] Auto-correção dupla telha:", err));
+      return;
     }
-  }, [pOriginal?.id, pOriginal?.produto, pOriginal?.eps, produtoDetectado, epsDetectado, onUpdate]);
+
+    // Caso 2: Era salva incorretamente com EPS mas é TELHA SIMPLES
+    const eraComEps = PRODUTOS_COM_EPS.includes(pOriginal.produto) || Boolean(pOriginal.eps);
+    const agoraEhSimples = produtoDetectado === "TELHA" && !epsDetectado;
+
+    if (eraComEps && agoraEhSimples) {
+      console.log(`[PedidoRow] Auto-corrigindo OP #${pOriginal.numero_pedido}: removendo EPS indevido e voltando para TELHA simples.`);
+      const updates = {
+        produto: "TELHA",
+        eps: "",
+        eps_status: null
+      };
+      // Se estava na máquina de colagem ou aguardando colagem, devolve para a perfiladeira original
+      if (pOriginal.maquina === "COLAGEM" || pOriginal.status === "aguardando_colagem") {
+        updates.maquina = pOriginal.maquina_origem || (pOriginal.modelo?.includes("25") ? "TP - 25" : "TP - 40");
+        updates.status = "pendente";
+      }
+      base44.entities.Pedido.update(pOriginal.id, updates).then(() => {
+        if (onUpdate) onUpdate();
+      }).catch(err => console.warn("[PedidoRow] Auto-correção telha simples:", err));
+    }
+  }, [pOriginal?.id, pOriginal?.produto, pOriginal?.eps, pOriginal?.maquina, pOriginal?.maquina_origem, pOriginal?.status, produtoDetectado, epsDetectado, onUpdate]);
   const regras = useRegrasProducao();
   const [etapasOk, setEtapasOk] = useState({});
   const [mostrarEtapas, setMostrarEtapas] = useState(false);

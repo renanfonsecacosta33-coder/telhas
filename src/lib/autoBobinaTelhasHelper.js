@@ -230,8 +230,8 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
   const esp = item.espessura ? String(item.espessura) : detectarEspessura(produtoNome);
   const origem = item.origem || detectarOrigemAco(produtoNome);
   const cor = detectarCorTelha(produtoNome, descTexto);
-  const eps = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(prodTipo) ||
-    /(eps|manta|sanduiche|isopor|termoacustica)/i.test(produtoNome)
+  const temIndicioEps = /(eps|manta|sanduiche|isopor|termoacustica|pir|pur|bandeja)/i.test(`${produtoNome} ${descTexto}`);
+  const eps = (["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(prodTipo) && temIndicioEps)
     ? detectarEPSTelha(produtoNome, maquina)
     : "";
 
@@ -335,7 +335,7 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
         updates.bobina_superior = bobinaEleita.descricao;
         updates.rvm_superior = bobinaEleita.cor;
       }
-      // Corrige o produto se estava como "TELHA + EPS" e o Odoo é "TELHA + EPS + TELHA"
+      // Corrige o produto se estava divergente do Odoo
       if (opValida.produto !== prodTipo) {
         updates.produto = prodTipo;
         if (isDuplaTelha) {
@@ -344,8 +344,12 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
           updates.rvm_inferior = opValida.rvm_inferior || bobinaEleita?.cor || "Natural";
         }
       }
-      if (eps && (!opValida.eps || opValida.eps !== eps)) {
-        updates.eps = eps;
+      if (eps) {
+        if (!opValida.eps || opValida.eps !== eps) updates.eps = eps;
+      } else if (opValida.eps) {
+        // Se a telha não tem EPS, limpa o EPS da OP anterior
+        updates.eps = "";
+        updates.eps_status = null;
       }
       if (cor && (!opValida.cor_exigida || opValida.cor_exigida !== cor)) {
         updates.cor_exigida = cor;
@@ -591,7 +595,8 @@ export async function rotearLoteTelhasAgrupadas({
 
     const unidadeOp = filialAtiva && filialAtiva !== "todas" ? filialAtiva : (pedido.unidade || "Matriz AJL");
     const isDuplaTelha = g.prodTipo === "TELHA + EPS + TELHA";
-    const eps = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(g.prodTipo)
+    const temIndicioEpsNoGrupo = /(eps|manta|sanduiche|isopor|termoacustica|pir|pur|bandeja)/i.test(`${primeiroItem.produto || ""} ${primeiroItem.descricao || ""}`);
+    const eps = (["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(g.prodTipo) && temIndicioEpsNoGrupo)
       ? detectarEPSTelha(primeiroItem.produto || primeiroItem.descricao || "", g.maquina)
       : "";
 
