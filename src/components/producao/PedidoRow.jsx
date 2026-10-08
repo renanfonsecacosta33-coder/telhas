@@ -213,20 +213,30 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const p = useMemo(() => {
     if (!pOriginal) return {};
     const presets = pOriginal._presets || {};
+    // Identifica se é CUMEEIRA
+    const ehCumeeira = (pOriginal.produto === "CUMEEIRA" || produtoDetectado === "CUMEEIRA" || /\bCUMEEIRA\b/i.test(`${pOriginal.item_produto || ""} ${pOriginal.modelo || ""} ${pOriginal.observacoes || ""}`));
+
     // Se o usuário selecionou TELHA manualmente ou foi detectada TELHA sem indício de EPS
-    const prodFinal = (produtoDetectado === "TELHA" || pOriginal.produto === "TELHA")
+    let prodFinal = (produtoDetectado === "TELHA" || pOriginal.produto === "TELHA")
       ? "TELHA"
       : (produtoDetectado || pOriginal.produto || presets.produto || "TELHA");
 
-    const ehComEps = PRODUTOS_COM_EPS.includes(prodFinal) && Boolean(epsDetectado);
+    if (ehCumeeira) {
+      prodFinal = "CUMEEIRA";
+    }
+
+    const ehComEps = !ehCumeeira && (PRODUTOS_COM_EPS.includes(prodFinal) && Boolean(epsDetectado));
     const maqPerfil = pOriginal.maquina_origem || detectarMaquinaTelha(pOriginal) || (pOriginal.modelo?.toLowerCase().includes("colonial") ? "COLONIAL" : pOriginal.modelo?.includes("25") ? "TP - 25" : "TP - 40");
 
+    // Se é cumeeira, a máquina SEMPRE é CUMEEIRA
     // Se é telha simples, NUNCA permite ficar em colagem ou com status de colagem
     const statusAjustado = (!ehComEps && (pOriginal.status === "aguardando_colagem" || pOriginal.maquina === "COLAGEM"))
       ? "pendente"
       : (pOriginal.status || presets.status || "pendente");
 
-    const maquinaAjustada = (!ehComEps && pOriginal.maquina === "COLAGEM")
+    const maquinaAjustada = ehCumeeira
+      ? "CUMEEIRA"
+      : (!ehComEps && pOriginal.maquina === "COLAGEM")
       ? maqPerfil
       : (pOriginal.maquina || presets.maquina || maquina || "");
 
@@ -259,6 +269,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   // Auto-correção em tempo real no banco de dados:
   // 1) Se estava como "TELHA + EPS" mas o Odoo é "TELHA + EPS + TELHA" -> corrige para TELHA + EPS + TELHA
   // 2) Se estava como "TELHA + EPS" (ou com eps/colagem) mas é TELHA SIMPLES -> limpa EPS e volta para TELHA na perfiladeira correta!
+  // 3) Se é CUMEEIRA mas foi gravada indevidamente em TP - 25 ou outra máquina -> move para CUMEEIRA!
   useEffect(() => {
     if (!pOriginal?.id) return;
 
@@ -273,7 +284,22 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       return;
     }
 
-    // Caso 2: Era salva incorretamente com EPS ou Colagem mas é TELHA SIMPLES
+    // Caso 2: Cumeeira atribuída indevidamente a perfiladeira (ex: TP - 25)
+    const ehCumeeiraItem = (pOriginal.produto === "CUMEEIRA" || produtoDetectado === "CUMEEIRA" || /\bCUMEEIRA\b/i.test(`${pOriginal.item_produto || ""} ${pOriginal.modelo || ""} ${pOriginal.observacoes || ""}`));
+    if (ehCumeeiraItem && pOriginal.maquina !== "CUMEEIRA") {
+      console.log(`[PedidoRow] Auto-corrigindo OP #${pOriginal.numero_pedido}: Cumeeira transferida para a máquina CUMEEIRA.`);
+      base44.entities.Pedido.update(pOriginal.id, {
+        produto: "CUMEEIRA",
+        maquina: "CUMEEIRA",
+        eps: "",
+        eps_status: null
+      }).then(() => {
+        if (onUpdate) onUpdate();
+      }).catch(err => console.warn("[PedidoRow] Auto-correção cumeeira:", err));
+      return;
+    }
+
+    // Caso 3: Era salva incorretamente com EPS ou Colagem mas é TELHA SIMPLES
     const ehTelhaSimples = (produtoDetectado === "TELHA" || pOriginal.produto === "TELHA");
     const temResiduoColagem = Boolean(pOriginal.eps) || pOriginal.maquina === "COLAGEM" || pOriginal.status === "aguardando_colagem" || Boolean(pOriginal.eps_status);
 
@@ -292,7 +318,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         if (onUpdate) onUpdate();
       }).catch(err => console.warn("[PedidoRow] Auto-correção telha simples:", err));
     }
-  }, [pOriginal?.id, pOriginal?.produto, pOriginal?.eps, pOriginal?.maquina, pOriginal?.maquina_origem, pOriginal?.status, produtoDetectado, epsDetectado, onUpdate]);
+  }, [pOriginal?.id, pOriginal?.produto, pOriginal?.eps, pOriginal?.maquina, pOriginal?.maquina_origem, pOriginal?.status, pOriginal?.item_produto, pOriginal?.modelo, pOriginal?.observacoes, produtoDetectado, epsDetectado, onUpdate]);
   const regras = useRegrasProducao();
   const [etapasOk, setEtapasOk] = useState({});
   const [mostrarEtapas, setMostrarEtapas] = useState(false);

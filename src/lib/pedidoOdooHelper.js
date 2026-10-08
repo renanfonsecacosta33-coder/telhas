@@ -580,6 +580,11 @@ export function extrairEspessuraEPS(texto = "") {
 export function detectarTipoProdutoTelha(produtoTexto = "", descricaoTexto = "") {
   const p = `${produtoTexto || ""} ${descricaoTexto || ""}`.toUpperCase();
 
+  // 0. CUMEEIRA tem prioridade sobre telhas compostas (ex: CUMEEIRA NORMAL TR 25)
+  if (/\bCUMEEIRA\b/i.test(p)) {
+    return "CUMEEIRA";
+  }
+
   // 1. TELHA + EPS + MANTA (Telha + EPS com acabamento inferior em manta de alumínio / filme)
   const ehManta = (
     /(MANTA|FILME|ALUMINIO|ALUMNIO)/i.test(p) &&
@@ -615,9 +620,6 @@ export function detectarTipoProdutoTelha(produtoTexto = "", descricaoTexto = "")
   if (/(BOBININ|BOBININH|BOBINA|FITA|DESBOBINAM)/i.test(p)) {
     return "BOBININHA";
   }
-  if (p.includes("CUMEEIRA")) {
-    return "CUMEEIRA";
-  }
   if (p.includes("PAINEL")) {
     return "PAINEL";
   }
@@ -627,14 +629,22 @@ export function detectarTipoProdutoTelha(produtoTexto = "", descricaoTexto = "")
 
 // Detecta a máquina sugerida para Telhas
 export function detectarMaquinaTelha(produtoTexto = "") {
-  const p = String(produtoTexto || "").toUpperCase();
+  const p = typeof produtoTexto === "object"
+    ? `${produtoTexto?.produto || ""} ${produtoTexto?.modelo || ""} ${produtoTexto?.item_produto || ""} ${produtoTexto?.observacoes || ""} ${produtoTexto?.descricao || ""}`.toUpperCase()
+    : String(produtoTexto || "").toUpperCase();
+
+  // 1. CUMEEIRA sempre é feita na máquina CUMEEIRA (mesmo que seja Cumeeira TR 25, TR 40 ou Colonial)
+  if (p.includes("CUMEEIRA")) return "CUMEEIRA";
+
+  // 2. Bobininha / Fita
   if (/(DESBOBINADOR|BOBININ|BOBININH|BOBINA|FITA|DESBOBINAM)/i.test(p)) return "DESBOBINADOR";
-  if (p.includes("TP 25") || p.includes("TP-25") || p.includes("TP25")) return "TP - 25";
-  if (p.includes("TP 40") || p.includes("TP-40") || p.includes("TP40")) return "TP - 40";
+
+  // 3. Demais perfiladeiras
+  if (p.includes("TP 25") || p.includes("TP-25") || p.includes("TP25") || p.includes("TR 25") || p.includes("TR-25") || p.includes("TR25")) return "TP - 25";
+  if (p.includes("TP 40") || p.includes("TP-40") || p.includes("TP40") || p.includes("TR 40") || p.includes("TR-40") || p.includes("TR40")) return "TP - 40";
   if (p.includes("ONDULAD")) return "ONDULADA";
   if (p.includes("COLONIAL")) return "COLONIAL";
   if (p.includes("BANDEJA")) return "BANDEJA";
-  if (p.includes("CUMEEIRA")) return "CUMEEIRA";
   return "";
 }
 

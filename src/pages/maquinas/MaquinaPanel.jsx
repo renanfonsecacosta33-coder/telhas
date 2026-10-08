@@ -190,6 +190,21 @@ export default function MaquinaPanel({ maquina }) {
         return mNorm === "COLAGEM" || p.status === "aguardando_colagem";
       }
 
+      // Identifica se este item é uma CUMEEIRA
+      const ehCumeeira = (p.produto === "CUMEEIRA") ||
+        /\bCUMEEIRA\b/i.test(`${p.item_produto || ""} ${p.modelo || ""} ${p.observacoes || ""} ${p.observacoes_odoo || ""}`);
+
+      // Se estamos em máquina de telhas (TP-25, TP-40, Colonial, etc.) e NÃO é a máquina CUMEEIRA:
+      // Cumeeiras NUNCA devem aparecer nesta máquina!
+      if (targetNorm !== "CUMEEIRA" && ehCumeeira) {
+        return false;
+      }
+
+      // Se estamos na tela da CUMEEIRA:
+      if (targetNorm === "CUMEEIRA") {
+        return ehCumeeira || mNorm === "CUMEEIRA" || String(p.maquina || "").toUpperCase().includes("CUMEEIRA");
+      }
+
       // Se estamos em máquina perfiladeira (TP-40, BANDEJA, etc.):
       // A OP de colagem final da Telha Bandeja fica restrita à máquina de Colagem
       if (p.tipo_componente_bandeja === "colagem_final") {

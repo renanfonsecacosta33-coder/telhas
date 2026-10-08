@@ -224,8 +224,9 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
   const descTexto = item.descricao || item.observacao || pedido.observacoes || "";
   const produtoNome = item.produto || item.descricao || "";
   const prodTipo = detectarTipoProdutoTelha(produtoNome, descTexto);
-  let maquina = item.maquina || detectarMaquinaTelha(produtoNome);
-  if (!maquina) maquina = "TP - 40"; // Padrão de fábrica de telhas
+  let maquina = (prodTipo === "CUMEEIRA" || /\bCUMEEIRA\b/i.test(`${produtoNome} ${descTexto}`))
+    ? "CUMEEIRA"
+    : (item.maquina || detectarMaquinaTelha(produtoNome) || "TP - 40");
 
   const esp = item.espessura ? String(item.espessura) : detectarEspessura(produtoNome);
   const origem = item.origem || detectarOrigemAco(produtoNome);
@@ -500,8 +501,9 @@ export async function rotearLoteTelhasAgrupadas({
     const descTexto = it.descricao || it.observacao || "";
     const produtoNome = it.produto || it.descricao || "";
     const prodTipo = detectarTipoProdutoTelha(produtoNome, descTexto);
-    let maquina = it.maquina || detectarMaquinaTelha(produtoNome);
-    if (!maquina) maquina = "TP - 40";
+    let maquina = (prodTipo === "CUMEEIRA" || /\bCUMEEIRA\b/i.test(`${produtoNome} ${descTexto}`))
+      ? "CUMEEIRA"
+      : (it.maquina || detectarMaquinaTelha(produtoNome) || "TP - 40");
     const esp = it.espessura ? String(it.espessura) : (detectarEspessura(produtoNome) || "0.43");
     const cor = detectarCorTelha(produtoNome, descTexto) || "NATURAL";
     const chave = `${maquina}___${prodTipo}___${esp}___${cor}`.toUpperCase();
