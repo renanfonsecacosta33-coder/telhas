@@ -12,11 +12,13 @@ import {
   SheetClose
 } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Camera, Sun, Moon, Monitor, LogOut, Briefcase, MapPin, MonitorPlay, ChevronRight, Clock } from 'lucide-react';
+import { Camera, Sun, Moon, Monitor, LogOut, Briefcase, MapPin, MonitorPlay, ChevronRight, Clock, Volume2, Play } from 'lucide-react';
+import { getModoVoz, setModoVoz, testarVoz } from '@/lib/sounds';
 
 export default function UserSettingsDrawer({ open, onOpenChange }) {
   const { user, logout } = useAuth();
   const { tema, setTema } = useTheme();
+  const [modoVoz, setModoVozState] = useState(getModoVoz());
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -125,6 +127,56 @@ export default function UserSettingsDrawer({ open, onOpenChange }) {
                   >
                     <Icon size={18} className="mb-1" />
                     <span className="text-xs font-medium">{opt.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Voice Section */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-foreground/80 uppercase tracking-wider">Voz da Fábrica</h4>
+              <button
+                type="button"
+                onClick={() => testarVoz(modoVoz)}
+                className="text-xs font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-md hover:bg-amber-500/20 transition-colors"
+              >
+                <Play size={12} className="fill-current" />
+                Ouvir Teste
+              </button>
+            </div>
+            <div className="flex flex-col gap-2 p-1 bg-secondary/50 rounded-xl">
+              {[
+                { id: 'bolsonaro', emoji: '🇧🇷', title: 'Voz do Bolsonaro', desc: 'Com bordões ("Talkei?!")' },
+                { id: 'padrao', emoji: '🤖', title: 'Voz Padrão', desc: 'Avisos neutros e convencionais' },
+                { id: 'desativado', emoji: '🔇', title: 'Sem Voz', desc: 'Apenas sinais e beeps' }
+              ].map((opt) => {
+                const isActive = modoVoz === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={() => {
+                      setModoVozState(opt.id);
+                      setModoVoz(opt.id);
+                      if (opt.id !== 'desativado') testarVoz(opt.id);
+                    }}
+                    className={`flex items-center justify-between p-2.5 rounded-lg transition-all duration-200 text-left ${
+                      isActive
+                        ? 'bg-background shadow-sm text-foreground font-semibold border border-border'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-base">{opt.emoji}</span>
+                      <div>
+                        <p className="text-xs font-bold leading-tight">{opt.title}</p>
+                        <p className="text-[10px] text-muted-foreground">{opt.desc}</p>
+                      </div>
+                    </div>
+                    {isActive && (
+                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    )}
                   </button>
                 );
               })}

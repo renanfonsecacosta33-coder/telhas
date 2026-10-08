@@ -16,6 +16,7 @@ import { useFilial } from "@/contexts/FilialContext";
 import { playAlertSound, speakNovaOp, playFinishSound, speakOpFinalizada } from "@/lib/sounds";
 import { HistoricoPedidoTelhasButton } from "@/components/producao/HistoricoPedidoTelhasSidebar";
 import PainelSolicitacoesProducao from "@/components/producao/PainelSolicitacoesProducao";
+import BotaoVozFabrica from "@/components/producao/BotaoVozFabrica";
 import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
 import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERelatorioMaquinaModal";
@@ -808,6 +809,8 @@ export default function MaquinaPanel({ maquina }) {
             <History className="w-4 h-4 text-purple-600" />
             Histórico da Máquina
           </Button>
+
+          <BotaoVozFabrica />
 
           <Button
             variant="outline"
