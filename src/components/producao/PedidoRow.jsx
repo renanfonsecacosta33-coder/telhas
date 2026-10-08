@@ -1629,13 +1629,6 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
               </div>
             </div>
 
-            {/* SELO GIGANTE E CLARO: AÇO NACIONAL VS IMPORTADO */}
-            <BadgeOrigemAco
-              bobina={bobinaPrincipalObj}
-              bobinaTexto={p.bobina_superior}
-              origemExigida={p.origem_exigida}
-              size="destaque"
-            />
           </div>
         )}
 
