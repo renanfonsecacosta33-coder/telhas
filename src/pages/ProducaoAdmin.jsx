@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, TrendingUp, Trash2, Star, Truck, Inbox, Target, ShieldAlert, Layers, Trophy } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, TrendingUp, Trash2, Star, Truck, Inbox, Target, ShieldAlert, Layers, Trophy, Search, X } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Link } from "react-router-dom";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
@@ -21,6 +21,9 @@ import { useFilial } from "@/contexts/FilialContext";
 import ExpedicaoTab from "@/components/logistica/ExpedicaoTab";
 import FilaPCPTelhas from "@/components/pcp/FilaPCPTelhas";
 import KanbanBoard from "@/components/producao/KanbanBoard";
+import FiltrosDataPCPBar from "@/components/pcp/FiltrosDataPCPBar";
+import { extrairDataISO, calcularIntervaloPreset, ordenarPedidosPCP } from "@/lib/filtroDataHelper";
+import { diasUteisRestantes } from "@/lib/sla";
 import { prepararPresetNovaOrdemTelhas, getItens, computePercentual, statusPcpPorPercentual, buildItensJson } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
@@ -55,6 +58,15 @@ export default function ProducaoAdmin() {
   const { metaGeral, calcularStatusMeta } = useMetasProducao();
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
+
+  // ── FILTROS AVANÇADOS E BUSCA ESTILO CENTRAL PCP ──
+  const [termoBusca, setTermoBusca] = useState("");
+  const [filtroUrgencia, setFiltroUrgencia] = useState("todos"); // "todos" | "mais_atrasados" | "hoje_amanha" | "prioritarios" | "nao_distribuidos"
+  const [ordenacao, setOrdenacao] = useState("mais_atrasados");
+  const [filtroDataCampo, setFiltroDataCampo] = useState("data"); // "data" | "data_entrega" | "data_prevista" | "created_date"
+  const [filtroDataPreset, setFiltroDataPreset] = useState("todas");
+  const [dataInicio, setDataInicio] = useState("");
+  const [dataFim, setDataFim] = useState("");
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
@@ -218,17 +230,178 @@ export default function ProducaoAdmin() {
     setDeleteConfirm(p || { id });
   };
 
-  // Pedidos da semana atual
+  // ── CONTROLE E FILTROS AVANÇADOS ──
+  const temFiltroAtivo = Boolean(
+    termoBusca.trim() ||
+    filtroUrgencia !== "todos" ||
+    (filtroDataPreset !== "todas" && filtroDataPreset !== "personalizada") ||
+    Boolean(dataInicio) ||
+    Boolean(dataFim) ||
+    ordenacao !== "mais_atrasados"
+  );
+
+  const contadores = useMemo(() => {
+    let atrasados = 0;
+    let hojeAmanha = 0;
+    let prioritarios = 0;
+    let aguardando = 0;
+    const hojeStr = format(new Date(), "yyyy-MM-dd");
+
+    pedidos.forEach(p => {
+      if (p.status === "cancelado") return;
+      if (p.prioridade && p.status !== "finalizado") prioritarios++;
+      if (p.status === "aguardando" || p.status === "pendente" || !p.status) aguardando++;
+
+      if (p.status !== "finalizado") {
+        const dataAlvo = p.data_entrega || p.data_prevista || p.data;
+        if (dataAlvo) {
+          const dtISO = extrairDataISO(dataAlvo);
+          if (dtISO) {
+            if (dtISO < hojeStr) {
+              atrasados++;
+            } else {
+              const d = diasUteisRestantes(dtISO);
+              if (d != null && d <= 1) hojeAmanha++;
+            }
+          }
+        }
+      }
+    });
+
+    return {
+      total: pedidos.filter(p => p.status !== "cancelado").length,
+      atrasados,
+      hojeAmanha,
+      prioritarios,
+      naoDistribuidos: aguardando,
+    };
+  }, [pedidos]);
+
+  const handleSelectPreset = (presetId) => {
+    setFiltroDataPreset(presetId);
+    if (presetId === "todas") {
+      setDataInicio("");
+      setDataFim("");
+    } else {
+      const { inicio, fim } = calcularIntervaloPreset(presetId);
+      setDataInicio(inicio);
+      setDataFim(fim);
+    }
+  };
+
+  const handleLimparFiltros = () => {
+    setTermoBusca("");
+    setFiltroUrgencia("todos");
+    setOrdenacao("mais_atrasados");
+    setFiltroDataCampo("data");
+    setFiltroDataPreset("todas");
+    setDataInicio("");
+    setDataFim("");
+  };
+
+  // Pedidos filtrados globalmente (em todas as datas e máquinas da fábrica)
+  const pedidosFiltradosGlobal = useMemo(() => {
+    let lista = pedidos.filter(p => p.status !== "cancelado");
+
+    // 1. Busca textual inteligente sem falso-positivos
+    if (termoBusca.trim()) {
+      const q = termoBusca.toLowerCase().trim();
+      const qDigits = q.replace(/\D/g, "");
+
+      lista = lista.filter(p => {
+        // Pedido / Número
+        const num = String(p.numero_pedido || "").toLowerCase().trim();
+        const numDigits = num.replace(/\D/g, "");
+        if (num.includes(q)) return true;
+        if (qDigits && numDigits) {
+          if (numDigits === qDigits || numDigits.endsWith(qDigits) || qDigits.endsWith(numDigits)) return true;
+        }
+
+        // Cliente e Vendedor
+        if (String(p.cliente || "").toLowerCase().includes(q)) return true;
+        if (String(p.vendedor || "").toLowerCase().includes(q)) return true;
+
+        // Produto, Máquina, Bobina, RVM, Cor
+        if (String(p.produto || "").toLowerCase().includes(q)) return true;
+        if (String(p.maquina || "").toLowerCase().includes(q)) return true;
+        if (String(p.bobina_superior || "").toLowerCase().includes(q)) return true;
+        if (String(p.bobina_inferior || "").toLowerCase().includes(q)) return true;
+        if (String(p.rvm_superior || "").toLowerCase().includes(q)) return true;
+        if (String(p.rvm_inferior || "").toLowerCase().includes(q)) return true;
+        if (String(p.cor_exigida || "").toLowerCase().includes(q)) return true;
+
+        // OF e Observações
+        if (String(p.of_nome || "").toLowerCase().includes(q)) return true;
+        if (String(p.of_odoo_id || "").toLowerCase().includes(q)) return true;
+        if (String(p.observacoes || "").toLowerCase().includes(q)) return true;
+        if (String(p.observacoes_odoo || "").toLowerCase().includes(q)) return true;
+        if (String(p.tamanho_corte || p.comprimento || "").toLowerCase().includes(q)) return true;
+
+        return false;
+      });
+    }
+
+    // 2. Filtro de Urgência
+    const hojeStr = format(new Date(), "yyyy-MM-dd");
+    if (filtroUrgencia === "mais_atrasados") {
+      lista = lista.filter(p => {
+        if (p.status === "finalizado") return false;
+        const dt = extrairDataISO(p.data_entrega || p.data_prevista || p.data);
+        return dt && dt < hojeStr;
+      });
+    } else if (filtroUrgencia === "hoje_amanha") {
+      lista = lista.filter(p => {
+        if (p.status === "finalizado") return false;
+        const dt = extrairDataISO(p.data_entrega || p.data_prevista || p.data);
+        if (!dt) return false;
+        const d = diasUteisRestantes(dt);
+        return d != null && d >= 0 && d <= 1;
+      });
+    } else if (filtroUrgencia === "prioritarios") {
+      lista = lista.filter(p => p.prioridade);
+    } else if (filtroUrgencia === "nao_distribuidos") {
+      lista = lista.filter(p => p.status === "aguardando" || p.status === "pendente" || !p.status);
+    }
+
+    // 3. Filtro por intervalo / campo de datas
+    if (dataInicio || dataFim) {
+      lista = lista.filter(p => {
+        let valData = "";
+        if (filtroDataCampo === "data") valData = p.data;
+        else if (filtroDataCampo === "data_entrega") valData = p.data_entrega || p.data_prevista || p.data;
+        else if (filtroDataCampo === "data_prevista") valData = p.data_prevista || p.data;
+        else if (filtroDataCampo === "created_date") valData = p.created_date || p.data;
+        else valData = p.data;
+
+        const iso = extrairDataISO(valData);
+        if (!iso) return false;
+        if (dataInicio && iso < dataInicio) return false;
+        if (dataFim && iso > dataFim) return false;
+        return true;
+      });
+    }
+
+    // 4. Ordenação
+    return ordenarPedidosPCP(lista, ordenacao);
+  }, [pedidos, termoBusca, filtroUrgencia, dataInicio, dataFim, filtroDataCampo, ordenacao]);
+
+  // Pedidos da semana atual (ou filtrados pela pesquisa se ativo)
   const pedidosSemana = useMemo(() => {
     const startStr = format(weekStart, "yyyy-MM-dd");
     const endStr = format(weekEnd, "yyyy-MM-dd");
-    return pedidos.filter(p => p.data >= startStr && p.data <= endStr);
-  }, [pedidos, weekStart, weekEnd]);
+    const fonte = temFiltroAtivo ? pedidosFiltradosGlobal : pedidos;
+    return fonte.filter(p => p.data >= startStr && p.data <= endStr);
+  }, [pedidos, pedidosFiltradosGlobal, temFiltroAtivo, weekStart, weekEnd]);
 
-  // Pedidos do dia selecionado
+  // Pedidos para exibição por máquina (visão global quando busca ativa, ou dia selecionado)
   const pedidosDia = useMemo(() => {
-    return pedidos.filter(p => p.data === selectedDay).sort((a, b) => (b.prioridade ? 1 : 0) - (a.prioridade ? 1 : 0));
-  }, [pedidos, selectedDay]);
+    if (temFiltroAtivo) {
+      return pedidosFiltradosGlobal;
+    }
+    return pedidos
+      .filter(p => p.data === selectedDay)
+      .sort((a, b) => (b.prioridade ? 1 : 0) - (a.prioridade ? 1 : 0));
+  }, [pedidos, pedidosFiltradosGlobal, temFiltroAtivo, selectedDay]);
 
   const totalSemana = pedidosSemana.reduce((s, p) => s + calcularMetrosPedido(p), 0);
 
@@ -444,6 +617,34 @@ export default function ProducaoAdmin() {
 
       {activeTab === "producao" && (<>
 
+      {/* ── BARRA DE PESQUISA AVANÇADA E FILTROS ESTILO PCP ── */}
+      <FiltrosDataPCPBar
+        termoBusca={termoBusca}
+        onBuscaChange={setTermoBusca}
+        placeholderBusca="Buscar em toda a fábrica por pedido, OF, cliente, vendedor, produto, bobina..."
+        filtroDataCampo={filtroDataCampo}
+        onDataCampoChange={setFiltroDataCampo}
+        filtroDataPreset={filtroDataPreset}
+        onSelectPreset={handleSelectPreset}
+        dataInicio={dataInicio}
+        onDataInicioChange={setDataInicio}
+        dataFim={dataFim}
+        onDataFimChange={setDataFim}
+        onLimparFiltros={handleLimparFiltros}
+        filtroUrgencia={filtroUrgencia}
+        onFiltroUrgenciaChange={setFiltroUrgencia}
+        ordenacao={ordenacao}
+        onOrdenacaoChange={setOrdenacao}
+        contadores={contadores}
+        labelNaoDistribuidos="Aguardando"
+        opcoesDataCampo={[
+          { value: "data", label: "📅 Data de Produção Programada" },
+          { value: "data_entrega", label: "🚚 Data de Entrega Prometida (SLA)" },
+          { value: "data_prevista", label: "🏭 Data Prevista" },
+          { value: "created_date", label: "📥 Data de Cadastro / Entrada" },
+        ]}
+      />
+
       {/* Navegação de semana */}
       <div className="bg-card border border-border rounded-xl p-4">
         <div className="flex items-center justify-between mb-4">
@@ -599,6 +800,25 @@ export default function ProducaoAdmin() {
       ) : viewMode === "semana" ? (
         // Visão Semana — resumo por dia
         <div className="space-y-3">
+          {temFiltroAtivo && (
+            <div className="bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs shadow-2xs">
+              <div className="flex items-center gap-2 text-blue-900 dark:text-blue-200 font-medium">
+                <Search className="w-4 h-4 text-blue-600 shrink-0" />
+                <span>
+                  <strong>Pesquisa Global Ativa:</strong> {pedidosFiltradosGlobal.length} pedido(s) encontrado(s) na fábrica ({pedidosSemana.length} nesta semana visível)
+                  {termoBusca.trim() && <span> para "{termoBusca}"</span>}.
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => setViewMode("dia")} className="h-6 text-xs text-blue-700 dark:text-blue-300">
+                  Ver Todos por Máquina
+                </Button>
+                <Button size="sm" variant="ghost" onClick={handleLimparFiltros} className="h-6 text-xs text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50">
+                  <X className="w-3.5 h-3.5 mr-1" /> Limpar Filtros
+                </Button>
+              </div>
+            </div>
+          )}
           {diasDaSemana.map(dia => {
             const diaStr = format(dia, "yyyy-MM-dd");
             const pedidosDoDia = pedidosSemana.filter(p => p.data === diaStr);
@@ -617,18 +837,42 @@ export default function ProducaoAdmin() {
       ) : (
         // Visão Dia — por máquina
         <div className="space-y-4">
+          {temFiltroAtivo && (
+            <div className="bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs shadow-2xs">
+              <div className="flex items-center gap-2 text-blue-900 dark:text-blue-200 font-medium">
+                <Search className="w-4 h-4 text-blue-600 shrink-0" />
+                <span>
+                  <strong>Pesquisa Global Ativa:</strong> Mostrando {pedidosDia.length} pedido(s) encontrado(s) em <strong>todas as datas e máquinas</strong> da fábrica
+                  {termoBusca.trim() && <span> para "{termoBusca}"</span>}.
+                </span>
+              </div>
+              <Button size="sm" variant="ghost" onClick={handleLimparFiltros} className="h-6 text-xs text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50">
+                <X className="w-3.5 h-3.5 mr-1" /> Voltar ao Dia Normal ({format(new Date(selectedDay + "T12:00:00"), "dd/MM")})
+              </Button>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold">
-              {format(new Date(selectedDay + "T12:00:00"), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+              {temFiltroAtivo ? (
+                <span className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                  <Search className="w-5 h-5 text-blue-600" />
+                  Resultados da Pesquisa Global ({pedidosDia.length})
+                </span>
+              ) : (
+                format(new Date(selectedDay + "T12:00:00"), "EEEE, dd 'de' MMMM", { locale: ptBR })
+              )}
             </h2>
             <div className="flex items-center gap-2">
               <Badge className="bg-primary/10 text-primary border border-primary/20">
                 {pedidosDia.length} pedidos · {pedidosDia.reduce((s, p) => s + calcularMetrosPedido(p), 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}m
               </Badge>
-              <Button size="sm" onClick={() => openNew(selectedDay)} className="gap-1">
-                <Plus className="w-3 h-3" />
-                Pedido
-              </Button>
+              {!temFiltroAtivo && (
+                <Button size="sm" onClick={() => openNew(selectedDay)} className="gap-1">
+                  <Plus className="w-3 h-3" />
+                  Pedido
+                </Button>
+              )}
             </div>
           </div>
 

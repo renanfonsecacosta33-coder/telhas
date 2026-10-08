@@ -62,6 +62,7 @@ export default function PedidoCard({ pedido: p, maquinaCores, onEdit, onDelete, 
               </span>
             )}
             {p.kg_total > 0 && <span>{p.kg_total}kg</span>}
+            {p.data && <span className="font-semibold text-slate-700 dark:text-slate-300">📅 Prod: {format(new Date(p.data + "T12:00:00"), "dd/MM", { locale: ptBR })}</span>}
             {p.data_prevista && <span>Prev: {format(new Date(p.data_prevista + "T12:00:00"), "dd/MM", { locale: ptBR })}</span>}
           </div>
         </div>

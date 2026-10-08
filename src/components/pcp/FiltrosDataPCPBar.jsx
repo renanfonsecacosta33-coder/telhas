@@ -21,7 +21,9 @@ export default function FiltrosDataPCPBar({
   onFiltroUrgenciaChange,
   ordenacao = "mais_atrasados",
   onOrdenacaoChange,
-  contadores = { total: 0, atrasados: 0, hojeAmanha: 0, prioritarios: 0, naoDistribuidos: 0 }
+  contadores = { total: 0, atrasados: 0, hojeAmanha: 0, prioritarios: 0, naoDistribuidos: 0 },
+  labelNaoDistribuidos = "Não Distribuídos",
+  opcoesDataCampo = null,
 }) {
   const filtroDataAtivo = Boolean(dataInicio) || Boolean(dataFim) || (filtroDataPreset !== "todas" && filtroDataPreset !== "personalizada");
   const temFiltroAtivo = filtroDataAtivo || Boolean(termoBusca) || filtroUrgencia !== "todos" || ordenacao !== "mais_atrasados";
@@ -141,7 +143,7 @@ export default function FiltrosDataPCPBar({
               }`}
             >
               <Inbox className="w-3.5 h-3.5" />
-              📥 Não Distribuídos ({contadores.naoDistribuidos})
+              📥 {labelNaoDistribuidos} ({contadores.naoDistribuidos})
             </Button>
           )}
         </div>
@@ -170,9 +172,19 @@ export default function FiltrosDataPCPBar({
               onChange={(e) => onDataCampoChange(e.target.value)}
               className="h-7 text-xs bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-2 font-bold text-blue-700 dark:text-blue-300 focus:outline-none cursor-pointer"
             >
-              <option value="data_recebimento">📥 Data de Entrada no PCP</option>
-              <option value="data_entrega">🚚 Data de Entrega Prometida (SLA)</option>
-              <option value="data_previsao_fabrica">🏭 Previsão da Fábrica</option>
+              {opcoesDataCampo && opcoesDataCampo.length > 0 ? (
+                opcoesDataCampo.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))
+              ) : (
+                <>
+                  <option value="data_recebimento">📥 Data de Entrada no PCP</option>
+                  <option value="data_entrega">🚚 Data de Entrega Prometida (SLA)</option>
+                  <option value="data_previsao_fabrica">🏭 Previsão da Fábrica</option>
+                </>
+              )}
             </select>
           </div>
 
