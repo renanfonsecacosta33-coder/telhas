@@ -696,7 +696,7 @@ export function calcularFiltrosDisponiveis(pedidos = []) {
     if (contagensCores.naturaisImportadas > 0) {
       filtrosDef.push({
         key: "naturais_imp",
-        label: "Natural Imp",
+        label: "Natural Importada",
         icone: "🌐",
         count: contagensCores.naturaisImportadas,
         corBadge: "bg-sky-50 text-sky-800 border-sky-300 dark:bg-sky-950 dark:text-sky-300 font-bold"
@@ -746,14 +746,6 @@ export function calcularFiltrosDisponiveis(pedidos = []) {
   filtrosCores.forEach(fc => {
     if (fc.count > 0) filtrosDef.push(fc);
   });
-
-  // 3. Origem (se houver e não for redundante)
-  if (contagensCores.importados > 0) {
-    filtrosDef.push({ key: "importados", label: "Importados (IMP)", icone: "🌐", count: contagensCores.importados, corBadge: "bg-sky-50 text-sky-800 border-sky-300 dark:bg-sky-950 dark:text-sky-300" });
-  }
-  if (contagensCores.nacionais > 0) {
-    filtrosDef.push({ key: "nacionais", label: "Nacionais (NAC)", icone: "🇧🇷", count: contagensCores.nacionais, corBadge: "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300" });
-  }
 
   return filtrosDef;
 }
