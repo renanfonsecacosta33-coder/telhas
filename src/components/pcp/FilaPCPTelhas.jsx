@@ -525,21 +525,27 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
     if (itensTelhasSemOp.length === 0) return;
     setProcessandoAutoRoteamento(true);
     try {
-      // Agrupa itens por pedido
-      const pedidosUnicosMap = new Map();
-      itensTelhasSemOp.forEach(e => {
-        if (!pedidosUnicosMap.has(e.pedido.id)) {
-          pedidosUnicosMap.set(e.pedido.id, e.pedido);
-        }
-      });
-      const listaPedidos = Array.from(pedidosUnicosMap.values());
+      let sucessos = 0;
+      let comBobina = 0;
+      const erros = [];
 
-      const res = await processarLoteAutoRoteamentoTelhas({
-        pedidos: listaPedidos,
-        todasBobinas: bobinasEstoque,
-        filialAtiva,
-        tolerancias
-      });
+      for (const entry of itensTelhasSemOp) {
+        try {
+          const res = await rotearPedidoTelhaDiretoParaMaquina({
+            pedido: entry.pedido,
+            item: entry.item,
+            itemIdx: entry.itemIdx,
+            todasBobinas: bobinasEstoque,
+            filialAtiva: entry.pedido.unidade || filialAtiva,
+            tolerancias
+          });
+          sucessos++;
+          if (res?.bobina) comBobina++;
+        } catch (errItem) {
+          console.warn("[AutoRotearLote] Falha ao rotear item:", errItem);
+          erros.push(errItem.message || "Erro desconhecido");
+        }
+      }
 
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-telhas"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
@@ -547,11 +553,24 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
       queryClient.invalidateQueries({ queryKey: ["bobinas-estoque-telhas-pcp"] });
 
-      toast({
-        title: `🚀 Roteamento Automático Concluído!`,
-        description: `${res.sucessos} item(ns) de telhas distribuídos para as máquinas (${res.comBobina} com bobina automática eleita).`,
-        className: "border-emerald-500/40"
-      });
+      if (sucessos > 0) {
+        toast({
+          title: `🚀 Roteamento Automático Concluído!`,
+          description: `${sucessos} item(ns) de telhas distribuídos para as máquinas (${comBobina} com bobina automática eleita).`,
+          className: "border-emerald-500/40"
+        });
+      } else if (erros.length > 0) {
+        toast({
+          title: "Aviso no roteamento",
+          description: `Erros: ${erros.slice(0, 2).join("; ")}`,
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Itens sincronizados",
+          description: "Nenhum novo item pendente para enviar às máquinas.",
+        });
+      }
     } catch (err) {
       toast({
         title: "Erro no auto-roteamento em lote",

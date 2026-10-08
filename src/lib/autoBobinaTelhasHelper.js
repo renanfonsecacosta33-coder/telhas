@@ -443,11 +443,10 @@ export async function processarLoteAutoRoteamentoTelhas({
 
     for (let i = 0; i < itens.length; i++) {
       const it = itens[i];
-      // Apenas itens de telha não concluídos e não distribuídos
-      const ehTelha = telhas.some(t => (t._idx != null ? t._idx === i : t.produto === it.produto));
+      // Apenas itens de telha não concluídos
+      const ehTelha = telhas.some(t => (t._idx != null ? t._idx === i : (t.produto === it.produto || t.descricao === it.descricao)));
       if (!ehTelha) continue;
       if (it.status === "concluido") continue;
-      if (it.distribuido && it.maquina) continue;
 
       resultados.totalItens++;
 
