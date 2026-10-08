@@ -34,6 +34,7 @@ import PedidoOdooDetalheDialog from "@/components/pcp/PedidoOdooDetalheDialog";
 import WebhookSimulatorDialog from "@/components/pcp/WebhookSimulatorDialog";
 import RecuperarPedidoOdooDialog from "@/components/pcp/RecuperarPedidoOdooDialog";
 import AuditarRestaurarOpsDialog from "@/components/pcp/AuditarRestaurarOpsDialog";
+import { reajustarTodasBobinasMaquinasAutomaticamente } from "@/lib/reajusteAutomaticoBobinas";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import TransferirLojaDialog from "@/components/pcp/TransferirLojaDialog";
@@ -236,6 +237,16 @@ export default function CentralPCP() {
     }, 1000);
     return () => clearInterval(timer);
   }, [dataUpdatedAt]);
+
+  // Executa auditoria e readequação de máquinas e bobinas em segundo plano ao abrir o PCP
+  useEffect(() => {
+    reajustarTodasBobinasMaquinasAutomaticamente().then(res => {
+      if (res && res.totalReajustadas > 0) {
+        queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+        queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+      }
+    }).catch(() => {});
+  }, [queryClient]);
 
   const handleRefetchComFeedback = async () => {
     try {

@@ -92,6 +92,18 @@ export async function reajustarTodasBobinasMaquinasAutomaticamente() {
       const espExigida = op.espessura_exigida || detectarEspessura(textoItem) || "0.43";
       const origemExigida = op.origem_exigida || detectarOrigemAco(textoItem) || "ambas";
 
+      // ── MÁQUINA E MODELO DA OP (Ex: Pedido com descrição "MAQUINA TP 25" mas enviado por engano para TP - 40) ──
+      const maqEsperada = detectarMaquinaTelha(textoItem);
+      if (maqEsperada && (op.maquina !== maqEsperada || op.modelo !== maqEsperada)) {
+        const maqAnterior = op.maquina || op.modelo;
+        updates.maquina = maqEsperada;
+        updates.modelo = maqEsperada;
+        if (op.observacoes && op.observacoes.includes("Auto-Roteado PCP")) {
+          updates.observacoes = op.observacoes.replace(/Auto-Roteado PCP \([^)]+\)/, `Auto-Roteado PCP (${maqEsperada})`);
+        }
+        motivos.push(`Máquina transferida de "${maqAnterior}" para "${maqEsperada}" conforme descrição do pedido Odoo`);
+      }
+
       // ── BOBINA SUPERIOR (CHAPA PRINCIPAL) ──
       // Se não tem bobina_superior ou se for texto genérico
       const precisaReajustarSup = !op.bobina_superior || op.bobina_superior === "Bobina não definida";

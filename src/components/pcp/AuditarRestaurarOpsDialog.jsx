@@ -97,27 +97,24 @@ export default function AuditarRestaurarOpsDialog({
           const itens = getItens(pedOdoo);
           const primeiroItem = itens[0];
           if (primeiroItem) {
-            modeloEsperado = primeiroItem.modelo || detectarMaquinaTelha(primeiroItem.produto || primeiroItem.descricao || "");
+            const textoItemOdoo = `${primeiroItem.produto || ""} ${primeiroItem.descricao || ""} ${pedOdoo.descricao || ""} ${pedOdoo.observacoes || ""}`.trim();
+            modeloEsperado = primeiroItem.modelo || detectarMaquinaTelha(textoItemOdoo);
           }
         }
-        if (!modeloEsperado && op.item_produto) {
-          modeloEsperado = detectarMaquinaTelha(op.item_produto);
+        if (!modeloEsperado) {
+          const textoOp = `${op.item_produto || ""} ${op.observacoes || ""}`.trim();
+          modeloEsperado = detectarMaquinaTelha(textoOp);
         }
 
-        // Se o modelo da OP contém palavras estranhas agregadas (ex: "Galvalume", "Preta", etc.)
-        if (modeloEsperado && op.modelo && op.modelo !== modeloEsperado) {
-          const modeloAtual = String(op.modelo);
-          // Se o modelo atual foi alterado para algo como "TP - 40 Galvalume" ou difere do modelo real
-          if (
-            modeloAtual.includes("Galvalume") ||
-            modeloAtual.includes("Natural") ||
-            modeloAtual.includes("Preta") ||
-            modeloAtual.includes("Branca") ||
-            (modeloEsperado && !modeloAtual.includes(modeloEsperado) && ["TP - 25", "TP - 40", "COLONIAL", "ONDULADA"].includes(modeloEsperado))
-          ) {
-            updates.modelo = modeloEsperado;
-            motivos.push(`Modelo restaurado de "${modeloAtual}" para "${modeloEsperado}"`);
+        // Se o modelo ou máquina da OP difere do modelo real especificado no pedido do Odoo
+        if (modeloEsperado && (op.modelo !== modeloEsperado || op.maquina !== modeloEsperado)) {
+          const maqAnterior = op.maquina || op.modelo;
+          updates.modelo = modeloEsperado;
+          updates.maquina = modeloEsperado;
+          if (op.observacoes && op.observacoes.includes("Auto-Roteado PCP")) {
+            updates.observacoes = op.observacoes.replace(/Auto-Roteado PCP \([^)]+\)/, `Auto-Roteado PCP (${modeloEsperado})`);
           }
+          motivos.push(`Máquina/Modelo restaurado de "${maqAnterior}" para "${modeloEsperado}" conforme pedido Odoo`);
         }
 
         // --- REGRA B: TELHA DUPLA (SANDUÍCHE) COM BOBINA INFERIOR CORROMPIDA/DUPLICADA ---

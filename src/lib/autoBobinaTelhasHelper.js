@@ -282,17 +282,18 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
 
   const descTexto = item.descricao || item.observacao || pedido.observacoes || "";
   const produtoNome = item.produto || item.descricao || "";
+  const textoCompleto = `${produtoNome} ${descTexto}`.trim();
   const prodTipo = detectarTipoProdutoTelha(produtoNome, descTexto);
-  let maquina = (prodTipo === "CUMEEIRA" || /\bCUMEEIRA\b/i.test(`${produtoNome} ${descTexto}`))
+  let maquina = (prodTipo === "CUMEEIRA" || /\bCUMEEIRA\b/i.test(textoCompleto))
     ? "CUMEEIRA"
-    : (item.maquina || detectarMaquinaTelha(produtoNome) || "TP - 40");
+    : (item.maquina || detectarMaquinaTelha(textoCompleto) || "TP - 40");
 
-  const esp = item.espessura ? String(item.espessura) : detectarEspessura(produtoNome);
-  const origem = item.origem || detectarOrigemAco(produtoNome);
+  const esp = item.espessura ? String(item.espessura) : (detectarEspessura(textoCompleto) || "0.43");
+  const origem = item.origem || detectarOrigemAco(textoCompleto);
   const cor = detectarCorTelha(produtoNome, descTexto);
-  const temIndicioEps = /(eps|manta|sanduiche|isopor|termoacustica|pir|pur|bandeja)/i.test(`${produtoNome} ${descTexto}`);
+  const temIndicioEps = /(eps|manta|sanduiche|isopor|termoacustica|pir|pur|bandeja)/i.test(textoCompleto);
   const eps = (["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(prodTipo) && temIndicioEps)
-    ? detectarEPSTelha(produtoNome, maquina)
+    ? detectarEPSTelha(textoCompleto, maquina)
     : "";
 
   // Se for TELHA + EPS + TELHA, prepara bobinas independentes para cada face
@@ -355,7 +356,7 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     : toISODate(calcularDataPrometidaSLA(dataReceb, 7));
 
   const unidadeOp = filialAtiva && filialAtiva !== "todas" ? filialAtiva : (pedido.unidade || "Matriz AJL");
-  const modeloFinal = item.modelo || (detectarMaquinaTelha(produtoNome) || maquina);
+  const modeloFinal = item.modelo || (detectarMaquinaTelha(textoCompleto) || maquina);
 
   // 3. Monta os dados da Ordem de Produção (tabela Pedido)
   const dadosOp = {
@@ -560,11 +561,12 @@ export async function rotearLoteTelhasAgrupadas({
   for (const it of itensTelhas) {
     const descTexto = it.descricao || it.observacao || "";
     const produtoNome = it.produto || it.descricao || "";
+    const textoCompleto = `${produtoNome} ${descTexto} ${it.observacoes || ""}`.trim();
     const prodTipo = detectarTipoProdutoTelha(produtoNome, descTexto);
-    let maquina = (prodTipo === "CUMEEIRA" || /\bCUMEEIRA\b/i.test(`${produtoNome} ${descTexto}`))
+    let maquina = (prodTipo === "CUMEEIRA" || /\bCUMEEIRA\b/i.test(textoCompleto))
       ? "CUMEEIRA"
-      : (it.maquina || detectarMaquinaTelha(produtoNome) || "TP - 40");
-    const esp = it.espessura ? String(it.espessura) : (detectarEspessura(produtoNome) || "0.43");
+      : (it.maquina || detectarMaquinaTelha(textoCompleto) || "TP - 40");
+    const esp = it.espessura ? String(it.espessura) : (detectarEspessura(textoCompleto) || "0.43");
     const cor = detectarCorTelha(produtoNome, descTexto) || "NATURAL";
     const chave = `${maquina}___${prodTipo}___${esp}___${cor}`.toUpperCase();
 
@@ -677,7 +679,8 @@ export async function rotearLoteTelhasAgrupadas({
       : "";
 
     const nivelPrioridade = getPrioridadeNivel(pedido);
-    const modeloFinal = primeiroItem.modelo || (detectarMaquinaTelha(primeiroItem.produto || "") || g.maquina);
+    const textoPrimeiro = `${primeiroItem.produto || ""} ${primeiroItem.descricao || ""} ${textoObservacoes.join(" ")}`.trim();
+    const modeloFinal = primeiroItem.modelo || (detectarMaquinaTelha(textoPrimeiro) || g.maquina);
 
     const dadosOp = {
       data: dataReceb,

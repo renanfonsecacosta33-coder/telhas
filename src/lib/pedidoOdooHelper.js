@@ -627,10 +627,10 @@ export function detectarTipoProdutoTelha(produtoTexto = "", descricaoTexto = "")
   return "TELHA";
 }
 
-// Detecta a máquina sugerida para Telhas
+// Detecta a máquina sugerida para Telhas com suporte abrangente a nomes de produtos e descrições das linhas
 export function detectarMaquinaTelha(produtoTexto = "") {
   const p = typeof produtoTexto === "object"
-    ? `${produtoTexto?.produto || ""} ${produtoTexto?.modelo || ""} ${produtoTexto?.item_produto || ""} ${produtoTexto?.observacoes || ""} ${produtoTexto?.descricao || ""}`.toUpperCase()
+    ? `${produtoTexto?.descricao || ""} ${produtoTexto?.produto || ""} ${produtoTexto?.modelo || ""} ${produtoTexto?.item_produto || ""} ${produtoTexto?.observacoes || ""} ${produtoTexto?.observacao || ""}`.toUpperCase()
     : String(produtoTexto || "").toUpperCase();
 
   // 1. CUMEEIRA sempre é feita na máquina CUMEEIRA (mesmo que seja Cumeeira TR 25, TR 40 ou Colonial)
@@ -639,10 +639,13 @@ export function detectarMaquinaTelha(produtoTexto = "") {
   // 2. Bobininha / Fita
   if (/(DESBOBINADOR|BOBININ|BOBININH|BOBINA|FITA|DESBOBINAM)/i.test(p)) return "DESBOBINADOR";
 
-  // 3. Demais perfiladeiras
-  if (p.includes("TP 25") || p.includes("TP-25") || p.includes("TP25") || p.includes("TR 25") || p.includes("TR-25") || p.includes("TR25")) return "TP - 25";
-  if (p.includes("TP 40") || p.includes("TP-40") || p.includes("TP40") || p.includes("TR 40") || p.includes("TR-40") || p.includes("TR40")) return "TP - 40";
-  if (p.includes("ONDULAD")) return "ONDULADA";
+  // 3. Demais perfiladeiras com regex de alta precisão
+  // Nota: TP 25 / TR 25 / Trapézio 25 / Perfil 25
+  if (/(TP\s*[-/]?\s*25|TR\s*[-/]?\s*25|TRAP[EÉ]ZIO\s*25|TRAP\.\s*25|PERFIL\s*25|\b25\s*MM\b)/i.test(p)) return "TP - 25";
+  // TP 40 / TR 40 / Trapézio 40 / Perfil 40
+  if (/(TP\s*[-/]?\s*40|TR\s*[-/]?\s*40|TRAP[EÉ]ZIO\s*40|TRAP\.\s*40|PERFIL\s*40|\b40\s*MM\b)/i.test(p)) return "TP - 40";
+  // Ondulada / Perfil 17
+  if (/(ONDULAD|PERFIL\s*17|\b17\s*MM\b)/i.test(p)) return "ONDULADA";
   if (p.includes("COLONIAL")) return "COLONIAL";
   if (p.includes("BANDEJA")) return "BANDEJA";
   return "";
@@ -712,10 +715,11 @@ import { detectarCorTelha } from "@/lib/bobinaValidation";
 export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
   const descTexto = item?.descricao || item?.observacao || pedido?.observacoes || "";
   const produtoNome = item?.produto || item?.descricao || "";
+  const textoCompleto = `${produtoNome} ${descTexto}`.trim();
   const prodTipo = detectarTipoProdutoTelha(produtoNome, descTexto);
-  const maq = detectarMaquinaTelha(produtoNome);
-  const esp = item?.espessura ? String(item.espessura) : detectarEspessura(produtoNome);
-  const origem = item?.origem || detectarOrigemAco(produtoNome);
+  const maq = item?.maquina || detectarMaquinaTelha(textoCompleto) || "TP - 40";
+  const esp = item?.espessura ? String(item.espessura) : detectarEspessura(textoCompleto);
+  const origem = item?.origem || detectarOrigemAco(textoCompleto);
   const cor = item?.cor || detectarCorTelha(produtoNome, descTexto);
   const isComEps = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(prodTipo) ||
     /(eps|manta|sanduiche|isopor|termoacustica)/i.test(produtoNome) ||
