@@ -10,7 +10,7 @@ import {
   Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send,
   Factory, Scissors, Wind, Layers, AlertTriangle, CheckCircle2, Star,
   ChevronDown, ChevronUp, Calendar, Filter, X, Clock, Trash2, CheckSquare, Square,
-  Building2, ArrowRightLeft, Store, Globe, User, Briefcase, Hash, Package
+  Building2, ArrowRightLeft, Store, Globe, User, Briefcase, Hash, Package, ShieldCheck
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -33,6 +33,7 @@ import PedidoOdooGrupoCard from "@/components/pcp/PedidoOdooGrupoCard";
 import PedidoOdooDetalheDialog from "@/components/pcp/PedidoOdooDetalheDialog";
 import WebhookSimulatorDialog from "@/components/pcp/WebhookSimulatorDialog";
 import RecuperarPedidoOdooDialog from "@/components/pcp/RecuperarPedidoOdooDialog";
+import AuditarRestaurarOpsDialog from "@/components/pcp/AuditarRestaurarOpsDialog";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import TransferirLojaDialog from "@/components/pcp/TransferirLojaDialog";
@@ -89,6 +90,7 @@ export default function CentralPCP() {
   const [detalheOpen, setDetalheOpen] = useState(false);
   const [webhookOpen, setWebhookOpen] = useState(false);
   const [recuperarModalOpen, setRecuperarModalOpen] = useState(false);
+  const [auditarModalOpen, setAuditarModalOpen] = useState(false);
   const [distribuindo, setDistribuindo] = useState(false);
   const [selecionados, setSelecionados] = useState(new Set());
   const [senhaGestorOpen, setSenhaGestorOpen] = useState(false);
@@ -1824,6 +1826,18 @@ export default function CentralPCP() {
             </Button>
 
             <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAuditarModalOpen(true)}
+              className="h-8 gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+              title="Auditar OPs no chão de fábrica e restaurar modelos e bobinas corrompidos"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="hidden md:inline">Auditar & Restaurar OPs</span>
+              <span className="md:hidden">Auditar</span>
+            </Button>
+
+            <Button
               onClick={() => setWebhookOpen(true)}
               size="sm"
               className="h-8 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold"
@@ -2721,6 +2735,15 @@ export default function CentralPCP() {
         }}
         onAbrirSimuladorWebhook={(numero) => {
           setWebhookOpen(true);
+        }}
+      />
+      <AuditarRestaurarOpsDialog
+        open={auditarModalOpen}
+        onOpenChange={setAuditarModalOpen}
+        onSucesso={() => {
+          refetch();
+          queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+          queryClient.invalidateQueries({ queryKey: ["ordens-cd-todos"] });
         }}
       />
       <TransferirLojaDialog

@@ -267,59 +267,6 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     };
   }, [pOriginal, maquina, produtoDetectado, epsDetectado]);
 
-  // Auto-correção em tempo real no banco de dados:
-  // 1) Se estava como "TELHA + EPS" mas o Odoo é "TELHA + EPS + TELHA" -> corrige para TELHA + EPS + TELHA
-  // 2) Se estava como "TELHA + EPS" (ou com eps/colagem) mas é TELHA SIMPLES -> limpa EPS e volta para TELHA na perfiladeira correta!
-  // 3) Se é CUMEEIRA mas foi gravada indevidamente em TP - 25 ou outra máquina -> move para CUMEEIRA!
-  useEffect(() => {
-    if (!pOriginal?.id) return;
-
-    // Caso 1: Dupla Telha
-    if (pOriginal.produto !== "TELHA + EPS + TELHA" && produtoDetectado === "TELHA + EPS + TELHA") {
-      base44.entities.Pedido.update(pOriginal.id, {
-        produto: "TELHA + EPS + TELHA",
-        ...(epsDetectado && !pOriginal.eps ? { eps: epsDetectado } : {})
-      }).then(() => {
-        if (onUpdate) onUpdate();
-      }).catch(err => console.warn("[PedidoRow] Auto-correção dupla telha:", err));
-      return;
-    }
-
-    // Caso 2: Cumeeira atribuída indevidamente a perfiladeira (ex: TP - 25)
-    const ehCumeeiraItem = (pOriginal.produto === "CUMEEIRA" || produtoDetectado === "CUMEEIRA" || /\bCUMEEIRA\b/i.test(`${pOriginal.item_produto || ""} ${pOriginal.modelo || ""} ${pOriginal.observacoes || ""}`));
-    if (ehCumeeiraItem && pOriginal.maquina !== "CUMEEIRA") {
-      console.log(`[PedidoRow] Auto-corrigindo OP #${pOriginal.numero_pedido}: Cumeeira transferida para a máquina CUMEEIRA.`);
-      base44.entities.Pedido.update(pOriginal.id, {
-        produto: "CUMEEIRA",
-        maquina: "CUMEEIRA",
-        eps: "",
-        eps_status: null
-      }).then(() => {
-        if (onUpdate) onUpdate();
-      }).catch(err => console.warn("[PedidoRow] Auto-correção cumeeira:", err));
-      return;
-    }
-
-    // Caso 3: Era salva incorretamente com EPS ou Colagem mas é TELHA SIMPLES
-    const ehTelhaSimples = (produtoDetectado === "TELHA" || pOriginal.produto === "TELHA");
-    const temResiduoColagem = Boolean(pOriginal.eps) || pOriginal.maquina === "COLAGEM" || pOriginal.status === "aguardando_colagem" || Boolean(pOriginal.eps_status);
-
-    if (ehTelhaSimples && temResiduoColagem) {
-      const maqDestino = pOriginal.maquina_origem || detectarMaquinaTelha(pOriginal) || (pOriginal.modelo?.toLowerCase().includes("colonial") ? "COLONIAL" : pOriginal.modelo?.includes("25") ? "TP - 25" : "TP - 40");
-      console.log(`[PedidoRow] Auto-corrigindo OP #${pOriginal.numero_pedido}: removendo EPS/Colagem indevidos -> perfiladeira ${maqDestino}.`);
-      const updates = {
-        produto: "TELHA",
-        eps: "",
-        eps_status: null,
-        isopor_utilizado: "",
-        maquina: maqDestino,
-        status: (pOriginal.status === "aguardando_colagem" ? "pendente" : pOriginal.status)
-      };
-      base44.entities.Pedido.update(pOriginal.id, updates).then(() => {
-        if (onUpdate) onUpdate();
-      }).catch(err => console.warn("[PedidoRow] Auto-correção telha simples:", err));
-    }
-  }, [pOriginal?.id, pOriginal?.produto, pOriginal?.eps, pOriginal?.maquina, pOriginal?.maquina_origem, pOriginal?.status, pOriginal?.item_produto, pOriginal?.modelo, pOriginal?.observacoes, produtoDetectado, epsDetectado, onUpdate]);
   const regras = useRegrasProducao();
   const [etapasOk, setEtapasOk] = useState({});
   const [mostrarEtapas, setMostrarEtapas] = useState(false);
@@ -1159,11 +1106,6 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                 </>
               )}
               <PrioridadeBadge pedido={p} />
-              {p._mesmaBobinaInstalada && p.status === "pendente" && (
-                <Badge className="bg-emerald-600 text-white border-emerald-700 text-xs gap-1 font-bold shadow-xs">
-                  <Zap className="w-3 h-3 text-emerald-200 fill-emerald-200" /> Mesma Bobina Montada
-                </Badge>
-              )}
               {p.rota && (
                 <Badge className="bg-red-600 text-white border-red-700 text-xs gap-1 animate-pulse">
                   <Route className="w-3 h-3" /> ROTA

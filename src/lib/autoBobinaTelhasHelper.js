@@ -54,6 +54,65 @@ export function setAutoRoteamentoTelhasAtivo(ativo) {
 export { removerAcentos, detectarCorTelha, isCorCompativel };
 
 /**
+ * Detecta as cores independentes da chapa superior e chapa inferior para telhas duplas (sanduíche).
+ * Ex: Superior Natural / Inferior Preta ("PRE PINTADA PRETA PARTE INTERNA")
+ */
+export function detectarCoresDuplaTelha(produtoTexto = "", descricaoTexto = "") {
+  const combined = removerAcentos(`${produtoTexto} ${descricaoTexto}`);
+  
+  let corSup = "NATURAL";
+  let corInf = "NATURAL";
+
+  // 1. Formato com barra: "NATURAL / PRETA", "NATURAL / BRANCA", "BRANCA / PRETA"
+  const matchBarra = combined.match(/(NATURAL|GALVALUME|BRANC[OA]|PRET[OA]|AZUL|BEGE|CINZA|TERRACOTA|VERMELH[OA]|MARROM|VERDE)\s*[\/|\\]\s*(NATURAL|GALVALUME|BRANC[OA]|PRET[OA]|AZUL|BEGE|CINZA|TERRACOTA|VERMELH[OA]|MARROM|VERDE)/i);
+  if (matchBarra) {
+    corSup = normalizarCorDupla(matchBarra[1]);
+    corInf = normalizarCorDupla(matchBarra[2]);
+    return { corSuperior: corSup, corInferior: corInf };
+  }
+
+  // 2. Menção explícita à parte interna / chapa inferior
+  if (/PRE\s*PINTADA\s*PRET[OA]\s*PARTE\s*INTERNA|PARTE\s*INTERNA\s*PRET[OA]|FACE\s*INFERIOR\s*PRET[OA]|INFERIOR\s*PRET[OA]|CHAPA\s*INFERIOR\s*PRET[OA]/i.test(combined)) {
+    corInf = "PRETO";
+  } else if (/PRE\s*PINTADA\s*BRANC[OA]\s*PARTE\s*INTERNA|PARTE\s*INTERNA\s*BRANC[OA]|FACE\s*INFERIOR\s*BRANC[OA]|INFERIOR\s*BRANC[OA]|CHAPA\s*INFERIOR\s*BRANC[OA]/i.test(combined)) {
+    corInf = "BRANCO";
+  } else if (/PARTE\s*INTERNA\s*AZUL|FACE\s*INFERIOR\s*AZUL/i.test(combined)) {
+    corInf = "AZUL";
+  } else if (/PARTE\s*INTERNA\s*NATURAL|FACE\s*INFERIOR\s*NATURAL/i.test(combined)) {
+    corInf = "NATURAL";
+  }
+
+  // 3. Menção explícita à parte externa / chapa superior
+  if (/PARTE\s*EXTERNA\s*PRET[OA]|FACE\s*SUPERIOR\s*PRET[OA]|SUPERIOR\s*PRET[OA]|CHAPA\s*SUPERIOR\s*PRET[OA]/i.test(combined)) {
+    corSup = "PRETO";
+  } else if (/PARTE\s*EXTERNA\s*BRANC[OA]|FACE\s*SUPERIOR\s*BRANC[OA]|SUPERIOR\s*BRANC[OA]|CHAPA\s*SUPERIOR\s*BRANC[OA]/i.test(combined)) {
+    corSup = "BRANCO";
+  } else if (/NATURAL|GALVALUME|GV|GL/i.test(combined)) {
+    corSup = "NATURAL";
+  } else {
+    corSup = detectarCorTelha(produtoTexto, descricaoTexto) || "NATURAL";
+  }
+
+  return { corSuperior: corSup, corInferior: corInf };
+}
+
+function normalizarCorDupla(c = "") {
+  const norm = removerAcentos(c);
+  if (/PRET/i.test(norm)) return "PRETO";
+  if (/BRANC/i.test(norm)) return "BRANCO";
+  if (/AZUL/i.test(norm)) return "AZUL";
+  if (/BEGE|AREIA/i.test(norm)) return "BEGE";
+  if (/GRAFIT/i.test(norm)) return "GRAFITE";
+  if (/CINZA/i.test(norm)) return "CINZA";
+  if (/TERRACOT/i.test(norm)) return "TERRACOTA";
+  if (/VERMELH/i.test(norm)) return "VERMELHO";
+  if (/MARROM/i.test(norm)) return "MARROM";
+  if (/VERD/i.test(norm)) return "VERDE";
+  if (/AMAREL/i.test(norm)) return "AMARELO";
+  return "NATURAL";
+}
+
+/**
  * Estima a metragem restante utilizável de uma bobina.
  */
 function calcularMetragemDisponivel(bobina) {
@@ -236,14 +295,31 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     ? detectarEPSTelha(produtoNome, maquina)
     : "";
 
-  // 1. Busca a melhor bobina com o algoritmo minucioso
+  // Se for TELHA + EPS + TELHA, prepara bobinas independentes para cada face
+  const isDuplaTelha = prodTipo === "TELHA + EPS + TELHA";
+  const coresDupla = isDuplaTelha
+    ? detectarCoresDuplaTelha(produtoNome, descTexto)
+    : { corSuperior: cor || "NATURAL", corInferior: null };
+
+  // 1. Busca a melhor bobina com o algoritmo minucioso para a face superior
   const bobinaEleita = selecionarMelhorBobinaTelhas({
-    item,
+    item: { ...item, cor: coresDupla.corSuperior },
     pedido,
     todasBobinas,
     filialAtiva,
     tolerancias
   });
+
+  // Bobina para a face inferior (ex: face interna pré-pintada preta ou branca)
+  const bobinaInferiorEleita = isDuplaTelha
+    ? selecionarMelhorBobinaTelhas({
+        item: { ...item, cor: coresDupla.corInferior },
+        pedido,
+        todasBobinas,
+        filialAtiva,
+        tolerancias
+      })
+    : null;
 
   // 2. Extração de especificações físicas (peças, mm, metros lineares)
   const espTec = extrairEspecificacao(descTexto, item.quantidade, item.unidade);
@@ -279,9 +355,7 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     : toISODate(calcularDataPrometidaSLA(dataReceb, 7));
 
   const unidadeOp = filialAtiva && filialAtiva !== "todas" ? filialAtiva : (pedido.unidade || "Matriz AJL");
-
-  // Se for TELHA + EPS + TELHA, prepara bobina inferior
-  const isDuplaTelha = prodTipo === "TELHA + EPS + TELHA";
+  const modeloFinal = item.modelo || (detectarMaquinaTelha(produtoNome) || maquina);
 
   // 3. Monta os dados da Ordem de Produção (tabela Pedido)
   const dadosOp = {
@@ -293,19 +367,19 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     vendedor: pedido.vendedor_nome || pedido.vendedor || "",
     unidade: unidadeOp,
     produto: prodTipo,
-    modelo: `${maquina} ${cor !== "NATURAL" ? cor : "Galvalume"}`,
+    modelo: modeloFinal,
     maquina: maquina,
     status: "pendente",
     espessura_exigida: esp || "0.43",
     origem_exigida: origem || "ambas",
     cor_exigida: cor || "NATURAL",
     eps: eps,
-    rvm_superior: bobinaEleita?.cor || (cor !== "NATURAL" ? cor : "Natural"),
+    rvm_superior: bobinaEleita?.cor || (coresDupla.corSuperior !== "NATURAL" ? coresDupla.corSuperior : "Natural"),
     bobina_superior_id: bobinaEleita?.bobina_id || null,
     bobina_superior: bobinaEleita?.descricao || "",
-    rvm_inferior: isDuplaTelha ? (bobinaEleita?.cor || (cor !== "NATURAL" ? cor : "Natural")) : null,
-    bobina_inferior_id: isDuplaTelha ? (bobinaEleita?.bobina_id || null) : null,
-    bobina_inferior: isDuplaTelha ? (bobinaEleita?.descricao || "") : null,
+    rvm_inferior: isDuplaTelha ? (bobinaInferiorEleita?.cor || (coresDupla.corInferior !== "NATURAL" ? coresDupla.corInferior : "Natural")) : null,
+    bobina_inferior_id: isDuplaTelha ? (bobinaInferiorEleita?.bobina_id || null) : null,
+    bobina_inferior: isDuplaTelha ? (bobinaInferiorEleita?.descricao || "") : null,
     metros: Number(qtdChapas) || 1,
     metragem_mm: Number(metragemMm) || null,
     quantidade_telhas: Number(metragemTotalLinear) || 1,
@@ -329,31 +403,18 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     });
     const opValida = opsExistentes.find(o => o.status !== "cancelado");
     if (opValida) {
+      // PRESERVAÇÃO TOTAL: OP existente NUNCA tem suas bobinas ou modelo sobrescritos!
       const updates = {};
-      // Atualiza com a bobina selecionada se ainda estava vazia
+      // Só preenche bobinas se estavam vazias
       if (!opValida.bobina_superior_id && bobinaEleita?.bobina_id) {
         updates.bobina_superior_id = bobinaEleita.bobina_id;
         updates.bobina_superior = bobinaEleita.descricao;
         updates.rvm_superior = bobinaEleita.cor;
       }
-      // Corrige o produto se estava divergente do Odoo
-      if (opValida.produto !== prodTipo) {
-        updates.produto = prodTipo;
-        if (isDuplaTelha) {
-          updates.bobina_inferior_id = opValida.bobina_inferior_id || bobinaEleita?.bobina_id || null;
-          updates.bobina_inferior = opValida.bobina_inferior || bobinaEleita?.descricao || "";
-          updates.rvm_inferior = opValida.rvm_inferior || bobinaEleita?.cor || "Natural";
-        }
-      }
-      if (eps) {
-        if (!opValida.eps || opValida.eps !== eps) updates.eps = eps;
-      } else if (opValida.eps) {
-        // Se a telha não tem EPS, limpa o EPS da OP anterior
-        updates.eps = "";
-        updates.eps_status = null;
-      }
-      if (cor && (!opValida.cor_exigida || opValida.cor_exigida !== cor)) {
-        updates.cor_exigida = cor;
+      if (isDuplaTelha && !opValida.bobina_inferior_id && bobinaInferiorEleita?.bobina_id) {
+        updates.bobina_inferior_id = bobinaInferiorEleita.bobina_id;
+        updates.bobina_inferior = bobinaInferiorEleita.descricao;
+        updates.rvm_inferior = bobinaInferiorEleita.cor;
       }
       if (Object.keys(updates).length > 0) {
         opCriada = await base44.entities.Pedido.update(opValida.id, updates);
@@ -578,13 +639,28 @@ export async function rotearLoteTelhasAgrupadas({
       metragem_total: somaMetrosLineares
     };
 
+    const isDuplaTelha = g.prodTipo === "TELHA + EPS + TELHA";
+    const coresDupla = isDuplaTelha
+      ? detectarCoresDuplaTelha(primeiroItem.produto || primeiroItem.descricao || "", textoObservacoes.join(" "))
+      : { corSuperior: g.cor || "NATURAL", corInferior: null };
+
     const bobinaEleita = selecionarMelhorBobinaTelhas({
-      item: itemVirtualParaBobina,
+      item: { ...itemVirtualParaBobina, cor: coresDupla.corSuperior },
       pedido,
       todasBobinas,
       filialAtiva,
       tolerancias
     });
+
+    const bobinaInferiorEleita = isDuplaTelha
+      ? selecionarMelhorBobinaTelhas({
+          item: { ...itemVirtualParaBobina, cor: coresDupla.corInferior },
+          pedido,
+          todasBobinas,
+          filialAtiva,
+          tolerancias
+        })
+      : null;
 
     const dataReceb = pedido.data_recebimento
       ? String(pedido.data_recebimento).slice(0, 10)
@@ -595,13 +671,13 @@ export async function rotearLoteTelhasAgrupadas({
       : toISODate(calcularDataPrometidaSLA(dataReceb, 7));
 
     const unidadeOp = filialAtiva && filialAtiva !== "todas" ? filialAtiva : (pedido.unidade || "Matriz AJL");
-    const isDuplaTelha = g.prodTipo === "TELHA + EPS + TELHA";
     const temIndicioEpsNoGrupo = /(eps|manta|sanduiche|isopor|termoacustica|pir|pur|bandeja)/i.test(`${primeiroItem.produto || ""} ${primeiroItem.descricao || ""}`);
     const eps = (["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(g.prodTipo) && temIndicioEpsNoGrupo)
       ? detectarEPSTelha(primeiroItem.produto || primeiroItem.descricao || "", g.maquina)
       : "";
 
     const nivelPrioridade = getPrioridadeNivel(pedido);
+    const modeloFinal = primeiroItem.modelo || (detectarMaquinaTelha(primeiroItem.produto || "") || g.maquina);
 
     const dadosOp = {
       data: dataReceb,
@@ -612,7 +688,7 @@ export async function rotearLoteTelhasAgrupadas({
       vendedor: pedido.vendedor_nome || pedido.vendedor || "",
       unidade: unidadeOp,
       produto: g.prodTipo,
-      modelo: `${g.maquina} ${g.cor !== "NATURAL" ? g.cor : "Galvalume"}`,
+      modelo: modeloFinal,
       maquina: g.maquina,
       status: "pendente",
       prioridade_nivel: nivelPrioridade,
@@ -622,12 +698,12 @@ export async function rotearLoteTelhasAgrupadas({
       origem_exigida: primeiroItem.origem || detectarOrigemAco(primeiroItem.produto || "") || "ambas",
       cor_exigida: g.cor || "NATURAL",
       eps: eps,
-      rvm_superior: bobinaEleita?.cor || (g.cor !== "NATURAL" ? g.cor : "Natural"),
+      rvm_superior: bobinaEleita?.cor || (coresDupla.corSuperior !== "NATURAL" ? coresDupla.corSuperior : "Natural"),
       bobina_superior_id: bobinaEleita?.bobina_id || null,
       bobina_superior: bobinaEleita?.descricao || "",
-      rvm_inferior: isDuplaTelha ? (bobinaEleita?.cor || (g.cor !== "NATURAL" ? g.cor : "Natural")) : null,
-      bobina_inferior_id: isDuplaTelha ? (bobinaEleita?.bobina_id || null) : null,
-      bobina_inferior: isDuplaTelha ? (bobinaEleita?.descricao || "") : null,
+      rvm_inferior: isDuplaTelha ? (bobinaInferiorEleita?.cor || (coresDupla.corInferior !== "NATURAL" ? coresDupla.corInferior : "Natural")) : null,
+      bobina_inferior_id: isDuplaTelha ? (bobinaInferiorEleita?.bobina_id || null) : null,
+      bobina_inferior: isDuplaTelha ? (bobinaInferiorEleita?.descricao || "") : null,
       metros: Number(somaPecas) || 1,
       metragem_mm: variacoesConsolidadas.length === 1 ? (variacoesConsolidadas[0].mm || null) : null,
       quantidade_telhas: Number(somaMetrosLineares) || 1,
@@ -652,10 +728,23 @@ export async function rotearLoteTelhasAgrupadas({
       });
       const opValida = opsExistentes.find(o => o.status !== "cancelado");
       if (opValida) {
-        opCriada = await base44.entities.Pedido.update(opValida.id, {
-          ...dadosOp,
-          status: opValida.status || "pendente"
-        });
+        // PRESERVAÇÃO TOTAL: OP existente NUNCA tem suas bobinas ou modelo sobrescritos!
+        const updates = {};
+        if (!opValida.bobina_superior_id && bobinaEleita?.bobina_id) {
+          updates.bobina_superior_id = bobinaEleita.bobina_id;
+          updates.bobina_superior = bobinaEleita.descricao;
+          updates.rvm_superior = bobinaEleita.cor;
+        }
+        if (isDuplaTelha && !opValida.bobina_inferior_id && bobinaInferiorEleita?.bobina_id) {
+          updates.bobina_inferior_id = bobinaInferiorEleita.bobina_id;
+          updates.bobina_inferior = bobinaInferiorEleita.descricao;
+          updates.rvm_inferior = bobinaInferiorEleita.cor;
+        }
+        if (Object.keys(updates).length > 0) {
+          opCriada = await base44.entities.Pedido.update(opValida.id, updates);
+        } else {
+          opCriada = opValida;
+        }
       }
     } catch (errCheck) {
       console.warn("[AutoBobinaTelhas Lote] Erro checagem anti-duplicidade:", errCheck);
