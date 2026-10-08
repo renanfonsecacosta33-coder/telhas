@@ -333,8 +333,8 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
       out.resumo_formatado = out.variacoes.map(v => `${v.qty} c/ ${v.mm}mm`).join(" + ") + ` (${totalMetros}m)`;
     }
   } else {
-    // 3. Peças isoladas sem comprimento na descrição (ex: '60 peças', '60 pcs', '60 pçs', '60 barras')
-    const regexPecasIsoladas = /(\d+)\s*(?:p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|barras?|unidades?|un\.?)\b/i;
+    // 3. Peças isoladas sem comprimento na descrição (ex: '60 peças', '60 pcs', '60 pçs', '60 barras', '7 telhas')
+    const regexPecasIsoladas = /(\d+)\s*(?:p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|barras?|telhas?|unidades?|un\.?)\b/i;
     const matchPecas = t.match(regexPecasIsoladas);
     if (matchPecas) {
       const q = parseInt(matchPecas[1], 10);
@@ -347,7 +347,14 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
       const uOdoo = String(unidadeOdoo || "").toLowerCase();
       const qOdoo = Number(qtdOdoo) || 0;
       if (qOdoo > 0 && ["m", "mt", "mts", "metro", "metros"].includes(uOdoo)) {
-        const mUnit = +(qOdoo / q).toFixed(3);
+        // Prioriza o comprimento explícito da descrição (ex: 'C/5150mm') em vez de dividir metros do Odoo
+        let mUnit = null;
+        const matchCompDesc = t.match(/(?:c\/|com|de|-|–|—)\s*(\d{1,2}\.\d{3}|\d{3,5}\s*mm|\d+(?:[.,]\d+)?\s*(?:m|mts?|metros?))\b/i);
+        if (matchCompDesc) {
+          const parsedComp = parseComprimento(matchCompDesc[1]);
+          if (parsedComp.mm && parsedComp.mm >= 300) mUnit = parsedComp.m;
+        }
+        if (!mUnit) mUnit = +(qOdoo / q).toFixed(3);
         const mmUnit = Math.round(mUnit * 1000);
         out.comprimento_m = mUnit;
         out.comprimento_mm = mmUnit;
@@ -363,15 +370,20 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
         const { mm, m } = parseComprimento(matchMedida[1]);
         if (mm && mm >= 300) {
           const qOdoo = Number(qtdOdoo) || 1;
-          const totalMetros = +(qOdoo * m).toFixed(2);
-          out.quantidade = qOdoo;
-          out.pecas = qOdoo;
+          // Se o Odoo veio em metros lineares, a metragem NÃO é contagem de peças:
+          // calcula as peças dividindo pelos metros de cada peça
+          const uOdoo4 = String(unidadeOdoo || "").toLowerCase();
+          const emMetros = ["m", "mt", "mts", "metro", "metros"].includes(uOdoo4);
+          const qtyPecas = emMetros ? Math.max(1, Math.round(qOdoo / m)) : qOdoo;
+          const totalMetros = emMetros ? qOdoo : +(qOdoo * m).toFixed(2);
+          out.quantidade = qtyPecas;
+          out.pecas = qtyPecas;
           out.comprimento_mm = mm;
           out.comprimento_m = m;
           out.metragem_total = totalMetros;
           out.tem_especificacao = true;
-          out.resumo_formatado = `${qOdoo} pçs c/ ${mm.toLocaleString("pt-BR")} mm`;
-          out.variacoes.push({ qty: qOdoo, mm: mm, m: m, total_m: totalMetros });
+          out.resumo_formatado = `${qtyPecas} pçs c/ ${mm.toLocaleString("pt-BR")} mm`;
+          out.variacoes.push({ qty: qtyPecas, mm: mm, m: m, total_m: totalMetros });
         }
       }
     }
