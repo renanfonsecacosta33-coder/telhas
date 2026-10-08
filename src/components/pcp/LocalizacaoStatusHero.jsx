@@ -67,15 +67,16 @@ export default function LocalizacaoStatusHero({
     return true;
   }) : [];
 
-  // Verificar se há OP ativa em execução agora
-  const temOpEmExecucao = opsValidas.length > 0 && opsValidas.some(o => ["em_producao", "executando"].includes(o.status));
-  const temOpPausada = opsValidas.length > 0 && opsValidas.some(o => o.status === "pausado");
+  // 🛡️ SE O PEDIDO ESTÁ PENDENTE DE DISTRIBUIÇÃO NO PCP, NUNCA EXIBE COMO PRODUZINDO AGORA
+  const isPendenteDistribuicao = statusPcp === "pendente_distribuicao";
+  const temOpEmExecucao = !isPendenteDistribuicao && opsValidas.length > 0 && opsValidas.some(o => ["em_producao", "executando"].includes(o.status));
+  const temOpPausada = !isPendenteDistribuicao && opsValidas.length > 0 && opsValidas.some(o => o.status === "pausado");
 
   // 2. Determinar ONDE ESTÁ O PEDIDO
   let localizacao = {
-    titulo: "Fila PCP — Aguardando Programação",
-    subtitulo: "Central de Planejamento e Controle de Produção",
-    posto: "Mesa PCP",
+    titulo: "Fila PCP — Aguardando Distribuição",
+    subtitulo: "Central de Planejamento e Controle de Produção (Aguardando liberação)",
+    posto: "Mesa PCP (Pendente)",
     icon: Inbox,
     corTexto: "text-amber-700 dark:text-amber-300",
     corBg: "bg-amber-500/10 dark:bg-amber-950/30 border-amber-300/60 dark:border-amber-800/60",
@@ -168,7 +169,7 @@ export default function LocalizacaoStatusHero({
       cls: "bg-blue-600 hover:bg-blue-700 text-white border-blue-700 shadow-blue-500/20 shadow-sm animate-pulse",
       icon: Play
     };
-  } else if (maquinasLista.length > 0) {
+  } else if (!isPendenteDistribuicao && maquinasLista.length > 0) {
     statusBadge = {
       label: "⏳ Aguardando Início (Máquina)",
       cls: "bg-amber-500/20 text-amber-800 dark:text-amber-200 border-amber-400 font-bold",
@@ -179,6 +180,12 @@ export default function LocalizacaoStatusHero({
       label: "Distribuído para Fábrica",
       cls: "bg-indigo-600 text-white border-indigo-700 shadow-xs",
       icon: Factory
+    };
+  } else if (isPendenteDistribuicao) {
+    statusBadge = {
+      label: "Aguardando Distribuição (PCP)",
+      cls: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 font-bold",
+      icon: Clock
     };
   }
 

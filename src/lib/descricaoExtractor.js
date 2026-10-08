@@ -317,6 +317,22 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
 
   // Se encontrou variações com comprimento
   if (out.variacoes.length > 0) {
+    // 🛡️ DEDUPLICAÇÃO DE VARIAÇÕES REPETIDAS (Evita 3 c/ 5050 + 3 c/ 5050 + 3 c/ 5050 causados por repetição de frases)
+    if (out.variacoes.length > 1) {
+      const primeiro = out.variacoes[0];
+      const todasIdenticas = out.variacoes.every(v => v.mm === primeiro.mm && v.qty === primeiro.qty);
+      if (todasIdenticas) {
+        const temSinalMais = /\b\d+\s*(?:c\/|com|de)?\s*\d+\s*(?:mm|m)?\s*\+\s*\d+/i.test(t);
+        const qOdooNum = Number(qtdOdoo) || 0;
+        const metrosPrimeiro = primeiro.total_m;
+        const bateComOdoo = qOdooNum > 0 && Math.abs(qOdooNum - metrosPrimeiro) < 0.1;
+
+        if (!temSinalMais || bateComOdoo) {
+          out.variacoes = [primeiro];
+        }
+      }
+    }
+
     const totalQtd = out.variacoes.reduce((acc, v) => acc + v.qty, 0);
     const totalMetros = +(out.variacoes.reduce((acc, v) => acc + v.total_m, 0)).toFixed(2);
     out.quantidade = totalQtd;

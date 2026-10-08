@@ -214,8 +214,9 @@ export function extrairDemandaItem(item) {
   let metros = 0;
   let compMm = 0;
 
-  // 1. Tentar extrair especificação completa combinando todas as fontes de texto
-  const textoCompletoItem = [anotacao, obs, desc, prod].filter(Boolean).join(" ");
+  // 1. Tentar extrair especificação completa sem duplicar frases
+  const textosUnicos = Array.from(new Set([anotacao, obs, desc].filter(Boolean)));
+  const textoCompletoItem = [...textosUnicos, prod].filter(Boolean).join(" ");
   const spec = extrairEspecificacao(textoCompletoItem, qtdOdoo, unid) || extrairEspecificacao(desc, qtdOdoo, unid) || extrairEspecificacao(obs, qtdOdoo, unid);
   const pecasObs = extrairPecasDaObs(anotacao) || extrairPecasDaObs(obs) || extrairPecasDaObs(desc);
 

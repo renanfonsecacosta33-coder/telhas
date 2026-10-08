@@ -145,8 +145,9 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
           const estoqueItem = estoqueContext ? verificarEstoqueItem(it, estoqueContext, pedido) : null;
           const demanda = estoqueItem?.demanda || extrairDemandaItem(it);
 
-          // Texto combinado para extrair especificação técnica e cortes (com anotação e produto)
-          const textoParaEspecificacao = [anotacao, it.observacao, it.descricao, it.produto].filter(Boolean).join(" ");
+          // Texto combinado para extrair especificação técnica e cortes (sem duplicar frases)
+          const textosUnicos = Array.from(new Set([anotacao, it.observacao, it.descricao].filter(Boolean)));
+          const textoParaEspecificacao = [...textosUnicos, it.produto].filter(Boolean).join(" ");
           const espTec = extrairEspecificacao(textoParaEspecificacao, it.quantidade, unidade);
 
           // Quantidade física e Peso (Regra AJL: Fabricação em BARRAS/PEÇAS, Peso em KG)

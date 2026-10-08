@@ -949,6 +949,20 @@ export function obterStatusExecucaoPedido(pedido, pedidosProducao = [], ordensCD
     };
   }
 
+  // 🛡️ SE O PEDIDO ESTÁ PENDENTE DE DISTRIBUIÇÃO NO PCP, ELE NUNCA ESTÁ EM PRODUÇÃO!
+  if (pedido?.status_pcp === "pendente_distribuicao") {
+    return {
+      statusChave: "pendente_distribuicao",
+      label: "Fila PCP — Aguardando Distribuição",
+      badgeCls: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 font-bold",
+      produzindoAgora: false,
+      aguardandoInicio: false,
+      isConcluido: false,
+      maquinas: [],
+      opsVinculadas: []
+    };
+  }
+
   const grupoSetor = classGrupo(pedido);
   const numPed = String(pedido.numero_pedido || "").trim().toUpperCase();
   const ofId = String(pedido.of_odoo_id || pedido.odoo_id || "").trim().toUpperCase();
