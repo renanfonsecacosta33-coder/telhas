@@ -110,6 +110,8 @@ export function getPesoOrdenacaoPrioridade(pedido) {
 export function PrioridadeBadge({ pedido, className = "" }) {
   const cfg = getPrioridadeConfig(pedido);
   if (!cfg) return null;
+  // ROTA com flag ativa: os cards já exibem o selo vermelho dedicado — evita selo duplicado
+  if (cfg.nivel === "ROTA" && pedido?.rota) return null;
 
   const { Icon, tag, badgeCls } = cfg;
   return (
