@@ -335,7 +335,9 @@ export default function MaquinaPanel({ maquina }) {
     const acaoMap = {
       em_producao: pedido.status === "pausado" ? ["retomado", "Retomou Produção"] : ["iniciado", "Iniciou Produção"],
       pausado: ["pausado", "Pausou Produção"],
-      finalizado: ["finalizado", "Finalizou Pedido"],
+      finalizado: extraData?.atendido_estoque
+        ? ["finalizado", "Atendido pelo Estoque Físico"]
+        : ["finalizado", "Finalizou Pedido"],
       aguardando_colagem: ["status_alterado", "Enviado para Colagem"],
       pendente: ["status_alterado", `Retornou para Pendente`],
       cancelado: ["status_alterado", "Cancelado"],
@@ -343,9 +345,11 @@ export default function MaquinaPanel({ maquina }) {
     const [acao, label] = acaoMap[novoStatus] || ["status_alterado", `Status → ${STATUS_LABELS_TELHAS[novoStatus] || novoStatus}`];
     const detalhes = novoStatus === "pausado" && extraData.motivo_pausa
       ? `Motivo: ${extraData.motivo_pausa}`
-      : novoStatus === "finalizado" && extraData.metragem_utilizada
-        ? `Metragem: ${extraData.metragem_utilizada}m`
-        : "";
+      : extraData?.atendido_estoque
+        ? `Separado do estoque físico (${extraData.quantidade_atendida_estoque || pedido.quantidade_telhas || pedido.metros || 0} peças - sem consumo de bobina)`
+        : novoStatus === "finalizado" && extraData.metragem_utilizada
+          ? `Metragem: ${extraData.metragem_utilizada}m`
+          : "";
     const histData = appendHistorico(pedido, acao, label, detalhes);
     const hojeStr = format(new Date(), "yyyy-MM-dd");
     const agoraIso = new Date().toISOString();

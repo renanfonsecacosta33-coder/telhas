@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route, Camera, Scissors, Snowflake, Lock, RotateCcw, ShoppingCart, User, Users, Zap } from "lucide-react";
+import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route, Camera, Scissors, Snowflake, Lock, RotateCcw, ShoppingCart, User, Users, Zap, PackageCheck } from "lucide-react";
 import ImageLink from "@/components/ui/ImageLink";
 import RetrabalhoTelhasDialog from "@/components/producao/RetrabalhoTelhasDialog";
 import { format } from "date-fns";
@@ -15,6 +15,7 @@ import ConfirmarInicioDialog from "@/components/producao/ConfirmarInicioDialog";
 import ConferirBobinaItemDialog from "@/components/producao/ConferirBobinaItemDialog";
 import FinalizarItemVariacaoDialog from "@/components/producao/FinalizarItemVariacaoDialog";
 import IniciarOpOperadoresDialog from "@/components/producao/IniciarOpOperadoresDialog";
+import CumeeiraEstoqueDialog from "@/components/producao/CumeeiraEstoqueDialog";
 import { playFinishSound, speakOpFinalizada, playAlertSound } from "@/lib/sounds";
 import { useFilial } from "@/contexts/FilialContext";
 import { useQuery } from "@tanstack/react-query";
@@ -343,7 +344,19 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const [finalizarItemModal, setFinalizarItemModal] = useState({ open: false, item: null, index: 0 });
   const [operadoresDialogOpen, setOperadoresDialogOpen] = useState(false);
   const [pendingColagemUpdates, setPendingColagemUpdates] = useState(null);
+  const [cumeeiraEstoqueOpen, setCumeeiraEstoqueOpen] = useState(false);
   const intervalRef = useRef(null);
+
+  // Identifica se este pedido é de Cumeeira
+  const isCumeeira = useMemo(() => {
+    return (
+      String(maquina || "").toUpperCase() === "CUMEEIRA" ||
+      String(p?.maquina || "").toUpperCase() === "CUMEEIRA" ||
+      p?.produto === "CUMEEIRA" ||
+      produtoDetectado === "CUMEEIRA" ||
+      /\bCUMEEIRA\b/i.test(`${p?.item_produto || ""} ${p?.modelo || ""} ${p?.produto || ""} ${p?.observacoes || ""} ${p?.observacoes_odoo || ""}`)
+    );
+  }, [maquina, p?.maquina, p?.produto, p?.item_produto, p?.modelo, p?.observacoes, p?.observacoes_odoo, produtoDetectado]);
 
   // Análise de fluxo paralelo de Telha Bandeja (Telha Normal + Bandeja Inferior + Colagem)
   const diagBandeja = useMemo(() => verificarStatusComponentesBandeja(p, todosPedidos), [p, todosPedidos]);
@@ -846,6 +859,39 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     });
   };
 
+  const handleConfirmarBaixaEstoqueCumeeira = async ({ quantidade, produtoEstoque, observacao }) => {
+    const hojeStr = format(new Date(), "yyyy-MM-dd");
+    const qtdNum = Number(quantidade) || Number(p.metros) || 1;
+
+    // Toca som de finalização e anúncio
+    playFinishSound();
+    speakOpFinalizada(p.maquina || maquina || "CUMEEIRA", p.numero_pedido);
+
+    const detalheEstoque = produtoEstoque
+      ? `Separado do estoque físico [${produtoEstoque.nome}] (${qtdNum} peças). Saldo restante: ${Math.max(0, (produtoEstoque.quantidade || 0) - qtdNum)} un.`
+      : `Separado diretamente do estoque físico de cumeeiras (${qtdNum} peças).`;
+
+    const extraData = {
+      atendido_estoque: true,
+      origem_atendimento: "estoque",
+      quantidade_atendida_estoque: qtdNum,
+      produto_estoque_id: produtoEstoque?.id || null,
+      produto_estoque_nome: produtoEstoque?.nome || null,
+      data_finalizacao: hojeStr,
+      metragem_utilizada: 0, // NÃO consome bobina da máquina
+      inicio_producao_ts: null,
+      observacoes: (p.observacoes ? `${p.observacoes}\n` : "") + `[📦 Atendido do Estoque Físico: ${qtdNum} peças${observacao ? ` - ${observacao}` : ""}]`,
+    };
+
+    if (appendHistoricoFn) {
+      Object.assign(extraData, appendHistoricoFn(p, "finalizado", "Atendido pelo Estoque", detalheEstoque));
+    }
+
+    onStatusChange(p, "finalizado", extraData);
+    setCumeeiraEstoqueOpen(false);
+    toast.success(`Pedido #${p.numero_pedido || p.id} atendido pelo estoque físico com sucesso!`);
+  };
+
   const handleFinalizar = () => {
     // Bloqueia se há variações e nem todos os itens estão finalizados
     if (temVariacoes && !todosItensFinalizados) {
@@ -1135,6 +1181,11 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
               ) : (
                 <>
                   <StatusBadge status={p.status} />
+                  {p.atendido_estoque && (
+                    <Badge className="bg-teal-600 text-white border-teal-700 text-xs gap-1 font-bold shadow-xs">
+                      <PackageCheck className="w-3 h-3" /> Já em Estoque
+                    </Badge>
+                  )}
                   {aguardandoAprovacao && (
                     <Badge className="bg-orange-500 text-white border-orange-600 text-xs gap-1">
                       <AlertTriangle className="w-3 h-3" /> Aguard. Aprovação
@@ -1788,14 +1839,29 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                     <Lock className="w-3.5 h-3.5 text-amber-600" /> Aguardando Componentes
                   </Button>
                 ) : (
-                  <Button
-                    size="sm"
-                    className={`gap-1 border-0 ${aguardandoAprovacao ? "bg-orange-400 hover:bg-orange-500 text-white" : p.rota ? "bg-red-500 hover:bg-red-600 text-white" : "bg-amber-500 hover:bg-amber-600 text-white font-bold shadow-xs"}`}
-                    onClick={aguardandoAprovacao ? cancelarSolicitacaoPendente : handleIniciar}
-                    title={aguardandoAprovacao ? "Aguardando aprovação do encarregado. Clique para cancelar a solicitação." : ""}
-                  >
-                    <Play className="w-3 h-3 fill-current" /> {aguardandoAprovacao ? "Aguardando... (cancelar)" : p.maquina === "COLAGEM" ? "Iniciar Colagem" : (p.etapa_anterior_concluida || (p.maquina === "BANDEJA" && isTelhaBandeja(p))) ? "Continuar na Bandeja" : "Iniciar"}
-                  </Button>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Button
+                      size="sm"
+                      className={`gap-1 border-0 ${aguardandoAprovacao ? "bg-orange-400 hover:bg-orange-500 text-white" : p.rota ? "bg-red-500 hover:bg-red-600 text-white" : "bg-amber-500 hover:bg-amber-600 text-white font-bold shadow-xs"}`}
+                      onClick={aguardandoAprovacao ? cancelarSolicitacaoPendente : handleIniciar}
+                      title={aguardandoAprovacao ? "Aguardando aprovação do encarregado. Clique para cancelar a solicitação." : ""}
+                    >
+                      <Play className="w-3 h-3 fill-current" /> {aguardandoAprovacao ? "Aguardando... (cancelar)" : p.maquina === "COLAGEM" ? "Iniciar Colagem" : (p.etapa_anterior_concluida || (p.maquina === "BANDEJA" && isTelhaBandeja(p))) ? "Continuar na Bandeja" : "Iniciar"}
+                    </Button>
+
+                    {isCumeeira && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 border-teal-500 bg-teal-50/70 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 text-teal-800 dark:text-teal-200 border font-bold shadow-xs transition-all"
+                        onClick={() => setCumeeiraEstoqueOpen(true)}
+                        title="Atender este pedido com cumeeiras já prontas no estoque físico (não consome bobina)"
+                      >
+                        <PackageCheck className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                        Já em Estoque
+                      </Button>
+                    )}
+                  </div>
                 )
               )}
 
@@ -1822,13 +1888,39 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                       ? `Finalizar ${labelProximaEtapa(p.produto, p.maquina)}`
                       : precisaColagem ? "Finalizar → Colagem" : "✓ Finalizar"}
                   </Button>
+                  {isCumeeira && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 border-teal-500 text-teal-800 dark:text-teal-200 bg-teal-50/50 hover:bg-teal-100 dark:bg-teal-950/40 font-semibold shadow-xs"
+                      onClick={() => setCumeeiraEstoqueOpen(true)}
+                      title="Atender diretamente com peças do estoque físico (sem consumir bobina)"
+                    >
+                      <PackageCheck className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                      Já em Estoque
+                    </Button>
+                  )}
                 </>
               )}
 
               {p.status === "pausado" && (
-                <Button size="sm" className="gap-1 bg-primary hover:bg-primary/90 text-white border-0" onClick={handleRetomar}>
-                  <Play className="w-3 h-3" /> Retomar
-                </Button>
+                <>
+                  <Button size="sm" className="gap-1 bg-primary hover:bg-primary/90 text-white border-0" onClick={handleRetomar}>
+                    <Play className="w-3 h-3" /> Retomar
+                  </Button>
+                  {isCumeeira && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 border-teal-500 text-teal-800 dark:text-teal-200 bg-teal-50/50 hover:bg-teal-100 dark:bg-teal-950/40 font-semibold shadow-xs"
+                      onClick={() => setCumeeiraEstoqueOpen(true)}
+                      title="Atender diretamente com peças do estoque físico"
+                    >
+                      <PackageCheck className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                      Já em Estoque
+                    </Button>
+                  )}
+                </>
               )}
 
               {p.status === "aguardando_colagem" && p.maquina === "COLAGEM" && (
@@ -1872,14 +1964,24 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                 </>
               )}
 
-              {p.status === "finalizado" && p.maquina !== "COLAGEM" && podeGerenciar && (
+              {p.status === "finalizado" && p.maquina !== "COLAGEM" && (
                 <>
-                  <Button size="sm" variant="outline" className="gap-1 text-slate-500" onClick={() => onStatusChange(p, "pendente", { inicio_producao_ts: null })}>
-                    ↩ Reabrir
-                  </Button>
-                  <Button size="sm" variant="outline" className="gap-1 border-red-300 text-red-600 hover:bg-red-50" onClick={() => setRetrabalhoOpen(true)}>
-                    <AlertTriangle className="w-3 h-3" /> Retrabalho
-                  </Button>
+                  {p.atendido_estoque && (
+                    <div className="flex items-center gap-1.5 bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 text-teal-800 dark:text-teal-200 px-3 py-1.5 rounded-lg text-xs font-semibold">
+                      <PackageCheck className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                      <span>Atendido via Estoque Físico ({p.quantidade_atendida_estoque || p.metros || 0} un)</span>
+                    </div>
+                  )}
+                  {podeGerenciar && (
+                    <>
+                      <Button size="sm" variant="outline" className="gap-1 text-slate-500" onClick={() => onStatusChange(p, "pendente", { inicio_producao_ts: null })}>
+                        ↩ Reabrir
+                      </Button>
+                      <Button size="sm" variant="outline" className="gap-1 border-red-300 text-red-600 hover:bg-red-50" onClick={() => setRetrabalhoOpen(true)}>
+                        <AlertTriangle className="w-3 h-3" /> Retrabalho
+                      </Button>
+                    </>
+                  )}
                 </>
               )}
 
@@ -2226,6 +2328,14 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         ordem={p}
         maquinaNome={p.maquina || maquina}
         onConfirm={handleConfirmarOperadores}
+      />
+
+      {/* Dialog Baixa de Cumeeira direto do Estoque Físico */}
+      <CumeeiraEstoqueDialog
+        open={cumeeiraEstoqueOpen}
+        onOpenChange={setCumeeiraEstoqueOpen}
+        pedido={p}
+        onConfirmar={handleConfirmarBaixaEstoqueCumeeira}
       />
     </>
   );
