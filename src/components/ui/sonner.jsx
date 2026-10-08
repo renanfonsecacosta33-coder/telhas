@@ -10,7 +10,9 @@ const Toaster = ({
     <Sonner
       theme={isDark ? "dark" : "light"}
       className="toaster group"
+      duration={2000}
       toastOptions={{
+        duration: 2000,
         classNames: {
           toast:
             "group toast group-[.toaster]:bg-card group-[.toaster]:text-card-foreground group-[.toaster]:border-border group-[.toaster]:shadow-xl",

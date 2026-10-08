@@ -56,7 +56,7 @@ export default function NotificationBell({ user }) {
             label: "Ver",
             onClick: () => setDrawerOpen(true)
           } : undefined,
-          duration: 5000
+          duration: 2000
         });
       }
     }
