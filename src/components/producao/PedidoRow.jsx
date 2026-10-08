@@ -25,7 +25,7 @@ import SmartImage from "@/components/ui/SmartImage";
 import { comprimirImagemParaUpload } from "@/lib/compressImage";
 import { isTelhaBandeja, verificarStatusComponentesBandeja } from "@/lib/bandejaHelper";
 import { useRegrasProducao } from "@/lib/regrasProducao";
-import { detectarTipoProdutoTelha, detectarEPSTelha } from "@/lib/pedidoOdooHelper";
+import { detectarTipoProdutoTelha, detectarEPSTelha, detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
 
 const PRODUTO_BG = {
   "TELHA":               "border-l-blue-400",
@@ -187,22 +187,24 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
 
   const epsDetectado = useMemo(() => {
     if (!pOriginal) return "";
+    // Se o pedido já é explicitamente TELHA simples, nunca tem EPS
+    if (pOriginal.produto === "TELHA" && !pOriginal.eps) return "";
+
     const textoContexto = [
       pOriginal.item_produto,
       pOriginal.produto_rotulo_pcp,
       pOriginal.modelo,
       pOriginal.observacoes_odoo,
-      pOriginal.observacoes,
-      pOriginal.produto
+      pOriginal.observacoes
     ].filter(Boolean).join(" ");
 
     const temIndicioEpsReal = /\b(eps|isopor|sanduiche|sanduíche|termoacustica|termoacústica|manta|bandeja|pir|pur)\b/i.test(textoContexto) ||
       /(eps\s*\d+|isopor\s*\d+)/i.test(textoContexto);
 
-    // Se o produto NÃO tem EPS real, SEMPRE retorna vazio (telha simples nunca tem EPS)
+    // Se o produto NÃO tem indício de EPS no texto, SEMPRE retorna vazio (telha simples nunca tem EPS)
     if (!temIndicioEpsReal) return "";
 
-    if (pOriginal.eps) return pOriginal.eps;
+    if (pOriginal.eps && PRODUTOS_COM_EPS.includes(pOriginal.produto)) return pOriginal.eps;
     if (pOriginal._presets?.eps) return pOriginal._presets.eps;
     return detectarEPSTelha(textoContexto, pOriginal.maquina || maquina);
   }, [pOriginal, maquina]);
@@ -211,17 +213,33 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const p = useMemo(() => {
     if (!pOriginal) return {};
     const presets = pOriginal._presets || {};
-    const prodFinal = produtoDetectado || pOriginal.produto || presets.produto || "TELHA";
-    const ehComEps = PRODUTOS_COM_EPS.includes(prodFinal) || Boolean(epsDetectado);
+    // Se o usuário selecionou TELHA manualmente ou foi detectada TELHA sem indício de EPS
+    const prodFinal = (produtoDetectado === "TELHA" || pOriginal.produto === "TELHA")
+      ? "TELHA"
+      : (produtoDetectado || pOriginal.produto || presets.produto || "TELHA");
+
+    const ehComEps = PRODUTOS_COM_EPS.includes(prodFinal) && Boolean(epsDetectado);
+    const maqPerfil = pOriginal.maquina_origem || detectarMaquinaTelha(pOriginal) || (pOriginal.modelo?.toLowerCase().includes("colonial") ? "COLONIAL" : pOriginal.modelo?.includes("25") ? "TP - 25" : "TP - 40");
+
+    // Se é telha simples, NUNCA permite ficar em colagem ou com status de colagem
+    const statusAjustado = (!ehComEps && (pOriginal.status === "aguardando_colagem" || pOriginal.maquina === "COLAGEM"))
+      ? "pendente"
+      : (pOriginal.status || presets.status || "pendente");
+
+    const maquinaAjustada = (!ehComEps && pOriginal.maquina === "COLAGEM")
+      ? maqPerfil
+      : (pOriginal.maquina || presets.maquina || maquina || "");
+
     return {
       ...presets,
       ...pOriginal,
       produto: prodFinal,
       eps: ehComEps ? (pOriginal.eps || presets.eps || epsDetectado || "") : "",
+      status: statusAjustado,
+      maquina: maquinaAjustada,
       numero_pedido: pOriginal.numero_pedido || presets.numero_pedido || "",
       cliente: pOriginal.cliente || presets.cliente || "",
       vendedor: pOriginal.vendedor || presets.vendedor || "",
-      maquina: pOriginal.maquina || presets.maquina || maquina || "",
       metros: (pOriginal.metros !== undefined && pOriginal.metros !== null && pOriginal.metros !== "") ? pOriginal.metros : (presets.metros ?? 0),
       metragem_mm: (pOriginal.metragem_mm !== undefined && pOriginal.metragem_mm !== null && pOriginal.metragem_mm !== "") ? pOriginal.metragem_mm : (presets.metragem_mm ?? 0),
       quantidade_telhas: (pOriginal.quantidade_telhas !== undefined && pOriginal.quantidade_telhas !== null && pOriginal.quantidade_telhas !== "") ? pOriginal.quantidade_telhas : (presets.quantidade_telhas ?? 0),
@@ -240,7 +258,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
 
   // Auto-correção em tempo real no banco de dados:
   // 1) Se estava como "TELHA + EPS" mas o Odoo é "TELHA + EPS + TELHA" -> corrige para TELHA + EPS + TELHA
-  // 2) Se estava como "TELHA + EPS" (ou com eps preenchido) mas é TELHA SIMPLES -> limpa EPS e volta para TELHA!
+  // 2) Se estava como "TELHA + EPS" (ou com eps/colagem) mas é TELHA SIMPLES -> limpa EPS e volta para TELHA na perfiladeira correta!
   useEffect(() => {
     if (!pOriginal?.id) return;
 
@@ -255,22 +273,21 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       return;
     }
 
-    // Caso 2: Era salva incorretamente com EPS mas é TELHA SIMPLES
-    const eraComEps = PRODUTOS_COM_EPS.includes(pOriginal.produto) || Boolean(pOriginal.eps);
-    const agoraEhSimples = produtoDetectado === "TELHA" && !epsDetectado;
+    // Caso 2: Era salva incorretamente com EPS ou Colagem mas é TELHA SIMPLES
+    const ehTelhaSimples = (produtoDetectado === "TELHA" || pOriginal.produto === "TELHA");
+    const temResiduoColagem = Boolean(pOriginal.eps) || pOriginal.maquina === "COLAGEM" || pOriginal.status === "aguardando_colagem" || Boolean(pOriginal.eps_status);
 
-    if (eraComEps && agoraEhSimples) {
-      console.log(`[PedidoRow] Auto-corrigindo OP #${pOriginal.numero_pedido}: removendo EPS indevido e voltando para TELHA simples.`);
+    if (ehTelhaSimples && temResiduoColagem) {
+      const maqDestino = pOriginal.maquina_origem || detectarMaquinaTelha(pOriginal) || (pOriginal.modelo?.toLowerCase().includes("colonial") ? "COLONIAL" : pOriginal.modelo?.includes("25") ? "TP - 25" : "TP - 40");
+      console.log(`[PedidoRow] Auto-corrigindo OP #${pOriginal.numero_pedido}: removendo EPS/Colagem indevidos -> perfiladeira ${maqDestino}.`);
       const updates = {
         produto: "TELHA",
         eps: "",
-        eps_status: null
+        eps_status: null,
+        isopor_utilizado: "",
+        maquina: maqDestino,
+        status: (pOriginal.status === "aguardando_colagem" ? "pendente" : pOriginal.status)
       };
-      // Se estava na máquina de colagem ou aguardando colagem, devolve para a perfiladeira original
-      if (pOriginal.maquina === "COLAGEM" || pOriginal.status === "aguardando_colagem") {
-        updates.maquina = pOriginal.maquina_origem || (pOriginal.modelo?.includes("25") ? "TP - 25" : "TP - 40");
-        updates.status = "pendente";
-      }
       base44.entities.Pedido.update(pOriginal.id, updates).then(() => {
         if (onUpdate) onUpdate();
       }).catch(err => console.warn("[PedidoRow] Auto-correção telha simples:", err));
@@ -522,6 +539,27 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     setPendingColagemUpdates(null);
     if (temVariacoes) {
       toast.success("Pedido pré-iniciado! Os múltiplos itens foram liberados para início e conferência individual.");
+    }
+  };
+
+  // Reverte um pedido indevidamente atribuído com EPS ou Colagem para Telha Simples na perfiladeira
+  const handleConverterParaTelhaSimples = async () => {
+    if (!pOriginal?.id) return;
+    const maqDestino = pOriginal.maquina_origem || detectarMaquinaTelha(pOriginal) || (pOriginal.modelo?.toLowerCase().includes("colonial") ? "COLONIAL" : pOriginal.modelo?.includes("25") ? "TP - 25" : "TP - 40");
+    try {
+      await base44.entities.Pedido.update(pOriginal.id, {
+        produto: "TELHA",
+        eps: "",
+        eps_status: null,
+        isopor_utilizado: "",
+        maquina: maqDestino,
+        status: pOriginal.status === "aguardando_colagem" ? "pendente" : pOriginal.status
+      });
+      toast.success(`OP #${pOriginal.numero_pedido || ""} convertida para Telha Simples na máquina ${maqDestino}!`);
+      if (onUpdate) onUpdate();
+    } catch (err) {
+      console.error("[PedidoRow] Erro ao converter para telha simples:", err);
+      toast.error("Erro ao converter pedido para telha simples.");
     }
   };
 
@@ -1817,6 +1855,18 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                     <AlertTriangle className="w-3 h-3" /> Retrabalho
                   </Button>
                 </>
+              )}
+
+              {podeGerenciar && (p.maquina === "COLAGEM" || p.status === "aguardando_colagem" || pOriginal?.status === "aguardando_colagem" || pOriginal?.maquina === "COLAGEM" || Boolean(pOriginal?.eps)) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 border-blue-400 text-blue-700 bg-blue-50/80 hover:bg-blue-100 dark:border-blue-700 dark:text-blue-300 dark:bg-blue-950/40 text-xs font-bold shadow-xs"
+                  onClick={handleConverterParaTelhaSimples}
+                  title="Remover EPS/Colagem e devolver para a perfiladeira correspondente como Telha Simples"
+                >
+                  ↩️ Tirar da Colagem (Telha Simples)
+                </Button>
               )}
             </>
           )}

@@ -583,7 +583,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     }
   }, [open, modeloAutoObj, form.maquina, form.modelo]);
 
-  // Sincroniza automaticamente o tipo de EPS com a máquina da telha
+  // Sincroniza automaticamente o tipo de EPS ou limpa caso seja telha simples
   useEffect(() => {
     if (!open) return;
     const isProdutoComEps = PRODUTOS_COM_EPS.includes(form.produto) ||
@@ -599,8 +599,27 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
       if (epsSugerido && !form.eps) {
         setForm(f => ({ ...f, eps: epsSugerido }));
       }
+    } else {
+      // Se NÃO é produto com EPS, limpa o EPS e reverte status/máquina de colagem se estiverem presos
+      setForm(f => {
+        let mudou = false;
+        const updates = {};
+        if (f.eps) {
+          updates.eps = "";
+          mudou = true;
+        }
+        if (f.status === "aguardando_colagem") {
+          updates.status = "pendente";
+          mudou = true;
+        }
+        if (f.maquina === "COLAGEM") {
+          updates.maquina = f.maquina_origem || (f.modelo?.toLowerCase().includes("colonial") ? "COLONIAL" : f.modelo?.includes("25") ? "TP - 25" : "TP - 40");
+          mudou = true;
+        }
+        return mudou ? { ...f, ...updates } : f;
+      });
     }
-  }, [open, form.maquina, form.modelo, form.produto, form.produto_rotulo_pcp, form.observacoes, form.eps]);
+  }, [open, form.maquina, form.modelo, form.produto, form.produto_rotulo_pcp, form.observacoes, form.eps, form.status]);
 
   // Pré-seleciona a primeira bobina compatível disponível como padrão se ainda não houver nenhuma definida
   useEffect(() => {
@@ -1066,6 +1085,19 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
       metragem_planejada: form.metragem_planejada ? Number(form.metragem_planejada) : undefined,
       isopor_utilizado: form.isopor_utilizado ? form.isopor_utilizado.total : undefined
     };
+
+    // REGRA DE OURO: Se o produto é TELHA simples (ou não é composto com EPS), limpa EPS e colagem!
+    if (!PRODUTOS_COM_EPS.includes(data.produto)) {
+      data.eps = "";
+      data.eps_status = null;
+      data.isopor_utilizado = "";
+      if (data.status === "aguardando_colagem") {
+        data.status = "pendente";
+      }
+      if (data.maquina === "COLAGEM") {
+        data.maquina = editItem?.maquina_origem || (data.modelo?.toLowerCase().includes("colonial") ? "COLONIAL" : data.modelo?.includes("25") ? "TP - 25" : "TP - 40");
+      }
+    }
 
     // Garante que metros totais representem a metragem linear real em variações
     if (variacoes && variacoes.length > 0) {
