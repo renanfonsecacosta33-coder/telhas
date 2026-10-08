@@ -930,7 +930,8 @@ export function obterStatusExecucaoPedido(pedido, pedidosProducao = [], ordensCD
       produzindoAgora: false,
       aguardandoInicio: false,
       isConcluido: false,
-      maquinas: []
+      maquinas: [],
+      opsVinculadas: []
     };
   }
 
@@ -943,28 +944,54 @@ export function obterStatusExecucaoPedido(pedido, pedidosProducao = [], ordensCD
       produzindoAgora: false,
       aguardandoInicio: false,
       isConcluido: true,
-      maquinas: []
+      maquinas: [],
+      opsVinculadas: []
     };
   }
 
+  const grupoSetor = classGrupo(pedido);
   const numPed = String(pedido.numero_pedido || "").trim().toUpperCase();
   const ofId = String(pedido.of_odoo_id || pedido.odoo_id || "").trim().toUpperCase();
   const ofNome = String(pedido.of_nome || "").trim().toUpperCase();
 
+  // ── BLINDAGEM TOTAL POR SETOR ──
+  // OFs de Corte & Dobra NUNCA consultam pedidos de telhas (pedidosProducao), e Telhas NUNCA consultam ordensCD.
+  const listaFonte = grupoSetor === "cd"
+    ? (ordensCD || [])
+    : grupoSetor === "telha"
+    ? (pedidosProducao || [])
+    : [...(pedidosProducao || []), ...(ordensCD || [])];
+
   const matchOp = (op) => {
     if (!op || op.status === "cancelado") return false;
+
+    // Se a OP é de máquina de telha e o pedido é de C&D (ou vice-versa), BLOQUEIA IMEDIATAMENTE
+    const opMaq = String(op.maquina || op.maquina_nome || "").toUpperCase();
+    const opIsTelha = /(TP\s*-\s*25|TP\s*-\s*40|ONDULADA|COLONIAL|BANDEJA|CUMEEIRA|COLAGEM|TELHA)/i.test(opMaq) ||
+                      /(TELHA|BOBININHA|CUMEEIRA)/i.test(String(op.produto || ""));
+    const pedIsTelha = grupoSetor === "telha";
+    const pedIsCd = grupoSetor === "cd";
+
+    if (pedIsCd && opIsTelha) return false;
+    if (pedIsTelha && !opIsTelha && /(DOBRADEIRA|GUILHOTINA|PERFIL|CHAPA|CORTE)/i.test(opMaq)) return false;
+
     if (op.pedido_odoo_id && pedido?.id) return op.pedido_odoo_id === pedido.id;
     if (ofId && op.of_odoo_id) return String(op.of_odoo_id).trim().toUpperCase() === ofId;
     if (ofNome && op.of_nome) return String(op.of_nome).trim().toUpperCase() === ofNome;
     if (op.pedido_odoo_id || op.of_odoo_id) return false;
-    if (op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed) return true;
+
+    // Vínculo por número de pedido com validação de produto/índice
+    if (op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed) {
+      const itens = getItens(pedido);
+      if (itens && itens.length > 0) {
+        return Boolean(localizarOpDoItem(itens[0], [op], itens));
+      }
+      return true;
+    }
     return false;
   };
 
-  const opsVinculadas = [
-    ...(pedidosProducao || []).filter(matchOp),
-    ...(ordensCD || []).filter(matchOp)
-  ];
+  const opsVinculadas = listaFonte.filter(matchOp);
 
   const temEmProducao = opsVinculadas.some(o => ["em_producao", "executando"].includes(o.status));
   const temPausado = opsVinculadas.some(o => o.status === "pausado");
@@ -981,7 +1008,8 @@ export function obterStatusExecucaoPedido(pedido, pedidosProducao = [], ordensCD
       produzindoAgora: true,
       aguardandoInicio: false,
       isConcluido: false,
-      maquinas
+      maquinas,
+      opsVinculadas
     };
   }
 
@@ -993,11 +1021,13 @@ export function obterStatusExecucaoPedido(pedido, pedidosProducao = [], ordensCD
       produzindoAgora: false,
       aguardandoInicio: false,
       isConcluido: false,
-      maquinas
+      maquinas,
+      opsVinculadas
     };
   }
 
-  if (temPendenteMaquina || pedido.status_pcp === "em_producao" || pedido.status_pcp === "distribuido") {
+  // Só está na fila da máquina se de fato houver OP vinculada nesta máquina
+  if (temPendenteMaquina || (opsVinculadas.length > 0 && pedido.status_pcp === "em_producao")) {
     const maqsStr = maquinas.length > 0 ? ` (${maquinas.join(", ")})` : "";
     return {
       statusChave: "aguardando_inicio",
@@ -1006,7 +1036,21 @@ export function obterStatusExecucaoPedido(pedido, pedidosProducao = [], ordensCD
       produzindoAgora: false,
       aguardandoInicio: true,
       isConcluido: false,
-      maquinas
+      maquinas,
+      opsVinculadas
+    };
+  }
+
+  if (pedido.status_pcp === "distribuido") {
+    return {
+      statusChave: "distribuido",
+      label: "📦 Distribuído",
+      badgeCls: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/40 font-bold",
+      produzindoAgora: false,
+      aguardandoInicio: false,
+      isConcluido: false,
+      maquinas: [],
+      opsVinculadas: []
     };
   }
 
@@ -1017,6 +1061,7 @@ export function obterStatusExecucaoPedido(pedido, pedidosProducao = [], ordensCD
     produzindoAgora: false,
     aguardandoInicio: false,
     isConcluido: false,
-    maquinas: []
+    maquinas: [],
+    opsVinculadas: []
   };
 }

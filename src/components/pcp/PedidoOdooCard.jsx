@@ -348,7 +348,7 @@ export default function PedidoOdooCard({
         {/* Localização e Status em Evidência */}
         <LocalizacaoStatusHero
           pedido={pedido}
-          ops={pedidosProducao}
+          ops={statusExecucao?.opsVinculadas || []}
           percentual={pct}
           setor={grupoSetor}
           compacto={true}
@@ -591,7 +591,7 @@ export default function PedidoOdooCard({
       {/* ══════════════ PAINEL HERO: ONDE ESTÁ & STATUS EM MÁXIMA EVIDÊNCIA ══════════════ */}
       <LocalizacaoStatusHero
         pedido={pedido}
-        ops={pedidosProducao}
+        ops={statusExecucao?.opsVinculadas || []}
         percentual={pct}
         setor={grupoSetor}
       />

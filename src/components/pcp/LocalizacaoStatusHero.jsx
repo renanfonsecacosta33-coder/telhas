@@ -23,13 +23,20 @@ export default function LocalizacaoStatusHero({
   const isConcluido = statusPcp === "concluido" || pct >= 100;
 
   // 1. Identificar Máquinas ativas ou alocadas
+  const isCd = setor === "cd";
+  const isTelha = setor === "telhas" || setor === "telha";
+
   const maquinasLista = (() => {
     const setM = new Set();
     // Nas OPs reais
     if (Array.isArray(ops)) {
       ops.forEach(op => {
-        if (op.maquina) setM.add(op.maquina);
-        if (op.maquina_nome) setM.add(op.maquina_nome);
+        const m = op.maquina || op.maquina_nome;
+        if (!m) return;
+        const mUpper = String(m).toUpperCase();
+        if (isCd && /(TP\s*-\s*25|TP\s*-\s*40|ONDULADA|COLONIAL|BANDEJA|CUMEEIRA|COLAGEM|TELHA)/i.test(mUpper)) return;
+        if (isTelha && /(DOBRADEIRA|GUILHOTINA|CORTE_DOBRA)/i.test(mUpper)) return;
+        setM.add(m);
       });
     }
     // Nos itens_json do pedido
@@ -37,7 +44,12 @@ export default function LocalizacaoStatusHero({
       const itens = typeof pedido?.itens_json === "string" ? JSON.parse(pedido?.itens_json || "[]") : (pedido?.itens || []);
       if (Array.isArray(itens)) {
         itens.forEach(it => {
-          if (it.maquina) setM.add(it.maquina);
+          if (it.maquina) {
+            const mUpper = String(it.maquina).toUpperCase();
+            if (isCd && /(TP\s*-\s*25|TP\s*-\s*40|ONDULADA|COLONIAL|BANDEJA|CUMEEIRA|COLAGEM|TELHA)/i.test(mUpper)) return;
+            if (isTelha && /(DOBRADEIRA|GUILHOTINA|CORTE_DOBRA)/i.test(mUpper)) return;
+            setM.add(it.maquina);
+          }
         });
       }
     } catch {
@@ -46,9 +58,18 @@ export default function LocalizacaoStatusHero({
     return Array.from(setM).filter(Boolean);
   })();
 
+  // Filtrar OPs compatíveis com o setor deste card
+  const opsValidas = Array.isArray(ops) ? ops.filter(op => {
+    if (!op || op.status === "cancelado") return false;
+    const mUpper = String(op.maquina || op.maquina_nome || "").toUpperCase();
+    if (isCd && /(TP\s*-\s*25|TP\s*-\s*40|ONDULADA|COLONIAL|BANDEJA|CUMEEIRA|COLAGEM|TELHA)/i.test(mUpper)) return false;
+    if (isTelha && /(DOBRADEIRA|GUILHOTINA|CORTE_DOBRA)/i.test(mUpper)) return false;
+    return true;
+  }) : [];
+
   // Verificar se há OP ativa em execução agora
-  const temOpEmExecucao = Array.isArray(ops) && ops.some(o => ["em_producao", "executando"].includes(o.status));
-  const temOpPausada = Array.isArray(ops) && ops.some(o => o.status === "pausado");
+  const temOpEmExecucao = opsValidas.length > 0 && opsValidas.some(o => ["em_producao", "executando"].includes(o.status));
+  const temOpPausada = opsValidas.length > 0 && opsValidas.some(o => o.status === "pausado");
 
   // 2. Determinar ONDE ESTÁ O PEDIDO
   let localizacao = {
@@ -97,8 +118,8 @@ export default function LocalizacaoStatusHero({
       dotCor: "bg-amber-500",
       stepIndex: 3
     };
-  } else if (maquinasLista.length > 0 || statusPcp === "em_producao") {
-    const nomeMaq = maquinasLista.length > 0 ? maquinasLista.join(" + ") : "Perfiladeira / Máquina";
+  } else if (maquinasLista.length > 0) {
+    const nomeMaq = maquinasLista.join(" + ");
     localizacao = {
       titulo: `Máquina: ${nomeMaq}`,
       subtitulo: "⏳ Na fila da máquina — Aguardando início pelo operador",
@@ -147,7 +168,7 @@ export default function LocalizacaoStatusHero({
       cls: "bg-blue-600 hover:bg-blue-700 text-white border-blue-700 shadow-blue-500/20 shadow-sm animate-pulse",
       icon: Play
     };
-  } else if (maquinasLista.length > 0 || statusPcp === "em_producao") {
+  } else if (maquinasLista.length > 0) {
     statusBadge = {
       label: "⏳ Aguardando Início (Máquina)",
       cls: "bg-amber-500/20 text-amber-800 dark:text-amber-200 border-amber-400 font-bold",
