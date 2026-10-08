@@ -341,6 +341,11 @@ export default function MaquinaPanel({ maquina }) {
   });
 
   const handleStatusChange = (pedido, novoStatus, extraData = {}) => {
+    // Chamado sem pedido (ex: refresh após salvar o texto da bobina) = apenas recarrega a lista
+    if (!pedido) {
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      return;
+    }
     const acaoMap = {
       em_producao: pedido.status === "pausado" ? ["retomado", "Retomou Produção"] : ["iniciado", "Iniciou Produção"],
       pausado: ["pausado", "Pausou Produção"],
@@ -736,15 +741,17 @@ export default function MaquinaPanel({ maquina }) {
   };
 
   const handleSetPrioridade = (pedido, nivel) => {
-    const novaPri = Boolean(nivel);
-    const nivelNum = nivel ? Number(nivel) : null;
-    const labelAcao = nivelNum ? `Definiu Prioridade P${nivelNum}` : "Removeu Prioridade";
-    const histData = appendHistorico(pedido, "prioridade", labelAcao, `Prioridade nível ${nivelNum || "nenhum"}`);
+    const ehRota = nivel === "ROTA";
+    const nivelNum = !ehRota && nivel ? Number(nivel) : null;
+    const labelAcao = ehRota ? "Marcou como Rota" : nivelNum ? `Definiu Prioridade P${nivelNum}` : "Removeu Prioridade";
+    const histData = appendHistorico(pedido, "prioridade", labelAcao, ehRota ? "Pedido de rota de entrega" : `Prioridade nível ${nivelNum || "nenhum"}`);
     updateMutation.mutate({
       id: pedido.id,
       data: {
-        prioridade: novaPri,
+        // P4 (Normal) e P5 (Baixa) NÃO são OPs prioritárias de verdade
+        prioridade: Boolean(nivelNum && nivelNum >= 1 && nivelNum <= 3),
         prioridade_nivel: nivelNum,
+        ...(ehRota ? { rota: true } : {}),
         ...histData
       }
     });
