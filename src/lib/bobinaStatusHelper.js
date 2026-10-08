@@ -643,6 +643,8 @@ export function calcularFiltrosDisponiveis(pedidos = []) {
   const contagensCores = {
     importados: 0,
     nacionais: 0,
+    naturaisImportadas: 0,
+    naturaisNacionais: 0,
     preta: 0,
     branca: 0,
     azul: 0,
@@ -658,6 +660,8 @@ export function calcularFiltrosDisponiveis(pedidos = []) {
     const info = extrairInfoBobinasPedido(p);
     if (info.isNatural) {
       countNaturaisTotal++;
+      if (info.isImportada) contagensCores.naturaisImportadas++;
+      if (info.isNacional) contagensCores.naturaisNacionais++;
       info.espessurasNaturais.forEach(esp => {
         contagemNaturaisPorEspessura[esp] = (contagemNaturaisPorEspessura[esp] || 0) + 1;
       });
@@ -687,6 +691,26 @@ export function calcularFiltrosDisponiveis(pedidos = []) {
       count: countNaturaisTotal,
       corBadge: "bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200"
     });
+
+    // Chips de Natural por Origem (Importado / Nacional)
+    if (contagensCores.naturaisImportadas > 0) {
+      filtrosDef.push({
+        key: "naturais_imp",
+        label: "Natural Imp",
+        icone: "🌐",
+        count: contagensCores.naturaisImportadas,
+        corBadge: "bg-sky-50 text-sky-800 border-sky-300 dark:bg-sky-950 dark:text-sky-300 font-bold"
+      });
+    }
+    if (contagensCores.naturaisNacionais > 0) {
+      filtrosDef.push({
+        key: "naturais_nac",
+        label: "Natural Nacional",
+        icone: "🇧🇷",
+        count: contagensCores.naturaisNacionais,
+        corBadge: "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 font-bold"
+      });
+    }
 
     // Chips específicos por Espessura (ordenados numericamente: 0,38, 0,43, 0,50, 0,65, etc.)
     const espessurasOrdenadas = Object.keys(contagemNaturaisPorEspessura).sort((a, b) => {
@@ -746,6 +770,14 @@ export function pedidoAtendeFiltroMaterial(pedido, filtroKey) {
     return Boolean(info.isNatural);
   }
 
+  // Filtro de Naturais por origem (Importado / Nacional)
+  if (filtroKey === "naturais_imp") {
+    return Boolean(info.isNatural && info.isImportada);
+  }
+  if (filtroKey === "naturais_nac") {
+    return Boolean(info.isNatural && info.isNacional);
+  }
+
   // Filtro específico de Natural por espessura (ex: natural_0,43, natural_0,50, natural_0,65)
   if (filtroKey.startsWith("natural_")) {
     const espAlvo = filtroKey.replace("natural_", "");
@@ -766,4 +798,4 @@ export function pedidoAtendeFiltroMaterial(pedido, filtroKey) {
     case "marrom": return Boolean(info.isMarrom);
     default: return true;
   }
-}
+}
