@@ -120,9 +120,10 @@ const PRODUTOS_COM_EPS = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + T
 
 // Fluxos de máquinas para produtos multi-etapa
 function proximaMaquinaFluxo(produto, maquinaAtual) {
-  // TELHA BANDEJA: TP-40 ou COLONIAL → BANDEJA → COLAGEM
+  // TELHA BANDEJA: TP-40, COLONIAL ou TP-25 → BANDEJA → COLAGEM
   if (produto === "TELHA BANDEJA") {
     const fluxo = maquinaAtual === "COLONIAL" ? ["COLONIAL", "BANDEJA", "COLAGEM"]
+                : maquinaAtual === "TP - 25" ? ["TP - 25", "BANDEJA", "COLAGEM"]
                 : ["TP - 40", "BANDEJA", "COLAGEM"];
     const idx = fluxo.indexOf(maquinaAtual);
     if (idx === -1 || idx === fluxo.length - 1) return null;
@@ -479,7 +480,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem" || p.status === "finalizado" || p.perfilacao_concluida)
   );
   // TELHA BANDEJA: fluxo multi-etapa sequencial (legado, caso não use a tríade de fluxo paralelo)
-  const isBandejaMultiEtapa = !isComponenteParaleloBandeja && p.tipo_componente_bandeja !== "colagem_final" && !p.grupo_bandeja_id && p.produto === "TELHA BANDEJA" && ["TP - 40", "COLONIAL", "BANDEJA", "COLAGEM"].includes(p.maquina);
+  const isBandejaMultiEtapa = !isComponenteParaleloBandeja && p.tipo_componente_bandeja !== "colagem_final" && !p.grupo_bandeja_id && p.produto === "TELHA BANDEJA" && ["TP - 40", "COLONIAL", "TP - 25", "BANDEJA", "COLAGEM"].includes(p.maquina);
   const proximaEtapaBandeja = isBandejaMultiEtapa ? proximaMaquinaFluxo(p.produto, p.maquina) : null;
 
   // Calcula tempo ao vivo

@@ -92,16 +92,26 @@ export async function reajustarTodasBobinasMaquinasAutomaticamente() {
       const espExigida = op.espessura_exigida || detectarEspessura(textoItem) || "0.43";
       const origemExigida = op.origem_exigida || detectarOrigemAco(textoItem) || "ambas";
 
-      // ── MÁQUINA E MODELO DA OP (Ex: Pedido com descrição "MAQUINA TP 25" mas enviado por engano para TP - 40) ──
+      // ── MÁQUINA E MODELO DA OP (Ex: Pedido com descrição "MAQUINA TP 25" mas enviado para TP - 40, ou TELHA BANDEJA que deve iniciar na TP - 40) ──
+      const ehTelhaBandeja = op.produto === "TELHA BANDEJA" || /(telha\s*(\+|\/|\s+)?\s*bandeja)/i.test(textoItem);
+      const jaPerfilouPrimeiraEtapa = Boolean(
+        op.etapa_anterior_concluida ||
+        op.data_perfilacao ||
+        (ehTelhaBandeja && op.maquina === "BANDEJA" && op.maquina_origem && op.maquina_origem !== "BANDEJA")
+      );
+
       const maqEsperada = detectarMaquinaTelha(textoItem);
-      if (maqEsperada && (op.maquina !== maqEsperada || op.modelo !== maqEsperada)) {
+      if (maqEsperada && (op.maquina !== maqEsperada || op.modelo !== maqEsperada) && !jaPerfilouPrimeiraEtapa) {
         const maqAnterior = op.maquina || op.modelo;
         updates.maquina = maqEsperada;
         updates.modelo = maqEsperada;
+        if (!op.maquina_origem) {
+          updates.maquina_origem = maqEsperada;
+        }
         if (op.observacoes && op.observacoes.includes("Auto-Roteado PCP")) {
           updates.observacoes = op.observacoes.replace(/Auto-Roteado PCP \([^)]+\)/, `Auto-Roteado PCP (${maqEsperada})`);
         }
-        motivos.push(`Máquina transferida de "${maqAnterior}" para "${maqEsperada}" conforme descrição do pedido Odoo`);
+        motivos.push(`Máquina transferida de "${maqAnterior}" para "${maqEsperada}" conforme fluxo correto (Telha primeiro na TP - 40)`);
       }
 
       // ── BOBINA SUPERIOR (CHAPA PRINCIPAL) ──

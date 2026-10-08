@@ -639,7 +639,14 @@ export function detectarMaquinaTelha(produtoTexto = "") {
   // 2. Bobininha / Fita
   if (/(DESBOBINADOR|BOBININ|BOBININH|BOBINA|FITA|DESBOBINAM)/i.test(p)) return "DESBOBINADOR";
 
-  // 3. Demais perfiladeiras com regex de alta precisão
+  // 3. TELHA BANDEJA: Primeiro perfila a telha superior na TP - 40 (ou Colonial/TP 25), depois avança para a BANDEJA!
+  if (/TELHA\s*(\+|\/|\s+)?\s*BANDEJA|BANDEJA\s*(\+|\/|\s+)?\s*TELHA/i.test(p) || (p.includes("TELHA") && p.includes("BANDEJA"))) {
+    if (p.includes("COLONIAL")) return "COLONIAL";
+    if (/(TP\s*[-/]?\s*25|TR\s*[-/]?\s*25|TRAP[EÉ]ZIO\s*25)/i.test(p)) return "TP - 25";
+    return "TP - 40";
+  }
+
+  // 4. Demais perfiladeiras com regex de alta precisão
   // Nota: TP 25 / TR 25 / Trapézio 25 / Perfil 25
   if (/(TP\s*[-/]?\s*25|TR\s*[-/]?\s*25|TRAP[EÉ]ZIO\s*25|TRAP\.\s*25|PERFIL\s*25|\b25\s*MM\b)/i.test(p)) return "TP - 25";
   // TP 40 / TR 40 / Trapézio 40 / Perfil 40
@@ -647,6 +654,8 @@ export function detectarMaquinaTelha(produtoTexto = "") {
   // Ondulada / Perfil 17
   if (/(ONDULAD|PERFIL\s*17|\b17\s*MM\b)/i.test(p)) return "ONDULADA";
   if (p.includes("COLONIAL")) return "COLONIAL";
+
+  // 5. Bandeja avulsa (somente se não for Telha Bandeja)
   if (p.includes("BANDEJA")) return "BANDEJA";
   return "";
 }

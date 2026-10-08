@@ -286,6 +286,8 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
   const prodTipo = detectarTipoProdutoTelha(produtoNome, descTexto);
   let maquina = (prodTipo === "CUMEEIRA" || /\bCUMEEIRA\b/i.test(textoCompleto))
     ? "CUMEEIRA"
+    : (prodTipo === "TELHA BANDEJA")
+    ? (detectarMaquinaTelha(textoCompleto) || "TP - 40")
     : (item.maquina || detectarMaquinaTelha(textoCompleto) || "TP - 40");
 
   const esp = item.espessura ? String(item.espessura) : (detectarEspessura(textoCompleto) || "0.43");
@@ -370,6 +372,7 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     produto: prodTipo,
     modelo: modeloFinal,
     maquina: maquina,
+    maquina_origem: maquina,
     status: "pendente",
     espessura_exigida: esp || "0.43",
     origem_exigida: origem || "ambas",
@@ -565,6 +568,8 @@ export async function rotearLoteTelhasAgrupadas({
     const prodTipo = detectarTipoProdutoTelha(produtoNome, descTexto);
     let maquina = (prodTipo === "CUMEEIRA" || /\bCUMEEIRA\b/i.test(textoCompleto))
       ? "CUMEEIRA"
+      : (prodTipo === "TELHA BANDEJA")
+      ? (detectarMaquinaTelha(textoCompleto) || "TP - 40")
       : (it.maquina || detectarMaquinaTelha(textoCompleto) || "TP - 40");
     const esp = it.espessura ? String(it.espessura) : (detectarEspessura(textoCompleto) || "0.43");
     const cor = detectarCorTelha(produtoNome, descTexto) || "NATURAL";
@@ -693,6 +698,7 @@ export async function rotearLoteTelhasAgrupadas({
       produto: g.prodTipo,
       modelo: modeloFinal,
       maquina: g.maquina,
+      maquina_origem: g.maquina,
       status: "pendente",
       prioridade_nivel: nivelPrioridade,
       prioridade: Boolean(nivelPrioridade),
