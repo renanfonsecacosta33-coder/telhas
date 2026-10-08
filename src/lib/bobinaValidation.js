@@ -131,7 +131,8 @@ export function detectarCorTelha(produtoTexto = "", descricaoTexto = "") {
   if (/(BEGE|AREIA|BEIGE)/i.test(combined)) return "BEGE";
   if (/(GRAFITE)/i.test(combined)) return "GRAFITE";
   if (/(CINZA\s*ESCURO|CINZA)/i.test(combined)) return "CINZA";
-  if (/(TERRACOTA|CERAMICA)/i.test(combined)) return "TERRACOTA";
+  if (/CERAMICA/i.test(combined)) return "CERAMICA";
+  if (/TERRACOTA/i.test(combined)) return "TERRACOTA";
   if (/(VERMELHO|VERMELHA|RED)/i.test(combined)) return "VERMELHO";
   if (/(MARROM|BROWN)/i.test(combined)) return "MARROM";
   if (/(VERDE|GREEN)/i.test(combined)) return "VERDE";
@@ -185,8 +186,8 @@ export function isCorCompativel(bobina, corExigida) {
   if (corAlvo === "CINZA") {
     return /(CINZA)/i.test(corBobina) || /(CINZA)/i.test(rvmBobina);
   }
-  if (corAlvo === "TERRACOTA") {
-    return /(TERRACOTA|CERAMICA)/i.test(corBobina) || /(TERRACOTA)/i.test(rvmBobina);
+  if (corAlvo === "TERRACOTA" || corAlvo === "CERAMICA") {
+    return /(TERRACOTA|CERAMICA)/i.test(corBobina) || /(TERRACOTA|CERAMICA)/i.test(rvmBobina);
   }
   if (corAlvo === "VERMELHO") {
     return /(VERMELHO|VERMELHA|RED)/i.test(corBobina) || /(VERMELHO)/i.test(rvmBobina);

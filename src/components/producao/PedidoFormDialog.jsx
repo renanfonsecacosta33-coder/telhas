@@ -1677,6 +1677,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                       <SelectItem value="BEGE">Bege</SelectItem>
                       <SelectItem value="GRAFITE">Grafite</SelectItem>
                       <SelectItem value="CINZA">Cinza</SelectItem>
+                      <SelectItem value="CERAMICA">Cerâmica</SelectItem>
                       <SelectItem value="TERRACOTA">Terracota</SelectItem>
                       <SelectItem value="VERMELHO">Vermelha</SelectItem>
                       <SelectItem value="MARROM">Marrom</SelectItem>

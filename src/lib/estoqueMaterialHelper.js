@@ -117,6 +117,7 @@ export function extrairCorDoTexto(texto) {
     { nome: "Verde", regex: /\b(verde|green)\b/i },
     { nome: "Bege", regex: /\b(bege|beige)\b/i },
     { nome: "Grafite", regex: /\b(grafite)\b/i },
+    { nome: "Cerâmica", regex: /\b(cer[âa]mic[ao])\b/i },
     { nome: "Terracota", regex: /\b(terracota)\b/i },
     { nome: "Marrom", regex: /\b(marrom|brown)\b/i }
   ];
@@ -160,8 +161,9 @@ export function isEspCompativel(b, espNominal) {
  * Verifica compatibilidade de cor da bobina.
  */
 export function isCorCompativel(bCor, itemCor) {
-  const ic = (itemCor || "Natural").trim().toLowerCase();
-  const bc = (bCor || "Natural").trim().toLowerCase();
+  const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  const ic = norm(itemCor) || "natural";
+  const bc = norm(bCor);
   if (ic === "natural" || ic === "galvalume" || ic === "gv" || ic === "gl") {
     return (
       bc.includes("natural") ||
@@ -170,6 +172,10 @@ export function isCorCompativel(bCor, itemCor) {
       bc.includes("gl") ||
       bc === ""
     );
+  }
+  // Cerâmica e Terracota são tons da mesma família e são aceitas indistintamente
+  if (ic.includes("ceramica") || ic.includes("terracota")) {
+    return bc.includes("ceramica") || bc.includes("terracota");
   }
   return bc.includes(ic) || ic.includes(bc);
 }

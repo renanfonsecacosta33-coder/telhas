@@ -47,7 +47,7 @@ function getCorBadgeStyle(cor) {
   if (c.includes("verd")) {
     return "bg-emerald-600 text-white border-emerald-700";
   }
-  if (c.includes("marrom") || c.includes("terracota")) {
+  if (c.includes("marrom") || c.includes("terracota") || c.includes("ceramica")) {
     return "bg-amber-800 text-white border-amber-900";
   }
   return "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300";
