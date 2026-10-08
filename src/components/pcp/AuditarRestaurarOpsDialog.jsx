@@ -28,6 +28,7 @@ import {
 } from "@/lib/pedidoOdooHelper";
 import { detectarCoresDuplaTelha } from "@/lib/autoBobinaTelhasHelper";
 import { isCorCompativel, removerAcentos } from "@/lib/bobinaValidation";
+import { reajustarTodasBobinasMaquinasAutomaticamente } from "@/lib/reajusteAutomaticoBobinas";
 
 export default function AuditarRestaurarOpsDialog({
   open,
@@ -215,6 +216,21 @@ export default function AuditarRestaurarOpsDialog({
             console.error(`[Auditoria] Falha ao atualizar OP ${op.id}:`, errUpd);
           }
         }
+      }
+
+      // 4. Executa reajuste automático de bobinas trazidas do Odoo
+      const resReajuste = await reajustarTodasBobinasMaquinasAutomaticamente();
+      if (resReajuste?.detalhes?.length > 0) {
+        resReajuste.detalhes.forEach(d => {
+          opsCorrigidas++;
+          logs.push({
+            tipo: "bobina_reajustada",
+            pedido: d.numero_pedido,
+            cliente: d.cliente || "—",
+            maquina: d.maquina,
+            motivos: d.motivos
+          });
+        });
       }
 
       setResultado({

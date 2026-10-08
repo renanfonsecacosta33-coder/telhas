@@ -29,6 +29,7 @@ import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaq
 import { isOperadorDestaMaquina } from "@/lib/somPermissaoHelper";
 import { salvarCacheLocal, obterCacheLocal, enfileirarAcaoOffline } from "@/lib/offlineStorage";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
+import { reajustarTodasBobinasMaquinasAutomaticamente } from "@/lib/reajusteAutomaticoBobinas";
 
 const STATUS_LABELS_TELHAS = {
   pendente: "Pendente",
@@ -108,7 +109,7 @@ export default function MaquinaPanel({ maquina }) {
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
 
-  // Reset de qualquer chave de bobina montada em máquina no cache/localStorage
+  // Reset de qualquer chave de bobina montada em máquina e reajuste automático das bobinas com dados do Odoo
   useEffect(() => {
     try {
       Object.keys(localStorage).forEach(key => {
@@ -117,7 +118,16 @@ export default function MaquinaPanel({ maquina }) {
         }
       });
     } catch {}
-  }, []);
+
+    // Reajusta automaticamente todas as OPs para preencher o texto da bobina com base no Odoo
+    reajustarTodasBobinasMaquinasAutomaticamente().then(res => {
+      if (res && res.totalReajustadas > 0) {
+        queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      }
+    }).catch(err => {
+      console.warn("[MaquinaPanel] Reajuste automático de bobinas:", err);
+    });
+  }, [queryClient]);
 
   // Consulta catálogo de bobinas para checagem de estoque e sequenciamento de setup
   const { data: todasBobinas = [] } = useQuery({

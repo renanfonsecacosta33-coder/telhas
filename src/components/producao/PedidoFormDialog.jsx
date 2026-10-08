@@ -1748,20 +1748,36 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           <div className="border border-border rounded-lg p-3 space-y-3">
             <p className="text-sm font-semibold text-foreground">Bobinas do Estoque</p>
 
-            {/* Bobina Superior */}
+            {/* Bobina Superior — Campo Escrito Livre & Automático */}
             <div className="space-y-2">
-              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Bobina Superior</Label>
-              <BobinaComboboxTelhas
-                bobinas={bobinasList}
-                value={form.bobina_superior}
-                onChange={handleBobinaSupChange}
-                preBaixaMap={preBaixaMap}
-                statusMap={statusMap}
-                ordensAtivas={todasOrdens}
-                placeholder="Buscar código ou cor (ex: 001, Preta, Branca, Natural)..."
-                onVerTodoEstoque={() => setIgnorarFiltroOdoo(true)}
-                totalEstoque={bobinas.length}
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold text-foreground uppercase tracking-wide">
+                  Bobina de Produção (Automática do Odoo · Campo Escrito)
+                </Label>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                  Ajuste livre / sem travas
+                </span>
+              </div>
+              <Input
+                value={form.bobina_superior || ""}
+                onChange={(e) => setForm({ ...form, bobina_superior: e.target.value })}
+                placeholder="Código ou descrição da bobina (automática do Odoo ou digite livremente)..."
+                className="h-9 font-mono text-xs sm:text-sm font-bold bg-white dark:bg-slate-900 border-indigo-300 dark:border-indigo-700 focus-visible:ring-indigo-400"
               />
+              <div className="pt-1">
+                <Label className="text-[11px] font-medium text-muted-foreground">Ou selecione uma bobina rápida do estoque:</Label>
+                <BobinaComboboxTelhas
+                  bobinas={bobinasList}
+                  value={form.bobina_superior}
+                  onChange={handleBobinaSupChange}
+                  preBaixaMap={preBaixaMap}
+                  statusMap={statusMap}
+                  ordensAtivas={todasOrdens}
+                  placeholder="Buscar código ou cor (ex: 001, Preta, Branca, Natural)..."
+                  onVerTodoEstoque={() => setIgnorarFiltroOdoo(true)}
+                  totalEstoque={bobinas.length}
+                />
+              </div>
 
               {bobinaSuperiorObj && (() => {
                     const pb = preBaixaMap[bobinaSuperiorObj.id] || 0;
@@ -1849,21 +1865,37 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                   })()}
                 </div>
 
-            {/* Bobina Inferior (condicionalmente) */}
-            {precisaBobinaInferior &&
-            <div className="space-y-2">
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Bobina Inferior</Label>
-                <BobinaComboboxTelhas
-                  bobinas={bobinasList}
-                  value={form.bobina_inferior}
-                  onChange={handleBobinaInfChange}
-                  preBaixaMap={preBaixaMap}
-                  statusMap={statusMap}
-                  ordensAtivas={todasOrdens}
-                  placeholder="Buscar código ou cor da bobina inferior..."
-                  onVerTodoEstoque={() => setIgnorarFiltroOdoo(true)}
-                  totalEstoque={bobinas.length}
+            {/* Bobina Inferior (condicionalmente) — Campo Escrito Livre & Automático */}
+            {precisaBobinaInferior && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-foreground uppercase tracking-wide">
+                    Bobina da Chapa Inferior (Automática do Odoo · Campo Escrito)
+                  </Label>
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                    Ajuste livre / sem travas
+                  </span>
+                </div>
+                <Input
+                  value={form.bobina_inferior || ""}
+                  onChange={(e) => setForm({ ...form, bobina_inferior: e.target.value })}
+                  placeholder="Digite a bobina da chapa inferior (automática do Odoo ou digite livremente)..."
+                  className="h-9 font-mono text-xs sm:text-sm font-bold bg-white dark:bg-slate-900 border-indigo-300 dark:border-indigo-700 focus-visible:ring-indigo-400"
                 />
+                <div className="pt-1">
+                  <Label className="text-[11px] font-medium text-muted-foreground">Ou selecione uma bobina rápida do estoque:</Label>
+                  <BobinaComboboxTelhas
+                    bobinas={bobinasList}
+                    value={form.bobina_inferior}
+                    onChange={handleBobinaInfChange}
+                    preBaixaMap={preBaixaMap}
+                    statusMap={statusMap}
+                    ordensAtivas={todasOrdens}
+                    placeholder="Buscar código ou cor da bobina inferior..."
+                    onVerTodoEstoque={() => setIgnorarFiltroOdoo(true)}
+                    totalEstoque={bobinas.length}
+                  />
+                </div>
                     {bobinaInferiorObj && (() => {
                     const pb = preBaixaMap[bobinaInferiorObj.id] || 0;
                     const disp = (bobinaInferiorObj.peso_kg || 0) - pb;
@@ -1885,7 +1917,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                     })()
                     }
               </div>
-            }
+            )}
           </div>
           )}
 

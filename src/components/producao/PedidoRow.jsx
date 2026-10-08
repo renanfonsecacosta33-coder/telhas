@@ -3,8 +3,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route, Camera, Scissors, Snowflake, Lock, RotateCcw, ShoppingCart, User, Users, Zap, PackageCheck } from "lucide-react";
+import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route, Camera, Scissors, Snowflake, Lock, RotateCcw, ShoppingCart, User, Users, Zap, PackageCheck, Pencil, Check, X } from "lucide-react";
 import ImageLink from "@/components/ui/ImageLink";
 import RetrabalhoTelhasDialog from "@/components/producao/RetrabalhoTelhasDialog";
 import { format } from "date-fns";
@@ -293,6 +294,59 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const [pendingColagemUpdates, setPendingColagemUpdates] = useState(null);
   const [cumeeiraEstoqueOpen, setCumeeiraEstoqueOpen] = useState(false);
   const intervalRef = useRef(null);
+
+  // Estados dos Campos Escritos de Bobinas (Permite ao operador e gestor ajustar livremente o texto)
+  const [editandoBobinaSup, setEditandoBobinaSup] = useState(false);
+  const [textoBobinaSup, setTextoBobinaSup] = useState(p?.bobina_superior || "");
+  const [salvandoBobinaSup, setSalvandoBobinaSup] = useState(false);
+
+  const [editandoBobinaInf, setEditandoBobinaInf] = useState(false);
+  const [textoBobinaInf, setTextoBobinaInf] = useState(p?.bobina_inferior || "");
+  const [salvandoBobinaInf, setSalvandoBobinaInf] = useState(false);
+
+  useEffect(() => {
+    setTextoBobinaSup(p?.bobina_superior || "");
+  }, [p?.bobina_superior]);
+
+  useEffect(() => {
+    setTextoBobinaInf(p?.bobina_inferior || "");
+  }, [p?.bobina_inferior]);
+
+  const handleSalvarBobinaSup = async () => {
+    if (!p?.id) return;
+    setSalvandoBobinaSup(true);
+    try {
+      const novoTexto = textoBobinaSup.trim();
+      await base44.entities.Pedido.update(p.id, {
+        bobina_superior: novoTexto
+      });
+      setEditandoBobinaSup(false);
+      toast.success(`Bobina de produção ajustada para: "${novoTexto}"`);
+      if (onUpdate) onUpdate();
+    } catch (err) {
+      toast.error("Erro ao salvar bobina: " + (err?.message || ""));
+    } finally {
+      setSalvandoBobinaSup(false);
+    }
+  };
+
+  const handleSalvarBobinaInf = async () => {
+    if (!p?.id) return;
+    setSalvandoBobinaInf(true);
+    try {
+      const novoTexto = textoBobinaInf.trim();
+      await base44.entities.Pedido.update(p.id, {
+        bobina_inferior: novoTexto
+      });
+      setEditandoBobinaInf(false);
+      toast.success(`Bobina da chapa inferior ajustada para: "${novoTexto}"`);
+      if (onUpdate) onUpdate();
+    } catch (err) {
+      toast.error("Erro ao salvar bobina inferior: " + (err?.message || ""));
+    } finally {
+      setSalvandoBobinaInf(false);
+    }
+  };
 
   // Identifica se este pedido é de Cumeeira
   const isCumeeira = useMemo(() => {
@@ -1485,15 +1539,15 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
           </div>
         )}
 
-        {/* Bloco de Destaque da Bobina & Procedência do Aço (Nacional vs Importado) */}
-        {(p.bobina_superior || p.bobina_superior_id || p.origem_exigida) && (
+        {/* Bloco de Destaque da Bobina & Procedência do Aço (Nacional vs Importado) — CAMPO ESCRITO EDITÁVEL */}
+        {(p.bobina_superior || p.bobina_superior_id || p.origem_exigida || editandoBobinaSup) && (
           <div className="w-full bg-slate-50/90 dark:bg-slate-900/80 border-2 border-slate-200 dark:border-slate-700/80 rounded-2xl p-3 sm:p-4 mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-start sm:items-center gap-3">
+            <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
               <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
                 <Layers className="w-5 h-5" />
               </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
                   <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
                     {p.tipo_componente_bandeja === "telha_superior"
                       ? `Bobina da Telha Superior (${p.maquina})`
@@ -1501,11 +1555,73 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                       ? "Bobina da Bandeja Inferior"
                       : "Bobina de Produção"}
                   </span>
-                  <span className="font-mono font-black text-sm text-foreground bg-white dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
-                    {p.bobina_superior || "Bobina não definida"}
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                    (Automática Odoo · Campo Escrito)
                   </span>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
+
+                {editandoBobinaSup ? (
+                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap mt-1">
+                    <Input
+                      value={textoBobinaSup}
+                      onChange={(e) => setTextoBobinaSup(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSalvarBobinaSup();
+                        if (e.key === "Escape") {
+                          setTextoBobinaSup(p.bobina_superior || "");
+                          setEditandoBobinaSup(false);
+                        }
+                      }}
+                      placeholder="Digite o código ou nome da bobina..."
+                      className="h-9 font-mono text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 border-indigo-400 focus-visible:ring-indigo-400 max-w-md"
+                      autoFocus
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleSalvarBobinaSup}
+                      disabled={salvandoBobinaSup}
+                      className="h-9 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1 shrink-0"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      Salvar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setTextoBobinaSup(p.bobina_superior || "");
+                        setEditandoBobinaSup(false);
+                      }}
+                      disabled={salvandoBobinaSup}
+                      className="h-9 px-2 text-xs text-muted-foreground hover:text-foreground shrink-0"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      Cancelar
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span
+                      onClick={() => setEditandoBobinaSup(true)}
+                      title="Clique para editar ou ajustar o texto da bobina"
+                      className="font-mono font-black text-sm text-foreground bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 hover:border-indigo-500 cursor-pointer transition-colors shadow-2xs flex items-center gap-2 group"
+                    >
+                      <span>{p.bobina_superior || "Bobina não definida (Clique para ajustar)"}</span>
+                      <Pencil className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEditandoBobinaSup(true)}
+                      className="h-7 px-2 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 border-indigo-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 gap-1 shrink-0"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      Ajustar
+                    </Button>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1.5 flex-wrap">
                   <span>Cor / RVM: <strong className="text-foreground">{p.rvm_superior || "Natural"}</strong></span>
                   {p.espessura_exigida && <span>Espessura: <strong className="text-foreground">{p.espessura_exigida} mm</strong></span>}
                   {p.kg_superior > 0 && <span>Peso: <strong className="text-foreground">{p.kg_superior} kg</strong></span>}
@@ -1523,23 +1639,85 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
           </div>
         )}
 
-        {/* Se for TELHA + EPS + TELHA, exibe destaque da Bobina Inferior */}
+        {/* Se for TELHA + EPS + TELHA, exibe destaque da Bobina Inferior — CAMPO ESCRITO EDITÁVEL */}
         {p.produto === "TELHA + EPS + TELHA" && (
           <div className="w-full bg-indigo-50/70 dark:bg-indigo-950/40 border-2 border-indigo-200 dark:border-indigo-800 rounded-2xl p-3 sm:p-4 mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-start sm:items-center gap-3">
+            <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
               <div className="w-10 h-10 rounded-xl bg-indigo-800 text-white flex items-center justify-center shrink-0 shadow-md">
                 <Layers className="w-5 h-5" />
               </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
                   <span className="text-[10px] uppercase font-bold text-indigo-700 dark:text-indigo-300 tracking-wider">
                     Bobina da Chapa Inferior (2ª Telha / Sanduíche)
                   </span>
-                  <span className="font-mono font-black text-sm text-foreground bg-white dark:bg-slate-800 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-700">
-                    {p.bobina_inferior || p.bobina_superior || "Mesma bobina superior"}
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                    (Automática Odoo · Campo Escrito)
                   </span>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
+
+                {editandoBobinaInf ? (
+                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap mt-1">
+                    <Input
+                      value={textoBobinaInf}
+                      onChange={(e) => setTextoBobinaInf(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSalvarBobinaInf();
+                        if (e.key === "Escape") {
+                          setTextoBobinaInf(p.bobina_inferior || "");
+                          setEditandoBobinaInf(false);
+                        }
+                      }}
+                      placeholder="Digite a bobina da chapa inferior..."
+                      className="h-9 font-mono text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 border-indigo-400 focus-visible:ring-indigo-400 max-w-md"
+                      autoFocus
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleSalvarBobinaInf}
+                      disabled={salvandoBobinaInf}
+                      className="h-9 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1 shrink-0"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      Salvar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setTextoBobinaInf(p.bobina_inferior || "");
+                        setEditandoBobinaInf(false);
+                      }}
+                      disabled={salvandoBobinaInf}
+                      className="h-9 px-2 text-xs text-muted-foreground hover:text-foreground shrink-0"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      Cancelar
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span
+                      onClick={() => setEditandoBobinaInf(true)}
+                      title="Clique para editar ou ajustar o texto da bobina inferior"
+                      className="font-mono font-black text-sm text-foreground bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-700 hover:border-indigo-500 cursor-pointer transition-colors shadow-2xs flex items-center gap-2 group"
+                    >
+                      <span>{p.bobina_inferior || p.bobina_superior || "Mesma bobina superior (Clique para ajustar)"}</span>
+                      <Pencil className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEditandoBobinaInf(true)}
+                      className="h-7 px-2 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 border-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 gap-1 shrink-0"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      Ajustar
+                    </Button>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1.5 flex-wrap">
                   <span>Cor / RVM: <strong className="text-foreground">{p.rvm_inferior || p.rvm_superior || "Natural"}</strong></span>
                   {p.espessura_exigida && <span>Espessura: <strong className="text-foreground">{p.espessura_exigida} mm</strong></span>}
                 </div>
