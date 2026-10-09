@@ -38,7 +38,9 @@ import { reajustarTodasBobinasMaquinasAutomaticamente } from "@/lib/reajusteAuto
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import TransferirLojaDialog from "@/components/pcp/TransferirLojaDialog";
+import { salvarCacheLocal, obterCacheLocal } from "@/lib/offlineStorage";
 import { useFilial } from "@/contexts/FilialContext";
+import { useOffline } from "@/contexts/OfflineContext";
 import { FILIAIS_PCP } from "@/lib/roteamentoPCP";
 import { calcularDataPrometidaSLA, toISODate, slaDiasPorCategoria, diasUteisRestantes, formatDataBR } from "@/lib/sla";
 import { parseItensPedido } from "@/lib/regrasFabrica";
@@ -101,6 +103,7 @@ export default function CentralPCP() {
 
   // Central PCP por Loja / Filial e Permissões de Usuário
   const filialCtx = useFilial();
+  const { isOnline } = useOffline();
   const filialAtiva = filialCtx?.filialAtiva || "Matriz AJL";
   const isOperador = filialCtx?.user?.role === "operador";
 
@@ -219,9 +222,49 @@ export default function CentralPCP() {
     }
   };
 
+  // ── BUSCA ILIMITADA BLINDADA COM CACHE LOCAL INDEXEDDB (TELA NUNCA VAZIA) ──
+  const carregarPedidosOdooBlindado = async () => {
+    const CHAVE_CACHE = "pedidos_odoo_pcp_cache_v2";
+
+    // 1. Se estiver offline no navegador, resgata imediatamente do cache local do dispositivo
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const salvoOffline = await obterCacheLocal(CHAVE_CACHE);
+      if (salvoOffline && Array.isArray(salvoOffline) && salvoOffline.length > 0) {
+        return salvoOffline;
+      }
+    }
+
+    try {
+      // 2. Busca na nuvem com limite ilimitado (5000 registros)
+      const dados = await base44.entities.PedidoOdoo.list("-data_recebimento", 5000);
+      if (dados && Array.isArray(dados) && dados.length > 0) {
+        salvarCacheLocal(CHAVE_CACHE, dados).catch(() => {});
+        return dados;
+      }
+
+      // Se a rede respondeu vazio inesperadamente, resgata o cache para NUNCA esvaziar a tela
+      const salvoFallback = await obterCacheLocal(CHAVE_CACHE);
+      if (salvoFallback && Array.isArray(salvoFallback) && salvoFallback.length > 0) {
+        return salvoFallback;
+      }
+      return dados || [];
+    } catch (errRede) {
+      console.warn("[CentralPCP] Rede instável ou timeout ao buscar PedidoOdoo, resgatando cache IndexedDB:", errRede);
+      const salvoLocal = await obterCacheLocal(CHAVE_CACHE);
+      if (salvoLocal && Array.isArray(salvoLocal) && salvoLocal.length > 0) {
+        return salvoLocal;
+      }
+      throw errRede;
+    }
+  };
+
   const { data: pedidosRaw = [], isLoading: carregando, refetch, dataUpdatedAt } = useQuery({
     queryKey: ["pedidos-odoo-pcp"],
-    queryFn: () => base44.entities.PedidoOdoo.list("-data_recebimento", 1000),
+    queryFn: carregarPedidosOdooBlindado,
+    placeholderData: (previousData) => previousData, // Preserva 100% dos dados na tela durante revalidações
+    staleTime: 30000,
+    gcTime: 1000 * 60 * 60 * 24, // 24 horas retido em memória
+    retry: 3,
     refetchInterval: 25000,
     refetchOnWindowFocus: true
   });
@@ -277,26 +320,102 @@ export default function CentralPCP() {
 
   const { data: pedidosProducao = [] } = useQuery({
     queryKey: ["pedidos-producao-todos"],
-    queryFn: () => base44.entities.Pedido.list("-data", 500),
+    queryFn: async () => {
+      const CHAVE = "pedidos_producao_todos_cache_v2";
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const c = await obterCacheLocal(CHAVE);
+        if (c && c.length > 0) return c;
+      }
+      try {
+        const res = await base44.entities.Pedido.list("-data", 5000);
+        if (res && res.length > 0) salvarCacheLocal(CHAVE, res).catch(() => {});
+        return res;
+      } catch (e) {
+        const c = await obterCacheLocal(CHAVE);
+        if (c && c.length > 0) return c;
+        throw e;
+      }
+    },
+    placeholderData: (prev) => prev,
+    staleTime: 30000,
+    gcTime: 1000 * 60 * 60 * 24,
+    retry: 3,
     refetchInterval: 25000
   });
 
   const { data: ordensCD = [] } = useQuery({
     queryKey: ["ordens-cd-todos"],
-    queryFn: () => base44.entities.OrdemMaquinaCD.list("-data", 500),
+    queryFn: async () => {
+      const CHAVE = "ordens_cd_todos_cache_v2";
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const c = await obterCacheLocal(CHAVE);
+        if (c && c.length > 0) return c;
+      }
+      try {
+        const res = await base44.entities.OrdemMaquinaCD.list("-data", 5000);
+        if (res && res.length > 0) salvarCacheLocal(CHAVE, res).catch(() => {});
+        return res;
+      } catch (e) {
+        const c = await obterCacheLocal(CHAVE);
+        if (c && c.length > 0) return c;
+        throw e;
+      }
+    },
+    placeholderData: (prev) => prev,
+    staleTime: 30000,
+    gcTime: 1000 * 60 * 60 * 24,
+    retry: 3,
     refetchInterval: 25000
   });
 
   // Consultas de Matéria-Prima em Tempo Real para Análise de Disponibilidade no PCP
   const { data: bobinasEstoque = [] } = useQuery({
     queryKey: ["bobinas-estoque-pcp"],
-    queryFn: () => base44.entities.Bobina.filter({ arquivada: false }),
+    queryFn: async () => {
+      const CHAVE = "bobinas_estoque_pcp_cache";
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const c = await obterCacheLocal(CHAVE);
+        if (c && c.length > 0) return c;
+      }
+      try {
+        const res = await base44.entities.Bobina.filter({ arquivada: false }, null, 5000);
+        if (res && res.length > 0) salvarCacheLocal(CHAVE, res).catch(() => {});
+        return res;
+      } catch (e) {
+        const c = await obterCacheLocal(CHAVE);
+        if (c && c.length > 0) return c;
+        throw e;
+      }
+    },
+    placeholderData: (prev) => prev,
+    staleTime: 45000,
+    gcTime: 1000 * 60 * 60 * 24,
+    retry: 3,
     refetchInterval: 30000
   });
 
   const { data: chapasEstoque = [] } = useQuery({
     queryKey: ["chapas-estoque-pcp"],
-    queryFn: () => base44.entities.ChapaCD.filter({ status: { $ne: "cancelado" } }),
+    queryFn: async () => {
+      const CHAVE = "chapas_estoque_pcp_cache";
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const c = await obterCacheLocal(CHAVE);
+        if (c && c.length > 0) return c;
+      }
+      try {
+        const res = await base44.entities.ChapaCD.filter({ status: { $ne: "cancelado" } }, null, 5000);
+        if (res && res.length > 0) salvarCacheLocal(CHAVE, res).catch(() => {});
+        return res;
+      } catch (e) {
+        const c = await obterCacheLocal(CHAVE);
+        if (c && c.length > 0) return c;
+        throw e;
+      }
+    },
+    placeholderData: (prev) => prev,
+    staleTime: 45000,
+    gcTime: 1000 * 60 * 60 * 24,
+    retry: 3,
     refetchInterval: 30000
   });
 
@@ -1915,11 +2034,18 @@ export default function CentralPCP() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {/* Indicador de Sincronização em Tempo Real */}
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-              <span>Sincronizado {segundosDesdeSync === 0 ? "agora" : `há ${segundosDesdeSync}s`}</span>
-            </div>
+            {/* Indicador de Sincronização em Tempo Real / Modo Offline Blindado */}
+            {!isOnline ? (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                <span>📶 Modo Local (Cache Ativo)</span>
+              </div>
+            ) : (
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span>Sincronizado {segundosDesdeSync === 0 ? "agora" : `há ${segundosDesdeSync}s`}</span>
+              </div>
+            )}
 
             <Button
               variant="outline"

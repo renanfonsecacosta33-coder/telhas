@@ -88,6 +88,16 @@ export function OfflineProvider({ children }) {
     };
   }, [atualizarContagemFila]);
 
+  // Auto-sincronização automática silenciosa: descarrega itens pendentes na nuvem sozinho assim que online
+  useEffect(() => {
+    if (isOnline && itensPendentes > 0 && !isSyncing) {
+      const timer = setTimeout(() => {
+        forcarSincronizacao().catch(() => {});
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isOnline, itensPendentes, isSyncing, forcarSincronizacao]);
+
   // Detecção de conectividade (listeners nativos + heartbeat)
   useEffect(() => {
     let timer = null;
