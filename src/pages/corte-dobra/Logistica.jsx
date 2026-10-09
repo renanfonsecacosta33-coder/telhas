@@ -13,6 +13,7 @@ import RotasEntregaSection from "@/components/logistica/RotasEntregaSection";
 import CargaCard from "@/components/logistica/CargaCard";
 import AuditSidebar from "@/components/logistica/AuditSidebar";
 import CalendarioEntregas from "@/components/logistica/CalendarioEntregas";
+import { useInvestigacaoBarracoes } from "@/lib/investigacaoBarracoesHelper";
 
 export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
   const isDespacho = mode === "despacho";
@@ -26,6 +27,7 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [mostrarEntregues, setMostrarEntregues] = useState(false);
   const { filialAtiva } = useFilial();
+  const { getInfoPedido } = useInvestigacaoBarracoes(filialAtiva);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -112,9 +114,13 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
     itensFiltradosTab.forEach(item => {
       const key = item.numero_pedido || `SEM_PEDIDO_${item.id}`;
       if (!grupos[key]) {
+        const info = getInfoPedido(item.numero_pedido, "", "", item.numero_odoo, item.cliente, item.vendedor);
+        const numOdoo = item.numero_odoo || info?.numero_odoo || "";
         grupos[key] = {
           numero_pedido: item.numero_pedido || "—",
-          cliente: item.cliente || "—",
+          numero_odoo: numOdoo,
+          cliente: item.cliente || info?.cliente || "—",
+          vendedor: item.vendedor || info?.vendedor || "",
           itens: [],
         };
       }
@@ -123,6 +129,16 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
 
     // Compute status for each group
     return Object.values(grupos).map(g => {
+      if (!g.numero_odoo) {
+        const itemComOdoo = g.itens.find(i => i.numero_odoo || i.odoo_id);
+        if (itemComOdoo) {
+          g.numero_odoo = itemComOdoo.numero_odoo || itemComOdoo.odoo_id;
+        } else {
+          const info = getInfoPedido(g.numero_pedido, "", "", "", g.cliente, g.vendedor);
+          if (info?.numero_odoo) g.numero_odoo = info.numero_odoo;
+        }
+      }
+
       const total = g.itens.length;
       const carregados = g.itens.filter(i => i.status_expedicao === "carregado" || i.status_expedicao === "em_transito" || i.status_expedicao === "expedido").length;
       const expedidos = g.itens.filter(i => i.status_expedicao === "em_transito" || i.status_expedicao === "expedido").length;
@@ -153,9 +169,9 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
       const order = { pronto_expedicao: 0, pronto_parcial: 1, em_producao: 2, aguardando_inicio: 3, entregue: 4 };
       return (order[a.statusCarga] ?? 3) - (order[b.statusCarga] ?? 3);
     });
-  }, [itensFiltradosTab]);
+  }, [itensFiltradosTab, getInfoPedido]);
 
-  // Filter by search + status
+  // Filter by search + status (aceita numero_pedido, numero_odoo, cliente ou vendedor)
   const gruposFiltrados = useMemo(() => {
     let result = pedidosAgrupados;
     if (filtroStatus !== "todos") {
@@ -163,7 +179,12 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
     }
     if (!busca.trim()) return result;
     const q = busca.toLowerCase().trim();
-    return result.filter(g => (g.numero_pedido || "").toLowerCase().includes(q) || (g.cliente || "").toLowerCase().includes(q));
+    return result.filter(g =>
+      (g.numero_pedido || "").toLowerCase().includes(q) ||
+      (g.numero_odoo || "").toLowerCase().includes(q) ||
+      (g.cliente || "").toLowerCase().includes(q) ||
+      (g.vendedor || "").toLowerCase().includes(q)
+    );
   }, [pedidosAgrupados, busca, filtroStatus]);
 
   // Split: active (not all delivered) vs delivered
@@ -232,11 +253,21 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
       <button key={g.numero_pedido} onClick={() => { if (g.itens[0]) handleSelectItem(g.itens[0], g.itens[0]._tipo); }}
         className="text-left bg-card border border-border rounded-xl p-4 hover:border-primary/50 hover:shadow transition-all">
         <div className="flex items-center justify-between mb-2">
-          <div>
-            <p className="font-bold text-sm">{g.numero_pedido}</p>
+          <div className="min-w-0 pr-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <p className="font-bold text-sm">{g.numero_pedido}</p>
+              {g.numero_odoo && String(g.numero_odoo).toUpperCase() !== "NT" && (
+                <Badge className="text-[10px] py-0 px-1.5 bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 font-mono font-bold">
+                  Odoo: #{g.numero_odoo}
+                </Badge>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground truncate">{g.cliente}</p>
+            {g.vendedor && (
+              <p className="text-[10px] text-muted-foreground truncate">Vend: {g.vendedor}</p>
+            )}
           </div>
-          <Badge className={`text-xs ${sc.cor}`}>{sc.label}</Badge>
+          <Badge className={`text-xs ${sc.cor} shrink-0`}>{sc.label}</Badge>
         </div>
         <div className="space-y-1.5">
           {telhasCount > 0 && (
@@ -410,8 +441,8 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
                 type="text"
                 value={busca}
                 onChange={e => setBusca(e.target.value)}
-                placeholder="Buscar por pedido ou cliente..."
-                className="h-9 pl-8 pr-3 rounded-md border border-input bg-transparent text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring w-64"
+                placeholder="Buscar por pedido, nº Odoo, cliente ou vendedor..."
+                className="h-9 pl-8 pr-3 rounded-md border border-input bg-transparent text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring w-72"
               />
               {busca && (
                 <button onClick={() => setBusca("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">

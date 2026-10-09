@@ -146,6 +146,7 @@ export default function EditarRotaDialog({ open, onOpenChange, rota }) {
       {
         ordem: prev.length + 1,
         numero_pedido: "",
+        numero_odoo: "",
         cliente: "",
         vendedor: "",
         bairro: "",
@@ -379,7 +380,15 @@ export default function EditarRotaDialog({ open, onOpenChange, rota }) {
                         value={it.numero_pedido || ""}
                         onChange={(e) => updateItem(idx, "numero_pedido", e.target.value)}
                         placeholder="Nº Pedido"
-                        className="h-7 px-2 rounded border border-input bg-transparent text-xs font-bold w-24 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        className="h-7 px-2 rounded border border-input bg-transparent text-xs font-bold w-20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      />
+                      <input
+                        type="text"
+                        value={it.numero_odoo || ""}
+                        onChange={(e) => updateItem(idx, "numero_odoo", e.target.value)}
+                        placeholder="Nº Odoo (ou NT)"
+                        className="h-7 px-2 rounded border border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20 text-xs font-mono font-bold w-24 text-blue-700 dark:text-blue-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        title="Nº no Odoo ERP (ou 'NT' para sem Odoo)"
                       />
                       <input
                         type="text"

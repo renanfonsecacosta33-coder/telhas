@@ -13,6 +13,7 @@ import { useInvestigacaoBarracoes } from "@/lib/investigacaoBarracoesHelper";
 import FotoPedidoButton from "@/components/logistica/FotoPedidoButton";
 import RotaTraseiraCaminhaoSlot from "@/components/logistica/RotaTraseiraCaminhaoSlot";
 import EditarRotaDialog from "@/components/logistica/EditarRotaDialog";
+import PedidoOdooDetalheDialog from "@/components/pcp/PedidoOdooDetalheDialog";
 
 const DEP_LABEL = { telhas: "Telhas", corte_dobra: "Corte e Dobra", expedicao: "Expedição" };
 const DEP_COLOR = {
@@ -26,8 +27,41 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
   const [viewerName, setViewerName] = useState("");
   const [replacingRota, setReplacingRota] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [pedidoOdooModal, setPedidoOdooModal] = useState(null);
   const editRotaRef = useRef(null);
   const queryClient = useQueryClient();
+
+  const handleAbrirOdoo = async (it, info) => {
+    if (info?.pedidoOdoo) {
+      setPedidoOdooModal(info.pedidoOdoo);
+      return;
+    }
+    const num = it.numero_odoo || it.numero_pedido;
+    if (!num || String(num).toUpperCase() === "NT") {
+      toast.info(`Pedido #${it.numero_pedido} não possui vínculo no Odoo ERP.`);
+      return;
+    }
+    try {
+      toast.loading("Buscando detalhes no Odoo...", { id: "busca-odoo" });
+      const limpo = String(num).replace(/\D/g, "");
+      const res = await base44.entities.PedidoOdoo.filter({
+        $or: [
+          { odoo_id: String(num) },
+          { of_odoo_id: String(num) },
+          { numero_pedido: String(num) },
+          ...(limpo ? [{ odoo_id: limpo }, { of_odoo_id: limpo }, { numero_pedido: limpo }] : [])
+        ]
+      }, "-created_date", 1);
+      toast.dismiss("busca-odoo");
+      if (res && res.length > 0) {
+        setPedidoOdooModal(res[0]);
+      } else {
+        toast.info(`Pedido Odoo #${num} não localizado no banco.`);
+      }
+    } catch {
+      toast.dismiss("busca-odoo");
+    }
+  };
 
   const handleReplaceRota = async (file) => {
     if (!file) return;
@@ -283,6 +317,7 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
               <tr>
                 <th className="text-left p-1.5 font-semibold w-6">#</th>
                 <th className="text-left p-1.5 font-semibold">Pedido</th>
+                <th className="text-left p-1.5 font-semibold">Nº Odoo</th>
                 <th className="text-left p-1.5 font-semibold">Cliente</th>
                 <th className="text-left p-1.5 font-semibold">Barracão / Status</th>
                 <th className="text-left p-1.5 font-semibold">Observação</th>
@@ -293,11 +328,47 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
             </thead>
             <tbody>
               {itensFiltrados.map((it, idx) => {
-                const info = getInfoPedido(it.numero_pedido, it.observacao, rota.titulo);
+                const info = getInfoPedido(
+                  it.numero_pedido,
+                  it.observacao,
+                  rota.titulo,
+                  it.numero_odoo,
+                  it.cliente,
+                  it.vendedor
+                );
                 return (
                   <tr key={idx} className="border-t border-border hover:bg-muted/30 transition-colors">
                     <td className="p-1.5 text-muted-foreground">{it.ordem}</td>
                     <td className="p-1.5 font-bold">{it.numero_pedido}</td>
+                    <td className="p-1.5 whitespace-nowrap">
+                      {it.numero_odoo ? (
+                        it.numero_odoo.toUpperCase() === "NT" ? (
+                          <Badge variant="outline" className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 font-mono font-medium" title="Balcão / Sem Odoo">
+                            NT
+                          </Badge>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleAbrirOdoo(it, info)}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 dark:text-blue-300 dark:border-blue-800 transition-colors shadow-xs"
+                            title="Clique para ver croqui, itens e status deste pedido no Odoo"
+                          >
+                            <span>#{it.numero_odoo}</span>
+                          </button>
+                        )
+                      ) : info?.numero_odoo ? (
+                        <button
+                          type="button"
+                          onClick={() => handleAbrirOdoo(it, info)}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50/60 hover:bg-blue-100 text-blue-600 border border-blue-200/60 dark:bg-blue-950/40 dark:text-blue-300 transition-colors"
+                          title="Cruzado automaticamente pelo sistema. Clique para ver detalhes no Odoo"
+                        >
+                          <span>#{info.numero_odoo}</span>
+                        </button>
+                      ) : (
+                        <span className="text-muted-foreground text-[10px]">—</span>
+                      )}
+                    </td>
                     <td className="p-1.5 truncate max-w-[120px]" title={it.cliente}>
                       <span className="font-medium">{it.cliente}</span>
                       {(it.vendedor || it.pagamento) && (
@@ -405,6 +476,13 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
         onChange={(e) => handleReplaceRota(e.target.files?.[0])} />
       <ImageViewer url={viewerUrl} name={viewerName} open={!!viewerUrl} onClose={() => setViewerUrl(null)} />
       <EditarRotaDialog open={editDialogOpen} onOpenChange={setEditDialogOpen} rota={rota} />
+      {pedidoOdooModal && (
+        <PedidoOdooDetalheDialog
+          pedido={pedidoOdooModal}
+          open={Boolean(pedidoOdooModal)}
+          onOpenChange={(op) => { if (!op) setPedidoOdooModal(null); }}
+        />
+      )}
     </div>
   );
 }

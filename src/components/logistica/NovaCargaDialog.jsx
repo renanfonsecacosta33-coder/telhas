@@ -225,6 +225,7 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
                     <tr>
                       <th className="text-left p-1.5 font-semibold w-6">#</th>
                       <th className="text-left p-1.5 font-semibold">Pedido</th>
+                      <th className="text-left p-1.5 font-semibold">Nº Odoo</th>
                       <th className="text-left p-1.5 font-semibold">Cliente</th>
                       <th className="text-left p-1.5 font-semibold">Barracão</th>
                       <th className="text-left p-1.5 font-semibold">Observação</th>
@@ -237,6 +238,21 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
                       <tr key={idx} className="border-t border-border hover:bg-muted/40 transition-colors">
                         <td className="p-1.5 text-muted-foreground">{it.ordem}</td>
                         <td className="p-1.5 font-bold">{it.numero_pedido}</td>
+                        <td className="p-1.5">
+                          {it.numero_odoo ? (
+                            it.numero_odoo.toUpperCase() === "NT" ? (
+                              <Badge variant="outline" className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 font-mono">
+                                NT
+                              </Badge>
+                            ) : (
+                              <Badge className="text-[10px] bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 font-mono font-bold">
+                                #{it.numero_odoo}
+                              </Badge>
+                            )
+                          ) : (
+                            <span className="text-muted-foreground text-[10px]">—</span>
+                          )}
+                        </td>
                         <td className="p-1.5 truncate max-w-[120px]" title={it.cliente}>
                           <span className="font-medium">{it.cliente}</span>
                           {(it.vendedor || it.pagamento) && (

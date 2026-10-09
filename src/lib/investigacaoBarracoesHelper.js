@@ -179,10 +179,20 @@ export function processarMapaBarracoes({
     }
   });
 
-  // 4. Cruza com PedidoOdoo para pedidos ainda não puxados para a fábrica
+  // 4. Cruza com PedidoOdoo para pedidos ainda não puxados para a fábrica ou enriquecimento
   pedidosOdoo.forEach((p) => {
-    const chave = limparNumeroPedido(p.numero_pedido);
-    if (!chave) return;
+    const chavesPossiveis = new Set();
+    const cPed = limparNumeroPedido(p.numero_pedido);
+    if (cPed) chavesPossiveis.add(cPed);
+    const cOdoo = limparNumeroPedido(p.odoo_id);
+    if (cOdoo) chavesPossiveis.add(cOdoo);
+    const cOf = limparNumeroPedido(p.of_odoo_id);
+    if (cOf) chavesPossiveis.add(cOf);
+    const cOfNome = limparNumeroPedido(p.of_nome);
+    if (cOfNome) chavesPossiveis.add(cOfNome);
+
+    if (chavesPossiveis.size === 0) return;
+    const chavePrincipal = cPed || cOdoo || cOf || Array.from(chavesPossiveis)[0];
 
     let temTelhaOdoo = (p.itens_telha_count || 0) > 0;
     let temCdOdoo = (p.itens_cd_count || 0) > 0;
@@ -204,11 +214,24 @@ export function processarMapaBarracoes({
       temCdOdoo = true;
     }
 
-    if (!mapa[chave]) {
-      mapa[chave] = {
-        chave,
-        numero_original: p.numero_pedido,
+    const anexos = [p.anexo_1_url, p.anexo_2_url, p.anexo_3_url, p.anexo_4_url, p.anexo_5_url].filter(Boolean);
+    const numOdooFinal = p.odoo_id || p.of_odoo_id || (p.numero_pedido && /^\d+$/.test(p.numero_pedido) ? p.numero_pedido : "");
+
+    let itemExistente = null;
+    for (const k of chavesPossiveis) {
+      if (mapa[k]) {
+        itemExistente = mapa[k];
+        break;
+      }
+    }
+
+    if (!itemExistente) {
+      const novoItem = {
+        chave: chavePrincipal,
+        numero_original: p.numero_pedido || p.of_nome || p.odoo_id,
+        numero_odoo: numOdooFinal,
         cliente: p.cliente || p.cliente_nome || "",
+        vendedor: p.vendedor_nome || p.vendedor || "",
         temTelhas: temTelhaOdoo,
         temCD: temCdOdoo,
         statusTelhas: temTelhaOdoo ? (p.status_pcp || "pendente") : null,
@@ -217,13 +240,35 @@ export function processarMapaBarracoes({
         maquinasCD: [],
         produtosTelhas: [],
         produtosCD: [],
+        foto_pedido_url: p.foto_pedido_url || p.anexo_1_url || "",
+        anexos,
+        pedidoOdoo: p,
       };
+      chavesPossiveis.forEach(k => { mapa[k] = novoItem; });
     } else {
-      if (temTelhaOdoo) mapa[chave].temTelhas = true;
-      if (temCdOdoo) mapa[chave].temCD = true;
-      if ((p.cliente || p.cliente_nome) && !mapa[chave].cliente) {
-        mapa[chave].cliente = p.cliente || p.cliente_nome;
+      if (temTelhaOdoo) itemExistente.temTelhas = true;
+      if (temCdOdoo) itemExistente.temCD = true;
+      if ((p.cliente || p.cliente_nome) && !itemExistente.cliente) {
+        itemExistente.cliente = p.cliente || p.cliente_nome;
       }
+      if ((p.vendedor_nome || p.vendedor) && !itemExistente.vendedor) {
+        itemExistente.vendedor = p.vendedor_nome || p.vendedor;
+      }
+      if (numOdooFinal && !itemExistente.numero_odoo) {
+        itemExistente.numero_odoo = numOdooFinal;
+      }
+      if (!itemExistente.foto_pedido_url && (p.foto_pedido_url || p.anexo_1_url)) {
+        itemExistente.foto_pedido_url = p.foto_pedido_url || p.anexo_1_url;
+      }
+      if (!itemExistente.anexos || itemExistente.anexos.length === 0) {
+        itemExistente.anexos = anexos;
+      }
+      if (!itemExistente.pedidoOdoo) {
+        itemExistente.pedidoOdoo = p;
+      }
+      chavesPossiveis.forEach(k => {
+        if (!mapa[k]) mapa[k] = itemExistente;
+      });
     }
   });
 
@@ -331,25 +376,95 @@ export function useInvestigacaoBarracoes(filialAtiva) {
 
   const mapa = query.data || {};
 
-  const getInfoPedido = (numPedido, obsTexto = "", tituloRota = "") => {
+  const getInfoPedido = (numPedido, obsTexto = "", tituloRota = "", numOdoo = "", clienteNome = "", vendedorNome = "") => {
     const chaves = extrairChavesPedido(numPedido);
-    if (!chaves.length) return null;
-
+    const chavePrincipal = chaves[0] || (numOdoo ? limparNumeroPedido(numOdoo) : "") || "SEM_NUM";
     let encontrado = null;
-    for (const k of chaves) {
-      if (mapa[k]) {
-        encontrado = mapa[k];
-        break;
+
+    // 1. Busca prioritária por Nº Odoo se presente e diferente de 'NT'
+    if (numOdoo && String(numOdoo).trim().toUpperCase() !== "NT") {
+      const chavesOdoo = extrairChavesPedido(numOdoo);
+      for (const k of chavesOdoo) {
+        if (mapa[k]) {
+          encontrado = mapa[k];
+          break;
+        }
+      }
+      if (!encontrado) {
+        const digOdoo = (chavesOdoo[0] || "").replace(/\D/g, "");
+        if (digOdoo) {
+          for (const [k, v] of Object.entries(mapa)) {
+            if (k === digOdoo || k.includes(digOdoo) || digOdoo.includes(k)) {
+              encontrado = v;
+              break;
+            }
+          }
+        }
       }
     }
 
+    // 2. Busca por Nº Pedido convencional
     if (!encontrado) {
-      const digits = (chaves[0] || "").replace(/\D/g, "");
-      if (digits) {
-        for (const [k, v] of Object.entries(mapa)) {
-          if (k.includes(digits) || digits.includes(k)) {
-            encontrado = v;
-            break;
+      for (const k of chaves) {
+        if (mapa[k]) {
+          encontrado = mapa[k];
+          break;
+        }
+      }
+
+      if (!encontrado) {
+        const digits = (chaves[0] || "").replace(/\D/g, "");
+        if (digits) {
+          for (const [k, v] of Object.entries(mapa)) {
+            if (k.includes(digits) || digits.includes(k)) {
+              encontrado = v;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // 3. Fallback inteligente usando Nome do Cliente e Vendedor (para itens sem número Odoo ou 'NT')
+    if (!encontrado && clienteNome) {
+      const cNomeNorm = String(clienteNome)
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^\w\s]/g, "")
+        .trim();
+
+      const vNomeNorm = String(vendedorNome || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^\w\s]/g, "")
+        .trim();
+
+      if (cNomeNorm.length >= 4) {
+        // Varre itens únicos do mapa
+        const vistos = new Set();
+        for (const item of Object.values(mapa)) {
+          if (!item || vistos.has(item)) continue;
+          vistos.add(item);
+
+          const iCli = String(item.cliente || "")
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^\w\s]/g, "")
+            .trim();
+
+          if (iCli && (iCli.includes(cNomeNorm) || cNomeNorm.includes(iCli))) {
+            // Se tiver vendedor para validar, dá preferência
+            if (vNomeNorm && item.vendedor) {
+              const iVend = String(item.vendedor).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+              if (iVend.includes(vNomeNorm) || vNomeNorm.includes(iVend)) {
+                encontrado = item;
+                break;
+              }
+            }
+            if (!encontrado) encontrado = item;
           }
         }
       }
@@ -401,8 +516,9 @@ export function useInvestigacaoBarracoes(filialAtiva) {
     }
 
     return {
-      chave: chaves[0],
-      numero_original: numPedido,
+      chave: chavePrincipal,
+      numero_original: numPedido || numOdoo || "",
+      numero_odoo: numOdoo || "",
       temTelhas: temTelhasObs,
       temCD: temCDObs,
       barracao,

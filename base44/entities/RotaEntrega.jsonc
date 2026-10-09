@@ -43,7 +43,7 @@
     },
     "itens_json": {
       "type": "string",
-      "description": "JSON com lista de pedidos lidos pela IA [{ordem, numero_pedido, cliente, vendedor, bairro, pagamento, valor, observacao, departamentos: [telhas, corte_dobra, expedicao]}]"
+      "description": "JSON com lista de pedidos lidos pela IA [{ordem, numero_pedido, numero_odoo, cliente, vendedor, bairro, pagamento, valor, observacao, departamentos: [telhas, corte_dobra, expedicao]}]"
     },
     "observacao": {
       "type": "string",

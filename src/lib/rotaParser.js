@@ -18,6 +18,7 @@ const SCHEMA = {
         properties: {
           ordem: { type: "string" },
           numero_pedido: { type: "string" },
+          numero_odoo: { type: "string" },
           cliente: { type: "string" },
           vendedor: { type: "string" },
           bairro: { type: "string" },
@@ -36,26 +37,27 @@ const PROMPT = `Você é o leitor de rotas e manifestos de expedição da AJL Fe
 Analise com máxima precisão a imagem da ROTA DE ENTREGA da AJL Ferro e Aço e extraia TODOS os campos da tabela e do cabeçalho com fidelidade absoluta:
 
 1. DADOS DE CABEÇALHO E TÍTULO:
-- titulo: Título completo que aparece no topo (ex: "ROTA DE ENTREGA CHAPARIA - WELINGTON" ou "ROTA DE ENTREGA PONTA GROSSA - EDUARDO").
-- motorista_nome: Nome do motorista. Se houver campo MOTORISTA, use-o. Se o título contiver um hífen como "ROTA DE ENTREGA CHAPARIA - WELINGTON", o nome do motorista é o texto após o hífen ("WELINGTON").
-- placa: Placa do caminhão se constar no documento (ex: "ABC-1234").
-- entrega_date: Data de entrega (campo "ENTREGA:", ex: "16/set").
+- titulo: Título completo que aparece no topo (ex: "ROTA DE ENTREGA PALMEIRA - LUIS PITI" ou "ROTA DE ENTREGA CHAPARIA - WELINGTON").
+- motorista_nome: Nome do motorista. Se houver campo MOTORISTA, use-o. Se o título contiver um hífen como "ROTA DE ENTREGA PALMEIRA - LUIS PITI", o nome do motorista é o texto após o hífen ("LUIS PITI").
+- placa: Placa do caminhão se constar no documento (ex: "ABJ5J70", "ABC-1234").
+- entrega_date: Data de entrega (campo "ENTREGA:", ex: "13/out", "16/set").
 - embarque_date: Data de embarque (campo "EMBARQUE:", ex: "15/09/2026").
-- total_valor: Valor total da rota (campo "TOTAL:", ex: "R$ 51.839,21").
+- total_valor: Valor total da rota (campo "TOTAL:", ex: "R$ 26.975,30").
 - nota_geral: Qualquer observação geral ou instrução anotada na folha ou rodapé.
 
 2. TABELA DE PEDIDOS (extraia TODAS as linhas da tabela, sem faltar nenhuma):
 Para CADA linha:
-- ordem: Número na coluna "Ordem p/ Entrega" (ex: "1", "2").
-- numero_pedido: Número do pedido na coluna "Nº Pedido" (ex: "298249", "296502", "298767", "298524"). Extraia apenas os dígitos do número do pedido.
-- cliente: Nome do cliente na coluna "Cliente" (ex: "CRW", "BR7 SISTEMAS").
-- vendedor: Nome do vendedor na coluna "Vendedor" (ex: "WENDELL").
-- bairro: Bairro ou destino na coluna "BAIRRO" (ex: "MARACANÃ", "CARA-CARA").
-- pagamento: Forma de pagamento na coluna "Pagamento" (ex: "PAGO", "BOLETO").
-- valor: Valor do pedido na coluna "Valor do Pedido" (ex: "R$ 5.844,16", "R$ 40.202,73", "R$ 5.792,32" ou vazio se não houver).
-- observacao: CRUCIAL / OBRIGATÓRIO! Extraia com exatidão todo o texto escrito na coluna "Observação" (ex: "SOMENTE CORTE E DOBRA", "SOMENTE SALDO CORTE E DOBRA", "VOLTOU NO PITTI", etc.). NUNCA deixe a observação vazia se houver texto escrito na coluna correspondente!
+- ordem: Número na coluna "Ordem p/ Entrega" (ex: "1", "2", "3").
+- numero_pedido: Número do pedido na coluna "Nº Pedido" (ex: "302304", "302301", "302326", "300853"). Extraia apenas os dígitos do número do pedido.
+- numero_odoo: CRUCIAL! Número da coluna "Nº Odoo" ou "Nº ODOO" (ex: "1195", "1196", "1208", "NT", "1153", "1229"). Se for número, extraia o número (ex: "1195"). Se estiver escrito "NT", extraia "NT". Se a coluna estiver vazia, deixe "".
+- cliente: Nome do cliente na coluna "Cliente" (ex: "GILBERTO DOS SANTOS", "TATIANE ROBERTO").
+- vendedor: Nome do vendedor na coluna "Vendedor" (ex: "WENDELL", "CARLOS", "SERGIO").
+- bairro: Bairro ou destino na coluna "BAIRRO" (ex: "PALMEIRA", "UVARANAS", "CONTORNO", "LOJA PG").
+- pagamento: Forma de pagamento na coluna "Pagamento" (ex: "PAGO", "BOLETO", "ENTRADA + RECEBER").
+- valor: Valor do pedido na coluna "Valor do Pedido" (ex: "R$ 1.974,00", "R$ 8.592,48" ou vazio se não houver).
+- observacao: CRUCIAL / OBRIGATÓRIO! Extraia com exatidão todo o texto escrito na coluna "Observação" (ex: "APENAS A LEITOSA QUE FICOU PENDENTE ITEM 2066", "SOMENTE CORTE E DOBRA", etc.). NUNCA deixe a observação vazia se houver texto escrito na coluna correspondente!
 
-Seja rigoroso e preciso em cada número de pedido e em cada observação.`;
+Seja rigoroso e preciso em cada número de pedido, número do Odoo e em cada observação.`;
 
 export async function parseRotaImage(imageUrl, filialAtiva = null) {
   const res = await base44.integrations.Core.InvokeLLM({
@@ -65,7 +67,6 @@ export async function parseRotaImage(imageUrl, filialAtiva = null) {
   });
 
   const rawItens = res.itens || [];
-  const numeros = rawItens.map((i) => i.numero_pedido).filter(Boolean);
 
   // Extrai motorista do título se não veio no campo motorista_nome
   let motoristaNome = (res.motorista_nome || "").trim();
@@ -77,6 +78,10 @@ export async function parseRotaImage(imageUrl, filialAtiva = null) {
     }
   }
 
+  const numeros = rawItens
+    .flatMap((i) => [i.numero_pedido, (i.numero_odoo && String(i.numero_odoo).trim().toUpperCase() !== "NT") ? i.numero_odoo : null])
+    .filter(Boolean);
+
   let mapaBarracoes = {};
   if (numeros.length) {
     try {
@@ -87,8 +92,24 @@ export async function parseRotaImage(imageUrl, filialAtiva = null) {
   }
 
   const itens = rawItens.map((item) => {
-    const chave = limparNumeroPedido(item.numero_pedido);
-    const info = mapaBarracoes[chave];
+    const chavePed = limparNumeroPedido(item.numero_pedido);
+    const chaveOdoo = (item.numero_odoo && String(item.numero_odoo).trim().toUpperCase() !== "NT")
+      ? limparNumeroPedido(item.numero_odoo)
+      : null;
+
+    let info = (chaveOdoo && mapaBarracoes[chaveOdoo]) || (chavePed && mapaBarracoes[chavePed]);
+    if (!info && item.cliente) {
+      const cNomeNorm = String(item.cliente).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      if (cNomeNorm.length >= 4) {
+        for (const v of Object.values(mapaBarracoes)) {
+          const vCli = String(v.cliente || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+          if (vCli && (vCli.includes(cNomeNorm) || cNomeNorm.includes(vCli))) {
+            info = v;
+            break;
+          }
+        }
+      }
+    }
 
     // Inferência inteligente usando a coluna Observação da linha e o título da rota
     const obsTexto = (item.observacao || "").trim();
