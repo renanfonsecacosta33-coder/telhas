@@ -190,7 +190,7 @@ export default function AuditarRestaurarOpsDialog({
         if (ehTelhaSimples && (op.eps || op.eps_status || op.maquina === "COLAGEM")) {
           updates.eps = "";
           updates.eps_status = null;
-          updates.isopor_utilizado = "";
+          updates.isopor_utilizado = null;
           if (op.maquina === "COLAGEM") {
             updates.maquina = op.maquina_origem || modeloEsperado || "TP - 25";
           }

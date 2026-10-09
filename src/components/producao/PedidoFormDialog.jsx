@@ -1090,7 +1090,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
     if (!PRODUTOS_COM_EPS.includes(data.produto)) {
       data.eps = "";
       data.eps_status = null;
-      data.isopor_utilizado = "";
+      data.isopor_utilizado = null;
       if (data.status === "aguardando_colagem") {
         data.status = "pendente";
       }

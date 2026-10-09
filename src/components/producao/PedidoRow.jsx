@@ -601,7 +601,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         produto: "TELHA",
         eps: "",
         eps_status: null,
-        isopor_utilizado: "",
+        isopor_utilizado: null,
         maquina: maqDestino,
         status: pOriginal.status === "aguardando_colagem" ? "pendente" : pOriginal.status
       });
