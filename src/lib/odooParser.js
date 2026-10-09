@@ -33,6 +33,8 @@ const CATEGORIA_MAP = {
   "cantoneiras": { grupo: "cd", sla: 5 },
   "chapas": { grupo: "cd", sla: 5 },
   "chapa": { grupo: "cd", sla: 5 },
+  "chaapa": { grupo: "cd", sla: 5 },
+  "chpa": { grupo: "cd", sla: 5 },
   "chaparia": { grupo: "cd", sla: 5 },
   // Frisadas
   "frisadas": { grupo: "frisada", sla: 5 },

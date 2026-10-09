@@ -538,12 +538,30 @@ export default async function(req: Request): Promise<Response> {
 
     // ── Regra de Ouro da Fábrica AJL ──
     // 1) Frisada -> "frisada"
-    // 2) Perfil e Cantoneira -> "cd" 100% (assim como chapa, corte e dobra)
+    // 2) Corte e Dobra (Chapa [inclusive com typos: CHAAPA, CHPA, etc.], Perfis, Cantoneiras, Cotas de Dobra e Itens em KG) -> "cd" 100%
     // 3) Bobininha/bobinina/bobina/fita/desbobinamento, Telhas, Cumeeiras, Calhas, Rufos e Pingadeiras -> "telha" 100%
     const classificarItem = (i: any): "frisada" | "cd" | "telha" => {
       const t = `${i?.categoria || ""} ${i?.produto || ""} ${i?.descricao || ""} ${i?.observacao || ""}`.toLowerCase();
-      if (/frisad/.test(t)) return "frisada";
-      if (/perfil|cantoneir|chapa|chaparia|dobra|guilhot|corte|c&d|slitter|tubo|barra/.test(t)) return "cd";
+      const unid = String(i?.unidade || i?.uom || i?.product_uom || "").trim().toUpperCase();
+
+      if (/frisad|lambri/.test(t)) return "frisada";
+
+      const isChapa = /(\bch+a+p+a[s]?\b|\bchpas?\b|\bchaparia\b|\bch\s*[0-9]+[,\.]|\bchapa\s*dobrad)/i.test(t);
+      const isPerfilCd = /(perfil|perfis|cantoneir|trilho|barra|tubo|corte\s*e\s*dobra|corte_dobra|\bcd\b|guilhot|slitter|oxicorte|oxiacet|chanfr|dobradeir|dobrada|dobrado|\bdobra\b)/i.test(t);
+      const temCotasDobra = /\b\d+\s*x\s*\d+\s*x\s*\d+/i.test(t);
+      const temKg = (
+        ["KG", "KGS", "QUILO", "QUILOS"].includes(unid) ||
+        /\(padr[aã]o\s*-\s*kg\)/i.test(t) ||
+        /\[padr[aã]o\s*-\s*kg\]/i.test(t) ||
+        /\bpadr[aã]o\s*-\s*kg\b/i.test(t) ||
+        /\b\d+([,\.]\d+)?\s*kg\b/i.test(t)
+      );
+      const isTelhaOuBobininhaExpressa = /\b(telha|bobininha|bobinina|desbobinamento|cumeeira|calha|rufo|pingadeira)\b/i.test(t);
+
+      if (isChapa || isPerfilCd || temCotasDobra || (temKg && !isTelhaOuBobininhaExpressa)) {
+        return "cd";
+      }
+
       return "telha";
     };
 

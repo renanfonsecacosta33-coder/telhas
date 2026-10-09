@@ -95,7 +95,7 @@ export async function parseRotaImage(imageUrl, filialAtiva = null) {
     const tituloTexto = (res.titulo || "").trim();
     const textoAnalise = (obsTexto + " " + tituloTexto).toLowerCase();
 
-    const temCDObs = /(corte|dobra|chaparia|chapa|slitter|perfil|barra|tubo|cantoneira)/i.test(textoAnalise);
+    const temCDObs = /(corte|dobra|chaparia|ch+a+p+a|chpa|slitter|perfil|barra|tubo|cantoneira|\b\d+([,\.]\d+)?\s*kg\b)/i.test(textoAnalise);
     const temTelhasObs = /(telha|sandu[ií]|eps|isopor|manta|cumeeir|ondulad|coloni|bandej|bobinin|bobina|fita|desbobin|calha|rufo|pingadeir|perfiladeir)/i.test(textoAnalise);
 
     let barracaoSugerido = "aguardando";

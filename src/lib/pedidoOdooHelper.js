@@ -35,7 +35,12 @@ export function getItens(pedido) {
 export function classGrupo(itemOrCat, produtoNome = "") {
   let cat = "";
   let prod = "";
+  let desc = "";
+  let obs = "";
+  let unid = "";
+  let ofNome = "";
   let itens = [];
+  let textosItensAgregados = "";
 
   if (typeof itemOrCat === "object" && itemOrCat !== null) {
     // Se for objeto Pedido ou OF, tenta inspecionar itens_json / itens
@@ -48,35 +53,64 @@ export function classGrupo(itemOrCat, produtoNome = "") {
     }
 
     if (itens.length > 0) {
-      // Prioridade: inspeciona os itens reais da ordem de fabricação
+      // Prioridade: inspeciona todos os itens reais da ordem de fabricação
+      textosItensAgregados = itens.map(it =>
+        `${it.categoria || ""} ${it.produto || it.product_name || ""} ${it.descricao || it.description || ""} ${it.observacao || it.obs || ""} ${it.unidade || it.uom || ""}`
+      ).join(" ");
       const first = itens[0] || {};
       cat = String(first.categoria || itemOrCat.categoria || "").trim().toLowerCase();
-      prod = String(first.produto || first.descricao || first.observacao || itemOrCat.produto || itemOrCat.descricao || itemOrCat.of_nome || "").trim().toLowerCase();
+      prod = String(first.produto || first.product_name || itemOrCat.produto || "").trim().toLowerCase();
+      desc = String(first.descricao || first.description || itemOrCat.descricao || "").trim().toLowerCase();
+      obs = String(first.observacao || first.obs || itemOrCat.observacao || "").trim().toLowerCase();
+      ofNome = String(itemOrCat.of_nome || "").trim().toLowerCase();
+      unid = String(first.unidade || first.uom || itemOrCat.unidade || "").trim().toUpperCase();
     } else {
       cat = String(itemOrCat.categoria || "").trim().toLowerCase();
-      prod = String(itemOrCat.produto || itemOrCat.descricao || itemOrCat.observacao || itemOrCat.of_nome || "").trim().toLowerCase();
+      prod = String(itemOrCat.produto || itemOrCat.product_name || "").trim().toLowerCase();
+      desc = String(itemOrCat.descricao || itemOrCat.description || "").trim().toLowerCase();
+      obs = String(itemOrCat.observacao || itemOrCat.obs || "").trim().toLowerCase();
+      ofNome = String(itemOrCat.of_nome || "").trim().toLowerCase();
+      unid = String(itemOrCat.unidade || itemOrCat.uom || itemOrCat.product_uom || "").trim().toUpperCase();
     }
 
-    // Se o pedido tiver contagens de itens pré-computadas e nenhum item detalhado
-    if (itens.length === 0 && !prod) {
-      if ((itemOrCat.itens_telha_count || 0) > 0 && !(itemOrCat.itens_cd_count > 0) && !(itemOrCat.itens_frisada_count > 0)) return "telha";
-      if ((itemOrCat.itens_frisada_count || 0) > 0 && !(itemOrCat.itens_cd_count > 0) && !(itemOrCat.itens_telha_count > 0)) return "frisada";
+    // Se o pedido tiver contagens de itens pré-computadas e nenhum item detalhado ou texto
+    if (itens.length === 0 && !prod && !desc && !ofNome) {
       if ((itemOrCat.itens_cd_count || 0) > 0 && !(itemOrCat.itens_telha_count > 0) && !(itemOrCat.itens_frisada_count > 0)) return "cd";
+      if ((itemOrCat.itens_frisada_count || 0) > 0 && !(itemOrCat.itens_cd_count > 0) && !(itemOrCat.itens_telha_count > 0)) return "frisada";
+      if ((itemOrCat.itens_telha_count || 0) > 0 && !(itemOrCat.itens_cd_count > 0) && !(itemOrCat.itens_frisada_count > 0)) return "telha";
     }
   } else {
     cat = String(itemOrCat || "").trim().toLowerCase();
     prod = String(produtoNome || "").trim().toLowerCase();
   }
 
-  // 1. Frisadas / Lambris (prioridade exclusiva de Frisada/Expedição)
-  if (["frisadas", "frisada"].includes(cat) || /(frisad|lambri)/i.test(prod) || /(frisad|lambri)/i.test(cat)) return "frisada";
+  // Texto consolidado para busca de palavras-chave
+  const textoGeral = `${cat} ${prod} ${desc} ${obs} ${ofNome} ${textosItensAgregados}`.toLowerCase();
 
-  // 2. CORTE E DOBRA (100% Perfis, Cantoneiras, Chapas/Chaparia e serviços de C&D)
-  // Regra de ouro da fábrica: tudo que for PERFIL e CANTONEIRA é CORTE E DOBRA 100%!
-  if (
-    /(perfil|cantoneir|chapa|chaparia|corte\s*e\s*dobra|corte_dobra|\bcd\b)/i.test(cat) ||
-    /(perfil|cantoneir|chapa|chaparia|corte\s*e\s*dobra|corte_dobra)/i.test(prod)
-  ) {
+  // 1. Frisadas / Lambris (prioridade exclusiva de Frisada/Expedição)
+  if (["frisadas", "frisada"].includes(cat) || /(frisad|lambri)/i.test(textoGeral)) return "frisada";
+
+  // 2. CORTE E DOBRA (100% Perfis, Cantoneiras, Chapas/Chaparia, Cotas de Dobra e Itens em KG)
+  // Regra de ouro da fábrica AJL:
+  // - Chapas (incluindo erros de digitação: CHAAPA, CHAAAAPA, CHPA, CHAPARIA, CH. 0,95, etc.) são SEMPRE CORTE E DOBRA!
+  // - Qualquer item com unidade KG ou com indicação de peso em KG (ex: 68 kg) é CORTE E DOBRA (telhas nunca são vendidas em KG)!
+  // - Peças com cotas de dobra (ex: 20X380X20X20X3000) são peças de dobradeira CNC/manual -> CORTE E DOBRA!
+  // - Tudo que for PERFIL, CANTONEIRA, TRILHO, BARRA, TUBO, DOBRA, GUILHOTINA, SLITTER é CORTE E DOBRA 100%!
+  const isChapa = /(\bch+a+p+a[s]?\b|\bchpas?\b|\bchaparia\b|\bch\s*[0-9]+[,\.]|\bchapa\s*dobrad)/i.test(textoGeral);
+  const isPerfilCd = /(perfil|perfis|cantoneir|trilho|barra|tubo|corte\s*e\s*dobra|corte_dobra|\bcd\b|guilhot|slitter|oxicorte|oxiacet|chanfr|dobradeir|dobrada|dobrado|\bdobra\b)/i.test(textoGeral);
+  const temCotasDobra = /\b\d+\s*x\s*\d+\s*x\s*\d+/i.test(textoGeral);
+  const temKg = (
+    ["KG", "KGS", "QUILO", "QUILOS"].includes(unid) ||
+    /\(padr[aã]o\s*-\s*kg\)/i.test(textoGeral) ||
+    /\[padr[aã]o\s*-\s*kg\]/i.test(textoGeral) ||
+    /\bpadr[aã]o\s*-\s*kg\b/i.test(textoGeral) ||
+    /\b\d+([,\.]\d+)?\s*kg\b/i.test(textoGeral)
+  );
+
+  // Telhas e bobininhas nunca são C&D, mas se não tiver termo expresso de telha perfilada/bobininha:
+  const isTelhaOuBobininhaExpressa = /\b(telha|bobininha|bobinina|desbobinamento|cumeeira|calha|rufo|pingadeira)\b/i.test(textoGeral);
+
+  if (isChapa || isPerfilCd || temCotasDobra || (temKg && !isTelhaOuBobininhaExpressa)) {
     return "cd";
   }
 
@@ -136,7 +170,8 @@ export function normalizarUnidadeMedidaItem(item, setorHint = null) {
   if (
     /\(PADR[AÃ]O\s*-\s*KG\)/i.test(textoCompleto) ||
     /\[PADR[AÃ]O\s*-\s*KG\]/i.test(textoCompleto) ||
-    /\bPADR[AÃ]O\s*-\s*KG\b/i.test(textoCompleto)
+    /\bPADR[AÃ]O\s*-\s*KG\b/i.test(textoCompleto) ||
+    /\b\d+([,\.]\d+)?\s*KG\b/i.test(textoCompleto)
   ) {
     return "KG";
   }
