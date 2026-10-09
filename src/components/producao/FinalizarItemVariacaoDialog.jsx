@@ -11,9 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Camera, CheckCircle2, Loader2, Trash2, Ruler, AlertCircle, Eye } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
+import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/compressImage";
 
 export default function FinalizarItemVariacaoDialog({
   open,
@@ -43,26 +43,38 @@ export default function FinalizarItemVariacaoDialog({
     }
   }, [open, item, metrosPlanejados]);
 
+  const uploadPromiseRef = useRef(null);
+
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Preview local instantâneo (0ms)
+    const previewUrl = criarPreviewLocalInstantaneo(file);
+    setFotoUrl(previewUrl);
     setUploading(true);
-    try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      setFotoUrl(file_url);
-      toast.success("Foto do item anexada com sucesso!");
-    } catch (err) {
-      toast.error("Erro ao enviar foto: " + (err.message || "tente novamente"));
-    } finally {
-      setUploading(false);
-    }
+
+    uploadPromiseRef.current = (async () => {
+      try {
+        const fileOtimizado = await comprimirImagemParaUpload(file);
+        const { file_url } = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
+        setFotoUrl(file_url);
+        toast.success("Foto do item anexada com sucesso!");
+        return file_url;
+      } catch (err) {
+        toast.error("Erro ao enviar foto: " + (err.message || "tente novamente"));
+        return previewUrl;
+      } finally {
+        setUploading(false);
+      }
+    })();
   };
 
   const mRealNum = Number(metragemReal) || 0;
   const diffMetros = mRealNum > 0 ? +(mRealNum - metrosPlanejados).toFixed(2) : 0;
-  const podeFinalizar = mRealNum > 0 && !!fotoUrl && !uploading;
+  const podeFinalizar = mRealNum > 0 && !!fotoUrl;
 
-  const handleConfirmar = () => {
+  const handleConfirmar = async () => {
     if (!mRealNum || mRealNum <= 0) {
       toast.error("Informe a metragem real produzida.");
       return;
@@ -71,10 +83,18 @@ export default function FinalizarItemVariacaoDialog({
       toast.error("Tire ou anexe a foto do item produzido para continuar.");
       return;
     }
+
+    let urlFinal = fotoUrl;
+    if (uploadPromiseRef.current) {
+      try {
+        urlFinal = await uploadPromiseRef.current;
+      } catch {}
+    }
+
     onConfirmarFinalizacao({
       itemIndex,
       metragemReal: mRealNum,
-      fotoUrl,
+      fotoUrl: urlFinal,
       observacao: observacao.trim()
     });
     onClose();

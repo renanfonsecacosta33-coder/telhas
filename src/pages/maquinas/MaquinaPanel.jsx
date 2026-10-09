@@ -288,37 +288,54 @@ export default function MaquinaPanel({ maquina }) {
       }
       return await base44.entities.Pedido.update(id, data);
     },
-    onError: async (error, variables) => {
-      // Salva na fila offline com fallback para envio em segundo plano
-      try {
-        await enfileirarAcaoOffline({
-          tipo: "PEDIDO_UPDATE",
-          entidade: "Pedido",
-          registroId: variables.id,
-          dados: variables.data,
-          descricao: `Pedido #${variables.data?.numero_pedido || variables.id} -> ${variables.data?.status || 'atualizado'}`
-        });
+    onMutate: async ({ id, data }) => {
+      // Cancela refetchs concorrentes para evitar sobrescrever a UI
+      await queryClient.cancelQueries({ queryKey: ["pedidos"] });
 
-        // Atualização otimista na memória para a UI atualizar instantaneamente
-        queryClient.setQueryData(["pedidos", filialAtiva], (antigos) => {
-          if (!antigos || !Array.isArray(antigos)) return antigos;
-          return antigos.map(p => p.id === variables.id ? { ...p, ...variables.data } : p);
-        });
+      // Salva snapshot anterior
+      const prevPedidos = queryClient.getQueryData(["pedidos", filialAtiva]);
 
-        toast.info("Modo Offline: Apontamento salvo no tablet!", {
-          description: "Será enviado para a nuvem assim que o Wi-Fi restabelecer.",
-          duration: 4000
-        });
-      } catch (errLocal) {
-        console.error("Falha ao salvar offline:", errLocal);
-        toast.error("Erro ao registrar apontamento.");
+      // ATUALIZAÇÃO INSTANTÂNEA NA MEMÓRIA (0ms): card e status mudam no mesmo milissegundo do clique
+      queryClient.setQueriesData({ queryKey: ["pedidos"] }, (antigos) => {
+        if (!antigos || !Array.isArray(antigos)) return antigos;
+        return antigos.map(p => p.id === id ? { ...p, ...data } : p);
+      });
+
+      return { prevPedidos };
+    },
+    onError: async (error, variables, context) => {
+      if (error?.message === "OFFLINE_TRIGGERED" || (typeof navigator !== "undefined" && !navigator.onLine)) {
+        try {
+          await enfileirarAcaoOffline({
+            tipo: "PEDIDO_UPDATE",
+            entidade: "Pedido",
+            registroId: variables.id,
+            dados: variables.data,
+            descricao: `Pedido #${variables.data?.numero_pedido || variables.id} -> ${variables.data?.status || 'atualizado'}`
+          });
+          toast.info("Modo Offline: Apontamento salvo no tablet!", {
+            description: "Será enviado para a nuvem assim que o Wi-Fi restabelecer.",
+            duration: 4000
+          });
+        } catch (errLocal) {
+          console.error("Falha ao salvar offline:", errLocal);
+          toast.error("Erro ao registrar apontamento.");
+        }
+      } else {
+        if (context?.prevPedidos) {
+          queryClient.setQueryData(["pedidos", filialAtiva], context.prevPedidos);
+        }
+        toast.error("Erro ao atualizar: " + (error?.message || ""));
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
-      queryClient.invalidateQueries({ queryKey: ["pre-baixa-bobinas-v2"] });
-      queryClient.invalidateQueries({ queryKey: ["bobinas"] });
-      toast.success("Status atualizado!");
+    onSuccess: (resultadoServidor) => {
+      // Atualiza o item sincronizado na memória sem disparar recarregamento massivo na tela
+      if (resultadoServidor?.id) {
+        queryClient.setQueriesData({ queryKey: ["pedidos"] }, (antigos) => {
+          if (!antigos || !Array.isArray(antigos)) return antigos;
+          return antigos.map(p => p.id === resultadoServidor.id ? { ...p, ...resultadoServidor } : p);
+        });
+      }
     },
   });
 

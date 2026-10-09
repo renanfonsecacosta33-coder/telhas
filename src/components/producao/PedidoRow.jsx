@@ -24,7 +24,7 @@ import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
 import { PrioridadeBadge } from "@/lib/prioridadeHelper";
 import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco";
 import SmartImage from "@/components/ui/SmartImage";
-import { comprimirImagemParaUpload } from "@/lib/compressImage";
+import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/compressImage";
 import { isTelhaBandeja, verificarStatusComponentesBandeja } from "@/lib/bandejaHelper";
 import { useRegrasProducao } from "@/lib/regrasProducao";
 import { detectarTipoProdutoTelha, detectarEPSTelha, detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
@@ -413,29 +413,48 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     }
   }, [solicitacoesPendentes]);
 
+  const uploadFotoEpsPromiseRef = useRef(null);
+
   const handleUploadFotoColagemEps = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Preview local instantâneo (0ms)
+    const previewUrl = criarPreviewLocalInstantaneo(file);
+    setFotoColagemEpsUrl(previewUrl);
     setUploadingFotoColagemEps(true);
-    try {
-      const fileOtimizado = await comprimirImagemParaUpload(file);
-      const { file_url } = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
-      setFotoColagemEpsUrl(file_url);
-    } catch {
-      alert("Erro ao enviar foto de validação do EPS.");
-    } finally {
-      setUploadingFotoColagemEps(false);
-    }
+
+    uploadFotoEpsPromiseRef.current = (async () => {
+      try {
+        const fileOtimizado = await comprimirImagemParaUpload(file);
+        const { file_url } = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
+        setFotoColagemEpsUrl(file_url);
+        return file_url;
+      } catch (err) {
+        console.warn("Aviso upload EPS em background:", err);
+        return previewUrl;
+      } finally {
+        setUploadingFotoColagemEps(false);
+      }
+    })();
   };
 
-  const handleConfirmarColagemEps = (pularFoto = false) => {
+  const handleConfirmarColagemEps = async (pularFoto = false) => {
     if (!fotoColagemEpsUrl && !pularFoto) {
       alert("Por favor, tire uma foto do bloco de EPS para validar antes de iniciar!");
       return;
     }
     setValidarEpsColagemOpen(false);
+
+    let urlFinal = fotoColagemEpsUrl;
+    if (uploadFotoEpsPromiseRef.current) {
+      try {
+        urlFinal = await uploadFotoEpsPromiseRef.current;
+      } catch {}
+    }
+
     const updates = {
-      ...(fotoColagemEpsUrl ? { foto_colagem_eps_url: fotoColagemEpsUrl } : {}),
+      ...(urlFinal ? { foto_colagem_eps_url: urlFinal } : {}),
     };
     if (appendHistoricoFn) {
       Object.assign(updates, appendHistoricoFn(p, "inicio_colagem_validado", pularFoto ? "Iniciou colagem (modo direto)" : "Validou EPS e iniciou colagem"));
@@ -448,11 +467,14 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     }
   };
 
-  // Tick a cada segundo para atualizar cronômetro ao vivo
+  // Tick a cada segundo APENAS se o pedido estiver em produção nesta máquina (poupa 95% de renderizações)
   useEffect(() => {
+    if (p.status !== "em_producao") return;
     intervalRef.current = setInterval(() => setTick(t => t + 1), 1000);
-    return () => clearInterval(intervalRef.current);
-  }, []);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [p.status]);
 
   const borderColor = PRODUTO_BG[p.produto] || "border-l-slate-300";
   const temEpsReal = PRODUTOS_COM_EPS.includes(p.produto) || (p.produto && p.produto !== "TELHA" && /(eps|manta|sanduiche|isopor|termoacustica)/i.test(p.produto));
@@ -902,18 +924,30 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     setMetragemDialog(true);
   };
 
+  const uploadFotoFinalizacaoPromiseRef = useRef(null);
+
   const handleUploadFoto = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Preview local instantâneo (0ms)
+    const previewUrl = criarPreviewLocalInstantaneo(file);
+    setFotoFinalizacaoUrl(previewUrl);
     setUploadingFoto(true);
-    try {
-      const fileOtimizado = await comprimirImagemParaUpload(file);
-      const { file_url } = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
-      setFotoFinalizacaoUrl(file_url);
-    } catch (err) {
-      alert("Erro ao enviar foto: " + (err.message || ""));
-    }
-    setUploadingFoto(false);
+
+    uploadFotoFinalizacaoPromiseRef.current = (async () => {
+      try {
+        const fileOtimizado = await comprimirImagemParaUpload(file);
+        const { file_url } = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
+        setFotoFinalizacaoUrl(file_url);
+        return file_url;
+      } catch (err) {
+        console.warn("Aviso upload de foto de finalizacao:", err);
+        return previewUrl;
+      } finally {
+        setUploadingFoto(false);
+      }
+    })();
   };
 
   const confirmarTelhasSandwich = () => {
@@ -927,6 +961,13 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     if (metragemRealNum <= 0) {
       alert("Informe a metragem real (maior que 0)");
       return;
+    }
+
+    let urlFinalFoto = fotoFinalizacaoUrl;
+    if (uploadFotoFinalizacaoPromiseRef.current) {
+      try {
+        urlFinalFoto = await uploadFotoFinalizacaoPromiseRef.current;
+      } catch {}
     }
 
     // ── COLAGEM: desconta isopor e finaliza (NÃO desconta bobinas aqui) ──
@@ -970,7 +1011,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         metragem_utilizada: metragemRealNum,
         inicio_producao_ts: null,
         data_finalizacao: format(new Date(), "yyyy-MM-dd"),
-        foto_finalizacao_url: fotoFinalizacaoUrl,
+        foto_finalizacao_url: urlFinalFoto,
       });
       setMetragemDialog(false);
       return;
@@ -1040,7 +1081,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         metragem_planejada: metragemRealNum,
         inicio_producao_ts: null,
         data_finalizacao: hojeStr,
-        foto_finalizacao_url: fotoFinalizacaoUrl,
+        foto_finalizacao_url: urlFinalFoto,
       });
       setMetragemDialog(false);
       return;
@@ -1077,7 +1118,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       metragem_planejada: metragemRealNum,
       inicio_producao_ts: null,
       data_finalizacao: novoStatus === "finalizado" ? hojeStr : undefined,
-      foto_finalizacao_url: fotoFinalizacaoUrl,
+      foto_finalizacao_url: urlFinalFoto,
       ...(precisaColagem ? {
         maquina: "COLAGEM",
         maquina_origem: maqOrigem,
@@ -2131,340 +2172,362 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       </div>
 
       {/* Dialog de validação de etiqueta */}
-      <ValidacaoEtiquetaTelhasDialog
-        open={validacaoEtiquetaOpen}
-        onClose={() => setValidacaoEtiquetaOpen(false)}
-        pedido={p}
-        onAprovado={handleEtiquetaAprovada}
-      />
+      {validacaoEtiquetaOpen && (
+        <ValidacaoEtiquetaTelhasDialog
+          open={validacaoEtiquetaOpen}
+          onClose={() => setValidacaoEtiquetaOpen(false)}
+          pedido={p}
+          onAprovado={handleEtiquetaAprovada}
+        />
+      )}
 
       {/* Dialog de retrabalho */}
-      <RetrabalhoTelhasDialog
-        open={retrabalhoOpen}
-        onClose={() => setRetrabalhoOpen(false)}
-        pedidoOrigem={p}
-        onCreate={() => setRetrabalhoOpen(false)}
-      />
+      {retrabalhoOpen && (
+        <RetrabalhoTelhasDialog
+          open={retrabalhoOpen}
+          onClose={() => setRetrabalhoOpen(false)}
+          pedidoOrigem={p}
+          onCreate={() => setRetrabalhoOpen(false)}
+        />
+      )}
 
       {/* Dialog de confirmação de troca de OP caso outra já esteja rodando */}
-      <ConfirmarInicioDialog
-        open={confirmarInicioOpen}
-        onClose={() => setConfirmarInicioOpen(false)}
-        pedido={p}
-        pedidoRodando={opRodando}
-        onConfirm={handleConfirmarInicio}
-      />
+      {confirmarInicioOpen && (
+        <ConfirmarInicioDialog
+          open={confirmarInicioOpen}
+          onClose={() => setConfirmarInicioOpen(false)}
+          pedido={p}
+          pedidoRodando={opRodando}
+          onConfirm={handleConfirmarInicio}
+        />
+      )}
 
       {/* Dialog de conferência de bobina por item (múltiplas medidas) */}
-      <ConferirBobinaItemDialog
-        open={conferirBobinaModal.open}
-        onClose={() => setConferirBobinaModal({ open: false, item: null, index: 0 })}
-        item={conferirBobinaModal.item}
-        itemIndex={conferirBobinaModal.index}
-        pedido={p}
-        bobinas={todasBobinas}
-        onConfirmarInicio={handleConfirmarInicioItem}
-      />
+      {conferirBobinaModal.open && (
+        <ConferirBobinaItemDialog
+          open={conferirBobinaModal.open}
+          onClose={() => setConferirBobinaModal({ open: false, item: null, index: 0 })}
+          item={conferirBobinaModal.item}
+          itemIndex={conferirBobinaModal.index}
+          pedido={p}
+          bobinas={todasBobinas}
+          onConfirmarInicio={handleConfirmarInicioItem}
+        />
+      )}
 
       {/* Dialog de finalização de item com foto e metragem real */}
-      <FinalizarItemVariacaoDialog
-        open={finalizarItemModal.open}
-        onClose={() => setFinalizarItemModal({ open: false, item: null, index: 0 })}
-        item={finalizarItemModal.item}
-        itemIndex={finalizarItemModal.index}
-        pedido={p}
-        onConfirmarFinalizacao={handleConfirmarFinalizacaoItem}
-      />
+      {finalizarItemModal.open && (
+        <FinalizarItemVariacaoDialog
+          open={finalizarItemModal.open}
+          onClose={() => setFinalizarItemModal({ open: false, item: null, index: 0 })}
+          item={finalizarItemModal.item}
+          itemIndex={finalizarItemModal.index}
+          pedido={p}
+          onConfirmarFinalizacao={handleConfirmarFinalizacaoItem}
+        />
+      )}
 
       {/* Dialog de pausa */}
-      <Dialog open={pauseDialog} onOpenChange={setPauseDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Pausar Pedido</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">Qual o motivo da pausa?</p>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setPauseTipo("setup")}
-                className={`border-2 rounded-xl p-4 text-center transition-all ${pauseTipo === "setup" ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}`}
-              >
-                <Square className="w-6 h-6 mx-auto mb-2 text-purple-600" />
-                <p className="font-semibold text-sm">Setup de Máquina</p>
-                <p className="text-xs text-muted-foreground mt-1">Ajuste, troca de bobina, etc.</p>
-              </button>
-              <button
-                onClick={() => setPauseTipo("outro")}
-                className={`border-2 rounded-xl p-4 text-center transition-all ${pauseTipo === "outro" ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}`}
-              >
-                <Coffee className="w-6 h-6 mx-auto mb-2 text-amber-600" />
-                <p className="font-semibold text-sm">Outro Motivo</p>
-                <p className="text-xs text-muted-foreground mt-1">Especifique abaixo</p>
-              </button>
+      {pauseDialog && (
+        <Dialog open={pauseDialog} onOpenChange={setPauseDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Pausar Pedido</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <p className="text-sm text-muted-foreground">Qual o motivo da pausa?</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setPauseTipo("setup")}
+                  className={`border-2 rounded-xl p-4 text-center transition-all ${pauseTipo === "setup" ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}`}
+                >
+                  <Square className="w-6 h-6 mx-auto mb-2 text-purple-600" />
+                  <p className="font-semibold text-sm">Setup de Máquina</p>
+                  <p className="text-xs text-muted-foreground mt-1">Ajuste, troca de bobina, etc.</p>
+                </button>
+                <button
+                  onClick={() => setPauseTipo("outro")}
+                  className={`border-2 rounded-xl p-4 text-center transition-all ${pauseTipo === "outro" ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}`}
+                >
+                  <Coffee className="w-6 h-6 mx-auto mb-2 text-amber-600" />
+                  <p className="font-semibold text-sm">Outro Motivo</p>
+                  <p className="text-xs text-muted-foreground mt-1">Especifique abaixo</p>
+                </button>
+              </div>
+              {pauseTipo === "outro" && (
+                <Textarea
+                  placeholder="Descreva o motivo da pausa... (ex: almoço, falta de material, problema técnico)"
+                  value={pauseMotivo}
+                  onChange={(e) => setPauseMotivo(e.target.value)}
+                  className="h-20"
+                  autoFocus
+                />
+              )}
             </div>
-            {pauseTipo === "outro" && (
-              <Textarea
-                placeholder="Descreva o motivo da pausa... (ex: almoço, falta de material, problema técnico)"
-                value={pauseMotivo}
-                onChange={(e) => setPauseMotivo(e.target.value)}
-                className="h-20"
-                autoFocus
-              />
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPauseDialog(false)}>Cancelar</Button>
-            <Button
-              onClick={confirmarPausa}
-              disabled={pauseTipo === "outro" && !pauseMotivo.trim()}
-              className="gap-1"
-            >
-              <Pause className="w-4 h-4" /> Confirmar Pausa
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPauseDialog(false)}>Cancelar</Button>
+              <Button
+                onClick={confirmarPausa}
+                disabled={pauseTipo === "outro" && !pauseMotivo.trim()}
+                className="gap-1"
+              >
+                <Pause className="w-4 h-4" /> Confirmar Pausa
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Dialog checklist TELHA + EPS + TELHA */}
-      <Dialog open={telhasSandwichDialog} onOpenChange={setTelhasSandwichDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Checklist — TELHA + EPS + TELHA</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">Confirme antes de ir para a Colagem:</p>
-            <div className="space-y-3">
-              <button
-                onClick={() => setTelhaSupOk(!telhaSupOk)}
-                className={`w-full flex items-center gap-3 border-2 rounded-xl p-4 text-left transition-all ${telhaSupOk ? "border-green-500 bg-green-50" : "border-border hover:border-primary/50"}`}
-              >
-                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${telhaSupOk ? "border-green-500 bg-green-500" : "border-slate-300"}`}>
-                  {telhaSupOk && <CheckCircle2 className="w-4 h-4 text-white" />}
-                </div>
-                <div>
-                  <p className="font-semibold text-sm">Telha Superior retirada ✓</p>
-                  <p className="text-xs text-muted-foreground">A chapa superior foi perfilada e está pronta</p>
-                </div>
-              </button>
-              <button
-                onClick={() => setTelhaInfOk(!telhaInfOk)}
-                className={`w-full flex items-center gap-3 border-2 rounded-xl p-4 text-left transition-all ${telhaInfOk ? "border-green-500 bg-green-50" : "border-border hover:border-primary/50"}`}
-              >
-                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${telhaInfOk ? "border-green-500 bg-green-500" : "border-slate-300"}`}>
-                  {telhaInfOk && <CheckCircle2 className="w-4 h-4 text-white" />}
-                </div>
-                <div>
-                  <p className="font-semibold text-sm">Telha Inferior retirada ✓</p>
-                  <p className="text-xs text-muted-foreground">A chapa inferior foi perfilada e está pronta</p>
-                </div>
-              </button>
+      {telhasSandwichDialog && (
+        <Dialog open={telhasSandwichDialog} onOpenChange={setTelhasSandwichDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Checklist — TELHA + EPS + TELHA</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <p className="text-sm text-muted-foreground">Confirme antes de ir para a Colagem:</p>
+              <div className="space-y-3">
+                <button
+                  onClick={() => setTelhaSupOk(!telhaSupOk)}
+                  className={`w-full flex items-center gap-3 border-2 rounded-xl p-4 text-left transition-all ${telhaSupOk ? "border-green-500 bg-green-50" : "border-border hover:border-primary/50"}`}
+                >
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${telhaSupOk ? "border-green-500 bg-green-500" : "border-slate-300"}`}>
+                    {telhaSupOk && <CheckCircle2 className="w-4 h-4 text-white" />}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">Telha Superior retirada ✓</p>
+                    <p className="text-xs text-muted-foreground">A chapa superior foi perfilada e está pronta</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setTelhaInfOk(!telhaInfOk)}
+                  className={`w-full flex items-center gap-3 border-2 rounded-xl p-4 text-left transition-all ${telhaInfOk ? "border-green-500 bg-green-50" : "border-border hover:border-primary/50"}`}
+                >
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${telhaInfOk ? "border-green-500 bg-green-500" : "border-slate-300"}`}>
+                    {telhaInfOk && <CheckCircle2 className="w-4 h-4 text-white" />}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">Telha Inferior retirada ✓</p>
+                    <p className="text-xs text-muted-foreground">A chapa inferior foi perfilada e está pronta</p>
+                  </div>
+                </button>
+              </div>
             </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setTelhasSandwichDialog(false)}>Cancelar</Button>
-            <Button
-              onClick={confirmarTelhasSandwich}
-              disabled={!telhaSupOk || !telhaInfOk}
-              className="gap-1 bg-green-600 hover:bg-green-700"
-            >
-              <CheckCircle2 className="w-4 h-4" /> Confirmar → Colagem
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setTelhasSandwichDialog(false)}>Cancelar</Button>
+              <Button
+                onClick={confirmarTelhasSandwich}
+                disabled={!telhaSupOk || !telhaInfOk}
+                className="gap-1 bg-green-600 hover:bg-green-700"
+              >
+                <CheckCircle2 className="w-4 h-4" /> Confirmar → Colagem
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Dialog de confirmação de metragem */}
-      <Dialog open={metragemDialog} onOpenChange={setMetragemDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Confirmar Metragem {p.maquina === "COLAGEM" ? "de Colagem" : "Produzida"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 space-y-2">
-              <p className="text-xs font-semibold text-blue-900 uppercase">Metragem Total do Pedido</p>
-              <p className="text-2xl font-bold text-blue-700">
-                {((Number(p.metros) || 0) * ((Number(p.metragem_mm) || 0) / 1000)).toFixed(2)}m
-              </p>
-              <p className="text-xs text-blue-600">({p.metros} telhas × {Number(p.metragem_mm) || 0}mm)</p>
-            </div>
-
-            {p.kg_superior > 0 && (
-              <div className="space-y-1">
-                <p className="text-xs font-semibold text-slate-600 uppercase">KG da Bobina Superior</p>
-                <p className="text-lg font-bold text-slate-700">{p.kg_superior}kg</p>
-              </div>
-            )}
-            {p.kg_inferior > 0 && (
-              <div className="space-y-1">
-                <p className="text-xs font-semibold text-slate-600 uppercase">KG da Bobina Inferior</p>
-                <p className="text-lg font-bold text-slate-700">{p.kg_inferior}kg</p>
-              </div>
-            )}
-
-            <div className="space-y-1 border-t pt-4">
-              <Label className="text-sm font-semibold">Metragem Real {p.maquina === "COLAGEM" ? "de Colagem" : "Produzida"}</Label>
-              <input
-                type="number"
-                value={metragemReal}
-                onChange={(e) => setMetragemReal(e.target.value)}
-                placeholder="0"
-                className="w-full px-3 py-2 border border-border rounded-lg font-bold text-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                autoFocus
-              />
-              <p className="text-xs text-muted-foreground">Se for diferente do planejado, o KG será ajustado proporcionalmente</p>
-            </div>
-
-            {/* Foto obrigatória do material finalizado */}
-            <div className="space-y-2 border-t pt-4">
-              <Label className="text-sm font-semibold flex items-center gap-1">
-                <Camera className="w-4 h-4 text-green-600" /> Foto do Material Finalizado *
-              </Label>
-              {fotoFinalizacaoUrl ? (
-                <div className="relative">
-                  <img src={fotoFinalizacaoUrl} alt="Material finalizado" className="w-full h-36 object-cover rounded-lg border-2 border-green-400" />
-                  <button
-                    onClick={() => setFotoFinalizacaoUrl("")}
-                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm shadow-lg hover:bg-red-600"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ) : (
-                <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-green-300 rounded-lg p-6 cursor-pointer hover:border-green-500 hover:bg-green-50/30 transition-colors">
-                  {uploadingFoto ? (
-                    <>
-                      <div className="w-8 h-8 border-4 border-slate-200 border-t-green-500 rounded-full animate-spin" />
-                      <span className="text-xs text-muted-foreground">Enviando foto...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Camera className="w-10 h-10 text-green-400" />
-                      <span className="text-sm font-medium text-green-600">Tirar foto do material finalizado</span>
-                      <span className="text-xs text-muted-foreground">Obrigatório para finalizar</span>
-                    </>
-                  )}
-                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleUploadFoto} disabled={uploadingFoto} />
-                </label>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setMetragemDialog(false)}>Cancelar</Button>
-            <Button
-              onClick={confirmarFinalizacao}
-              disabled={!metragemReal || Number(metragemReal) <= 0 || !fotoFinalizacaoUrl}
-              className="gap-1 bg-green-600 hover:bg-green-700"
-            >
-              <CheckCircle2 className="w-4 h-4" /> Confirmar e Finalizar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog Validação de EPS pela Colagem */}
-      <Dialog open={validarEpsColagemOpen} onOpenChange={setValidarEpsColagemOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-cyan-900">
-              <Scissors className="w-5 h-5 text-cyan-600" />
-              Validar EPS antes de Iniciar a Colagem
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2 text-xs">
-            <p className="text-slate-600">
-              Confira a foto do EPS cortado pelo operador de corte para garantir que pegou os blocos corretos:
-            </p>
-
-            {/* Referência da foto do cortador */}
-            {p.foto_eps_url && (
-              <div className="border border-emerald-300 bg-emerald-50/50 rounded-xl p-3 space-y-2">
-                <p className="font-bold text-emerald-950 flex items-center gap-1">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Referência: Foto enviada pelo Operador de Corte
+      {metragemDialog && (
+        <Dialog open={metragemDialog} onOpenChange={setMetragemDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Confirmar Metragem {p.maquina === "COLAGEM" ? "de Colagem" : "Produzida"}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 space-y-2">
+                <p className="text-xs font-semibold text-blue-900 uppercase">Metragem Total do Pedido</p>
+                <p className="text-2xl font-bold text-blue-700">
+                  {((Number(p.metros) || 0) * ((Number(p.metragem_mm) || 0) / 1000)).toFixed(2)}m
                 </p>
-                <div className="border border-emerald-400 rounded-lg overflow-hidden max-h-[160px] bg-slate-900 flex items-center justify-center">
-                  <img src={p.foto_eps_url} alt="Foto do EPS cortado" className="max-h-[160px] w-auto object-contain" />
+                <p className="text-xs text-blue-600">({p.metros} telhas × {Number(p.metragem_mm) || 0}mm)</p>
+              </div>
+
+              {p.kg_superior > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-slate-600 uppercase">KG da Bobina Superior</p>
+                  <p className="text-lg font-bold text-slate-700">{p.kg_superior}kg</p>
                 </div>
-                {p.eps_observacoes && (
-                  <p className="text-[11px] text-emerald-800 bg-white p-2 rounded border border-emerald-200">
-                    <strong>Local/Obs:</strong> {p.eps_observacoes}
-                  </p>
+              )}
+              {p.kg_inferior > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-slate-600 uppercase">KG da Bobina Inferior</p>
+                  <p className="text-lg font-bold text-slate-700">{p.kg_inferior}kg</p>
+                </div>
+              )}
+
+              <div className="space-y-1 border-t pt-4">
+                <Label className="text-sm font-semibold">Metragem Real {p.maquina === "COLAGEM" ? "de Colagem" : "Produzida"}</Label>
+                <input
+                  type="number"
+                  value={metragemReal}
+                  onChange={(e) => setMetragemReal(e.target.value)}
+                  placeholder="0"
+                  className="w-full px-3 py-2 border border-border rounded-lg font-bold text-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  autoFocus
+                />
+                <p className="text-xs text-muted-foreground">Se for diferente do planejado, o KG será ajustado proporcionalmente</p>
+              </div>
+
+              {/* Foto obrigatória do material finalizado */}
+              <div className="space-y-2 border-t pt-4">
+                <Label className="text-sm font-semibold flex items-center gap-1">
+                  <Camera className="w-4 h-4 text-green-600" /> Foto do Material Finalizado *
+                </Label>
+                {fotoFinalizacaoUrl ? (
+                  <div className="relative">
+                    <img src={fotoFinalizacaoUrl} alt="Material finalizado" className="w-full h-36 object-cover rounded-lg border-2 border-green-400" />
+                    <button
+                      onClick={() => setFotoFinalizacaoUrl("")}
+                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm shadow-lg hover:bg-red-600"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-green-300 rounded-lg p-6 cursor-pointer hover:border-green-500 hover:bg-green-50/30 transition-colors">
+                    {uploadingFoto ? (
+                      <>
+                        <div className="w-8 h-8 border-4 border-slate-200 border-t-green-500 rounded-full animate-spin" />
+                        <span className="text-xs text-muted-foreground">Enviando foto...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="w-10 h-10 text-green-400" />
+                        <span className="text-sm font-medium text-green-600">Tirar foto do material finalizado</span>
+                        <span className="text-xs text-muted-foreground">Obrigatório para finalizar</span>
+                      </>
+                    )}
+                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleUploadFoto} disabled={uploadingFoto} />
+                  </label>
                 )}
               </div>
-            )}
-
-            {/* Tirar foto de confirmação pelo operador da colagem */}
-            <div className="space-y-2 border-t pt-3">
-              <Label className="text-xs font-bold text-slate-800 flex items-center gap-1">
-                <Camera className="w-4 h-4 text-cyan-600" /> Tire uma foto do EPS que você pegou *
-              </Label>
-              {fotoColagemEpsUrl ? (
-                <div className="relative border-2 border-cyan-500 rounded-xl overflow-hidden max-h-[150px] bg-slate-900 flex items-center justify-center">
-                  <img src={fotoColagemEpsUrl} alt="Foto colagem EPS" className="max-h-[150px] w-auto object-contain" />
-                  <button
-                    onClick={() => setFotoColagemEpsUrl("")}
-                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow-lg hover:bg-red-600"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ) : (
-                <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-cyan-300 rounded-xl p-5 cursor-pointer hover:border-cyan-500 hover:bg-cyan-50/30 transition-colors">
-                  {uploadingFotoColagemEps ? (
-                    <>
-                      <div className="w-6 h-6 border-3 border-slate-200 border-t-cyan-600 rounded-full animate-spin" />
-                      <span className="text-xs text-slate-500">Enviando foto...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Camera className="w-8 h-8 text-cyan-500" />
-                      <span className="text-xs font-bold text-cyan-700">Tirar foto do bloco de EPS em mãos</span>
-                      <span className="text-[10px] text-slate-400">Obrigatório para iniciar a colagem</span>
-                    </>
-                  )}
-                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleUploadFotoColagemEps} disabled={uploadingFotoColagemEps} />
-                </label>
-              )}
             </div>
-          </div>
-          <DialogFooter className="gap-2 sm:justify-between flex-wrap">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => handleConfirmarColagemEps(true)}
-              className="text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 text-xs font-semibold"
-            >
-              Iniciar Sem Foto (Modo Rápido)
-            </Button>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => setValidarEpsColagemOpen(false)}>Cancelar</Button>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setMetragemDialog(false)}>Cancelar</Button>
               <Button
-                onClick={() => handleConfirmarColagemEps(false)}
-                disabled={!fotoColagemEpsUrl}
-                className="bg-cyan-600 hover:bg-cyan-700 text-white gap-1.5"
+                onClick={confirmarFinalizacao}
+                disabled={!metragemReal || Number(metragemReal) <= 0 || !fotoFinalizacaoUrl}
+                className="gap-1 bg-green-600 hover:bg-green-700"
               >
-                <CheckCircle2 className="w-4 h-4" /> Confirmar EPS e Iniciar Colagem
+                <CheckCircle2 className="w-4 h-4" /> Confirmar e Finalizar
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Dialog Validação de EPS pela Colagem */}
+      {validarEpsColagemOpen && (
+        <Dialog open={validarEpsColagemOpen} onOpenChange={setValidarEpsColagemOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-cyan-900">
+                <Scissors className="w-5 h-5 text-cyan-600" />
+                Validar EPS antes de Iniciar a Colagem
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2 text-xs">
+              <p className="text-slate-600">
+                Confira a foto do EPS cortado pelo operador de corte para garantir que pegou os blocos corretos:
+              </p>
+
+              {/* Referência da foto do cortador */}
+              {p.foto_eps_url && (
+                <div className="border border-emerald-300 bg-emerald-50/50 rounded-xl p-3 space-y-2">
+                  <p className="font-bold text-emerald-950 flex items-center gap-1">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Referência: Foto enviada pelo Operador de Corte
+                  </p>
+                  <div className="border border-emerald-400 rounded-lg overflow-hidden max-h-[160px] bg-slate-900 flex items-center justify-center">
+                    <img src={p.foto_eps_url} alt="Foto do EPS cortado" className="max-h-[160px] w-auto object-contain" />
+                  </div>
+                  {p.eps_observacoes && (
+                    <p className="text-[11px] text-emerald-800 bg-white p-2 rounded border border-emerald-200">
+                      <strong>Local/Obs:</strong> {p.eps_observacoes}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Tirar foto de confirmação pelo operador da colagem */}
+              <div className="space-y-2 border-t pt-3">
+                <Label className="text-xs font-bold text-slate-800 flex items-center gap-1">
+                  <Camera className="w-4 h-4 text-cyan-600" /> Tire uma foto do EPS que você pegou *
+                </Label>
+                {fotoColagemEpsUrl ? (
+                  <div className="relative border-2 border-cyan-500 rounded-xl overflow-hidden max-h-[150px] bg-slate-900 flex items-center justify-center">
+                    <img src={fotoColagemEpsUrl} alt="Foto colagem EPS" className="max-h-[150px] w-auto object-contain" />
+                    <button
+                      onClick={() => setFotoColagemEpsUrl("")}
+                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow-lg hover:bg-red-600"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-cyan-300 rounded-xl p-5 cursor-pointer hover:border-cyan-500 hover:bg-cyan-50/30 transition-colors">
+                    {uploadingFotoColagemEps ? (
+                      <>
+                        <div className="w-6 h-6 border-3 border-slate-200 border-t-cyan-600 rounded-full animate-spin" />
+                        <span className="text-xs text-slate-500">Enviando foto...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="w-8 h-8 text-cyan-500" />
+                        <span className="text-xs font-bold text-cyan-700">Tirar foto do bloco de EPS em mãos</span>
+                        <span className="text-[10px] text-slate-400">Obrigatório para iniciar a colagem</span>
+                      </>
+                    )}
+                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleUploadFotoColagemEps} disabled={uploadingFotoColagemEps} />
+                  </label>
+                )}
+              </div>
             </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter className="gap-2 sm:justify-between flex-wrap">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => handleConfirmarColagemEps(true)}
+                className="text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 text-xs font-semibold"
+              >
+                Iniciar Sem Foto (Modo Rápido)
+              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => setValidarEpsColagemOpen(false)}>Cancelar</Button>
+                <Button
+                  onClick={() => handleConfirmarColagemEps(false)}
+                  disabled={!fotoColagemEpsUrl}
+                  className="bg-cyan-600 hover:bg-cyan-700 text-white gap-1.5"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> Confirmar EPS e Iniciar Colagem
+                </Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Dialog Seleção Multi-Operador para Início da OP */}
-      <IniciarOpOperadoresDialog
-        open={operadoresDialogOpen}
-        onOpenChange={setOperadoresDialogOpen}
-        ordem={p}
-        maquinaNome={p.maquina || maquina}
-        onConfirm={handleConfirmarOperadores}
-      />
+      {operadoresDialogOpen && (
+        <IniciarOpOperadoresDialog
+          open={operadoresDialogOpen}
+          onOpenChange={setOperadoresDialogOpen}
+          ordem={p}
+          maquinaNome={p.maquina || maquina}
+          onConfirm={handleConfirmarOperadores}
+        />
+      )}
 
       {/* Dialog Baixa de Cumeeira direto do Estoque Físico */}
-      <CumeeiraEstoqueDialog
-        open={cumeeiraEstoqueOpen}
-        onOpenChange={setCumeeiraEstoqueOpen}
-        pedido={p}
-        onConfirmar={handleConfirmarBaixaEstoqueCumeeira}
-      />
+      {cumeeiraEstoqueOpen && (
+        <CumeeiraEstoqueDialog
+          open={cumeeiraEstoqueOpen}
+          onOpenChange={setCumeeiraEstoqueOpen}
+          pedido={p}
+          onConfirmar={handleConfirmarBaixaEstoqueCumeeira}
+        />
+      )}
     </>
   );
 }
