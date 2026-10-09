@@ -569,6 +569,10 @@ export function extrairInfoBobinasPedido(p) {
   if (p.modelo) textos.push(String(p.modelo));
   if (p.produto) textos.push(String(p.produto));
   if (p.descricao) textos.push(String(p.descricao));
+  if (p.bobina_descricao) textos.push(String(p.bobina_descricao));
+  if (p.chapa_descricao) textos.push(String(p.chapa_descricao));
+  if (p.espessura_utilizada) textos.push(String(p.espessura_utilizada));
+  if (p.tipo_peca) textos.push(String(p.tipo_peca));
 
   try {
     const vars = JSON.parse(p.variacoes_telhas || "[]");
@@ -598,15 +602,18 @@ export function extrairInfoBobinasPedido(p) {
 
   const temCor = temPreta || temBranca || temAzul || temCinza || temCeramica || temBege || temVermelha || temVerde || temMarrom;
 
-  // 2. Natural / Galvalume
-  const temIndicioNatural = fullText.includes("natural") || fullText.includes("galvalume") || fullText.includes(" gl ") || fullText.includes("(gl") || fullText.includes("gl(") || fullText.includes("gv") || fullText.includes("zinco");
-  const isNatural = (temIndicioNatural && (!temCor || fullText.includes("natural"))) || (!temCor && !fullText.includes("pp"));
+  // 2. Pré-Pintada
+  const isPrePintada = temCor || fullText.includes(" pp") || fullText.includes("pp ") || fullText.includes("(pp)") || fullText.includes("pintad") || Boolean(p.cor && p.cor.toLowerCase() !== "natural" && p.cor.toLowerCase() !== "gl");
 
-  // 3. Origem (Importada vs Nacional)
+  // 3. Natural / Galvalume
+  const temIndicioNatural = fullText.includes("natural") || fullText.includes("galvalume") || fullText.includes(" gl ") || fullText.includes("(gl") || fullText.includes("gl(") || fullText.includes("gv") || fullText.includes("zinco");
+  const isNatural = (temIndicioNatural && (!temCor || fullText.includes("natural"))) || (!isPrePintada);
+
+  // 4. Origem (Importada vs Nacional)
   const isImportada = fullText.includes("imp") || fullText.includes("(imp)") || fullText.includes("importad");
   const isNacional = fullText.includes("nac") || fullText.includes("(nac)") || fullText.includes("nacional") || fullText.includes("csn") || fullText.includes("arcelor");
 
-  // 4. Espessuras de Natural
+  // 5. Espessuras de Natural
   const espessurasEncontradas = extrairTodasEspessuras(textos);
   const espessurasNaturais = new Set();
   if (isNatural) {
@@ -615,6 +622,7 @@ export function extrairInfoBobinasPedido(p) {
 
   return {
     isNatural,
+    isPrePintada,
     isImportada,
     isNacional,
     isPreta: temPreta,
@@ -790,4 +798,185 @@ export function pedidoAtendeFiltroMaterial(pedido, filtroKey) {
     case "marrom": return Boolean(info.isMarrom);
     default: return true;
   }
+}
+
+/**
+ * Calcula filtros estruturados em 2 grupos: TIPO DE BOBINA e COR DE BOBINA
+ * conforme a especificação do operador de chão de fábrica.
+ */
+export function calcularFiltrosTipoECor(pedidos = []) {
+  let countNatural = 0;
+  let countPrePintada = 0;
+  let countNaturalImp = 0;
+  let countNaturalNac = 0;
+  const contagemNaturaisPorEspessura = {};
+
+  const contagensCores = {
+    preta: 0,
+    branca: 0,
+    azul: 0,
+    cinza: 0,
+    ceramica: 0,
+    bege: 0,
+    vermelha: 0,
+    verde: 0,
+    marrom: 0,
+  };
+
+  pedidos.forEach(p => {
+    const info = extrairInfoBobinasPedido(p);
+    if (info.isNatural) {
+      countNatural++;
+      if (info.isImportada) countNaturalImp++;
+      if (info.isNacional) countNaturalNac++;
+      info.espessurasNaturais.forEach(esp => {
+        contagemNaturaisPorEspessura[esp] = (contagemNaturaisPorEspessura[esp] || 0) + 1;
+      });
+    }
+    if (info.isPrePintada) {
+      countPrePintada++;
+    }
+    if (info.isPreta) contagensCores.preta++;
+    if (info.isBranca) contagensCores.branca++;
+    if (info.isAzul) contagensCores.azul++;
+    if (info.isCinza) contagensCores.cinza++;
+    if (info.isCeramica) contagensCores.ceramica++;
+    if (info.isBege) contagensCores.bege++;
+    if (info.isVermelha) contagensCores.vermelha++;
+    if (info.isVerde) contagensCores.verde++;
+    if (info.isMarrom) contagensCores.marrom++;
+  });
+
+  // 1. Tipos principais de bobina
+  const tipos = [
+    { key: "todos", label: "Todos", count: pedidos.length, icone: "📦" }
+  ];
+
+  if (countNatural > 0) {
+    tipos.push({
+      key: "natural",
+      label: "Natural / Galvalume",
+      count: countNatural,
+      icone: "⚪",
+      corBadge: "bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200"
+    });
+  }
+
+  if (countPrePintada > 0) {
+    tipos.push({
+      key: "pre_pintada",
+      label: "Pré-Pintada (PP)",
+      count: countPrePintada,
+      icone: "🎨",
+      corBadge: "bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-950 dark:text-purple-200"
+    });
+  }
+
+  // Subtipos de Natural (Origem e Espessuras)
+  const subtiposNatural = [];
+  if (countNaturalImp > 0) {
+    subtiposNatural.push({
+      key: "natural_imp",
+      label: "Natural Importada",
+      count: countNaturalImp,
+      icone: "🌐",
+      corBadge: "bg-sky-50 text-sky-800 border-sky-300 dark:bg-sky-950 dark:text-sky-300 font-bold"
+    });
+  }
+  if (countNaturalNac > 0) {
+    subtiposNatural.push({
+      key: "natural_nac",
+      label: "Natural Nacional",
+      count: countNaturalNac,
+      icone: "🇧🇷",
+      corBadge: "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 font-bold"
+    });
+  }
+
+  const espessurasOrdenadas = Object.keys(contagemNaturaisPorEspessura).sort((a, b) => {
+    const numA = parseFloat(a.replace(",", ".")) || 0;
+    const numB = parseFloat(b.replace(",", ".")) || 0;
+    return numA - numB;
+  });
+
+  espessurasOrdenadas.forEach(esp => {
+    subtiposNatural.push({
+      key: `natural_${esp}`,
+      label: `Natural ${esp}`,
+      count: contagemNaturaisPorEspessura[esp],
+      icone: "⚪",
+      corBadge: "bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200 font-bold"
+    });
+  });
+
+  // 2. Cores (Aparecem apenas as cores presentes nos pedidos)
+  const coresConfig = [
+    { key: "preta", label: "Preta", icone: "⚫", dotColor: "#171717", count: contagensCores.preta, badgeCls: "bg-neutral-900 text-neutral-100 border-neutral-700" },
+    { key: "branca", label: "Branca", icone: "⚪", dotColor: "#ffffff", count: contagensCores.branca, badgeCls: "bg-slate-50 text-slate-900 border-slate-300" },
+    { key: "azul", label: "Azul", icone: "🔵", dotColor: "#2563eb", count: contagensCores.azul, badgeCls: "bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950 dark:text-blue-200" },
+    { key: "cinza", label: "Cinza / Grafite", icone: "🔘", dotColor: "#64748b", count: contagensCores.cinza, badgeCls: "bg-stone-200 text-stone-800 border-stone-400 dark:bg-stone-800 dark:text-stone-300" },
+    { key: "ceramica", label: "Cerâmica", icone: "🧱", dotColor: "#c2410c", count: contagensCores.ceramica, badgeCls: "bg-amber-100 text-amber-900 border-amber-400 dark:bg-amber-950 dark:text-amber-200" },
+    { key: "bege", label: "Bege / Areia", icone: "🏜️", dotColor: "#d97706", count: contagensCores.bege, badgeCls: "bg-orange-100 text-orange-900 border-orange-300 dark:bg-orange-950 dark:text-orange-200" },
+    { key: "vermelha", label: "Vermelha", icone: "🔴", dotColor: "#dc2626", count: contagensCores.vermelha, badgeCls: "bg-red-100 text-red-900 border-red-300 dark:bg-red-950 dark:text-red-200" },
+    { key: "verde", label: "Verde", icone: "🟢", dotColor: "#16a34a", count: contagensCores.verde, badgeCls: "bg-green-100 text-green-900 border-green-300 dark:bg-green-950 dark:text-green-200" },
+    { key: "marrom", label: "Marrom", icone: "🟤", dotColor: "#78350f", count: contagensCores.marrom, badgeCls: "bg-amber-900 text-amber-100 border-amber-800" },
+  ];
+
+  const cores = coresConfig.filter(c => c.count > 0);
+
+  return {
+    tipos,
+    subtiposNatural,
+    cores,
+    totalPedidos: pedidos.length,
+    countNatural,
+    countPrePintada
+  };
+}
+
+/**
+ * Filtra pedidos combinando Tipo de Bobina e Cor de Bobina
+ */
+export function pedidoAtendeFiltroTipoECor(pedido, filtroTipo = "todos", filtroCor = "todas") {
+  const info = extrairInfoBobinasPedido(pedido);
+
+  // 1. Filtro por Cor (se especificada uma cor)
+  if (filtroCor && filtroCor !== "todas") {
+    let bateCor = false;
+    switch (filtroCor) {
+      case "preta": bateCor = info.isPreta; break;
+      case "branca": bateCor = info.isBranca; break;
+      case "azul": bateCor = info.isAzul; break;
+      case "cinza": bateCor = info.isCinza; break;
+      case "ceramica": bateCor = info.isCeramica; break;
+      case "bege": bateCor = info.isBege; break;
+      case "vermelha": bateCor = info.isVermelha; break;
+      case "verde": bateCor = info.isVerde; break;
+      case "marrom": bateCor = info.isMarrom; break;
+      default: bateCor = true;
+    }
+    if (!bateCor) return false;
+  }
+
+  // 2. Filtro por Tipo de Bobina
+  if (!filtroTipo || filtroTipo === "todos") return true;
+
+  if (filtroTipo === "natural") {
+    return Boolean(info.isNatural);
+  }
+  if (filtroTipo === "natural_imp") {
+    return Boolean(info.isNatural && info.isImportada);
+  }
+  if (filtroTipo === "natural_nac") {
+    return Boolean(info.isNatural && info.isNacional);
+  }
+  if (filtroTipo.startsWith("natural_")) {
+    const espAlvo = filtroTipo.replace("natural_", "");
+    return Boolean(info.isNatural && info.espessurasNaturais.has(espAlvo));
+  }
+  if (filtroTipo === "pre_pintada") {
+    return Boolean(info.isPrePintada);
+  }
+
+  return true;
 }

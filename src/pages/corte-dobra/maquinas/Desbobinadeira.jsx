@@ -13,6 +13,8 @@ import RetrabalhoDialog from "@/components/corte-dobra/RetrabalhoDialog";
 import { useFilial } from "@/contexts/FilialContext";
 import { playAlertSound } from "@/lib/sounds";
 import FiltroChapa from "@/components/corte-dobra/FiltroChapa";
+import FiltroTipoECorBobina from "@/components/producao/FiltroTipoECorBobina";
+import { calcularFiltrosTipoECor, pedidoAtendeFiltroTipoECor } from "@/lib/bobinaStatusHelper";
 import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
 import TimerProducao from "@/components/producao/TimerProducao";
@@ -40,6 +42,8 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
   const [editItem, setEditItem] = useState(null);
   const [filtroEspessura, setFiltroEspessura] = useState("todas");
   const [filtroChapa, setFiltroChapa] = useState("todas");
+  const [filtroTipo, setFiltroTipo] = useState("todos");
+  const [filtroCor, setFiltroCor] = useState("todas");
   const [buscaPedido, setBuscaPedido] = useState("");
   const [dialogRetrabalho, setDialogRetrabalho] = useState(false);
   const [ordemRetrabalho, setOrdemRetrabalho] = useState(null);
@@ -340,19 +344,57 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
     return Array.from(set).sort();
   }, [ordensSemana]);
 
+  const baseOrdensCD = viewMode === "semana" ? ordensSemana : ordensDia;
+  const dadosFiltrosCD = useMemo(() => {
+    return calcularFiltrosTipoECor(baseOrdensCD);
+  }, [baseOrdensCD]);
+
+  const handleSelecionarTipoCD = (tKey) => {
+    if (tKey === filtroTipo) {
+      setFiltroTipo("todos");
+      return;
+    }
+    setFiltroTipo(tKey);
+    if (tKey === "natural" || tKey.startsWith("natural_")) {
+      setFiltroCor("todas");
+    }
+  };
+
+  const handleSelecionarCorCD = (cKey) => {
+    if (cKey === filtroCor) {
+      setFiltroCor("todas");
+      return;
+    }
+    setFiltroCor(cKey);
+    if (filtroTipo === "natural" || filtroTipo.startsWith("natural_")) {
+      setFiltroTipo("pre_pintada");
+    }
+  };
+
+  const handleLimparFiltrosCD = () => {
+    setFiltroTipo("todos");
+    setFiltroCor("todas");
+  };
+
   const ordensDiaFiltradas = useMemo(() => {
     let r = ordensDia;
     if (filtroEspessura !== "todas") r = r.filter(o => o.espessura_utilizada === filtroEspessura);
     if (filtroChapa !== "todas") r = r.filter(o => o.bobina_descricao === filtroChapa);
+    if (filtroTipo !== "todos" || filtroCor !== "todas") {
+      r = r.filter(o => pedidoAtendeFiltroTipoECor(o, filtroTipo, filtroCor));
+    }
     return r;
-  }, [ordensDia, filtroEspessura, filtroChapa]);
+  }, [ordensDia, filtroEspessura, filtroChapa, filtroTipo, filtroCor]);
 
   const ordensSemanaFiltradas = useMemo(() => {
     let r = ordensSemana;
     if (filtroEspessura !== "todas") r = r.filter(o => o.espessura_utilizada === filtroEspessura);
     if (filtroChapa !== "todas") r = r.filter(o => o.bobina_descricao === filtroChapa);
+    if (filtroTipo !== "todos" || filtroCor !== "todas") {
+      r = r.filter(o => pedidoAtendeFiltroTipoECor(o, filtroTipo, filtroCor));
+    }
     return r;
-  }, [ordensSemana, filtroEspessura, filtroChapa]);
+  }, [ordensSemana, filtroEspessura, filtroChapa, filtroTipo, filtroCor]);
 
   // Operador sem máquina configurada
   if (user && isOperadorRestrito && !maquinaDoUsuario) {
@@ -624,6 +666,17 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
         )}
         <FiltroChapa chapas={chapasDisponiveis} value={filtroChapa} onChange={setFiltroChapa} />
       </div>
+
+      {/* Filtros Estruturados: Tipo e Cor de Bobina */}
+      <FiltroTipoECorBobina
+        dadosFiltros={dadosFiltrosCD}
+        filtroTipo={filtroTipo}
+        filtroCor={filtroCor}
+        onSelecionarTipo={handleSelecionarTipoCD}
+        onSelecionarCor={handleSelecionarCorCD}
+        onLimparFiltros={handleLimparFiltrosCD}
+        totalBase={baseOrdensCD.length}
+      />
 
       {/* IA Capacidade Diária (Regra 5) */}
       <CapacidadeDiariaIA ordens={ordens} dataISO={selectedDay} />

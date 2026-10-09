@@ -13,6 +13,8 @@ import RetrabalhoDialog from "@/components/corte-dobra/RetrabalhoDialog";
 import OPSemMaterialTab from "@/components/corte-dobra/OPSemMaterialTab";
 import { useFilial } from "@/contexts/FilialContext";
 import FiltroChapa from "@/components/corte-dobra/FiltroChapa";
+import FiltroTipoECorBobina from "@/components/producao/FiltroTipoECorBobina";
+import { calcularFiltrosTipoECor, pedidoAtendeFiltroTipoECor } from "@/lib/bobinaStatusHelper";
 import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
@@ -34,6 +36,8 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const [buscaPedido, setBuscaPedido] = useState("");
   const [filtroEspessura, setFiltroEspessura] = useState("todas");
   const [filtroChapa, setFiltroChapa] = useState("todas");
+  const [filtroTipo, setFiltroTipo] = useState("todos");
+  const [filtroCor, setFiltroCor] = useState("todas");
   const [dialogRetrabalho, setDialogRetrabalho] = useState(false);
   const [ordemRetrabalho, setOrdemRetrabalho] = useState(null);
   const [senhaGestorOpen, setSenhaGestorOpen] = useState(false);
@@ -376,6 +380,38 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     return Array.from(set).sort();
   }, [ordensSemana]);
 
+  const baseOrdensCD = viewMode === "semana" ? ordensSemana : ordensDia;
+  const dadosFiltrosCD = useMemo(() => {
+    return calcularFiltrosTipoECor(baseOrdensCD);
+  }, [baseOrdensCD]);
+
+  const handleSelecionarTipoCD = (tKey) => {
+    if (tKey === filtroTipo) {
+      setFiltroTipo("todos");
+      return;
+    }
+    setFiltroTipo(tKey);
+    if (tKey === "natural" || tKey.startsWith("natural_")) {
+      setFiltroCor("todas");
+    }
+  };
+
+  const handleSelecionarCorCD = (cKey) => {
+    if (cKey === filtroCor) {
+      setFiltroCor("todas");
+      return;
+    }
+    setFiltroCor(cKey);
+    if (filtroTipo === "natural" || filtroTipo.startsWith("natural_")) {
+      setFiltroTipo("pre_pintada");
+    }
+  };
+
+  const handleLimparFiltrosCD = () => {
+    setFiltroTipo("todos");
+    setFiltroCor("todas");
+  };
+
   const ordensDiaFiltradas = useMemo(() => {
     let r = ordensDia;
     if (filtroEspessura !== "todas") r = r.filter(o => {
@@ -383,8 +419,11 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
       return esp && esp[1] === filtroEspessura;
     });
     if (filtroChapa !== "todas") r = r.filter(o => o.chapa_descricao === filtroChapa);
+    if (filtroTipo !== "todos" || filtroCor !== "todas") {
+      r = r.filter(o => pedidoAtendeFiltroTipoECor(o, filtroTipo, filtroCor));
+    }
     return r;
-  }, [ordensDia, filtroEspessura, filtroChapa]);
+  }, [ordensDia, filtroEspessura, filtroChapa, filtroTipo, filtroCor]);
 
   const ordensSemanaFiltradas = useMemo(() => {
     let r = ordensSemana;
@@ -393,8 +432,11 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
       return esp && esp[1] === filtroEspessura;
     });
     if (filtroChapa !== "todas") r = r.filter(o => o.chapa_descricao === filtroChapa);
+    if (filtroTipo !== "todos" || filtroCor !== "todas") {
+      r = r.filter(o => pedidoAtendeFiltroTipoECor(o, filtroTipo, filtroCor));
+    }
     return r;
-  }, [ordensSemana, filtroEspessura, filtroChapa]);
+  }, [ordensSemana, filtroEspessura, filtroChapa, filtroTipo, filtroCor]);
 
   // Operador sem máquina configurada
   if (user && isOperadorRestrito && maquinasDoUsuario.length === 0) {
@@ -605,6 +647,17 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
         )}
         <FiltroChapa chapas={chapasDisponiveis} value={filtroChapa} onChange={setFiltroChapa} />
       </div>
+
+      {/* Filtros Estruturados: Tipo e Cor de Bobina */}
+      <FiltroTipoECorBobina
+        dadosFiltros={dadosFiltrosCD}
+        filtroTipo={filtroTipo}
+        filtroCor={filtroCor}
+        onSelecionarTipo={handleSelecionarTipoCD}
+        onSelecionarCor={handleSelecionarCorCD}
+        onLimparFiltros={handleLimparFiltrosCD}
+        totalBase={baseOrdensCD.length}
+      />
 
       {/* IA Capacidade Diária (Regra 5) */}
       <CapacidadeDiariaIA ordens={ordensDaMaquina} dataISO={selectedDay} />
