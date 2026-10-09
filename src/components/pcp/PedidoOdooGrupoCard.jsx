@@ -193,8 +193,13 @@ export default function PedidoOdooGrupoCard({
                     <Star className="w-3 h-3 fill-white" /> URGENTE
                   </Badge>
                 )}
-                <h3 className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-slate-100 leading-tight">
-                  Pedido #{grupo.numero_pedido}
+                <h3 className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-slate-100 leading-tight inline-flex items-baseline gap-1.5 flex-wrap">
+                  <span>Pedido #{grupo.numero_pedido}</span>
+                  {grupo.numero_oc && (
+                    <span className="text-xs sm:text-sm font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded border border-indigo-200/60 dark:border-indigo-800/60">
+                      ({/^OC[\s:-]?/i.test(grupo.numero_oc) ? grupo.numero_oc : `OC: ${grupo.numero_oc}`})
+                    </span>
+                  )}
                 </h3>
                 <PrioridadeBadge pedido={grupo} />
                 <Badge

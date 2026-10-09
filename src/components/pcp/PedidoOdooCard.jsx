@@ -143,8 +143,13 @@ export default function PedidoOdooCard({
                     <Star className="w-2.5 h-2.5 fill-white" /> URGENTE
                   </Badge>
                 )}
-                <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 leading-none">
-                  #{pedido.numero_pedido}
+                <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 leading-none inline-flex items-baseline gap-1.5 flex-wrap">
+                  <span>#{pedido.numero_pedido}</span>
+                  {pedido.numero_oc && (
+                    <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1 py-0.5 rounded border border-indigo-200/60 dark:border-indigo-800/60">
+                      ({/^OC[\s:-]?/i.test(pedido.numero_oc) ? pedido.numero_oc : `OC: ${pedido.numero_oc}`})
+                    </span>
+                  )}
                 </h3>
                 {pedido.of_nome ? (
                   <Badge variant="outline" className="text-[9px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200/80 px-1.5 py-0">
@@ -446,8 +451,13 @@ export default function PedidoOdooCard({
               <Badge className={`text-[10px] font-black uppercase tracking-wide px-2 py-0.5 leading-tight ${cfgSetor.badgeCls}`}>
                 {cfgSetor.curto}
               </Badge>
-              <h3 className="font-extrabold text-base text-slate-900 dark:text-slate-100 leading-none">
-                #{pedido.numero_pedido}
+              <h3 className="font-extrabold text-base text-slate-900 dark:text-slate-100 leading-none inline-flex items-baseline gap-1.5 flex-wrap">
+                <span>#{pedido.numero_pedido}</span>
+                {pedido.numero_oc && (
+                  <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded border border-indigo-200/60 dark:border-indigo-800/60">
+                    ({/^OC[\s:-]?/i.test(pedido.numero_oc) ? pedido.numero_oc : `OC: ${pedido.numero_oc}`})
+                  </span>
+                )}
               </h3>
               {pedido.of_nome ? (
                 <Badge variant="outline" className="text-[10px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200/80">

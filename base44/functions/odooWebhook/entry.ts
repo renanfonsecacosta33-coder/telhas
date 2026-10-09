@@ -636,8 +636,23 @@ export default async function(req: Request): Promise<Response> {
       unidadeCalculada = existingRec.unidade;
     }
 
+    const rawOc = (
+      body?.numero_oc ||
+      body?.numero_da_oc ||
+      body?.oc ||
+      body?.ordem_compra ||
+      body?.numero_ordem_compra ||
+      body?.client_order_ref ||
+      body?.client_order_reference ||
+      body?.ref_oc ||
+      body?.purchase_order ||
+      existingRec?.numero_oc ||
+      ""
+    ).toString().trim();
+
     const record: Record<string, any> = {
       numero_pedido: numeroPedido,
+      numero_oc: rawOc || existingRec?.numero_oc || "",
       odoo_id: ofId || existingRec?.odoo_id || "",
       of_odoo_id: ofId || existingRec?.of_odoo_id || "",
       of_nome: ofNome || existingRec?.of_nome || "",

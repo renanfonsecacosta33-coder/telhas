@@ -561,14 +561,19 @@ export default function MaquinaPanel({ maquina }) {
     const q = normalizarTextoBusca(query);
     if (!q) return true;
 
-    // 1. Número do pedido (ex: #299065, 299065, S00299065)
+    // 1. Número do pedido (ex: #299065, 299065, S00299065) ou Número da OC
     const numRaw = normalizarTextoBusca(p.numero_pedido);
-    if (numRaw.includes(q)) return true;
+    const numOc = normalizarTextoBusca(p.numero_oc);
+    if (numRaw.includes(q) || numOc.includes(q)) return true;
 
     // Comparação por dígitos limpos
     const qDigits = q.replace(/\D/g, "");
     const pDigits = String(p.numero_pedido || "").replace(/\D/g, "");
-    if (qDigits && pDigits && (pDigits.includes(qDigits) || qDigits.includes(pDigits))) {
+    const ocDigits = String(p.numero_oc || "").replace(/\D/g, "");
+    if (qDigits && (
+      (pDigits && (pDigits.includes(qDigits) || qDigits.includes(pDigits))) ||
+      (ocDigits && (ocDigits.includes(qDigits) || ocDigits.includes(qDigits)))
+    )) {
       return true;
     }
 

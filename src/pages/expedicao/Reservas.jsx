@@ -212,6 +212,7 @@ export default function ReservasExpedicao() {
     const matchSearch = !q ||
       r.cliente?.toLowerCase().includes(q) ||
       r.numero_pedido?.toLowerCase().includes(q) ||
+      r.numero_oc?.toLowerCase().includes(q) ||
       r.vendedor_nome?.toLowerCase().includes(q) ||
       r.bobina_descricao?.toLowerCase().includes(q);
 
@@ -376,7 +377,14 @@ export default function ReservasExpedicao() {
                   return (
                     <tr key={res.id} className="hover:bg-muted/40 transition-colors">
                       <td className="p-3.5 font-medium">
-                        <p className="font-bold text-foreground">{res.numero_pedido ? `PEDIDO #${res.numero_pedido}` : "Sem Pedido"}</p>
+                        <p className="font-bold text-foreground inline-flex items-baseline gap-1.5 flex-wrap">
+                          <span>{res.numero_pedido ? `PEDIDO #${res.numero_pedido}` : "Sem Pedido"}</span>
+                          {res.numero_oc && (
+                            <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
+                              ({/^OC[\s:-]?/i.test(res.numero_oc) ? res.numero_oc : `OC: ${res.numero_oc}`})
+                            </span>
+                          )}
+                        </p>
                         <p className="text-[11px] text-muted-foreground truncate max-w-[180px]">{res.cliente || "Cliente não informado"}</p>
                       </td>
                       <td className="p-3.5">
@@ -666,7 +674,14 @@ export default function ReservasExpedicao() {
 
               <div>
                 <p className="text-[10px] uppercase font-bold text-slate-800">PEDIDO DE VENDA:</p>
-                <p className="text-xl font-black tracking-widest">{etiquetaImprimir.numero_pedido || 'PED-XXXX'}</p>
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <p className="text-xl font-black tracking-widest">{etiquetaImprimir.numero_pedido || 'PED-XXXX'}</p>
+                  {etiquetaImprimir.numero_oc && (
+                    <span className="text-sm font-extrabold text-slate-900 bg-amber-200/90 px-1.5 py-0.5 rounded border border-slate-950">
+                      ({/^OC[\s:-]?/i.test(etiquetaImprimir.numero_oc) ? etiquetaImprimir.numero_oc : `OC: ${etiquetaImprimir.numero_oc}`})
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-[11px]">

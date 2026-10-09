@@ -376,6 +376,7 @@ export default function ProducaoCD() {
       data: selectedDay,
       maquina: item.maquina || "",
       numero_pedido: pedido.numero_pedido || "",
+      numero_oc: pedido.numero_oc || "",
       cliente: pedido.cliente_nome || "",
       vendedor: pedido.vendedor_nome || "",
       tipo_peca: tipoPecaFinal,
@@ -519,7 +520,7 @@ export default function ProducaoCD() {
     const base = ordens.filter(o => o.status !== "aguardando_material");
     if (buscaPedido.trim()) {
       const q = buscaPedido.toLowerCase().trim();
-      return base.filter(o => (o.numero_pedido || "").toLowerCase().includes(q) || (o.bobina_descricao || "").toLowerCase().includes(q));
+      return base.filter(o => (o.numero_pedido || "").toLowerCase().includes(q) || (o.numero_oc || "").toLowerCase().includes(q) || (o.bobina_descricao || "").toLowerCase().includes(q));
     }
     const hoje = format(new Date(), "yyyy-MM-dd");
     if (selectedDay !== hoje) return base.filter(o => o.data === selectedDay);
@@ -531,7 +532,7 @@ export default function ProducaoCD() {
     const base = ordensMaq.filter(o => o.status !== "aguardando_material");
     if (buscaPedido.trim()) {
       const q = buscaPedido.toLowerCase().trim();
-      return base.filter(o => (o.numero_pedido || "").toLowerCase().includes(q) || (o.tipo_peca || "").toLowerCase().includes(q) || (o.chapa_descricao || "").toLowerCase().includes(q));
+      return base.filter(o => (o.numero_pedido || "").toLowerCase().includes(q) || (o.numero_oc || "").toLowerCase().includes(q) || (o.tipo_peca || "").toLowerCase().includes(q) || (o.chapa_descricao || "").toLowerCase().includes(q));
     }
     const hoje = format(new Date(), "yyyy-MM-dd");
     if (selectedDay !== hoje) return base.filter(o => o.data === selectedDay);

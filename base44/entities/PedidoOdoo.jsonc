@@ -18,6 +18,10 @@
       "type": "string",
       "description": "Número do Pedido de Venda no Odoo (ex: SO-2026-283427, S00556, SO001). Identifica a venda comercial à qual a OF pertence."
     },
+    "numero_oc": {
+      "type": "string",
+      "description": "Número da Ordem de Compra / Sub-número do outro sistema (ex: OC-1234, 1234)"
+    },
     "cliente_nome": {
       "type": "string",
       "description": "Nome do cliente"

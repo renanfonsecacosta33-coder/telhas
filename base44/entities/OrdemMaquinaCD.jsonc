@@ -86,7 +86,11 @@
     },
     "numero_pedido": {
       "type": "string",
-      "description": "N\u00famero do pedido do cliente"
+      "description": "Número do pedido do cliente"
+    },
+    "numero_oc": {
+      "type": "string",
+      "description": "Número da Ordem de Compra / Sub-número do pedido"
     },
     "cliente": {
       "type": "string",

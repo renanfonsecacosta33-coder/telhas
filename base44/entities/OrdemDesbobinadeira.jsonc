@@ -82,7 +82,11 @@
     },
     "numero_pedido": {
       "type": "string",
-      "description": "N\u00famero do pedido (quando destino = pedido_direto)"
+      "description": "Número do pedido (quando destino = pedido_direto)"
+    },
+    "numero_oc": {
+      "type": "string",
+      "description": "Número da OC / Ordem de Compra de sistema legado associada ao pedido"
     },
     "cliente": {
       "type": "string",

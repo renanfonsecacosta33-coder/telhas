@@ -216,6 +216,11 @@ export default function PedidoOdooDetalheDialog({
                 </Badge>
               )}
               <span>Pedido #{pedido.numero_pedido}</span>
+              {pedido.numero_oc && (
+                <span className="text-xs sm:text-sm font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded border border-indigo-200/60 dark:border-indigo-800/60 shrink-0">
+                  ({/^OC[\s:-]?/i.test(pedido.numero_oc) ? pedido.numero_oc : `OC: ${pedido.numero_oc}`})
+                </span>
+              )}
               {pedido.of_nome ? (
                 <Badge variant="outline" className="text-xs font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200/80 shrink-0">
                   OF: {pedido.of_nome}

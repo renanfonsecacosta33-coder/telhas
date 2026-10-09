@@ -153,6 +153,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
       const q = buscaPedido.toLowerCase().trim();
       return ordensDaMaquina.filter(o => 
         (o.numero_pedido || "").toLowerCase().includes(q) || 
+        (o.numero_oc || "").toLowerCase().includes(q) || 
         (o.cliente || "").toLowerCase().includes(q) || 
         (o.tipo_peca || "").toLowerCase().includes(q) || 
         (o.chapa_descricao || "").toLowerCase().includes(q)
@@ -187,6 +188,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
       const q = buscaPedido.toLowerCase().trim();
       return ordensCanceladasDaMaquina.filter(o =>
         (o.numero_pedido || "").toLowerCase().includes(q) ||
+        (o.numero_oc || "").toLowerCase().includes(q) ||
         (o.cliente || "").toLowerCase().includes(q) ||
         (o.tipo_peca || "").toLowerCase().includes(q) ||
         (o.chapa_descricao || "").toLowerCase().includes(q)

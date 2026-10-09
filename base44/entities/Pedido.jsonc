@@ -17,7 +17,11 @@
     },
     "numero_pedido": {
       "type": "string",
-      "description": "N\u00famero do pedido"
+      "description": "Número do pedido"
+    },
+    "numero_oc": {
+      "type": "string",
+      "description": "Número da Ordem de Compra / Sub-número do pedido"
     },
     "produto": {
       "type": "string",

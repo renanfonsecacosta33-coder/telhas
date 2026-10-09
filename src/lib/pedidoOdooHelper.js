@@ -775,6 +775,7 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
       data_pedido: dataReceb,
       data_prevista: dataPrevista,
       numero_pedido: pedido?.numero_pedido || "",
+      numero_oc: pedido?.numero_oc || "",
       cliente: pedido?.cliente_nome || "",
       vendedor: pedido?.vendedor_nome || "",
       unidade: filialAtiva || pedido?.unidade || "Matriz AJL",
@@ -802,6 +803,27 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
       item_produto: produtoNome,
     }
   };
+}
+
+// Formata o número do pedido em evidência com a OC ao lado entre parênteses: ex: "#S01173 (OC: 9842)"
+export function formatarNumeroPedidoComOC(pedidoOuNumero, numeroOc = null) {
+  let numPed = "";
+  let oc = "";
+
+  if (typeof pedidoOuNumero === "object" && pedidoOuNumero !== null) {
+    numPed = pedidoOuNumero.numero_pedido || pedidoOuNumero.pedido || "";
+    oc = pedidoOuNumero.numero_oc || pedidoOuNumero.oc || "";
+  } else {
+    numPed = String(pedidoOuNumero || "");
+    oc = String(numeroOc || "");
+  }
+
+  const numLimpo = numPed ? (String(numPed).startsWith("#") ? String(numPed) : `#${numPed}`) : "";
+  const ocLimpa = String(oc || "").trim();
+
+  if (!ocLimpa) return numLimpo;
+  const rotuloOc = /^OC[\s:-]?/i.test(ocLimpa) ? ocLimpa : `OC: ${ocLimpa}`;
+  return numLimpo ? `${numLimpo} (${rotuloOc})` : `(${rotuloOc})`;
 }
 
 // Normaliza número de pedido para comparação consistente (remove '#', prefixos, espaços e símbolos)

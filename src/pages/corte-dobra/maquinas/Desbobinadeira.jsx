@@ -179,6 +179,7 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
       const q = buscaPedido.toLowerCase().trim();
       return ordens.filter(o => o.status !== "aguardando_material" && o.status !== "cancelado" && (
         (o.numero_pedido || "").toLowerCase().includes(q) || 
+        (o.numero_oc || "").toLowerCase().includes(q) || 
         (o.cliente || "").toLowerCase().includes(q) || 
         (o.bobina_descricao || "").toLowerCase().includes(q)
       ));
@@ -217,6 +218,7 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
       const q = buscaPedido.toLowerCase().trim();
       return ordensCanceladasDesb.filter(o =>
         (o.numero_pedido || "").toLowerCase().includes(q) ||
+        (o.numero_oc || "").toLowerCase().includes(q) ||
         (o.cliente || "").toLowerCase().includes(q) ||
         (o.bobina_descricao || "").toLowerCase().includes(q)
       );

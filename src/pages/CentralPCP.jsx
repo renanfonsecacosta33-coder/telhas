@@ -1523,6 +1523,7 @@ export default function CentralPCP() {
     if (tipoBusca === "numero_pedido") {
       return (
         String(p.numero_pedido || "").toLowerCase().includes(q) ||
+        String(p.numero_oc || "").toLowerCase().includes(q) ||
         String(p.of_nome || "").toLowerCase().includes(q) ||
         String(p.of_odoo_id || "").toLowerCase().includes(q) ||
         String(p.odoo_id || "").toLowerCase().includes(q)
@@ -1548,6 +1549,7 @@ export default function CentralPCP() {
     // tipoBusca === "todos"
     return (
       String(p.numero_pedido || "").toLowerCase().includes(q) ||
+      String(p.numero_oc || "").toLowerCase().includes(q) ||
       String(p.of_nome || "").toLowerCase().includes(q) ||
       String(p.of_odoo_id || "").toLowerCase().includes(q) ||
       String(p.odoo_id || "").toLowerCase().includes(q) ||
@@ -1584,6 +1586,7 @@ export default function CentralPCP() {
       if (!map.has(num)) {
         map.set(num, {
           numero_pedido: p.numero_pedido || "Sem Número",
+          numero_oc: p.numero_oc || "",
           cliente_nome: p.cliente_nome || "—",
           vendedor_nome: p.vendedor_nome || "—",
           data_entrega: p.data_entrega,
@@ -1594,6 +1597,9 @@ export default function CentralPCP() {
         });
       }
       const g = map.get(num);
+      if (!g.numero_oc && p.numero_oc) {
+        g.numero_oc = p.numero_oc;
+      }
       const ofKey = p.of_nome || p.of_odoo_id || p.id;
       const jaExiste = g.ofs.some(o => (o.of_nome || o.of_odoo_id || o.id) === ofKey);
       if (!jaExiste) {
@@ -1634,6 +1640,7 @@ export default function CentralPCP() {
       if (!map.has(num)) {
         map.set(num, {
           numero_pedido: p.numero_pedido || "Sem Número",
+          numero_oc: p.numero_oc || "",
           cliente_nome: p.cliente_nome || "—",
           vendedor_nome: p.vendedor_nome || "—",
           data_entrega: p.data_entrega,
@@ -1644,6 +1651,9 @@ export default function CentralPCP() {
         });
       }
       const g = map.get(num);
+      if (!g.numero_oc && p.numero_oc) {
+        g.numero_oc = p.numero_oc;
+      }
       const ofKey = p.of_nome || p.of_odoo_id || p.id;
       const jaExiste = g.ofs.some(o => (o.of_nome || o.of_odoo_id || o.id) === ofKey);
       if (!jaExiste) {

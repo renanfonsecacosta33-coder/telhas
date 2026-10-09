@@ -456,6 +456,11 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
                     {pedidoSeq && <span className="ml-1 text-[10px] opacity-90">({pedidoSeq})</span>}
                   </span>
                 )}
+                {o.numero_oc && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-black font-mono bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-300/80 dark:border-indigo-700/80 shadow-xs">
+                    ({/^OC[\s:-]?/i.test(o.numero_oc) ? o.numero_oc : `OC: ${o.numero_oc}`})
+                  </span>
+                )}
                 {o.cliente && (
                   <span className="inline-flex items-center gap-1 text-xs font-black text-foreground uppercase tracking-tight">
                     <User className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
@@ -575,6 +580,11 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
                       <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
                       #{o.numero_pedido}
                     </span>
+                    {o.numero_oc && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs sm:text-sm font-black font-mono bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-300/80 dark:border-indigo-700/80 shadow-xs">
+                        ({/^OC[\s:-]?/i.test(o.numero_oc) ? o.numero_oc : `OC: ${o.numero_oc}`})
+                      </span>
+                    )}
                     {pedidoSeq && (
                       <span className="px-1.5 py-0.5 rounded text-xs font-black bg-blue-100 dark:bg-blue-900/80 text-blue-800 dark:text-blue-200 border border-blue-300 dark:border-blue-700 font-mono">
                         {pedidoSeq}

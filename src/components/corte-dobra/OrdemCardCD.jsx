@@ -191,6 +191,11 @@ export default function OrdemCardCD({
                   #{o.numero_pedido}
                 </span>
               )}
+              {o.numero_oc && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-black font-mono bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-300/80 dark:border-indigo-700/80 shadow-xs">
+                  ({/^OC[\s:-]?/i.test(o.numero_oc) ? o.numero_oc : `OC: ${o.numero_oc}`})
+                </span>
+              )}
               {o.cliente && (
                 <div className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
                   <User className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />

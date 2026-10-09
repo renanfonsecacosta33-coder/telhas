@@ -251,6 +251,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       status: statusAjustado,
       maquina: maquinaAjustada,
       numero_pedido: pOriginal.numero_pedido || presets.numero_pedido || "",
+      numero_oc: pOriginal.numero_oc || presets.numero_oc || "",
       cliente: pOriginal.cliente || presets.cliente || "",
       vendedor: pOriginal.vendedor || presets.vendedor || "",
       metros: (pOriginal.metros !== undefined && pOriginal.metros !== null && pOriginal.metros !== "") ? pOriginal.metros : (presets.metros ?? 0),
@@ -1225,6 +1226,11 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                   <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
                   {p.numero_pedido ? `#${p.numero_pedido}` : `OP #${String(p.id || "").slice(-6).toUpperCase()}`}
                 </span>
+                {p.numero_oc && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs sm:text-sm font-black font-mono bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-300/80 dark:border-indigo-700/80 shadow-xs">
+                    ({/^OC[\s:-]?/i.test(p.numero_oc) ? p.numero_oc : `OC: ${p.numero_oc}`})
+                  </span>
+                )}
                 {p.cliente && (
                   <div className="inline-flex items-center gap-1.5 text-xs sm:text-sm md:text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">
                     <User className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
