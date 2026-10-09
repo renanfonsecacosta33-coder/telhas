@@ -19,7 +19,7 @@ import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
-import { getPesoOrdenacaoPrioridade, SeletorPrioridadeDropdown } from "@/lib/prioridadeHelper";
+import { getPesoOrdenacaoPrioridade, SeletorPrioridadeDropdown, compararPrioridadeEData } from "@/lib/prioridadeHelper";
 import TimerProducao from "@/components/producao/TimerProducao";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
 import { salvarCacheLocal, obterCacheLocal, enfileirarAcaoOffline } from "@/lib/offlineStorage";
@@ -166,24 +166,23 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     const hoje = format(new Date(), "yyyy-MM-dd");
     const isHoje = selectedDay === hoje;
     const doDia = ordensDaMaquina.filter(o => o.data === selectedDay);
-    const priComp = (a, b) => getPesoOrdenacaoPrioridade(a) - getPesoOrdenacaoPrioridade(b);
+    const ordAtivo = { em_producao: 0, pausado: 1, aguardando_corte: 2, pendente: 3, finalizado: 4, cancelado: 5 };
+
     if (!isHoje) {
       return doDia.sort((a, b) => {
-        const p = priComp(a, b);
-        if (p !== 0) return p;
-        const ord = { em_producao: 0, pausado: 1, aguardando_corte: 2, pendente: 3, finalizado: 4, cancelado: 5 };
-        return (ord[a.status] ?? 3) - (ord[b.status] ?? 3);
+        const sA = ordAtivo[a.status] ?? 3;
+        const sB = ordAtivo[b.status] ?? 3;
+        if (sA !== sB && (sA <= 1 || sB <= 1)) return sA - sB;
+        return compararPrioridadeEData(a, b);
       });
     }
+
     const atrasadas = ordensDaMaquina.filter(o => o.data < hoje && o.status !== "finalizado" && o.status !== "cancelado");
     return [...atrasadas, ...doDia].sort((a, b) => {
-      const p = priComp(a, b);
-      if (p !== 0) return p;
-      const aAtrasada = a.data < hoje ? 0 : 1;
-      const bAtrasada = b.data < hoje ? 0 : 1;
-      if (aAtrasada !== bAtrasada) return aAtrasada - bAtrasada;
-      const ord = { em_producao: 0, pausado: 1, aguardando_corte: 2, pendente: 3, finalizado: 4, cancelado: 5 };
-      return (ord[a.status] ?? 3) - (ord[b.status] ?? 3);
+      const sA = ordAtivo[a.status] ?? 3;
+      const sB = ordAtivo[b.status] ?? 3;
+      if (sA !== sB && (sA <= 1 || sB <= 1)) return sA - sB;
+      return compararPrioridadeEData(a, b);
     });
   }, [ordensDaMaquina, selectedDay, buscaPedido]);
 

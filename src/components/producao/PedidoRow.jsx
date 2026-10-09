@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route, Camera, Scissors, Snowflake, Lock, RotateCcw, ShoppingCart, User, Users, Zap, PackageCheck, Pencil, Check, X } from "lucide-react";
+import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route, Camera, Scissors, Snowflake, Lock, RotateCcw, ShoppingCart, User, Users, Zap, PackageCheck, Pencil, Check, X, Calendar } from "lucide-react";
 import ImageLink from "@/components/ui/ImageLink";
 import RetrabalhoTelhasDialog from "@/components/producao/RetrabalhoTelhasDialog";
 import { format } from "date-fns";
@@ -1241,10 +1241,37 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                   </div>
                 )}
                 {p.vendedor && (
-                  <span className="text-xs text-muted-foreground ml-auto hidden sm:inline">
+                  <span className="text-xs text-muted-foreground hidden sm:inline">
                     Vendedor: <strong className="text-foreground">{p.vendedor}</strong>
                   </span>
                 )}
+                {(() => {
+                  const rawData = p.data_entrega || p.data_previsao_fabrica || p.data_prevista || p.data;
+                  if (!rawData) return null;
+                  let fmt = "";
+                  try {
+                    const iso = /^\d{4}-\d{2}-\d{2}/.test(rawData) ? rawData.slice(0, 10) : "";
+                    if (iso) {
+                      fmt = format(new Date(iso + "T12:00:00"), "dd/MM/yyyy");
+                    } else {
+                      fmt = String(rawData);
+                    }
+                  } catch {
+                    fmt = String(rawData);
+                  }
+                  const hojeIso = format(new Date(), "yyyy-MM-dd");
+                  const isAtrasado = /^\d{4}-\d{2}-\d{2}/.test(rawData) && rawData.slice(0, 10) < hojeIso;
+                  return (
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded border inline-flex items-center gap-1 ${
+                      isAtrasado
+                        ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/60 animate-pulse"
+                        : "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800/60"
+                    }`} title={isAtrasado ? "Prazo de entrega em atraso!" : "Data prometida de entrega"}>
+                      <Calendar className="w-3 h-3" />
+                      Entrega: {fmt}
+                    </span>
+                  );
+                })()}
               </div>
             )}
           </div>

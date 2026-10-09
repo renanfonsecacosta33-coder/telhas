@@ -1615,7 +1615,7 @@ export default function CentralPCP() {
       }
       if (p.is_rota || p.prioridade_nivel === "ROTA") {
         g.is_rota = true;
-        if (!g.prioridade_nivel || getPesoOrdenacaoPrioridade(g) > 0.5) {
+        if (!g.prioridade_nivel || getPesoOrdenacaoPrioridade(g) > 0) {
           g.prioridade_nivel = "ROTA";
         }
       }

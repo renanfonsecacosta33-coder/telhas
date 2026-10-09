@@ -22,7 +22,8 @@ import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedien
 import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERelatorioMaquinaModal";
 import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo, detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
-import { SeletorPrioridadeDropdown, getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
+import { SeletorPrioridadeDropdown, getPesoOrdenacaoPrioridade, compararPrioridadeEData, getDataEntregaParaOrdenacao } from "@/lib/prioridadeHelper";
+import AlterarDataPedidoMaquinaModal from "@/components/maquinas/AlterarDataPedidoMaquinaModal";
 import { normalizarTextoBusca, calcularFiltrosTipoECor, pedidoAtendeFiltroTipoECor } from "@/lib/bobinaStatusHelper";
 import TimerProducao from "@/components/producao/TimerProducao";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
@@ -104,6 +105,7 @@ export default function MaquinaPanel({ maquina }) {
   const [filtroCor, setFiltroCor] = useState("todas");
   const [novoPedidoOpen, setNovoPedidoOpen] = useState(false);
   const [editandoPedido, setEditandoPedido] = useState(null);
+  const [alterandoDataPedido, setAlterandoDataPedido] = useState(null);
   const [user, setUser] = useState(null);
   const [modalHistoricoOpen, setModalHistoricoOpen] = useState(false);
   const [modalHistoricoTab, setModalHistoricoTab] = useState("relatorio");
@@ -700,25 +702,13 @@ export default function MaquinaPanel({ maquina }) {
 
     // 3. Ordenação rigorosa dos PEDIDOS A FAZER:
     //    - 1º: Status imediato (em_producao em 1º absoluto, depois pausado, depois pendente)
-    //    - 2º: Prioridade P1 a P5 (P1 mais urgente de todas)
-    //    - 3º: Atrasados primeiro
-    //    - 4º: Data planejada mais antiga primeiro (FIFO)
+    //    - 2º: Regra de Ouro AJL (1. as rotas, 2. P1, 3. P2, 4. P3, 5. P4, 6. P5, 7. Por data mais próxima de entrega)
     const sortedAFazer = aFazer.sort((a, b) => {
       const statusA = orderAtivo[a.status] ?? 2;
       const statusB = orderAtivo[b.status] ?? 2;
       if (statusA !== statusB) return statusA - statusB;
 
-      const priDiff = getPesoOrdenacaoPrioridade(a) - getPesoOrdenacaoPrioridade(b);
-      if (priDiff !== 0) return priDiff;
-
-      const aAtrasado = (a.data && a.data < hoje) ? 0 : 1;
-      const bAtrasado = (b.data && b.data < hoje) ? 0 : 1;
-      if (aAtrasado !== bAtrasado) return aAtrasado - bAtrasado;
-
-      const dataDiff = String(a.data || "").localeCompare(String(b.data || ""));
-      if (dataDiff !== 0) return dataDiff;
-
-      return (b.metros || 0) - (a.metros || 0);
+      return compararPrioridadeEData(a, b);
     });
 
     // 4. Ordenação dos PEDIDOS FINALIZADOS:
@@ -1041,6 +1031,21 @@ export default function MaquinaPanel({ maquina }) {
         />
       )}
 
+      {/* Dialog rápido para Alterar Data de Entrega / Previsão Fabril */}
+      {alterandoDataPedido && (
+        <AlterarDataPedidoMaquinaModal
+          open={true}
+          onClose={() => setAlterandoDataPedido(null)}
+          pedido={alterandoDataPedido}
+          usuarioNome={user?.full_name || user?.email || "Operador"}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+            queryClient.invalidateQueries({ queryKey: ["pedidos-maquina", maquina] });
+            queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+          }}
+        />
+      )}
+
       {/* Barra de Pesquisa por Pedido ou Cliente */}
       <div className="bg-card border border-border rounded-xl p-3 shadow-sm space-y-2">
         <div className="relative flex items-center">
@@ -1342,7 +1347,7 @@ export default function MaquinaPanel({ maquina }) {
                   </div>
                 )}
                 {podeGerenciar && (
-                  <div className="flex justify-end gap-1 mb-1">
+                  <div className="flex justify-end gap-1 mb-1 items-center flex-wrap">
                     {p.status !== "finalizado" && p.status !== "cancelado" && (
                       <>
                         <Button size="sm" variant="ghost" className={`text-xs h-6 px-2 ${p.rota ? "text-red-600 font-bold" : "text-muted-foreground"}`} onClick={() => toggleRota(p)}>
@@ -1354,6 +1359,24 @@ export default function MaquinaPanel({ maquina }) {
                         />
                       </>
                     )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs h-6 px-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 font-semibold"
+                      onClick={() => setAlterandoDataPedido(p)}
+                      title="Alterar data de entrega e notificar vendedor/Odoo"
+                    >
+                      <Calendar className="w-3 h-3 mr-1" />
+                      Data: {(() => {
+                        const d = getDataEntregaParaOrdenacao(p);
+                        if (!d || d === "9999-99-99") return "Prazo";
+                        try {
+                          return format(new Date(d + "T12:00:00"), "dd/MM");
+                        } catch {
+                          return d;
+                        }
+                      })()}
+                    </Button>
                     <HistoricoPedidoTelhasButton pedido={p} />
                     <Button size="sm" variant="ghost" className="text-xs h-6 px-2 text-muted-foreground hover:text-blue-600" onClick={() => setEditandoPedido(p)}>
                       <Edit3 className="w-3 h-3 mr-1" /> Editar
@@ -1460,7 +1483,25 @@ export default function MaquinaPanel({ maquina }) {
                             </div>
                           )}
                           {podeGerenciar && (
-                            <div className="flex justify-end gap-1 mb-1">
+                            <div className="flex justify-end gap-1 mb-1 items-center flex-wrap">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-xs h-6 px-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 font-semibold"
+                                onClick={() => setAlterandoDataPedido(p)}
+                                title="Alterar data de entrega e notificar vendedor/Odoo"
+                              >
+                                <Calendar className="w-3 h-3 mr-1" />
+                                Data: {(() => {
+                                  const d = getDataEntregaParaOrdenacao(p);
+                                  if (!d || d === "9999-99-99") return "Prazo";
+                                  try {
+                                    return format(new Date(d + "T12:00:00"), "dd/MM");
+                                  } catch {
+                                    return d;
+                                  }
+                                })()}
+                              </Button>
                               <HistoricoPedidoTelhasButton pedido={p} />
                               <Button size="sm" variant="ghost" className="text-xs h-6 px-2 text-muted-foreground hover:text-blue-600" onClick={() => setEditandoPedido(p)}>
                                 <Edit3 className="w-3 h-3 mr-1" /> Editar
