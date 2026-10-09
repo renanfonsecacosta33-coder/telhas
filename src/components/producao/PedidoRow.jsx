@@ -587,6 +587,9 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   // Reverte um pedido indevidamente atribuído com EPS ou Colagem para Telha Simples na perfiladeira
   const handleConverterParaTelhaSimples = async () => {
     if (!pOriginal?.id) return;
+    if (!window.confirm(`Deseja realmente retirar a colagem e transformar o Pedido #${pOriginal.numero_pedido || pOriginal.id} em Telha Simples (sem EPS)?\n\nIsso removerá a etapa de Colagem e devolverá a OP para a perfiladeira correspondente.`)) {
+      return;
+    }
     const maqDestino = pOriginal.maquina_origem || detectarMaquinaTelha(pOriginal) || (pOriginal.modelo?.toLowerCase().includes("colonial") ? "COLONIAL" : pOriginal.modelo?.includes("25") ? "TP - 25" : "TP - 40");
     try {
       await base44.entities.Pedido.update(pOriginal.id, {
@@ -2105,7 +2108,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                 </>
               )}
 
-              {podeGerenciar && (p.maquina === "COLAGEM" || p.status === "aguardando_colagem" || pOriginal?.status === "aguardando_colagem" || pOriginal?.maquina === "COLAGEM" || Boolean(pOriginal?.eps)) && (
+              {podeGerenciar && (maquina === "COLAGEM" || p.maquina === "COLAGEM" || p.status === "aguardando_colagem") && (
                 <Button
                   size="sm"
                   variant="outline"
