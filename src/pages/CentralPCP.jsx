@@ -50,7 +50,8 @@ import {
   statusPcpPorPercentual,
   enriquecerItensComStatusReal,
   itensPorGrupo,
-  obterStatusExecucaoPedido
+  obterStatusExecucaoPedido,
+  classGrupo
 } from "@/lib/pedidoOdooHelper";
 import {
   isAutoRoteamentoTelhasAtivo,
@@ -88,6 +89,7 @@ export default function CentralPCP() {
   const [tipoBusca, setTipoBusca] = useState("todos"); // "todos" | "cliente" | "vendedor" | "numero_pedido" | "modelo"
   const [filtro, setFiltro] = useState("ativos");
   const [filtroMaterial, setFiltroMaterial] = useState("todos"); // "todos" | "com_material" | "sem_material"
+  const [filtroSetor, setFiltroSetor] = useState("todos"); // "todos" | "telhas" | "corte_dobra" | "ambos"
   const [mostrarConcluidosEmTodos, setMostrarConcluidosEmTodos] = useState(false);
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
   const [detalheOpen, setDetalheOpen] = useState(false);
@@ -1573,6 +1575,64 @@ export default function CentralPCP() {
     return { comMaterial, semMaterial };
   }, [pedidosDaLoja, estoqueContext]);
 
+  // Mapa de pedidos que contêm ambos os setores (Telhas E Corte & Dobra) no mesmo pedido
+  const numerosComAmbosSetores = useMemo(() => {
+    const mapa = new Map();
+    pedidosDaLoja.forEach(p => {
+      const num = p.numero_pedido || `AVULSO_${p.id}`;
+      if (!mapa.has(num)) mapa.set(num, { temTelha: false, temCD: false });
+      const info = mapa.get(num);
+      const g = classGrupo(p);
+      if ((p.itens_telha_count || 0) > 0 || g === "telha") info.temTelha = true;
+      if ((p.itens_cd_count || 0) > 0 || g === "cd") info.temCD = true;
+    });
+    const setAmbos = new Set();
+    mapa.forEach((v, num) => {
+      if (v.temTelha && v.temCD) setAmbos.add(num);
+    });
+    return setAmbos;
+  }, [pedidosDaLoja]);
+
+  // Estatísticas de Setores por OF (Grade Solta)
+  const statsSetores = useMemo(() => {
+    let telhas = 0;
+    let cd = 0;
+    let ambos = 0;
+    pedidosDaLoja.forEach(p => {
+      const g = classGrupo(p);
+      const temTelha = (p.itens_telha_count || 0) > 0 || g === "telha";
+      const temCD = (p.itens_cd_count || 0) > 0 || g === "cd";
+      if (temTelha) telhas++;
+      if (temCD) cd++;
+      if (numerosComAmbosSetores.has(p.numero_pedido || `AVULSO_${p.id}`)) ambos++;
+    });
+    return { telhas, cd, ambos, total: pedidosDaLoja.length };
+  }, [pedidosDaLoja, numerosComAmbosSetores]);
+
+  // Estatísticas de Setores por Pedido (Modo Agrupado)
+  const statsSetoresAgrupados = useMemo(() => {
+    const mapaNums = new Map();
+    pedidosDaLoja.forEach(p => {
+      const num = p.numero_pedido || `AVULSO_${p.id}`;
+      if (!mapaNums.has(num)) mapaNums.set(num, []);
+      mapaNums.get(num).push(p);
+    });
+
+    let telhas = 0;
+    let cd = 0;
+    let ambos = 0;
+
+    mapaNums.forEach((ofs, num) => {
+      const temTelha = ofs.some(p => (p.itens_telha_count || 0) > 0 || classGrupo(p) === "telha");
+      const temCD = ofs.some(p => (p.itens_cd_count || 0) > 0 || classGrupo(p) === "cd");
+      if (temTelha && temCD) ambos++;
+      if (temTelha) telhas++;
+      if (temCD) cd++;
+    });
+
+    return { telhas, cd, ambos, total: mapaNums.size };
+  }, [pedidosDaLoja]);
+
   // Filtros + busca
   const pedidosFiltrados = pedidosDaLoja.filter(p => {
     const concluido = isPedidoConcluido(p);
@@ -1594,6 +1654,19 @@ export default function CentralPCP() {
       if (concluido || p.status_pcp !== "em_producao") return false;
     } else if (filtro !== "todos") {
       if (p.status_pcp !== filtro) return false;
+    }
+
+    // Filtro por Setor Industrial (Telhas / Corte e Dobra / Ambos)
+    if (filtroSetor !== "todos") {
+      const g = classGrupo(p);
+      const temTelha = (p.itens_telha_count || 0) > 0 || g === "telha";
+      const temCD = (p.itens_cd_count || 0) > 0 || g === "cd";
+      const numPed = p.numero_pedido || `AVULSO_${p.id}`;
+      const ehMisto = numerosComAmbosSetores.has(numPed);
+
+      if (filtroSetor === "telhas" && !temTelha) return false;
+      if (filtroSetor === "corte_dobra" && !temCD) return false;
+      if (filtroSetor === "ambos" && !ehMisto) return false;
     }
 
     // Filtro por Matéria-Prima em Estoque
@@ -2288,48 +2361,117 @@ export default function CentralPCP() {
         </div>
       </div>
 
-      {/* Barra de Filtro Rápido de Matéria-Prima em Estoque (Bobinas & Chapas) */}
+      {/* Barra de Filtros Rápidos: Setor Industrial (Telhas / Corte & Dobra / Os 2) + Matéria-Prima em Estoque */}
       <div className="px-4 sm:px-6 pb-2.5">
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 mr-1 shrink-0 flex items-center gap-1">
-            <Layers className="w-3.5 h-3.5 text-indigo-500" />
-            Estoque MP:
-          </span>
-          <button
-            type="button"
-            onClick={() => setFiltroMaterial("todos")}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-              filtroMaterial === "todos"
-                ? "bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 shadow-xs"
-                : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60"
-            }`}
-          >
-            Todas as OPs
-          </button>
-          <button
-            type="button"
-            onClick={() => setFiltroMaterial("com_material")}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-              filtroMaterial === "com_material"
-                ? "bg-emerald-600 text-white shadow-xs"
-                : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100/60"
-            }`}
-            title="Ordens de Fabricação com matéria-prima em estoque (bobinas ou chapas disponíveis)"
-          >
-            <span>🟢 Com Material ({statsMaterial.comMaterial})</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setFiltroMaterial("sem_material")}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-              filtroMaterial === "sem_material"
-                ? "bg-red-600 text-white shadow-xs"
-                : "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 hover:bg-red-100/60"
-            }`}
-            title="Ordens de Fabricação sem matéria-prima suficiente em estoque"
-          >
-            <span>🔴 Sem Material ({statsMaterial.semMaterial})</span>
-          </button>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2 p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+          {/* Filtro por Setor (Telhas / Corte & Dobra / Os 2) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 mr-1 shrink-0 flex items-center gap-1">
+              <Factory className="w-3.5 h-3.5 text-blue-500" />
+              Setor:
+            </span>
+            <button
+              type="button"
+              onClick={() => setFiltroSetor("todos")}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                filtroSetor === "todos"
+                  ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs"
+                  : "bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100"
+              }`}
+            >
+              Todos ({modoVisao === "agrupado" ? statsSetoresAgrupados.total : statsSetores.total})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFiltroSetor("telhas")}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                filtroSetor === "telhas"
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : "bg-blue-50/70 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100/70"
+              }`}
+              title="Filtrar somente pedidos e ordens da Fábrica de Telhas"
+            >
+              <span>🏠 Somente Telhas</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${filtroSetor === "telhas" ? "bg-white/20 text-white" : "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200"}`}>
+                {modoVisao === "agrupado" ? statsSetoresAgrupados.telhas : statsSetores.telhas}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFiltroSetor("corte_dobra")}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                filtroSetor === "corte_dobra"
+                  ? "bg-orange-600 text-white shadow-xs"
+                  : "bg-orange-50/70 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800 hover:bg-orange-100/70"
+              }`}
+              title="Filtrar somente pedidos e ordens de Corte & Dobra"
+            >
+              <span>🏗️ Somente Corte & Dobra</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${filtroSetor === "corte_dobra" ? "bg-white/20 text-white" : "bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-200"}`}>
+                {modoVisao === "agrupado" ? statsSetoresAgrupados.cd : statsSetores.cd}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFiltroSetor("ambos")}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                filtroSetor === "ambos"
+                  ? "bg-purple-600 text-white shadow-xs"
+                  : "bg-purple-50/70 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 hover:bg-purple-100/70"
+              }`}
+              title="Filtrar pedidos que possuem itens em Ambos os barracões (Telhas + Corte & Dobra juntos no mesmo pedido)"
+            >
+              <span>📦 Os 2 (Ambos)</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${filtroSetor === "ambos" ? "bg-white/20 text-white" : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200"}`}>
+                {modoVisao === "agrupado" ? statsSetoresAgrupados.ambos : statsSetores.ambos}
+              </span>
+            </button>
+          </div>
+
+          <div className="h-4 w-px bg-slate-200 dark:bg-slate-800 hidden lg:block" />
+
+          {/* Filtro Estoque MP */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 mr-1 shrink-0 flex items-center gap-1">
+              <Layers className="w-3.5 h-3.5 text-indigo-500" />
+              Estoque MP:
+            </span>
+            <button
+              type="button"
+              onClick={() => setFiltroMaterial("todos")}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                filtroMaterial === "todos"
+                  ? "bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 shadow-xs"
+                  : "bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100"
+              }`}
+            >
+              Todas as OPs
+            </button>
+            <button
+              type="button"
+              onClick={() => setFiltroMaterial("com_material")}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                filtroMaterial === "com_material"
+                  ? "bg-emerald-600 text-white shadow-xs"
+                  : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100/60"
+              }`}
+              title="Ordens de Fabricação com matéria-prima em estoque (bobinas ou chapas disponíveis)"
+            >
+              <span>🟢 Com Material ({statsMaterial.comMaterial})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFiltroMaterial("sem_material")}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                filtroMaterial === "sem_material"
+                  ? "bg-red-600 text-white shadow-xs"
+                  : "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 hover:bg-red-100/60"
+              }`}
+              title="Ordens de Fabricação sem matéria-prima suficiente em estoque"
+            >
+              <span>🔴 Sem Material ({statsMaterial.semMaterial})</span>
+            </button>
+          </div>
         </div>
       </div>
 
