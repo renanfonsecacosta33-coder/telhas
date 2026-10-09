@@ -142,3 +142,52 @@ export async function obterCacheLocal(chave) {
     return null;
   }
 }
+
+/**
+ * Remove qualquer ação pendente na fila offline que faça referência a um registro específico
+ */
+export async function removerItemFilaPorRegistroId(registroId) {
+  if (!registroId) return;
+  try {
+    const pendentes = await obterFilaPendente();
+    for (const p of pendentes) {
+      if (p.registroId === registroId || p.dados?.id === registroId || p.id === registroId) {
+        await removerItemFila(p.id);
+      }
+    }
+  } catch (err) {
+    console.warn("Erro ao limpar registro da fila offline:", err);
+  }
+}
+
+/**
+ * Purga completamente um registro de todos os caches locais e da fila offline
+ */
+export async function purgarIdDoCacheLocal(registroId) {
+  if (!registroId) return;
+  try {
+    const db = await openDB();
+    await new Promise((resolve) => {
+      const tx = db.transaction(CACHE_STORE, "readwrite");
+      const store = tx.objectStore(CACHE_STORE);
+      const req = store.getAll();
+      req.onsuccess = () => {
+        const registros = req.result || [];
+        for (const item of registros) {
+          if (Array.isArray(item?.dados)) {
+            const antes = item.dados.length;
+            const filtrado = item.dados.filter(d => d?.id !== registroId);
+            if (filtrado.length !== antes) {
+              store.put({ ...item, dados: filtrado });
+            }
+          }
+        }
+        resolve(true);
+      };
+      req.onerror = () => resolve(false);
+    });
+    await removerItemFilaPorRegistroId(registroId);
+  } catch (err) {
+    console.warn("Erro ao purgar ID do cache local:", err);
+  }
+}

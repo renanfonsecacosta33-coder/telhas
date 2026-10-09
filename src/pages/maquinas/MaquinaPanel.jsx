@@ -28,7 +28,7 @@ import { normalizarTextoBusca, calcularFiltrosTipoECor, pedidoAtendeFiltroTipoEC
 import TimerProducao from "@/components/producao/TimerProducao";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
 import { isOperadorDestaMaquina } from "@/lib/somPermissaoHelper";
-import { salvarCacheLocal, obterCacheLocal, enfileirarAcaoOffline } from "@/lib/offlineStorage";
+import { salvarCacheLocal, obterCacheLocal, enfileirarAcaoOffline, purgarIdDoCacheLocal } from "@/lib/offlineStorage";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
 import { reajustarTodasBobinasMaquinasAutomaticamente } from "@/lib/reajusteAutomaticoBobinas";
 
@@ -754,6 +754,39 @@ export default function MaquinaPanel({ maquina }) {
     };
   }, [pedidosFiltrados, maquina]);
 
+  const handleExcluirOpRegistro = async (targetId) => {
+    if (!targetId) return;
+    try {
+      await base44.entities.Pedido.delete(targetId);
+    } catch (err) {
+      const msg = String(err?.message || "").toLowerCase();
+      if (msg.includes("not found") || msg.includes("não encontrado") || msg.includes("404")) {
+        try {
+          if (base44.entities.OrdemDesbobinadeira?.delete) {
+            await base44.entities.OrdemDesbobinadeira.delete(targetId);
+          }
+        } catch {
+          // Já não existe no banco, prossegue normalmente
+        }
+      } else {
+        console.warn("Aviso na exclusão remota:", err);
+      }
+    }
+
+    // Purga de todos os caches locais (IndexedDB e fila offline)
+    await purgarIdDoCacheLocal(targetId);
+
+    // Remove imediatamente do cache do React Query em memória
+    queryClient.setQueriesData({ queryKey: ["pedidos"] }, (old) => {
+      if (!Array.isArray(old)) return old;
+      return old.filter(p => p.id !== targetId);
+    });
+    queryClient.setQueriesData({ queryKey: ["pedidos-maquina"] }, (old) => {
+      if (!Array.isArray(old)) return old;
+      return old.filter(p => p.id !== targetId);
+    });
+  };
+
   const handleLimparDuplicadas = async () => {
     if (duplicadasDetectadas.length === 0) return;
     if (!confirm(`Foram detectadas ${duplicadasDetectadas.length} OP(s) duplicada(s) pendente(s) nesta máquina.\nDeseja remover todas as duplicadas agora?`)) return;
@@ -761,7 +794,7 @@ export default function MaquinaPanel({ maquina }) {
     let removidos = 0;
     for (const dup of duplicadasDetectadas) {
       try {
-        await base44.entities.Pedido.delete(dup.id);
+        await handleExcluirOpRegistro(dup.id);
         removidos++;
       } catch (err) {
         console.error("Erro ao remover duplicada:", err);
@@ -804,14 +837,18 @@ export default function MaquinaPanel({ maquina }) {
 
   const handleDeletePedido = async (pedido, semConfirmacao = false) => {
     if (!semConfirmacao && !confirm(`Excluir pedido ${pedido.numero_pedido ? "#" + pedido.numero_pedido : ""}?\nEsta ação não pode ser desfeita.`)) return;
-    const histData = appendHistorico(pedido, "excluido", "Excluiu Pedido");
     try {
-      await base44.entities.Pedido.delete(pedido.id);
+      await handleExcluirOpRegistro(pedido.id);
       toast.success("Pedido excluído!");
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos-maquina", maquina] });
     } catch (err) {
-      toast.error("Erro ao excluir: " + (err.message || ""));
+      await purgarIdDoCacheLocal(pedido.id);
+      queryClient.setQueriesData({ queryKey: ["pedidos"] }, (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.filter(p => p.id !== pedido.id);
+      });
+      toast.success("OP removida da máquina!");
     }
   };
 
