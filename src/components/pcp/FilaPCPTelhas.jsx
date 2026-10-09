@@ -804,7 +804,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
         const opsTelhas = await base44.entities.Pedido.filter({ pedido_odoo_id: pedido.id }).catch(() => []);
         for (const op of opsTelhas) {
           if (op.status !== "finalizado" && op.status !== "cancelado") {
-            await base44.entities.Pedido.update(op.id, { status: "finalizado", concluido: true });
+            await base44.entities.Pedido.update(op.id, { status: "finalizado", data_finalizacao: new Date().toISOString().slice(0, 10) });
           }
         }
       } catch (opErr) {

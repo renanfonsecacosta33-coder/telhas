@@ -384,6 +384,13 @@ export function calcularProgressoRealPedido(pedido, pedidosProducao = [], ordens
     const grupo = classGrupo(it);
     let opReal = null;
 
+    // Item finalizado manualmente pela Central PCP (Finalizar Item / Finalizar 100%)
+    // vale 100% mesmo que ainda exista uma OP aberta na máquina
+    if (it.concluido === true || String(it.status || "").trim().toLowerCase() === "concluido") {
+      soma += 100;
+      continue;
+    }
+
     if (grupo === "telha") {
       opReal = localizarOpDoItem(it, opsTelha, itens);
     } else {
@@ -450,6 +457,19 @@ export function obterStatusDescritivoItem(it, pedido, pedidosProducao = [], orde
   const opsTelha = (pedidosProducao || []).filter(matchOp);
   const opsCD = (ordensCD || []).filter(matchOp);
   const itens = getItens(pedido);
+
+  // Item finalizado manualmente pela Central PCP permanece Concluído (100%)
+  // mesmo que ainda exista uma OP aberta na máquina
+  if (it.concluido === true || String(it.status || "").trim().toLowerCase() === "concluido") {
+    return {
+      status: "Concluído",
+      status_detalhado: "100% Concluído",
+      pct: 100,
+      maquina: it.maquina || "",
+      fase: "concluido",
+      etapaAtiva: 4
+    };
+  }
 
   let opReal = null;
   if (g === "telha") {
