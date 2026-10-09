@@ -445,6 +445,12 @@ export default async function(req: Request): Promise<Response> {
       }
     }
 
+    // Regra de Ouro (parte 2): se já existe registro desta MESMA OF (of_odoo_id / of_nome),
+    // um reenvio com nova_of=true NUNCA reseta o progresso da fábrica — senão itens
+    // finalizados "voltam" para pendente em loops/retentativas de webhook do Odoo.
+    // Reset explícito só via body.reset.
+    const resetarExecucao = (!existingRec && isNovaOf) || Boolean(body?.reset);
+
     // ── TRATAMENTO DE CANCELAMENTO VIA ODOO ──
     const isCancelado =
       body?.state === "cancel" ||
@@ -517,16 +523,24 @@ export default async function(req: Request): Promise<Response> {
     // ── MERGE de itens: apenas se for atualização da MESMA OF existente ──
     // Se for uma nova_of ou OF inédita, newItems é a lista limpa daquela produção específica.
     let mergedItems: any[] = [];
-    if (existingRec && !isNovaOf) {
+    if (existingRec && !resetarExecucao) {
       const itensExistentes: any[] = existingRec?.itens_json
         ? ((() => { try { return JSON.parse(existingRec.itens_json); } catch { return []; } })() as any[])
         : [];
       mergedItems = [...itensExistentes];
       const normalizar = (s: any) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
+      // Campos de EXECUÇÃO da fábrica que o Odoo não conhece — nunca podem ser
+      // descartados por um reenvio, senão itens finalizados "voltam" para pendente.
+      const EXEC_FIELDS = ["concluido", "status", "status_detalhado", "maquina", "distribuido", "iniciada", "foto_url", "bobina_superior_id", "bobina_superior", "bobina_inferior_id", "bobina_inferior"];
       for (const novoItem of newItems) {
         const idx = mergedItems.findIndex(i => normalizar(i?.produto) === normalizar(novoItem?.produto));
         if (idx >= 0) {
-          mergedItems[idx] = novoItem;
+          const prev = mergedItems[idx] || {};
+          const preservados: Record<string, any> = {};
+          for (const f of EXEC_FIELDS) {
+            if (prev?.[f] !== undefined && prev?.[f] !== null && prev?.[f] !== "") preservados[f] = prev[f];
+          }
+          mergedItems[idx] = { ...novoItem, ...preservados };
         } else {
           mergedItems.push(novoItem);
         }
@@ -703,10 +717,10 @@ export default async function(req: Request): Promise<Response> {
       itens_frisada_count: itensFrisada,
       espessuras_tags: espessurasTags,
       data_recebimento: nowIso,
-      percentual_concluido: (isNovaOf || body?.reset)
+      percentual_concluido: resetarExecucao
         ? progressoInicial
         : (body?.progresso_inicial != null ? Number(body.progresso_inicial) : (body?.percentual_concluido != null ? Number(body.percentual_concluido) : (existingRec?.percentual_concluido ?? 0))),
-      status_pcp: (isNovaOf || body?.reset)
+      status_pcp: resetarExecucao
         ? "pendente_distribuicao"
         : (body?.status_pcp || existingRec?.status_pcp || "pendente_distribuicao"),
     };
