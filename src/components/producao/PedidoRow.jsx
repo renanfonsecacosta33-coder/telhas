@@ -391,38 +391,27 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const temVariacoes = _variacoesTelhas.length > 0;
   const todosItensFinalizados = temVariacoes ? _variacoesTelhas.every(v => v.finalizado) : true;
 
-  // Verifica se há solicitação pendente para este pedido
+  // Auto-limpa quaisquer solicitações pendentes residuais para desobstruir pedidos
   const { data: solicitacoesPendentes = [] } = useQuery({
     queryKey: ["solicitacao-producao-pedido", p.id],
     queryFn: () => base44.entities.SolicitacaoProducao.filter({
       pedido_id: p.id, status: "pendente"
     }, "-created_date", 5),
     enabled: !!p.id,
-    refetchInterval: 5000,
+    refetchInterval: 10000,
   });
-  const aguardandoAprovacao = solicitacoesPendentes.length > 0;
 
-  const cancelarSolicitacaoPendente = async () => {
-    if (!solicitacoesPendentes.length) return;
-    const ok = confirm(
-      "Esta OP está aguardando aprovação do encarregado para iniciar (há outra OP rodando).\n\n" +
-      "Deseja CANCELAR esta solicitação pendente e tentar iniciar novamente?"
-    );
-    if (!ok) return;
-    try {
-      for (const s of solicitacoesPendentes) {
-        await base44.entities.SolicitacaoProducao.update(s.id, {
-          status: "recusada",
-          resposta_admin: "Cancelada pelo próprio operador",
-          admin_nome: user?.full_name || user?.email || "—",
+  useEffect(() => {
+    if (solicitacoesPendentes.length > 0) {
+      solicitacoesPendentes.forEach((s) => {
+        base44.entities.SolicitacaoProducao.update(s.id, {
+          status: "aprovada",
+          resposta_admin: "Auto-liberado pelo sistema",
           data_avaliacao: new Date().toISOString(),
-        });
-      }
-      toast.success("Solicitação cancelada. Tente iniciar novamente.");
-    } catch (err) {
-      alert("Erro ao cancelar solicitação: " + (err.message || ""));
+        }).catch(() => {});
+      });
     }
-  };
+  }, [solicitacoesPendentes]);
 
   const handleUploadFotoColagemEps = async (e) => {
     const file = e.target.files?.[0];
@@ -514,12 +503,6 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   }
 
   const handleIniciar = () => {
-    // Se há solicitação pendente, não permite iniciar
-    if (aguardandoAprovacao) {
-      playAlertSound();
-      alert("Aguardando aprovação do encarregado para iniciar esta OP.");
-      return;
-    }
     // Trava de Telha Bandeja na Colagem: só libera após término de ambas as metades (Telha Superior e Bandeja Inferior)
     if (p.maquina === "COLAGEM" && diagBandeja.isBandeja && !diagBandeja.liberadoColagem) {
       playAlertSound();
@@ -746,56 +729,58 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     toast.info(`Item ${index + 1} reaberto para produção.`);
   };
 
-  const handleConfirmarInicio = async (motivo) => {
+  const handleConfirmarInicio = async () => {
     setConfirmarInicioOpen(false);
-    const isRotaOuPrioridade = p.rota || p.prioridade || (Number(p.prioridade_nivel) >= 1 && Number(p.prioridade_nivel) <= 3);
 
-    // Se é rota/prioridade: notifica o encarregado e inicia
-    if (isRotaOuPrioridade) {
-      // Cria solicitação de notificação
+    // 1. Se já existe OP rodando nesta máquina, pausa a anterior para manter tempos corretos
+    if (opRodando && opRodando.id !== p.id && opRodando.status === "em_producao") {
       try {
-        await base44.entities.SolicitacaoProducao.create({
-          unidade: filialAtiva,
-          maquina: maquina || p.maquina,
-          pedido_id: p.id,
-          pedido_info: `${p.produto} — ${p.cliente || "sem cliente"}${p.numero_pedido ? ` #${p.numero_pedido}` : ""}`,
-          operador_nome: user?.full_name || user?.email || "—",
-          operador_id: user?.id || "",
-          pedido_rodando_id: opRodando?.id || "",
-          pedido_rodando_info: opRodando ? `${opRodando.produto} — ${opRodando.cliente || ""}${opRodando.numero_pedido ? ` #${opRodando.numero_pedido}` : ""}` : "",
-          tipo: "inicio_concomitante",
-          motivo: motivo || "",
-          status: "pendente",
+        let prodSeg = opRodando.tempo_producao_seg || 0;
+        if (opRodando.inicio_producao_ts) {
+          prodSeg += Math.floor((Date.now() - new Date(opRodando.inicio_producao_ts).getTime()) / 1000);
+        }
+        await base44.entities.Pedido.update(opRodando.id, {
+          status: "pausado",
+          tempo_producao_seg: prodSeg,
+          inicio_producao_ts: null,
+          inicio_pausa_ts: new Date().toISOString(),
+          motivo_pausa: "troca_de_op",
         });
-      } catch {}
+      } catch (err) {
+        console.warn("Aviso ao pausar OP anterior:", err);
+      }
+    }
 
-      // Inicia a produção
+    // 2. Limpa quaisquer solicitações pendentes deste pedido
+    if (solicitacoesPendentes.length > 0) {
+      for (const s of solicitacoesPendentes) {
+        try {
+          await base44.entities.SolicitacaoProducao.update(s.id, {
+            status: "aprovada",
+            resposta_admin: "Iniciado pelo operador",
+            data_avaliacao: new Date().toISOString(),
+          });
+        } catch {}
+      }
+    }
+
+    // 3. COLAGEM: abre validação do EPS se for colagem, ou segue para operadores/início
+    if (p.maquina === "COLAGEM") {
+      setFotoColagemEpsUrl("");
+      setValidarEpsColagemOpen(true);
+      return;
+    }
+
+    setPendingColagemUpdates(null);
+    if (regras.exigirOperadorInicio) {
+      setOperadoresDialogOpen(true);
+    } else {
       const updates = { inicio_producao_ts: new Date().toISOString() };
       if (appendHistoricoFn) {
-        Object.assign(updates, appendHistoricoFn(p, "inicio_concomitante", "Iniciou OP (outra já rodando)", `Outra OP rodando: ${opRodando?.produto || ""}`));
+        Object.assign(updates, appendHistoricoFn(p, "inicio_producao", "Iniciou OP", opRodando ? `Pausou OP anterior: ${opRodando.numero_pedido || opRodando.produto}` : ""));
       }
       onStatusChange(p, "em_producao", updates);
-    } else {
-      // Não é rota/prioridade: cria solicitação e aguarda aprovação
-      try {
-        await base44.entities.SolicitacaoProducao.create({
-          unidade: filialAtiva,
-          maquina: maquina || p.maquina,
-          pedido_id: p.id,
-          pedido_info: `${p.produto} — ${p.cliente || "sem cliente"}${p.numero_pedido ? ` #${p.numero_pedido}` : ""}`,
-          operador_nome: user?.full_name || user?.email || "—",
-          operador_id: user?.id || "",
-          pedido_rodando_id: opRodando?.id || "",
-          pedido_rodando_info: opRodando ? `${opRodando.produto} — ${opRodando.cliente || ""}${opRodando.numero_pedido ? ` #${opRodando.numero_pedido}` : ""}` : "",
-          tipo: "fora_prioridade",
-          motivo: motivo,
-          status: "pendente",
-        });
-        playAlertSound();
-        alert("Solicitação enviada para o encarregado. Aguarde a aprovação para iniciar.");
-      } catch (err) {
-        alert("Erro ao enviar solicitação: " + (err.message || ""));
-      }
+      toast.success(`OP #${p.numero_pedido || p.id} iniciada com sucesso!`);
     }
   };
 
@@ -1185,11 +1170,6 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                   {p.atendido_estoque && (
                     <Badge className="bg-teal-600 text-white border-teal-700 text-xs gap-1 font-bold shadow-xs">
                       <PackageCheck className="w-3 h-3" /> Já em Estoque
-                    </Badge>
-                  )}
-                  {aguardandoAprovacao && (
-                    <Badge className="bg-orange-500 text-white border-orange-600 text-xs gap-1">
-                      <AlertTriangle className="w-3 h-3" /> Aguard. Aprovação
                     </Badge>
                   )}
                   {p.status === "aguardando_colagem" && (
@@ -1992,11 +1972,10 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <Button
                       size="sm"
-                      className={`gap-1 border-0 ${aguardandoAprovacao ? "bg-orange-400 hover:bg-orange-500 text-white" : p.rota ? "bg-red-500 hover:bg-red-600 text-white" : "bg-amber-500 hover:bg-amber-600 text-white font-bold shadow-xs"}`}
-                      onClick={aguardandoAprovacao ? cancelarSolicitacaoPendente : handleIniciar}
-                      title={aguardandoAprovacao ? "Aguardando aprovação do encarregado. Clique para cancelar a solicitação." : ""}
+                      className={`gap-1 border-0 ${p.rota ? "bg-red-500 hover:bg-red-600 text-white" : "bg-amber-500 hover:bg-amber-600 text-white font-bold shadow-xs"}`}
+                      onClick={handleIniciar}
                     >
-                      <Play className="w-3 h-3 fill-current" /> {aguardandoAprovacao ? "Aguardando... (cancelar)" : p.maquina === "COLAGEM" ? "Iniciar Colagem" : (p.etapa_anterior_concluida || (p.maquina === "BANDEJA" && isTelhaBandeja(p))) ? "Continuar na Bandeja" : "Iniciar"}
+                      <Play className="w-3 h-3 fill-current" /> {p.maquina === "COLAGEM" ? "Iniciar Colagem" : (p.etapa_anterior_concluida || (p.maquina === "BANDEJA" && isTelhaBandeja(p))) ? "Continuar na Bandeja" : "Iniciar"}
                     </Button>
 
                     {isCumeeira && (
@@ -2167,13 +2146,12 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         onCreate={() => setRetrabalhoOpen(false)}
       />
 
-      {/* Dialog de confirmação de início (2ª OP) */}
+      {/* Dialog de confirmação de troca de OP caso outra já esteja rodando */}
       <ConfirmarInicioDialog
         open={confirmarInicioOpen}
         onClose={() => setConfirmarInicioOpen(false)}
         pedido={p}
         pedidoRodando={opRodando}
-        isRotaOuPrioridade={p.rota || p.prioridade}
         onConfirm={handleConfirmarInicio}
       />
 

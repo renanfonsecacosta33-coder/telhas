@@ -891,10 +891,6 @@ export default function MaquinaPanel({ maquina }) {
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
-      {/* Painel de solicitações de produção para o encarregado */}
-      {podeGerenciar && (
-        <PainelSolicitacoesProducao maquina={maquina} user={user} />
-      )}
 
       {/* Botão de voltar + Dashboard + Novo Pedido */}
       <div className="flex items-center justify-between">
