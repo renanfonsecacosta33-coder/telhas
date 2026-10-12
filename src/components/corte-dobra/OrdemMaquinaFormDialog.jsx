@@ -10,7 +10,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
-import { Layers, Package, Camera, PackageX, Scissors, Lock, Flame, Route, Star, User as UserIcon, Zap, ChevronDown, ChevronUp, CheckCircle2, Search } from "lucide-react";
+import { Layers, Package, Camera, PackageX, Scissors, Lock, Flame, Route, Star, User as UserIcon, Zap, ChevronDown, ChevronUp, CheckCircle2, Search, Sparkles } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import ChapaEstoqueCombobox from "@/components/corte-dobra/ChapaEstoqueCombobox";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
@@ -32,13 +32,14 @@ const TIPOS_PECA = [
   { label: "Outro (ver dimensões)",         etapa: "ambas" },
 ];
 
+const MAQUINAS_DESB    = ["DESBOBINADEIRA 01", "DESBOBINADEIRA 02"];
 const MAQUINAS_CORTE   = ["CORTE 3M", "CORTE 6M"];
 const MAQUINAS_DOBRA   = ["DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M"];
-const MAQUINAS_TODAS   = ["CORTE 3M", "CORTE 6M", "DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M"];
+const MAQUINAS_TODAS   = ["DESBOBINADEIRA 01", "DESBOBINADEIRA 02", "CORTE 3M", "CORTE 6M", "DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M", "PERFILADEIRA"];
 const MAQUINAS_PERF    = ["PERFILADEIRA"];
 
 function getMaquinasPorEtapa(etapa) {
-  if (etapa === "corte") return MAQUINAS_CORTE;
+  if (etapa === "corte") return [...MAQUINAS_DESB, ...MAQUINAS_CORTE];
   if (etapa === "dobra") return MAQUINAS_DOBRA;
   if (etapa === "perfiladeira") return MAQUINAS_PERF;
   return MAQUINAS_TODAS;
@@ -81,10 +82,18 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
 
   const { filialAtiva } = useFilial();
 
-  const { data: bobinasSliter = [] } = useQuery({
-    queryKey: ["bobinas-sliter-cd", filialAtiva],
+  // flags de máquina
+  const isDesbobinadeira = ["DESBOBINADEIRA 01", "DESBOBINADEIRA 02", "DESBOBINADEIRA"].includes(form.maquina);
+  const isCorte = ["CORTE 3M", "CORTE 6M"].includes(form.maquina);
+  const isDobra = ["DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M"].includes(form.maquina);
+  const isMaquinaPadrao = isCorte || isDobra;
+  const maxComprimento = form.maquina?.includes("3M") ? 3000 : form.maquina?.includes("6M") ? 6000 : 99999;
+
+  // Bobinas do estoque de Corte e Dobra (habilitadas para Desbobinadeira ou pré-seleção)
+  const { data: bobinasCD = [] } = useQuery({
+    queryKey: ["bobinas-cd-estoque", filialAtiva],
     queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false, unidade: filialAtiva }),
-    enabled: false, // Guilhotinas nunca usam bobina direta, sempre chapas do estoque
+    enabled: open && (Boolean(isDesbobinadeira) || Boolean(produtoFixo)),
   });
 
   const filiaisHook = filialAtiva === "todas" ? null : [filialAtiva];
@@ -101,12 +110,6 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     queryFn: () => base44.entities.OrdemMaquinaCD.filter({ status: { $nin: ["finalizado", "cancelado"] } }),
     enabled: open && form.maquina === "PERFILADEIRA",
   });
-
-  // flags de máquina
-  const isCorte = ["CORTE 3M", "CORTE 6M"].includes(form.maquina);
-  const isDobra = ["DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M"].includes(form.maquina);
-  const isMaquinaPadrao = isCorte || isDobra;
-  const maxComprimento = form.maquina?.includes("3M") ? 3000 : form.maquina?.includes("6M") ? 6000 : 99999;
 
   // chapas disponíveis = disponivel OU parcial, filtrar reservadas ao renderizar
   const { data: todasChapas = [] } = useQuery({
@@ -254,7 +257,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
   const chapaObj = chapas.find(c => c.id === form.chapa_cd_id);
   const bobinaObj = form.maquina === "PERFILADEIRA"
     ? slitters.find(s => s.id === form.bobina_id)
-    : bobinasSliter.find(b => b.id === form.bobina_id);
+    : bobinasCD.find(b => b.id === form.bobina_id);
 
   const tipoPecaObj = TIPOS_PECA.find(t => t.label === form.tipo_peca);
   const etapa = tipoPecaObj?.etapa || "ambas";
@@ -262,6 +265,152 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     ? MAQUINAS_PERF
     : MAQUINAS_TODAS;
   const isPerfiladeira = maquinaProp === "PERFILADEIRA" || etapa === "perfiladeira" || form.maquina === "PERFILADEIRA";
+
+  // ── AUTO-SELEÇÃO INTELIGENTE DE MATÉRIA-PRIMA & TIPO DE PEÇA ──────────────
+  useEffect(() => {
+    if (!open) return;
+
+    // 1. Se for produto de chapa e tipo_peca estiver vazio, pré-seleciona "Blank (Chapa cortada)"
+    if (produtoFixo && !form.tipo_peca) {
+      const pLower = produtoFixo.toLowerCase();
+      if (pLower.includes("chapa") || pLower.includes("blank")) {
+        set("tipo_peca", "Blank (Chapa cortada)");
+      }
+    }
+
+    // 2. Extrai espessura de produtoFixo se form.material_espessura estiver vazia
+    let esp = parseFloat(String(form.material_espessura || "").replace(",", "."));
+    if (isNaN(esp) && produtoFixo) {
+      const m = String(produtoFixo).match(/([0-9]+[.,][0-9]{1,2})/);
+      if (m) {
+        esp = parseFloat(m[1].replace(",", "."));
+        if (!isNaN(esp)) {
+          set("material_espessura", String(esp).replace(".", ","));
+        }
+      }
+    }
+
+    // 3. Se for Desbobinadeira e não tiver bobina selecionada, busca bobina compatível
+    if (isDesbobinadeira && !form.bobina_id && bobinasCD.length > 0 && !isNaN(esp)) {
+      const pProd = (produtoFixo || "").toUpperCase();
+      const compativel = bobinasCD.find(b => {
+        const bEsp = parseFloat(String(b.espessura_mm || b.espessura_utilizada || "").replace(",", "."));
+        if (isNaN(bEsp) || Math.abs(bEsp - esp) > 0.15) return false;
+        if (pProd.includes("FQ") && !(b.qualidade || b.cor || "").toUpperCase().includes("FQ")) return false;
+        if (pProd.includes("FF") && !(b.qualidade || b.cor || "").toUpperCase().includes("FF")) return false;
+        if (pProd.includes("GALV") && !(b.qualidade || b.cor || "").toUpperCase().includes("GALV")) return false;
+        return true;
+      }) || bobinasCD.find(b => {
+        const bEsp = parseFloat(String(b.espessura_mm || b.espessura_utilizada || "").replace(",", "."));
+        return !isNaN(bEsp) && Math.abs(bEsp - esp) <= 0.15;
+      });
+
+      if (compativel) {
+        set("bobina_id", compativel.id);
+      }
+    }
+
+    // 4. Se for Guilhotina/Dobra e não tiver chapa selecionada, busca chapa compatível
+    if (!isDesbobinadeira && !isPerfiladeira && !form.chapa_cd_id && chapas.length > 0 && !isNaN(esp)) {
+      const pProd = (produtoFixo || "").toUpperCase();
+      const compativel = chapas.find(c => {
+        const cEsp = parseFloat(String(c.espessura_mm || "").replace(",", "."));
+        if (isNaN(cEsp) || Math.abs(cEsp - esp) > 0.15) return false;
+        if (pProd.includes("FQ") && !(c.material || c.bobina_descricao || "").toUpperCase().includes("FQ")) return false;
+        if (pProd.includes("FF") && !(c.material || c.bobina_descricao || "").toUpperCase().includes("FF")) return false;
+        if (pProd.includes("GALV") && !(c.material || c.bobina_descricao || "").toUpperCase().includes("GALV")) return false;
+        return true;
+      }) || chapas.find(c => {
+        const cEsp = parseFloat(String(c.espessura_mm || "").replace(",", "."));
+        return !isNaN(cEsp) && Math.abs(cEsp - esp) <= 0.15;
+      });
+
+      if (compativel) {
+        set("chapa_cd_id", compativel.id);
+      }
+    }
+  }, [open, produtoFixo, form.maquina, bobinasCD, chapas, form.bobina_id, form.chapa_cd_id]);
+
+  // ── PRÉ-APROVEITAMENTO & CONSUMO ESTIMADO DE CHAPAS ──────────────────────
+  const preAproveitamento = useMemo(() => {
+    const qtd = Number(form.quantidade);
+    if (!qtd || qtd <= 0) return null;
+
+    // Dimensões da peça
+    let compPeca = 0;
+    let largPeca = 0;
+
+    if (devObj) {
+      compPeca = Number(devObj.comprimento_final_mm || devObj.comprimento_desenvolvido_mm) || 0;
+      largPeca = Number(devObj.largura_final_mm || devObj.largura_mm) || 0;
+    }
+
+    if (!compPeca || !largPeca) {
+      const textoDim = `${form.dimensoes_livres || ""} ${produtoFixo || ""}`;
+      const match2D = textoDim.match(/(\d{2,5})\s*(?:x|×|\*)\s*(\d{2,5})/i);
+      if (match2D) {
+        const d1 = Number(match2D[1]);
+        const d2 = Number(match2D[2]);
+        largPeca = Math.min(d1, d2);
+        compPeca = Math.max(d1, d2);
+      } else {
+        const matchComp = textoDim.match(/(\d{3,5})\s*mm/i) || textoDim.match(/(\d{1,2})\s*m\b/i);
+        if (matchComp) {
+          compPeca = matchComp[1].length <= 2 ? Number(matchComp[1]) * 1000 : Number(matchComp[1]);
+          largPeca = 1200;
+        }
+      }
+    }
+
+    if (!compPeca) compPeca = 3000;
+    if (!largPeca) largPeca = 1200;
+
+    // Dimensões da chapa matriz (do estoque ou padrão 1200x3000)
+    const chapaLarg = chapaObj?.largura_mm || 1200;
+    const chapaComp = chapaObj?.comprimento_mm || (form.maquina?.includes("6M") ? 6000 : 3000);
+
+    // Rendimento por chapa (direto vs rotacionado)
+    const cabemDireto = Math.max(1, Math.floor(chapaComp / compPeca) * Math.floor(chapaLarg / largPeca));
+    const cabemRotacionado = Math.max(1, Math.floor(chapaComp / largPeca) * Math.floor(chapaLarg / compPeca));
+    const pecasPorChapa = Math.max(1, Math.max(cabemDireto, cabemRotacionado));
+
+    const chapasNecessarias = Math.ceil(qtd / pecasPorChapa);
+
+    // Área e aproveitamento útil
+    const areaPecaM2 = (compPeca / 1000) * (largPeca / 1000);
+    const areaTotalPecasM2 = areaPecaM2 * qtd;
+    const areaChapaM2 = (chapaComp / 1000) * (chapaLarg / 1000);
+    const areaChapasConsumidasM2 = areaChapaM2 * chapasNecessarias;
+    const aproveitamentoPct = Math.min(100, Math.round((areaTotalPecasM2 / areaChapasConsumidasM2) * 100 * 10) / 10);
+
+    // Peso teórico
+    const espNum = parseFloat(String(form.material_espessura || chapaObj?.espessura_mm || bobinaObj?.espessura_mm || "3.00").replace(",", ".")) || 3.0;
+    const pesoTeoricoTotalKg = Math.round(areaTotalPecasM2 * espNum * 7.85 * 10) / 10;
+    const pesoChapaUnitKg = Math.round(areaChapaM2 * espNum * 7.85 * 10) / 10;
+
+    return {
+      compPeca,
+      largPeca,
+      chapaComp,
+      chapaLarg,
+      pecasPorChapa,
+      chapasNecessarias,
+      aproveitamentoPct,
+      areaTotalPecasM2: Math.round(areaTotalPecasM2 * 100) / 100,
+      pesoTeoricoTotalKg,
+      pesoChapaUnitKg,
+      espNum
+    };
+  }, [form.quantidade, form.dimensoes_livres, form.material_espessura, form.maquina, chapaObj, bobinaObj, devObj, produtoFixo]);
+
+  // Se o peso estiver vazio ou zero e tiver peso teórico calculado, preenche automaticamente
+  useEffect(() => {
+    if (preAproveitamento && (!form.peso_kg || form.peso_kg === "0") && !pesoEditadoManual.current) {
+      if (preAproveitamento.pesoTeoricoTotalKg > 0) {
+        set("peso_kg", String(preAproveitamento.pesoTeoricoTotalKg));
+      }
+    }
+  }, [preAproveitamento?.pesoTeoricoTotalKg]);
 
   // Desenvolvimentos disponíveis
   const { data: desenvolvimentos = [] } = useQuery({
@@ -419,7 +568,11 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         alert("Selecione a bobina slitter.");
         return;
       }
-      if (!isPerfiladeira && !form.chapa_cd_id) {
+      if (isDesbobinadeira && !form.bobina_id && !form.chapa_cd_id) {
+        alert("Selecione a bobina do estoque de corte e dobra.");
+        return;
+      }
+      if (!isPerfiladeira && !isDesbobinadeira && !form.chapa_cd_id) {
         alert("Selecione a chapa do estoque.");
         return;
       }
@@ -430,6 +583,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     }
 
     const chapaSnap = chapaObj ? `${chapaObj.bobina_descricao || ""} · ${chapaObj.comprimento_mm}mm` : "";
+    const bobinaSnap = bobinaObj ? `[${bobinaObj.codigo || "—"}] ${bobinaObj.qualidade || ""} ${bobinaObj.espessura_mm || ""}mm` : "";
     const slitterSnap = bobinaObj ? `[${bobinaObj.codigo || "—"}] ${bobinaObj.qualidade || ""} ${bobinaObj.espessura_mm || ""}mm — ${bobinaObj.materiais_producao || ""}` : "";
 
     // Monta o payload 100% sanitizado para o backend Base44
@@ -448,7 +602,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
       prioridade: Boolean(form.prioridade),
       rota: Boolean(form.rota),
       observacoes: (form.observacoes || "").trim(),
-      chapa_origem: isPerfiladeira ? "direto" : "chaparia",
+      chapa_origem: (isPerfiladeira || isDesbobinadeira) ? "direto" : "chaparia",
     };
 
     if (isAguardando) {
@@ -468,6 +622,9 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
       if (isPerfiladeira && form.bobina_id) {
         ordemData.bobina_id = form.bobina_id;
         ordemData.bobina_descricao = slitterSnap;
+      } else if (isDesbobinadeira && form.bobina_id) {
+        ordemData.bobina_id = form.bobina_id;
+        ordemData.bobina_descricao = bobinaSnap;
       }
     }
 
@@ -554,14 +711,37 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
               <Label>Máquina *</Label>
               <Select value={form.maquina} disabled={maquinaProp === "PERFILADEIRA"} onValueChange={v => {
                 set("maquina", v);
-                if (v === "PERFILADEIRA") set("chapa_origem", "direto");
+                if (v === "PERFILADEIRA" || v?.startsWith("DESBOBINADEIRA")) set("chapa_origem", "direto");
               }}>
                 <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                 <SelectContent>
-                  {maquinasDisponiveis.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                  {maquinasDisponiveis.length === 0 && (
-                    <SelectItem value={null} disabled>Selecione o tipo de peça primeiro</SelectItem>
-                  )}
+                  <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Desbobinadeiras
+                  </div>
+                  <SelectItem value="DESBOBINADEIRA 01">
+                    <span className="flex items-center gap-1.5 font-semibold text-orange-600 dark:text-orange-400">
+                      🌀 DESBOBINADEIRA 01 (até 3,00mm)
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="DESBOBINADEIRA 02">
+                    <span className="flex items-center gap-1.5 font-semibold text-orange-600 dark:text-orange-400">
+                      🌀 DESBOBINADEIRA 02 (0,80 a 4,75mm)
+                    </span>
+                  </SelectItem>
+
+                  <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-t border-border mt-1 pt-1">
+                    Guilhotinas & Dobradeiras
+                  </div>
+                  <SelectItem value="CORTE 3M">✂️ CORTE 3M</SelectItem>
+                  <SelectItem value="CORTE 6M">✂️ CORTE 6M</SelectItem>
+                  <SelectItem value="DOBRA 3M">📐 DOBRA 3M</SelectItem>
+                  <SelectItem value="DOBRA FUNDO 6M">📐 DOBRA FUNDO 6M</SelectItem>
+                  <SelectItem value="DOBRA INICIO 6M">📐 DOBRA INICIO 6M</SelectItem>
+
+                  <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-t border-border mt-1 pt-1">
+                    Perfiladeira
+                  </div>
+                  <SelectItem value="PERFILADEIRA">⚙️ PERFILADEIRA</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -827,7 +1007,53 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
             </div>
           )}
 
-          {!form.material_em_falta && !isPerfiladeira && (
+          {!form.material_em_falta && isDesbobinadeira && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-orange-500" /> Bobina do Estoque (C&D) *
+                </Label>
+                <Badge variant="outline" className="text-[10px] text-orange-700 dark:text-orange-300 border-orange-300 bg-orange-50 dark:bg-orange-950/40 font-bold">
+                  🌀 {form.maquina}
+                </Badge>
+              </div>
+              <Select value={form.bobina_id} onValueChange={v => {
+                set("bobina_id", v);
+                const b = bobinasCD.find(x => x.id === v);
+                if (b) {
+                  set("material_espessura", b.espessura_mm || b.espessura_utilizada || "");
+                }
+              }}>
+                <SelectTrigger><SelectValue placeholder="Selecione a bobina de corte e dobra..." /></SelectTrigger>
+                <SelectContent>
+                  {bobinasCD.map(b => (
+                    <SelectItem key={b.id} value={b.id} className="py-2 cursor-pointer">
+                      <div className="flex items-center justify-between gap-2 w-full pr-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono font-bold text-primary">[{b.codigo || "—"}]</span>
+                          <span className="font-semibold">{b.qualidade || b.cor || "Bobina"}</span>
+                          <span className="text-muted-foreground text-xs">{b.espessura_mm || b.espessura_utilizada}mm</span>
+                          <span className="text-green-600 font-bold text-xs">· {Number(b.peso_kg || b.peso_atual || 0).toLocaleString("pt-BR")}kg</span>
+                        </div>
+                      </div>
+                    </SelectItem>
+                  ))}
+                  {bobinasCD.length === 0 && (
+                    <SelectItem value="_vazio" disabled>Nenhuma bobina de C&D encontrada</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              {bobinaObj && (
+                <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800/40 rounded-lg px-3 py-2 text-xs flex flex-wrap gap-3 text-orange-800 dark:text-orange-300">
+                  <span>Bobina: <strong>[{bobinaObj.codigo || "—"}] {bobinaObj.qualidade || ""}</strong></span>
+                  <span>Espessura: <strong>{bobinaObj.espessura_mm || bobinaObj.espessura_utilizada}mm</strong></span>
+                  <span>Peso Disponível: <strong>{Number(bobinaObj.peso_kg || bobinaObj.peso_atual || 0).toLocaleString("pt-BR")}kg</strong></span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!form.material_em_falta && !isPerfiladeira && !isDesbobinadeira && (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label>{isDobra ? "Chapa do Estoque *" : "Chapa do Estoque (Chaparia) *"}</Label>
@@ -968,6 +1194,51 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
               )}
             </div>
           </div>
+
+          {/* ═══════════════════════════════════════════════════════════════
+              PRÉ-APROVEITAMENTO & CONSUMO ESTIMADO DE CHAPAS
+          ═══════════════════════════════════════════════════════════════ */}
+          {preAproveitamento && !isPerfiladeira && (
+            <div className="rounded-xl border border-blue-200 dark:border-blue-900/50 bg-gradient-to-br from-blue-50/80 to-indigo-50/40 dark:from-blue-950/20 dark:to-indigo-950/10 p-3 space-y-2.5 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-blue-900 dark:text-blue-300 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                  Pré-Aproveitamento & Consumo de Chapas
+                </span>
+                <Badge variant="outline" className="text-[10px] bg-white/80 dark:bg-card border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-300 font-mono">
+                  Peça: {preAproveitamento.largPeca}×{preAproveitamento.compPeca}mm
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-white/90 dark:bg-card/70 rounded-lg p-2 border border-blue-100 dark:border-blue-900/40 shadow-xs">
+                  <span className="text-[10px] text-muted-foreground block font-medium">Rendimento</span>
+                  <span className="text-sm font-black text-blue-700 dark:text-blue-400">
+                    {preAproveitamento.pecasPorChapa} {preAproveitamento.pecasPorChapa === 1 ? "pç / chapa" : "pçs / chapa"}
+                  </span>
+                </div>
+
+                <div className="bg-white/90 dark:bg-card/70 rounded-lg p-2 border border-blue-100 dark:border-blue-900/40 shadow-xs">
+                  <span className="text-[10px] text-muted-foreground block font-medium">Chapas Necessárias</span>
+                  <span className="text-base font-black text-orange-600 dark:text-orange-400">
+                    {preAproveitamento.chapasNecessarias} {preAproveitamento.chapasNecessarias === 1 ? "chapa" : "chapas"}
+                  </span>
+                </div>
+
+                <div className="bg-white/90 dark:bg-card/70 rounded-lg p-2 border border-blue-100 dark:border-blue-900/40 shadow-xs">
+                  <span className="text-[10px] text-muted-foreground block font-medium">Aproveitamento</span>
+                  <span className={`text-sm font-black ${preAproveitamento.aproveitamentoPct >= 80 ? "text-emerald-600 dark:text-emerald-400" : preAproveitamento.aproveitamentoPct >= 60 ? "text-amber-600 dark:text-amber-400" : "text-rose-600 dark:text-rose-400"}`}>
+                    {preAproveitamento.aproveitamentoPct}%
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1.5 border-t border-blue-100/80 dark:border-blue-900/40">
+                <span>Área Total: <strong className="text-foreground">{preAproveitamento.areaTotalPecasM2} m²</strong></span>
+                <span>Peso Teórico Total: <strong className="text-blue-700 dark:text-blue-400 font-bold">{preAproveitamento.pesoTeoricoTotalKg} kg</strong> <span className="opacity-75">(~{preAproveitamento.pesoChapaUnitKg} kg/chapa)</span></span>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-1">
             <Label>Cliente</Label>

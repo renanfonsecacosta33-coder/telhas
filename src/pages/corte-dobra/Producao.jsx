@@ -370,6 +370,40 @@ export default function ProducaoCD() {
     setDialogMaq(true);
   };
 
+  // Sugere máquina inteligente com base nas características do produto/item
+  const sugerirMaquinaItem = (item, pedido) => {
+    if (item.maquina && String(item.maquina).trim()) return String(item.maquina).trim();
+
+    const descTotal = `${item.produto || ""} ${item.descricao || ""} ${item.observacao || ""}`.toLowerCase();
+    const esp = extrairEspecificacao(descTotal, item.quantidade, item.unidade);
+    const comp = esp.comprimento_mm || 0;
+
+    // 1. Se for chapa ou blank (ex: "Chapa 3,00 FQ", "Chapa 1,20", etc.)
+    if (descTotal.includes("chapa") || descTotal.includes("blank")) {
+      const espNum = parseFloat(String(item.espessura || esp.espessura || "").replace(",", "."))
+        || parseFloat((descTotal.match(/(\d+[.,]\d+)/)?.[1] || "0").replace(",", ".")) || 0;
+      if (espNum > 3.0) return "DESBOBINADEIRA 02";
+      return "DESBOBINADEIRA 01";
+    }
+
+    // 2. Se for perfil / slitter / lambril
+    if (descTotal.includes("perfil") || descTotal.includes("lambril") || descTotal.includes("slitter")) {
+      return "PERFILADEIRA";
+    }
+
+    // 3. Se for dobra (rufo, calha, cantoneira, dobra, pingadeira)
+    if (descTotal.includes("dobra") || descTotal.includes("rufo") || descTotal.includes("calha") || descTotal.includes("pingadeira")) {
+      if (comp > 3000) return "DOBRA INICIO 6M";
+      return "DOBRA 3M";
+    }
+
+    // 4. Comprimento acima de 3m -> corte 6m
+    if (comp > 3000) return "CORTE 6M";
+
+    // 5. Padrão para corte
+    return "CORTE 3M";
+  };
+
   // Abrir formulário completo de Nova Ordem ou Revisão a partir de um item da Fila PCP
   const openNewFromFila = (pedido, item) => {
     setMaquinaAtiva(null);
@@ -394,10 +428,12 @@ export default function ProducaoCD() {
     const dimensoesFinais = esp.dimensoes_fmt || item.medida || (esp.comprimento_mm ? `${esp.comprimento_mm}mm` : "");
     const tipoPecaFinal = esp.tipo_label || item.produto || "";
 
-    setMaquinaAtiva(item.maquina || null);
+    const maquinaSugerida = sugerirMaquinaItem(item, pedido);
+
+    setMaquinaAtiva(maquinaSugerida);
     setEditMaq({
       data: selectedDay,
-      maquina: item.maquina || "",
+      maquina: maquinaSugerida,
       numero_pedido: pedido.numero_pedido || "",
       numero_oc: pedido.numero_oc || "",
       cliente: pedido.cliente_nome || "",
@@ -409,7 +445,7 @@ export default function ProducaoCD() {
       chapa_cd_id: item.chapa_cd_id || (item.material_tipo === "chapa" ? item.material_id : "") || "",
       bobina_id: item.bobina_id || (item.material_tipo === "bobina" ? item.material_id : "") || "",
       chapa_descricao: item.material_descricao || item.chapa_descricao || "",
-      chapa_origem: item.material_tipo === "bobina" ? "bobina" : "chaparia",
+      chapa_origem: item.material_tipo === "bobina" || maquinaSugerida?.startsWith("DESBOBINADEIRA") ? "direto" : "chaparia",
       material_espessura: item.espessura ? String(item.espessura) : "",
       observacoes: descItem,
       foto_pedido_url: item.foto_url || item.imagem_url || pedido.foto_pedido_url || extrairCroquiPedido(pedido) || "",
@@ -422,7 +458,97 @@ export default function ProducaoCD() {
     setDialogMaq(true);
   };
   const openEditMaq = (item) => { setMaquinaAtiva(item.maquina); setEditMaq(item); setDialogMaq(true); };
+
   const handleSaveMaq = async (data) => {
+    const isDesb = Boolean(data.maquina?.startsWith("DESBOBINADEIRA"));
+
+    // Função de sincronização com o Odoo após salvar qualquer ordem
+    const sincronizarItemOdoo = async (ctx) => {
+      if (!ctx) return;
+      try {
+        const itens = getItens(ctx.pedido);
+        if (itens[ctx.itemIdx]) {
+          itens[ctx.itemIdx] = {
+            ...itens[ctx.itemIdx],
+            status: data.material_em_falta ? "aguardando_material" : "em_producao",
+            maquina: data.maquina || "",
+          };
+          const percentual = computePercentual(itens);
+          const status_pcp = statusPcpPorPercentual(percentual, ctx.pedido.status_pcp);
+          const updated = await base44.entities.PedidoOdoo.update(ctx.pedidoId, {
+            itens_json: buildItensJson(itens),
+            percentual_concluido: percentual,
+            status_pcp,
+          });
+          queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-cd"] });
+          queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+          await notificarStatus(updated, "maquina_inicio", {
+            maquina_atual: data.maquina || "",
+            item_nome: itens[ctx.itemIdx]?.produto || "",
+            inicio_fmt: new Date().toISOString(),
+            status_novo: status_pcp,
+          });
+        }
+      } catch (e) {
+        console.error("[Fila PCP] erro ao sincronizar item após salvar:", e?.message || e);
+      }
+    };
+
+    // ── MÁQUINA DESBOBINADEIRA (OrdemDesbobinadeira) ──
+    if (isDesb) {
+      const desbPayload = {
+        data: data.data || selectedDay,
+        maquina: data.maquina,
+        maquina_inicial: data.maquina,
+        unidade: data.unidade || filialAtiva || "Matriz AJL",
+        numero_pedido: data.numero_pedido || "",
+        numero_oc: data.numero_oc || "",
+        cliente: data.cliente || "",
+        vendedor: data.vendedor || "",
+        bobina_id: data.bobina_id || "",
+        bobina_descricao: data.bobina_descricao || "",
+        tipo_peca: data.tipo_peca || "Blank",
+        dimensoes_livres: data.dimensoes_livres || "",
+        comprimento_mm: data.dimensoes_livres ? (parseFloat(String(data.dimensoes_livres).match(/\d+/)?.[0]) || 3000) : 3000,
+        quantidade: Number(data.quantidade),
+        kg_estimado: data.peso_kg ? Number(data.peso_kg) : undefined,
+        observacoes: data.observacoes || "",
+        foto_pedido_url: data.foto_pedido_url || "",
+        status: data.material_em_falta ? "aguardando_material" : (data.status || "pendente"),
+        material_em_falta: Boolean(data.material_em_falta),
+        prioridade: Boolean(data.prioridade),
+        prioridade_nivel: data.prioridade_nivel || null,
+        rota: Boolean(data.rota),
+        pedido_odoo_id: data.pedido_odoo_id || filaContext?.pedidoId || "",
+        of_odoo_id: data.of_odoo_id || "",
+        item_idx: data.item_idx != null ? data.item_idx : (filaContext?.itemIdx != null ? filaContext.itemIdx : 0),
+      };
+
+      if (editMaq && !editMaq._presets && editMaq.id && (editMaq._desb || editMaq.maquina?.startsWith("DESBOBINADEIRA"))) {
+        updateDesb.mutate({ id: editMaq.id, data: desbPayload }, {
+          onSuccess: async () => {
+            setDialogMaq(false);
+            toast.success("Ordem da Desbobinadeira atualizada!");
+            const ctx = filaContext;
+            setFilaContext(null);
+            await sincronizarItemOdoo(ctx);
+          }
+        });
+      } else {
+        createDesb.mutate(desbPayload, {
+          onSuccess: async () => {
+            setDialogMaq(false);
+            toast.success("Ordem criada na Desbobinadeira com sucesso!");
+            const ctx = filaContext;
+            setFilaContext(null);
+            await sincronizarItemOdoo(ctx);
+          }
+        });
+      }
+      return;
+    }
+
+    // ── OUTRAS MÁQUINAS (OrdemMaquinaCD) ──
     if (editMaq && !editMaq._presets && editMaq.id) {
       updateMaq.mutate({ id: editMaq.id, data }, {
         onSuccess: async () => {
@@ -430,34 +556,7 @@ export default function ProducaoCD() {
           toast.success("Ordem atualizada com sucesso!");
           const ctx = filaContext;
           setFilaContext(null);
-          if (!ctx) return;
-          try {
-            const itens = getItens(ctx.pedido);
-            if (itens[ctx.itemIdx]) {
-              itens[ctx.itemIdx] = {
-                ...itens[ctx.itemIdx],
-                status: data.material_em_falta ? "aguardando_material" : "em_producao",
-                maquina: data.maquina || "",
-              };
-              const percentual = computePercentual(itens);
-              const status_pcp = statusPcpPorPercentual(percentual, ctx.pedido.status_pcp);
-              const updated = await base44.entities.PedidoOdoo.update(ctx.pedidoId, {
-                itens_json: buildItensJson(itens),
-                percentual_concluido: percentual,
-                status_pcp,
-              });
-              queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-cd"] });
-              queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
-              await notificarStatus(updated, "maquina_inicio", {
-                maquina_atual: data.maquina || "",
-                item_nome: itens[ctx.itemIdx]?.produto || "",
-                inicio_fmt: new Date().toISOString(),
-                status_novo: status_pcp,
-              });
-            }
-          } catch (e) {
-            console.error("[Fila PCP] erro ao sincronizar item após edição:", e?.message || e);
-          }
+          await sincronizarItemOdoo(ctx);
         },
       });
     } else {
@@ -497,36 +596,7 @@ export default function ProducaoCD() {
         onSuccess: async () => {
           const ctx = filaContext;
           setFilaContext(null);
-          if (!ctx) return;
-          try {
-            // Atualiza o status do item no itens_json para "aguardando_material" ou "em_producao" + máquina
-            const itens = getItens(ctx.pedido);
-            if (itens[ctx.itemIdx]) {
-              itens[ctx.itemIdx] = {
-                ...itens[ctx.itemIdx],
-                status: data.material_em_falta ? "aguardando_material" : "em_producao",
-                maquina: data.maquina || "",
-              };
-              const percentual = computePercentual(itens);
-              const status_pcp = statusPcpPorPercentual(percentual, ctx.pedido.status_pcp);
-              const updated = await base44.entities.PedidoOdoo.update(ctx.pedidoId, {
-                itens_json: buildItensJson(itens),
-                percentual_concluido: percentual,
-                status_pcp,
-              });
-              queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-cd"] });
-              queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
-              // Dispara webhook Mini BI — evento maquina_inicio
-              await notificarStatus(updated, "maquina_inicio", {
-                maquina_atual: data.maquina || "",
-                item_nome: itens[ctx.itemIdx]?.produto || "",
-                inicio_fmt: new Date().toISOString(),
-                status_novo: status_pcp,
-              });
-            }
-          } catch (e) {
-            console.error("[Fila PCP] erro ao atualizar item/webhook:", e?.message || e);
-          }
+          await sincronizarItemOdoo(ctx);
         },
       });
     }
