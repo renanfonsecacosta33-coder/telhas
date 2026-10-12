@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Factory, Scissors, Wind, Layers, Ruler, ClipboardList, ImageIcon, Sparkles, Home, CheckCircle2, AlertTriangle, Clock, Disc, Bell, Loader2, Check } from "lucide-react";
+import { Scissors, Wind, Layers, Ruler, ClipboardList, Sparkles, Home, CheckCircle2, AlertTriangle, Clock, Bell, Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { stripHtml } from "@/lib/stripHtml";
 import { obterStatusDescritivoItem, extrairAnotacaoItem, localizarOpDoItem, classGrupo, normalizarUnidadeMedidaItem } from "@/lib/pedidoOdooHelper";
@@ -156,6 +156,10 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
           const isVendidoEmKg = demanda?.isKg || unidade === "KG" || (it.quantidade > 50 && pecasReal && it.quantidade >= pecasReal * 3);
 
           const isBobininha = espTec?.tipo_conformacao === "bobininha" || /(bobininha|bobinina|bobina|fita|desbobinamento)/i.test(`${produtoLimpo} ${desc}`);
+
+          let displayQtd = it.quantidade ?? null;
+          let displayUnidade = unidade || "PEÇAS";
+          let displaySubBadge = null;
 
           if (isBobininha && espTec && espTec.pecas > 0) {
             displayQtd = espTec.pecas;

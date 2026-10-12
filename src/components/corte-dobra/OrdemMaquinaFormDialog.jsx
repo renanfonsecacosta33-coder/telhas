@@ -259,6 +259,15 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     ? slitters.find(s => s.id === form.bobina_id)
     : bobinasCD.find(b => b.id === form.bobina_id);
 
+  // Desenvolvimentos disponíveis
+  const { data: desenvolvimentos = [] } = useQuery({
+    queryKey: ["desenvolvimentos-cd-ativos"],
+    queryFn: () => base44.entities.DesenvolvimentoCD.filter({ status: "aprovado" }, "-created_date", 200),
+    enabled: open && isMaquinaPadrao,
+  });
+
+  const devObj = desenvolvimentos.find(d => d.id === form.desenvolvimento_id);
+
   const tipoPecaObj = TIPOS_PECA.find(t => t.label === form.tipo_peca);
   const etapa = tipoPecaObj?.etapa || "ambas";
   const maquinasDisponiveis = maquinaProp === "PERFILADEIRA"
@@ -411,15 +420,6 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
       }
     }
   }, [preAproveitamento?.pesoTeoricoTotalKg]);
-
-  // Desenvolvimentos disponíveis
-  const { data: desenvolvimentos = [] } = useQuery({
-    queryKey: ["desenvolvimentos-cd-ativos"],
-    queryFn: () => base44.entities.DesenvolvimentoCD.filter({ status: "aprovado" }, "-created_date", 200),
-    enabled: open && isMaquinaPadrao,
-  });
-
-  const devObj = desenvolvimentos.find(d => d.id === form.desenvolvimento_id);
 
   // ── RECOMENDAÇÃO INTELIGENTE ──────────────────────────────────────────────
   // Filtra desenvolvimentos pela espessura da chapa selecionada (tolerância ±0.2mm)
