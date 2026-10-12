@@ -1,7 +1,43 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { RotateCw, Download, X, ZoomIn, ZoomOut, Loader2, ChevronLeft, ChevronRight, AlertCircle, RefreshCw } from "lucide-react";
 import { isPdfUrl, normalizarImagemBase64 } from "@/lib/imagemBase64";
+
+// Cache global em memória de imagens carregadas na sessão do usuário
+const globalImageCache = new Set();
+
+/**
+ * Registra uma URL de imagem como já carregada e pronta para exibição instantânea
+ */
+export function registrarImagemCarregada(url) {
+  if (!url) return;
+  const limpo = normalizarImagemBase64(url);
+  if (limpo) globalImageCache.add(limpo);
+}
+
+/**
+ * Verifica se a imagem já está no cache ou é uma Data URI / Blob local
+ */
+export function isImagemEmCache(url) {
+  if (!url) return false;
+  const limpo = normalizarImagemBase64(url);
+  if (!limpo) return false;
+  // Imagens locais Base64 ou Blob já estão em memória no dispositivo do usuário
+  if (limpo.startsWith("data:") || limpo.startsWith("blob:")) return true;
+  return globalImageCache.has(limpo);
+}
+
+/**
+ * Pré-carrega uma imagem no cache do navegador de forma silenciosa
+ */
+export function preCarregarImagem(url) {
+  if (!url || isImagemEmCache(url) || isPdfUrl(url)) return;
+  const limpo = normalizarImagemBase64(url);
+  const img = new Image();
+  img.referrerPolicy = "no-referrer";
+  img.onload = () => registrarImagemCarregada(limpo);
+  img.src = limpo;
+}
 
 /**
  * Lightweight full-screen image viewer — opens instantly (no Radix Dialog animation),
@@ -47,36 +83,70 @@ export default function ImageViewer({ url, name, images = [], initialIndex = 0, 
 
   const [rotacao, setRotacao] = useState(0);
   const [zoom, setZoom] = useState(1);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(() => isImagemEmCache(urlAtual));
+  const imgRef = useRef(null);
 
   const isPdf = useCallback(() => isPdfUrl(urlAtual), [urlAtual]);
 
-  // Reset state + preload image as soon as viewer opens or image changes
+  // Carregamento inteligente e instantâneo
   useEffect(() => {
     if (!open || !urlAtual) return;
     setRotacao(0);
     setZoom(1);
-    setLoaded(false);
-    if (isPdf()) {
+
+    // Se já for PDF ou já estiver em cache/base64, marca como carregado imediatamente
+    if (isPdf() || isImagemEmCache(urlAtual)) {
       setLoaded(true);
       return;
     }
+
+    // Se a imagem no DOM já completou ou já tem dimensões válidas
+    if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
+      registrarImagemCarregada(urlAtual);
+      setLoaded(true);
+      return;
+    }
+
+    setLoaded(false);
+
+    // Timeout de segurança: nunca deixa o usuário preso em spinner infinito por mais de 1.2s
+    const timeoutSeguranca = setTimeout(() => {
+      setLoaded(true);
+    }, 1200);
+
     const img = new Image();
     img.referrerPolicy = "no-referrer";
-    img.onload = () => setLoaded(true);
-    img.onerror = () => setLoaded(true);
+    img.onload = () => {
+      clearTimeout(timeoutSeguranca);
+      registrarImagemCarregada(urlAtual);
+      setLoaded(true);
+    };
+    img.onerror = () => {
+      clearTimeout(timeoutSeguranca);
+      setLoaded(true);
+    };
     img.src = urlAtual;
 
-    // Preload próxima imagem se houver
+    // Se já estiver em cache no browser síncrono
+    if (img.complete && img.naturalWidth > 0) {
+      clearTimeout(timeoutSeguranca);
+      registrarImagemCarregada(urlAtual);
+      setLoaded(true);
+    }
+
+    // Preload silencioso das imagens vizinhas (próxima e anterior)
     if (listaImagens.length > 1) {
       const nextIdx = (indiceAtual + 1) % listaImagens.length;
-      const nextUrl = listaImagens[nextIdx]?.url;
-      if (nextUrl && !isPdfUrl(nextUrl)) {
-        const pre = new Image();
-        pre.referrerPolicy = "no-referrer";
-        pre.src = nextUrl;
-      }
+      const prevIdx = (indiceAtual - 1 + listaImagens.length) % listaImagens.length;
+      [nextIdx, prevIdx].forEach(idx => {
+        const vizinhaUrl = listaImagens[idx]?.url;
+        if (vizinhaUrl && !isPdfUrl(vizinhaUrl)) {
+          preCarregarImagem(vizinhaUrl);
+        }
+      });
     }
+
+    return () => clearTimeout(timeoutSeguranca);
   }, [open, urlAtual, isPdf, indiceAtual, listaImagens]);
 
   const handlePrev = useCallback(() => {
@@ -187,11 +257,11 @@ export default function ImageViewer({ url, name, images = [], initialIndex = 0, 
       )}
 
       {/* Image / PDF container */}
-      <div className="w-full h-full flex items-center justify-center overflow-auto p-4">
+      <div className="relative w-full h-full flex items-center justify-center overflow-auto p-4">
         {!loaded && (
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="w-8 h-8 text-white/60 animate-spin" />
-            <span className="text-xs text-white/50">Carregando imagem...</span>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-10 pointer-events-none bg-black/40 backdrop-blur-[2px]">
+            <Loader2 className="w-8 h-8 text-white/80 animate-spin" />
+            <span className="text-xs text-white/80 font-medium">Carregando imagem...</span>
           </div>
         )}
         {isPdf() ? (
@@ -199,26 +269,34 @@ export default function ImageViewer({ url, name, images = [], initialIndex = 0, 
             src={urlAtual}
             title={nomeAtual || "Documento"}
             className="w-full h-full border-0 rounded-lg"
-            style={{ opacity: loaded ? 1 : 0 }}
           />
         ) : (
           <img
+            ref={imgRef}
             src={urlAtual}
             alt={nomeAtual || "Imagem"}
             referrerPolicy="no-referrer"
             decoding="async"
-            onLoad={() => setLoaded(true)}
+            onLoad={() => {
+              registrarImagemCarregada(urlAtual);
+              setLoaded(true);
+            }}
             onError={(e) => {
               if (e.currentTarget.src && e.currentTarget.src.includes("/web/content/")) {
-                e.currentTarget.src = e.currentTarget.src.replace("/web/content/", "/web/image/");
+                const nova = e.currentTarget.src.replace("/web/content/", "/web/image/");
+                e.currentTarget.src = nova;
+                registrarImagemCarregada(nova);
               }
               setLoaded(true);
             }}
-            className={`max-w-none transition-opacity duration-150 ${loaded ? "opacity-100" : "opacity-0 absolute"}`}
+            className="max-w-none transition-transform duration-200"
             style={{
               transform: `rotate(${rotacao}deg) scale(${zoom})`,
               maxHeight: isLandscape ? "90vw" : "90vh",
               maxWidth: isLandscape ? "90vh" : "95vw",
+              filter: loaded ? "none" : "blur(4px)",
+              opacity: loaded ? 1 : 0.85,
+              transition: "filter 0.2s ease, opacity 0.2s ease, transform 0.2s ease",
             }}
             draggable={false}
           />

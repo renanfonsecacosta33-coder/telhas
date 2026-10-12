@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Image as ImageIcon, RefreshCw, FileText, ExternalLink, AlertCircle } from "lucide-react";
 import { normalizarImagemBase64, isPdfUrl } from "@/lib/imagemBase64";
 import ImageLink from "@/components/ui/ImageLink";
+import { registrarImagemCarregada, preCarregarImagem } from "@/components/ui/ImageViewer";
 
 /**
  * SmartImage.jsx
@@ -46,6 +47,7 @@ export default function SmartImage({
 
   const handleLoad = () => {
     setStatus("loaded");
+    registrarImagemCarregada(currentSrc);
   };
 
   const handleError = () => {
@@ -112,6 +114,7 @@ export default function SmartImage({
       className={`relative overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-900 ${className}`}
       style={aspectRatio ? { aspectRatio } : undefined}
       onClick={onClick}
+      onMouseEnter={() => preCarregarImagem(urlNormalizada)}
     >
       {/* Skeleton animado enquanto carrega */}
       {status === "loading" && (

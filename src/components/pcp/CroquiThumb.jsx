@@ -3,6 +3,7 @@ import ImageLink from "@/components/ui/ImageLink";
 import { Camera, FileText, Images } from "lucide-react";
 import { extrairAnexosLista, extrairCroquiPedidoInfo } from "@/lib/croquiExtractor";
 import { normalizarImagemBase64, isPdfUrl } from "@/lib/imagemBase64";
+import { registrarImagemCarregada, preCarregarImagem } from "@/components/ui/ImageViewer";
 
 /**
  * Miniatura do croqui / anexos do pedido.
@@ -168,6 +169,8 @@ function CroquiThumbItem({ anexo, alt, height, images, index = 0 }) {
             alt={anexo.label || "Miniatura"}
             loading="lazy"
             referrerPolicy="no-referrer"
+            onLoad={() => registrarImagemCarregada(srcAtual)}
+            onMouseEnter={() => preCarregarImagem(srcAtual)}
             onError={handleError}
             style={{ width: "100%", height: `${height}px`, objectFit: "cover" }}
             className="w-full object-cover rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm group-hover:opacity-90 transition-opacity"
@@ -225,6 +228,8 @@ function CroquiMiniThumbItem({ anexo, alt, images, index, compacto = false }) {
               src={srcAtual}
               alt={anexo.label}
               referrerPolicy="no-referrer"
+              onLoad={() => registrarImagemCarregada(srcAtual)}
+              onMouseEnter={() => preCarregarImagem(srcAtual)}
               onError={handleError}
               className="w-full h-full object-cover"
             />
