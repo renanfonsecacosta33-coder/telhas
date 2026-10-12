@@ -10,6 +10,7 @@ import { Truck, Plus, Package, Search, X, Loader2, Factory, Layers, CheckCircle,
 import { useFilial } from "@/contexts/FilialContext";
 import NovaCargaDialog from "@/components/logistica/NovaCargaDialog";
 import RotasEntregaSection from "@/components/logistica/RotasEntregaSection";
+import DateNavigatorStrip from "@/components/logistica/DateNavigatorStrip";
 import CargaCard from "@/components/logistica/CargaCard";
 import AuditSidebar from "@/components/logistica/AuditSidebar";
 import CalendarioEntregas from "@/components/logistica/CalendarioEntregas";
@@ -24,6 +25,7 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
   const [selectedTipo, setSelectedTipo] = useState(null);
   const [tab, setTab] = useState(defaultTab);
   const [filtroData, setFiltroData] = useState("");
+  const [dataSelecionadaCalendario, setDataSelecionadaCalendario] = useState(null);
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [mostrarEntregues, setMostrarEntregues] = useState(false);
   const { filialAtiva } = useFilial();
@@ -67,6 +69,18 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
     refetchInterval: 10000,
   });
 
+  // Fetch rotas de entrega para o DateNavigatorStrip
+  const { data: rotas = [] } = useQuery({
+    queryKey: ["rotas-entrega", filialAtiva],
+    queryFn: () =>
+      base44.entities.RotaEntrega.filter(
+        { unidade: filialAtiva, status: { $ne: "cancelado" } },
+        "-data_criacao",
+        50
+      ),
+    refetchInterval: 20000,
+  });
+
   // Normalize all items
   const allItens = useMemo(() => {
     const telhas = pedidosTelhas.map(p => ({
@@ -102,11 +116,12 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
       : tab === "telhas"
       ? allItens.filter(i => i._setor === "Telhas")
       : allItens.filter(i => i._setor === "Corte e Dobra");
-    if (filtroData) {
-      items = items.filter(i => (i.data_finalizacao || i.data || "") === filtroData);
+    const dataFiltroEfetiva = filtroData || dataSelecionadaCalendario;
+    if (dataFiltroEfetiva) {
+      items = items.filter(i => (i.data_finalizacao || i.data || "") === dataFiltroEfetiva);
     }
     return items;
-  }, [allItens, tab, filtroData]);
+  }, [allItens, tab, filtroData, dataSelecionadaCalendario]);
 
   // Group by numero_pedido
   const pedidosAgrupados = useMemo(() => {
@@ -376,6 +391,14 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
         </div>
       </div>
 
+      {/* Faixa Deslizante de Navegação por Calendário */}
+      <DateNavigatorStrip
+        dataSelecionada={dataSelecionadaCalendario}
+        onSelectData={setDataSelecionadaCalendario}
+        rotas={rotas}
+        pedidos={allItens}
+      />
+
       {/* Cargas ativas */}
       {cargasAtivas.length > 0 && (
         <div className="space-y-3">
@@ -396,6 +419,8 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
         filialAtiva={filialAtiva}
         title="Rotas de Entrega — IA"
         allowDelete
+        dataSelecionada={dataSelecionadaCalendario}
+        onLimparFiltroData={() => setDataSelecionadaCalendario(null)}
       />
 
       {/* Pedidos agrupados */}

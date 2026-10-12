@@ -25,7 +25,9 @@ import {
   Plus,
   GripVertical,
   X,
+  Weight,
 } from "lucide-react";
+import { TIPOS_VEICULOS, obterVeiculoPorIdOuNome } from "@/lib/veiculosCapacidadeHelper";
 
 const STATUS_OPTIONS = [
   { value: "distribuido", label: "Distribuído", cor: "bg-blue-100 text-blue-700" },
@@ -50,6 +52,8 @@ export default function EditarRotaDialog({ open, onOpenChange, rota }) {
   const [titulo, setTitulo] = useState("");
   const [motoristaNome, setMotoristaNome] = useState("");
   const [placa, setPlaca] = useState("");
+  const [tipoVeiculo, setTipoVeiculo] = useState("truck");
+  const [capacidadeKg, setCapacidadeKg] = useState(14000);
   const [transportadora, setTransportadora] = useState("");
   const [entregaDate, setEntregaDate] = useState("");
   const [embarqueDate, setEmbarqueDate] = useState("");
@@ -67,6 +71,9 @@ export default function EditarRotaDialog({ open, onOpenChange, rota }) {
       setTitulo(rota.titulo || "");
       setMotoristaNome(rota.motorista_nome || "");
       setPlaca(rota.placa || "");
+      const vPadrao = obterVeiculoPorIdOuNome(rota.tipo_veiculo);
+      setTipoVeiculo(rota.tipo_veiculo || vPadrao.id);
+      setCapacidadeKg(rota.capacidade_kg || vPadrao.capacidade_kg);
       setTransportadora(rota.transportadora || "");
       setEntregaDate(rota.entrega_date || "");
       setEmbarqueDate(rota.embarque_date || "");
@@ -82,6 +89,14 @@ export default function EditarRotaDialog({ open, onOpenChange, rota }) {
     }
   }, [rota]);
 
+  const handleMudarVeiculo = (novoId) => {
+    setTipoVeiculo(novoId);
+    const v = TIPOS_VEICULOS.find((x) => x.id === novoId);
+    if (v) {
+      setCapacidadeKg(v.capacidade_kg);
+    }
+  };
+
   const handleSave = async () => {
     if (!titulo.trim()) {
       toast.error("O título da rota é obrigatório.");
@@ -93,6 +108,8 @@ export default function EditarRotaDialog({ open, onOpenChange, rota }) {
         titulo: titulo.trim(),
         motorista_nome: motoristaNome.trim(),
         placa: placa.trim().toUpperCase(),
+        tipo_veiculo: tipoVeiculo,
+        capacidade_kg: Number(capacidadeKg) || 14000,
         transportadora: transportadora.trim(),
         entrega_date: entregaDate.trim(),
         embarque_date: embarqueDate.trim(),
@@ -243,6 +260,38 @@ export default function EditarRotaDialog({ open, onOpenChange, rota }) {
                 onChange={(e) => setPlaca(e.target.value)}
                 placeholder="ABC-1234"
                 className="w-full h-9 px-3 rounded-md border border-input bg-transparent text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring uppercase"
+              />
+            </div>
+          </div>
+
+          {/* Tipo de Veículo & Capacidade Máxima */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-muted/30 rounded-lg border border-border">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground mb-1 flex items-center gap-1">
+                <Truck className="w-3 h-3 text-primary" /> Tipo de Veículo
+              </label>
+              <select
+                value={tipoVeiculo}
+                onChange={(e) => handleMudarVeiculo(e.target.value)}
+                className="w-full h-9 px-3 rounded-md border border-input bg-card text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
+              >
+                {TIPOS_VEICULOS.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.icone} {v.label} ({v.capacidade_kg.toLocaleString("pt-BR")} kg)
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground mb-1 flex items-center gap-1">
+                <Weight className="w-3 h-3 text-primary" /> Capacidade Máxima do Caminhão (kg)
+              </label>
+              <input
+                type="number"
+                value={capacidadeKg}
+                onChange={(e) => setCapacidadeKg(e.target.value)}
+                placeholder="14000"
+                className="w-full h-9 px-3 rounded-md border border-input bg-card text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-bold"
               />
             </div>
           </div>

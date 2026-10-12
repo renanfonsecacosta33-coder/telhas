@@ -2,8 +2,11 @@ import React, { useMemo, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Truck, Loader2, Archive } from "lucide-react";
+import { Truck, Loader2, Archive, CalendarX, X } from "lucide-react";
+import { format, parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import RotaEntregaCard from "@/components/logistica/RotaEntregaCard";
 
 const MESES_PT = { jan:0, fev:1, mar:2, abr:3, mai:4, jun:5, jul:6, ago:7, set:8, out:9, nov:10, dez:11 };
@@ -52,7 +55,15 @@ function isRotaExpirada(rota) {
  * - title: título opcional da seção
  * - compact: se true, limita a 3 cards
  */
-export default function RotasEntregaSection({ departamento, filialAtiva, title, compact = false, allowDelete = false }) {
+export default function RotasEntregaSection({
+  departamento,
+  filialAtiva,
+  title,
+  compact = false,
+  allowDelete = false,
+  dataSelecionada = null, // "YYYY-MM-DD" ou null
+  onLimparFiltroData = null
+}) {
   const queryClient = useQueryClient();
   const { data: rotas = [], isLoading } = useQuery({
     queryKey: ["rotas-entrega", filialAtiva],
@@ -81,7 +92,19 @@ export default function RotasEntregaSection({ departamento, filialAtiva, title, 
   }, [rotas, arquivarExpiradas]);
 
   const rotasFiltradas = useMemo(() => {
-    let result = rotas.filter((r) => r.status !== "expedido").filter((r) => {
+    let result = rotas.filter((r) => r.status !== "expedido");
+
+    // Filtro por data selecionada no calendário
+    if (dataSelecionada) {
+      result = result.filter((r) => {
+        const d = parseEntregaDate(r.entrega_date || r.embarque_date);
+        if (!d) return false;
+        const chave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        return chave === dataSelecionada;
+      });
+    }
+
+    result = result.filter((r) => {
       if (!departamento) return true;
       try {
         const itens = JSON.parse(r.itens_json || "[]");
@@ -100,7 +123,7 @@ export default function RotasEntregaSection({ departamento, filialAtiva, title, 
     });
     if (compact) result = result.slice(0, 4);
     return result;
-  }, [rotas, departamento, compact]);
+  }, [rotas, departamento, compact, dataSelecionada]);
 
   if (isLoading) {
     return (
@@ -110,7 +133,42 @@ export default function RotasEntregaSection({ departamento, filialAtiva, title, 
     );
   }
 
-  if (rotasFiltradas.length === 0) return null;
+  // Se estiver filtrado por data e não houver rotas, mostra aviso interativo
+  if (rotasFiltradas.length === 0) {
+    if (dataSelecionada) {
+      const dataFmt = (() => {
+        try {
+          return format(parseISO(dataSelecionada), "dd 'de' MMMM (EEEE)", { locale: ptBR });
+        } catch {
+          return dataSelecionada;
+        }
+      })();
+
+      return (
+        <div className="bg-muted/30 border border-dashed border-border rounded-xl p-5 text-center space-y-2">
+          <CalendarX className="w-6 h-6 mx-auto text-muted-foreground opacity-60" />
+          <p className="text-sm font-semibold text-foreground">
+            Nenhuma rota de entrega programada para {dataFmt}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Não há caminhões ou rotas da IA registrados para este dia.
+          </p>
+          {onLimparFiltroData && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onLimparFiltroData}
+              className="text-xs gap-1.5 mt-1"
+            >
+              <X className="w-3.5 h-3.5" />
+              Ver todas as rotas
+            </Button>
+          )}
+        </div>
+      );
+    }
+    return null;
+  }
 
   return (
     <div className="space-y-3">
@@ -118,6 +176,11 @@ export default function RotasEntregaSection({ departamento, filialAtiva, title, 
         <Truck className="w-5 h-5 text-primary" />
         <h2 className="text-lg font-bold">{title || "Rotas de Entrega"}</h2>
         <Badge className="bg-primary/10 text-primary border-primary/20">{rotasFiltradas.length}</Badge>
+        {dataSelecionada && (
+          <Badge variant="outline" className="text-xs border-primary/30 text-primary">
+            Dia: {format(parseISO(dataSelecionada), "dd/MM")}
+          </Badge>
+        )}
         <Link to="/arquivo-rotas" className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-2.5 py-1">
           <Archive className="w-3.5 h-3.5" /> Ver Arquivo
         </Link>

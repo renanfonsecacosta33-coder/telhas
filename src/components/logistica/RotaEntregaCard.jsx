@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { Link } from "react-router-dom";
-import { Truck, Eye, Factory, Layers, PackageCheck, DollarSign, StickyNote, RefreshCw, Loader2, Trash2, Pencil, Camera } from "lucide-react";
+import { Truck, Eye, Factory, Layers, PackageCheck, DollarSign, StickyNote, RefreshCw, Loader2, Trash2, Pencil, Camera, AlertTriangle, Weight } from "lucide-react";
 import { toast } from "sonner";
 import ImageViewer from "@/components/ui/ImageViewer";
 import RotaCarregamentoSlot from "@/components/logistica/RotaCarregamentoSlot";
@@ -14,6 +14,12 @@ import FotoPedidoButton from "@/components/logistica/FotoPedidoButton";
 import RotaTraseiraCaminhaoSlot from "@/components/logistica/RotaTraseiraCaminhaoSlot";
 import EditarRotaDialog from "@/components/logistica/EditarRotaDialog";
 import PedidoOdooDetalheDialog from "@/components/pcp/PedidoOdooDetalheDialog";
+import {
+  TIPOS_VEICULOS,
+  obterVeiculoPorIdOuNome,
+  calcularPesoRota,
+  analisarCapacidadeCaminhao,
+} from "@/lib/veiculosCapacidadeHelper";
 
 const DEP_LABEL = { telhas: "Telhas", corte_dobra: "Corte e Dobra", expedicao: "Expedição" };
 const DEP_COLOR = {
@@ -137,6 +143,38 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
     });
   }, [itens, departamento, getInfoPedido]);
 
+  // Mapa de investigações para estimativa de peso físico da rota
+  const infoPedidosMap = useMemo(() => {
+    const map = {};
+    itens.forEach((it) => {
+      map[it.numero_pedido] = getInfoPedido(
+        it.numero_pedido,
+        it.observacao,
+        rota.titulo,
+        it.numero_odoo,
+        it.cliente,
+        it.vendedor
+      );
+    });
+    return map;
+  }, [itens, getInfoPedido, rota.titulo]);
+
+  // Cálculo de peso total carregado (telhas, CD e itens)
+  const dadosPeso = useMemo(() => {
+    return calcularPesoRota(rota, infoPedidosMap);
+  }, [rota, infoPedidosMap]);
+
+  // Tipo de veículo e capacidade do caminhão
+  const veiculoDef = useMemo(() => {
+    return obterVeiculoPorIdOuNome(rota.tipo_veiculo);
+  }, [rota.tipo_veiculo]);
+
+  const capacidadeFinalKg = Number(rota.capacidade_kg) > 0 ? Number(rota.capacidade_kg) : veiculoDef.capacidade_kg;
+
+  const analiseCapacidade = useMemo(() => {
+    return analisarCapacidadeCaminhao(dadosPeso.pesoTotalKg, capacidadeFinalKg);
+  }, [dadosPeso.pesoTotalKg, capacidadeFinalKg]);
+
   // Ambos os barracões de fabricação (Telhas e Corte & Dobra) DEVEM estar sempre disponíveis lado a lado
   const departamentosAtivos = useMemo(() => {
     const list = ["telhas", "corte_dobra"];
@@ -239,6 +277,60 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
             {itens.length} {itens.length === 1 ? "pedido" : "pedidos"}
           </Badge>
         </div>
+      </div>
+
+      {/* Monitoramento de Capacidade do Veículo & Ocupação de Peso */}
+      <div className="bg-muted/40 border border-border/80 rounded-lg p-2.5 space-y-1.5 shadow-2xs">
+        <div className="flex items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-1.5 font-bold text-foreground">
+            <span className="text-base">{veiculoDef.icone}</span>
+            <span className="text-xs">{veiculoDef.label}</span>
+            {rota.placa && <span className="text-muted-foreground font-mono font-normal">({rota.placa})</span>}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Badge variant="outline" className={`text-[10px] py-0 px-2 font-bold ${analiseCapacidade.badgeCls}`}>
+              {analiseCapacidade.status === "sobrepeso" && <AlertTriangle className="w-3 h-3 mr-1 shrink-0" />}
+              {analiseCapacidade.status === "sobrepeso"
+                ? `SOBREPESO (${analiseCapacidade.percentual}%)`
+                : `${analiseCapacidade.percentual}% ocupado`}
+            </Badge>
+          </div>
+        </div>
+
+        {/* Barra de progresso visual */}
+        <div className="w-full bg-muted h-2 rounded-full overflow-hidden border border-border/40">
+          <div
+            className={`h-full transition-all duration-500 rounded-full ${analiseCapacidade.corBarra}`}
+            style={{ width: `${Math.min(100, analiseCapacidade.percentual)}%` }}
+          />
+        </div>
+
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5 flex-wrap gap-1">
+          <div className="flex items-center gap-1 font-medium">
+            <Weight className="w-3 h-3 text-muted-foreground shrink-0" />
+            <span>Peso Est.: <b className="text-foreground">{dadosPeso.pesoTotalKg.toLocaleString("pt-BR")} kg</b></span>
+            {(dadosPeso.pesoTelhasKg > 0 || dadosPeso.pesoCdKg > 0) && (
+              <span className="text-[10px] text-muted-foreground/80 hidden sm:inline">
+                ({dadosPeso.pesoTelhasKg > 0 ? `${dadosPeso.pesoTelhasKg.toLocaleString("pt-BR")}kg Telhas` : ""}
+                {dadosPeso.pesoTelhasKg > 0 && dadosPeso.pesoCdKg > 0 ? " · " : ""}
+                {dadosPeso.pesoCdKg > 0 ? `${dadosPeso.pesoCdKg.toLocaleString("pt-BR")}kg CD` : ""})
+              </span>
+            )}
+          </div>
+          <div>
+            <span>Capacidade: <b className="text-foreground">{capacidadeFinalKg.toLocaleString("pt-BR")} kg</b></span>
+          </div>
+        </div>
+
+        {analiseCapacidade.sobrepesoKg > 0 && (
+          <div className="text-[11px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 rounded px-2 py-0.5 flex items-center justify-between">
+            <span className="flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" />
+              Atenção: Peso da rota excede a capacidade do caminhão!
+            </span>
+            <span>+{analiseCapacidade.sobrepesoKg.toLocaleString("pt-BR")} kg excedentes</span>
+          </div>
+        )}
       </div>
 
       {/* Imagem da rota + carregamento por barracão */}
