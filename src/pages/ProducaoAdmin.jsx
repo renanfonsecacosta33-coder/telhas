@@ -48,8 +48,9 @@ export default function ProducaoAdmin() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [filaContext, setFilaContext] = useState(null);
-  const [viewMode, setViewMode] = useState("semana"); // "semana" | "dia"
-  const [activeTab, setActiveTab] = useState("producao"); // "producao" | "dados"
+  const [viewMode, setViewMode] = useState("semana"); // "semana" | "dia" | "kanban"
+  const [escopoKanban, setEscopoKanban] = useState("dia"); // "dia" | "semana" | "todos"
+  const [activeTab, setActiveTab] = useState("producao"); // "producao" | "dados" | "kanban"
   const [opOpen, setOpOpen] = useState(false);
   const [opPedido, setOpPedido] = useState(null);
   const [alertasVisivel, setAlertasVisivel] = useState(true);
@@ -214,12 +215,55 @@ export default function ProducaoAdmin() {
   const handleStatusChangeKanban = async (pedido, novoStatus) => {
     try {
       const patch = { status: novoStatus };
+      if (novoStatus === "em_producao" && !pedido.inicio_producao_ts) {
+        patch.inicio_producao_ts = new Date().toISOString();
+      }
       if (novoStatus === "finalizado") {
         patch.data_finalizacao = format(new Date(), "yyyy-MM-dd");
+        if (!pedido.fim_producao_ts) {
+          patch.fim_producao_ts = new Date().toISOString();
+        }
       }
+
       await base44.entities.Pedido.update(pedido.id, patch);
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
       toast.success(`Status alterado para ${novoStatus}!`);
+
+      // Sincronização automática com PedidoOdoo e Mini BI se houver vínculo
+      const pedOdooId = pedido.pedido_odoo_id;
+      if (pedOdooId) {
+        try {
+          const pedOdoo = await base44.entities.PedidoOdoo.get(pedOdooId).catch(() => null);
+          if (pedOdoo) {
+            const itens = getItens(pedOdoo);
+            const idx = pedido.item_idx != null ? pedido.item_idx : 0;
+            if (itens[idx]) {
+              itens[idx] = {
+                ...itens[idx],
+                status: novoStatus === "finalizado" ? "concluido" : novoStatus === "em_producao" ? "em_producao" : "pendente",
+                maquina: pedido.maquina || itens[idx].maquina || "",
+              };
+              const percentual = computePercentual(itens);
+              const status_pcp = statusPcpPorPercentual(percentual, pedOdoo.status_pcp);
+              const updated = await base44.entities.PedidoOdoo.update(pedOdooId, {
+                itens_json: buildItensJson(itens),
+                percentual_concluido: percentual,
+                status_pcp,
+              });
+              queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-telhas"] });
+              queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+              await notificarStatus(updated, novoStatus === "em_producao" ? "maquina_inicio" : novoStatus === "finalizado" ? "maquina_fim" : "status_alterado", {
+                maquina_atual: pedido.maquina || "",
+                item_nome: pedido.produto || itens[idx]?.produto || "",
+                inicio_fmt: new Date().toISOString(),
+                status_novo: status_pcp,
+              });
+            }
+          }
+        } catch (errSync) {
+          console.warn("[Kanban Telhas] Falha ao sincronizar com Odoo:", errSync);
+        }
+      }
     } catch (e) {
       toast.error("Erro ao alterar status: " + (e?.message || ""));
     }
@@ -403,6 +447,13 @@ export default function ProducaoAdmin() {
       .sort((a, b) => (b.prioridade ? 1 : 0) - (a.prioridade ? 1 : 0));
   }, [pedidos, pedidosFiltradosGlobal, temFiltroAtivo, selectedDay]);
 
+  // Itens para o Quadro Kanban (conforme escopo selecionado: dia, semana ou todos)
+  const itensKanban = useMemo(() => {
+    if (escopoKanban === "todos") return pedidosFiltradosGlobal;
+    if (escopoKanban === "semana") return pedidosSemana;
+    return pedidosDia;
+  }, [escopoKanban, pedidosFiltradosGlobal, pedidosSemana, pedidosDia]);
+
   const totalSemana = pedidosSemana.reduce((s, p) => s + calcularMetrosPedido(p), 0);
 
   const exportarSemana = () => {
@@ -462,12 +513,35 @@ export default function ProducaoAdmin() {
       {/* Tabs */}
       <div className="flex flex-wrap gap-1 bg-muted/50 rounded-xl p-1 w-fit">
         <button
-          onClick={() => setActiveTab("producao")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "producao" ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          onClick={() => {
+            setActiveTab("producao");
+            if (viewMode === "kanban") setViewMode("semana");
+          }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            activeTab === "producao" && viewMode !== "kanban"
+              ? "bg-card shadow text-foreground font-bold"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
         >
           <Factory className="w-4 h-4" />
           Produção
         </button>
+
+        <button
+          onClick={() => {
+            setActiveTab("producao");
+            setViewMode("kanban");
+          }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+            activeTab === "producao" && viewMode === "kanban"
+              ? "bg-indigo-600 text-white shadow"
+              : "text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:bg-card hover:shadow"
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          Quadro Kanban
+        </button>
+
         <Link
           to="/maquina/colagem"
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all text-muted-foreground hover:bg-card hover:text-foreground hover:shadow"
@@ -747,6 +821,7 @@ export default function ProducaoAdmin() {
           variant={viewMode === "semana" ? "default" : "outline"}
           size="sm"
           onClick={() => setViewMode("semana")}
+          className="text-xs font-bold"
         >
           Visão Semana
         </Button>
@@ -754,6 +829,7 @@ export default function ProducaoAdmin() {
           variant={viewMode === "dia" ? "default" : "outline"}
           size="sm"
           onClick={() => setViewMode("dia")}
+          className="text-xs font-bold"
         >
           Visão Dia — {format(new Date(selectedDay + "T12:00:00"), "dd/MM", { locale: ptBR })}
         </Button>
@@ -761,13 +837,13 @@ export default function ProducaoAdmin() {
           variant={viewMode === "kanban" ? "default" : "outline"}
           size="sm"
           onClick={() => setViewMode("kanban")}
-          className={`gap-1 ${viewMode === "kanban" ? "bg-indigo-600 hover:bg-indigo-700 text-white font-bold border-0" : ""}`}
+          className={`gap-1.5 text-xs font-bold ${viewMode === "kanban" ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs" : ""}`}
         >
           <Layers className="w-3.5 h-3.5" />
-          Visão Kanban
+          <span>Quadro Kanban</span>
         </Button>
         <Link to="/estoque-dashboard">
-          <Button variant="outline" size="sm" className="gap-1 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-700 hover:bg-teal-50 dark:hover:bg-teal-950/40">
+          <Button variant="outline" size="sm" className="gap-1 text-xs font-semibold text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-700 hover:bg-teal-50 dark:hover:bg-teal-950/40">
             <Layers className="w-3.5 h-3.5 text-teal-500" />
             Estoque por Espessura
           </Button>
@@ -776,7 +852,7 @@ export default function ProducaoAdmin() {
           variant="outline"
           size="sm"
           onClick={() => { setSelectedDay(format(new Date(), "yyyy-MM-dd")); setCurrentWeek(new Date()); setViewMode("dia"); }}
-          className="gap-1"
+          className="gap-1 text-xs font-bold"
         >
           <Calendar className="w-3 h-3" />
           Hoje
@@ -788,15 +864,55 @@ export default function ProducaoAdmin() {
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
         </div>
       ) : viewMode === "kanban" ? (
-        <KanbanBoard
-          itens={pedidosDia}
-          tipoSetor="telhas"
-          onStatusChange={handleStatusChangeKanban}
-          onOpenDetails={(pedido) => {
-            setEditItem(pedido);
-            setDialogOpen(true);
-          }}
-        />
+        <div className="space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2 bg-card border border-border p-2.5 rounded-xl shadow-xs">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-muted-foreground flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5 text-indigo-500" /> Período do Kanban:
+              </span>
+              <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
+                <Button
+                  size="sm"
+                  variant={escopoKanban === "dia" ? "default" : "ghost"}
+                  onClick={() => setEscopoKanban("dia")}
+                  className={`h-7 px-2.5 text-xs font-bold ${escopoKanban === "dia" ? "bg-indigo-600 text-white shadow-xs" : ""}`}
+                >
+                  Dia ({format(new Date(selectedDay + "T12:00:00"), "dd/MM")}) · {pedidosDia.length}
+                </Button>
+                <Button
+                  size="sm"
+                  variant={escopoKanban === "semana" ? "default" : "ghost"}
+                  onClick={() => setEscopoKanban("semana")}
+                  className={`h-7 px-2.5 text-xs font-bold ${escopoKanban === "semana" ? "bg-indigo-600 text-white shadow-xs" : ""}`}
+                >
+                  Semana Inteira · {pedidosSemana.length}
+                </Button>
+                <Button
+                  size="sm"
+                  variant={escopoKanban === "todos" ? "default" : "ghost"}
+                  onClick={() => setEscopoKanban("todos")}
+                  className={`h-7 px-2.5 text-xs font-bold ${escopoKanban === "todos" ? "bg-indigo-600 text-white shadow-xs" : ""}`}
+                >
+                  Toda a Fábrica · {pedidosFiltradosGlobal.length}
+                </Button>
+              </div>
+            </div>
+
+            <Badge variant="outline" className="text-xs font-bold text-indigo-700 dark:text-indigo-300 border-indigo-300 bg-indigo-50 dark:bg-indigo-950/40">
+              {itensKanban.length} pedidos no fluxo
+            </Badge>
+          </div>
+
+          <KanbanBoard
+            itens={itensKanban}
+            tipoSetor="telhas"
+            onStatusChange={handleStatusChangeKanban}
+            onOpenDetails={(pedido) => {
+              setEditItem(pedido);
+              setDialogOpen(true);
+            }}
+          />
+        </div>
       ) : viewMode === "semana" ? (
         // Visão Semana — resumo por dia
         <div className="space-y-3">

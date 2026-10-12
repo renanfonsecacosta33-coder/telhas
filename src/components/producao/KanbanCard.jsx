@@ -42,23 +42,51 @@ export default function KanbanCard({
         isDragging ? "shadow-2xl border-primary ring-2 ring-primary/20 rotate-1 scale-102" : "border-border hover:border-primary/50"
       } ${isEmProducao ? "border-l-4 border-l-blue-500 bg-blue-500/5" : ""}`}
     >
-      {/* Topo: Máquina + Número do Pedido */}
+      {/* Topo: Máquina + Prioridade / Rota + Número do Pedido */}
       <div className="flex items-center justify-between gap-1.5 mb-1.5">
         <Badge variant="outline" className="text-[10px] font-bold px-1.5 py-0 h-4 truncate max-w-[120px]">
           {maquina}
         </Badge>
-        <span className="text-xs font-mono font-black text-foreground">
-          {numeroPedido}
-        </span>
+        <div className="flex items-center gap-1">
+          {item.prioridade && (
+            <Badge className="bg-red-600 text-white text-[9px] px-1 py-0 h-4 font-black">
+              {item.prioridade_nivel ? `P${item.prioridade_nivel}` : "URGENTE"}
+            </Badge>
+          )}
+          {item.rota && (
+            <Badge className="bg-purple-600 text-white text-[9px] px-1 py-0 h-4 font-bold">
+              ROTA
+            </Badge>
+          )}
+          <span className="text-xs font-mono font-black text-foreground">
+            {numeroPedido}
+          </span>
+        </div>
       </div>
 
       {/* Cliente & Produto */}
       <p className="text-xs font-bold text-foreground line-clamp-1 mb-0.5">
         {cliente}
       </p>
-      <p className="text-[11px] text-muted-foreground line-clamp-1 mb-2">
+      <p className="text-[11px] text-muted-foreground line-clamp-1 mb-1">
         {produto} {metrosOuQtd && `· ${metrosOuQtd}`}
       </p>
+
+      {/* Detalhes de Espessura e Cor / Bobina se houver */}
+      {(item.espessura || item.cor_exigida || item.rvm_superior || item.material_espessura) && (
+        <div className="flex items-center gap-1.5 flex-wrap text-[10px] text-muted-foreground mb-1.5">
+          {(item.espessura || item.material_espessura) && (
+            <span className="bg-muted px-1.5 py-0.5 rounded font-mono font-semibold">
+              {item.espessura || item.material_espessura}mm
+            </span>
+          )}
+          {(item.cor_exigida || item.rvm_superior) && (
+            <span className="bg-muted px-1.5 py-0.5 rounded truncate max-w-[150px]">
+              {item.cor_exigida || item.rvm_superior}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Operadores (se houver) */}
       {operadores.length > 0 && (
