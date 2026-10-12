@@ -44,13 +44,23 @@ import {
   obterDataCampoPedido,
   ordenarPedidosPCP
 } from "@/lib/filtroDataHelper";
+import TabelaPCPTelhas from "@/components/pcp/TabelaPCPTelhas";
+import KanbanPCPTelhas from "@/components/pcp/KanbanPCPTelhas";
+import {
+  calcularUrgenciaDetalhada,
+  resumoMetragemEPeso,
+  resumoBobinaPedido,
+  resumoLogistica,
+  resumoMaquinaEOperador
+} from "@/lib/pcpDetalhesHelper";
 
 export default function FilaPCPTelhas({ onNovaOrdem }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [atualizando, setAtualizando] = useState(null);
+  const [viewMode, setViewMode] = useState("cards"); // "cards" | "tabela" | "kanban"
   const [termoBusca, setTermoBusca] = useState("");
-  const [filtroUrgencia, setFiltroUrgencia] = useState("todos"); // "todos" | "mais_atrasados" | "hoje_amanha" | "prioritarios"
+  const [filtroUrgencia, setFiltroUrgencia] = useState("todos"); // "todos" | "mais_atrasados" | "atraso_critico" | "atraso_moderado" | "hoje_amanha" | "em_producao" | "finalizados" | "prioritarios" | "nao_distribuidos"
   const [ordenacao, setOrdenacao] = useState("mais_atrasados"); // "mais_atrasados" | "urgencia_sla" | "data_entrega_asc" | "data_entrada_desc" | "data_entrada_asc"
   const [filtroDataCampo, setFiltroDataCampo] = useState("data_recebimento"); // "data_recebimento" | "data_entrega" | "data_previsao_fabrica"
   const [filtroDataPreset, setFiltroDataPreset] = useState("todas");
@@ -71,7 +81,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
 
   const { data: pedidos = [], isLoading } = useQuery({
     queryKey: ["pedidos-odoo-telhas"],
-    queryFn: () => base44.entities.PedidoOdoo.list("-data_recebimento", 200),
+    queryFn: () => base44.entities.PedidoOdoo.list("-data_recebimento", 500),
     refetchInterval: 10000
   });
 
@@ -148,8 +158,8 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
       // Se o usuário está buscando por texto, permite encontrar qualquer pedido de telha
       if (termoBusca.trim()) return true;
 
-      // Caso padrão do PCP: pedidos distribuídos ou em produção
-      if (["distribuido", "em_producao"].includes(p.status_pcp)) return true;
+      // Caso padrão do PCP: pedidos distribuídos, em produção ou concluídos
+      if (["distribuido", "em_producao", "concluido"].includes(p.status_pcp)) return true;
 
       return telhas.some(it => ["distribuido", "em_producao", "concluido"].includes(it.status) || it.distribuido === true);
     });
@@ -228,30 +238,50 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
     return mapa;
   }, [pedidos]);
 
-  // Contadores executivos de prazo para os botões de filtro rápido
+  // Contadores executivos de prazo e status para os botões de filtro rápido
   const contadores = useMemo(() => {
     let atrasados = 0;
+    let atrasadosCriticos = 0;
+    let atrasadosModerados = 0;
     let hojeAmanha = 0;
     let prioritarios = 0;
+    let emProducao = 0;
+    let finalizados = 0;
 
     filaBase.forEach(p => {
-      if (p.prioridade) prioritarios++;
-      const dataAlvo = p.data_previsao_fabrica || p.data_entrega;
-      const d = diasUteisRestantes(dataAlvo);
-      if (d != null && !isNaN(d)) {
-        if (d < 0) atrasados++;
-        else if (d <= 1) hojeAmanha++;
+      const isConc = p.status_pcp === "concluido" || (p.percentual_concluido || 0) >= 100;
+      if (isConc) {
+        finalizados++;
+      } else {
+        const ops = buscarOpsDoPedido(p, pedidosProducao);
+        const estaProduzindo = ops.some(op => op.status === "em_producao") || ((p.percentual_concluido || 0) > 0 && (p.percentual_concluido || 0) < 100);
+        if (estaProduzindo) emProducao++;
+
+        if (p.prioridade) prioritarios++;
+
+        const urg = calcularUrgenciaDetalhada(p);
+        if (urg.isAtrasado) {
+          atrasados++;
+          if (urg.isCritico) atrasadosCriticos++;
+          else atrasadosModerados++;
+        } else if (urg.isHoje || urg.isAmanha) {
+          hojeAmanha++;
+        }
       }
     });
 
     return {
       total: filaBase.length,
       atrasados,
+      atrasadosCriticos,
+      atrasadosModerados,
       hojeAmanha,
       prioritarios,
+      emProducao,
+      finalizados,
       naoDistribuidos: naoDistribuidos.length
     };
-  }, [filaBase, naoDistribuidos]);
+  }, [filaBase, naoDistribuidos, pedidosProducao]);
 
   // Handlers de Preset e Limpeza
   const handleSelectPreset = (presetId) => {
@@ -335,19 +365,51 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
       });
     }
 
-    // Filtros de urgência
+    // Filtros de urgência e status operacionais
     if (filtroUrgencia === "mais_atrasados") {
       lista = lista.filter(p => {
-        const d = diasUteisRestantes(p.data_previsao_fabrica || p.data_entrega);
-        return d != null && d < 0;
+        const isConc = p.status_pcp === "concluido" || (p.percentual_concluido || 0) >= 100;
+        if (isConc) return false;
+        const urg = calcularUrgenciaDetalhada(p);
+        return urg.isAtrasado;
+      });
+    } else if (filtroUrgencia === "atraso_critico") {
+      lista = lista.filter(p => {
+        const isConc = p.status_pcp === "concluido" || (p.percentual_concluido || 0) >= 100;
+        if (isConc) return false;
+        const urg = calcularUrgenciaDetalhada(p);
+        return urg.isCritico;
+      });
+    } else if (filtroUrgencia === "atraso_moderado") {
+      lista = lista.filter(p => {
+        const isConc = p.status_pcp === "concluido" || (p.percentual_concluido || 0) >= 100;
+        if (isConc) return false;
+        const urg = calcularUrgenciaDetalhada(p);
+        return urg.isModerado;
       });
     } else if (filtroUrgencia === "hoje_amanha") {
       lista = lista.filter(p => {
-        const d = diasUteisRestantes(p.data_previsao_fabrica || p.data_entrega);
-        return d != null && (d === 0 || d === 1);
+        const isConc = p.status_pcp === "concluido" || (p.percentual_concluido || 0) >= 100;
+        if (isConc) return false;
+        const urg = calcularUrgenciaDetalhada(p);
+        return urg.isHoje || urg.isAmanha;
+      });
+    } else if (filtroUrgencia === "em_producao") {
+      lista = lista.filter(p => {
+        const isConc = p.status_pcp === "concluido" || (p.percentual_concluido || 0) >= 100;
+        if (isConc) return false;
+        const ops = buscarOpsDoPedido(p, pedidosProducao);
+        return ops.some(op => op.status === "em_producao") || ((p.percentual_concluido || 0) > 0 && (p.percentual_concluido || 0) < 100);
+      });
+    } else if (filtroUrgencia === "finalizados") {
+      lista = lista.filter(p => {
+        return p.status_pcp === "concluido" || (p.percentual_concluido || 0) >= 100;
       });
     } else if (filtroUrgencia === "prioritarios") {
-      lista = lista.filter(p => Boolean(p.prioridade));
+      lista = lista.filter(p => {
+        const isConc = p.status_pcp === "concluido" || (p.percentual_concluido || 0) >= 100;
+        return Boolean(p.prioridade) && !isConc;
+      });
     }
 
     // Filtro por período de datas (Data X até Data Y)
@@ -923,6 +985,8 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
           ordenacao={ordenacao}
           onOrdenacaoChange={setOrdenacao}
           contadores={contadores}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
         />
       </div>
 
@@ -974,7 +1038,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
         </div>
       )}
 
-      {/* ══════════════ LISTA DE PEDIDOS DA FILA ══════════════ */}
+      {/* ══════════════ LISTA DE PEDIDOS DA FILA CONFORME ESTILO DE VISÃO SELECIONADO ══════════════ */}
       {filaFiltrada.length === 0 ? (
         <div className="p-12 flex flex-col items-center justify-center text-center">
           <Inbox className="w-12 h-12 text-slate-300 dark:text-slate-600 mb-3" />
@@ -986,6 +1050,31 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
               ? "Experimente limpar os filtros ou alterar o intervalo de datas."
               : "Não há ordens distribuídas aguardando produção neste momento."}
           </p>
+        </div>
+      ) : viewMode === "tabela" ? (
+        <div className="p-3 sm:p-5">
+          <TabelaPCPTelhas
+            pedidos={filaFiltrada}
+            pedidosProducao={pedidosProducao}
+            bobinasEstoque={bobinasEstoque}
+            itensSelecionados={itensSelecionados}
+            onFinalizar100={solicitarFinalizar100}
+            onAlterarPrazo={setPedidoPrazoModal}
+            onAutoRotearPedido={handleAutoRotearPedido}
+            atualizando={atualizando}
+          />
+        </div>
+      ) : viewMode === "kanban" ? (
+        <div className="p-3 sm:p-5">
+          <KanbanPCPTelhas
+            pedidos={filaFiltrada}
+            pedidosProducao={pedidosProducao}
+            bobinasEstoque={bobinasEstoque}
+            onFinalizar100={solicitarFinalizar100}
+            onAlterarPrazo={setPedidoPrazoModal}
+            onAutoRotearPedido={handleAutoRotearPedido}
+            atualizando={atualizando}
+          />
         </div>
       ) : (
         <div className="p-3 sm:p-5 space-y-4 bg-slate-50/50 dark:bg-slate-950/40">
@@ -1026,6 +1115,12 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
             const isHoje = restantes === 0;
             const isAmanha = restantes === 1;
             const isPrioritario = Boolean(pedido.prioridade);
+
+            // Resumos operacionais do pedido
+            const met = resumoMetragemEPeso(pedido);
+            const bobina = resumoBobinaPedido(pedido, bobinasEstoque);
+            const logistica = resumoLogistica(pedido);
+            const maqInfo = resumoMaquinaEOperador(pedido, opsDoPedido);
 
             // Itens do setor
             const algumItemTemDistribuido = telhas.some(i => i.distribuido === true || i.distribuido === false);
@@ -1171,6 +1266,22 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                               <Store className="w-3 h-3 text-slate-400" /> {pedido.loja_venda}
                             </span>
                           )}
+                        </div>
+
+                        {/* Linha 3: Destaques de Chão de Fábrica (Bobina, Metragem/Peso, Logística, Máquina) */}
+                        <div className="flex items-center gap-2 text-xs flex-wrap pt-1">
+                          <Badge variant="outline" className={`text-xs py-0.5 px-2 font-bold ${bobina.classe}`}>
+                            {bobina.label}
+                          </Badge>
+                          <Badge variant="outline" className={`text-xs py-0.5 px-2 font-bold ${logistica.classe}`}>
+                            {logistica.label}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs py-0.5 px-2 font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700">
+                            📏 {met.textoResumo}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs py-0.5 px-2 font-bold bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800">
+                            ⚙️ {maqInfo.maquinaTexto}
+                          </Badge>
                         </div>
                       </div>
                     </div>
