@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, TrendingUp, Trash2, Star, Truck, Inbox, Target, ShieldAlert, Layers, Trophy, Search, X } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, TrendingUp, Trash2, Star, Truck, Inbox, Target, ShieldAlert, Layers, Trophy, Search, X, RefreshCw, Sparkles, Clock, AlertTriangle } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Link } from "react-router-dom";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
@@ -73,9 +73,14 @@ export default function ProducaoAdmin() {
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
   const diasDaSemana = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
-  const { data: pedidos = [], isLoading } = useQuery({
+  const { data: pedidos = [], isLoading, isFetching, refetch } = useQuery({
     queryKey: ["pedidos", filialAtiva],
-    queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva }, "-data", 500),
+    queryFn: async () => {
+      const todos = await base44.entities.Pedido.list("-data", 500).catch(() => []);
+      if (!filialAtiva || filialAtiva === "todas") return todos;
+      return todos.filter(p => (p.unidade || "Matriz AJL") === filialAtiva);
+    },
+    refetchInterval: 10000,
   });
 
   const createMutation = useMutation({
@@ -447,12 +452,34 @@ export default function ProducaoAdmin() {
       .sort((a, b) => (b.prioridade ? 1 : 0) - (a.prioridade ? 1 : 0));
   }, [pedidos, pedidosFiltradosGlobal, temFiltroAtivo, selectedDay]);
 
+  const hojeDate = new Date();
+  const semanaAtualStart = format(startOfWeek(hojeDate, { weekStartsOn: 1 }), "yyyy-MM-dd");
+  const isSemanaAtual = format(weekStart, "yyyy-MM-dd") === semanaAtualStart;
+
+  // Pedidos atrasados (pendentes com data anterior à semana visualizada ou sem data)
+  const pedidosAtrasados = useMemo(() => {
+    const sStart = format(weekStart, "yyyy-MM-dd");
+    return pedidos.filter(p => {
+      if (p.status === "finalizado" || p.status === "cancelado") return false;
+      const dt = extrairDataISO(p.data_entrega || p.data_prevista || p.data);
+      return !dt || dt < sStart;
+    });
+  }, [pedidos, weekStart]);
+
   // Itens para o Quadro Kanban (conforme escopo selecionado: dia, semana ou todos)
+  // Inclui pedidos pendentes atrasados para que nenhum pedido fique esquecido fora da vista
   const itensKanban = useMemo(() => {
     if (escopoKanban === "todos") return pedidosFiltradosGlobal;
-    if (escopoKanban === "semana") return pedidosSemana;
-    return pedidosDia;
-  }, [escopoKanban, pedidosFiltradosGlobal, pedidosSemana, pedidosDia]);
+    if (escopoKanban === "semana") {
+      const idsSemana = new Set(pedidosSemana.map(p => p.id));
+      const atrasadosNaoIncluidos = pedidosAtrasados.filter(p => !idsSemana.has(p.id));
+      return [...pedidosSemana, ...atrasadosNaoIncluidos];
+    }
+    // No escopo "dia": pedidos do dia + pedidos pendentes atrasados
+    const idsDia = new Set(pedidosDia.map(p => p.id));
+    const atrasadosNaoIncluidos = pedidosAtrasados.filter(p => !idsDia.has(p.id));
+    return [...pedidosDia, ...atrasadosNaoIncluidos];
+  }, [escopoKanban, pedidosFiltradosGlobal, pedidosSemana, pedidosDia, pedidosAtrasados]);
 
   const totalSemana = pedidosSemana.reduce((s, p) => s + calcularMetrosPedido(p), 0);
 
@@ -488,6 +515,21 @@ export default function ProducaoAdmin() {
         <div className="flex items-center gap-2">
           {activeTab === "producao" && (
             <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  refetch();
+                  queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+                  toast.success("Dados atualizados com sucesso!");
+                }}
+                disabled={isFetching}
+                className="gap-1.5 font-medium"
+                title="Atualizar pedidos em tempo real"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? "animate-spin text-primary" : ""}`} />
+                <span>Atualizar</span>
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -718,6 +760,66 @@ export default function ProducaoAdmin() {
           { value: "created_date", label: "📥 Data de Cadastro / Entrada" },
         ]}
       />
+
+      {/* Banner: Semana fora da atual */}
+      {!isSemanaAtual && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-medium">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              Você está visualizando uma semana diferente da atual (<strong>{format(weekStart, "dd/MM")} a {format(weekEnd, "dd/MM")}</strong>).
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setCurrentWeek(new Date());
+              setSelectedDay(format(new Date(), "yyyy-MM-dd"));
+            }}
+            className="h-7 text-xs font-bold gap-1 border-amber-400 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-950/50"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+            Voltar para Esta Semana (Hoje)
+          </Button>
+        </div>
+      )}
+
+      {/* Banner: Pedidos Atrasados / Fora da semana */}
+      {pedidosAtrasados.length > 0 && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 text-red-900 dark:text-red-200 font-medium">
+            <Clock className="w-4 h-4 text-red-600 shrink-0" />
+            <span>
+              Existem <strong>{pedidosAtrasados.length} pedido(s) pendente(s)</strong> de datas anteriores ou sem agendamento aguardando produção.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setFiltroUrgencia("mais_atrasados");
+                setViewMode("dia");
+              }}
+              className="h-7 text-xs font-bold border-red-300 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40"
+            >
+              Ver Pedidos Atrasados
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setViewMode("kanban");
+                setEscopoKanban("todos");
+              }}
+              className="h-7 text-xs font-bold text-red-700 dark:text-red-300 hover:bg-red-100"
+            >
+              Ver no Kanban
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Navegação de semana */}
       <div className="bg-card border border-border rounded-xl p-4">

@@ -27,6 +27,7 @@ import {
   CheckCircle2,
   ListOrdered,
   Sparkles,
+  RefreshCw,
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -38,6 +39,9 @@ import DiaResumoCardCD from "@/components/corte-dobra/DiaResumoCardCD";
 import OrdemMaquinaFormDialog from "@/components/corte-dobra/OrdemMaquinaFormDialog.jsx";
 import OrdemMaquinaRow from "@/components/corte-dobra/OrdemMaquinaRow.jsx";
 import RetrabalhoDialog from "@/components/corte-dobra/RetrabalhoDialog";
+
+// ... existing helper imports/constants if any
+
 import ValidacaoEtiquetaChapaDialog from "@/components/corte-dobra/ValidacaoEtiquetaChapaDialog";
 import OPSemMaterialTab from "@/components/corte-dobra/OPSemMaterialTab";
 import { useFilial } from "@/contexts/FilialContext";
@@ -139,18 +143,40 @@ export default function ProducaoCD() {
   const diasDaSemana = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
   // Ordens Desbobinadeira
-  const { data: ordens = [], isLoading } = useQuery({
+  const { data: ordens = [], isLoading, isFetching: isFetchingDesb, refetch: refetchDesb } = useQuery({
     queryKey: ["ordens-desbobinadeira", filialAtiva],
-    queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva }, "-data", 500),
+    queryFn: async () => {
+      const todos = await base44.entities.OrdemDesbobinadeira.list("-data", 500).catch(() => []);
+      if (!filialAtiva || filialAtiva === "todas") return todos;
+      return todos.filter(o => (o.unidade || "Matriz AJL") === filialAtiva);
+    },
     refetchInterval: 10000,
   });
 
   // Ordens outras máquinas
-  const { data: ordensMaq = [] } = useQuery({
+  const { data: ordensMaq = [], isFetching: isFetchingMaq, refetch: refetchMaq } = useQuery({
     queryKey: ["ordens-maquina-cd", filialAtiva],
-    queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva }, "-data", 500),
+    queryFn: async () => {
+      const todos = await base44.entities.OrdemMaquinaCD.list("-data", 500).catch(() => []);
+      if (!filialAtiva || filialAtiva === "todas") return todos;
+      return todos.filter(o => (o.unidade || "Matriz AJL") === filialAtiva);
+    },
     refetchInterval: 10000,
   });
+
+  const hojeDate = new Date();
+  const semanaAtualStart = format(startOfWeek(hojeDate, { weekStartsOn: 1 }), "yyyy-MM-dd");
+  const isSemanaAtual = format(weekStart, "yyyy-MM-dd") === semanaAtualStart;
+
+  // Ordens atrasadas fora da semana visualizada
+  const ordensAtrasadas = useMemo(() => {
+    const sStart = format(weekStart, "yyyy-MM-dd");
+    const todas = [...ordens, ...ordensMaq];
+    return todas.filter(o => {
+      if (o.status === "finalizado" || o.status === "cancelado") return false;
+      return !o.data || o.data < sStart;
+    });
+  }, [ordens, ordensMaq, weekStart]);
 
   // Mutations Desbobinadeira
   const createDesb = useMutation({
@@ -762,11 +788,25 @@ export default function ProducaoCD() {
           <p className="text-sm text-muted-foreground">Ordens de produção do setor</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={exportarSemana} className="gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              refetchDesb();
+              refetchMaq();
+              toast.success("Dados de Corte e Dobra atualizados!");
+            }}
+            disabled={isFetchingDesb || isFetchingMaq}
+            className="gap-1 text-xs h-8"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isFetchingDesb || isFetchingMaq ? "animate-spin" : ""}`} />
+            Atualizar
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportarSemana} className="gap-1 text-xs h-8">
             <Download className="w-4 h-4" /> Exportar
           </Button>
           {isGestor && (
-            <Button onClick={() => openNewDesb(selectedDay)} className="gap-2 bg-orange-500 hover:bg-orange-600">
+            <Button onClick={() => openNewDesb(selectedDay)} className="gap-2 bg-orange-500 hover:bg-orange-600 h-8 text-xs font-semibold">
               <Plus className="w-4 h-4" /> Nova Ordem
             </Button>
           )}
@@ -846,6 +886,52 @@ export default function ProducaoCD() {
           </p>
         </div>
       </div>
+
+      {/* Banner: Semana fora da atual */}
+      {!isSemanaAtual && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-medium">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              Você está visualizando uma semana diferente da atual (<strong>{format(weekStart, "dd/MM")} a {format(weekEnd, "dd/MM")}</strong>).
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setCurrentWeek(new Date());
+              setSelectedDay(format(new Date(), "yyyy-MM-dd"));
+            }}
+            className="h-7 text-xs font-bold gap-1 border-amber-400 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-950/50"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+            Voltar para Esta Semana (Hoje)
+          </Button>
+        </div>
+      )}
+
+      {/* Banner: Ordens Atrasadas / Fora da semana */}
+      {ordensAtrasadas.length > 0 && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 text-red-900 dark:text-red-200 font-medium">
+            <Clock className="w-4 h-4 text-red-600 shrink-0" />
+            <span>
+              Existem <strong>{ordensAtrasadas.length} ordem(ns) pendente(s)</strong> de datas anteriores ou sem agendamento no setor.
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setViewMode("kanban");
+            }}
+            className="h-7 text-xs font-bold border-red-300 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40"
+          >
+            Ver no Quadro Kanban
+          </Button>
+        </div>
+      )}
 
       {/* Navegador de Semana e Dias por Pílula */}
       <div className="bg-card border border-border rounded-2xl p-3 shadow-xs space-y-2.5">
