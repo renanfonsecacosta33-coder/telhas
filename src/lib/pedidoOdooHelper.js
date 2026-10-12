@@ -84,6 +84,15 @@ export function classGrupo(itemOrCat, produtoNome = "") {
     prod = String(produtoNome || "").trim().toLowerCase();
   }
 
+  // Setor forçado manualmente pelo PCP/Gestor (PIN 0000) — soberano sobre a detecção automática.
+  // Se TODOS os itens da ordem foram ajustados para o mesmo setor, a ordem inteira segue ele.
+  if (itens.length > 0) {
+    const forcos = itens.map(i => (i && typeof i === "object" ? i.setor_forcado : null));
+    if (forcos.every(v => v === forcos[0]) && ["telha", "cd", "frisada"].includes(forcos[0])) return forcos[0];
+  } else if (typeof itemOrCat === "object" && itemOrCat !== null && ["telha", "cd", "frisada"].includes(itemOrCat.setor_forcado)) {
+    return itemOrCat.setor_forcado;
+  }
+
   // Texto consolidado para busca de palavras-chave
   const textoGeral = `${cat} ${prod} ${desc} ${obs} ${ofNome} ${textosItensAgregados}`.toLowerCase();
 
@@ -108,7 +117,7 @@ export function classGrupo(itemOrCat, produtoNome = "") {
   );
 
   // Telhas e bobininhas nunca são C&D, mas se não tiver termo expresso de telha perfilada/bobininha:
-  const isTelhaOuBobininhaExpressa = /\b(telha|bobininha|bobinina|desbobinamento|cumeeira|calha|rufo|pingadeira)\b/i.test(textoGeral);
+  const isTelhaOuBobininhaExpressa = /\b(telha|bobininha|bobinina|bobina|desbobinamento|cumeeira|calha|rufo|pingadeira)\b/i.test(textoGeral);
 
   if (isChapa || isPerfilCd || temCotasDobra || (temKg && !isTelhaOuBobininhaExpressa)) {
     return "cd";

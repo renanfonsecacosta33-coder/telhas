@@ -531,7 +531,7 @@ export default async function(req: Request): Promise<Response> {
       const normalizar = (s: any) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
       // Campos de EXECUÇÃO da fábrica que o Odoo não conhece — nunca podem ser
       // descartados por um reenvio, senão itens finalizados "voltam" para pendente.
-      const EXEC_FIELDS = ["concluido", "status", "status_detalhado", "maquina", "distribuido", "iniciada", "foto_url", "bobina_superior_id", "bobina_superior", "bobina_inferior_id", "bobina_inferior"];
+      const EXEC_FIELDS = ["concluido", "status", "status_detalhado", "maquina", "distribuido", "iniciada", "foto_url", "bobina_superior_id", "bobina_superior", "bobina_inferior_id", "bobina_inferior", "setor_forcado"];
       for (const novoItem of newItems) {
         const idx = mergedItems.findIndex(i => normalizar(i?.produto) === normalizar(novoItem?.produto));
         if (idx >= 0) {
@@ -555,6 +555,8 @@ export default async function(req: Request): Promise<Response> {
     // 2) Corte e Dobra (Chapa [inclusive com typos: CHAAPA, CHPA, etc.], Perfis, Cantoneiras, Cotas de Dobra e Itens em KG) -> "cd" 100%
     // 3) Bobininha/bobinina/bobina/fita/desbobinamento, Telhas, Cumeeiras, Calhas, Rufos e Pingadeiras -> "telha" 100%
     const classificarItem = (i: any): "frisada" | "cd" | "telha" => {
+      // Setor forçado manualmente pelo PCP/Gestor (PIN) — soberano sobre a detecção automática
+      if (["frisada", "cd", "telha"].includes(i?.setor_forcado)) return i.setor_forcado;
       const t = `${i?.categoria || ""} ${i?.produto || ""} ${i?.descricao || ""} ${i?.observacao || ""}`.toLowerCase();
       const unid = String(i?.unidade || i?.uom || i?.product_uom || "").trim().toUpperCase();
 
@@ -570,7 +572,7 @@ export default async function(req: Request): Promise<Response> {
         /\bpadr[aã]o\s*-\s*kg\b/i.test(t) ||
         /\b\d+([,\.]\d+)?\s*kg\b/i.test(t)
       );
-      const isTelhaOuBobininhaExpressa = /\b(telha|bobininha|bobinina|desbobinamento|cumeeira|calha|rufo|pingadeira)\b/i.test(t);
+      const isTelhaOuBobininhaExpressa = /\b(telha|bobininha|bobinina|bobina|desbobinamento|cumeeira|calha|rufo|pingadeira)\b/i.test(t);
 
       if (isChapa || isPerfilCd || temCotasDobra || (temKg && !isTelhaOuBobininhaExpressa)) {
         return "cd";

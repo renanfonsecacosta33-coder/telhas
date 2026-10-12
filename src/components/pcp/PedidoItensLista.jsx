@@ -9,6 +9,7 @@ import { verificarEstoqueItem, extrairDemandaItem } from "@/lib/estoqueMaterialH
 import { enviarAlertaComprasLeonardo } from "@/lib/alertaSuprimentosHelper";
 import ImageLink from "@/components/ui/ImageLink";
 import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
+import AlterarSetorItemButton from "@/components/pcp/AlterarSetorItemButton";
 
 // Config visual por categoria — cores sincronizadas com o ecossistema AJL:
 // 🏠 Fábrica de Telhas → AZUL (#2563EB)
@@ -218,6 +219,15 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${cfg.chip}`}>
                       {cfg.label}
                     </span>
+                    {it.setor_forcado && (
+                      <span
+                        className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-white border border-slate-900"
+                        title="Setor definido manualmente pelo PCP/Gestor"
+                      >
+                        🔧 Ajustado
+                      </span>
+                    )}
+                    <AlterarSetorItemButton pedido={pedido} item={it} idx={idx} compacto={compacto} />
                     {isSanduiche && (
                       <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30">
                         Termoacústica
