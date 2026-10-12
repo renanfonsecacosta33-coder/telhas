@@ -4,7 +4,30 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Factory, Calendar, Wrench, Download, ZoomIn, ZoomOut, Maximize2, Search, AlertTriangle, X, PackageX, Truck, Inbox, Layers } from "lucide-react";
+import {
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  Factory,
+  Calendar,
+  Wrench,
+  Download,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Search,
+  AlertTriangle,
+  X,
+  PackageX,
+  Truck,
+  Inbox,
+  Layers,
+  Zap,
+  Clock,
+  CheckCircle2,
+  ListOrdered,
+  Sparkles,
+} from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -42,7 +65,7 @@ export default function ProducaoCD() {
   const [user, setUser] = useState(null);
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [viewMode, setViewMode] = useState("semana");
+  const [viewMode, setViewMode] = useState("maquinas");
   const [zoom, setZoom] = useState("normal"); // compacto | normal | grande
   const [buscaPedido, setBuscaPedido] = useState("");
   const [dialogRetrabalho, setDialogRetrabalho] = useState(false);
@@ -594,8 +617,40 @@ export default function ProducaoCD() {
   };
 
   const ordensDiaOrdenadas = ordenarOrdensCD(ordensDia);
-
   const totalOrdensDia = ordensDia.length + ordensMaqDia.length;
+
+  const todasOrdensDiaOrdenadas = useMemo(() => {
+    return ordenarOrdensCD([...ordensDia, ...ordensMaqDia]);
+  }, [ordensDia, ordensMaqDia]);
+
+  const totalSemMaterial = useMemo(() => {
+    const dSem = ordens.filter(o => o.status === "aguardando_material" || o.material_em_falta).length;
+    const mSem = ordensMaq.filter(o => o.status === "aguardando_material" || o.material_em_falta).length;
+    return dSem + mSem;
+  }, [ordens, ordensMaq]);
+
+  const kpisDia = useMemo(() => {
+    const todas = [...ordensDia, ...ordensMaqDia];
+    const emProducao = todas.filter(o => o.status === "em_producao");
+    const pecasEmProducao = emProducao.reduce((acc, o) => acc + (Number(o.quantidade) || 0), 0);
+
+    const pendentes = todas.filter(o => o.status === "pendente" || o.status === "aguardando_corte" || o.status === "pausado");
+    const pecasPendentes = pendentes.reduce((acc, o) => acc + (Number(o.quantidade) || 0), 0);
+
+    const finalizadas = todas.filter(o => o.status === "finalizado");
+    const pecasFinalizadas = finalizadas.reduce((acc, o) => acc + (Number(o.quantidade) || 0), 0);
+
+    return {
+      emProducaoCount: emProducao.length,
+      pecasEmProducao,
+      pendentesCount: pendentes.length,
+      pecasPendentes,
+      finalizadasCount: finalizadas.length,
+      pecasFinalizadas,
+      semMaterialCount: totalSemMaterial,
+      totalOrdens: todas.length
+    };
+  }, [ordensDia, ordensMaqDia, totalSemMaterial]);
 
   // Operador restrito: redireciona para mensagem de acesso negado se não for Desbobinadeira
   if (user && !isGestor) {
@@ -648,132 +703,313 @@ export default function ProducaoCD() {
         </div>
       </div>
 
-      {/* Navegação de semana */}
-      <div className="bg-card border border-border rounded-xl p-4">
-        <div className="flex items-center justify-between mb-4">
-          <Button variant="outline" size="icon" onClick={() => setCurrentWeek(w => subWeeks(w, 1))}>
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <div className="text-center">
-            <p className="font-bold text-lg">
-              Semana de {format(weekStart, "dd 'de' MMM", { locale: ptBR })} a {format(weekEnd, "dd 'de' MMM yyyy", { locale: ptBR })}
-            </p>
-            <Badge className="bg-orange-100 text-orange-700 border-orange-200">
-              {totalSemanaOrdens} ordens · {totalSemanaPecas} peças finalizadas
+      {/* Cards de KPIs Operacionais do Dia */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* 1. Em Produção Agora */}
+        <div className="bg-card border border-border rounded-xl p-3.5 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5 text-blue-500 animate-pulse" /> Em Produção Agora
+            </span>
+            <Badge className="bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 text-[10px] font-bold">
+              {kpisDia.pecasEmProducao} pçs
             </Badge>
           </div>
-          <Button variant="outline" size="icon" onClick={() => setCurrentWeek(w => addWeeks(w, 1))}>
-            <ChevronRight className="w-4 h-4" />
-          </Button>
+          <p className="text-2xl font-black mt-1 text-foreground">
+            {kpisDia.emProducaoCount} <span className="text-xs font-normal text-muted-foreground">OP(s)</span>
+          </p>
         </div>
-        <div className="grid grid-cols-7 gap-1">
-          {diasDaSemana.map(dia => {
+
+        {/* 2. Na Fila Pendentes */}
+        <div className="bg-card border border-border rounded-xl p-3.5 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-amber-500" /> Na Fila (Pendentes)
+            </span>
+            <Badge className="bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 text-[10px] font-bold">
+              {kpisDia.pecasPendentes} pçs
+            </Badge>
+          </div>
+          <p className="text-2xl font-black mt-1 text-foreground">
+            {kpisDia.pendentesCount} <span className="text-xs font-normal text-muted-foreground">OP(s)</span>
+          </p>
+        </div>
+
+        {/* 3. Sem Chapa / Alerta */}
+        <button
+          type="button"
+          onClick={() => setViewMode("sem_material")}
+          className={`text-left rounded-xl p-3.5 border transition-all cursor-pointer shadow-2xs ${
+            kpisDia.semMaterialCount > 0
+              ? "bg-red-50/60 dark:bg-red-950/30 border-red-300 dark:border-red-800/60 hover:bg-red-100/40"
+              : "bg-card border-border hover:bg-muted/30"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+              <AlertTriangle className={`w-3.5 h-3.5 ${kpisDia.semMaterialCount > 0 ? "text-red-500 animate-bounce" : "text-slate-400"}`} />
+              Sem Chapa / Alerta
+            </span>
+            {kpisDia.semMaterialCount > 0 && (
+              <Badge className="bg-red-100 text-red-700 border-red-200 text-[10px] font-bold">
+                Ação Req.
+              </Badge>
+            )}
+          </div>
+          <p className={`text-2xl font-black mt-1 ${kpisDia.semMaterialCount > 0 ? "text-red-600 dark:text-red-400" : "text-foreground"}`}>
+            {kpisDia.semMaterialCount} <span className="text-xs font-normal text-muted-foreground">travada(s)</span>
+          </p>
+        </button>
+
+        {/* 4. Finalizadas Hoje */}
+        <div className="bg-card border border-border rounded-xl p-3.5 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Finalizadas Hoje
+            </span>
+            <Badge className="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 text-[10px] font-bold">
+              {kpisDia.pecasFinalizadas} pçs ✓
+            </Badge>
+          </div>
+          <p className="text-2xl font-black mt-1 text-emerald-600 dark:text-emerald-400">
+            {kpisDia.finalizadasCount} <span className="text-xs font-normal text-muted-foreground">OP(s)</span>
+          </p>
+        </div>
+      </div>
+
+      {/* Navegador de Semana e Dias por Pílula */}
+      <div className="bg-card border border-border rounded-2xl p-3 shadow-xs space-y-2.5">
+        <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-orange-500/10 text-orange-600 flex items-center justify-center font-bold">
+              <Calendar className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="font-extrabold text-foreground text-sm flex items-center gap-2 flex-wrap">
+                Semana de {format(weekStart, "dd 'de' MMM", { locale: ptBR })} a {format(weekEnd, "dd 'de' MMM yyyy", { locale: ptBR })}
+                <Badge variant="outline" className="text-[10px] py-0 border-orange-500/30 text-orange-600 font-bold">
+                  {totalSemanaOrdens} ordens · {totalSemanaPecas} pçs finalizadas
+                </Badge>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const hojeStr = format(new Date(), "yyyy-MM-dd");
+                setSelectedDay(hojeStr);
+                setCurrentWeek(new Date());
+              }}
+              className="h-8 text-xs font-bold gap-1 px-3"
+              title="Ir para o dia de hoje"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Hoje</span>
+            </Button>
+
+            <div className="flex items-center gap-0.5 border border-border rounded-lg p-0.5 bg-muted/40">
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setCurrentWeek(w => subWeeks(w, 1))}
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                title="Semana anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setCurrentWeek(w => addWeeks(w, 1))}
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                title="Próxima semana"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Pílulas de Dias */}
+        <div className="grid grid-cols-7 gap-1.5 overflow-x-auto pb-0.5">
+          {diasDaSemana.map((dia) => {
             const diaStr = format(dia, "yyyy-MM-dd");
             const ordensDoDia = ordensSemana.filter(o => o.data === diaStr);
-            const pecasDia = ordensDoDia.filter(o => o.status === "finalizado").reduce((s, o) => s + (o.quantidade || 0), 0);
+            const ordensMaqDoDia = ordensMaq.filter(o => o.data === diaStr);
+            const totalOrdens = ordensDoDia.length + ordensMaqDoDia.length;
+            const pecasDia = [...ordensDoDia, ...ordensMaqDoDia].filter(o => o.status === "finalizado").reduce((s, o) => s + (Number(o.quantidade) || 0), 0);
             const isSelected = selectedDay === diaStr;
             const isHoje = isToday(dia);
+
             return (
-              <button key={diaStr} onClick={() => { setSelectedDay(diaStr); setViewMode("dia"); }}
-                className={`rounded-lg p-2 text-center transition-all duration-200 cursor-pointer border ${isSelected ? "bg-orange-500 text-white border-orange-500" : isHoje ? "border-orange-400/50 bg-orange-50" : "border-border hover:bg-muted/50"}`}>
-                <p className="text-xs font-semibold uppercase">{format(dia, "EEE", { locale: ptBR })}</p>
-                <p className={`text-lg font-bold ${isSelected ? "" : isHoje ? "text-orange-500" : ""}`}>{format(dia, "dd")}</p>
-                {ordensDoDia.length > 0 && (
-                  <div className={`text-xs mt-0.5 ${isSelected ? "text-white/80" : "text-muted-foreground"}`}>
-                    {ordensDoDia.length}o{pecasDia > 0 ? ` · ${pecasDia}p` : ""}
-                  </div>
+              <button
+                key={diaStr}
+                onClick={() => setSelectedDay(diaStr)}
+                className={`rounded-xl p-2 text-center transition-all cursor-pointer border flex flex-col items-center justify-between ${
+                  isSelected
+                    ? "bg-orange-500 text-white border-orange-500 shadow-sm scale-101 ring-2 ring-orange-500/30"
+                    : isHoje
+                    ? "border-orange-400/60 bg-orange-500/10 text-foreground font-bold hover:bg-orange-500/15"
+                    : "border-border/80 bg-card hover:bg-muted/50 text-foreground"
+                }`}
+              >
+                {isHoje && (
+                  <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 rounded-full mb-0.5 ${isSelected ? "bg-white text-orange-600" : "bg-orange-500 text-white"}`}>
+                    Hoje
+                  </span>
                 )}
+                <span className={`text-[10px] uppercase font-extrabold ${isSelected ? "text-white/90" : "text-muted-foreground"}`}>
+                  {format(dia, "EEE", { locale: ptBR })}
+                </span>
+                <span className={`text-base font-black ${isSelected ? "text-white" : "text-foreground"}`}>
+                  {format(dia, "dd")}
+                </span>
+                <div className="mt-1">
+                  {totalOrdens > 0 ? (
+                    <Badge variant="outline" className={`text-[10px] py-0 px-1.5 font-bold ${isSelected ? "bg-white/20 text-white border-white/30" : "bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30"}`}>
+                      {totalOrdens} op{pecasDia > 0 ? ` · ${pecasDia}p` : ""}
+                    </Badge>
+                  ) : (
+                    <span className={`text-[10px] opacity-40 ${isSelected ? "text-white" : ""}`}>—</span>
+                  )}
+                </div>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Toggle + Busca */}
-      <div className="flex items-center gap-2 flex-wrap justify-between">
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Busca por pedido */}
+      {/* Abas Principais + Busca + Zoom */}
+      <div className="flex items-center justify-between gap-3 flex-wrap border-b border-border pb-3">
+        {/* Abas */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Button
+            variant={viewMode === "maquinas" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("maquinas")}
+            className={`gap-1.5 text-xs font-bold ${viewMode === "maquinas" ? "bg-orange-500 hover:bg-orange-600 text-white shadow-xs" : ""}`}
+          >
+            <Factory className="w-3.5 h-3.5" />
+            <span>Por Máquinas</span>
+          </Button>
+
+          <Button
+            variant={viewMode === "lista" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("lista")}
+            className={`gap-1.5 text-xs font-bold ${viewMode === "lista" ? "bg-orange-500 hover:bg-orange-600 text-white shadow-xs" : ""}`}
+          >
+            <ListOrdered className="w-3.5 h-3.5" />
+            <span>Lista Geral ({totalOrdensDia})</span>
+          </Button>
+
+          <Button
+            variant={viewMode === "kanban" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("kanban")}
+            className={`gap-1.5 text-xs font-bold ${viewMode === "kanban" ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs" : ""}`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Quadro Kanban</span>
+          </Button>
+
+          <Button
+            variant={viewMode === "fila_pcp" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("fila_pcp")}
+            className={`gap-1.5 text-xs font-bold ${viewMode === "fila_pcp" ? "bg-orange-500 hover:bg-orange-600 text-white shadow-xs" : ""}`}
+          >
+            <Inbox className="w-3.5 h-3.5" />
+            <span>Fila PCP</span>
+          </Button>
+
+          <Button
+            variant={viewMode === "sem_material" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("sem_material")}
+            className={`gap-1.5 text-xs font-bold ${viewMode === "sem_material" ? "bg-red-600 hover:bg-red-700 text-white shadow-xs" : ""}`}
+          >
+            <PackageX className="w-3.5 h-3.5" />
+            <span>Sem Material</span>
+            {totalSemMaterial > 0 && (
+              <Badge className="bg-white text-red-600 text-[10px] py-0 px-1 font-black ml-0.5">
+                {totalSemMaterial}
+              </Badge>
+            )}
+          </Button>
+        </div>
+
+        {/* Busca Rápida + Links Estoque & Expedição + Zoom */}
+        <div className="flex items-center gap-2 flex-wrap ml-auto">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <input
               type="text"
               value={buscaPedido}
-              onChange={(e) => { setBuscaPedido(e.target.value); if (e.target.value.trim()) setViewMode("dia"); }}
-              placeholder="Buscar por nº pedido..."
-              className="h-9 pl-8 pr-3 rounded-md border border-input bg-transparent text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring w-52"
+              onChange={(e) => setBuscaPedido(e.target.value)}
+              placeholder="Buscar por nº pedido ou OC..."
+              className="h-8 pl-8 pr-3 rounded-md border border-input bg-card text-xs shadow-2xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring w-48"
             />
             {buscaPedido && (
-              <button onClick={() => setBuscaPedido("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <button
+                onClick={() => setBuscaPedido("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
-          <Button variant={viewMode === "semana" ? "default" : "outline"} size="sm" onClick={() => setViewMode("semana")}>Visão Semana</Button>
-          <Button variant={viewMode === "dia" ? "default" : "outline"} size="sm" onClick={() => setViewMode("dia")}
-            className={viewMode === "dia" ? "bg-orange-500 hover:bg-orange-600 border-0" : ""}>
-            Visão Dia — {format(new Date(selectedDay + "T12:00:00"), "dd/MM", { locale: ptBR })}
-          </Button>
-          <Button
-            variant={viewMode === "kanban" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("kanban")}
-            className={`gap-1 ${viewMode === "kanban" ? "bg-indigo-600 hover:bg-indigo-700 border-0 text-white font-bold" : ""}`}
-          >
-            <Layers className="w-3.5 h-3.5" /> Visão Kanban
-          </Button>
+
           <Link to="/corte-dobra/estoque-dashboard">
-            <Button variant="outline" size="sm" className="gap-1 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-700 hover:bg-teal-50 dark:hover:bg-teal-950/40">
-              <Layers className="w-3.5 h-3.5 text-teal-500" /> Estoque por Espessura
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-700 hover:bg-teal-50 dark:hover:bg-teal-950/40">
+              <Layers className="w-3.5 h-3.5 text-teal-500" /> Estoque
             </Button>
           </Link>
-          <Button variant={viewMode === "sem_material" ? "default" : "outline"} size="sm" onClick={() => setViewMode("sem_material")}
-            className={`gap-1 ${viewMode === "sem_material" ? "bg-amber-500 hover:bg-amber-600 border-0 text-white" : ""}`}>
-            <PackageX className="w-3 h-3" /> OP sem Material
-          </Button>
-          <Button variant={viewMode === "expedicao" ? "default" : "outline"} size="sm" onClick={() => setViewMode("expedicao")}
-            className={`gap-1 ${viewMode === "expedicao" ? "bg-blue-500 hover:bg-blue-600 border-0 text-white" : ""}`}>
-            <Truck className="w-3 h-3" /> Expedição
-          </Button>
-          <Button variant={viewMode === "fila_pcp" ? "default" : "outline"} size="sm" onClick={() => setViewMode("fila_pcp")}
-            className={`gap-1 ${viewMode === "fila_pcp" ? "bg-orange-500 hover:bg-orange-600 border-0 text-white" : ""}`}>
-            <Inbox className="w-3 h-3" /> Fila PCP
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => { setSelectedDay(format(new Date(), "yyyy-MM-dd")); setCurrentWeek(new Date()); setViewMode("dia"); }} className="gap-1">
-            <Calendar className="w-3 h-3" /> Hoje
-          </Button>
-        </div>
-        {/* Zoom */}
-        <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-0.5">
-          <Button variant={zoom === "compacto" ? "default" : "ghost"} size="sm" onClick={() => setZoom("compacto")}
-            className="h-7 px-2 gap-1 text-xs" title="Visualização compacta">
-            <ZoomOut className="w-3.5 h-3.5" /> Compacto
-          </Button>
-          <Button variant={zoom === "normal" ? "default" : "ghost"} size="sm" onClick={() => setZoom("normal")}
-            className="h-7 px-2 gap-1 text-xs" title="Visualização normal">
-            <Maximize2 className="w-3.5 h-3.5" /> Normal
-          </Button>
-          <Button variant={zoom === "grande" ? "default" : "ghost"} size="sm" onClick={() => setZoom("grande")}
-            className="h-7 px-2 gap-1 text-xs" title="Visualização grande">
-            <ZoomIn className="w-3.5 h-3.5" /> Grande
-          </Button>
+
+          <Link to="/logistica">
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40">
+              <Truck className="w-3.5 h-3.5 text-blue-500" /> Expedição
+            </Button>
+          </Link>
+
+          {/* Zoom */}
+          <div className="flex items-center gap-0.5 bg-muted/40 border border-border rounded-lg p-0.5">
+            <Button
+              variant={zoom === "compacto" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setZoom("compacto")}
+              className="h-7 px-2 text-[11px]"
+              title="Compacto"
+            >
+              <ZoomOut className="w-3 h-3" />
+            </Button>
+            <Button
+              variant={zoom === "normal" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setZoom("normal")}
+              className="h-7 px-2 text-[11px]"
+              title="Normal"
+            >
+              <Maximize2 className="w-3 h-3" />
+            </Button>
+            <Button
+              variant={zoom === "grande" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setZoom("grande")}
+              className="h-7 px-2 text-[11px]"
+              title="Grande"
+            >
+              <ZoomIn className="w-3 h-3" />
+            </Button>
+          </div>
         </div>
       </div>
 
       {isLoading ? (
         <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-muted border-t-orange-500 rounded-full animate-spin" /></div>
-      ) : viewMode === "semana" ? (
-        <div className="space-y-3">
-          {diasDaSemana.map(dia => {
-            const diaStr = format(dia, "yyyy-MM-dd");
-            const ordensDoDia = ordensSemana.filter(o => o.data === diaStr);
-            return (
-              <DiaResumoCardCD key={diaStr} dia={dia} ordens={ordensDoDia}
-                onVerDia={() => { setSelectedDay(diaStr); setViewMode("dia"); }}
-                onNovaOrdem={() => openNewDesb(diaStr)} />
-            );
-          })}
-        </div>
       ) : viewMode === "sem_material" ? (
         <OPSemMaterialTab />
       ) : viewMode === "expedicao" ? (
@@ -793,14 +1029,62 @@ export default function ProducaoCD() {
             }
           }}
         />
-      ) : (
-        // ── VISÃO DIA ──
-        <div className="space-y-4">
+      ) : viewMode === "lista" ? (
+        /* ── VISÃO LISTA GERAL UNIFICADA DO DIA ── */
+        <div className="space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <h2 className="text-lg font-bold capitalize">
+            <h2 className="text-base font-bold capitalize flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-orange-500" />
               {format(new Date(selectedDay + "T12:00:00"), "EEEE, dd 'de' MMMM", { locale: ptBR })}
             </h2>
-            <Badge className="bg-orange-100 text-orange-700 border-orange-200">{totalOrdensDia} ordens no total</Badge>
+            <Badge className="bg-orange-100 text-orange-700 border-orange-200 font-bold">
+              {todasOrdensDiaOrdenadas.length} ordens no total
+            </Badge>
+          </div>
+
+          {todasOrdensDiaOrdenadas.length === 0 ? (
+            <div className="bg-muted/20 border border-dashed border-border rounded-xl p-8 text-center space-y-2">
+              <Factory className="w-8 h-8 text-muted-foreground/30 mx-auto" />
+              <p className="text-sm font-semibold text-foreground">Nenhuma ordem registrada neste dia</p>
+              <p className="text-xs text-muted-foreground">Clique em "Nova Ordem" ou selecione pedidos na aba "Fila PCP".</p>
+              {isGestor && (
+                <Button size="sm" onClick={() => openNewDesb(selectedDay)} className="bg-orange-500 hover:bg-orange-600 gap-1.5 mt-2">
+                  <Plus className="w-3.5 h-3.5" /> Adicionar Ordem
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {todasOrdensDiaOrdenadas.map((o) => {
+                const isMaq = o.maquina && o.maquina !== "DESBOBINADEIRA" && !o.maquina?.startsWith?.("DESBOBINADEIRA");
+                return (
+                  <OrdemCardCD
+                    key={o.id}
+                    ordem={o}
+                    tipo={isMaq ? "maquina" : "desbobinadeira"}
+                    isGestor={isGestor}
+                    user={user}
+                    onEdit={isMaq ? openEditMaq : openEditDesb}
+                    onDelete={(id) => isMaq ? deleteMaq.mutate(id) : deleteDesb.mutate(id)}
+                    onStatusChange={isMaq ? handleStatusChangeMaq : handleStatusChangeDesb}
+                    onSelectPrioridade={isMaq ? handleSelectPrioridadeMaq : handleSelectPrioridadeDesb}
+                    onToggleRota={isMaq ? handleToggleRotaMaq : handleToggleRotaDesb}
+                    onRetrabalho={(ord) => { setOrdemRetrabalho(isMaq ? ord : { ...ord, _desb: true }); setDialogRetrabalho(true); }}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* ── VISÃO POR MÁQUINAS (PADRÃO) ── */
+        <div className="space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h2 className="text-base font-bold capitalize flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-orange-500" />
+              {format(new Date(selectedDay + "T12:00:00"), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+            </h2>
+            <Badge className="bg-orange-100 text-orange-700 border-orange-200 font-bold">{totalOrdensDia} ordens no total</Badge>
           </div>
 
           {/* ── DESBOBINADEIRA ── */}
