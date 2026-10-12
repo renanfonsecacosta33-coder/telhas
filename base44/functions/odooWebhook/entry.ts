@@ -261,10 +261,44 @@ function sanitizarItemOdoo(it: any): any {
 
   const cResto = canonicoTexto(resto);
   if (!cResto || cResto === cProd || (cProd && cProd.includes(cResto) && cResto.length >= 6)) {
-    return { ...it, observacao: "", descricao: "" };
+    resto = "";
   }
 
-  return { ...it, observacao: resto, descricao: resto };
+  itemNormalizado.observacao = resto;
+  itemNormalizado.descricao = resto;
+
+  // ── Auto-correção e normalização de Bobininha (Desbobinador) ──
+  // Regra da AJL: Quando a OBS for ex: "2 X 30 M IMPORTADA", o Odoo envia 60 (metragem total).
+  // A quantidade real de bobininhas a produzir é 2, com 30 metros cada (total 60m lineares).
+  const isBobininha = /(bobininha|bobinina|bobina|fita|desbobinamento|desbobinador)/i.test(`${prod} ${candidata}`);
+  if (isBobininha) {
+    const matchNxM = candidata.match(/\b(\d+)\s*[xX*]\s*(\d+(?:[.,]\d+)?)\s*(?:m\b|mts?\b|metros?|mt\b)?/i);
+    if (matchNxM) {
+      const qBob = parseInt(matchNxM[1], 10);
+      const mBob = parseFloat(matchNxM[2].replace(",", "."));
+      if (qBob > 0 && mBob > 0) {
+        const totalLinear = +(qBob * mBob).toFixed(2);
+        itemNormalizado.quantidade = qBob;
+        itemNormalizado.medida = String(Math.round(mBob * 1000));
+        itemNormalizado.metragem_total = totalLinear;
+        itemNormalizado.unidade = "UN";
+      }
+    } else {
+      const matchCompProd = `${prod} ${candidata}`.match(/\b(\d{1,3})\s*(?:mt|mts|m\b|metros)/i);
+      if (matchCompProd) {
+        const mBob = parseFloat(matchCompProd[1]);
+        const qAtual = Number(itemNormalizado.quantidade) || 1;
+        if (mBob > 0 && qAtual >= mBob && qAtual % mBob === 0) {
+          itemNormalizado.quantidade = Math.round(qAtual / mBob);
+          itemNormalizado.medida = String(Math.round(mBob * 1000));
+          itemNormalizado.metragem_total = qAtual;
+          itemNormalizado.unidade = "UN";
+        }
+      }
+    }
+  }
+
+  return itemNormalizado;
 }
 
 // ── Helpers de Roteamento Industrial Central PCP ──────────────────

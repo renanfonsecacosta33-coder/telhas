@@ -155,11 +155,17 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
           const pecasReal = (demanda?.pecas && demanda.pecas > 0) ? demanda.pecas : (espTec?.pecas > 0 ? espTec.pecas : null);
           const isVendidoEmKg = demanda?.isKg || unidade === "KG" || (it.quantidade > 50 && pecasReal && it.quantidade >= pecasReal * 3);
 
-          let displayQtd = it.quantidade;
-          let displayUnidade = unidade;
-          let displaySubBadge = null;
+          const isBobininha = espTec?.tipo_conformacao === "bobininha" || /(bobininha|bobinina|bobina|fita|desbobinamento)/i.test(`${produtoLimpo} ${desc}`);
 
-          if (isVendidoEmKg && pecasReal && pecasReal > 0) {
+          if (isBobininha && espTec && espTec.pecas > 0) {
+            displayQtd = espTec.pecas;
+            displayUnidade = espTec.pecas === 1 ? "BOBININHA" : "BOBININHAS";
+            const totalM = espTec.metragem_total || (espTec.pecas * (espTec.comprimento_m || 30));
+            displaySubBadge = {
+              label: `${totalM}m total`,
+              title: `${espTec.pecas} bobininha${espTec.pecas > 1 ? "s" : ""} c/ ${espTec.comprimento_m || 30}m cada (Metragem Total: ${totalM}m)`
+            };
+          } else if (isVendidoEmKg && pecasReal && pecasReal > 0) {
             displayQtd = pecasReal;
             displayUnidade = (g === "cd" || g === "frisada" || espTec?.tipo_conformacao === "perfil_dobrado") ? "BARRAS" : "PEÇAS";
             const pesoVal = Math.round(demanda?.pesoKgInformado || it.quantidade);

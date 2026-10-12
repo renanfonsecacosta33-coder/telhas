@@ -35,6 +35,7 @@ import WebhookSimulatorDialog from "@/components/pcp/WebhookSimulatorDialog";
 import RecuperarPedidoOdooDialog from "@/components/pcp/RecuperarPedidoOdooDialog";
 import AuditarRestaurarOpsDialog from "@/components/pcp/AuditarRestaurarOpsDialog";
 import { reajustarTodasBobinasMaquinasAutomaticamente } from "@/lib/reajusteAutomaticoBobinas";
+import { executarReparoBobininhasBanco } from "@/lib/repararBobininhasHelper";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import TransferirLojaDialog from "@/components/pcp/TransferirLojaDialog";
@@ -369,6 +370,17 @@ export default function CentralPCP() {
     retry: 3,
     refetchInterval: 25000
   });
+
+  // Repara e sincroniza automaticamente qualquer Bobininha no banco de dados (ex: #S01195)
+  const reparoBobininhasExecutadoRef = useRef(false);
+  useEffect(() => {
+    if (pedidosRaw.length > 0 && !reparoBobininhasExecutadoRef.current) {
+      reparoBobininhasExecutadoRef.current = true;
+      executarReparoBobininhasBanco(pedidosRaw, pedidosProducao).then(() => {
+        // silencioso
+      }).catch(() => {});
+    }
+  }, [pedidosRaw, pedidosProducao]);
 
   // Consultas de Matéria-Prima em Tempo Real para Análise de Disponibilidade no PCP
   const { data: bobinasEstoque = [] } = useQuery({

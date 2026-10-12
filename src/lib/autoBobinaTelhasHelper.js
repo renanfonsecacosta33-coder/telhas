@@ -163,7 +163,8 @@ export function selecionarMelhorBobinaTelhas({
   const filialAlvo = filialAtiva && filialAtiva !== "todas" ? filialAtiva : (pedido?.unidade || "Matriz AJL");
 
   // Metragem necessária estimada
-  const espTec = extrairEspecificacao(descTexto, item?.quantidade, item?.unidade);
+  const textoCompleto = `${produtoNome} ${descTexto}`.trim();
+  const espTec = extrairEspecificacao(textoCompleto, item?.quantidade, item?.unidade);
   const metragemNecessaria = Number(espTec?.metragem_total || item?.quantidade || 0);
 
   // 2. Filtro preliminar de elegibilidade
@@ -325,14 +326,21 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     : null;
 
   // 2. Extração de especificações físicas (peças, mm, metros lineares)
-  const espTec = extrairEspecificacao(descTexto, item.quantidade, item.unidade);
+  const espTec = extrairEspecificacao(textoCompleto, item.quantidade, item.unidade);
 
   let qtdChapas = item.quantidade || 1;
   let metragemMm = "";
   let metragemTotalLinear = item.quantidade || 1;
   let variacoesTelhasJson = "";
 
-  if (espTec.tem_especificacao) {
+  if (espTec.tipo_conformacao === "bobininha" || prodTipo === "BOBININHA") {
+    qtdChapas = espTec.quantidade || (espTec.pecas || 1);
+    metragemMm = espTec.comprimento_mm || 30000;
+    metragemTotalLinear = espTec.metragem_total || (Number(qtdChapas) * (espTec.comprimento_m || 30));
+    if (espTec.variacoes && espTec.variacoes.length > 0) {
+      variacoesTelhasJson = JSON.stringify(espTec.variacoes);
+    }
+  } else if (espTec.tem_especificacao) {
     if (espTec.variacoes && espTec.variacoes.length > 1) {
       qtdChapas = espTec.quantidade;
       metragemMm = espTec.comprimento_mm || "";
@@ -608,7 +616,8 @@ export async function rotearLoteTelhasAgrupadas({
     itensDoGrupo.forEach(it => {
       const descTexto = it.descricao || it.observacao || "";
       if (descTexto) textoObservacoes.push(descTexto);
-      const espTec = extrairEspecificacao(descTexto, it.quantidade, it.unidade);
+      const prodTexto = it.produto || "";
+      const espTec = extrairEspecificacao(`${prodTexto} ${descTexto}`.trim(), it.quantidade, it.unidade);
 
       if (espTec.tem_especificacao && espTec.variacoes && espTec.variacoes.length > 0) {
         espTec.variacoes.forEach(v => {

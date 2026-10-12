@@ -182,18 +182,86 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // B. DETECÇÃO DE PERFIL DOBRADO (Ex: 40x75x40 - 10 PÇS ou 127X50X17X50X17MM 6000MM)
+  // B. DETECÇÃO INTELIGENTE DE BOBININHA / DESBOBINAMENTO
+  // (Ex: "2 X 30 M IMPORTADA", "2 x 30m", "1553 - Bobininha ... - 30MT" c/ 60 no Odoo)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const isBobininha = /(?:bobininha|bobinina|bobina|fita|desbobinamento|desbobinador)/i.test(t);
+
+  // Padrão 1: Notação expressa [QTD] X [METROS] M (ex: "2 X 30 M", "2 x 30m", "1 X 30 M", "3 X 20 M", "2 x 30 mts", "2 X 30MT")
+  const regexBobininhaNxM = /\b(\d+)\s*[xX*]\s*(\d+(?:[.,]\d+)?)\s*(?:m\b|mts?\b|metros?|mt\b)/i;
+  // Padrão 2: Notação em texto: "2 bobininhas de 30m", "2 rolos de 30m", "2 de 30m", "2 c/ 30m"
+  const regexBobininhaTexto = /\b(\d+)\s*(?:bobininhas?|bobinas?|rolos?|p[çc]s?|pe[çc]as?|unidades?|un\.?)?\s*(?:de|com|c\/)\s*(\d+(?:[.,]\d+)?)\s*(?:m\b|mts?\b|metros?|mt\b)/i;
+  // Padrão 3: Se o texto/produto é expressamente Bobininha e tem "2 X 30" (mesmo sem a letra M explícita)
+  const regexBobininhaSemM = isBobininha ? /\b(\d+)\s*[xX*]\s*(\d{1,3})\b/i : null;
+
+  const matchBobininha = t.match(regexBobininhaNxM) || t.match(regexBobininhaTexto) || (regexBobininhaSemM ? t.match(regexBobininhaSemM) : null);
+
+  if (isBobininha || matchBobininha) {
+    let qBobina = null;
+    let compMBobina = null;
+
+    if (matchBobininha) {
+      qBobina = parseInt(matchBobininha[1], 10);
+      compMBobina = parseFloat(matchBobininha[2].replace(",", "."));
+    } else if (isBobininha) {
+      // Tenta extrair metragem unitária do cadastro do produto (ex: "30MT", "30 MT", "50M")
+      const matchCompProd = t.match(/\b(\d{1,3})\s*(?:mt|mts|m\b|metros)/i);
+      if (matchCompProd) {
+        compMBobina = parseFloat(matchCompProd[1]);
+        const qOdooNum = Number(qtdOdoo) || 1;
+        // Se a quantidade do Odoo for múltiplo da metragem unitária (ex: 60 no Odoo dividido por 30m = 2 bobininhas)
+        if (compMBobina > 0 && qOdooNum >= compMBobina && qOdooNum % compMBobina === 0) {
+          qBobina = Math.round(qOdooNum / compMBobina);
+        } else {
+          // Se for pequena contagem de peças (ex: 2 UN)
+          qBobina = qOdooNum > 0 ? qOdooNum : 1;
+        }
+      }
+    }
+
+    if (qBobina && compMBobina && compMBobina > 0) {
+      const compMmBobina = Math.round(compMBobina * 1000);
+      const totalMBobina = +(qBobina * compMBobina).toFixed(2);
+      const labelBobina = qBobina === 1 ? "bobininha" : "bobininhas";
+
+      out.tipo_conformacao = "bobininha";
+      out.tipo_label = "Bobininha";
+      out.quantidade = qBobina;
+      out.pecas = qBobina;
+      out.comprimento_m = compMBobina;
+      out.comprimento_mm = compMmBobina;
+      out.metragem_total = totalMBobina;
+      out.resumo_formatado = `${qBobina} ${labelBobina} c/ ${compMBobina} metros (Total: ${totalMBobina}m)`;
+      out.tem_especificacao = true;
+      out.variacoes.push({
+        qty: qBobina,
+        mm: compMmBobina,
+        m: compMBobina,
+        total_m: totalMBobina,
+        tipo: "bobininha"
+      });
+      return extrairCorEEspessura(t, out);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // C. DETECÇÃO DE PERFIL DOBRADO (Ex: 40x75x40 - 10 PÇS ou 127X50X17X50X17MM 6000MM)
   // ═══════════════════════════════════════════════════════════════════════════
   // Padrão 3 a 5 abas (U simples, U enrijecido com 5 abas):
   // Ex: "127X50X17X50X17MM", "75X40X17X40X17MM", "127X50X17", "75x40x17"
   const regexPerfilMultiAbas = /\b(\d{1,3})\s*[xX*]\s*(\d{1,3})\s*[xX*]\s*(\d{1,3})(?:\s*[xX*]\s*(\d{1,3}))?(?:\s*[xX*]\s*(\d{1,3}))?(?:\s*mm)?(?![0-9a-z])/i;
-  const matchPerfilMulti = t.match(regexPerfilMultiAbas);
+  const matchPerfilMulti = !isBobininha ? t.match(regexPerfilMultiAbas) : null;
 
-  // Padrão 2 abas pequenas: "92x30", "125x50", "75x40", "50x50" (onde abas <= 350)
-  const regexPerfil2Abas = /\b(\d{1,3})\s*[xX*]\s*(\d{1,3})(?:\s*mm)?(?![0-9a-z])/i;
-  const matchPerfil2 = !matchPerfilMulti ? t.match(regexPerfil2Abas) : null;
+  // Padrão 2 abas pequenas: "92x30", "125x50", "75x40", "50x50" (onde abas >= 10 e <= 350)
+  // 🛡️ NUNCA pode coincidir se a segunda aba for seguida de 'm', 'mt', 'metros' (que indica metros e não aba!)
+  const regexPerfil2Abas = /\b(\d{1,3})\s*[xX*]\s*(\d{1,3})(?:\s*mm)?(?!\s*(?:m\b|mts?\b|metros?|mt\b|[a-z]))/i;
+  const matchPerfil2 = (!matchPerfilMulti && !isBobininha) ? t.match(regexPerfil2Abas) : null;
 
-  if (matchPerfilMulti || (matchPerfil2 && parseInt(matchPerfil2[1], 10) <= 350 && parseInt(matchPerfil2[2], 10) <= 350)) {
+  const aba1 = matchPerfil2 ? parseInt(matchPerfil2[1], 10) : 0;
+  const aba2 = matchPerfil2 ? parseInt(matchPerfil2[2], 10) : 0;
+  const isPerfil2Valido = matchPerfil2 && aba1 >= 10 && aba1 <= 350 && aba2 >= 10 && aba2 <= 350;
+
+  if (matchPerfilMulti || isPerfil2Valido) {
     const abas = [];
     if (matchPerfilMulti) {
       abas.push(parseInt(matchPerfilMulti[1], 10));

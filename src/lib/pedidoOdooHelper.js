@@ -1,4 +1,5 @@
 import { stripHtml } from "@/lib/stripHtml";
+import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 
 // Helper compartilhado para itens de PedidoOdoo com status por peça.
 // Normaliza itens_json garantindo campos de status por item.
@@ -20,7 +21,7 @@ export function getItens(pedido) {
   } else if (Array.isArray(pedido.itens_json)) {
     arr = pedido.itens_json;
   }
-  return arr.map((it, idx) => {
+  const mapeados = arr.map((it, idx) => {
     const unid = normalizarUnidadeMedidaItem(it);
     return {
       ...STATUS_DEFAULTS,
@@ -28,6 +29,32 @@ export function getItens(pedido) {
       unidade: unid,
       _idx: idx
     };
+  });
+
+  // Normalização inteligente de Bobininha em memória:
+  // Se a observação contiver ex: "2 X 30 M IMPORTADA", ajusta quantidade: 2, medida: 30000, metragem_total: 60
+  return mapeados.map((it) => {
+    const prod = String(it.produto || "").trim();
+    const desc = String(it.descricao || it.observacao || "").trim();
+    const textoCompleto = `${prod} ${desc}`.trim();
+    const isBobininha = /(bobininha|bobinina|bobina|fita|desbobinamento|desbobinador)/i.test(textoCompleto);
+    if (!isBobininha) return it;
+
+    const espTec = extrairEspecificacao(textoCompleto, it.quantidade, it.unidade);
+    if (espTec && espTec.tipo_conformacao === "bobininha" && espTec.pecas > 0) {
+      const qNova = espTec.pecas;
+      const compMmNovo = String(espTec.comprimento_mm || 30000);
+      const totalMNovo = espTec.metragem_total || (qNova * (espTec.comprimento_m || 30));
+      return {
+        ...it,
+        quantidade: qNova,
+        medida: compMmNovo,
+        metragem_total: totalMNovo,
+        unidade: "UN",
+        maquina: it.maquina || "DESBOBINADOR"
+      };
+    }
+    return it;
   });
 }
 
@@ -780,7 +807,6 @@ export function detectarEPSTelha(produtoTexto = "", maquina = "") {
 }
 
 import { calcularDataPrometidaSLA, toISODate } from "@/lib/sla";
-import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import { extrairCroquiPedido } from "@/lib/croquiExtractor";
 import { detectarCorTelha } from "@/lib/bobinaValidation";
 
@@ -804,19 +830,26 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
     ? String(pedido.data_entrega).slice(0, 10)
     : toISODate(calcularDataPrometidaSLA(dataReceb, 7));
 
-  // Extrai especificação inteligente da descrição (ex: "50 PÇS c/ 2000")
-  const espTec = extrairEspecificacao(descTexto, item?.quantidade, item?.unidade);
+  // Extrai especificação inteligente da descrição e produto (ex: "50 PÇS c/ 2000" ou "2 X 30 M IMPORTADA")
+  const espTec = extrairEspecificacao(textoCompleto, item?.quantidade, item?.unidade);
 
-  // No formulário de Telhas:
-  // - metros = quantidade de chapas / peças a cortar (ex: 50)
-  // - metragem_mm = comprimento unitário da telha em mm (ex: 2000)
-  // - quantidade_telhas = metragem linear total do pedido em metros (ex: 100m)
+  // No formulário de Telhas / Desbobinador:
+  // - metros = quantidade de chapas / peças / bobininhas a cortar (ex: 2)
+  // - metragem_mm = comprimento unitário da telha/bobininha em mm (ex: 30000)
+  // - quantidade_telhas = metragem linear total do pedido em metros (ex: 60m)
   let qtdChapas = item?.quantidade || "";
   let metragemMm = "";
   let metragemTotalLinear = item?.quantidade || "";
   let variacoesTelhasJson = "";
 
-  if (espTec.tem_especificacao) {
+  if (espTec.tipo_conformacao === "bobininha" || prodTipo === "BOBININHA") {
+    qtdChapas = espTec.quantidade || (espTec.pecas || 1);
+    metragemMm = espTec.comprimento_mm || 30000;
+    metragemTotalLinear = espTec.metragem_total || (Number(qtdChapas) * (espTec.comprimento_m || 30));
+    if (espTec.variacoes && espTec.variacoes.length > 0) {
+      variacoesTelhasJson = JSON.stringify(espTec.variacoes);
+    }
+  } else if (espTec.tem_especificacao) {
     if (espTec.variacoes && espTec.variacoes.length > 1) {
       qtdChapas = espTec.quantidade;
       metragemMm = espTec.comprimento_mm || "";

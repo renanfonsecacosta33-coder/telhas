@@ -275,14 +275,28 @@ export function extrairDemandaItem(item) {
     }
   } else if (isContagemDireta) {
     // Unidade explícita de contagem no Odoo (BR, UN, PC, etc.)
-    pecas = qtdOdoo;
-    pecasOrigem = "odoo";
-    if (spec && spec.metragem_total) metros = spec.metragem_total;
-    if (spec && spec.comprimento_mm) compMm = spec.comprimento_mm;
+    if (spec && spec.tipo_conformacao === "bobininha") {
+      pecas = spec.pecas || 1;
+      pecasOrigem = "obs";
+      metros = spec.metragem_total || (pecas * (spec.comprimento_m || 30));
+      compMm = spec.comprimento_mm || 30000;
+    } else {
+      pecas = qtdOdoo;
+      pecasOrigem = "odoo";
+      if (spec && spec.metragem_total) metros = spec.metragem_total;
+      if (spec && spec.comprimento_mm) compMm = spec.comprimento_mm;
+    }
   } else if (unid.startsWith("M")) {
-    metros = qtdOdoo;
-    pecas = (spec && spec.pecas) ? spec.pecas : 1;
-    pecasOrigem = (spec && spec.pecas) ? "obs" : "odoo";
+    if (spec && spec.tipo_conformacao === "bobininha") {
+      pecas = spec.pecas || 1;
+      pecasOrigem = "obs";
+      metros = spec.metragem_total || qtdOdoo;
+      compMm = spec.comprimento_mm || 30000;
+    } else {
+      metros = qtdOdoo;
+      pecas = (spec && spec.pecas) ? spec.pecas : 1;
+      pecasOrigem = (spec && spec.pecas) ? "obs" : "odoo";
+    }
   } else if (pecasObs != null) {
   }
 
@@ -350,16 +364,23 @@ export function calcularPesoEstimadoItem({ setor, espessura, demanda, isSanduich
   if (setor === "telha" || setor === "frisada") {
     // Fórmula física: Espessura (mm) × Largura (1.20m) × 7.85 kg/m³ = kg/m
     const kgPorMetro = +(espNum * 7.85 * 1.2).toFixed(2);
-    const metros = isSanduiche ? (demanda.metros * 2 || demanda.pecas * 4) : (demanda.metros || demanda.pecas * 2);
+    const isBobininha = demanda?.spec?.tipo_conformacao === "bobininha" || /(bobininha|bobinina|bobina|fita|desbobinamento)/i.test(`${prod} ${desc}`);
+    const metros = isSanduiche
+      ? (demanda.metros * 2 || demanda.pecas * 4)
+      : (demanda.metros || (isBobininha ? demanda.pecas * 30 : demanda.pecas * 2));
     const pesoKg = Math.max(1, Math.round(metros * kgPorMetro));
     return {
       pesoKg,
       kgPorMetro,
       metros,
-      metodo: isSanduiche ? "formula_sanduiche_dupla_face" : "formula_telha_linear",
+      metodo: isSanduiche
+        ? "formula_sanduiche_dupla_face"
+        : (isBobininha ? "formula_bobininha_desbobinador" : "formula_telha_linear"),
       formula: isSanduiche
         ? `${metros}m (${demanda.metros}m × 2 faces) × ${kgPorMetro} kg/m (${espNum}mm)`
-        : `${metros}m × ${kgPorMetro} kg/m (${espNum}mm)`
+        : (isBobininha
+          ? `${demanda.pecas} bobininha${demanda.pecas > 1 ? "s" : ""} (${metros}m total) × ${kgPorMetro} kg/m (${espNum}mm)`
+          : `${metros}m × ${kgPorMetro} kg/m (${espNum}mm)`)
     };
   }
 
