@@ -20,6 +20,7 @@ import OPImpressao from "@/components/producao/OPImpressao";
 import { useFilial } from "@/contexts/FilialContext";
 import ExpedicaoTab from "@/components/logistica/ExpedicaoTab";
 import FilaPCPTelhas from "@/components/pcp/FilaPCPTelhas";
+import FiltrosDataPCPBar from "@/components/pcp/FiltrosDataPCPBar";
 import KanbanBoard from "@/components/producao/KanbanBoard";
 import HistoricoGeralProducao from "@/components/producao/HistoricoGeralProducao";
 import PedidoTelhasTabelaView from "@/components/producao/PedidoTelhasTabelaView";
