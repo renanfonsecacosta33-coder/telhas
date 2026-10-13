@@ -28,6 +28,26 @@ import {
   SeletorPrioridadeDropdown,
   getPrioridadeNivel
 } from "@/lib/prioridadeHelper";
+import ProcessoStepperPedido from "@/components/producao/ProcessoStepperPedido";
+
+function formatarDiaSeguro(diaStr) {
+  if (!diaStr) return "";
+  try {
+    const raw = String(diaStr).trim();
+    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      const [_, ano, mes, dia] = isoMatch;
+      return `${dia}/${mes}`;
+    }
+    const d = new Date(raw.includes("T") ? raw : raw + "T12:00:00");
+    if (!isNaN(d.getTime())) {
+      return format(d, "dd/MM", { locale: ptBR });
+    }
+    return raw;
+  } catch {
+    return "";
+  }
+}
 
 function formatTempoCompacto(segundos) {
   const s = Math.floor(segundos || 0);
@@ -223,7 +243,7 @@ export default function OrdemCardCD({
             )}
             {o.data_prevista && (
               <span>
-                📅 Prev: {format(new Date(o.data_prevista + "T12:00:00"), "dd/MM", { locale: ptBR })}
+                📅 Prev: {formatarDiaSeguro(o.data_prevista)}
               </span>
             )}
           </div>
@@ -277,6 +297,16 @@ export default function OrdemCardCD({
                   </span>
                 </ImageLink>
               )}
+            </div>
+
+            {/* Stepper de Processos de Corte e Dobra */}
+            <div className="w-full pt-2">
+              <ProcessoStepperPedido
+                pedido={o}
+                setor="corte_dobra"
+                compacto={true}
+                onEtapaClick={(_et, ord) => onEdit?.(ord)}
+              />
             </div>
           </div>
         </div>

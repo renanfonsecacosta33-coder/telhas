@@ -10,6 +10,7 @@ import { classGrupo, normalizarUnidadeMedidaItem, obterStatusDescritivoItem } fr
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import { verificarEstoqueItem, extrairDemandaItem } from "@/lib/estoqueMaterialHelper";
 import { PrioridadeBadge } from "@/lib/prioridadeHelper";
+import ProcessoStepperPedido from "@/components/producao/ProcessoStepperPedido";
 
 export default function FilaPCPTabelaView({
   pedidos = [],
@@ -123,6 +124,7 @@ export default function FilaPCPTabelaView({
               <th className="py-2.5 px-3">Produto / Especificação</th>
               <th className="py-2.5 px-3 text-center">Peças × Medida Individual</th>
               <th className="py-2.5 px-3 text-right">Metragem Total</th>
+              <th className="py-2.5 px-3 text-center">Processo</th>
               <th className="py-2.5 px-3 text-center">Estoque MP</th>
               <th className="py-2.5 px-3 text-center">Status PCP</th>
               <th className="py-2.5 px-3 text-right">Ações</th>
@@ -206,6 +208,16 @@ export default function FilaPCPTabelaView({
                     <span className="font-black font-mono text-blue-600 dark:text-blue-400 text-sm">
                       {metrosTotais > 0 ? `${Number(metrosTotais).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 })} m` : "—"}
                     </span>
+                  </td>
+
+                  {/* Roteiro de Processo */}
+                  <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                    <ProcessoStepperPedido
+                      pedido={pedido}
+                      setor={categoria}
+                      compacto={true}
+                      onEtapaClick={(_et, ped) => onOpenDetalhe?.(ped)}
+                    />
                   </td>
 
                   {/* Estoque MP */}

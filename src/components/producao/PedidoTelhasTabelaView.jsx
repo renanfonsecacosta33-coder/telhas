@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Edit2, Trash2, Printer, Star, History, Clock, CheckCircle2, Play, Pause } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import ProcessoStepperPedido from "@/components/producao/ProcessoStepperPedido";
 
 const STATUS_CFG = {
   pendente: { label: "Pendente", color: "bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-300" },
@@ -58,6 +59,7 @@ export default function PedidoTelhasTabelaView({
               <th className="py-2.5 px-3">Produto / Modelo</th>
               <th className="py-2.5 px-3 text-center">Peças × Medida Individual</th>
               <th className="py-2.5 px-3 text-right">Metragem Total</th>
+              <th className="py-2.5 px-3 text-center">Processo</th>
               <th className="py-2.5 px-3">Bobina / Cor</th>
               <th className="py-2.5 px-3 text-center">Status</th>
               <th className="py-2.5 px-3 text-right">Ações</th>
@@ -136,6 +138,16 @@ export default function PedidoTelhasTabelaView({
                     <span className="font-black font-mono text-blue-600 dark:text-blue-400 text-sm">
                       {metrosTotais > 0 ? `${Number(metrosTotais).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 })} m` : "—"}
                     </span>
+                  </td>
+
+                  {/* Roteiro de Processo */}
+                  <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                    <ProcessoStepperPedido
+                      pedido={p}
+                      setor="telhas"
+                      compacto={true}
+                      onEtapaClick={(_et, ped) => onEdit?.(ped)}
+                    />
                   </td>
 
                   <td className="py-2.5 px-3 text-muted-foreground max-w-[160px] truncate" title={p.bobina_superior || p.rvm_superior}>

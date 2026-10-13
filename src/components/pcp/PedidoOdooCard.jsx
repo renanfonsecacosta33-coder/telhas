@@ -22,6 +22,7 @@ import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelp
 import { classGrupo, obterStatusExecucaoPedido } from "@/lib/pedidoOdooHelper";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
+import ProcessoStepperPedido from "@/components/producao/ProcessoStepperPedido";
 
 // Cores estritas do Ecossistema AJL conforme menu do sistema:
 // 🏠 Fábrica de Telhas → AZUL (#2563EB)
@@ -359,6 +360,13 @@ export default function PedidoOdooCard({
           compacto={true}
         />
 
+        <ProcessoStepperPedido
+          pedido={pedido}
+          setor={grupoSetor}
+          compacto={true}
+          onEtapaClick={(_etapa, ped) => onClick?.(ped)}
+        />
+
         {/* Lista de Itens Compacta */}
         <PedidoItensLista
           pedido={pedido}
@@ -604,6 +612,13 @@ export default function PedidoOdooCard({
         ops={statusExecucao?.opsVinculadas || []}
         percentual={pct}
         setor={grupoSetor}
+      />
+
+      {/* Stepper Visual Interativo de Processos da Fábrica */}
+      <ProcessoStepperPedido
+        pedido={pedido}
+        setor={grupoSetor}
+        onEtapaClick={(_etapa, ped) => onClick?.(ped)}
       />
 
       {/* SLA Countdown (Regra 6) */}

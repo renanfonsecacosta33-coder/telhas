@@ -7,6 +7,7 @@ import { ptBR } from "date-fns/locale";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
 import { PrioridadeBadge } from "@/lib/prioridadeHelper";
 import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco";
+import ProcessoStepperPedido from "@/components/producao/ProcessoStepperPedido";
 
 const STATUS_CONFIG = {
   pendente: { label: "Pendente", icon: Circle, badge: "bg-gray-100 text-gray-700 border-gray-200" },
@@ -83,6 +84,16 @@ export default function PedidoCard({ pedido: p, maquinaCores, onEdit, onDelete, 
             {p.kg_total > 0 && <span>{p.kg_total}kg</span>}
             {p.data && <span className="font-semibold text-slate-700 dark:text-slate-300">📅 Prod: {formatarDiaSeguro(p.data)}</span>}
             {p.data_prevista && <span>Prev: {formatarDiaSeguro(p.data_prevista)}</span>}
+          </div>
+
+          {/* Stepper de Processo da Fábrica */}
+          <div className="mt-2">
+            <ProcessoStepperPedido
+              pedido={p}
+              setor="telhas"
+              compacto={false}
+              onEtapaClick={(_et, ped) => onEdit?.(ped)}
+            />
           </div>
         </div>
 
