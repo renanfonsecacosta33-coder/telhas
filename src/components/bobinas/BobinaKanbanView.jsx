@@ -2,7 +2,15 @@ import React, { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Edit2, Eye, AlertTriangle, Layers, Clock, CheckCircle2, Cog, Lock, PackageX } from "lucide-react";
-import { getAlertaNivel } from "@/components/bobinas/BobinaCardShared";
+function extrairAlerta(bobina) {
+  const nivel = getAlertaNivel(bobina);
+  if (!nivel) return { ativo: false, texto: "", nivel: null };
+  return {
+    ativo: true,
+    texto: nivel === "critico" ? "Estoque crítico (abaixo do mínimo)" : "Estoque em atenção",
+    nivel,
+  };
+}
 
 const COLUNAS_KANBAN = [
   {
@@ -129,7 +137,7 @@ export default function BobinaKanbanView({
                 </div>
               ) : (
                 col.itens.map((b) => {
-                  const alerta = getAlertaNivel(b);
+                  const alerta = extrairAlerta(b);
                   const preKg = preBaixaMap[b.id] || 0;
                   const pesoAtual = Number(b.peso_kg) || 0;
                   const espNum = parseFloat(String(b.chapa || "0.43").replace(",", ".")) || 0.43;
@@ -213,7 +221,7 @@ export default function BobinaKanbanView({
                         )}
                       </div>
 
-                      {alerta.alerta && (
+                      {alerta.ativo && (
                         <div className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1 bg-amber-500/10 px-1.5 py-0.5 rounded">
                           <AlertTriangle className="w-3 h-3 shrink-0" />
                           <span className="truncate">{alerta.texto}</span>

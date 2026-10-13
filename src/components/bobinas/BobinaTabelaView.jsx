@@ -4,6 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Edit2, Trash2, Archive, Eye, AlertTriangle, Layers, Clock } from "lucide-react";
 import { getAlertaNivel } from "@/components/bobinas/BobinaCardShared";
 
+function extrairAlerta(bobina) {
+  const nivel = getAlertaNivel(bobina);
+  if (!nivel) return { ativo: false, texto: "", nivel: null };
+  return {
+    ativo: true,
+    texto: nivel === "critico" ? "Estoque crítico (abaixo do mínimo)" : "Estoque em atenção",
+    nivel,
+  };
+}
+
 export default function BobinaTabelaView({
   bobinas = [],
   statusColors = {},
@@ -36,7 +46,7 @@ export default function BobinaTabelaView({
           </thead>
           <tbody className="divide-y divide-border">
             {bobinas.map((b) => {
-              const alerta = getAlertaNivel(b);
+              const alerta = extrairAlerta(b);
               const preKg = preBaixaMap[b.id] || 0;
               const preM = preBaixaMetrosMap[b.id] || 0;
               const preOps = preBaixaOpsMap[b.id] || [];
@@ -47,13 +57,13 @@ export default function BobinaTabelaView({
                 <tr
                   key={b.id}
                   className={`hover:bg-muted/40 transition-colors ${
-                    alerta.alerta ? "bg-amber-500/5 dark:bg-amber-950/20" : ""
+                    alerta.ativo ? "bg-amber-500/5 dark:bg-amber-950/20" : ""
                   }`}
                 >
                   <td className="py-2.5 px-3 font-mono font-bold text-foreground">
                     <div className="flex items-center gap-1.5">
                       <span>{b.codigo_bobina || b.codigo || b.id?.slice(0, 8)}</span>
-                      {alerta.alerta && (
+                      {alerta.ativo && (
                         <span title={alerta.texto} className="text-amber-500">
                           <AlertTriangle className="w-3.5 h-3.5 inline" />
                         </span>

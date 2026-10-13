@@ -54,7 +54,13 @@ export default function Bobinas() {
   const [filtroData, setFiltroData] = useState("");
   const [ordenacao, setOrdenacao] = useState("none");
   const [verTodasFiliais, setVerTodasFiliais] = useState(false);
-  const [viewMode, setViewMode] = useState("cards");
+  const [viewMode, setViewMode] = useState(() => {
+    try {
+      return localStorage.getItem("ajl_viewmode_bobinas") || "cards";
+    } catch {
+      return "cards";
+    }
+  });
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
 
@@ -328,6 +334,11 @@ export default function Bobinas() {
           <p className="text-sm text-muted-foreground">Bobinas de aço para produção de telhas</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <ViewModeToggle
+            value={viewMode}
+            onChange={setViewMode}
+            storageKey="bobinas"
+          />
           <Button
             variant="outline"
             onClick={() => setHistoricoReservasOpen(true)}
