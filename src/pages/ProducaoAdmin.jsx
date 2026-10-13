@@ -21,8 +21,9 @@ import { useFilial } from "@/contexts/FilialContext";
 import ExpedicaoTab from "@/components/logistica/ExpedicaoTab";
 import FilaPCPTelhas from "@/components/pcp/FilaPCPTelhas";
 import KanbanBoard from "@/components/producao/KanbanBoard";
-import FiltrosDataPCPBar from "@/components/pcp/FiltrosDataPCPBar";
 import HistoricoGeralProducao from "@/components/producao/HistoricoGeralProducao";
+import PedidoTelhasTabelaView from "@/components/producao/PedidoTelhasTabelaView";
+import ViewModeToggle from "@/components/ui/ViewModeToggle";
 import { extrairDataISO, calcularIntervaloPreset, ordenarPedidosPCP } from "@/lib/filtroDataHelper";
 import { diasUteisRestantes } from "@/lib/sla";
 import { prepararPresetNovaOrdemTelhas, getItens, computePercentual, statusPcpPorPercentual, buildItensJson } from "@/lib/pedidoOdooHelper";
@@ -50,6 +51,9 @@ export default function ProducaoAdmin() {
   const [editItem, setEditItem] = useState(null);
   const [filaContext, setFilaContext] = useState(null);
   const [viewMode, setViewMode] = useState("semana"); // "semana" | "dia" | "kanban"
+  const [viewEstilo, setViewEstilo] = useState(() => {
+    try { return localStorage.getItem("ajl_viewmode_telhas") || "cards"; } catch { return "cards"; }
+  });
   const [escopoKanban, setEscopoKanban] = useState("dia"); // "dia" | "semana" | "todos"
   const [activeTab, setActiveTab] = useState("producao"); // "producao" | "dados" | "kanban"
   const [opOpen, setOpOpen] = useState(false);
@@ -764,6 +768,13 @@ export default function ProducaoAdmin() {
         onOrdenacaoChange={setOrdenacao}
         contadores={contadores}
         labelNaoDistribuidos="Aguardando"
+        viewMode={viewEstilo}
+        onViewModeChange={(novo) => {
+          setViewEstilo(novo);
+          try { localStorage.setItem("ajl_viewmode_telhas", novo); } catch {}
+          if (novo === "kanban") setViewMode("kanban");
+          else if (novo === "cards") { if (viewMode === "kanban") setViewMode("semana"); }
+        }}
         opcoesDataCampo={[
           { value: "data", label: "📅 Data de Produção Programada" },
           { value: "data_entrega", label: "🚚 Data de Entrega Prometida (SLA)" },
@@ -928,55 +939,67 @@ export default function ProducaoAdmin() {
         </div>
       </div>
 
-      {/* Toggle visão semana / dia / kanban */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <Button
-          variant={viewMode === "semana" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setViewMode("semana")}
-          className="text-xs font-bold"
-        >
-          Visão Semana
-        </Button>
-        <Button
-          variant={viewMode === "dia" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setViewMode("dia")}
-          className="text-xs font-bold"
-        >
-          Visão Dia — {format(new Date(selectedDay + "T12:00:00"), "dd/MM", { locale: ptBR })}
-        </Button>
-        <Button
-          variant={viewMode === "kanban" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setViewMode("kanban")}
-          className={`gap-1.5 text-xs font-bold ${viewMode === "kanban" ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs" : ""}`}
-        >
-          <Layers className="w-3.5 h-3.5" />
-          <span>Quadro Kanban</span>
-        </Button>
-        <Link to="/estoque-dashboard">
-          <Button variant="outline" size="sm" className="gap-1 text-xs font-semibold text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-700 hover:bg-teal-50 dark:hover:bg-teal-950/40">
-            <Layers className="w-3.5 h-3.5 text-teal-500" />
-            Estoque por Espessura
+      {/* Toggle visão cards / tabela / kanban */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <ViewModeToggle
+            value={viewEstilo}
+            onChange={(novo) => {
+              setViewEstilo(novo);
+              try { localStorage.setItem("ajl_viewmode_telhas", novo); } catch {}
+              if (novo === "kanban") setViewMode("kanban");
+              else if (novo === "cards") { if (viewMode === "kanban") setViewMode("semana"); }
+            }}
+            storageKey="telhas"
+          />
+
+          {viewEstilo === "cards" && (
+            <>
+              <Button
+                variant={viewMode === "semana" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("semana")}
+                className="text-xs font-bold"
+              >
+                Visão Semana
+              </Button>
+              <Button
+                variant={viewMode === "dia" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("dia")}
+                className="text-xs font-bold"
+              >
+                Visão Dia — {format(new Date(selectedDay + "T12:00:00"), "dd/MM", { locale: ptBR })}
+              </Button>
+            </>
+          )}
+
+          <Link to="/estoque-dashboard">
+            <Button variant="outline" size="sm" className="gap-1 text-xs font-semibold text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-700 hover:bg-teal-50 dark:hover:bg-teal-950/40">
+              <Layers className="w-3.5 h-3.5 text-teal-500" />
+              Estoque por Espessura
+            </Button>
+          </Link>
+        </div>
+
+        <div className="flex items-center gap-2 ml-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { setSelectedDay(format(new Date(), "yyyy-MM-dd")); setCurrentWeek(new Date()); setViewMode("dia"); }}
+            className="gap-1 text-xs font-bold"
+          >
+            <Calendar className="w-3 h-3" />
+            Hoje
           </Button>
-        </Link>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => { setSelectedDay(format(new Date(), "yyyy-MM-dd")); setCurrentWeek(new Date()); setViewMode("dia"); }}
-          className="gap-1 text-xs font-bold"
-        >
-          <Calendar className="w-3 h-3" />
-          Hoje
-        </Button>
+        </div>
       </div>
 
       {isLoading ? (
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
         </div>
-      ) : viewMode === "kanban" ? (
+      ) : viewEstilo === "kanban" || viewMode === "kanban" ? (
         <div className="space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2 bg-card border border-border p-2.5 rounded-xl shadow-xs">
             <div className="flex items-center gap-2 flex-wrap">
@@ -1026,6 +1049,16 @@ export default function ProducaoAdmin() {
             }}
           />
         </div>
+      ) : viewEstilo === "tabela" ? (
+        <PedidoTelhasTabelaView
+          pedidos={pedidosFiltradosGlobal}
+          maquinaCores={MAQUINA_CORES}
+          onEdit={openEdit}
+          onDelete={confirmarDelete}
+          onStatusChange={(p, status) => updateMutation.mutate({ id: p.id, data: { ...p, status } })}
+          onPrintOP={abrirOP}
+          onTogglePrioridade={togglePrioridade}
+        />
       ) : viewMode === "semana" ? (
         // Visão Semana — resumo por dia
         <div className="space-y-3">

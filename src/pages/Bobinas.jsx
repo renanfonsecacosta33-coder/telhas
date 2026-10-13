@@ -21,6 +21,9 @@ import ExportarBobinasDialog from "@/components/bobinas/ExportarBobinasDialog";
 import HistoricoReservasDialog from "@/components/bobinas/HistoricoReservasDialog";
 import { auditarModificacaoBobina } from "@/lib/auditHelper";
 import { useAuth } from "@/lib/AuthContext";
+import ViewModeToggle from "@/components/ui/ViewModeToggle";
+import BobinaTabelaView from "@/components/bobinas/BobinaTabelaView";
+import BobinaKanbanView from "@/components/bobinas/BobinaKanbanView";
 
 const statusColors = {
   "Aberta": "bg-green-500/10 text-green-700 border-green-300",
@@ -51,6 +54,7 @@ export default function Bobinas() {
   const [filtroData, setFiltroData] = useState("");
   const [ordenacao, setOrdenacao] = useState("none");
   const [verTodasFiliais, setVerTodasFiliais] = useState(false);
+  const [viewMode, setViewMode] = useState("cards");
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
 
@@ -517,9 +521,16 @@ export default function Bobinas() {
               )}
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground ml-auto">
-            {sorted.length} de {base.length} bobinas
-          </p>
+          <div className="flex items-center gap-2.5 ml-auto flex-wrap">
+            <ViewModeToggle
+              value={viewMode}
+              onChange={setViewMode}
+              storageKey="bobinas"
+            />
+            <p className="text-xs text-muted-foreground whitespace-nowrap">
+              {sorted.length} de {base.length} bobinas
+            </p>
+          </div>
         </div>
       </div>
 
@@ -567,6 +578,29 @@ export default function Bobinas() {
             )}
           </div>
         </div>
+      ) : viewMode === "tabela" ? (
+        <BobinaTabelaView
+          bobinas={sorted}
+          statusColors={statusColors}
+          preBaixaMap={preBaixaMap}
+          preBaixaMetrosMap={preBaixaMetrosMap}
+          preBaixaOpsMap={preBaixaOpsMap}
+          statusMap={statusMap}
+          onVerOps={(b) => setBobinaOpsModal(b)}
+          onEdit={(b) => { setEditItem(b); setDialogOpen(true); }}
+          onDelete={(b) => setDeleteItem(b)}
+          onArquivar={(id, val) => arquivarMutation.mutate({ id, arquivada: val })}
+        />
+      ) : viewMode === "kanban" ? (
+        <BobinaKanbanView
+          bobinas={sorted}
+          statusColors={statusColors}
+          preBaixaMap={preBaixaMap}
+          preBaixaMetrosMap={preBaixaMetrosMap}
+          preBaixaOpsMap={preBaixaOpsMap}
+          onVerOps={(b) => setBobinaOpsModal(b)}
+          onEdit={(b) => { setEditItem(b); setDialogOpen(true); }}
+        />
       ) : (
         <div className="space-y-3">
           {sorted.map((bobina) => (

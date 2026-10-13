@@ -12,6 +12,9 @@ import {
   Weight, MapPin, AlertTriangle, CheckCircle2, Layers, Calendar, X
 } from "lucide-react";
 import BobinaFormDialog from "@/components/bobinas/BobinaFormDialog";
+import ViewModeToggle from "@/components/ui/ViewModeToggle";
+import BobinaTabelaView from "@/components/bobinas/BobinaTabelaView";
+import BobinaKanbanView from "@/components/bobinas/BobinaKanbanView";
 import {
   getTimestampArquivamento,
   formatarDataArquivamento,
@@ -28,6 +31,13 @@ export default function EstoqueExpedicao() {
   const [showArquivadas, setShowArquivadas] = useState(false);
   const [filtroData, setFiltroData] = useState("");
   const [ordenacao, setOrdenacao] = useState("none");
+  const [viewMode, setViewMode] = useState(() => {
+    try {
+      return localStorage.getItem("ajl_viewmode_expedicao_estoque") || "cards";
+    } catch {
+      return "cards";
+    }
+  });
 
   const { data: bobinas = [], isLoading } = useQuery({
     queryKey: ["bobinas-expedicao"],
@@ -124,43 +134,51 @@ export default function EstoqueExpedicao() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-48">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            placeholder="Buscar por código, cor, espessura, data (ex: 14/09)..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+      <div className="flex gap-2 flex-wrap items-center justify-between">
+        <div className="flex items-center gap-2 flex-wrap flex-1">
+          <div className="relative min-w-48 flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="Buscar por código, cor, espessura, data (ex: 14/09)..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-1.5 bg-background border border-input rounded-md px-2.5 h-9 text-xs text-muted-foreground hover:border-primary/50 transition-colors" title={showArquivadas ? "Filtrar por data de arquivamento" : "Filtrar por data de recebimento"}>
+            <Calendar className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+            <input
+              type="date"
+              value={filtroData}
+              onChange={e => setFiltroData(e.target.value)}
+              className="bg-transparent text-xs outline-none text-foreground cursor-pointer"
+            />
+            {filtroData && (
+              <button
+                type="button"
+                onClick={() => setFiltroData("")}
+                className="hover:text-destructive text-muted-foreground p-0.5 rounded"
+                title="Limpar filtro de data"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+          <Button
+            variant={showArquivadas ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowArquivadas(s => { setOrdenacao("none"); setFiltroData(""); return !s; })}
+          >
+            <Archive className="w-4 h-4 mr-1" />
+            {showArquivadas ? "Ver Ativas" : `Arquivadas (${arquivadas.length})`}
+          </Button>
         </div>
-        <div className="flex items-center gap-1.5 bg-background border border-input rounded-md px-2.5 h-9 text-xs text-muted-foreground hover:border-primary/50 transition-colors" title={showArquivadas ? "Filtrar por data de arquivamento" : "Filtrar por data de recebimento"}>
-          <Calendar className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-          <input
-            type="date"
-            value={filtroData}
-            onChange={e => setFiltroData(e.target.value)}
-            className="bg-transparent text-xs outline-none text-foreground cursor-pointer"
-          />
-          {filtroData && (
-            <button
-              type="button"
-              onClick={() => setFiltroData("")}
-              className="hover:text-destructive text-muted-foreground p-0.5 rounded"
-              title="Limpar filtro de data"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          )}
-        </div>
-        <Button
-          variant={showArquivadas ? "default" : "outline"}
-          size="sm"
-          onClick={() => setShowArquivadas(s => { setOrdenacao("none"); setFiltroData(""); return !s; })}
-        >
-          <Archive className="w-4 h-4 mr-1" />
-          {showArquivadas ? "Ver Ativas" : `Arquivadas (${arquivadas.length})`}
-        </Button>
+
+        <ViewModeToggle
+          value={viewMode}
+          onChange={setViewMode}
+          storageKey="expedicao_estoque"
+        />
       </div>
 
       {/* List */}
@@ -176,6 +194,22 @@ export default function EstoqueExpedicao() {
             <Plus className="w-4 h-4 mr-2" /> Adicionar Bobina
           </Button>
         </div>
+      ) : viewMode === "kanban" ? (
+        <BobinaKanbanView
+          bobinas={sorted}
+          onEdit={(b) => { setEditItem(b); setDialogOpen(true); }}
+          onArquivar={(b) => arquivarMutation.mutate({ id: b.id, arquivada: !b.arquivada })}
+          onDelete={null}
+          showArquivadas={showArquivadas}
+        />
+      ) : viewMode === "tabela" ? (
+        <BobinaTabelaView
+          bobinas={sorted}
+          onEdit={(b) => { setEditItem(b); setDialogOpen(true); }}
+          onArquivar={(b) => arquivarMutation.mutate({ id: b.id, arquivada: !b.arquivada })}
+          onDelete={null}
+          showArquivadas={showArquivadas}
+        />
       ) : (
         <div className="space-y-3">
           {sorted.map(b => {

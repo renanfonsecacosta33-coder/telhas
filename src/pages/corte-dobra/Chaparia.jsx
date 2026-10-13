@@ -20,6 +20,9 @@ import EtiquetaChapaModal from "@/components/corte-dobra/EtiquetaChapaModal";
 import ImageLink from "@/components/ui/ImageLink";
 import ImageViewer from "@/components/ui/ImageViewer";
 import { useFilial } from "@/contexts/FilialContext";
+import ViewModeToggle from "@/components/ui/ViewModeToggle";
+import ChapaTabelaView from "@/components/corte-dobra/ChapaTabelaView";
+import ChapaKanbanView from "@/components/corte-dobra/ChapaKanbanView";
 
 function EditarQuantDialog({ chapa, open, onClose, onSave }) {
   const [qtd, setQtd] = useState(chapa?.quantidade_disponivel || 0);
@@ -409,6 +412,13 @@ export default function Chaparia() {
   const [showForm, setShowForm] = useState(false);
   const [chapaEtiqueta, setChapaEtiqueta] = useState(null);
   const [user, setUser] = useState(null);
+  const [viewMode, setViewMode] = useState(() => {
+    try {
+      return localStorage.getItem("ajl_viewmode_chaparia") || "cards";
+    } catch {
+      return "cards";
+    }
+  });
 
   useEffect(() => { base44.auth.me().then(setUser).catch(() => {}); }, []);
   const isAdmin = user?.role === "admin";
@@ -656,7 +666,12 @@ export default function Chaparia() {
           <h1 className="text-2xl font-bold tracking-tight">Chaparia</h1>
           <p className="text-sm text-muted-foreground">Estoque de chapas — Desbobinadeira e entrada manual</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <ViewModeToggle
+            value={viewMode}
+            onChange={setViewMode}
+            storageKey="chaparia"
+          />
           <Button
             variant="outline"
             size="sm"
@@ -803,7 +818,7 @@ export default function Chaparia() {
         </div>
       )}
 
-      {/* Lista */}
+      {/* Conteúdo: Kanban / Tabela / Cards */}
       {isLoading ? (
         <div className="text-center py-16 text-muted-foreground text-sm">Carregando...</div>
       ) : filtradas.length === 0 ? (
@@ -812,6 +827,26 @@ export default function Chaparia() {
           <p className="font-semibold">Nenhuma chapa encontrada</p>
           <p className="text-xs mt-1">As chapas aparecem aqui ao finalizar ordens da Desbobinadeira</p>
         </div>
+      ) : viewMode === "kanban" ? (
+        <ChapaKanbanView
+          chapas={filtradas}
+          bobinasMap={bobinasMap}
+          isAdmin={isAdmin}
+          onEdit={(chapa) => setEditChapa(chapa)}
+          onDelete={(id) => deleteMut.mutate(id)}
+          onViewFoto={(url) => setFotoViewer(url)}
+          onPrintEtiqueta={(chapa) => setChapaEtiqueta(chapa)}
+        />
+      ) : viewMode === "tabela" ? (
+        <ChapaTabelaView
+          chapas={filtradas}
+          bobinasMap={bobinasMap}
+          isAdmin={isAdmin}
+          onEdit={(chapa) => setEditChapa(chapa)}
+          onDelete={(id) => deleteMut.mutate(id)}
+          onViewFoto={(url) => setFotoViewer(url)}
+          onPrintEtiqueta={(chapa) => setChapaEtiqueta(chapa)}
+        />
       ) : (
         <div className="space-y-3">
           {filtradas.map(c => {

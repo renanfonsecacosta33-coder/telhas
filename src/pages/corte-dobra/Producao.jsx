@@ -57,6 +57,9 @@ import KanbanBoard from "@/components/producao/KanbanBoard";
 import IniciarOpOperadoresDialog from "@/components/producao/IniciarOpOperadoresDialog";
 import { useRegrasProducao } from "@/lib/regrasProducao";
 import { extrairCroquiPedido } from "@/lib/croquiExtractor";
+import ViewModeToggle from "@/components/ui/ViewModeToggle";
+import PedidoCDTabelaView from "@/components/corte-dobra/PedidoCDTabelaView";
+import HistoricoPedidoSidebar from "@/components/corte-dobra/HistoricoPedidoSidebar";
 
 const MAQUINAS_OUTRAS = [
   { id: "CORTE 3M",       label: "Guilhotina 3m",       cor: "bg-purple-100 text-purple-800 border-purple-200" },
@@ -71,7 +74,16 @@ export default function ProducaoCD() {
   const [user, setUser] = useState(null);
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [viewMode, setViewMode] = useState("maquinas");
+  const [viewMode, setViewMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem("ajl_viewmode_corte_dobra");
+      if (saved === "tabela") return "tabela";
+      if (saved === "kanban") return "kanban";
+      if (saved === "cards") return "maquinas";
+    } catch {}
+    return "maquinas";
+  });
+  const [pedidoHistoricoNumero, setPedidoHistoricoNumero] = useState(null);
   const [zoom, setZoom] = useState("normal"); // compacto | normal | grande
   const [buscaPedido, setBuscaPedido] = useState("");
   const [dialogRetrabalho, setDialogRetrabalho] = useState(false);
@@ -1042,37 +1054,19 @@ export default function ProducaoCD() {
 
       {/* Abas Principais + Busca + Zoom */}
       <div className="flex items-center justify-between gap-3 flex-wrap border-b border-border pb-3">
-        {/* Abas */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <Button
-            variant={viewMode === "maquinas" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("maquinas")}
-            className={`gap-1.5 text-xs font-bold ${viewMode === "maquinas" ? "bg-orange-500 hover:bg-orange-600 text-white shadow-xs" : ""}`}
-          >
-            <Factory className="w-3.5 h-3.5" />
-            <span>Por Máquinas</span>
-          </Button>
+        {/* Seletor Global de Visão + Abas Extras */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <ViewModeToggle
+            value={["maquinas", "cards", "lista"].includes(viewMode) ? "cards" : viewMode === "tabela" ? "tabela" : viewMode === "kanban" ? "kanban" : ""}
+            onChange={(m) => {
+              if (m === "cards") setViewMode("maquinas");
+              else if (m === "tabela") setViewMode("tabela");
+              else if (m === "kanban") setViewMode("kanban");
+            }}
+            storageKey="corte_dobra"
+          />
 
-          <Button
-            variant={viewMode === "lista" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("lista")}
-            className={`gap-1.5 text-xs font-bold ${viewMode === "lista" ? "bg-orange-500 hover:bg-orange-600 text-white shadow-xs" : ""}`}
-          >
-            <ListOrdered className="w-3.5 h-3.5" />
-            <span>Lista Geral ({totalOrdensDia})</span>
-          </Button>
-
-          <Button
-            variant={viewMode === "kanban" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("kanban")}
-            className={`gap-1.5 text-xs font-bold ${viewMode === "kanban" ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs" : ""}`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Quadro Kanban</span>
-          </Button>
+          <div className="h-5 w-px bg-border/60 mx-1 hidden sm:block" />
 
           <Button
             variant={viewMode === "fila_pcp" ? "default" : "outline"}
@@ -1199,6 +1193,24 @@ export default function ProducaoCD() {
             }
           }}
         />
+      ) : viewMode === "tabela" ? (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h2 className="text-base font-bold capitalize flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-orange-500" />
+              {format(new Date(selectedDay + "T12:00:00"), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+            </h2>
+            <Badge className="bg-orange-100 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800 font-bold">
+              {todasOrdensDiaOrdenadas.length} ordens no total
+            </Badge>
+          </div>
+          <PedidoCDTabelaView
+            ordens={todasOrdensDiaOrdenadas}
+            onEditDesb={openEditDesb}
+            onEditMaq={openEditMaq}
+            onOpenHistorico={(num) => setPedidoHistoricoNumero(num)}
+          />
+        </div>
       ) : viewMode === "lista" ? (
         /* ── VISÃO LISTA GERAL UNIFICADA DO DIA ── */
         <div className="space-y-3">
@@ -1359,6 +1371,13 @@ export default function ProducaoCD() {
         ordem={ordemParaOperadores}
         maquinaNome={ordemParaOperadores?.maquina || "DESBOBINADEIRA"}
         onConfirm={handleConfirmarOperadores}
+      />
+
+      {/* Histórico Completo do Pedido */}
+      <HistoricoPedidoSidebar
+        open={!!pedidoHistoricoNumero}
+        onClose={() => setPedidoHistoricoNumero(null)}
+        numeroPedido={pedidoHistoricoNumero}
       />
     </div>
   );
