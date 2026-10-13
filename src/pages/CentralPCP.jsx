@@ -10,7 +10,8 @@ import {
   Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send,
   Factory, Scissors, Wind, Layers, AlertTriangle, CheckCircle2, Star,
   ChevronDown, ChevronUp, Calendar, Filter, X, Clock, Trash2, CheckSquare, Square,
-  Building2, ArrowRightLeft, Store, Globe, User, Briefcase, Hash, Package, ShieldCheck
+  Building2, ArrowRightLeft, Store, Globe, User, Briefcase, Hash, Package, ShieldCheck,
+  Target
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -114,6 +115,7 @@ export default function CentralPCP() {
       return "cards";
     }
   });
+  const [otimizarPorBobina, setOtimizarPorBobina] = useState(false);
   const [pedidoHistoricoNumero, setPedidoHistoricoNumero] = useState(null);
 
   // Central PCP por Loja / Filial e Permissões de Usuário
@@ -1166,6 +1168,72 @@ export default function CentralPCP() {
     }
   };
 
+  const handleDefinirPrioridadeLote = async (nivel) => {
+    if (selecionados.size === 0) return;
+    const lista = (pedidos || []).filter(p => selecionados.has(p.id));
+    if (lista.length === 0) return;
+
+    const ativa = Boolean(nivel);
+    const isRota = nivel === "ROTA";
+    const nivelVal = isRota ? "ROTA" : (nivel ? Number(nivel) : null);
+    const descr = isRota
+      ? "Marcado como 🚚 Pedido de Rota em lote."
+      : ativa
+      ? `Marcado como Prioridade P${nivelVal} em lote.`
+      : "Prioridade removida em lote.";
+
+    const ofIdsSet = new Set(lista.map(o => o.id));
+
+    // 1. Atualização Otimista Imediata
+    const snapshotAnterior = queryClient.getQueryData(["pedidos-odoo-pcp"]);
+    queryClient.setQueryData(["pedidos-odoo-pcp"], (antigos = []) => {
+      return antigos.map((p) => {
+        if (ofIdsSet.has(p.id)) {
+          const logExistente = (() => { try { return JSON.parse(p.historico_log || "[]"); } catch { return []; } })();
+          const novoLog = [...logExistente, {
+            data: new Date().toISOString(),
+            usuario: "PCP",
+            acao: ativa ? (isRota ? "prioridade_lote_rota" : `prioridade_lote_p${nivelVal}`) : "prioridade_lote_removida",
+            detalhes: descr
+          }];
+          return {
+            ...p,
+            prioridade: ativa,
+            prioridade_nivel: nivelVal,
+            is_rota: isRota,
+            historico_log: JSON.stringify(novoLog)
+          };
+        }
+        return p;
+      });
+    });
+
+    toast({ title: `Atualizando prioridade de ${lista.length} ordem(ns)...` });
+
+    try {
+      for (let i = 0; i < lista.length; i++) {
+        const item = lista[i];
+        if (i > 0) await new Promise(r => setTimeout(r, 100));
+        await executarComRetryRateLimit(async () => {
+          await base44.entities.Pedido.update(item.id, {
+            prioridade: ativa,
+            prioridade_nivel: nivelVal,
+            is_rota: isRota,
+          });
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      toast({ title: "Prioridade em lote atualizada com sucesso!", className: "border-emerald-500/40" });
+    } catch (err) {
+      console.error(err);
+      if (snapshotAnterior) {
+        queryClient.setQueryData(["pedidos-odoo-pcp"], snapshotAnterior);
+      }
+      toast({ title: "Erro ao atualizar prioridade em lote", description: err.message, variant: "destructive" });
+    }
+  };
+
   const handleDistribuir = async (pedido) => {
     setDistribuindo(true);
     try {
@@ -1842,11 +1910,31 @@ export default function CentralPCP() {
     return Array.from(map.values()).sort((a, b) => {
       const priDiff = getPesoOrdenacaoPrioridade(a) - getPesoOrdenacaoPrioridade(b);
       if (priDiff !== 0) return priDiff;
+
+      // Se o otimizador de setup estiver ativo, agrupa pedidos pela mesma matéria-prima
+      if (otimizarPorBobina) {
+        const extrairChave = (g) => {
+          const ofs = g.ofs || [];
+          for (const o of ofs) {
+            const txt = `${o.chapa || ""} ${o.espessura || ""} ${o.cor || ""} ${o.produto || ""} ${o.descricao || ""}`;
+            const mEsp = txt.match(/\b(0[,\.]\d{2})\b/);
+            const esp = mEsp ? mEsp[1].replace(",", ".") : "0.43";
+            const mCor = txt.match(/\b(branco|azul|vermelho|verde|preto|cinza|marrom|amarelo|galvalume)\b/i);
+            const cor = mCor ? mCor[1].toUpperCase() : "GALVALUME";
+            return `${esp}_${cor}`;
+          }
+          return "0.43_GALVALUME";
+        };
+        const chaveA = extrairChave(a);
+        const chaveB = extrairChave(b);
+        if (chaveA !== chaveB) return chaveA.localeCompare(chaveB);
+      }
+
       const da = new Date(a.ofs[0]?.data_recebimento || 0).getTime();
       const db = new Date(b.ofs[0]?.data_recebimento || 0).getTime();
       return da - db;
     });
-  }, [pedidosFiltrados, pedidosAtivosEmTodos, filtro]);
+  }, [pedidosFiltrados, pedidosAtivosEmTodos, filtro, otimizarPorBobina]);
 
   const gruposConcluidosEmTodos = useMemo(() => {
     if (filtro !== "todos") return [];
@@ -2860,6 +2948,36 @@ export default function CentralPCP() {
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
+                {/* Botão Otimizar Sequência por Bobina */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOtimizarPorBobina(prev => {
+                      const next = !prev;
+                      if (next) {
+                        toast({
+                          title: "🎯 Fila otimizada por Bobina!",
+                          description: "Pedidos agrupados por espessura e cor da bobina para minimizar trocas de setup e paradas de máquina."
+                        });
+                      } else {
+                        toast({
+                          title: "Fila retornada à ordenação padrão (FIFO / Prioridade)."
+                        });
+                      }
+                      return next;
+                    });
+                  }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold transition-all border cursor-pointer ${
+                    otimizarPorBobina
+                      ? "bg-purple-600 text-white border-purple-700 shadow-sm"
+                      : "bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/20 border-purple-500/30"
+                  }`}
+                  title="Agrupar pedidos com a mesma bobina (espessura + cor) em sequência para evitar trocas na perfiladeira"
+                >
+                  <Target className="w-3.5 h-3.5" />
+                  {otimizarPorBobina ? "Sequência Otimizada" : "Otimizar p/ Bobina"}
+                </button>
+
                 {/* Seletor Triplo: Cards | Tabela | Kanban */}
                 <ViewModeToggle
                   value={viewMode}
@@ -2946,20 +3064,29 @@ export default function CentralPCP() {
             {viewMode === "tabela" ? (
               <FilaPCPTabelaView
                 pedidos={filtro === "todos" ? pedidosAtivosEmTodos : pedidosFiltrados}
+                gruposPedidos={gruposPedidos}
                 estoqueContext={estoqueContext}
                 pedidosProducao={pedidosProducao}
                 ordensCD={ordensCD}
+                selecionados={selecionados}
+                onToggleSelect={handleToggleSelect}
+                onToggleSelectGrupo={handleToggleSelectGrupo}
                 onOpenDetalhe={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
                 onDistribuir={handleDistribuir}
+                onDistribuirGrupo={handleDistribuirLote}
                 onOpenHistorico={(num) => setPedidoHistoricoNumero(num)}
                 onSincronizarOdoo={(p) => handleSincronizarLoteOdoo([p])}
               />
             ) : viewMode === "kanban" ? (
               <FilaPCPKanbanView
                 pedidos={filtro === "todos" ? [...pedidosAtivosEmTodos, ...pedidosConcluidosEmTodos] : pedidosFiltrados}
+                gruposPedidos={gruposPedidos}
                 onOpenDetalhe={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
                 onDistribuir={handleDistribuir}
+                onDistribuirGrupo={handleDistribuirLote}
                 onOpenHistorico={(num) => setPedidoHistoricoNumero(num)}
+                selecionados={selecionados}
+                onToggleSelectGrupo={handleToggleSelectGrupo}
               />
             ) : modoVisao === "agrupado" ? (
               <div className="space-y-3">
@@ -3291,6 +3418,115 @@ export default function CentralPCP() {
         onClose={() => setPedidoHistoricoNumero(null)}
         numeroPedido={pedidoHistoricoNumero}
       />
+
+      {/* Barra Flutuante de Ações em Lote */}
+      {selecionados.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900/95 dark:bg-slate-900/95 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-2.5 animate-in fade-in slide-in-from-bottom-5 duration-200 max-w-4xl w-[94%] sm:w-auto flex-wrap sm:flex-nowrap justify-between">
+          <div className="flex items-center gap-2 pr-3 border-r border-slate-700">
+            <span className="w-2 h-2 rounded-full bg-orange-500 animate-ping" />
+            <span className="text-xs font-bold text-slate-200 whitespace-nowrap">
+              {selecionados.size} {selecionados.size === 1 ? "selecionada" : "selecionadas"}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Distribuir */}
+            <Button
+              size="sm"
+              disabled={distribuindo}
+              onClick={() => {
+                const lista = (pedidos || []).filter(p => selecionados.has(p.id) && p.status_pcp === "pendente_distribuicao");
+                if (lista.length === 0) {
+                  toast({ title: "Nenhuma das ordens selecionadas está pendente de distribuição." });
+                  return;
+                }
+                handleDistribuirLote(lista);
+              }}
+              className="bg-orange-500 hover:bg-orange-600 text-white text-xs h-7 px-2.5 font-bold gap-1"
+              title="Distribuir ordens pendentes selecionadas para produção"
+            >
+              <Send className="w-3 h-3" />
+              <span>Distribuir</span>
+            </Button>
+
+            {/* Prioridades rápidas */}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleDefinirPrioridadeLote(1)}
+              className="bg-red-500/20 hover:bg-red-500/30 text-red-300 border-red-500/40 text-xs h-7 px-2 font-bold"
+              title="Definir Prioridade P1 (Máxima) para as selecionadas"
+            >
+              🔥 P1
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleDefinirPrioridadeLote(2)}
+              className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40 text-xs h-7 px-2 font-bold"
+              title="Definir Prioridade P2 para as selecionadas"
+            >
+              ⚡ P2
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleDefinirPrioridadeLote("ROTA")}
+              className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border-blue-500/40 text-xs h-7 px-2 font-bold"
+              title="Definir ROTA para as selecionadas"
+            >
+              🚚 ROTA
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleDefinirPrioridadeLote(null)}
+              className="bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700 text-xs h-7 px-2 font-bold"
+              title="Remover prioridade (Normal)"
+            >
+              Normal
+            </Button>
+
+            {/* Sincronizar Odoo */}
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={sincronizandoOdoo}
+              onClick={() => {
+                const lista = (pedidos || []).filter(p => selecionados.has(p.id));
+                handleSincronizarLoteOdoo(lista);
+              }}
+              className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/40 text-xs h-7 px-2 font-bold gap-1"
+              title="Sincronizar status das selecionadas com o Odoo"
+            >
+              <RefreshCw className={`w-3 h-3 ${sincronizandoOdoo ? "animate-spin" : ""}`} />
+              <span>Odoo</span>
+            </Button>
+
+            {/* Apagar */}
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={excluindo}
+              onClick={solicitarExclusaoSelecionadas}
+              className="bg-red-600 hover:bg-red-700 text-white text-xs h-7 px-2 font-bold"
+              title="Excluir selecionadas"
+            >
+              <Trash2 className="w-3 h-3" />
+            </Button>
+
+            {/* Limpar seleção */}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setSelecionados(new Set())}
+              className="text-slate-400 hover:text-white text-xs h-7 px-2"
+            >
+              Desmarcar
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
