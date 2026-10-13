@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
 import {
   Weight, DollarSign, RefreshCw, Pause, CheckCircle2,
   Layers, Clock, Zap, Activity, X, Loader2, Factory,
-  TrendingUp, Snowflake, Ruler, Calendar
+  TrendingUp, Snowflake, Ruler, Calendar, ChevronRight,
+  ExternalLink, History, Search
 } from "lucide-react";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
+import HistoricoPedidoTelhasSidebar from "@/components/producao/HistoricoPedidoTelhasSidebar";
 
 function formatBRL(v) {
   return (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -49,8 +52,10 @@ export default function KpiDetailSidebarTelhas({
   open, onClose, type, ordensPeriodo = [], bobinasAtivas = [], filialAtiva,
   eficiencia, tempoProdTotal, tempoPausaTotal, tempoSetupTotal, tempoTotal
 }) {
+  const navigate = useNavigate();
   const [allBobinas, setAllBobinas] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [historicoPedido, setHistoricoPedido] = useState(null);
 
   useEffect(() => {
     if (open && (type === "kg" || type === "custo")) {
@@ -68,6 +73,21 @@ export default function KpiDetailSidebarTelhas({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleIrAtePedido = (o) => {
+    const num = o.numero_pedido || o.pedido_numero || o.id;
+    const dia = o.data_finalizacao || o.data || "";
+    toast.info(`Localizando pedido #${num} na produção...`);
+    if (onClose) onClose();
+    navigate(`/producao?busca=${encodeURIComponent(num)}&dia=${encodeURIComponent(dia)}`);
+  };
+
+  const handleAbrirHistorico = (o) => {
+    setHistoricoPedido({
+      numero: o.numero_pedido || o.id,
+      obj: o,
+    });
   };
 
   const bobinaMap = useMemo(() => {
@@ -112,12 +132,14 @@ export default function KpiDetailSidebarTelhas({
         id: o.id,
         maquina: o.maquina,
         produto: o.produto,
+        cliente: o.cliente,
         numero_pedido: o.numero_pedido,
         data: o.data_finalizacao || o.data,
         metros: calcularMetrosPedido(o),
         kg,
         custo,
         custoKg,
+        rawObj: o,
       });
     });
 
@@ -128,97 +150,211 @@ export default function KpiDetailSidebarTelhas({
   const cfg = HEADER_CFG[type] || HEADER_CFG.ordens;
 
   return (
-    <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto p-0">
-        {/* Header */}
-        <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-5 py-4 sticky top-0 z-10">
-          <SheetHeader className="space-y-0">
-            <div className="flex items-center justify-between">
-              <SheetTitle className="flex items-center gap-2.5 text-white">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: cfg.hex + "20", border: `1px solid ${cfg.hex}40` }}>
-                  <cfg.icon className="w-5 h-5" style={{ color: cfg.hex }} />
-                </div>
-                <div>
-                  <span className="block">{cfg.title}</span>
-                  <span className="block text-[11px] font-normal text-white/50">{cfg.desc}</span>
-                </div>
-              </SheetTitle>
-              <button onClick={onClose} className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white transition-all cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
+    <>
+      <Sheet open={open} onOpenChange={onClose}>
+        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto p-0">
+          {/* Header */}
+          <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-5 py-4 sticky top-0 z-10 border-b border-white/10">
+            <SheetHeader className="space-y-0">
+              <div className="flex items-center justify-between">
+                <SheetTitle className="flex items-center gap-2.5 text-white">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: cfg.hex + "20", border: `1px solid ${cfg.hex}40` }}>
+                    <cfg.icon className="w-5 h-5" style={{ color: cfg.hex }} />
+                  </div>
+                  <div>
+                    <span className="block text-base font-bold">{cfg.title}</span>
+                    <span className="block text-[11px] font-normal text-white/60">{cfg.desc}</span>
+                  </div>
+                </SheetTitle>
+                <button onClick={onClose} className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white transition-all cursor-pointer">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </SheetHeader>
+
+            <div className="mt-3 flex items-center justify-between text-[11px] text-white/70 bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">
+              <span>👉 Clique em qualquer pedido para ir à <strong>Produção</strong></span>
+              <span className="font-semibold text-blue-300">#{ordensPeriodo.length} ordens</span>
             </div>
-          </SheetHeader>
-        </div>
+          </div>
 
-        <div className="p-5 space-y-4">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-20">
-              <Loader2 className="w-8 h-8 animate-spin mb-3" style={{ color: cfg.hex }} />
-              <p className="text-sm text-muted-foreground">Carregando dados...</p>
-            </div>
-          ) : (
-            <>
-              {/* === METROS TYPE === */}
-              {type === "metros" && (
-                <MetrosContent ordens={ordensPeriodo.filter(o => o.status === "finalizado")} />
-              )}
+          <div className="p-5 space-y-4">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-20">
+                <Loader2 className="w-8 h-8 animate-spin mb-3" style={{ color: cfg.hex }} />
+                <p className="text-sm text-muted-foreground">Carregando dados...</p>
+              </div>
+            ) : (
+              <>
+                {/* === METROS TYPE === */}
+                {type === "metros" && (
+                  <MetrosContent
+                    ordens={ordensPeriodo.filter(o => o.status === "finalizado")}
+                    onGoToPedido={handleIrAtePedido}
+                    onOpenHistorico={handleAbrirHistorico}
+                  />
+                )}
 
-              {/* === KG TYPE === */}
-              {type === "kg" && (
-                <KgContent data={kgCustoData} />
-              )}
+                {/* === KG TYPE === */}
+                {type === "kg" && (
+                  <KgContent
+                    data={kgCustoData}
+                    onGoToPedido={handleIrAtePedido}
+                    onOpenHistorico={handleAbrirHistorico}
+                  />
+                )}
 
-              {/* === CUSTO TYPE === */}
-              {type === "custo" && (
-                <CustoContent data={kgCustoData} />
-              )}
+                {/* === CUSTO TYPE === */}
+                {type === "custo" && (
+                  <CustoContent
+                    data={kgCustoData}
+                    onGoToPedido={handleIrAtePedido}
+                    onOpenHistorico={handleAbrirHistorico}
+                  />
+                )}
 
-              {/* === ORDENS TYPE === */}
-              {type === "ordens" && (
-                <OrdensContent ordens={ordensPeriodo} />
-              )}
+                {/* === ORDENS TYPE === */}
+                {type === "ordens" && (
+                  <OrdensContent
+                    ordens={ordensPeriodo}
+                    onGoToPedido={handleIrAtePedido}
+                    onOpenHistorico={handleAbrirHistorico}
+                  />
+                )}
 
-              {/* === RETRABALHOS TYPE === */}
-              {type === "retrabalhos" && (
-                <RetrabalhosContent ordens={ordensPeriodo.filter(o => o.is_retrabalho || o.retrabalho)} />
-              )}
+                {/* === RETRABALHOS TYPE === */}
+                {type === "retrabalhos" && (
+                  <RetrabalhosContent
+                    ordens={ordensPeriodo.filter(o => o.is_retrabalho || o.retrabalho)}
+                    onGoToPedido={handleIrAtePedido}
+                    onOpenHistorico={handleAbrirHistorico}
+                  />
+                )}
 
-              {/* === PAUSADAS TYPE === */}
-              {type === "pausadas" && (
-                <PausadasContent ordens={ordensPeriodo.filter(o => o.status === "pausado")} />
-              )}
+                {/* === PAUSADAS TYPE === */}
+                {type === "pausadas" && (
+                  <PausadasContent
+                    ordens={ordensPeriodo.filter(o => o.status === "pausado")}
+                    onGoToPedido={handleIrAtePedido}
+                    onOpenHistorico={handleAbrirHistorico}
+                  />
+                )}
 
-              {/* === FINALIZADOS TYPE === */}
-              {type === "finalizados" && (
-                <MetrosContent ordens={ordensPeriodo.filter(o => o.status === "finalizado")} />
-              )}
+                {/* === FINALIZADOS TYPE === */}
+                {type === "finalizados" && (
+                  <MetrosContent
+                    ordens={ordensPeriodo.filter(o => o.status === "finalizado")}
+                    onGoToPedido={handleIrAtePedido}
+                    onOpenHistorico={handleAbrirHistorico}
+                  />
+                )}
 
-              {/* === SANDUICHE TYPE === */}
-              {type === "sanduiche" && (
-                <SanduicheContent ordens={ordensPeriodo.filter(o => /(eps|manta|sanduiche|isopor|termoacustica)/i.test(o.produto || ""))} />
-              )}
+                {/* === SANDUICHE TYPE === */}
+                {type === "sanduiche" && (
+                  <SanduicheContent
+                    ordens={ordensPeriodo.filter(o => /(eps|manta|sanduiche|isopor|termoacustica)/i.test(o.produto || ""))}
+                    onGoToPedido={handleIrAtePedido}
+                    onOpenHistorico={handleAbrirHistorico}
+                  />
+                )}
 
-              {/* === EFICIENCIA TYPE === */}
-              {type === "eficiencia" && (
-                <EficienciaContent
-                  eficiencia={eficiencia}
-                  tempoProdTotal={tempoProdTotal}
-                  tempoPausaTotal={tempoPausaTotal}
-                  tempoSetupTotal={tempoSetupTotal}
-                  tempoTotal={tempoTotal}
-                  ordens={ordensPeriodo}
-                />
-              )}
-            </>
+                {/* === EFICIENCIA TYPE === */}
+                {type === "eficiencia" && (
+                  <EficienciaContent
+                    eficiencia={eficiencia}
+                    tempoProdTotal={tempoProdTotal}
+                    tempoPausaTotal={tempoPausaTotal}
+                    tempoSetupTotal={tempoSetupTotal}
+                    tempoTotal={tempoTotal}
+                    ordens={ordensPeriodo}
+                    onGoToPedido={handleIrAtePedido}
+                  />
+                )}
+              </>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Sidebar de Histórico Completo do Pedido */}
+      {historicoPedido && (
+        <HistoricoPedidoTelhasSidebar
+          open={!!historicoPedido}
+          onClose={() => setHistoricoPedido(null)}
+          pedidoNumero={historicoPedido.numero}
+          pedidoObj={historicoPedido.obj}
+        />
+      )}
+    </>
+  );
+}
+
+// Card de Ordem Clicável Reutilizável
+function OrdemItemCard({ ordem, metros, onGoToPedido, onOpenHistorico, badgeText, badgeColor }) {
+  const m = metros != null ? metros : calcularMetrosPedido(ordem);
+
+  return (
+    <div
+      onClick={() => onGoToPedido(ordem)}
+      className="p-3 border border-border/80 hover:border-blue-500 rounded-xl bg-card hover:bg-blue-50/20 dark:hover:bg-blue-950/20 transition-all cursor-pointer shadow-2xs hover:shadow-sm group relative"
+      title="Clique para ir até o pedido na Produção"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="font-bold text-xs truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+            {ordem.produto || "Telha"}
+          </span>
+          {badgeText && (
+            <Badge className={`text-[10px] py-0 px-1.5 ${badgeColor || "bg-blue-100 text-blue-700"}`}>
+              {badgeText}
+            </Badge>
           )}
         </div>
-      </SheetContent>
-    </Sheet>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {m > 0 && <span className="font-black text-xs text-blue-600 dark:text-blue-400">{m.toFixed(1)} m</span>}
+          <div className="w-5 h-5 rounded-md bg-muted/60 group-hover:bg-blue-600 group-hover:text-white flex items-center justify-center transition-colors">
+            <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-1.5 gap-2">
+        <span className="truncate">
+          {ordem.cliente || "S/ Cliente"} ·{" "}
+          <strong className="text-foreground group-hover:text-blue-600 font-mono">
+            #{ordem.numero_pedido || "S/N"}
+          </strong>
+        </span>
+        <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0 bg-muted/50 px-1.5 py-0.5 rounded text-[10px]">
+          {ordem.maquina}
+        </span>
+      </div>
+
+      {/* Barra de ações rápida com hover */}
+      <div className="mt-2 pt-1.5 border-t border-border/40 flex items-center justify-between text-[10px]">
+        <span className="text-blue-600 dark:text-blue-400 font-bold flex items-center gap-1 group-hover:underline">
+          <ExternalLink className="w-3 h-3" /> Ver pedido na Produção
+        </span>
+        {onOpenHistorico && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenHistorico(ordem);
+            }}
+            className="text-muted-foreground hover:text-foreground flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-muted font-medium transition-colors"
+            title="Ver histórico e rastreabilidade"
+          >
+            <History className="w-3 h-3" /> Histórico
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
 // Sub-componentes do Sheet de Detalhes
-function MetrosContent({ ordens = [] }) {
+function MetrosContent({ ordens = [], onGoToPedido, onOpenHistorico }) {
   const totalM = ordens.reduce((s, o) => s + calcularMetrosPedido(o), 0);
   const totalTelhas = ordens.reduce((s, o) => s + (o.quantidade || o.quantidade_telhas || 1), 0);
 
@@ -235,28 +371,21 @@ function MetrosContent({ ordens = [] }) {
         </div>
       </div>
 
-      <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-        {ordens.map(o => {
-          const m = calcularMetrosPedido(o);
-          return (
-            <div key={o.id} className="p-3 border rounded-xl bg-card hover:bg-muted/40 transition-colors">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-bold text-xs truncate">{o.produto || "Telha"}</span>
-                <span className="font-black text-xs text-blue-600">{m.toFixed(1)} m</span>
-              </div>
-              <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-1">
-                <span>{o.cliente || "S/ Cliente"} · #{o.numero_pedido || "S/N"}</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-300">{o.maquina}</span>
-              </div>
-            </div>
-          );
-        })}
+      <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+        {ordens.map(o => (
+          <OrdemItemCard
+            key={o.id}
+            ordem={o}
+            onGoToPedido={onGoToPedido}
+            onOpenHistorico={onOpenHistorico}
+          />
+        ))}
       </div>
     </div>
   );
 }
 
-function KgContent({ data }) {
+function KgContent({ data, onGoToPedido, onOpenHistorico }) {
   return (
     <div className="space-y-4">
       <div className="bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-900/40 rounded-xl p-4 flex items-center justify-between">
@@ -270,9 +399,9 @@ function KgContent({ data }) {
         </div>
       </div>
 
-      <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+      <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
         {data.bobinasList.map((b, i) => (
-          <div key={i} className="p-3 border rounded-xl bg-card space-y-1">
+          <div key={i} className="p-3 border rounded-xl bg-card space-y-2">
             <div className="flex items-center justify-between">
               <span className="font-bold text-xs truncate">{b.descricao}</span>
               <span className="font-black text-xs text-orange-600">{b.kg_total.toFixed(0)} kg</span>
@@ -281,6 +410,35 @@ function KgContent({ data }) {
               <span>{b.ops.length} ordem(ns)</span>
               <span>{b.metros_total ? `${b.metros_total.toFixed(1)} m` : ""}</span>
             </div>
+
+            {/* Lista de OPs clicáveis desta bobina */}
+            {b.ops.length > 0 && (
+              <div className="pt-2 border-t border-border/50 space-y-1.5">
+                <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
+                  Ordens produzidas com esta bobina:
+                </span>
+                {b.ops.map((op) => (
+                  <div
+                    key={op.id}
+                    onClick={() => onGoToPedido(op.rawObj || op)}
+                    className="p-2 rounded-lg bg-muted/40 hover:bg-orange-500/10 hover:border-orange-500/40 border border-transparent transition-all cursor-pointer flex items-center justify-between text-xs group"
+                  >
+                    <div className="min-w-0">
+                      <span className="font-bold block truncate group-hover:text-orange-600">
+                        {op.produto || "Telha"} · #{op.numero_pedido || "S/N"}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground truncate block">
+                        {op.cliente || "S/ Cliente"} · {op.maquina}
+                      </span>
+                    </div>
+                    <div className="text-right shrink-0 ml-2">
+                      <span className="font-bold text-orange-600 block">{op.kg.toFixed(0)} kg</span>
+                      <span className="text-[10px] text-muted-foreground">{op.metros.toFixed(1)}m</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -288,7 +446,7 @@ function KgContent({ data }) {
   );
 }
 
-function CustoContent({ data }) {
+function CustoContent({ data, onGoToPedido }) {
   return (
     <div className="space-y-4">
       <div className="bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-900/40 rounded-xl p-4 flex items-center justify-between">
@@ -302,14 +460,39 @@ function CustoContent({ data }) {
         </div>
       </div>
 
-      <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+      <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
         {data.bobinasList.map((b, i) => (
-          <div key={i} className="p-3 border rounded-xl bg-card space-y-1">
+          <div key={i} className="p-3 border rounded-xl bg-card space-y-2">
             <div className="flex items-center justify-between">
               <span className="font-bold text-xs truncate">{b.descricao}</span>
               <span className="font-black text-xs text-green-600">{formatBRL(b.custo_total)}</span>
             </div>
             <p className="text-[11px] text-muted-foreground">{b.kg_total.toFixed(0)} kg · {b.ops.length} ordem(ns)</p>
+
+            {b.ops.length > 0 && (
+              <div className="pt-2 border-t border-border/50 space-y-1.5">
+                {b.ops.map((op) => (
+                  <div
+                    key={op.id}
+                    onClick={() => onGoToPedido(op.rawObj || op)}
+                    className="p-2 rounded-lg bg-muted/40 hover:bg-green-500/10 hover:border-green-500/40 border border-transparent transition-all cursor-pointer flex items-center justify-between text-xs group"
+                  >
+                    <div className="min-w-0">
+                      <span className="font-bold block truncate group-hover:text-green-600">
+                        {op.produto || "Telha"} · #{op.numero_pedido || "S/N"}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground truncate block">
+                        {op.cliente || "S/ Cliente"}
+                      </span>
+                    </div>
+                    <div className="text-right shrink-0 ml-2">
+                      <span className="font-bold text-green-600 block">{formatBRL(op.custo)}</span>
+                      <span className="text-[10px] text-muted-foreground">{op.kg.toFixed(0)} kg</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -317,68 +500,67 @@ function CustoContent({ data }) {
   );
 }
 
-function OrdensContent({ ordens = [] }) {
+function OrdensContent({ ordens = [], onGoToPedido, onOpenHistorico }) {
   return (
-    <div className="space-y-2 max-h-[65vh] overflow-y-auto">
+    <div className="space-y-2 max-h-[65vh] overflow-y-auto pr-1">
       {ordens.map(o => {
         const cfg = STATUS_CFG[o.status] || STATUS_CFG.pendente;
         return (
-          <div key={o.id} className="p-3 border rounded-xl bg-card space-y-1">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-bold text-xs truncate">{o.produto || "Telha"}</span>
-              <Badge className={`text-[10px] ${cfg.bg} ${cfg.color}`}>{cfg.label}</Badge>
-            </div>
-            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-              <span>{o.cliente || "S/ Cliente"} · #{o.numero_pedido || "S/N"}</span>
-              <span className="font-semibold text-slate-700 dark:text-slate-300">{o.maquina}</span>
-            </div>
-          </div>
+          <OrdemItemCard
+            key={o.id}
+            ordem={o}
+            onGoToPedido={onGoToPedido}
+            onOpenHistorico={onOpenHistorico}
+            badgeText={cfg.label}
+            badgeColor={`${cfg.bg} ${cfg.color}`}
+          />
         );
       })}
     </div>
   );
 }
 
-function RetrabalhosContent({ ordens = [] }) {
+function RetrabalhosContent({ ordens = [], onGoToPedido, onOpenHistorico }) {
   if (ordens.length === 0) {
     return <p className="text-center text-xs text-muted-foreground py-8">Nenhum retrabalho registrado no período.</p>;
   }
   return (
-    <div className="space-y-2 max-h-[65vh] overflow-y-auto">
+    <div className="space-y-2 max-h-[65vh] overflow-y-auto pr-1">
       {ordens.map(o => (
-        <div key={o.id} className="p-3 border border-red-200 bg-red-50/30 rounded-xl space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-xs text-red-700 truncate">{o.produto}</span>
-            <Badge className="bg-red-100 text-red-700 text-[10px]">Retrabalho</Badge>
-          </div>
-          <p className="text-xs text-muted-foreground">{o.cliente} · #{o.numero_pedido} · {o.maquina}</p>
-        </div>
+        <OrdemItemCard
+          key={o.id}
+          ordem={o}
+          onGoToPedido={onGoToPedido}
+          onOpenHistorico={onOpenHistorico}
+          badgeText="Retrabalho"
+          badgeColor="bg-red-100 text-red-700 border border-red-200"
+        />
       ))}
     </div>
   );
 }
 
-function PausadasContent({ ordens = [] }) {
+function PausadasContent({ ordens = [], onGoToPedido, onOpenHistorico }) {
   if (ordens.length === 0) {
     return <p className="text-center text-xs text-muted-foreground py-8">Nenhuma ordem pausada no momento.</p>;
   }
   return (
-    <div className="space-y-2 max-h-[65vh] overflow-y-auto">
+    <div className="space-y-2 max-h-[65vh] overflow-y-auto pr-1">
       {ordens.map(o => (
-        <div key={o.id} className="p-3 border border-purple-200 bg-purple-50/40 rounded-xl space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-xs truncate">{o.maquina}</span>
-            <Badge className="bg-purple-100 text-purple-700 text-[10px]">Pausado</Badge>
-          </div>
-          <p className="text-xs text-slate-700 dark:text-slate-300 font-medium">{o.produto} · {o.quantidade} telhas</p>
-          {o.observacoes && <p className="text-[11px] text-muted-foreground italic">"{o.observacoes}"</p>}
-        </div>
+        <OrdemItemCard
+          key={o.id}
+          ordem={o}
+          onGoToPedido={onGoToPedido}
+          onOpenHistorico={onOpenHistorico}
+          badgeText="Pausado"
+          badgeColor="bg-purple-100 text-purple-700 border border-purple-200"
+        />
       ))}
     </div>
   );
 }
 
-function SanduicheContent({ ordens = [] }) {
+function SanduicheContent({ ordens = [], onGoToPedido, onOpenHistorico }) {
   const totalM = ordens.reduce((s, o) => s + calcularMetrosPedido(o), 0);
   return (
     <div className="space-y-4">
@@ -392,22 +574,23 @@ function SanduicheContent({ ordens = [] }) {
         </div>
       </div>
 
-      <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+      <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
         {ordens.map(o => (
-          <div key={o.id} className="p-3 border rounded-xl bg-card space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-xs truncate">{o.produto}</span>
-              <span className="font-black text-xs text-cyan-600">{calcularMetrosPedido(o).toFixed(1)} m</span>
-            </div>
-            <p className="text-[11px] text-muted-foreground">{o.cliente} · #{o.numero_pedido} · {o.maquina}</p>
-          </div>
+          <OrdemItemCard
+            key={o.id}
+            ordem={o}
+            onGoToPedido={onGoToPedido}
+            onOpenHistorico={onOpenHistorico}
+            badgeText="Termoacústica"
+            badgeColor="bg-cyan-100 text-cyan-700 border border-cyan-200"
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function EficienciaContent({ eficiencia, tempoProdTotal, tempoPausaTotal, tempoSetupTotal, tempoTotal }) {
+function EficienciaContent({ eficiencia, tempoProdTotal, tempoPausaTotal, tempoSetupTotal, tempoTotal, ordens = [], onGoToPedido }) {
   return (
     <div className="space-y-4">
       <div className="text-center p-6 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/40 rounded-xl">
@@ -416,16 +599,16 @@ function EficienciaContent({ eficiencia, tempoProdTotal, tempoPausaTotal, tempoS
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        <div className="p-3 rounded-lg border bg-green-50 text-center">
-          <p className="font-black text-sm text-green-700">{formatTempo(tempoProdTotal)}</p>
+        <div className="p-3 rounded-lg border bg-green-50 dark:bg-green-950/40 text-center">
+          <p className="font-black text-sm text-green-700 dark:text-green-300">{formatTempo(tempoProdTotal)}</p>
           <p className="text-[10px] text-muted-foreground">Produção</p>
         </div>
-        <div className="p-3 rounded-lg border bg-amber-50 text-center">
-          <p className="font-black text-sm text-amber-700">{formatTempo(tempoPausaTotal)}</p>
+        <div className="p-3 rounded-lg border bg-amber-50 dark:bg-amber-950/40 text-center">
+          <p className="font-black text-sm text-amber-700 dark:text-amber-300">{formatTempo(tempoPausaTotal)}</p>
           <p className="text-[10px] text-muted-foreground">Pausa</p>
         </div>
-        <div className="p-3 rounded-lg border bg-purple-50 text-center">
-          <p className="font-black text-sm text-purple-700">{formatTempo(tempoSetupTotal)}</p>
+        <div className="p-3 rounded-lg border bg-purple-50 dark:bg-purple-950/40 text-center">
+          <p className="font-black text-sm text-purple-700 dark:text-purple-300">{formatTempo(tempoSetupTotal)}</p>
           <p className="text-[10px] text-muted-foreground">Setup</p>
         </div>
       </div>

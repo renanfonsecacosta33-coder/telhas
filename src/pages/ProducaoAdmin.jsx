@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, TrendingUp, Trash2, Star, Truck, Inbox, Target, ShieldAlert, Layers, Trophy, Search, X, RefreshCw, Sparkles, Clock, AlertTriangle, History } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -46,12 +46,26 @@ const MAQUINA_CORES = {
 };
 
 export default function ProducaoAdmin() {
-  const [currentWeek, setCurrentWeek] = useState(new Date());
-  const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [searchParams] = useSearchParams();
+  const paramBusca = searchParams.get("busca") || searchParams.get("pedido") || "";
+  const paramDia = searchParams.get("dia") || "";
+
+  const [currentWeek, setCurrentWeek] = useState(() => {
+    if (paramDia && /^\d{4}-\d{2}-\d{2}$/.test(paramDia)) {
+      return new Date(paramDia + "T12:00:00");
+    }
+    return new Date();
+  });
+  const [selectedDay, setSelectedDay] = useState(() => {
+    if (paramDia && /^\d{4}-\d{2}-\d{2}$/.test(paramDia)) {
+      return paramDia;
+    }
+    return format(new Date(), "yyyy-MM-dd");
+  });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [filaContext, setFilaContext] = useState(null);
-  const [viewMode, setViewMode] = useState("semana"); // "semana" | "dia" | "kanban"
+  const [viewMode, setViewMode] = useState(() => paramDia ? "dia" : "semana"); // "semana" | "dia" | "kanban"
   const [viewEstilo, setViewEstilo] = useState(() => {
     try { return localStorage.getItem("ajl_viewmode_telhas") || "cards"; } catch { return "cards"; }
   });
@@ -67,13 +81,27 @@ export default function ProducaoAdmin() {
   const { filialAtiva } = useFilial();
 
   // ── FILTROS AVANÇADOS E BUSCA ESTILO CENTRAL PCP ──
-  const [termoBusca, setTermoBusca] = useState("");
+  const [termoBusca, setTermoBusca] = useState(() => paramBusca);
   const [filtroUrgencia, setFiltroUrgencia] = useState("todos"); // "todos" | "mais_atrasados" | "hoje_amanha" | "prioritarios" | "nao_distribuidos"
   const [ordenacao, setOrdenacao] = useState("mais_atrasados");
   const [filtroDataCampo, setFiltroDataCampo] = useState("data"); // "data" | "data_entrega" | "data_prevista" | "created_date"
   const [filtroDataPreset, setFiltroDataPreset] = useState("todas");
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
+
+  // Reage à alteração de parâmetros da URL (ex: clique no Dashboard para ir ao pedido)
+  React.useEffect(() => {
+    const q = searchParams.get("busca") || searchParams.get("pedido");
+    const d = searchParams.get("dia");
+    if (q) {
+      setTermoBusca(q);
+      if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+        setSelectedDay(d);
+        setCurrentWeek(new Date(d + "T12:00:00"));
+      }
+      setActiveTab("producao");
+    }
+  }, [searchParams]);
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
