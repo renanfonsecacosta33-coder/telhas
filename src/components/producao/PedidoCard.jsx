@@ -15,6 +15,25 @@ const STATUS_CONFIG = {
   cancelado: { label: "Cancelado", icon: Circle, badge: "bg-red-100 text-red-700 border-red-200" },
 };
 
+function formatarDiaSeguro(diaStr) {
+  if (!diaStr) return "";
+  try {
+    const raw = String(diaStr).trim();
+    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      const [_, ano, mes, dia] = isoMatch;
+      return `${dia}/${mes}`;
+    }
+    const d = new Date(raw.includes("T") ? raw : raw + "T12:00:00");
+    if (!isNaN(d.getTime())) {
+      return format(d, "dd/MM", { locale: ptBR });
+    }
+    return raw;
+  } catch {
+    return "";
+  }
+}
+
 export default function PedidoCard({ pedido: p, maquinaCores, onEdit, onDelete, onStatusChange, onPrintOP, onTogglePrioridade }) {
   const st = STATUS_CONFIG[p.status] || STATUS_CONFIG.pendente;
   const Icon = st.icon;
@@ -62,8 +81,8 @@ export default function PedidoCard({ pedido: p, maquinaCores, onEdit, onDelete, 
               </span>
             )}
             {p.kg_total > 0 && <span>{p.kg_total}kg</span>}
-            {p.data && <span className="font-semibold text-slate-700 dark:text-slate-300">📅 Prod: {format(new Date(p.data + "T12:00:00"), "dd/MM", { locale: ptBR })}</span>}
-            {p.data_prevista && <span>Prev: {format(new Date(p.data_prevista + "T12:00:00"), "dd/MM", { locale: ptBR })}</span>}
+            {p.data && <span className="font-semibold text-slate-700 dark:text-slate-300">📅 Prod: {formatarDiaSeguro(p.data)}</span>}
+            {p.data_prevista && <span>Prev: {formatarDiaSeguro(p.data_prevista)}</span>}
           </div>
         </div>
 

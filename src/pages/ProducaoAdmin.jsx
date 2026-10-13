@@ -45,6 +45,31 @@ const MAQUINA_CORES = {
   "COLAGEM": "bg-red-100 text-red-800 border-red-200",
 };
 
+function formatarDiaSeguro(diaStr, formato = "dd/MM") {
+  if (!diaStr) return "—";
+  try {
+    const raw = String(diaStr).trim();
+    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      const [_, ano, mes, dia] = isoMatch;
+      if (formato === "dd/MM") return `${dia}/${mes}`;
+      if (formato === "extenso") {
+        const d = new Date(`${ano}-${mes}-${dia}T12:00:00`);
+        return format(d, "EEEE, dd 'de' MMMM", { locale: ptBR });
+      }
+      return `${dia}/${mes}/${ano}`;
+    }
+    const d = new Date(raw.includes("T") ? raw : raw + "T12:00:00");
+    if (!isNaN(d.getTime())) {
+      if (formato === "extenso") return format(d, "EEEE, dd 'de' MMMM", { locale: ptBR });
+      return format(d, formato, { locale: ptBR });
+    }
+    return raw;
+  } catch {
+    return diaStr || "—";
+  }
+}
+
 export default function ProducaoAdmin() {
   const [searchParams] = useSearchParams();
   const paramBusca = searchParams.get("busca") || searchParams.get("pedido") || "";
@@ -89,6 +114,16 @@ export default function ProducaoAdmin() {
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
 
+  const { data: pedidos = [], isLoading, isFetching, refetch } = useQuery({
+    queryKey: ["pedidos", filialAtiva],
+    queryFn: async () => {
+      const todos = await base44.entities.Pedido.list("-data", 500).catch(() => []);
+      if (!filialAtiva || filialAtiva === "todas") return todos;
+      return todos.filter(p => (p.unidade || "Matriz AJL") === filialAtiva);
+    },
+    refetchInterval: 10000,
+  });
+
   // Reage à alteração de parâmetros da URL (ex: clique no Dashboard para ir ao pedido)
   React.useEffect(() => {
     const q = searchParams.get("busca") || searchParams.get("pedido");
@@ -103,7 +138,9 @@ export default function ProducaoAdmin() {
       const dataAlvo = ped?.data || ped?.data_finalizacao || d;
       if (dataAlvo && /^\d{4}-\d{2}-\d{2}$/.test(dataAlvo)) {
         setSelectedDay(dataAlvo);
-        setCurrentWeek(new Date(dataAlvo + "T12:00:00"));
+        try {
+          setCurrentWeek(new Date(dataAlvo + "T12:00:00"));
+        } catch {}
       }
       setViewMode("dia");
       setActiveTab("producao");
@@ -113,16 +150,6 @@ export default function ProducaoAdmin() {
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
   const diasDaSemana = eachDayOfInterval({ start: weekStart, end: weekEnd });
-
-  const { data: pedidos = [], isLoading, isFetching, refetch } = useQuery({
-    queryKey: ["pedidos", filialAtiva],
-    queryFn: async () => {
-      const todos = await base44.entities.Pedido.list("-data", 500).catch(() => []);
-      if (!filialAtiva || filialAtiva === "todas") return todos;
-      return todos.filter(p => (p.unidade || "Matriz AJL") === filialAtiva);
-    },
-    refetchInterval: 10000,
-  });
 
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.Pedido.create(data),
@@ -1011,7 +1038,7 @@ export default function ProducaoAdmin() {
                 onClick={() => setViewMode("dia")}
                 className="text-xs font-bold"
               >
-                Visão Dia — {format(new Date(selectedDay + "T12:00:00"), "dd/MM", { locale: ptBR })}
+                Visão Dia — {formatarDiaSeguro(selectedDay, "dd/MM")}
               </Button>
             </>
           )}
@@ -1055,7 +1082,7 @@ export default function ProducaoAdmin() {
                   onClick={() => setEscopoKanban("dia")}
                   className={`h-7 px-2.5 text-xs font-bold ${escopoKanban === "dia" ? "bg-indigo-600 text-white shadow-xs" : ""}`}
                 >
-                  Dia ({format(new Date(selectedDay + "T12:00:00"), "dd/MM")}) · {pedidosDia.length}
+                  Dia ({formatarDiaSeguro(selectedDay, "dd/MM")}) · {pedidosDia.length}
                 </Button>
                 <Button
                   size="sm"
@@ -1151,7 +1178,7 @@ export default function ProducaoAdmin() {
                 </span>
               </div>
               <Button size="sm" variant="ghost" onClick={handleLimparFiltros} className="h-6 text-xs text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50">
-                <X className="w-3.5 h-3.5 mr-1" /> Voltar ao Dia Normal ({format(new Date(selectedDay + "T12:00:00"), "dd/MM")})
+                <X className="w-3.5 h-3.5 mr-1" /> Voltar ao Dia Normal ({formatarDiaSeguro(selectedDay, "dd/MM")})
               </Button>
             </div>
           )}
@@ -1164,7 +1191,7 @@ export default function ProducaoAdmin() {
                   Resultados da Pesquisa Global ({pedidosDia.length})
                 </span>
               ) : (
-                format(new Date(selectedDay + "T12:00:00"), "EEEE, dd 'de' MMMM", { locale: ptBR })
+                formatarDiaSeguro(selectedDay, "extenso")
               )}
             </h2>
             <div className="flex items-center gap-2">

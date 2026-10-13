@@ -14,6 +14,27 @@ const STATUS_CFG = {
   cancelado: { label: "Cancelado", color: "bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950 dark:text-rose-300" },
 };
 
+function formatarDataSegura(dataStr) {
+  if (!dataStr) return "—";
+  try {
+    const raw = String(dataStr).trim();
+    if (!raw) return "—";
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) return raw;
+    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      const [_, ano, mes, dia] = isoMatch;
+      return `${dia}/${mes}/${ano}`;
+    }
+    const d = new Date(raw.includes("T") ? raw : raw + "T12:00:00");
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+    }
+    return raw;
+  } catch {
+    return "—";
+  }
+}
+
 export default function PedidoTelhasTabelaView({
   pedidos = [],
   maquinaCores = {},
@@ -69,7 +90,7 @@ export default function PedidoTelhasTabelaView({
                   }`}
                 >
                   <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap">
-                    {p.data ? format(new Date(p.data + "T12:00:00"), "dd/MM/yyyy", { locale: ptBR }) : "—"}
+                    {formatarDataSegura(p.data)}
                   </td>
 
                   <td className="py-2.5 px-3 font-mono font-bold text-foreground">
