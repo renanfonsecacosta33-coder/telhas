@@ -39,6 +39,10 @@ import { executarReparoBobininhasBanco } from "@/lib/repararBobininhasHelper";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import TransferirLojaDialog from "@/components/pcp/TransferirLojaDialog";
+import ViewModeToggle from "@/components/ui/ViewModeToggle";
+import FilaPCPTabelaView from "@/components/pcp/FilaPCPTabelaView";
+import FilaPCPKanbanView from "@/components/pcp/FilaPCPKanbanView";
+import HistoricoPedidoSidebar from "@/components/corte-dobra/HistoricoPedidoSidebar";
 import { salvarCacheLocal, obterCacheLocal } from "@/lib/offlineStorage";
 import { useFilial } from "@/contexts/FilialContext";
 import { useOffline } from "@/contexts/OfflineContext";
@@ -103,6 +107,14 @@ export default function CentralPCP() {
   const [pedidoPrioridadePendente, setPedidoPrioridadePendente] = useState(null);
   const [pedidosExpandidos, setPedidosExpandidos] = useState(() => new Set());
   const [modoVisao, setModoVisao] = useState("agrupado");
+  const [viewMode, setViewMode] = useState(() => {
+    try {
+      return localStorage.getItem("ajl_viewmode_pcp_fila") || "cards";
+    } catch {
+      return "cards";
+    }
+  });
+  const [pedidoHistoricoNumero, setPedidoHistoricoNumero] = useState(null);
 
   // Central PCP por Loja / Filial e Permissões de Usuário
   const filialCtx = useFilial();
@@ -2848,8 +2860,15 @@ export default function CentralPCP() {
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
-                {/* Botões Expandir / Recolher Todos */}
-                {modoVisao === "agrupado" && gruposPedidos.length > 0 && (
+                {/* Seletor Triplo: Cards | Tabela | Kanban */}
+                <ViewModeToggle
+                  value={viewMode}
+                  onChange={setViewMode}
+                  storageKey="pcp_fila"
+                />
+
+                {/* Expansão Rápida quando em modo Cards Agrupado */}
+                {viewMode === "cards" && modoVisao === "agrupado" && (
                   <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
                     <button
                       type="button"
@@ -2870,33 +2889,35 @@ export default function CentralPCP() {
                   </div>
                 )}
 
-                {/* Alternador de Modo: Por Pedido vs Grade Solta */}
-                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
-                  <button
-                    type="button"
-                    onClick={() => setModoVisao("agrupado")}
-                    className={`px-2 py-1 text-[11px] font-bold rounded transition-colors ${
-                      modoVisao === "agrupado"
-                        ? "bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-sm"
-                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                    }`}
-                    title="Visualização limpa agrupada por Pedido (Minimizada)"
-                  >
-                    Por Pedido
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setModoVisao("cards")}
-                    className={`px-2 py-1 text-[11px] font-bold rounded transition-colors ${
-                      modoVisao === "cards"
-                        ? "bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-sm"
-                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                    }`}
-                    title="Visualização clássica com todas as OFs soltas em grade"
-                  >
-                    Grade Solta
-                  </button>
-                </div>
+                {/* Sub-alternador quando em modo Cards: Por Pedido vs Grade Solta */}
+                {viewMode === "cards" && (
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <button
+                      type="button"
+                      onClick={() => setModoVisao("agrupado")}
+                      className={`px-2 py-1 text-[11px] font-bold rounded transition-colors ${
+                        modoVisao === "agrupado"
+                          ? "bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-sm"
+                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                      }`}
+                      title="Visualização agrupada por Pedido"
+                    >
+                      Por Pedido
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModoVisao("cards")}
+                      className={`px-2 py-1 text-[11px] font-bold rounded transition-colors ${
+                        modoVisao === "cards"
+                          ? "bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-sm"
+                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                      }`}
+                      title="Visualização com OFs soltas em grade"
+                    >
+                      Grade Solta
+                    </button>
+                  </div>
+                )}
 
                 {filtro !== "concluido" && stats.concluidos > 0 && (
                   <button
@@ -2921,8 +2942,26 @@ export default function CentralPCP() {
               </div>
             </div>
 
-            {/* Lista Principal de Pedidos: Agrupados ou Grade */}
-            {modoVisao === "agrupado" ? (
+            {/* Visualizações Condicionais: Tabela / Kanban / Cards */}
+            {viewMode === "tabela" ? (
+              <FilaPCPTabelaView
+                pedidos={filtro === "todos" ? pedidosAtivosEmTodos : pedidosFiltrados}
+                estoqueContext={estoqueContext}
+                pedidosProducao={pedidosProducao}
+                ordensCD={ordensCD}
+                onOpenDetalhe={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
+                onDistribuir={handleDistribuir}
+                onOpenHistorico={(num) => setPedidoHistoricoNumero(num)}
+                onSincronizarOdoo={(p) => handleSincronizarLoteOdoo([p])}
+              />
+            ) : viewMode === "kanban" ? (
+              <FilaPCPKanbanView
+                pedidos={filtro === "todos" ? [...pedidosAtivosEmTodos, ...pedidosConcluidosEmTodos] : pedidosFiltrados}
+                onOpenDetalhe={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
+                onDistribuir={handleDistribuir}
+                onOpenHistorico={(num) => setPedidoHistoricoNumero(num)}
+              />
+            ) : modoVisao === "agrupado" ? (
               <div className="space-y-3">
                 {gruposPedidos.map(grupo => (
                   <PedidoOdooGrupoCard
@@ -2977,8 +3016,8 @@ export default function CentralPCP() {
               </div>
             )}
 
-            {/* Seção recolhível de Concluídos quando visualizando 'Todos' */}
-            {filtro === "todos" && pedidosConcluidosEmTodos.length > 0 && (
+            {/* Seção recolhível de Concluídos quando visualizando 'Todos' em modo Cards */}
+            {viewMode === "cards" && filtro === "todos" && pedidosConcluidosEmTodos.length > 0 && (
               <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800">
                 <div className="flex items-center justify-between mb-3 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 rounded-xl p-3">
                   <div className="flex items-center gap-2">
@@ -3245,6 +3284,13 @@ export default function CentralPCP() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Sidebar de Histórico Completo do Pedido */}
+      <HistoricoPedidoSidebar
+        open={Boolean(pedidoHistoricoNumero)}
+        onClose={() => setPedidoHistoricoNumero(null)}
+        numeroPedido={pedidoHistoricoNumero}
+      />
     </div>
   );
 }

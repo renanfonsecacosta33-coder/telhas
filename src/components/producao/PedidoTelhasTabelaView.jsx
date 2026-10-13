@@ -35,9 +35,8 @@ export default function PedidoTelhasTabelaView({
               <th className="py-2.5 px-3">Cliente</th>
               <th className="py-2.5 px-3">Máquina</th>
               <th className="py-2.5 px-3">Produto / Modelo</th>
-              <th className="py-2.5 px-3 text-center">Qtd Telhas</th>
-              <th className="py-2.5 px-3 text-right">Comprimento</th>
-              <th className="py-2.5 px-3 text-right">Metros Totais</th>
+              <th className="py-2.5 px-3 text-center">Peças × Medida Individual</th>
+              <th className="py-2.5 px-3 text-right">Metragem Total</th>
               <th className="py-2.5 px-3">Bobina / Cor</th>
               <th className="py-2.5 px-3 text-center">Status</th>
               <th className="py-2.5 px-3 text-right">Ações</th>
@@ -47,8 +46,20 @@ export default function PedidoTelhasTabelaView({
             {pedidos.map((p) => {
               const maqCor = maquinaCores[p.maquina] || "bg-slate-100 text-slate-800 border-slate-200";
               const st = STATUS_CFG[p.status] || STATUS_CFG.pendente;
-              const metrosTotais = Number(p.metragem_planejada) || (Number(p.quantidade_telhas || p.metros || 1) * ((Number(p.metragem_mm) || 0) / 1000)) || Number(p.metros) || 0;
-              const qtdTelhas = Number(p.quantidade_telhas) || Number(p.metros) || 1;
+              const mm = Number(p.metragem_mm) || (Number(p.tamanho_corte) > 0 ? Number(p.tamanho_corte) : 0);
+              const qtdTelhas = Number(p.quantidade_telhas) || (Number(p.quantidade) > 0 ? Number(p.quantidade) : 1);
+              const metrosTotais = Number(p.metragem_planejada) || (mm > 0 ? (qtdTelhas * (mm / 1000)) : Number(p.metros) || 0);
+
+              const individualTexto = (() => {
+                if (mm > 0) {
+                  const mUnit = (mm / 1000).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                  return `${mm.toLocaleString("pt-BR")} mm (${mUnit} m)`;
+                }
+                if (p.tamanho_corte || p.comprimento) {
+                  return `${p.tamanho_corte || p.comprimento}`;
+                }
+                return "—";
+              })();
 
               return (
                 <tr
@@ -90,16 +101,20 @@ export default function PedidoTelhasTabelaView({
                     {p.modelo && <span className="text-muted-foreground text-[10px] block truncate">{p.modelo}</span>}
                   </td>
 
-                  <td className="py-2.5 px-3 text-center font-black font-mono text-foreground">
-                    {qtdTelhas}
+                  {/* Coluna 1: Peças × Medida Individual */}
+                  <td className="py-2.5 px-3 text-center">
+                    <div className="inline-flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded-md border border-border/60 font-mono text-xs">
+                      <strong className="text-foreground">{qtdTelhas} pç{qtdTelhas > 1 ? "s" : ""}</strong>
+                      <span className="text-muted-foreground">×</span>
+                      <span className="text-muted-foreground font-semibold">{individualTexto}</span>
+                    </div>
                   </td>
 
-                  <td className="py-2.5 px-3 text-right font-mono text-muted-foreground">
-                    {p.metragem_mm ? `${Number(p.metragem_mm).toLocaleString("pt-BR")} mm` : "—"}
-                  </td>
-
-                  <td className="py-2.5 px-3 text-right font-black font-mono text-blue-600 dark:text-blue-400">
-                    {metrosTotais > 0 ? `${Number(metrosTotais).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} m` : "—"}
+                  {/* Coluna 2: Metragem Total */}
+                  <td className="py-2.5 px-3 text-right">
+                    <span className="font-black font-mono text-blue-600 dark:text-blue-400 text-sm">
+                      {metrosTotais > 0 ? `${Number(metrosTotais).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 })} m` : "—"}
+                    </span>
                   </td>
 
                   <td className="py-2.5 px-3 text-muted-foreground max-w-[160px] truncate" title={p.bobina_superior || p.rvm_superior}>
