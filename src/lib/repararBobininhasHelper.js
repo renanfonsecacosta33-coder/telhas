@@ -19,6 +19,9 @@ export function corrigirItensBobininha(itens = [], pedido = null) {
     const desc = String(it.descricao || it.observacao || "").trim();
     const textoCompleto = `${prod} ${desc}`.trim();
 
+    const isChapaOuPerfil = /(chapa|perfil|dobra|guilhotina|cartola|cantoneira|batente|tampa)/i.test(textoCompleto);
+    if (isChapaOuPerfil) return it;
+
     const isBobininha = /(bobininha|bobinina|bobina|fita|desbobinamento|desbobinador)/i.test(textoCompleto);
     if (!isBobininha) return it;
 

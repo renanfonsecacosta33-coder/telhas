@@ -114,6 +114,94 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
   if (!t) return out;
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // A0. PADRÃO INDUSTRIAL AJL DE CORTE E DOBRA / PERFIS / CHAPAS CORTADAS
+  // Ex: "Perfil 55 200 X 5000 M - 4 PC"
+  // Ex: "Perfil 57D 200 X 5000 M (BATENTE) - 2 PC"
+  // Ex: "Perfil 56B 200 X 5000 M (TAMPA) - 6 PC"
+  // Ex: "100 X 6000 M - 12 PC"
+  // Ex: "3 X 3120 M CARTOLA CONF DESENHO ANEXO"
+  // ═══════════════════════════════════════════════════════════════════════════
+  const regexPerfilDesenvCompQtd = /(?:perfil\s*([0-9a-z\-_]+)\s+)?(\d{2,4})\s*[xX*]\s*(\d{1,2}(?:\.\d{3})|\d{3,5})\s*(?:m\b|mts?\b|metros?|mm\b)?(?:\s*\(([^)]+)\))?\s*[-–—:]\s*(\d+)\s*(?:p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|barras?|pc\.?)\b/i;
+  const matchPerfilAJL = t.match(regexPerfilDesenvCompQtd);
+
+  if (matchPerfilAJL) {
+    const modNome = matchPerfilAJL[1] ? String(matchPerfilAJL[1]).trim().toUpperCase() : null;
+    const desenv = parseInt(matchPerfilAJL[2], 10);
+    const rawCompStr = matchPerfilAJL[3].replace(/\./g, "").replace(",", ".");
+    const rawComp = parseFloat(rawCompStr);
+    const obsPar = matchPerfilAJL[4] ? String(matchPerfilAJL[4]).trim() : null;
+    const qPecas = parseInt(matchPerfilAJL[5], 10);
+
+    const compMm = rawComp >= 100 ? Math.round(rawComp) : Math.round(rawComp * 1000);
+    const compM = +(compMm / 1000).toFixed(3);
+    const totalM = +(qPecas * compM).toFixed(2);
+    const compFmt = (compMm >= 1000) ? `${(compMm / 1000).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 })} m` : `${compMm} mm`;
+
+    let labelTipo = modNome ? `Perfil ${modNome}` : "Chapa Cortada";
+    if (obsPar) labelTipo += ` (${obsPar})`;
+    labelTipo += ` (Desenv: ${desenv}mm)`;
+
+    out.tipo_conformacao = "perfil_dobrado";
+    out.tipo_label = labelTipo;
+    out.desenvolvimento_mm = desenv;
+    out.largura_mm = desenv;
+    out.comprimento_mm = compMm;
+    out.comprimento_m = compM;
+    out.quantidade = qPecas;
+    out.pecas = qPecas;
+    out.metragem_total = totalM;
+    out.dimensoes_fmt = `${desenv} mm × ${compFmt}`;
+    out.resumo_formatado = `${qPecas} pçs c/ ${compFmt} (${labelTipo}) (Total: ${totalM}m)`;
+    out.tem_especificacao = true;
+    out.variacoes.push({
+      qty: qPecas,
+      mm: compMm,
+      m: compM,
+      total_m: totalM,
+      desenvolvimento_mm: desenv,
+      tipo: "perfil_dobrado"
+    });
+    return extrairCorEEspessura(t, out);
+  }
+
+  // Padrão com quantidade no início: "3 X 3120 M CARTOLA CONF DESENHO ANEXO"
+  const regexQtdCompModelo = /\b(\d{1,3})\s*[xX*]\s*(\d{1,2}(?:\.\d{3})|\d{3,5})\s*(?:m\b|mts?\b|metros?|mm\b)?\s*([a-z0-9\-_]+(?:\s+[a-z0-9\-_]+)?)/i;
+  const matchQtdComp = t.match(regexQtdCompModelo);
+  if (matchQtdComp && !/(?:bobininha|bobina|fita)/i.test(t)) {
+    const q = parseInt(matchQtdComp[1], 10);
+    const rawCompStr = matchQtdComp[2].replace(/\./g, "").replace(",", ".");
+    const rawComp = parseFloat(rawCompStr);
+    const modNome = matchQtdComp[3].trim().toUpperCase();
+
+    // Se o modelo ou contexto indicar cartola, perfil ou chapa
+    if (/(cartola|perfil|chapa|cantoneira|u|dobr)/i.test(modNome) || /chapa/i.test(t)) {
+      const compMm = rawComp >= 100 ? Math.round(rawComp) : Math.round(rawComp * 1000);
+      const compM = +(compMm / 1000).toFixed(3);
+      const totalM = +(q * compM).toFixed(2);
+      const compFmt = (compMm >= 1000) ? `${(compMm / 1000).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 })} m` : `${compMm} mm`;
+
+      out.tipo_conformacao = "perfil_dobrado";
+      out.tipo_label = `Perfil ${modNome}`;
+      out.comprimento_mm = compMm;
+      out.comprimento_m = compM;
+      out.quantidade = q;
+      out.pecas = q;
+      out.metragem_total = totalM;
+      out.dimensoes_fmt = `${compFmt}`;
+      out.resumo_formatado = `${q} pçs c/ ${compFmt} (Perfil ${modNome}) (Total: ${totalM}m)`;
+      out.tem_especificacao = true;
+      out.variacoes.push({
+        qty: q,
+        mm: compMm,
+        m: compM,
+        total_m: totalM,
+        tipo: "perfil_dobrado"
+      });
+      return extrairCorEEspessura(t, out);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // A. DETECÇÃO INTELIGENTE DE CHAPA LISA / BLANK (Ex: 1200X3000 - 10 PÇS)
   // ═══════════════════════════════════════════════════════════════════════════
   // Padrão 1: "1200X3000 - 10 PÇS" ou "1200 x 3000 c/ 10 pcs" ou "1000X2000 5 PCS"
@@ -185,18 +273,22 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
   // B. DETECÇÃO INTELIGENTE DE BOBININHA / DESBOBINAMENTO
   // (Ex: "2 X 30 M IMPORTADA", "2 x 30m", "1553 - Bobininha ... - 30MT" c/ 60 no Odoo)
   // ═══════════════════════════════════════════════════════════════════════════
-  const isBobininha = /(?:bobininha|bobinina|bobina|fita|desbobinamento|desbobinador)/i.test(t);
+  const isTextoChapaOuPerfil = /(?:chapa|chapas|perfil|batente|tampa|cartola|cantoneira|dobr|guilhotina)/i.test(t);
+  const isBobininha = !isTextoChapaOuPerfil && /(?:bobininha|bobinina|bobina|fita|desbobinamento|desbobinador)/i.test(t);
 
   // Padrão 1: Notação expressa [QTD] X [METROS] M (ex: "2 X 30 M", "2 x 30m", "1 X 30 M", "3 X 20 M", "2 x 30 mts", "2 X 30MT")
-  const regexBobininhaNxM = /\b(\d+)\s*[xX*]\s*(\d+(?:[.,]\d+)?)\s*(?:m\b|mts?\b|metros?|mt\b)/i;
+  // 🛡️ Blindagem estrita: quantidade até 2 dígitos (\d{1,2}) e metros até 3 dígitos (\d{1,3}), E nunca para chapas/perfis
+  const regexBobininhaNxM = !isTextoChapaOuPerfil ? /\b(\d{1,2})\s*[xX*]\s*(\d{1,3}(?:[.,]\d+)?)\s*(?:m\b|mts?\b|metros?|mt\b)/i : null;
   // Padrão 2: Notação em texto: "2 bobininhas de 30m", "2 rolos de 30m", "2 de 30m", "2 c/ 30m"
-  const regexBobininhaTexto = /\b(\d+)\s*(?:bobininhas?|bobinas?|rolos?|p[çc]s?|pe[çc]as?|unidades?|un\.?)?\s*(?:de|com|c\/)\s*(\d+(?:[.,]\d+)?)\s*(?:m\b|mts?\b|metros?|mt\b)/i;
+  const regexBobininhaTexto = !isTextoChapaOuPerfil ? /\b(\d{1,2})\s*(?:bobininhas?|bobinas?|rolos?|p[çc]s?|pe[çc]as?|unidades?|un\.?)?\s*(?:de|com|c\/)\s*(\d{1,3}(?:[.,]\d+)?)\s*(?:m\b|mts?\b|metros?|mt\b)/i : null;
   // Padrão 3: Se o texto/produto é expressamente Bobininha e tem "2 X 30" (mesmo sem a letra M explícita)
-  const regexBobininhaSemM = isBobininha ? /\b(\d+)\s*[xX*]\s*(\d{1,3})\b/i : null;
+  const regexBobininhaSemM = isBobininha ? /\b(\d{1,2})\s*[xX*]\s*(\d{1,3})\b/i : null;
 
-  const matchBobininha = t.match(regexBobininhaNxM) || t.match(regexBobininhaTexto) || (regexBobininhaSemM ? t.match(regexBobininhaSemM) : null);
+  const matchBobininha = (regexBobininhaNxM ? t.match(regexBobininhaNxM) : null) ||
+                         (regexBobininhaTexto ? t.match(regexBobininhaTexto) : null) ||
+                         (regexBobininhaSemM ? t.match(regexBobininhaSemM) : null);
 
-  if (isBobininha || matchBobininha) {
+  if ((isBobininha || matchBobininha) && !isTextoChapaOuPerfil) {
     let qBobina = null;
     let compMBobina = null;
 
@@ -217,6 +309,11 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
           qBobina = qOdooNum > 0 ? qOdooNum : 1;
         }
       }
+    }
+
+    // 🛡️ Nenhuma bobininha industrial possui mais de 300 metros por rolo
+    if (compMBobina && compMBobina >= 300) {
+      compMBobina = null;
     }
 
     if (qBobina && compMBobina && compMBobina > 0) {

@@ -156,7 +156,8 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
           const isUnidadeMetro = ["MT", "M", "METRO", "METROS"].includes(unidade) || (g === "telha" && demanda?.metros > 0);
           const isVendidoEmKg = !isUnidadeMetro && (demanda?.isKg || unidade === "KG" || (it.quantidade > 50 && pecasReal && it.quantidade >= pecasReal * 3 && g !== "telha"));
 
-          const isBobininha = espTec?.tipo_conformacao === "bobininha" || /(bobininha|bobinina|bobina|fita|desbobinamento)/i.test(`${produtoLimpo} ${desc}`);
+          const isChapaOuPerfil = /(chapa|perfil|dobra|guilhotina|cartola|cantoneira|batente|tampa)/i.test(`${produtoLimpo} ${desc}`);
+          const isBobininha = !isChapaOuPerfil && (espTec?.tipo_conformacao === "bobininha" || /(bobininha|bobinina|desbobinamento)/i.test(`${produtoLimpo} ${desc}`));
 
           let displayQtd = it.quantidade ?? null;
           let displayUnidade = unidade || "PEÇAS";
@@ -169,6 +170,19 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
             displaySubBadge = {
               label: `${totalM}m total`,
               title: `${espTec.pecas} bobininha${espTec.pecas > 1 ? "s" : ""} c/ ${espTec.comprimento_m || 30}m cada (Metragem Total: ${totalM}m)`
+            };
+          } else if ((espTec?.tipo_conformacao === "perfil_dobrado" || espTec?.tipo_conformacao === "chapa_lisa") && (pecasReal > 0 || espTec?.pecas > 0)) {
+            const qPecas = pecasReal || espTec.pecas;
+            displayQtd = qPecas;
+            displayUnidade = qPecas === 1 ? (espTec.tipo_conformacao === "chapa_lisa" ? "CHAPA" : "PEÇA") : (espTec.tipo_conformacao === "chapa_lisa" ? "CHAPAS" : "PEÇAS");
+            const totalM = espTec.metragem_total;
+            const pesoVal = Math.round(demanda?.pesoKgInformado || (unidade === "KG" ? it.quantidade : 0));
+            const subPartes = [];
+            if (totalM) subPartes.push(`${totalM}m total`);
+            if (pesoVal > 0) subPartes.push(`${pesoVal.toLocaleString("pt-BR")} kg`);
+            displaySubBadge = {
+              label: subPartes.join(" • ") || `${qPecas} pçs`,
+              title: `${qPecas} peças de ${espTec.dimensoes_fmt || ""} (Total: ${totalM || 0}m)${pesoVal > 0 ? ` • Peso: ${pesoVal} kg` : ""}`
             };
           } else if (g === "telha" && (pecasReal || demanda?.metros > 0)) {
             // 🏠 Setor de Telhas: Exibe a quantidade de telhas (peças) e destaca metragem total + peso teórico real
