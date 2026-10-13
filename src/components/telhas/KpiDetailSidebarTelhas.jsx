@@ -79,8 +79,20 @@ export default function KpiDetailSidebarTelhas({
     const num = o.numero_pedido || o.pedido_numero || o.id;
     const dia = o.data_finalizacao || o.data || "";
     toast.info(`Localizando pedido #${num} na produção...`);
+    
+    // 1. Fecha o sheet
     if (onClose) onClose();
-    navigate(`/producao?busca=${encodeURIComponent(num)}&dia=${encodeURIComponent(dia)}`);
+
+    // 2. Garante que os estilos do body sejam restaurados
+    document.body.style.pointerEvents = "";
+    document.body.removeAttribute("data-scroll-locked");
+
+    // 3. Aguarda o ciclo de animação do Radix antes de trocar de rota
+    setTimeout(() => {
+      document.body.style.pointerEvents = "";
+      document.body.removeAttribute("data-scroll-locked");
+      navigate(`/producao?busca=${encodeURIComponent(num)}&dia=${encodeURIComponent(dia)}`);
+    }, 100);
   };
 
   const handleAbrirHistorico = (o) => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Outlet, Navigate, useNavigate } from "react-router-dom";
+import { Outlet, Navigate, useNavigate, useLocation } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import FilialSwitcher from "@/components/FilialSwitcher";
 import UserAvatarButton from "@/components/UserAvatarButton";
@@ -26,6 +26,17 @@ export default function AppLayout() {
   const [centralDiretoOpen, setCentralDiretoOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Limpeza de overlays órfãos em trocas de rota para evitar telas esmaecidas ou bloqueadas
+  useEffect(() => {
+    document.body.style.pointerEvents = "";
+    document.body.removeAttribute("data-scroll-locked");
+    const overlaysOrfaos = document.querySelectorAll(
+      '[data-radix-portal] > [data-state="closed"], [data-radix-dialog-overlay][data-state="closed"]'
+    );
+    overlaysOrfaos.forEach(el => el.remove());
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     base44.auth.me().then(u => { setUser(u); setLoading(false); }).catch(() => setLoading(false));

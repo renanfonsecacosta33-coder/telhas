@@ -95,13 +95,20 @@ export default function ProducaoAdmin() {
     const d = searchParams.get("dia");
     if (q) {
       setTermoBusca(q);
-      if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
-        setSelectedDay(d);
-        setCurrentWeek(new Date(d + "T12:00:00"));
+      const ped = pedidos.find(p => {
+        const num = String(p.numero_pedido || "").trim();
+        const id = String(p.id || "").trim();
+        return num === q || id === q || num.includes(q);
+      });
+      const dataAlvo = ped?.data || ped?.data_finalizacao || d;
+      if (dataAlvo && /^\d{4}-\d{2}-\d{2}$/.test(dataAlvo)) {
+        setSelectedDay(dataAlvo);
+        setCurrentWeek(new Date(dataAlvo + "T12:00:00"));
       }
+      setViewMode("dia");
       setActiveTab("producao");
     }
-  }, [searchParams]);
+  }, [searchParams, pedidos]);
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
@@ -425,29 +432,32 @@ export default function ProducaoAdmin() {
     }
 
     // 2. Filtro de Urgência
+    // 2. Filtro de Urgência (apenas se não houver busca textual por termo/pedido específico)
     const hojeStr = format(new Date(), "yyyy-MM-dd");
-    if (filtroUrgencia === "mais_atrasados") {
-      lista = lista.filter(p => {
-        if (p.status === "finalizado") return false;
-        const dt = extrairDataISO(p.data_entrega || p.data_prevista || p.data);
-        return dt && dt < hojeStr;
-      });
-    } else if (filtroUrgencia === "hoje_amanha") {
-      lista = lista.filter(p => {
-        if (p.status === "finalizado") return false;
-        const dt = extrairDataISO(p.data_entrega || p.data_prevista || p.data);
-        if (!dt) return false;
-        const d = diasUteisRestantes(dt);
-        return d != null && d >= 0 && d <= 1;
-      });
-    } else if (filtroUrgencia === "prioritarios") {
-      lista = lista.filter(p => p.prioridade);
-    } else if (filtroUrgencia === "nao_distribuidos") {
-      lista = lista.filter(p => p.status === "aguardando" || p.status === "pendente" || !p.status);
+    if (!termoBusca.trim()) {
+      if (filtroUrgencia === "mais_atrasados") {
+        lista = lista.filter(p => {
+          if (p.status === "finalizado") return false;
+          const dt = extrairDataISO(p.data_entrega || p.data_prevista || p.data);
+          return dt && dt < hojeStr;
+        });
+      } else if (filtroUrgencia === "hoje_amanha") {
+        lista = lista.filter(p => {
+          if (p.status === "finalizado") return false;
+          const dt = extrairDataISO(p.data_entrega || p.data_prevista || p.data);
+          if (!dt) return false;
+          const d = diasUteisRestantes(dt);
+          return d != null && d >= 0 && d <= 1;
+        });
+      } else if (filtroUrgencia === "prioritarios") {
+        lista = lista.filter(p => p.prioridade);
+      } else if (filtroUrgencia === "nao_distribuidos") {
+        lista = lista.filter(p => p.status === "aguardando" || p.status === "pendente" || !p.status);
+      }
     }
 
-    // 3. Filtro por intervalo / campo de datas
-    if (dataInicio || dataFim) {
+    // 3. Filtro por intervalo / campo de datas (ignorado em busca direta por pedido)
+    if (!termoBusca.trim() && (dataInicio || dataFim)) {
       lista = lista.filter(p => {
         let valData = "";
         if (filtroDataCampo === "data") valData = p.data;
@@ -473,8 +483,11 @@ export default function ProducaoAdmin() {
     const startStr = format(weekStart, "yyyy-MM-dd");
     const endStr = format(weekEnd, "yyyy-MM-dd");
     const fonte = temFiltroAtivo ? pedidosFiltradosGlobal : pedidos;
+    if (termoBusca.trim()) {
+      return fonte;
+    }
     return fonte.filter(p => p.data >= startStr && p.data <= endStr);
-  }, [pedidos, pedidosFiltradosGlobal, temFiltroAtivo, weekStart, weekEnd]);
+  }, [pedidos, pedidosFiltradosGlobal, temFiltroAtivo, weekStart, weekEnd, termoBusca]);
 
   // Pedidos para exibição por máquina (visão global quando busca ativa, ou dia selecionado)
   const pedidosDia = useMemo(() => {
