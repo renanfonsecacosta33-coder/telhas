@@ -9,9 +9,9 @@ import {
   Weight, DollarSign, RefreshCw, Pause, CheckCircle2,
   Layers, Clock, Zap, Activity, X, Loader2, Factory,
   TrendingUp, Snowflake, Ruler, Calendar, ChevronRight,
-  ExternalLink, History, Search
+  ExternalLink, History, Search, Pencil
 } from "lucide-react";
-import { calcularMetrosPedido } from "@/lib/metrosHelper";
+import { calcularMetrosPedido, calcularKgPedido } from "@/lib/metrosHelper";
 import HistoricoPedidoTelhasSidebar from "@/components/producao/HistoricoPedidoTelhasSidebar";
 
 function formatBRL(v) {
@@ -50,7 +50,8 @@ const HEADER_CFG = {
 
 export default function KpiDetailSidebarTelhas({
   open, onClose, type, ordensPeriodo = [], bobinasAtivas = [], filialAtiva,
-  eficiencia, tempoProdTotal, tempoPausaTotal, tempoSetupTotal, tempoTotal
+  eficiencia, tempoProdTotal, tempoPausaTotal, tempoSetupTotal, tempoTotal,
+  onEditarOrdem
 }) {
   const navigate = useNavigate();
   const [allBobinas, setAllBobinas] = useState([]);
@@ -95,6 +96,20 @@ export default function KpiDetailSidebarTelhas({
     }, 100);
   };
 
+  const handleEditar = (o) => {
+    const raw = o.rawObj || o;
+    if (onClose) onClose();
+    document.body.style.pointerEvents = "";
+    document.body.removeAttribute("data-scroll-locked");
+    if (onEditarOrdem) {
+      setTimeout(() => {
+        onEditarOrdem(raw);
+      }, 80);
+    } else {
+      handleIrAtePedido(raw);
+    }
+  };
+
   const handleAbrirHistorico = (o) => {
     setHistoricoPedido({
       numero: o.numero_pedido || o.id,
@@ -110,7 +125,7 @@ export default function KpiDetailSidebarTelhas({
     return map;
   }, [bobinasAtivas, allBobinas]);
 
-  // KG & Custo Data
+  // KG & Custo Data (calcula peso real ou teórico consolidado)
   const kgCustoData = useMemo(() => {
     const finOrdens = ordensPeriodo.filter(o => o.status === "finalizado");
     const byBobina = {};
@@ -118,7 +133,7 @@ export default function KpiDetailSidebarTelhas({
     let totalCusto = 0;
 
     finOrdens.forEach(o => {
-      const kg = o.kg_total || o.peso_kg || 0;
+      const kg = calcularKgPedido(o);
       const bob = o.bobina_id ? bobinaMap[o.bobina_id] : null;
       const custoKg = bob?.custo || 0;
       const custo = kg * custoKg;
@@ -185,7 +200,7 @@ export default function KpiDetailSidebarTelhas({
             </SheetHeader>
 
             <div className="mt-3 flex items-center justify-between text-[11px] text-white/70 bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">
-              <span>👉 Clique em qualquer pedido para ir à <strong>Produção</strong></span>
+              <span>👉 Clique em qualquer pedido para <strong>Editar valores</strong> ou ir à Produção</span>
               <span className="font-semibold text-blue-300">#{ordensPeriodo.length} ordens</span>
             </div>
           </div>
@@ -203,6 +218,7 @@ export default function KpiDetailSidebarTelhas({
                   <MetrosContent
                     ordens={ordensPeriodo.filter(o => o.status === "finalizado")}
                     onGoToPedido={handleIrAtePedido}
+                    onEditarOrdem={handleEditar}
                     onOpenHistorico={handleAbrirHistorico}
                   />
                 )}
@@ -212,6 +228,7 @@ export default function KpiDetailSidebarTelhas({
                   <KgContent
                     data={kgCustoData}
                     onGoToPedido={handleIrAtePedido}
+                    onEditarOrdem={handleEditar}
                     onOpenHistorico={handleAbrirHistorico}
                   />
                 )}
@@ -221,6 +238,7 @@ export default function KpiDetailSidebarTelhas({
                   <CustoContent
                     data={kgCustoData}
                     onGoToPedido={handleIrAtePedido}
+                    onEditarOrdem={handleEditar}
                     onOpenHistorico={handleAbrirHistorico}
                   />
                 )}
@@ -230,6 +248,7 @@ export default function KpiDetailSidebarTelhas({
                   <OrdensContent
                     ordens={ordensPeriodo}
                     onGoToPedido={handleIrAtePedido}
+                    onEditarOrdem={handleEditar}
                     onOpenHistorico={handleAbrirHistorico}
                   />
                 )}
@@ -239,6 +258,7 @@ export default function KpiDetailSidebarTelhas({
                   <RetrabalhosContent
                     ordens={ordensPeriodo.filter(o => o.is_retrabalho || o.retrabalho)}
                     onGoToPedido={handleIrAtePedido}
+                    onEditarOrdem={handleEditar}
                     onOpenHistorico={handleAbrirHistorico}
                   />
                 )}
@@ -248,6 +268,7 @@ export default function KpiDetailSidebarTelhas({
                   <PausadasContent
                     ordens={ordensPeriodo.filter(o => o.status === "pausado")}
                     onGoToPedido={handleIrAtePedido}
+                    onEditarOrdem={handleEditar}
                     onOpenHistorico={handleAbrirHistorico}
                   />
                 )}
@@ -257,6 +278,7 @@ export default function KpiDetailSidebarTelhas({
                   <MetrosContent
                     ordens={ordensPeriodo.filter(o => o.status === "finalizado")}
                     onGoToPedido={handleIrAtePedido}
+                    onEditarOrdem={handleEditar}
                     onOpenHistorico={handleAbrirHistorico}
                   />
                 )}
@@ -266,6 +288,7 @@ export default function KpiDetailSidebarTelhas({
                   <SanduicheContent
                     ordens={ordensPeriodo.filter(o => /(eps|manta|sanduiche|isopor|termoacustica)/i.test(o.produto || ""))}
                     onGoToPedido={handleIrAtePedido}
+                    onEditarOrdem={handleEditar}
                     onOpenHistorico={handleAbrirHistorico}
                   />
                 )}
@@ -280,6 +303,7 @@ export default function KpiDetailSidebarTelhas({
                     tempoTotal={tempoTotal}
                     ordens={ordensPeriodo}
                     onGoToPedido={handleIrAtePedido}
+                    onEditarOrdem={handleEditar}
                   />
                 )}
               </>
@@ -302,14 +326,22 @@ export default function KpiDetailSidebarTelhas({
 }
 
 // Card de Ordem Clicável Reutilizável
-function OrdemItemCard({ ordem, metros, onGoToPedido, onOpenHistorico, badgeText, badgeColor }) {
+function OrdemItemCard({ ordem, metros, onGoToPedido, onEditarOrdem, onOpenHistorico, badgeText, badgeColor }) {
   const m = metros != null ? metros : calcularMetrosPedido(ordem);
+
+  const handleClickCard = () => {
+    if (onEditarOrdem) {
+      onEditarOrdem(ordem);
+    } else if (onGoToPedido) {
+      onGoToPedido(ordem);
+    }
+  };
 
   return (
     <div
-      onClick={() => onGoToPedido(ordem)}
+      onClick={handleClickCard}
       className="p-3 border border-border/80 hover:border-blue-500 rounded-xl bg-card hover:bg-blue-50/20 dark:hover:bg-blue-950/20 transition-all cursor-pointer shadow-2xs hover:shadow-sm group relative"
-      title="Clique para ir até o pedido na Produção"
+      title="Clique para editar valores deste pedido"
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
@@ -344,9 +376,31 @@ function OrdemItemCard({ ordem, metros, onGoToPedido, onOpenHistorico, badgeText
 
       {/* Barra de ações rápida com hover */}
       <div className="mt-2 pt-1.5 border-t border-border/40 flex items-center justify-between text-[10px]">
-        <span className="text-blue-600 dark:text-blue-400 font-bold flex items-center gap-1 group-hover:underline">
-          <ExternalLink className="w-3 h-3" /> Ver pedido na Produção
-        </span>
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onEditarOrdem) onEditarOrdem(ordem);
+              else onGoToPedido(ordem);
+            }}
+            className="text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+            title="Editar valores e dados do pedido"
+          >
+            <Pencil className="w-3 h-3" /> Editar
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onGoToPedido(ordem);
+            }}
+            className="text-blue-600 dark:text-blue-400 font-medium flex items-center gap-1 hover:underline cursor-pointer"
+            title="Ver pedido na tela de Produção"
+          >
+            <ExternalLink className="w-3 h-3" /> Produção
+          </button>
+        </div>
         {onOpenHistorico && (
           <button
             type="button"
@@ -354,7 +408,7 @@ function OrdemItemCard({ ordem, metros, onGoToPedido, onOpenHistorico, badgeText
               e.stopPropagation();
               onOpenHistorico(ordem);
             }}
-            className="text-muted-foreground hover:text-foreground flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-muted font-medium transition-colors"
+            className="text-muted-foreground hover:text-foreground flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-muted font-medium transition-colors cursor-pointer"
             title="Ver histórico e rastreabilidade"
           >
             <History className="w-3 h-3" /> Histórico
@@ -366,7 +420,7 @@ function OrdemItemCard({ ordem, metros, onGoToPedido, onOpenHistorico, badgeText
 }
 
 // Sub-componentes do Sheet de Detalhes
-function MetrosContent({ ordens = [], onGoToPedido, onOpenHistorico }) {
+function MetrosContent({ ordens = [], onGoToPedido, onEditarOrdem, onOpenHistorico }) {
   const totalM = ordens.reduce((s, o) => s + calcularMetrosPedido(o), 0);
   const totalTelhas = ordens.reduce((s, o) => s + (o.quantidade || o.quantidade_telhas || 1), 0);
 
@@ -389,6 +443,7 @@ function MetrosContent({ ordens = [], onGoToPedido, onOpenHistorico }) {
             key={o.id}
             ordem={o}
             onGoToPedido={onGoToPedido}
+            onEditarOrdem={onEditarOrdem}
             onOpenHistorico={onOpenHistorico}
           />
         ))}
@@ -397,13 +452,13 @@ function MetrosContent({ ordens = [], onGoToPedido, onOpenHistorico }) {
   );
 }
 
-function KgContent({ data, onGoToPedido, onOpenHistorico }) {
+function KgContent({ data, onGoToPedido, onEditarOrdem, onOpenHistorico }) {
   return (
     <div className="space-y-4">
       <div className="bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-900/40 rounded-xl p-4 flex items-center justify-between">
         <div>
           <p className="text-2xl font-black text-orange-700 dark:text-orange-300">{data.totalKG.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} kg</p>
-          <p className="text-xs text-muted-foreground">Aço consumido no período</p>
+          <p className="text-xs text-muted-foreground">Aço consumido no período (real ou teórico)</p>
         </div>
         <div className="text-right">
           <p className="text-lg font-bold text-slate-700 dark:text-slate-300">{data.bobinasList.length} bobina(s)</p>
@@ -427,13 +482,18 @@ function KgContent({ data, onGoToPedido, onOpenHistorico }) {
             {b.ops.length > 0 && (
               <div className="pt-2 border-t border-border/50 space-y-1.5">
                 <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
-                  Ordens produzidas com esta bobina:
+                  Ordens produzidas com esta bobina (clique para editar):
                 </span>
                 {b.ops.map((op) => (
                   <div
                     key={op.id}
-                    onClick={() => onGoToPedido(op.rawObj || op)}
+                    onClick={() => {
+                      const raw = op.rawObj || op;
+                      if (onEditarOrdem) onEditarOrdem(raw);
+                      else onGoToPedido(raw);
+                    }}
                     className="p-2 rounded-lg bg-muted/40 hover:bg-orange-500/10 hover:border-orange-500/40 border border-transparent transition-all cursor-pointer flex items-center justify-between text-xs group"
+                    title="Clique para editar valores desta ordem"
                   >
                     <div className="min-w-0">
                       <span className="font-bold block truncate group-hover:text-orange-600">
@@ -458,7 +518,7 @@ function KgContent({ data, onGoToPedido, onOpenHistorico }) {
   );
 }
 
-function CustoContent({ data, onGoToPedido }) {
+function CustoContent({ data, onGoToPedido, onEditarOrdem }) {
   return (
     <div className="space-y-4">
       <div className="bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-900/40 rounded-xl p-4 flex items-center justify-between">
@@ -486,8 +546,13 @@ function CustoContent({ data, onGoToPedido }) {
                 {b.ops.map((op) => (
                   <div
                     key={op.id}
-                    onClick={() => onGoToPedido(op.rawObj || op)}
+                    onClick={() => {
+                      const raw = op.rawObj || op;
+                      if (onEditarOrdem) onEditarOrdem(raw);
+                      else onGoToPedido(raw);
+                    }}
                     className="p-2 rounded-lg bg-muted/40 hover:bg-green-500/10 hover:border-green-500/40 border border-transparent transition-all cursor-pointer flex items-center justify-between text-xs group"
+                    title="Clique para editar valores desta ordem"
                   >
                     <div className="min-w-0">
                       <span className="font-bold block truncate group-hover:text-green-600">
@@ -512,7 +577,7 @@ function CustoContent({ data, onGoToPedido }) {
   );
 }
 
-function OrdensContent({ ordens = [], onGoToPedido, onOpenHistorico }) {
+function OrdensContent({ ordens = [], onGoToPedido, onEditarOrdem, onOpenHistorico }) {
   return (
     <div className="space-y-2 max-h-[65vh] overflow-y-auto pr-1">
       {ordens.map(o => {
@@ -522,6 +587,7 @@ function OrdensContent({ ordens = [], onGoToPedido, onOpenHistorico }) {
             key={o.id}
             ordem={o}
             onGoToPedido={onGoToPedido}
+            onEditarOrdem={onEditarOrdem}
             onOpenHistorico={onOpenHistorico}
             badgeText={cfg.label}
             badgeColor={`${cfg.bg} ${cfg.color}`}
@@ -532,7 +598,7 @@ function OrdensContent({ ordens = [], onGoToPedido, onOpenHistorico }) {
   );
 }
 
-function RetrabalhosContent({ ordens = [], onGoToPedido, onOpenHistorico }) {
+function RetrabalhosContent({ ordens = [], onGoToPedido, onEditarOrdem, onOpenHistorico }) {
   if (ordens.length === 0) {
     return <p className="text-center text-xs text-muted-foreground py-8">Nenhum retrabalho registrado no período.</p>;
   }
@@ -543,6 +609,7 @@ function RetrabalhosContent({ ordens = [], onGoToPedido, onOpenHistorico }) {
           key={o.id}
           ordem={o}
           onGoToPedido={onGoToPedido}
+          onEditarOrdem={onEditarOrdem}
           onOpenHistorico={onOpenHistorico}
           badgeText="Retrabalho"
           badgeColor="bg-red-100 text-red-700 border border-red-200"
@@ -552,7 +619,7 @@ function RetrabalhosContent({ ordens = [], onGoToPedido, onOpenHistorico }) {
   );
 }
 
-function PausadasContent({ ordens = [], onGoToPedido, onOpenHistorico }) {
+function PausadasContent({ ordens = [], onGoToPedido, onEditarOrdem, onOpenHistorico }) {
   if (ordens.length === 0) {
     return <p className="text-center text-xs text-muted-foreground py-8">Nenhuma ordem pausada no momento.</p>;
   }
@@ -563,6 +630,7 @@ function PausadasContent({ ordens = [], onGoToPedido, onOpenHistorico }) {
           key={o.id}
           ordem={o}
           onGoToPedido={onGoToPedido}
+          onEditarOrdem={onEditarOrdem}
           onOpenHistorico={onOpenHistorico}
           badgeText="Pausado"
           badgeColor="bg-purple-100 text-purple-700 border border-purple-200"
@@ -572,7 +640,7 @@ function PausadasContent({ ordens = [], onGoToPedido, onOpenHistorico }) {
   );
 }
 
-function SanduicheContent({ ordens = [], onGoToPedido, onOpenHistorico }) {
+function SanduicheContent({ ordens = [], onGoToPedido, onEditarOrdem, onOpenHistorico }) {
   const totalM = ordens.reduce((s, o) => s + calcularMetrosPedido(o), 0);
   return (
     <div className="space-y-4">
@@ -592,6 +660,7 @@ function SanduicheContent({ ordens = [], onGoToPedido, onOpenHistorico }) {
             key={o.id}
             ordem={o}
             onGoToPedido={onGoToPedido}
+            onEditarOrdem={onEditarOrdem}
             onOpenHistorico={onOpenHistorico}
             badgeText="Termoacústica"
             badgeColor="bg-cyan-100 text-cyan-700 border border-cyan-200"
@@ -602,7 +671,7 @@ function SanduicheContent({ ordens = [], onGoToPedido, onOpenHistorico }) {
   );
 }
 
-function EficienciaContent({ eficiencia, tempoProdTotal, tempoPausaTotal, tempoSetupTotal, tempoTotal, ordens = [], onGoToPedido }) {
+function EficienciaContent({ eficiencia, tempoProdTotal, tempoPausaTotal, tempoSetupTotal, tempoTotal, ordens = [], onGoToPedido, onEditarOrdem }) {
   return (
     <div className="space-y-4">
       <div className="text-center p-6 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/40 rounded-xl">
@@ -627,3 +696,4 @@ function EficienciaContent({ eficiencia, tempoProdTotal, tempoPausaTotal, tempoS
     </div>
   );
 }
+

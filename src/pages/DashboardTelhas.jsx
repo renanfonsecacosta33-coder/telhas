@@ -21,7 +21,7 @@ import PedidoFormDialog from "@/components/producao/PedidoFormDialog";
 import QuickActionDialogTelhas from "@/components/telhas/QuickActionDialogTelhas";
 import HistoricoBobinasTelhas from "@/components/telhas/HistoricoBobinasTelhas";
 import KpiDetailSidebarTelhas from "@/components/telhas/KpiDetailSidebarTelhas";
-import { calcularMetrosPedido } from "@/lib/metrosHelper";
+import { calcularMetrosPedido, calcularKgPedido } from "@/lib/metrosHelper";
 import { prepararPresetNovaOrdemTelhas, getItens, computePercentual, statusPcpPorPercentual, buildItensJson } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import { isTelhaBandeja, montarTriadeTelhaBandeja } from "@/lib/bandejaHelper";
@@ -159,7 +159,7 @@ export default function DashboardTelhas() {
 
   const kgPeriodo = ordensPeriodo
     .filter(o => o.status === "finalizado")
-    .reduce((s, o) => s + (o.kg_total || o.peso_kg || 0), 0);
+    .reduce((s, o) => s + calcularKgPedido(o), 0);
 
   const termoacusticasPeriodo = ordensPeriodo
     .filter(o => o.status === "finalizado" && /(eps|manta|sanduiche|isopor|termoacustica)/i.test(o.produto || ""))
@@ -182,7 +182,7 @@ export default function DashboardTelhas() {
       return {
         dia: format(new Date(dia + "T12:00:00"), "EEE dd", { locale: ptBR }),
         metros: +fin.reduce((s, o) => s + calcularMetrosPedido(o), 0).toFixed(1),
-        kg: +fin.reduce((s, o) => s + (o.kg_total || o.peso_kg || 0), 0).toFixed(0),
+        kg: +fin.reduce((s, o) => s + calcularKgPedido(o), 0).toFixed(0),
       };
     });
   }, [ordensPeriodo, filtroInicio, filtroFim]);
@@ -237,7 +237,7 @@ export default function DashboardTelhas() {
           ordens: []
         };
       }
-      map[key].kg_total += (o.kg_total || o.peso_kg || 0);
+      map[key].kg_total += calcularKgPedido(o);
       map[key].metros_total += calcularMetrosPedido(o);
       map[key].ordens.push({
         maquina: o.maquina,
@@ -245,7 +245,7 @@ export default function DashboardTelhas() {
         quantidade: o.quantidade || o.quantidade_telhas || 1,
         metros: calcularMetrosPedido(o),
         data: o.data_finalizacao || o.data,
-        kg: o.kg_total || o.peso_kg || 0
+        kg: calcularKgPedido(o)
       });
     });
     return Object.values(map).sort((a, b) => b.kg_total - a.kg_total).slice(0, 8);
@@ -911,6 +911,10 @@ export default function DashboardTelhas() {
         tempoPausaTotal={tempoPausaTotal}
         tempoSetupTotal={tempoSetupTotal}
         tempoTotal={tempoTotal}
+        onEditarOrdem={(ordem) => {
+          setEditPreset(ordem);
+          setDialogOpen(true);
+        }}
       />
 
       {/* Formulário de Nova Ordem a partir do PCP */}

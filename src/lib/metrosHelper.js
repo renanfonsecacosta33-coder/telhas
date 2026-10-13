@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Módulo central de cálculo de metragem linear de pedidos de telhas
  * e conversão precisa de KG <-> Metros lineares de bobinas.
  * 
@@ -70,3 +70,46 @@ export function calcKgDeMetros(metros, chapa = 0.43, larguraMm = 1200) {
   const largM = (Number(larguraMm) || 1200) / 1000;
   return m * (esp * 7.85 * largM);
 }
+
+/**
+ * Calcula os KG de um pedido/ordem de telhas ou bobininhas.
+ * 1. Prioridade para peso real/registrado na balança ou kg_total (se > 0)
+ * 2. Fallback inteligente: calcula teoricamente com base nos metros lineares e na espessura da chapa.
+ */
+export function calcularKgPedido(p) {
+  if (!p) return 0;
+
+  // 1. Se tem peso real da balança ou kg_total gravado
+  const pesoGravado = Number(p.kg_total || p.peso_kg || p.peso_real || 0);
+  if (pesoGravado > 0) {
+    return pesoGravado;
+  }
+
+  // 2. Se tem metragem, calcula o peso teórico
+  const metros = calcularMetrosPedido(p);
+  if (metros <= 0) return 0;
+
+  // Extrair espessura (padrão 0.43 se não encontrada)
+  let esp = Number(p.espessura || p.chapa) || 0;
+  if (!esp || isNaN(esp)) {
+    const textoCompleto = `${p.chapa || ""} ${p.espessura || ""} ${p.bobina_descricao || ""} ${p.produto || ""} ${p.descricao || ""}`;
+    const mEsp = textoCompleto.match(/\b(0[,\.]\d{2})\b/);
+    if (mEsp) {
+      esp = parseFloat(mEsp[1].replace(",", "."));
+    }
+  }
+  if (!esp || esp <= 0) esp = 0.43;
+
+  // Largura da chapa: bobina padrão de telha tem 1200mm de largura.
+  // Se for bobininha ou fita de corte, tem largura reduzida (média ~300mm).
+  let largMm = 1200;
+  const isBobininha = /(bobininha|bobina|fita|desbobinador)/i.test(`${p.produto || ""} ${p.maquina || ""}`);
+  if (isBobininha) {
+    const textoCompleto = `${p.produto || ""} ${p.descricao || ""} ${p.bobina_descricao || ""}`;
+    const mLarg = textoCompleto.match(/\b(100|150|200|250|300|400|500)\s*mm\b/i);
+    largMm = mLarg ? parseInt(mLarg[1], 10) : 300;
+  }
+
+  return Math.round(calcKgDeMetros(metros, esp, largMm));
+}
+
