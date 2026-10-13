@@ -2,6 +2,8 @@ import React, { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Edit2, Eye, AlertTriangle, Layers, Clock, CheckCircle2, Cog, Lock, PackageX } from "lucide-react";
+import { getAlertaNivel } from "@/components/bobinas/BobinaCardShared";
+
 function extrairAlerta(bobina) {
   const nivel = getAlertaNivel(bobina);
   if (!nivel) return { ativo: false, texto: "", nivel: null };
