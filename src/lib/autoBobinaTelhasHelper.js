@@ -368,6 +368,9 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
   const unidadeOp = filialAtiva && filialAtiva !== "todas" ? filialAtiva : (pedido.unidade || "Matriz AJL");
   const modeloFinal = item.modelo || (detectarMaquinaTelha(textoCompleto) || maquina);
 
+  const espNumOp = parseFloat(String(esp || "0.43").replace(",", ".")) || 0.43;
+  const pesoEstimadoOpKg = Math.round(Number(metragemTotalLinear) * (espNumOp * 7.85 * 1.2) * (isDuplaTelha ? 2 : 1));
+
   // 3. Monta os dados da Ordem de Produção (tabela Pedido)
   const dadosOp = {
     data: dataReceb,
@@ -394,9 +397,10 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     bobina_inferior_id: isDuplaTelha ? (bobinaInferiorEleita?.bobina_id || null) : null,
     bobina_inferior: isDuplaTelha ? (bobinaInferiorEleita?.descricao || "") : null,
     metros: Number(qtdChapas) || 1,
+    quantidade_telhas: Number(qtdChapas) || 1,
     metragem_mm: Number(metragemMm) || null,
-    quantidade_telhas: Number(metragemTotalLinear) || 1,
     metragem_planejada: Number(metragemTotalLinear) || 1,
+    kg_total: pesoEstimadoOpKg,
     variacoes_telhas: variacoesTelhasJson,
     observacoes: `Auto-Roteado PCP (Barracão Telhas) — ${descTexto}`.trim(),
     pedido_odoo_id: pedido.id,
@@ -725,9 +729,10 @@ export async function rotearLoteTelhasAgrupadas({
       bobina_inferior_id: isDuplaTelha ? (bobinaInferiorEleita?.bobina_id || null) : null,
       bobina_inferior: isDuplaTelha ? (bobinaInferiorEleita?.descricao || "") : null,
       metros: Number(somaPecas) || 1,
+      quantidade_telhas: Number(somaPecas) || 1,
       metragem_mm: variacoesConsolidadas.length === 1 ? (variacoesConsolidadas[0].mm || null) : null,
-      quantidade_telhas: Number(somaMetrosLineares) || 1,
       metragem_planejada: Number(somaMetrosLineares) || 1,
+      kg_total: Math.round(Number(somaMetrosLineares) * ((parseFloat(String(g.esp || "0.43").replace(",", ".")) || 0.43) * 7.85 * 1.2) * (isDuplaTelha ? 2 : 1)),
       variacoes_telhas: JSON.stringify(variacoesConsolidadas),
       observacoes: `Auto-Roteado PCP (${itensDoGrupo.length > 1 ? `${itensDoGrupo.length} itens agrupados — ` : ""}${g.maquina}) — ${textoObservacoes.join(" | ")}`.trim(),
       pedido_odoo_id: pedido.id,

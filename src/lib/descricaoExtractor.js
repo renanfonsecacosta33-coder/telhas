@@ -412,7 +412,9 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
 
     if (out.variacoes.length === 1) {
       const v = out.variacoes[0];
-      out.resumo_formatado = `${v.qty} pçs c/ ${v.mm.toLocaleString("pt-BR")} mm`;
+      out.resumo_formatado = totalMetros > 0
+        ? `${v.qty} pçs c/ ${v.mm.toLocaleString("pt-BR")} mm (${totalMetros}m)`
+        : `${v.qty} pçs c/ ${v.mm.toLocaleString("pt-BR")} mm`;
     } else {
       out.resumo_formatado = out.variacoes.map(v => `${v.qty} c/ ${v.mm}mm`).join(" + ") + ` (${totalMetros}m)`;
     }

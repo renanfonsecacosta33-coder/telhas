@@ -10,8 +10,8 @@ import { formatDataBR } from "@/lib/sla";
 import { urgenciaPrazo } from "@/lib/prazoUrgencia";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import PedidoOdooCard from "@/components/pcp/PedidoOdooCard";
-import { calcularProgressoRealPedido, classGrupo, obterStatusExecucaoPedido } from "@/lib/pedidoOdooHelper";
-import { verificarEstoqueGrupo } from "@/lib/estoqueMaterialHelper";
+import { calcularProgressoRealPedido, classGrupo, obterStatusExecucaoPedido, getItens } from "@/lib/pedidoOdooHelper";
+import { verificarEstoqueGrupo, extrairDemandaItem } from "@/lib/estoqueMaterialHelper";
 import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
 import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelper";
 
@@ -87,18 +87,51 @@ export default function PedidoOdooGrupoCard({
   // Prioridade / Urgência
   const isPrioritario = grupo.prioridade || ofs.some(p => p.prioridade || p.prioridade_nivel);
 
-  // Contagem de OFs por setor no grupo
+  // Contagem de OFs e somatórios reais por setor no grupo
   const contagemSetores = useMemo(() => {
-    let telha = 0;
-    let cd = 0;
-    let frisada = 0;
+    let telhaOfs = 0;
+    let telhasPecasTotal = 0;
+    let telhasMetrosTotal = 0;
+    let cdOfs = 0;
+    let cdPecasTotal = 0;
+    let frisadaOfs = 0;
+    let frisadaPecasTotal = 0;
+
     ofs.forEach(p => {
       const g = classGrupo(p);
-      if (g === "telha") telha++;
-      else if (g === "frisada") frisada++;
-      else cd++;
+      const itensDoPed = getItens(p);
+
+      if (g === "telha") {
+        telhaOfs++;
+        itensDoPed.forEach(it => {
+          const dem = extrairDemandaItem(it);
+          telhasPecasTotal += (dem?.pecas || 1);
+          telhasMetrosTotal += (dem?.metros || 0);
+        });
+      } else if (g === "frisada") {
+        frisadaOfs++;
+        itensDoPed.forEach(it => {
+          const dem = extrairDemandaItem(it);
+          frisadaPecasTotal += (dem?.pecas || 1);
+        });
+      } else {
+        cdOfs++;
+        itensDoPed.forEach(it => {
+          const dem = extrairDemandaItem(it);
+          cdPecasTotal += (dem?.pecas || 1);
+        });
+      }
     });
-    return { telha, cd, frisada };
+
+    return {
+      telha: telhaOfs,
+      telhasPecasTotal,
+      telhasMetrosTotal: Math.round(telhasMetrosTotal * 100) / 100,
+      cd: cdOfs,
+      cdPecasTotal,
+      frisada: frisadaOfs,
+      frisadaPecasTotal
+    };
   }, [ofs]);
 
   // Verificação consolidada de estoque de matéria-prima (Bobinas e Chapas)
@@ -211,7 +244,8 @@ export default function PedidoOdooGrupoCard({
                 </Badge>
                 {contagemSetores.telha > 0 && (
                   <Badge className="bg-blue-600 text-white border-blue-700 text-[10px] font-bold px-1.5 py-0 shadow-xs">
-                    🏠 {contagemSetores.telha} Telha{contagemSetores.telha > 1 ? "s" : ""}
+                    🏠 {contagemSetores.telhasPecasTotal > 1 ? `${contagemSetores.telhasPecasTotal} Telhas` : "1 Telha"}
+                    {contagemSetores.telhasMetrosTotal > 0 ? ` (${contagemSetores.telhasMetrosTotal}m)` : ""}
                   </Badge>
                 )}
                 {contagemSetores.cd > 0 && (

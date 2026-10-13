@@ -221,9 +221,10 @@ export function extrairDemandaItem(item) {
   const pecasObs = extrairPecasDaObs(anotacao) || extrairPecasDaObs(obs) || extrairPecasDaObs(desc);
 
   // 🛡️ Auto-detecção de peso (KG):
-  // Se a unidade no banco ficou gravada como BR ou UN mas a quantidade do Odoo for muito maior
-  // que as peças da OBS (ex: 2.121 de quantidade vs 70 peças na OBS), então a quantidade do Odoo é KG!
-  if (!isKg && ((pecasObs != null && pecasObs > 0 && qtdOdoo >= pecasObs * 3 && qtdOdoo > 50) || (spec && spec.pecas > 0 && qtdOdoo >= spec.pecas * 3 && qtdOdoo > 50))) {
+  // Se a unidade no banco for MT, M ou se for TELHA vendida em metros, NUNCA é KG!
+  const isMetro = unid.startsWith("M") || unid === "MT" || unid === "MTR" || unid === "METRO" || unid === "METROS" || (setor === "telha" && spec && spec.metragem_total > 0);
+  
+  if (!isKg && !isMetro && ((pecasObs != null && pecasObs > 0 && qtdOdoo >= pecasObs * 3 && qtdOdoo > 50) || (spec && spec.pecas > 0 && qtdOdoo >= spec.pecas * 3 && qtdOdoo > 50))) {
     isKg = true;
   }
 
@@ -273,6 +274,29 @@ export function extrairDemandaItem(item) {
         pecasOrigem = "estimado";
       }
     }
+  } else if (isMetro) {
+    // Venda em Metros Lineares (Padrão Telhas Odoo ou Bobininhas)
+    if (spec && spec.tipo_conformacao === "bobininha") {
+      pecas = spec.pecas || 1;
+      pecasOrigem = "obs";
+      metros = spec.metragem_total || qtdOdoo;
+      compMm = spec.comprimento_mm || 30000;
+    } else {
+      metros = (spec && spec.metragem_total) ? spec.metragem_total : qtdOdoo;
+      if (spec && spec.pecas > 0) {
+        pecas = spec.pecas;
+        pecasOrigem = "obs";
+        compMm = spec.comprimento_mm || (pecas > 0 ? Math.round((metros / pecas) * 1000) : 0);
+      } else if (pecasObs != null && pecasObs > 0) {
+        pecas = pecasObs;
+        pecasOrigem = "obs";
+        compMm = Math.round((metros / pecas) * 1000);
+      } else {
+        pecas = 1;
+        pecasOrigem = "odoo";
+        compMm = Math.round(metros * 1000);
+      }
+    }
   } else if (isContagemDireta) {
     // Unidade explícita de contagem no Odoo (BR, UN, PC, etc.)
     if (spec && spec.tipo_conformacao === "bobininha") {
@@ -281,21 +305,10 @@ export function extrairDemandaItem(item) {
       metros = spec.metragem_total || (pecas * (spec.comprimento_m || 30));
       compMm = spec.comprimento_mm || 30000;
     } else {
-      pecas = qtdOdoo;
-      pecasOrigem = "odoo";
+      pecas = (spec && spec.pecas) ? spec.pecas : qtdOdoo;
+      pecasOrigem = (spec && spec.pecas) ? "obs" : "odoo";
       if (spec && spec.metragem_total) metros = spec.metragem_total;
       if (spec && spec.comprimento_mm) compMm = spec.comprimento_mm;
-    }
-  } else if (unid.startsWith("M")) {
-    if (spec && spec.tipo_conformacao === "bobininha") {
-      pecas = spec.pecas || 1;
-      pecasOrigem = "obs";
-      metros = spec.metragem_total || qtdOdoo;
-      compMm = spec.comprimento_mm || 30000;
-    } else {
-      metros = qtdOdoo;
-      pecas = (spec && spec.pecas) ? spec.pecas : 1;
-      pecasOrigem = (spec && spec.pecas) ? "obs" : "odoo";
     }
   } else if (pecasObs != null) {
   }
@@ -614,9 +627,12 @@ export function verificarEstoqueItem(
     let opaMensagem = "";
 
     if (status === "disponivel") {
-      opaMensagem = `Opa, temos sim bobina na espessura ${espessura}mm para fazer este pedido! Usará ${pesoNecessarioKg} kg (restarão ${bPrincipal?.pesoAposUsoKg?.toLocaleString() || 0} kg na bobina principal).`;
-      badgeText = `🟢 Temos Bobina (${espessura}mm) • Usa ${pesoNecessarioKg}kg (Disp. Real: ${saldoKg.toLocaleString()}kg ➔ Sobram: ${Math.max(0, saldoKg - pesoNecessarioKg).toLocaleString()}kg)`;
-      shortBadge = `🟢 Bobina OK (${pesoNecessarioKg}kg)`;
+      const consumoFormatado = metrosNecessarios > 0
+        ? `Usa ${metrosNecessarios}m (~${pesoNecessarioKg}kg)`
+        : `Usa ${pesoNecessarioKg}kg`;
+      opaMensagem = `Opa, temos sim bobina na espessura ${espessura}mm para fazer este pedido! Usará ${consumoFormatado} (restarão ${bPrincipal?.pesoAposUsoKg?.toLocaleString() || 0} kg na bobina principal).`;
+      badgeText = `🟢 Temos Bobina (${espessura}mm) • ${consumoFormatado} (Disp. Real: ${saldoKg.toLocaleString()}kg ➔ Sobram: ${Math.max(0, saldoKg - pesoNecessarioKg).toLocaleString()}kg)`;
+      shortBadge = `🟢 Bobina OK (${consumoFormatado})`;
       detalhe = `Matéria-prima 100% disponível: ${bobsCompativeis.length} bobina(s) em estoque somando ${saldoMetros.toLocaleString()}m (${saldoKg.toLocaleString()}kg líquido). Necessário: ${metrosNecessarios || pecasPedidas}m (${pesoNecessarioKg}kg).`;
     } else if (status === "parcial_prebaixa") {
       opaMensagem = `Opa, podemos tirar ${pecasQueDaParaFazer} peças, mas o pedido pede ${pecasPedidas}! Já temos ${totalPreComprometido.toLocaleString()} kg comprometidos na pré-baixa de outras OPs.`;

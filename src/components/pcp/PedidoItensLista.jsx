@@ -151,9 +151,10 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
           const textoParaEspecificacao = [...textosUnicos, it.produto].filter(Boolean).join(" ");
           const espTec = extrairEspecificacao(textoParaEspecificacao, it.quantidade, unidade);
 
-          // Quantidade física e Peso (Regra AJL: Fabricação em BARRAS/PEÇAS, Peso em KG)
+          // Quantidade física e Peso (Regra AJL: Fabricação em BARRAS/PEÇAS/TELHAS, Peso em KG)
           const pecasReal = (demanda?.pecas && demanda.pecas > 0) ? demanda.pecas : (espTec?.pecas > 0 ? espTec.pecas : null);
-          const isVendidoEmKg = demanda?.isKg || unidade === "KG" || (it.quantidade > 50 && pecasReal && it.quantidade >= pecasReal * 3);
+          const isUnidadeMetro = ["MT", "M", "METRO", "METROS"].includes(unidade) || (g === "telha" && demanda?.metros > 0);
+          const isVendidoEmKg = !isUnidadeMetro && (demanda?.isKg || unidade === "KG" || (it.quantidade > 50 && pecasReal && it.quantidade >= pecasReal * 3 && g !== "telha"));
 
           const isBobininha = espTec?.tipo_conformacao === "bobininha" || /(bobininha|bobinina|bobina|fita|desbobinamento)/i.test(`${produtoLimpo} ${desc}`);
 
@@ -168,6 +169,19 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
             displaySubBadge = {
               label: `${totalM}m total`,
               title: `${espTec.pecas} bobininha${espTec.pecas > 1 ? "s" : ""} c/ ${espTec.comprimento_m || 30}m cada (Metragem Total: ${totalM}m)`
+            };
+          } else if (g === "telha" && (pecasReal || demanda?.metros > 0)) {
+            // 🏠 Setor de Telhas: Exibe a quantidade de telhas (peças) e destaca metragem total + peso teórico real
+            displayQtd = pecasReal || 1;
+            displayUnidade = displayQtd === 1 ? "TELHA" : "TELHAS";
+            const totalM = demanda?.metros || espTec?.metragem_total || (isUnidadeMetro ? it.quantidade : null);
+            const espNum = parseFloat(String(it.espessura || "0.43").replace(",", ".")) || 0.43;
+            const pesoEst = estoqueItem?.pesoNecessarioKg || Math.round((totalM || (displayQtd * 5.5)) * (espNum * 7.85 * 1.2));
+            const metragemTexto = totalM ? `${totalM}m total` : "";
+            const pesoTexto = pesoEst ? `~${pesoEst}kg` : "";
+            displaySubBadge = {
+              label: [metragemTexto, pesoTexto].filter(Boolean).join(" • "),
+              title: `${displayQtd} telha(s) de ${espTec?.comprimento_mm || "5.500"} mm • Metragem Total: ${totalM || 0}m • Consumo Teórico: ~${pesoEst || 0} kg`
             };
           } else if (isVendidoEmKg && pecasReal && pecasReal > 0) {
             displayQtd = pecasReal;
