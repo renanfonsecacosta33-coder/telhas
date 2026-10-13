@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, TrendingUp, Trash2, Star, Truck, Inbox, Target, ShieldAlert, Layers, Trophy, Search, X, RefreshCw, Sparkles, Clock, AlertTriangle } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, TrendingUp, Trash2, Star, Truck, Inbox, Target, ShieldAlert, Layers, Trophy, Search, X, RefreshCw, Sparkles, Clock, AlertTriangle, History } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Link } from "react-router-dom";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
@@ -22,6 +22,7 @@ import ExpedicaoTab from "@/components/logistica/ExpedicaoTab";
 import FilaPCPTelhas from "@/components/pcp/FilaPCPTelhas";
 import KanbanBoard from "@/components/producao/KanbanBoard";
 import FiltrosDataPCPBar from "@/components/pcp/FiltrosDataPCPBar";
+import HistoricoGeralProducao from "@/components/producao/HistoricoGeralProducao";
 import { extrairDataISO, calcularIntervaloPreset, ordenarPedidosPCP } from "@/lib/filtroDataHelper";
 import { diasUteisRestantes } from "@/lib/sla";
 import { prepararPresetNovaOrdemTelhas, getItens, computePercentual, statusPcpPorPercentual, buildItensJson } from "@/lib/pedidoOdooHelper";
@@ -641,6 +642,14 @@ export default function ProducaoAdmin() {
           Fila PCP
         </button>
 
+        <button
+          onClick={() => setActiveTab("historico")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "historico" ? "bg-card shadow text-orange-600 font-bold" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          <History className="w-4 h-4 text-orange-500" />
+          Histórico Geral
+        </button>
+
         {/* Separador visual */}
         <div className="w-px bg-border mx-1 self-stretch" />
 
@@ -676,6 +685,8 @@ export default function ProducaoAdmin() {
           Dashboard
         </Link>
       </div>
+
+      {activeTab === "historico" && <HistoricoGeralProducao />}
 
       {activeTab === "dados" && <ProducaoDados />}
 

@@ -27,6 +27,7 @@ import {
   CheckCircle2,
   ListOrdered,
   Sparkles,
+  History,
   RefreshCw,
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
@@ -39,6 +40,7 @@ import DiaResumoCardCD from "@/components/corte-dobra/DiaResumoCardCD";
 import OrdemMaquinaFormDialog from "@/components/corte-dobra/OrdemMaquinaFormDialog.jsx";
 import OrdemMaquinaRow from "@/components/corte-dobra/OrdemMaquinaRow.jsx";
 import RetrabalhoDialog from "@/components/corte-dobra/RetrabalhoDialog";
+import HistoricoGeralCD from "@/components/corte-dobra/HistoricoGeralCD";
 
 // ... existing helper imports/constants if any
 
@@ -1096,6 +1098,16 @@ export default function ProducaoCD() {
               </Badge>
             )}
           </Button>
+
+          <Button
+            variant={viewMode === "historico" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("historico")}
+            className={`gap-1.5 text-xs font-bold ${viewMode === "historico" ? "bg-orange-500 hover:bg-orange-600 text-white shadow-xs" : ""}`}
+          >
+            <History className="w-3.5 h-3.5" />
+            <span>Histórico Geral</span>
+          </Button>
         </div>
 
         {/* Busca Rápida + Links Estoque & Expedição + Zoom */}
@@ -1166,6 +1178,8 @@ export default function ProducaoCD() {
 
       {isLoading ? (
         <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-muted border-t-orange-500 rounded-full animate-spin" /></div>
+      ) : viewMode === "historico" ? (
+        <HistoricoGeralCD />
       ) : viewMode === "sem_material" ? (
         <OPSemMaterialTab />
       ) : viewMode === "expedicao" ? (

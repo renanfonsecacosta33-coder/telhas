@@ -81,10 +81,39 @@ export default function HistoricoPedidoSidebar({ open, onClose, numeroPedido }) 
   const loadHistorico = async () => {
     setLoading(true);
     try {
-      const [ordensDesb, ordensMaq] = await Promise.all([
-        base44.entities.OrdemDesbobinadeira.filter({ numero_pedido: numeroPedido }, "data", 50),
-        base44.entities.OrdemMaquinaCD.filter({ numero_pedido: numeroPedido }, "data", 50),
+      const numRaw = String(numeroPedido || "").trim();
+      const numLimpo = numRaw.replace(/^#/, "");
+      const numComHash = `#${numLimpo}`;
+
+      const queriesDesb = [
+        base44.entities.OrdemDesbobinadeira.filter({ numero_pedido: numRaw }, "data", 50).catch(() => []),
+      ];
+      const queriesMaq = [
+        base44.entities.OrdemMaquinaCD.filter({ numero_pedido: numRaw }, "data", 50).catch(() => []),
+      ];
+
+      if (numLimpo !== numRaw) {
+        queriesDesb.push(base44.entities.OrdemDesbobinadeira.filter({ numero_pedido: numLimpo }, "data", 50).catch(() => []));
+        queriesMaq.push(base44.entities.OrdemMaquinaCD.filter({ numero_pedido: numLimpo }, "data", 50).catch(() => []));
+      }
+      if (numComHash !== numRaw) {
+        queriesDesb.push(base44.entities.OrdemDesbobinadeira.filter({ numero_pedido: numComHash }, "data", 50).catch(() => []));
+        queriesMaq.push(base44.entities.OrdemMaquinaCD.filter({ numero_pedido: numComHash }, "data", 50).catch(() => []));
+      }
+
+      const [resDesbList, resMaqList] = await Promise.all([
+        Promise.all(queriesDesb),
+        Promise.all(queriesMaq),
       ]);
+
+      // Deduplica ordens por ID
+      const ordensDesbMap = new Map();
+      resDesbList.flat().forEach(o => { if (o?.id) ordensDesbMap.set(o.id, o); });
+      const ordensDesb = Array.from(ordensDesbMap.values());
+
+      const ordensMaqMap = new Map();
+      resMaqList.flat().forEach(o => { if (o?.id) ordensMaqMap.set(o.id, o); });
+      const ordensMaq = Array.from(ordensMaqMap.values());
 
       // Buscar bobinas para calcular custo (apenas gestores veem o valor)
       const bobinaIds = [...new Set([
