@@ -52,7 +52,13 @@ export default function FilaPCPKanbanView({
   onOpenDetalhe,
   onDistribuir,
   onDistribuirGrupo,
+  onFinalizarOP,
+  onFinalizarGrupo100,
+  onSincronizarOdoo,
+  onSincronizarGrupoOdoo,
   onOpenHistorico,
+  selecionados = new Set(),
+  onToggleSelectGrupo,
 }) {
   const [expandidos, setExpandidos] = useState(new Set());
 
@@ -324,14 +330,34 @@ export default function FilaPCPKanbanView({
                               itensOf = [{ produto: ofItem.produto || "Item", quantidade: ofItem.metros || 1 }];
                             }
 
+                            const progOf = calcularProgressoRealPedido(ofItem, pedidosProducao, ordensCD);
+                            const isOfConcluida = progOf >= 100 || ofItem.status_pcp === "concluido";
+
                             return itensOf.map((it, itIdx) => (
                               <div key={`${ofItem.id}-${itIdx}`} className="bg-muted/40 p-1.5 rounded flex items-center justify-between gap-1">
-                                <span className="font-semibold truncate max-w-[150px]" title={it.produto}>
-                                  {it.produto}
-                                </span>
-                                <span className="font-mono text-muted-foreground shrink-0">
-                                  {it.quantidade} {it.unidade || "pç"}
-                                </span>
+                                <div className="min-w-0">
+                                  <div className="font-semibold truncate max-w-[150px]" title={it.produto}>
+                                    {it.produto}
+                                  </div>
+                                  <span className="font-mono text-[10px] text-muted-foreground">
+                                    {it.quantidade} {it.unidade || "pç"}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {!isOfConcluida && col.id !== "pendente" && onFinalizarOP && (
+                                    <Button
+                                      size="sm"
+                                      className="h-5 text-[9px] px-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer"
+                                      onClick={() => onFinalizarOP(ofItem)}
+                                      title="Finalizar esta OP"
+                                    >
+                                      Finalizar OP
+                                    </Button>
+                                  )}
+                                  {isOfConcluida && (
+                                    <span className="text-[10px] text-emerald-600 font-bold">100% OK</span>
+                                  )}
+                                </div>
                               </div>
                             ));
                           })}
@@ -339,8 +365,9 @@ export default function FilaPCPKanbanView({
                       )}
 
                       {/* Barra de Ações Rápidas no Rodapé */}
-                      <div className="flex items-center justify-between pt-1 border-t border-border/40 text-xs">
-                        <div className="flex items-center gap-1">
+                      <div className="flex items-center justify-between pt-1 border-t border-border/40 text-xs flex-wrap gap-1">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {/* SE PENDENTE: BOTÃO DISTRIBUIR */}
                           {onDistribuirGrupo && col.id === "pendente" && (
                             <Button
                               size="sm"
@@ -350,6 +377,31 @@ export default function FilaPCPKanbanView({
                               <Zap className="w-3 h-3 mr-1" /> Distribuir
                             </Button>
                           )}
+
+                          {/* SE DISTRIBUÍDO OU EM PRODUÇÃO: BOTÃO FINALIZAR PEDIDO */}
+                          {onFinalizarGrupo100 && (col.id === "distribuido" || col.id === "em_producao") && (
+                            <Button
+                              size="sm"
+                              className="h-6 text-[10px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer gap-1"
+                              onClick={() => onFinalizarGrupo100(ofs)}
+                              title="Finalizar 100% de todas as OFs deste pedido"
+                            >
+                              <CheckCircle2 className="w-3 h-3" /> Finalizar Pedido
+                            </Button>
+                          )}
+
+                          {/* SE CONCLUÍDO: BOTÃO SINCRONIZAR ODOO */}
+                          {onSincronizarGrupoOdoo && col.id === "concluido" && (
+                            <Button
+                              size="sm"
+                              className="h-6 text-[10px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer gap-1"
+                              onClick={() => onSincronizarGrupoOdoo(ofs)}
+                              title="Sincronizar com o Odoo ERP"
+                            >
+                              <RefreshCw className="w-2.5 h-2.5" /> Odoo
+                            </Button>
+                          )}
+
                           {onOpenDetalhe && (
                             <Button
                               size="icon"

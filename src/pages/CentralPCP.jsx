@@ -3074,8 +3074,13 @@ export default function CentralPCP() {
                 onOpenDetalhe={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
                 onDistribuir={handleDistribuir}
                 onDistribuirGrupo={handleDistribuirLote}
+                onFinalizarOP={(p) => handleSolicitarFinalizar100([p])}
+                onFinalizarGrupo100={(lista) => handleSolicitarFinalizar100(lista)}
                 onOpenHistorico={(num) => setPedidoHistoricoNumero(num)}
                 onSincronizarOdoo={(p) => handleSincronizarLoteOdoo([p])}
+                onSincronizarGrupoOdoo={(lista) => handleSincronizarLoteOdoo(lista)}
+                onSetPrioridade={handleSetPrioridade}
+                onSetPrioridadeGrupo={handleSetPrioridadeGrupo}
               />
             ) : viewMode === "kanban" ? (
               <FilaPCPKanbanView
@@ -3084,6 +3089,8 @@ export default function CentralPCP() {
                 onOpenDetalhe={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
                 onDistribuir={handleDistribuir}
                 onDistribuirGrupo={handleDistribuirLote}
+                onFinalizarOP={(p) => handleSolicitarFinalizar100([p])}
+                onFinalizarGrupo100={(lista) => handleSolicitarFinalizar100(lista)}
                 onOpenHistorico={(num) => setPedidoHistoricoNumero(num)}
                 selecionados={selecionados}
                 onToggleSelectGrupo={handleToggleSelectGrupo}
