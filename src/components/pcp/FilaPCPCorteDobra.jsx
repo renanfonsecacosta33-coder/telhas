@@ -7,8 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import {
-  Play, CheckCircle2, Inbox, Scissors, Calendar, User, Loader2, Layers, Plus,
-  AlertTriangle, Star, CalendarClock, Clock, Search, ArrowUpDown, Flame, Store, Factory
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel
+} from "@/components/ui/alert-dialog";
+import {
+  Play, CheckCircle2, Inbox, Scissors, Calendar, User, Loader2, Layers,
+  Star, CalendarClock, Factory, PackageX
 } from "lucide-react";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
@@ -47,11 +51,14 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
   const [dataFim, setDataFim] = useState("");
   const [pedidoPrazoModal, setPedidoPrazoModal] = useState(null);
   const [materialModal, setMaterialModal] = useState(null);
+  const [retirarModal, setRetirarModal] = useState(null);
 
   const filialCtx = useFilial();
   const filialAtiva = filialCtx?.filialAtiva;
   // Finalização rápida de item — exclusiva de administradores
   const isAdmin = ["admin", "super_admin"].includes(filialCtx?.user?.role);
+  // Retirar da máquina — PCP (gestores e admins) podem retirar um item da máquina
+  const canRetirarDaMaquina = ["admin", "super_admin", "gestor"].includes(filialCtx?.user?.role);
 
   const { data: pedidos = [], isLoading } = useQuery({
     queryKey: ["pedidos-odoo-cd"],
@@ -261,6 +268,34 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
       toast({ title: "Erro ao atualizar item", description: e.message, variant: "destructive" });
     } finally {
       setAtualizando(null);
+    }
+  };
+
+  // Retirar da Máquina: cancela a OP alocada na máquina e devolve o item para a fila (não distribuído)
+  const handleRetirarDaMaquina = async () => {
+    if (!retirarModal) return;
+    const { pedido, idx, op } = retirarModal;
+    setAtualizando(`${pedido.id}-${idx}`);
+    try {
+      const isDesb = String(op.maquina || "").startsWith("DESBOBINADEIRA");
+      if (isDesb) {
+        await base44.entities.OrdemDesbobinadeira.update(op.id, { status: "cancelado" });
+      } else {
+        await base44.entities.OrdemMaquinaCD.update(op.id, { status: "cancelado" });
+      }
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd-todas"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-desb-todas"] });
+      // Reseta o item: volta a ficar não distribuído / pendente
+      await handleAtualizar(pedido, idx, { maquina: "", status: "pendente", concluido: false });
+      toast({
+        title: "Item retirado da máquina",
+        description: `A OP em ${op.maquina} foi cancelada e o item voltou para a fila do PCP.`
+      });
+    } catch (e) {
+      toast({ title: "Erro ao retirar da máquina", description: e.message, variant: "destructive" });
+    } finally {
+      setAtualizando(null);
+      setRetirarModal(null);
     }
   };
 
@@ -607,6 +642,21 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                             </Button>
                           )}
 
+                          {/* Botão Retirar da Máquina — cancela a OP alocada e devolve o item à fila */}
+                          {canRetirarDaMaquina && opReal && !concluido && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setRetirarModal({ pedido, item, idx, op: opReal })}
+                              disabled={atualizando === `${pedido.id}-${idx}`}
+                              className="h-8 text-xs font-bold gap-1 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 shrink-0"
+                              title="Cancela a OP nesta máquina e devolve o item para a fila do PCP"
+                            >
+                              <PackageX className="w-3.5 h-3.5" />
+                              <span>Retirar da Máquina</span>
+                            </Button>
+                          )}
+
                           {concluido && (
                             <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-500/40 text-[10px] font-bold h-8 px-2 gap-1 ml-auto">
                               <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Concluído
@@ -642,6 +692,36 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
           onMaterialVinculado={() => setMaterialModal(null)}
         />
       )}
+
+      {/* Diálogo de confirmação — Retirar da Máquina */}
+      <AlertDialog open={Boolean(retirarModal)} onOpenChange={(aberto) => { if (!aberto) setRetirarModal(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Retirar da Máquina?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {retirarModal && (
+                <>
+                  A OP <strong>{retirarModal.op.numero_pedido || "da ordem"}</strong> em{" "}
+                  <strong>{retirarModal.op.maquina}</strong> será <strong>cancelada</strong> e o item
+                  {" "}<strong>{retirarModal.item.produto || ""}</strong> do pedido{" "}
+                  <strong>#{retirarModal.pedido.numero_pedido}</strong> voltará para a fila do PCP
+                  (não distribuído). Esta ação não pode ser desfeita automaticamente.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={atualizando === (retirarModal ? `${retirarModal.pedido.id}-${retirarModal.idx}` : null)}>Manter na Máquina</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleRetirarDaMaquina(); }}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              <PackageX className="w-4 h-4 mr-1" />
+              {atualizando === (retirarModal ? `${retirarModal.pedido.id}-${retirarModal.idx}` : null) ? "Retirando..." : "Sim, Retirar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Modal de Alteração de Prazo Fabril */}
       {pedidoPrazoModal && (

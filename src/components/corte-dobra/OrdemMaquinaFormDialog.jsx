@@ -10,7 +10,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
-import { Layers, Package, Camera, PackageX, Scissors, Lock, Flame, Route, Star, User as UserIcon, Zap, ChevronDown, ChevronUp, CheckCircle2, Search, Sparkles } from "lucide-react";
+import { Layers, Camera, PackageX, Lock, Flame, Route, User as UserIcon, Zap, ChevronDown, ChevronUp, CheckCircle2, Search, Sparkles } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import ChapaEstoqueCombobox from "@/components/corte-dobra/ChapaEstoqueCombobox";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
@@ -61,6 +61,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     bobina_id: "",
     tipo_peca: "",
     dimensoes_livres: "",
+    comprimento_mm: "",
     numero_pedido: "",
     cliente: "",
     quantidade: "",
@@ -197,7 +198,8 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         chapa_cd_id: editItem.chapa_cd_id || "",
         bobina_id: editItem.bobina_id || "",
         tipo_peca: editItem.tipo_peca || "",
-        dimensoes_livres: editItem.dimensoes_livres || "",
+        dimensoes_livres: editItem.dimensoes_livres || (editItem.comprimento_mm ? `${editItem.comprimento_mm}mm` : ""),
+        comprimento_mm: editItem.comprimento_mm || "",
         numero_pedido: editItem.numero_pedido || "",
         cliente: editItem.cliente || "",
         quantidade: editItem.quantidade || "",
@@ -594,6 +596,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
       tipo_peca: form.tipo_peca.trim(),
       dimensoes_livres: (form.dimensoes_livres || "").trim(),
       numero_pedido: (form.numero_pedido || "").trim(),
+      ...(isDesbobinadeira && form.comprimento_mm ? { comprimento_mm: Number(form.comprimento_mm) } : {}),
       cliente: (form.cliente || "").trim(),
       vendedor: (form.vendedor || "").trim(),
       quantidade: qtdNum,
@@ -1159,6 +1162,22 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
               />
             )}
           </div>
+          )}
+
+          {isDesbobinadeira && (
+            <div className="space-y-1">
+              <Label>Comprimento de corte (mm) *</Label>
+              <Input
+                type="number"
+                placeholder="Ex: 3000"
+                value={form.comprimento_mm}
+                onChange={e => set("comprimento_mm", e.target.value)}
+                className="font-mono font-bold"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Comprimento em que a desbobinadeira corta as chapas (ex: 1200 x <strong>3000</strong> mm)
+              </p>
+            </div>
           )}
 
           <div className="space-y-1">

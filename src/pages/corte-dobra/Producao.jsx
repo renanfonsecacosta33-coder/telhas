@@ -25,7 +25,6 @@ import {
   Zap,
   Clock,
   CheckCircle2,
-  ListOrdered,
   Sparkles,
   History,
   RefreshCw,
@@ -35,10 +34,7 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import OrdemFormDialogCD from "@/components/corte-dobra/OrdemFormDialogCD";
 import OrdemCardCD from "@/components/corte-dobra/OrdemCardCD";
-import OrdemDesbobinadiraRow from "@/components/corte-dobra/OrdemDesbobinadiraRow";
-import DiaResumoCardCD from "@/components/corte-dobra/DiaResumoCardCD";
 import OrdemMaquinaFormDialog from "@/components/corte-dobra/OrdemMaquinaFormDialog.jsx";
-import OrdemMaquinaRow from "@/components/corte-dobra/OrdemMaquinaRow.jsx";
 import RetrabalhoDialog from "@/components/corte-dobra/RetrabalhoDialog";
 import HistoricoGeralCD from "@/components/corte-dobra/HistoricoGeralCD";
 
@@ -480,6 +476,7 @@ export default function ProducaoCD() {
       vendedor: pedido.vendedor_nome || "",
       tipo_peca: tipoPecaFinal,
       dimensoes_livres: dimensoesFinais,
+      comprimento_mm: esp.comprimento_mm || "",
       quantidade: qtdFinal,
       peso_kg: pesoKgFinal,
       chapa_cd_id: item.chapa_cd_id || (item.material_tipo === "chapa" ? item.material_id : "") || "",
@@ -549,7 +546,18 @@ export default function ProducaoCD() {
         bobina_descricao: data.bobina_descricao || "",
         tipo_peca: data.tipo_peca || "Blank",
         dimensoes_livres: data.dimensoes_livres || "",
-        comprimento_mm: data.dimensoes_livres ? (parseFloat(String(data.dimensoes_livres).match(/\d+/)?.[0]) || 3000) : 3000,
+        comprimento_mm: (() => {
+          // 1º: campo explícito do formulário; 2º: extrai o comprimento de "1200x3000" (última medida); 3º: OP original; 4º: padrão 3000
+          if (data.comprimento_mm && Number(data.comprimento_mm) > 0) return Number(data.comprimento_mm);
+          const dim = String(data.dimensoes_livres || "").trim();
+          if (dim) {
+            const partes = dim.match(/(\d+[.,]?\d*)\s*[x×]\s*(\d+[.,]?\d*)/i);
+            if (partes) return parseFloat(partes[2].replace(",", ".")) || 3000;
+            const m = dim.match(/(\d+[.,]?\d*)/);
+            if (m) return parseFloat(m[1].replace(",", ".")) || 3000;
+          }
+          return editMaq?.comprimento_mm || 3000;
+        })(),
         quantidade: Number(data.quantidade),
         kg_estimado: data.peso_kg ? Number(data.peso_kg) : undefined,
         observacoes: data.observacoes || "",

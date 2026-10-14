@@ -2,15 +2,12 @@ import React, { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Layers, Clock, Zap, CheckCircle2, AlertTriangle, Eye, History, Star,
-  User, Factory, Calendar, ExternalLink, ChevronDown, ChevronRight, Package
+  Zap, CheckCircle2, Eye, History, ChevronDown, ChevronRight, RefreshCw
 } from "lucide-react";
 import { PrioridadeBadge } from "@/lib/prioridadeHelper";
-import { formatDataBR } from "@/lib/sla";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import { classGrupo, calcularProgressoRealPedido, normalizarUnidadeMedidaItem } from "@/lib/pedidoOdooHelper";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
-import { verificarEstoqueItem, extrairDemandaItem } from "@/lib/estoqueMaterialHelper";
 
 const COLUNAS_KANBAN_PCP = [
   {
