@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { enfileirarAcaoOffline, obterFilaPendente } from "@/lib/offlineStorage";
+import { enfileirarAcaoOffline, obterFilaPendente, limparTodaFilaOffline } from "@/lib/offlineStorage";
 import { sincronizarFilaOffline } from "@/lib/offlineSyncEngine";
 import { toast } from "sonner";
 
@@ -8,6 +8,7 @@ const OfflineContext = createContext({
   isSyncing: false,
   itensPendentes: 0,
   forcarSincronizacao: async () => {},
+  limparFila: async () => {},
   executarComFallbackOffline: async () => {}
 });
 
@@ -58,6 +59,13 @@ export function OfflineProvider({ children }) {
       setIsSyncing(false);
       await atualizarContagemFila();
     }
+  }, [atualizarContagemFila]);
+
+  // Limpa a fila offline (destrava pendências corrompidas ou obsoletas)
+  const limparFila = useCallback(async () => {
+    await limparTodaFilaOffline();
+    await atualizarContagemFila();
+    toast.success("Fila de sincronização limpa com sucesso!");
   }, [atualizarContagemFila]);
 
   // Listener para status de sync emitido pelo engine
@@ -197,6 +205,7 @@ export function OfflineProvider({ children }) {
         isSyncing,
         itensPendentes,
         forcarSincronizacao,
+        limparFila,
         executarComFallbackOffline
       }}
     >

@@ -1,5 +1,5 @@
 import { base44 } from "@/api/base44Client";
-import { obterFilaPendente, removerItemFila } from "./offlineStorage";
+import { obterFilaPendente, removerItemFila, atualizarItemFila, limparTodaFilaOffline } from "./offlineStorage";
 import { toast } from "sonner";
 import { playFinishSound } from "./sounds";
 import { queryClientInstance } from "./query-client";
@@ -90,18 +90,31 @@ export async function sincronizarFilaOffline(options = {}) {
         console.error(`[OfflineSync] Falha ao sincronizar item #${item.id} (${item.tipo}):`, itemErr);
         erros++;
 
-        // Se for erro de rede/servidor offline (ex: fetch failed), para o loop para não queimar tentativas
         const errMsg = String(itemErr?.message || "").toLowerCase();
-        if (errMsg.includes("network") || errMsg.includes("failed to fetch") || !navigator.onLine) {
+        const errStatus = itemErr?.status || itemErr?.response?.status;
+        const ehErroPermanente =
+          errStatus === 400 ||
+          errStatus === 404 ||
+          errStatus === 422 ||
+          errMsg.includes("not found") ||
+          errMsg.includes("invalid") ||
+          errMsg.includes("bad request") ||
+          errMsg.includes("unprocessable");
+
+        // Se for erro de rede/servidor offline (ex: fetch failed), para o loop para não queimar tentativas
+        if ((errMsg.includes("network") || errMsg.includes("failed to fetch") || !navigator.onLine) && !ehErroPermanente) {
           console.warn("[OfflineSync] Interrompendo sincronização por oscilação de rede detectada.");
           break;
         }
 
-        // Se for erro permanente de registro (ex: 404 Not Found), remove da fila após 3 falhas
-        item.tentativas = (item.tentativas || 0) + 1;
-        if (item.tentativas >= 3) {
-          console.warn(`[OfflineSync] Descartando item #${item.id} após 3 tentativas com erro:`, itemErr);
+        // Se for erro permanente de registro ou passar de 2 tentativas, descarta para desobstruir a interface
+        const novasTentativas = (item.tentativas || 0) + 1;
+        if (ehErroPermanente || novasTentativas >= 2) {
+          console.warn(`[OfflineSync] Descartando item #${item.id} (${item.tipo}) devido a erro permanente ou limite de tentativas:`, itemErr);
           await removerItemFila(item.id);
+        } else {
+          item.tentativas = novasTentativas;
+          await atualizarItemFila(item);
         }
       }
     }
@@ -141,4 +154,19 @@ export async function sincronizarFilaOffline(options = {}) {
   }
 
   return { processados, erros };
+}
+
+/**
+ * Limpa manualmente todos os itens pendentes na fila offline
+ */
+export async function limparFilaManual() {
+  await limparTodaFilaOffline();
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("ajl-sync-concluido", {
+      detail: { processados: 0, erros: 0 }
+    }));
+    window.dispatchEvent(new CustomEvent("ajl-sync-status", {
+      detail: { status: "ocioso", processados: 0, erros: 0 }
+    }));
+  }
 }

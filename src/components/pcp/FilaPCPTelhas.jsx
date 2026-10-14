@@ -139,10 +139,19 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
 
   // 1. Filtragem base da filial e dos itens do setor de Telhas (com suporte a OPs da fábrica)
   const filaBase = useMemo(() => {
+    // Função de verificação tolerante de filial (ex: "Matriz" vs "Matriz AJL")
+    const atendeFilial = (unidadeRegistro) => {
+      if (!filialAtiva || filialAtiva === "todas") return true;
+      const uReg = String(unidadeRegistro || "Matriz AJL").trim().toLowerCase();
+      const uAtiva = String(filialAtiva).trim().toLowerCase();
+      if (uReg === uAtiva) return true;
+      if (uAtiva.includes("matriz") && uReg.includes("matriz")) return true;
+      return false;
+    };
+
     // A. Pedidos do Odoo
     const listaOdoo = pedidos.filter(p => {
-      const atendeFilial = !filialAtiva || filialAtiva === "todas" || (p.unidade || "Matriz AJL") === filialAtiva;
-      if (!atendeFilial) return false;
+      if (!atendeFilial(p.unidade)) return false;
 
       const telhas = itensPorGrupo(getItens(p), "telha");
       const temItensTelha = telhas.length > 0;
@@ -175,8 +184,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
       if (!op.id || opsJaVinculadas.has(op.id)) return false;
       if (String(op.status || "").toLowerCase() === "cancelado") return false;
       if (!isOpDeTelhas(op)) return false;
-      const atendeFilial = !filialAtiva || filialAtiva === "todas" || (op.unidade || "Matriz AJL") === filialAtiva;
-      return atendeFilial;
+      return atendeFilial(op.unidade);
     });
 
     const pedidosAvulsosFabrica = opsAvulsas.map(op => {

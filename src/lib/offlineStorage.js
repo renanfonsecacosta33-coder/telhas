@@ -84,6 +84,24 @@ export async function obterFilaPendente() {
 }
 
 /**
+ * Atualiza um item na fila (por exemplo, incrementando tentativas e status)
+ */
+export async function atualizarItemFila(item) {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(QUEUE_STORE, "readwrite");
+      const store = tx.objectStore(QUEUE_STORE);
+      const req = store.put(item);
+      req.onsuccess = () => resolve(true);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    console.warn("Erro ao atualizar item da fila IndexedDB:", err);
+  }
+}
+
+/**
  * Remove um item concluído da fila
  */
 export async function removerItemFila(id) {
@@ -104,6 +122,28 @@ export async function removerItemFila(id) {
       localStorage.setItem("ajl_offline_sync_fallback", JSON.stringify(filtrada));
     } catch {}
   }
+}
+
+/**
+ * Limpa completamente toda a fila offline pendente (IndexedDB e fallback)
+ */
+export async function limparTodaFilaOffline() {
+  try {
+    const db = await openDB();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(QUEUE_STORE, "readwrite");
+      const store = tx.objectStore(QUEUE_STORE);
+      const req = store.clear();
+      req.onsuccess = () => resolve(true);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    console.warn("Erro ao limpar fila IndexedDB:", err);
+  }
+  try {
+    localStorage.removeItem("ajl_offline_sync_fallback");
+  } catch {}
+  return true;
 }
 
 /**

@@ -207,32 +207,50 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
       }
       return await base44.entities.OrdemMaquinaCD.update(id, data);
     },
-    onError: async (error, variables) => {
-      try {
-        await enfileirarAcaoOffline({
-          tipo: "ORDEM_CD_UPDATE",
-          entidade: "OrdemMaquinaCD",
-          registroId: variables.id,
-          dados: variables.data,
-          descricao: `OP CD #${variables.data?.numero_pedido || variables.id} -> ${variables.data?.status || 'atualizado'}`
-        });
+    onMutate: async ({ id, data }) => {
+      // 0ms resposta instantânea na memória para a UI
+      await queryClient.cancelQueries({ queryKey: ["ordens-maquina-cd"] });
+      const prev = queryClient.getQueryData(["ordens-maquina-cd", filialAtiva]);
+      queryClient.setQueriesData({ queryKey: ["ordens-maquina-cd"] }, (antigos) => {
+        if (!Array.isArray(antigos)) return antigos;
+        return antigos.map(o => o.id === id ? { ...o, ...data } : o);
+      });
+      return { prev };
+    },
+    onError: async (error, variables, context) => {
+      if (error?.message === "OFFLINE_TRIGGERED" || (typeof navigator !== "undefined" && !navigator.onLine)) {
+        try {
+          await enfileirarAcaoOffline({
+            tipo: "ORDEM_CD_UPDATE",
+            entidade: "OrdemMaquinaCD",
+            registroId: variables.id,
+            dados: variables.data,
+            descricao: `OP CD #${variables.data?.numero_pedido || variables.id} -> ${variables.data?.status || 'atualizado'}`
+          });
 
-        // Atualização otimista na memória para a UI atualizar instantaneamente
-        queryClient.setQueryData(["ordens-maquina-cd", filialAtiva], (antigos) => {
-          if (!antigos || !Array.isArray(antigos)) return antigos;
-          return antigos.map(o => o.id === variables.id ? { ...o, ...variables.data } : o);
-        });
-
-        toast.info("Modo Offline: Ordem salva no tablet!", {
-          description: "Será enviada à nuvem automaticamente assim que o Wi-Fi voltar.",
-          duration: 4000
-        });
-      } catch (errLocal) {
-        console.error("Falha ao salvar offline em CD:", errLocal);
-        toast.error("Erro ao registrar ordem.");
+          toast.info("Modo Offline: Ordem salva no tablet!", {
+            description: "Será enviada à nuvem automaticamente assim que o Wi-Fi voltar.",
+            duration: 4000
+          });
+        } catch (errLocal) {
+          console.error("Falha ao salvar offline em CD:", errLocal);
+          toast.error("Erro ao registrar ordem.");
+        }
+      } else {
+        if (context?.prev) {
+          queryClient.setQueryData(["ordens-maquina-cd", filialAtiva], context.prev);
+        }
+        toast.error("Erro ao atualizar ordem: " + (error?.message || ""));
       }
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] }); },
+    onSuccess: (res) => {
+      if (res?.id) {
+        queryClient.setQueriesData({ queryKey: ["ordens-maquina-cd"] }, (antigos) => {
+          if (!Array.isArray(antigos)) return antigos;
+          return antigos.map(o => o.id === res.id ? { ...o, ...res } : o);
+        });
+      }
+    },
   });
   const createMaq = useMutation({
     mutationFn: (data) => base44.entities.OrdemMaquinaCD.create(data),

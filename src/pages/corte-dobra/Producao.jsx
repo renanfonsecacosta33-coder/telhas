@@ -200,14 +200,37 @@ export default function ProducaoCD() {
     });
   }, [ordens, ordensMaq, weekStart]);
 
-  // Mutations Desbobinadeira
+  // Mutations Desbobinadeira com Otimismo 0ms
   const createDesb = useMutation({
     mutationFn: (data) => base44.entities.OrdemDesbobinadeira.create(data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] }); setDialogDesb(false); toast.success("Ordem criada!"); },
   });
   const updateDesb = useMutation({
     mutationFn: ({ id, data }) => base44.entities.OrdemDesbobinadeira.update(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] }),
+    onMutate: async ({ id, data }) => {
+      // 0ms resposta instantânea na memória
+      await queryClient.cancelQueries({ queryKey: ["ordens-desbobinadeira"] });
+      const prev = queryClient.getQueryData(["ordens-desbobinadeira", filialAtiva]);
+      queryClient.setQueriesData({ queryKey: ["ordens-desbobinadeira"] }, (antigos) => {
+        if (!Array.isArray(antigos)) return antigos;
+        return antigos.map(o => o.id === id ? { ...o, ...data } : o);
+      });
+      return { prev };
+    },
+    onError: (err, _vars, context) => {
+      if (context?.prev) {
+        queryClient.setQueryData(["ordens-desbobinadeira", filialAtiva], context.prev);
+      }
+      toast.error("Erro ao atualizar desbobinadeira: " + (err?.message || ""));
+    },
+    onSuccess: (res) => {
+      if (res?.id) {
+        queryClient.setQueriesData({ queryKey: ["ordens-desbobinadeira"] }, (antigos) => {
+          if (!Array.isArray(antigos)) return antigos;
+          return antigos.map(o => o.id === res.id ? { ...o, ...res } : o);
+        });
+      }
+    },
   });
   const deleteDesb = useMutation({
     mutationFn: (id) => base44.entities.OrdemDesbobinadeira.delete(id),
@@ -217,7 +240,7 @@ export default function ProducaoCD() {
     },
   });
 
-  // Mutations outras máquinas
+  // Mutations outras máquinas com Otimismo 0ms
   const createMaq = useMutation({
     mutationFn: (data) => base44.entities.OrdemMaquinaCD.create(data),
     onSuccess: (_saved, data) => {
@@ -232,11 +255,39 @@ export default function ProducaoCD() {
   });
   const updateMaq = useMutation({
     mutationFn: ({ id, data }) => base44.entities.OrdemMaquinaCD.update(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] }),
-    onError: (err) => {
+    onMutate: async ({ id, data }) => {
+      // 0ms resposta instantânea na memória para todas as máquinas de corte e dobra
+      await queryClient.cancelQueries({ queryKey: ["ordens-maquina-cd"] });
+      const prev = queryClient.getQueryData(["ordens-maquina-cd", filialAtiva]);
+      queryClient.setQueriesData({ queryKey: ["ordens-maquina-cd"] }, (antigos) => {
+        if (!Array.isArray(antigos)) return antigos;
+        return antigos.map(o => o.id === id ? { ...o, ...data } : o);
+      });
+      queryClient.setQueriesData({ queryKey: ["ordens-maquina-cd-todas"] }, (antigos) => {
+        if (!Array.isArray(antigos)) return antigos;
+        return antigos.map(o => o.id === id ? { ...o, ...data } : o);
+      });
+      return { prev };
+    },
+    onError: (err, _vars, context) => {
+      if (context?.prev) {
+        queryClient.setQueryData(["ordens-maquina-cd", filialAtiva], context.prev);
+      }
       toast.error("Erro ao atualizar ordem: " + (err?.message || "Falha na operação"));
       console.error("[updateMaq error]:", err);
-    }
+    },
+    onSuccess: (res) => {
+      if (res?.id) {
+        queryClient.setQueriesData({ queryKey: ["ordens-maquina-cd"] }, (antigos) => {
+          if (!Array.isArray(antigos)) return antigos;
+          return antigos.map(o => o.id === res.id ? { ...o, ...res } : o);
+        });
+        queryClient.setQueriesData({ queryKey: ["ordens-maquina-cd-todas"] }, (antigos) => {
+          if (!Array.isArray(antigos)) return antigos;
+          return antigos.map(o => o.id === res.id ? { ...o, ...res } : o);
+        });
+      }
+    },
   });
   const deleteMaq = useMutation({
     mutationFn: (id) => base44.entities.OrdemMaquinaCD.delete(id),
@@ -317,43 +368,45 @@ export default function ProducaoCD() {
     updateMaq.mutate({ id: ordem.id, data: dataUpdate });
     toast.success(`Status atualizado para ${novoStatus}!`);
 
-    // Sincronizar com PedidoOdoo e Mini BI do Odoo
+    // Sincronizar com PedidoOdoo e Mini BI do Odoo de forma TOTALMENTE ASSÍNCRONA em segundo plano (sem travar a tela!)
     if (ordem.numero_pedido) {
-      try {
-        const pedList = await base44.entities.PedidoOdoo.filter({ numero_pedido: String(ordem.numero_pedido).trim() });
-        if (pedList && pedList.length > 0) {
-          const ped = pedList[0];
-          const itens = getItens(ped);
-          const itemIdx = itens.findIndex(i =>
-            String(i.produto || "").toLowerCase().includes(String(ordem.peca || "").toLowerCase()) ||
-            /(chapa|perfil|barra|dobra|corte)/i.test(String(i.produto || i.categoria || ""))
-          );
-          if (itemIdx >= 0) {
-            itens[itemIdx] = {
-              ...itens[itemIdx],
-              status: novoStatus === "finalizado" ? "concluido" : (novoStatus === "em_producao" ? "em_producao" : itens[itemIdx].status),
-              status_detalhado: novoStatus === "finalizado" ? "Concluído" : (novoStatus === "em_producao" ? `Em Produção (${ordem.maquina || "C&D"})` : itens[itemIdx].status_detalhado),
-              concluido: novoStatus === "finalizado" ? true : itens[itemIdx].concluido
-            };
+      (async () => {
+        try {
+          const pedList = await base44.entities.PedidoOdoo.filter({ numero_pedido: String(ordem.numero_pedido).trim() });
+          if (pedList && pedList.length > 0) {
+            const ped = pedList[0];
+            const itens = getItens(ped);
+            const itemIdx = itens.findIndex(i =>
+              String(i.produto || "").toLowerCase().includes(String(ordem.peca || "").toLowerCase()) ||
+              /(chapa|perfil|barra|dobra|corte)/i.test(String(i.produto || i.categoria || ""))
+            );
+            if (itemIdx >= 0) {
+              itens[itemIdx] = {
+                ...itens[itemIdx],
+                status: novoStatus === "finalizado" ? "concluido" : (novoStatus === "em_producao" ? "em_producao" : itens[itemIdx].status),
+                status_detalhado: novoStatus === "finalizado" ? "Concluído" : (novoStatus === "em_producao" ? `Em Produção (${ordem.maquina || "C&D"})` : itens[itemIdx].status_detalhado),
+                concluido: novoStatus === "finalizado" ? true : itens[itemIdx].concluido
+              };
+            }
+            const pct = computePercentual(itens);
+            const novoStatusPcp = statusPcpPorPercentual(pct, ped.status_pcp);
+            const pedAtualizado = await base44.entities.PedidoOdoo.update(ped.id, {
+              itens_json: buildItensJson(itens),
+              percentual_concluido: pct,
+              status_pcp: novoStatusPcp
+            });
+            const ev = novoStatus === "finalizado" && pct >= 100 ? "concluido" : (novoStatus === "em_producao" ? "maquina_inicio" : "maquina_fim");
+            notificarStatus(pedAtualizado, ev, {
+              maquina_atual: ordem.maquina || "",
+              status_novo: novoStatusPcp,
+              percentual_concluido: pct,
+              item_nome: ordem.peca || `Item #${ordem.numero_pedido}`
+            }).catch(() => {});
           }
-          const pct = computePercentual(itens);
-          const novoStatusPcp = statusPcpPorPercentual(pct, ped.status_pcp);
-          const pedAtualizado = await base44.entities.PedidoOdoo.update(ped.id, {
-            itens_json: buildItensJson(itens),
-            percentual_concluido: pct,
-            status_pcp: novoStatusPcp
-          });
-          const ev = novoStatus === "finalizado" && pct >= 100 ? "concluido" : (novoStatus === "em_producao" ? "maquina_inicio" : "maquina_fim");
-          await notificarStatus(pedAtualizado, ev, {
-            maquina_atual: ordem.maquina || "",
-            status_novo: novoStatusPcp,
-            percentual_concluido: pct,
-            item_nome: ordem.peca || `Item #${ordem.numero_pedido}`
-          });
+        } catch (errSync) {
+          console.warn("[ProducaoCD] Falha ao sincronizar com PedidoOdoo:", errSync);
         }
-      } catch (errSync) {
-        console.warn("[ProducaoCD] Falha ao sincronizar com PedidoOdoo:", errSync);
-      }
+      })();
     }
   };
 

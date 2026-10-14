@@ -233,23 +233,44 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
   const updateOrdem = useMutation({
     mutationFn: async ({ id, data }) => {
       const res = await base44.entities.OrdemDesbobinadeira.update(id, data);
-      // Se a ordem foi finalizada, aciona a criação de ChapaCD e o desconto na Bobina
+      // Se a ordem foi finalizada, aciona a criação de ChapaCD e o desconto na Bobina em segundo plano (não bloqueia a UI)
       if (data?.status === "finalizado") {
-        try {
-          const funcRes = await base44.functions.invoke("descontarEstoqueDesbobinadeira", { ordem_id: id });
-          if (funcRes?.data?.chapa?.codigo) {
-            toast.success(`🎉 Chapa ${funcRes.data.chapa.codigo} gerada e enviada para o estoque da Chaparia!`);
-          }
-        } catch (eFunc) {
-          console.error("Aviso ao processar baixa na desbobinadeira:", eFunc);
-        }
+        base44.functions.invoke("descontarEstoqueDesbobinadeira", { ordem_id: id })
+          .then((funcRes) => {
+            if (funcRes?.data?.chapa?.codigo) {
+              toast.success(`🎉 Chapa ${funcRes.data.chapa.codigo} gerada e enviada para o estoque da Chaparia!`);
+            }
+            queryClient.invalidateQueries({ queryKey: ["chapas-cd"] });
+            queryClient.invalidateQueries({ queryKey: ["chapas-cd-global-codigos"] });
+            queryClient.invalidateQueries({ queryKey: ["bobinas-cd-ativas"] });
+          })
+          .catch((eFunc) => {
+            console.error("Aviso ao processar baixa na desbobinadeira:", eFunc);
+          });
       }
       return res;
     },
-    onSuccess: () => {
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ["ordens-desbobinadeira"] });
+      const previousOrdens = queryClient.getQueryData(["ordens-desbobinadeira", filialAtiva, maquinaAtiva]);
+
+      // Atualização imediata em memória (0ms de latência)
+      queryClient.setQueriesData({ queryKey: ["ordens-desbobinadeira"] }, (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((item) => (item.id === id ? { ...item, ...data } : item));
+      });
+
+      return { previousOrdens };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousOrdens) {
+        queryClient.setQueryData(["ordens-desbobinadeira", filialAtiva, maquinaAtiva], context.previousOrdens);
+      }
+      toast.error("Erro ao atualizar ordem: " + (err?.message || "falha na comunicação"));
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
       queryClient.invalidateQueries({ queryKey: ["chapas-cd"] });
-      queryClient.invalidateQueries({ queryKey: ["chapas-cd-global-codigos"] });
       queryClient.invalidateQueries({ queryKey: ["bobinas-cd-ativas"] });
     },
   });

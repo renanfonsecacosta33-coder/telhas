@@ -1,10 +1,10 @@
 import React from "react";
 import { useOffline } from "@/contexts/OfflineContext";
-import { WifiOff, RefreshCw, CheckCircle2, CloudUpload, HardDrive } from "lucide-react";
+import { WifiOff, RefreshCw, CheckCircle2, CloudUpload, HardDrive, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function OfflineStatusBar() {
-  const { isOnline, isSyncing, itensPendentes, forcarSincronizacao } = useOffline();
+  const { isOnline, isSyncing, itensPendentes, forcarSincronizacao, limparFila } = useOffline();
 
   // Se estiver 100% online e sem fila pendente e sem sincronizar, não exibe nada
   if (isOnline && itensPendentes === 0 && !isSyncing) {
@@ -67,22 +67,35 @@ export default function OfflineStatusBar() {
         )}
 
         {isOnline && itensPendentes > 0 && (
-          <Button
-            size="sm"
-            variant="secondary"
-            className="h-7 px-2.5 text-xs font-bold bg-white text-blue-900 hover:bg-slate-100 shadow-sm"
-            onClick={() => forcarSincronizacao()}
-            disabled={isSyncing}
-          >
-            {isSyncing ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <>
+          <div className="flex items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-7 px-2.5 text-xs font-bold bg-white text-blue-900 hover:bg-slate-100 shadow-sm"
+              onClick={() => forcarSincronizacao()}
+              disabled={isSyncing}
+            >
+              {isSyncing ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1" />
+              ) : (
                 <CloudUpload className="w-3.5 h-3.5 mr-1" />
-                Sincronizar Agora
-              </>
-            )}
-          </Button>
+              )}
+              {isSyncing ? "Sincronizando..." : "Sincronizar"}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs text-white/90 hover:text-white hover:bg-black/20"
+              onClick={() => {
+                if (window.confirm("Deseja descartar os itens pendentes da fila local?")) {
+                  limparFila();
+                }
+              }}
+              title="Descartar itens pendentes da fila local"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
         )}
       </div>
     </div>

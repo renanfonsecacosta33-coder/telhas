@@ -78,19 +78,29 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
     refetchInterval: 10000
   });
 
+  // Comparação tolerante de filial (ex: "Matriz" vs "Matriz AJL")
+  const atendeFilial = (unidadePedido) => {
+    if (!filialAtiva || filialAtiva === "todas") return true;
+    const uPed = String(unidadePedido || "Matriz AJL").trim().toLowerCase();
+    const uAtiva = String(filialAtiva).trim().toLowerCase();
+    if (uPed === uAtiva) return true;
+    if (uAtiva.includes("matriz") && uPed.includes("matriz")) return true;
+    return false;
+  };
+
   // Pedidos distribuídos/em produção com itens de CD da filial ativa
   const filaBase = useMemo(() => {
     return pedidos
       .filter(p => ["distribuido", "em_producao"].includes(p.status_pcp))
-      .filter(p => !filialAtiva || filialAtiva === "todas" || (p.unidade || "Matriz AJL") === filialAtiva)
+      .filter(p => atendeFilial(p.unidade))
       .filter(p => getItens(p).some(i => classGrupo(i) === "cd"));
   }, [pedidos, filialAtiva]);
 
-  // Pedidos de C&D ainda NÃO distribuídos (status_pcp = pendente_distribuicao)
+  // Pedidos de C&D ainda NÃO distribuídos (status_pcp = pendente_distribuicao ou pendente ou null)
   const naoDistribuidos = useMemo(() => {
     return pedidos
-      .filter(p => p.status_pcp === "pendente_distribuicao")
-      .filter(p => !filialAtiva || filialAtiva === "todas" || (p.unidade || "Matriz AJL") === filialAtiva)
+      .filter(p => !p.status_pcp || ["pendente_distribuicao", "pendente"].includes(p.status_pcp))
+      .filter(p => atendeFilial(p.unidade))
       .filter(p => getItens(p).some(i => classGrupo(i) === "cd"));
   }, [pedidos, filialAtiva]);
 
