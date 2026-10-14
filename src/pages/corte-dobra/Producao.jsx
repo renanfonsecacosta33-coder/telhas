@@ -490,7 +490,7 @@ export default function ProducaoCD() {
       of_odoo_id: pedido.of_odoo_id || "",
       of_nome: pedido.of_nome || "",
       item_idx: item._idx != null ? item._idx : 0,
-      unidade: filialAtiva || pedido.unidade || "Matriz AJL"
+      unidade: pedido.unidade || filialAtiva || "Matriz AJL"
     });
     setDialogMaq(true);
   };
@@ -537,7 +537,7 @@ export default function ProducaoCD() {
         data: data.data || selectedDay,
         maquina: data.maquina,
         maquina_inicial: data.maquina,
-        unidade: data.unidade || filialAtiva || "Matriz AJL",
+        unidade: filaContext?.pedido?.unidade || data.unidade || filialAtiva || "Matriz AJL",
         numero_pedido: data.numero_pedido || "",
         numero_oc: data.numero_oc || "",
         cliente: data.cliente || "",
@@ -640,7 +640,7 @@ export default function ProducaoCD() {
         console.warn("[Producao CD] Aviso na verificação anti-duplicação:", errVerif);
       }
 
-      createMaq.mutate({ ...data, unidade: filialAtiva || "Matriz AJL" }, {
+      createMaq.mutate({ ...data, unidade: filaContext?.pedido?.unidade || filialAtiva || "Matriz AJL" }, {
         onSuccess: async () => {
           const ctx = filaContext;
           setFilaContext(null);
@@ -1351,6 +1351,7 @@ export default function ProducaoCD() {
         defaultDate={editMaq?._presets?.data || selectedDay}
         maquina={maquinaAtiva}
         produtoFixo={filaContext?.produtoFixo}
+        unidadeEstoque={filaContext?.pedido?.unidade}
       />
 
       <RetrabalhoDialog

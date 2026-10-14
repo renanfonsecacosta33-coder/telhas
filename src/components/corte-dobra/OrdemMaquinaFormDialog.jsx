@@ -52,7 +52,7 @@ const ETAPA_LABELS = {
   perfiladeira: "⚙️ Perfiladeira",
 };
 
-export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem, defaultDate, maquina: maquinaProp, produtoFixo }) {
+export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem, defaultDate, maquina: maquinaProp, produtoFixo, unidadeEstoque }) {
   const [form, setForm] = useState({
     data: format(new Date(), "yyyy-MM-dd"),
     maquina: maquinaProp || "",
@@ -82,6 +82,9 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
   const [modoDigitarVendedor, setModoDigitarVendedor] = useState(false);
 
   const { filialAtiva } = useFilial();
+  // Unidade usada para buscar o estoque: prioriza a unidade do pedido da Fila PCP
+  // (a OP pertence à filial do pedido, não à filial ativa no seletor do usuário)
+  const unidadeConsulta = unidadeEstoque || filialAtiva;
 
   // flags de máquina
   const isDesbobinadeira = ["DESBOBINADEIRA 01", "DESBOBINADEIRA 02", "DESBOBINADEIRA"].includes(form.maquina);
@@ -92,8 +95,8 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
 
   // Bobinas do estoque de Corte e Dobra (habilitadas para Desbobinadeira ou pré-seleção)
   const { data: bobinasCD = [] } = useQuery({
-    queryKey: ["bobinas-cd-estoque", filialAtiva],
-    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false, unidade: filialAtiva }),
+    queryKey: ["bobinas-cd-estoque", unidadeConsulta],
+    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false, unidade: unidadeConsulta }),
     enabled: open && (Boolean(isDesbobinadeira) || Boolean(produtoFixo)),
   });
 
@@ -101,8 +104,8 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
   const { preBaixaMap } = usePreBaixaBobinas("corte_dobra", filiaisHook);
 
   const { data: slitters = [] } = useQuery({
-    queryKey: ["slitters-perfiladeira", filialAtiva],
-    queryFn: () => base44.entities.Slitter.filter({ unidade: filialAtiva }),
+    queryKey: ["slitters-perfiladeira", unidadeConsulta],
+    queryFn: () => base44.entities.Slitter.filter({ unidade: unidadeConsulta }),
     enabled: open && form.maquina === "PERFILADEIRA",
   });
 
@@ -114,8 +117,8 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
 
   // chapas disponíveis = disponivel OU parcial, filtrar reservadas ao renderizar
   const { data: todasChapas = [] } = useQuery({
-    queryKey: ["chapas-cd-todas", filialAtiva],
-    queryFn: () => base44.entities.ChapaCD.filter({ unidade: filialAtiva }),
+    queryKey: ["chapas-cd-todas", unidadeConsulta],
+    queryFn: () => base44.entities.ChapaCD.filter({ unidade: unidadeConsulta }),
     enabled: open && form.maquina !== "PERFILADEIRA",
   });
 
