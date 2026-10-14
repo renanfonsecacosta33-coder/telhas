@@ -36,6 +36,7 @@ export function getItens(pedido) {
   return mapeados.map((it) => {
     const prod = String(it.produto || "").trim();
     const desc = String(it.descricao || it.observacao || "").trim();
+    const textoCompleto = `${prod} ${desc}`.trim();
     const ehTelhaOuChapa = /(telha|chapa|perfil|cumeeira|painel)/i.test(textoCompleto);
     const isBobininha = !ehTelhaOuChapa && /(bobininha|bobinina|slitter|corte\s*longitudinal|fita\s*de\s*a[cç]o|fitas\s*de\s*a[cç]o|desbobinamento|desbobinador)/i.test(textoCompleto);
     if (!isBobininha) return it;

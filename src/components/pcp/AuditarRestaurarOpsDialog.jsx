@@ -12,22 +12,17 @@ import { Badge } from "@/components/ui/badge";
 import {
   ShieldCheck,
   RefreshCw,
-  AlertTriangle,
   CheckCircle2,
-  Wrench,
-  Layers,
-  ArrowRight
+  Wrench
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import {
-  detectarTipoProdutoTelha,
   detectarMaquinaTelha,
-  detectarEPSTelha,
   getItens
 } from "@/lib/pedidoOdooHelper";
 import { detectarCoresDuplaTelha } from "@/lib/autoBobinaTelhasHelper";
-import { isCorCompativel, removerAcentos } from "@/lib/bobinaValidation";
+import { isCorCompativel } from "@/lib/bobinaValidation";
 import { reajustarTodasBobinasMaquinasAutomaticamente } from "@/lib/reajusteAutomaticoBobinas";
 
 export default function AuditarRestaurarOpsDialog({
@@ -93,6 +88,7 @@ export default function AuditarRestaurarOpsDialog({
 
         // --- REGRA A: RESTAURAÇÃO DE MODELO CORROMPIDO (Ex: "TP - 40 Galvalume", "TP - 25 TP - 25") ---
         let modeloEsperado = null;
+        const textoOp = `${op.item_produto || ""} ${op.observacoes || ""}`.trim();
         if (pedOdoo) {
           const itens = getItens(pedOdoo);
           const primeiroItem = itens[0];
@@ -102,7 +98,6 @@ export default function AuditarRestaurarOpsDialog({
           }
         }
         if (!modeloEsperado) {
-          const textoOp = `${op.item_produto || ""} ${op.observacoes || ""}`.trim();
           modeloEsperado = detectarMaquinaTelha(textoOp);
         }
 
