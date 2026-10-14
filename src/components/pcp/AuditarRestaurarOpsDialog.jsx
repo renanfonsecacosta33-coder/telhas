@@ -133,9 +133,11 @@ export default function AuditarRestaurarOpsDialog({
             // Se a bobina inferior foi clonada da superior ou está vazia ou tem cor errada
             const bobinaInferiorAtual = todasBobinas.find(b => b.id === bobinaInfId);
             const precisaCorrigirInferior =
-              !bobinaInfId ||
-              (bobinaSupId && bobinaInfId === bobinaSupId) ||
-              (bobinaInferiorAtual && !isCorCompativel(bobinaInferiorAtual.cor, cores.corInferior));
+              !op.bobina_inferior_manual && (
+                !bobinaInfId ||
+                (bobinaSupId && bobinaInfId === bobinaSupId) ||
+                (bobinaInferiorAtual && !isCorCompativel(bobinaInferiorAtual.cor, cores.corInferior))
+              );
 
             if (precisaCorrigirInferior) {
               // Busca no estoque a bobina correta da cor inferior (ex: PRETA TE0217)

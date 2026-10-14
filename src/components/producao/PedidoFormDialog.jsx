@@ -1075,6 +1075,8 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
       bobina_inferior_id: bobinaInfId,
       bobina_superior: bobinaSupTexto,
       bobina_inferior: bobinaInfTexto,
+      bobina_superior_manual: true,
+      bobina_inferior_manual: true,
       kg_secundaria: form.kg_secundaria !== "" && form.kg_secundaria != null ? Number(form.kg_secundaria) : undefined,
       kg_superior: form.kg_superior !== "" ? Number(form.kg_superior) : undefined,
       kg_inferior: form.kg_inferior !== "" ? Number(form.kg_inferior) : undefined,

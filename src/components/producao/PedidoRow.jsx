@@ -19,7 +19,7 @@ import IniciarOpOperadoresDialog from "@/components/producao/IniciarOpOperadores
 import CumeeiraEstoqueDialog from "@/components/producao/CumeeiraEstoqueDialog";
 import { playFinishSound, speakOpFinalizada, playAlertSound } from "@/lib/sounds";
 import { useFilial } from "@/contexts/FilialContext";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
 import { PrioridadeBadge } from "@/lib/prioridadeHelper";
 import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco";
@@ -297,36 +297,109 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const [cumeeiraEstoqueOpen, setCumeeiraEstoqueOpen] = useState(false);
   const intervalRef = useRef(null);
 
+  const queryClient = useQueryClient();
+
   // Estados dos Campos Escritos de Bobinas (Permite ao operador e gestor ajustar livremente o texto)
   const [editandoBobinaSup, setEditandoBobinaSup] = useState(false);
+  const [overrideBobinaSup, setOverrideBobinaSup] = useState(null);
   const [textoBobinaSup, setTextoBobinaSup] = useState(p?.bobina_superior || "");
   const [salvandoBobinaSup, setSalvandoBobinaSup] = useState(false);
 
   const [editandoBobinaInf, setEditandoBobinaInf] = useState(false);
+  const [overrideBobinaInf, setOverrideBobinaInf] = useState(null);
   const [textoBobinaInf, setTextoBobinaInf] = useState(p?.bobina_inferior || "");
   const [salvandoBobinaInf, setSalvandoBobinaInf] = useState(false);
 
   useEffect(() => {
-    setTextoBobinaSup(p?.bobina_superior || "");
-  }, [p?.bobina_superior]);
+    if (p?.bobina_superior && overrideBobinaSup === null) {
+      setTextoBobinaSup(p.bobina_superior);
+    }
+  }, [p?.bobina_superior, overrideBobinaSup]);
 
   useEffect(() => {
-    setTextoBobinaInf(p?.bobina_inferior || "");
-  }, [p?.bobina_inferior]);
+    if (p?.bobina_inferior && overrideBobinaInf === null) {
+      setTextoBobinaInf(p.bobina_inferior);
+    }
+  }, [p?.bobina_inferior, overrideBobinaInf]);
 
   const handleSalvarBobinaSup = async () => {
     if (!p?.id) return;
+    const novoTexto = textoBobinaSup.trim();
+    if (!novoTexto) {
+      toast.warning("Digite o código ou descrição da bobina");
+      return;
+    }
+
+    // 1. ATUALIZAÇÃO INSTANTÂNEA NA MEMÓRIA E TELA (0ms) - Card atualiza no milissegundo do clique
+    setOverrideBobinaSup(novoTexto);
+    setEditandoBobinaSup(false);
     setSalvandoBobinaSup(true);
-    try {
-      const novoTexto = textoBobinaSup.trim();
-      await base44.entities.Pedido.update(p.id, {
-        bobina_superior: novoTexto
+
+    // 2. Busca vínculo no estoque se houver código correspondente
+    let bobinaIdMatch = null;
+    let corMatch = null;
+    let espMatch = null;
+    if (Array.isArray(todasBobinas) && todasBobinas.length > 0) {
+      const normTxt = novoTexto.toUpperCase().trim();
+      const match = todasBobinas.find(b => {
+        const cod = (b.codigo_bobina || b.codigo || "").toUpperCase();
+        return cod && cod.length >= 3 && normTxt.includes(cod);
       });
-      setEditandoBobinaSup(false);
+      if (match) {
+        bobinaIdMatch = match.id;
+        corMatch = match.cor;
+        espMatch = match.espessura;
+      }
+    }
+
+    const payloadUpdates = {
+      bobina_superior: novoTexto,
+      bobina_superior_manual: true,
+      ...(bobinaIdMatch ? { bobina_superior_id: bobinaIdMatch } : {}),
+      ...(corMatch ? { rvm_superior: corMatch } : {}),
+      ...(espMatch ? { espessura_exigida: espMatch } : {})
+    };
+
+    // 3. Atualização Instantânea no Cache do React Query para não piscar nem reverter
+    queryClient.setQueriesData({ queryKey: ["pedidos"] }, (antigos) => {
+      if (!antigos || !Array.isArray(antigos)) return antigos;
+      return antigos.map(item => item.id === p.id ? { ...item, ...payloadUpdates } : item);
+    });
+
+    try {
+      // 4. Persiste no banco de dados
+      await base44.entities.Pedido.update(p.id, payloadUpdates);
       toast.success(`Bobina de produção ajustada para: "${novoTexto}"`);
-      if (onUpdate) onUpdate();
+
+      // 5. Registra no histórico e sincroniza com Pedido Odoo / PCP se aplicável
+      if (appendHistoricoFn) {
+        appendHistoricoFn(p, "bobina_ajustada", "Ajustou Bobina de Produção", `Bobina superior alterada para "${novoTexto}"`);
+      }
+
+      if (p.numero_pedido) {
+        const numLimpo = String(p.numero_pedido).trim().replace(/^#/, "");
+        base44.entities.PedidoOdoo.filter({ numero_pedido: numLimpo }, "-created_date", 1).then(odooList => {
+          if (odooList && odooList[0]) {
+            const pedOdoo = odooList[0];
+            const logExistente = (() => { try { return JSON.parse(pedOdoo.historico_log || "[]"); } catch { return []; } })();
+            const novoLog = [...logExistente, {
+              data: new Date().toISOString(),
+              usuario: user?.full_name || user?.email || "Operador",
+              acao: "ajuste_bobina_superior",
+              detalhes: `Bobina superior ajustada para "${novoTexto}"`
+            }];
+            base44.entities.PedidoOdoo.update(pedOdoo.id, {
+              historico_log: JSON.stringify(novoLog)
+            }).catch(() => {});
+          }
+        }).catch(() => {});
+      }
+
+      if (onUpdate) onUpdate(p, p.status, payloadUpdates);
     } catch (err) {
+      console.error("[PedidoRow] Erro ao salvar bobina superior:", err);
       toast.error("Erro ao salvar bobina: " + (err?.message || ""));
+      setOverrideBobinaSup(null);
     } finally {
       setSalvandoBobinaSup(false);
     }
@@ -334,17 +407,81 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
 
   const handleSalvarBobinaInf = async () => {
     if (!p?.id) return;
+    const novoTexto = textoBobinaInf.trim();
+    if (!novoTexto) {
+      toast.warning("Digite o código ou descrição da bobina inferior");
+      return;
+    }
+
+    // 1. ATUALIZAÇÃO INSTANTÂNEA NA MEMÓRIA E TELA (0ms) - Card atualiza no milissegundo do clique
+    setOverrideBobinaInf(novoTexto);
+    setEditandoBobinaInf(false);
     setSalvandoBobinaInf(true);
-    try {
-      const novoTexto = textoBobinaInf.trim();
-      await base44.entities.Pedido.update(p.id, {
-        bobina_inferior: novoTexto
+
+    // 2. Busca vínculo no estoque se houver código correspondente
+    let bobinaIdMatch = null;
+    let corMatch = null;
+    let espMatch = null;
+    if (Array.isArray(todasBobinas) && todasBobinas.length > 0) {
+      const normTxt = novoTexto.toUpperCase().trim();
+      const match = todasBobinas.find(b => {
+        const cod = (b.codigo_bobina || b.codigo || "").toUpperCase();
+        return cod && cod.length >= 3 && normTxt.includes(cod);
       });
-      setEditandoBobinaInf(false);
+      if (match) {
+        bobinaIdMatch = match.id;
+        corMatch = match.cor;
+        espMatch = match.espessura;
+      }
+    }
+
+    const payloadUpdates = {
+      bobina_inferior: novoTexto,
+      bobina_inferior_manual: true,
+      ...(bobinaIdMatch ? { bobina_inferior_id: bobinaIdMatch } : {}),
+      ...(corMatch ? { rvm_inferior: corMatch } : {})
+    };
+
+    // 3. Atualização Instantânea no Cache do React Query para não piscar nem reverter
+    queryClient.setQueriesData({ queryKey: ["pedidos"] }, (antigos) => {
+      if (!antigos || !Array.isArray(antigos)) return antigos;
+      return antigos.map(item => item.id === p.id ? { ...item, ...payloadUpdates } : item);
+    });
+
+    try {
+      // 4. Persiste no banco de dados
+      await base44.entities.Pedido.update(p.id, payloadUpdates);
       toast.success(`Bobina da chapa inferior ajustada para: "${novoTexto}"`);
-      if (onUpdate) onUpdate();
+
+      // 5. Registra no histórico e sincroniza com Pedido Odoo / PCP se aplicável
+      if (appendHistoricoFn) {
+        appendHistoricoFn(p, "bobina_ajustada", "Ajustou Bobina Inferior", `Bobina inferior alterada para "${novoTexto}"`);
+      }
+
+      if (p.numero_pedido) {
+        const numLimpo = String(p.numero_pedido).trim().replace(/^#/, "");
+        base44.entities.PedidoOdoo.filter({ numero_pedido: numLimpo }, "-created_date", 1).then(odooList => {
+          if (odooList && odooList[0]) {
+            const pedOdoo = odooList[0];
+            const logExistente = (() => { try { return JSON.parse(pedOdoo.historico_log || "[]"); } catch { return []; } })();
+            const novoLog = [...logExistente, {
+              data: new Date().toISOString(),
+              usuario: user?.full_name || user?.email || "Operador",
+              acao: "ajuste_bobina_inferior",
+              detalhes: `Bobina da chapa inferior ajustada para "${novoTexto}"`
+            }];
+            base44.entities.PedidoOdoo.update(pedOdoo.id, {
+              historico_log: JSON.stringify(novoLog)
+            }).catch(() => {});
+          }
+        }).catch(() => {});
+      }
+
+      if (onUpdate) onUpdate(p, p.status, payloadUpdates);
     } catch (err) {
+      console.error("[PedidoRow] Erro ao salvar bobina inferior:", err);
       toast.error("Erro ao salvar bobina inferior: " + (err?.message || ""));
+      setOverrideBobinaInf(null);
     } finally {
       setSalvandoBobinaInf(false);
     }
@@ -1664,7 +1801,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                       title="Clique para editar ou ajustar o texto da bobina"
                       className="font-mono font-black text-sm text-foreground bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 hover:border-indigo-500 cursor-pointer transition-colors shadow-2xs flex items-center gap-2 group"
                     >
-                      <span>{p.bobina_superior || "Bobina não definida (Clique para ajustar)"}</span>
+                      <span>{overrideBobinaSup !== null ? overrideBobinaSup : (p.bobina_superior || "Bobina não definida (Clique para ajustar)")}</span>
                       <Pencil className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 transition-colors" />
                     </span>
                     <Button
@@ -1753,7 +1890,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                       title="Clique para editar ou ajustar o texto da bobina inferior"
                       className="font-mono font-black text-sm text-foreground bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-700 hover:border-indigo-500 cursor-pointer transition-colors shadow-2xs flex items-center gap-2 group"
                     >
-                      <span>{p.bobina_inferior || p.bobina_superior || "Mesma bobina superior (Clique para ajustar)"}</span>
+                      <span>{overrideBobinaInf !== null ? overrideBobinaInf : (p.bobina_inferior || p.bobina_superior || "Mesma bobina superior (Clique para ajustar)")}</span>
                       <Pencil className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 transition-colors" />
                     </span>
                     <Button

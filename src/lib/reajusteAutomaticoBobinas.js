@@ -115,8 +115,8 @@ export async function reajustarTodasBobinasMaquinasAutomaticamente() {
       }
 
       // ── BOBINA SUPERIOR (CHAPA PRINCIPAL) ──
-      // Se não tem bobina_superior ou se for texto genérico
-      const precisaReajustarSup = !op.bobina_superior || op.bobina_superior === "Bobina não definida";
+      // Se não tem bobina_superior ou se for texto genérico (respeita blindagem de ajuste manual do operador)
+      const precisaReajustarSup = !op.bobina_superior_manual && (!op.bobina_superior || op.bobina_superior === "Bobina não definida");
 
       let bobinaSupEleita = null;
       if (precisaReajustarSup) {
@@ -148,14 +148,16 @@ export async function reajustarTodasBobinasMaquinasAutomaticamente() {
         const corInferiorExigida = cores.corInferior || "NATURAL";
         const ehFaceInternaColorida = corInferiorExigida !== "NATURAL";
 
-        // Verifica se a bobina inferior precisa ser corrigida:
+        // Verifica se a bobina inferior precisa ser corrigida (respeita ajuste manual do operador):
         // Caso A: Está vazia
         // Caso B: A cor inferior exigida é colorida (ex: PRETO/BRANCO) mas a bobina atual é Natural ou igual à superior
         const bobinaInfAtualTexto = String(op.bobina_inferior || "");
         const precisaReajustarInf =
-          !op.bobina_inferior ||
-          op.bobina_inferior === "Mesma bobina superior" ||
-          (ehFaceInternaColorida && (bobinaInfAtualTexto.includes("NATURAL") || op.bobina_inferior === op.bobina_superior));
+          !op.bobina_inferior_manual && (
+            !op.bobina_inferior ||
+            op.bobina_inferior === "Mesma bobina superior" ||
+            (ehFaceInternaColorida && (bobinaInfAtualTexto.includes("NATURAL") || op.bobina_inferior === op.bobina_superior))
+          );
 
         if (precisaReajustarInf) {
           const compativeisInf = todasBobinas.filter(b => {
