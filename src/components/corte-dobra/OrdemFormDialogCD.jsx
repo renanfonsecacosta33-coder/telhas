@@ -512,7 +512,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Layers className="w-5 h-5 text-orange-500" />
-            {editItem ? "Editar Ordem" : "Nova Ordem"}
+            {editItem ? "Revisar / Atualizar Ordem" : "Nova Ordem"}
           </DialogTitle>
         </DialogHeader>
 
@@ -1172,8 +1172,8 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
               <Trash2 className="w-4 h-4" /> Excluir OS
             </Button>
           )}
-          <Button onClick={handleSave} className="bg-orange-500 hover:bg-orange-600">
-            {editItem ? "Salvar Alterações" : "Criar Ordem"}
+          <Button onClick={handleSave} className="bg-orange-500 hover:bg-orange-600 font-bold">
+            {editItem ? "Atualizar Ordem" : "Criar Ordem"}
           </Button>
         </DialogFooter>
       </DialogContent>

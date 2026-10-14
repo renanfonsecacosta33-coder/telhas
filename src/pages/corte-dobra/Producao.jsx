@@ -511,10 +511,32 @@ export default function ProducaoCD() {
     setFilaContext({ pedidoId: pedido.id, itemIdx: item._idx, pedido, produtoFixo: item.produto || "" });
 
     // Se já existe OP criada nas máquinas para este item do pedido, abre para EDIÇÃO/REVISÃO direta
-    if (item.existingOp && item.existingOp.id) {
-      setMaquinaAtiva(item.existingOp.maquina || null);
-      setEditMaq(item.existingOp);
-      setDialogMaq(true);
+    const opExistente = item.existingOp || ordensMaq.find(o => {
+      if (o.status === "cancelado") return false;
+      if (pedido.id && o.pedido_odoo_id && o.pedido_odoo_id === pedido.id) {
+        if (item._idx != null && o.item_idx != null) return o.item_idx === item._idx;
+        return true;
+      }
+      return saoPedidosIguais(o.numero_pedido, pedido.numero_pedido) &&
+        (o.tipo_peca === (item.produto || "") || String(o.quantidade) === String(item.quantidade));
+    }) || ordens.find(o => {
+      if (o.status === "cancelado") return false;
+      if (pedido.id && o.pedido_odoo_id && o.pedido_odoo_id === pedido.id) {
+        if (item._idx != null && o.item_idx != null) return o.item_idx === item._idx;
+        return true;
+      }
+      return saoPedidosIguais(o.numero_pedido, pedido.numero_pedido);
+    });
+
+    if (opExistente && opExistente.id) {
+      if (opExistente._desb || opExistente.maquina?.startsWith("DESBOBINADEIRA")) {
+        setEditDesb(opExistente);
+        setDialogDesb(true);
+      } else {
+        setMaquinaAtiva(opExistente.maquina || null);
+        setEditMaq(opExistente);
+        setDialogMaq(true);
+      }
       return;
     }
 

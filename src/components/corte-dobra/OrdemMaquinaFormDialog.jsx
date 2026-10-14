@@ -691,7 +691,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{editItem && !produtoFixo ? "Editar Ordem" : `Nova Ordem${form.maquina ? ` — ${form.maquina}` : ""}`}</DialogTitle>
+          <DialogTitle>{editItem?.id ? `Revisar Ordem${form.maquina ? ` — ${form.maquina}` : ""}` : `Nova Ordem${form.maquina ? ` — ${form.maquina}` : ""}`}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
 
@@ -1432,7 +1432,9 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave} className="bg-orange-500 hover:bg-orange-600">{editItem && !produtoFixo ? "Salvar" : "Criar Ordem"}</Button>
+          <Button onClick={handleSave} className="bg-orange-500 hover:bg-orange-600 font-bold">
+            {editItem?.id ? "Atualizar Ordem" : "Criar Ordem"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
