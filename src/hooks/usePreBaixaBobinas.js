@@ -102,7 +102,13 @@ export function usePreBaixaBobinas(setor, filiais = null) {
           if (bobinaByCodigo[clean]) b = bobinaByCodigo[clean];
           else if (bobinaById[textField]) b = bobinaById[textField];
           else {
-            const found = allBobinas.find(x => x.codigo && clean.includes(String(x.codigo).trim().toUpperCase()));
+            const found = allBobinas.find(x => {
+              if (!x.codigo) return false;
+              const xCod = String(x.codigo).trim().toUpperCase();
+              if (xCod.length < 3) return false;
+              const regex = new RegExp(`(^|[^A-Z0-9])${xCod.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^A-Z0-9]|$)`, "i");
+              return regex.test(clean);
+            });
             if (found) b = found;
           }
         }
@@ -110,7 +116,10 @@ export function usePreBaixaBobinas(setor, filiais = null) {
           return { id: b.id, codigo: b.codigo || b.codigo_bobina, bobina: b };
         }
         const cleanRaw = idField || fallbackId || textField;
-        return { id: cleanRaw, codigo: cleanRaw, bobina: null };
+        if (cleanRaw && typeof cleanRaw === "string" && cleanRaw.trim().length > 0) {
+          return { id: cleanRaw.trim(), codigo: cleanRaw.trim(), bobina: null };
+        }
+        return { id: null, codigo: null, bobina: null };
       };
 
       const addReservaUniversal = (idField, textField, fallbackId, kg, metros, opInfo) => {
@@ -139,23 +148,26 @@ export function usePreBaixaBobinas(setor, filiais = null) {
       };
 
       // ── A. ORDENS DE TELHAS (Fábrica de Telhas) ──────────────────────────
-      let pedidos = [];
-      try {
-        pedidos = await base44.entities.Pedido.list("-data", 500);
-      } catch {
+      // 🛡️ Executa APENAS se o setor for Telhas ou Geral, NUNCA para Corte e Dobra!
+      const processarTelhas = !setor || setor === "telhas" || setor === "todos";
+      if (processarTelhas) {
+        let pedidos = [];
         try {
-          pedidos = await base44.entities.Pedido.filter({}, "-data", 500);
+          pedidos = await base44.entities.Pedido.list("-data", 500);
         } catch {
-          pedidos = [];
+          try {
+            pedidos = await base44.entities.Pedido.filter({}, "-data", 500);
+          } catch {
+            pedidos = [];
+          }
         }
-      }
 
-      const pedidosAtivos = pedidos.filter(p => {
-        const st = String(p.status || "").toLowerCase();
-        return !["finalizado", "cancelado"].includes(st);
-      });
+        const pedidosAtivos = pedidos.filter(p => {
+          const st = String(p.status || "").toLowerCase();
+          return !["finalizado", "cancelado"].includes(st);
+        });
 
-      pedidosAtivos.forEach(p => {
+        pedidosAtivos.forEach(p => {
         if (!filialMatch(p.unidade)) return;
 
         let vars = [];
@@ -283,79 +295,84 @@ export function usePreBaixaBobinas(setor, filiais = null) {
           }
         }
       });
+      } // Fim if (processarTelhas)
 
-      // ── B. CORTE E DOBRA: DESBOBINADEIRA ──────────────────────────────────
-      let ordensDesb = [];
-      try {
-        ordensDesb = await base44.entities.OrdemDesbobinadeira.list("-created_date", 500);
-      } catch {
+      // ── B. CORTE E DOBRA: DESBOBINADEIRA E MÁQUINAS CD ──────────────────
+      // 🛡️ Executa APENAS se o setor for Corte e Dobra ou Geral, NUNCA para Telhas!
+      const processarCD = !setor || setor === "corte_dobra" || setor === "todos";
+      if (processarCD) {
+        let ordensDesb = [];
         try {
-          ordensDesb = await base44.entities.OrdemDesbobinadeira.filter({}, "-created_date", 500);
+          ordensDesb = await base44.entities.OrdemDesbobinadeira.list("-created_date", 500);
         } catch {
-          ordensDesb = [];
+          try {
+            ordensDesb = await base44.entities.OrdemDesbobinadeira.filter({}, "-created_date", 500);
+          } catch {
+            ordensDesb = [];
+          }
         }
-      }
 
-      const ordensDesbAtivas = ordensDesb.filter(o => !["finalizado", "cancelado"].includes(String(o.status || "").toLowerCase()));
+        const ordensDesbAtivas = ordensDesb.filter(o => !["finalizado", "cancelado"].includes(String(o.status || "").toLowerCase()));
 
-      ordensDesbAtivas.forEach(o => {
-        if (!filialMatch(o.unidade)) return;
-        const bId = o.bobina_id || o.bobina_superior_id || o.bobina_superior;
-        const bCodigo = o.bobina_codigo || o.codigo_bobina;
-        const kg = Number(o.kg_estimado || o.peso_kg) || 0;
-        const metros = Number(o.comprimento_mm || 0) / 1000 * (Number(o.quantidade) || 1);
-        addReservaUniversal(bId, bCodigo, null, kg, metros, {
-          id: o.id,
-          numero_pedido: o.numero_pedido,
-          cliente: o.cliente,
-          produto: "Chapa / Corte",
-          metros,
-          kg,
-          maquina: "Desbobinadeira",
-          status: o.status,
-          data: o.data,
-          setor: "Corte & Dobra"
-        });
-        const res = resolveBobinaIds(bId, bCodigo);
-        if (res.id) addStatus(res.id, "Desbobinadeira", o.status, o.numero_pedido);
-      });
-
-      // ── C. CORTE E DOBRA: MÁQUINAS COM BOBINA DIRETA (Perfiladeiras C&D) ──
-      let ordensMaq = [];
-      try {
-        ordensMaq = await base44.entities.OrdemMaquinaCD.list("-created_date", 500);
-      } catch {
-        try {
-          ordensMaq = await base44.entities.OrdemMaquinaCD.filter({}, "-created_date", 500);
-        } catch {
-          ordensMaq = [];
-        }
-      }
-
-      const ordensMaqAtivas = ordensMaq.filter(o => !["finalizado", "cancelado"].includes(String(o.status || "").toLowerCase()));
-
-      ordensMaqAtivas.forEach(o => {
-        if (!filialMatch(o.unidade)) return;
-        const bId = o.bobina_id || o.bobina_superior;
-        const bCodigo = o.bobina_codigo || o.codigo_bobina;
-        if (bId || bCodigo) {
-          const kg = Number(o.peso_kg || o.kg_estimado) || 0;
-          addReservaUniversal(bId, bCodigo, null, kg, 0, {
+        ordensDesbAtivas.forEach(o => {
+          if (!filialMatch(o.unidade)) return;
+          const bId = o.bobina_id || o.bobina_superior_id || o.bobina_superior;
+          const bCodigo = o.bobina_codigo || o.codigo_bobina;
+          const kg = Number(o.kg_estimado || o.peso_kg) || 0;
+          const metros = Number(o.comprimento_mm || 0) / 1000 * (Number(o.quantidade) || 1);
+          addReservaUniversal(bId, bCodigo, null, kg, metros, {
             id: o.id,
             numero_pedido: o.numero_pedido,
             cliente: o.cliente,
-            produto: o.tipo_peca || "Perfil",
-            metros: 0,
+            produto: "Chapa / Corte",
+            metros,
             kg,
-            maquina: o.maquina || "Máquina CD",
+            maquina: "Desbobinadeira",
             status: o.status,
             data: o.data,
             setor: "Corte & Dobra"
           });
           const res = resolveBobinaIds(bId, bCodigo);
-          if (res.id) addStatus(res.id, o.maquina || "Máquina CD", o.status, o.numero_pedido);
+          if (res.id) addStatus(res.id, "Desbobinadeira", o.status, o.numero_pedido);
+        });
+
+        // ── C. CORTE E DOBRA: MÁQUINAS COM BOBINA DIRETA (Perfiladeiras C&D) ──
+        let ordensMaq = [];
+        try {
+          ordensMaq = await base44.entities.OrdemMaquinaCD.list("-created_date", 500);
+        } catch {
+          try {
+            ordensMaq = await base44.entities.OrdemMaquinaCD.filter({}, "-created_date", 500);
+          } catch {
+            ordensMaq = [];
+          }
         }
-      });
+
+        const ordensMaqAtivas = ordensMaq.filter(o => !["finalizado", "cancelado"].includes(String(o.status || "").toLowerCase()));
+
+        ordensMaqAtivas.forEach(o => {
+          if (!filialMatch(o.unidade)) return;
+          const bId = o.bobina_id || o.bobina_superior;
+          const bCodigo = o.bobina_codigo || o.codigo_bobina;
+          if (bId || bCodigo) {
+            const kg = Number(o.peso_kg || o.kg_estimado) || 0;
+            addReservaUniversal(bId, bCodigo, null, kg, 0, {
+              id: o.id,
+              numero_pedido: o.numero_pedido,
+              cliente: o.cliente,
+              produto: o.tipo_peca || "Perfil",
+              metros: 0,
+              kg,
+              maquina: o.maquina || "Máquina CD",
+              status: o.status,
+              data: o.data,
+              setor: "Corte & Dobra"
+            });
+            const res = resolveBobinaIds(bId, bCodigo);
+            if (res.id) addStatus(res.id, o.maquina || "Máquina CD", o.status, o.numero_pedido);
+          }
+        });
+      } // Fim if (processarCD)
 
       const totalPreBaixaKg = Object.values(preBaixaMap).reduce((s, kg) => s + kg, 0);
       const totalPreBaixaMetros = Object.values(preBaixaMetrosMap).reduce((s, m) => s + m, 0);

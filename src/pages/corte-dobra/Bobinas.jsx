@@ -53,10 +53,39 @@ export default function BobinasCD() {
           if (Array.isArray(res) && res.length > 0) raw = res;
         } catch (e2) {}
       }
-      return (Array.isArray(raw) ? raw : []).filter(b => b && b.setor === "corte_dobra");
+      if (raw.length === 0) {
+        try {
+          const res = await base44.entities.Bobina.filter({}, "-created_date", 2000);
+          if (Array.isArray(res) && res.length > 0) raw = res;
+        } catch (e3) {}
+      }
+      if (raw.length === 0) {
+        try {
+          const res = await base44.entities.Bobina.list();
+          if (Array.isArray(res) && res.length > 0) raw = res;
+        } catch (e4) {}
+      }
+
+      // 🛡️ Se o servidor oscilar ou der timeout temporário e já temos bobinas no cache,
+      // preserva o cache anterior para a lista NUNCA sumir nem piscar na tela!
+      if (raw.length === 0) {
+        const cached = queryClient.getQueryData(["bobinas-cd", "raw-lista"]);
+        if (Array.isArray(cached) && cached.length > 0) {
+          return cached;
+        }
+      }
+
+      return (Array.isArray(raw) ? raw : []).filter(b => {
+        if (!b) return false;
+        if (b.setor === "corte_dobra") return true;
+        const cod = String(b.codigo || "").trim().toUpperCase();
+        if (cod.startsWith("CD")) return true;
+        return false;
+      });
     },
-    staleTime: 5000,
-    refetchInterval: 25000,
+    staleTime: 10000,
+    refetchInterval: 30000,
+    placeholderData: (prev) => prev,
   });
 
   const bobinas = useMemo(() => {
@@ -73,9 +102,8 @@ export default function BobinasCD() {
 
   const { data: bobinasGlobais = [], refetch: refetchCodigos } = useQuery({
     queryKey: ["bobinas-cd-global-codigos"],
-    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra" }, "codigo", 2000),
-    staleTime: 0,
-    gcTime: 0,
+    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra" }, "codigo", 2000).catch(() => []),
+    staleTime: 30000,
   });
 
   // Calcula o PRÓXIMO número disponível com base em TODOS os códigos existentes (incluindo arquivados)
