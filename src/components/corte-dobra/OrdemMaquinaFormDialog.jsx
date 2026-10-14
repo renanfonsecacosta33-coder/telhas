@@ -93,21 +93,21 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
   const isMaquinaPadrao = isCorte || isDobra;
   const maxComprimento = form.maquina?.includes("3M") ? 3000 : form.maquina?.includes("6M") ? 6000 : 99999;
 
-  // Bobinas ativas do estoque da fábrica (busca abrangente e tolerante)
-  const { data: todasBobinasRaw = [] } = useQuery({
+  // Bobinas ativas do estoque de C&D (somente setor corte_dobra, busca tolerante)
+  const { data: todasBobinasRaw = [], isLoading: carregandoBobinas } = useQuery({
     queryKey: ["bobinas-cd-estoque", unidadeConsulta],
     queryFn: async () => {
       let bobs = [];
       try {
-        const res = await base44.entities.Bobina.list("-created_date", 2000);
+        const res = await base44.entities.Bobina.filter({ setor: "corte_dobra" }, "-created_date", 2000);
         if (Array.isArray(res) && res.length > 0) bobs = res;
       } catch (e1) {
-        console.warn("[OrdemMaquinaFormDialog] Falha ao listar Bobinas:", e1);
+        console.warn("[OrdemMaquinaFormDialog] Falha ao filtrar Bobinas C&D:", e1);
       }
       if (bobs.length === 0) {
         try {
-          const res = await base44.entities.Bobina.filter({}, "-created_date", 2000);
-          if (Array.isArray(res) && res.length > 0) bobs = res;
+          const res = await base44.entities.Bobina.list("-created_date", 2000);
+          if (Array.isArray(res) && res.length > 0) bobs = res.filter(b => !b.setor || b.setor === "corte_dobra");
         } catch (e2) {}
       }
 
@@ -1217,7 +1217,10 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
                           </SelectItem>
                         );
                       })}
-                      {bobinasCD.length === 0 && (
+                      {bobinasCD.length === 0 && carregandoBobinas && (
+                        <SelectItem value="_carregando" disabled>Carregando bobinas do estoque...</SelectItem>
+                      )}
+                      {bobinasCD.length === 0 && !carregandoBobinas && (
                         <SelectItem value="_vazio" disabled>Nenhuma bobina disponível no estoque</SelectItem>
                       )}
                     </SelectContent>

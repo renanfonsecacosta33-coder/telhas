@@ -45,7 +45,7 @@ import OPSemMaterialTab from "@/components/corte-dobra/OPSemMaterialTab";
 import { useFilial } from "@/contexts/FilialContext";
 import ExpedicaoTab from "@/components/logistica/ExpedicaoTab";
 import FilaPCPCorteDobra from "@/components/pcp/FilaPCPCorteDobra";
-import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson } from "@/lib/pedidoOdooHelper";
+import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, saoPedidosIguais } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
