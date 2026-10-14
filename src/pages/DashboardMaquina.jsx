@@ -106,9 +106,29 @@ export default function DashboardMaquina({ maquina }) {
     return todosPedidos.filter(p => {
       const mNorm = maquinaNorm(p.maquina);
       const mOrigemNorm = maquinaNorm(p.maquina_origem);
+
       if (targetNorm === "COLAGEM") {
         return mNorm === "COLAGEM" || p.status === "aguardando_colagem";
       }
+
+      if (targetNorm === "DESBOBINADOR") {
+        const ehTelha = p.produto === "TELHA" || String(p.produto || "").toUpperCase().startsWith("TELHA") || p.produto === "CUMEEIRA";
+        if (ehTelha) return false;
+      }
+
+      // Se a OP é uma TELHA e estava erroneamente com maquina === "DESBOBINADOR"
+      const ehTelhaOuPerfil = (
+        p.produto === "TELHA" ||
+        String(p.produto || "").toUpperCase().startsWith("TELHA") ||
+        /\b(TELHA|TRAP[EÉ]ZIO|TP\s*[-/]?\s*40|TP\s*[-/]?\s*25|TR\s*[-/]?\s*40|TR\s*[-/]?\s*25|ONDULADA|COLONIAL)\b/i.test(
+          `${p.item_produto || ""} ${p.modelo || ""} ${p.produto || ""}`
+        )
+      );
+      if (ehTelhaOuPerfil && (mNorm === "DESBOBINADOR" || mOrigemNorm === "DESBOBINADOR")) {
+        const maqDetectada = maquinaNorm(detectarMaquinaTelha(p.modelo || p.item_produto || p.produto || "") || "TP - 40");
+        if (maqDetectada === targetNorm) return true;
+      }
+
       if (mNorm === targetNorm || String(p.maquina || "").toUpperCase().includes(targetNorm)) return true;
       if (mOrigemNorm === targetNorm || String(p.maquina_origem || "").toUpperCase().includes(targetNorm)) return true;
       if (mNorm === "COLAGEM" || p.status === "aguardando_colagem") {

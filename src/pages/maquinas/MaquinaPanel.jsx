@@ -207,6 +207,30 @@ export default function MaquinaPanel({ maquina }) {
         return mNorm === "COLAGEM" || p.status === "aguardando_colagem";
       }
 
+      // Se estamos na tela do DESBOBINADOR:
+      if (targetNorm === "DESBOBINADOR") {
+        // Telhas perfiladas (simples ou termoacústicas), cumeeiras e bandejas NUNCA devem aparecer no Desbobinador!
+        const ehTelhaOuPerfilada = (
+          p.produto === "TELHA" ||
+          String(p.produto || "").toUpperCase().startsWith("TELHA") ||
+          p.produto === "CUMEEIRA" ||
+          p.produto === "PAINEL" ||
+          /\b(TELHA|TRAP[EÉ]ZIO|TP\s*[-/]?\s*40|TP\s*[-/]?\s*25|TR\s*[-/]?\s*40|TR\s*[-/]?\s*25|ONDULADA|COLONIAL|CUMEEIRA|BANDEJA)\b/i.test(
+            `${p.item_produto || ""} ${p.modelo || ""} ${p.produto || ""} ${p.observacoes || ""}`
+          )
+        );
+
+        const ehBobininhaReal = /\b(BOBININHA|BOBININHAS|BOBININA|SLITTER|CORTE\s*LONGITUDINAL|FITA\s*DE\s*A[CÇ]O|FITAS\s*DE\s*A[CÇ]O|DESBOBINAMENTO)\b/i.test(
+          `${p.item_produto || ""} ${p.produto || ""}`
+        );
+
+        if (ehTelhaOuPerfilada && !ehBobininhaReal) {
+          return false;
+        }
+
+        return mNorm === "DESBOBINADOR" || ehBobininhaReal;
+      }
+
       // Identifica se este item é uma CUMEEIRA
       const ehCumeeira = (p.produto === "CUMEEIRA") ||
         /\bCUMEEIRA\b/i.test(`${p.item_produto || ""} ${p.modelo || ""} ${p.observacoes || ""} ${p.observacoes_odoo || ""}`);
@@ -226,6 +250,23 @@ export default function MaquinaPanel({ maquina }) {
       // A OP de colagem final da Telha Bandeja fica restrita à máquina de Colagem
       if (p.tipo_componente_bandeja === "colagem_final") {
         return false;
+      }
+
+      // Se a OP é uma TELHA e estava erroneamente com maquina === "DESBOBINADOR":
+      // Acolhe na perfiladeira correta (TP-40, TP-25, Colonial, etc.)
+      const ehTelhaOuPerfil = (
+        p.produto === "TELHA" ||
+        String(p.produto || "").toUpperCase().startsWith("TELHA") ||
+        /\b(TELHA|TRAP[EÉ]ZIO|TP\s*[-/]?\s*40|TP\s*[-/]?\s*25|TR\s*[-/]?\s*40|TR\s*[-/]?\s*25|ONDULADA|COLONIAL)\b/i.test(
+          `${p.item_produto || ""} ${p.modelo || ""} ${p.produto || ""}`
+        )
+      );
+
+      if (ehTelhaOuPerfil && (mNorm === "DESBOBINADOR" || mOrigemNorm === "DESBOBINADOR")) {
+        const maqDetectada = maquinaNorm(detectarMaquinaTelha(p.modelo || p.item_produto || p.produto || "") || "TP - 40");
+        if (maqDetectada === targetNorm) {
+          return true;
+        }
       }
 
       // 1. Está atualmente atribuído a esta máquina perfiladeira
@@ -256,6 +297,50 @@ export default function MaquinaPanel({ maquina }) {
       return false;
     });
   }, [todosPedidos, targetNorm]);
+
+  // Auto-correção proativa: se houver qualquer OP de Telha com maquina: "DESBOBINADOR",
+  // corrige no banco de dados e sincroniza o cache imediatamente
+  useEffect(() => {
+    if (!todosPedidos || todosPedidos.length === 0) return;
+    const opsDeslocadas = todosPedidos.filter(p => {
+      if (p.status === "cancelado") return false;
+      const ehNoDesbobinador = maquinaNorm(p.maquina) === "DESBOBINADOR" || maquinaNorm(p.maquina_origem) === "DESBOBINADOR";
+      if (!ehNoDesbobinador) return false;
+      const ehTelha = (
+        p.produto === "TELHA" ||
+        String(p.produto || "").toUpperCase().startsWith("TELHA") ||
+        /\b(TELHA|TRAP[EÉ]ZIO|TP\s*[-/]?\s*40|TP\s*[-/]?\s*25|TR\s*[-/]?\s*40|TR\s*[-/]?\s*25|ONDULADA|COLONIAL)\b/i.test(
+          `${p.item_produto || ""} ${p.modelo || ""} ${p.produto || ""}`
+        )
+      );
+      const ehBobininhaReal = /\b(BOBININHA|BOBININHAS|BOBININA|SLITTER|CORTE\s*LONGITUDINAL|FITA\s*DE\s*A[CÇ]O|FITAS\s*DE\s*A[CÇ]O|DESBOBINAMENTO)\b/i.test(
+        `${p.item_produto || ""} ${p.produto || ""}`
+      );
+      return ehTelha && !ehBobininhaReal;
+    });
+
+    if (opsDeslocadas.length > 0) {
+      opsDeslocadas.forEach(async (opErr) => {
+        const maqCerta = detectarMaquinaTelha(opErr) || "TP - 40";
+        console.log(`[AutoCorrecao Máquinas] Realocando OP #${opErr.numero_pedido} de DESBOBINADOR para ${maqCerta}`);
+        try {
+          await base44.entities.Pedido.update(opErr.id, {
+            maquina: maqCerta,
+            modelo: maqCerta,
+            maquina_origem: maqCerta
+          });
+          queryClient.setQueriesData({ queryKey: ["pedidos"] }, (antigos) => {
+            if (!Array.isArray(antigos)) return antigos;
+            return antigos.map(item => item.id === opErr.id ? { ...item, maquina: maqCerta, modelo: maqCerta, maquina_origem: maqCerta } : item);
+          });
+          queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+          queryClient.invalidateQueries({ queryKey: ["pedidos-maquina"] });
+        } catch (e) {
+          console.warn("[AutoCorrecao Máquinas] Erro ao corrigir OP no banco:", e);
+        }
+      });
+    }
+  }, [todosPedidos, queryClient]);
 
   // Detectar novas OPs e anunciar por voz
   const prevOrderIds = useRef(new Set());

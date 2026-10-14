@@ -273,14 +273,14 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
   // B. DETECÇÃO INTELIGENTE DE BOBININHA / DESBOBINAMENTO
   // (Ex: "2 X 30 M IMPORTADA", "2 x 30m", "1553 - Bobininha ... - 30MT" c/ 60 no Odoo)
   // ═══════════════════════════════════════════════════════════════════════════
-  const isTextoChapaOuPerfil = /(?:chapa|chapas|perfil|batente|tampa|cartola|cantoneira|dobr|guilhotina)/i.test(t);
-  const isBobininha = !isTextoChapaOuPerfil && /(?:bobininha|bobinina|bobina|fita|desbobinamento|desbobinador)/i.test(t);
+  const isTextoChapaOuPerfil = /(?:chapa|chapas|perfil|batente|tampa|cartola|cantoneira|dobr|guilhotina|telha|telhas|cumeeira|cumeeiras|painel|painéis)/i.test(t);
+  const isBobininha = !isTextoChapaOuPerfil && /(?:bobininha|bobinina|slitter|corte\s*longitudinal|fita\s*de\s*a[cç]o|fitas\s*de\s*a[cç]o|desbobinamento|desbobinador)/i.test(t);
 
   // Padrão 1: Notação expressa [QTD] X [METROS] M (ex: "2 X 30 M", "2 x 30m", "1 X 30 M", "3 X 20 M", "2 x 30 mts", "2 X 30MT")
-  // 🛡️ Blindagem estrita: quantidade até 2 dígitos (\d{1,2}) e metros até 3 dígitos (\d{1,3}), E nunca para chapas/perfis
+  // 🛡️ Blindagem estrita: quantidade até 2 dígitos (\d{1,2}) e metros até 3 dígitos (\d{1,3}), E nunca para chapas/perfis/telhas
   const regexBobininhaNxM = !isTextoChapaOuPerfil ? /\b(\d{1,2})\s*[xX*]\s*(\d{1,3}(?:[.,]\d+)?)\s*(?:m\b|mts?\b|metros?|mt\b)/i : null;
   // Padrão 2: Notação em texto: "2 bobininhas de 30m", "2 rolos de 30m", "2 de 30m", "2 c/ 30m"
-  const regexBobininhaTexto = !isTextoChapaOuPerfil ? /\b(\d{1,2})\s*(?:bobininhas?|bobinas?|rolos?|p[çc]s?|pe[çc]as?|unidades?|un\.?)?\s*(?:de|com|c\/)\s*(\d{1,3}(?:[.,]\d+)?)\s*(?:m\b|mts?\b|metros?|mt\b)/i : null;
+  const regexBobininhaTexto = !isTextoChapaOuPerfil ? /\b(\d{1,2})\s*(?:bobininhas?|rolos?|p[çc]s?|pe[çc]as?|unidades?|un\.?)?\s*(?:de|com|c\/)\s*(\d{1,3}(?:[.,]\d+)?)\s*(?:m\b|mts?\b|metros?|mt\b)/i : null;
   // Padrão 3: Se o texto/produto é expressamente Bobininha e tem "2 X 30" (mesmo sem a letra M explícita)
   const regexBobininhaSemM = isBobininha ? /\b(\d{1,2})\s*[xX*]\s*(\d{1,3})\b/i : null;
 

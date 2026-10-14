@@ -19,10 +19,10 @@ export function corrigirItensBobininha(itens = [], pedido = null) {
     const desc = String(it.descricao || it.observacao || "").trim();
     const textoCompleto = `${prod} ${desc}`.trim();
 
-    const isChapaOuPerfil = /(chapa|perfil|dobra|guilhotina|cartola|cantoneira|batente|tampa)/i.test(textoCompleto);
+    const isChapaOuPerfil = /(chapa|perfil|dobra|guilhotina|cartola|cantoneira|batente|tampa|telha|cumeeira|painel)/i.test(textoCompleto);
     if (isChapaOuPerfil) return it;
 
-    const isBobininha = /(bobininha|bobinina|bobina|fita|desbobinamento|desbobinador)/i.test(textoCompleto);
+    const isBobininha = /(bobininha|bobinina|slitter|corte\s*longitudinal|fita\s*de\s*a[cç]o|fitas\s*de\s*a[cç]o|desbobinamento|desbobinador)/i.test(textoCompleto);
     if (!isBobininha) return it;
 
     const espTec = extrairEspecificacao(textoCompleto, it.quantidade, it.unidade);
@@ -80,7 +80,8 @@ export async function executarReparoBobininhasBanco(pedidosOdoo = [], pedidosPro
     const ops = Array.isArray(pedidosProducao) ? pedidosProducao : [];
     for (const op of ops) {
       if (!op || !op.id) continue;
-      const isBobinaOp = op.produto === "BOBININHA" || op.maquina === "DESBOBINADOR" || /(bobininha|bobina|desbobinador)/i.test(String(op.modelo || op.produto_rotulo_pcp || ""));
+      const ehTelha = op.produto === "TELHA" || String(op.produto || "").toUpperCase().startsWith("TELHA") || op.produto === "CUMEEIRA";
+      const isBobinaOp = !ehTelha && (op.produto === "BOBININHA" || op.maquina === "DESBOBINADOR" || /(bobininha|desbobinador|slitter|corte\s*longitudinal)/i.test(String(op.modelo || op.produto_rotulo_pcp || "")));
       if (!isBobinaOp) continue;
 
       // Se a OP foi gerada com metros > 10 (ex: 60) e metragem_mm >= 10.000 (ex: 30000), resultando em quantidade_telhas absurda (ex: 1800m)

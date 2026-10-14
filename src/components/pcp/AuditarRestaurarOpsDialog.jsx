@@ -199,6 +199,18 @@ export default function AuditarRestaurarOpsDialog({
           motivos.push(`Removidos resíduos indevidos de EPS/Colagem`);
         }
 
+        // --- REGRA E: TELHA NO DESBOBINADOR ---
+        const ehQualquerTelha = op.produto === "TELHA" || String(op.produto || "").toUpperCase().startsWith("TELHA") || op.produto === "CUMEEIRA";
+        if (ehQualquerTelha && (op.maquina === "DESBOBINADOR" || op.modelo === "DESBOBINADOR")) {
+          const maqAlvo = modeloEsperado && modeloEsperado !== "DESBOBINADOR" ? modeloEsperado : (detectarMaquinaTelha(textoOp) || "TP - 40");
+          updates.maquina = maqAlvo;
+          updates.modelo = maqAlvo;
+          if (!op.maquina_origem || op.maquina_origem === "DESBOBINADOR") {
+            updates.maquina_origem = maqAlvo;
+          }
+          motivos.push(`Telha no DESBOBINADOR realocada para perfiladeira "${maqAlvo}"`);
+        }
+
         // Se houve correções para esta OP, aplica no banco
         if (Object.keys(updates).length > 0) {
           try {

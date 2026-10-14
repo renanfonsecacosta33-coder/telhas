@@ -100,18 +100,25 @@ export async function reajustarTodasBobinasMaquinasAutomaticamente() {
         (ehTelhaBandeja && op.maquina === "BANDEJA" && op.maquina_origem && op.maquina_origem !== "BANDEJA")
       );
 
-      const maqEsperada = detectarMaquinaTelha(textoItem);
-      if (maqEsperada && (op.maquina !== maqEsperada || op.modelo !== maqEsperada) && !jaPerfilouPrimeiraEtapa) {
+      const ehTelha = op.produto === "TELHA" || String(op.produto || "").toUpperCase().startsWith("TELHA");
+      const estaNoDesbobinadorErroneamente = (op.maquina === "DESBOBINADOR" || op.modelo === "DESBOBINADOR") && ehTelha;
+
+      const maqEsperada = detectarMaquinaTelha(textoItem) || (ehTelha ? "TP - 40" : "");
+      if (maqEsperada && (op.maquina !== maqEsperada || op.modelo !== maqEsperada) && (!jaPerfilouPrimeiraEtapa || estaNoDesbobinadorErroneamente)) {
         const maqAnterior = op.maquina || op.modelo;
         updates.maquina = maqEsperada;
         updates.modelo = maqEsperada;
-        if (!op.maquina_origem) {
+        if (!op.maquina_origem || op.maquina_origem === "DESBOBINADOR") {
           updates.maquina_origem = maqEsperada;
         }
         if (op.observacoes && op.observacoes.includes("Auto-Roteado PCP")) {
           updates.observacoes = op.observacoes.replace(/Auto-Roteado PCP \([^)]+\)/, `Auto-Roteado PCP (${maqEsperada})`);
         }
-        motivos.push(`Máquina transferida de "${maqAnterior}" para "${maqEsperada}" conforme fluxo correto (Telha primeiro na TP - 40)`);
+        motivos.push(
+          estaNoDesbobinadorErroneamente
+            ? `Telha simples estava indevidamente no DESBOBINADOR -> Transferida para perfiladeira "${maqEsperada}"`
+            : `Máquina transferida de "${maqAnterior}" para "${maqEsperada}" conforme fluxo correto (Telha primeiro na TP - 40)`
+        );
       }
 
       // ── BOBINA SUPERIOR (CHAPA PRINCIPAL) ──
