@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { createPortal } from "react-dom";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, PackageCheck, MessageCircle } from "lucide-react";
+import { Bell, PackageCheck, MessageCircle, Layers, CheckCircle2, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { playFinishSound, speakOpFinalizada, playMaterialDisponivelSound, speakMaterialDisponivel, playAlertSound } from "@/lib/sounds";
 import { useFilial } from "@/contexts/FilialContext";
 import PopupDobradeira from "./PopupDobradeira";
@@ -124,68 +125,101 @@ export default function AlertBellCD({ user }) {
     enabled: !!isGestor,
   });
 
-  // Detectar chegada de novo material e verificar OPs aguardando
-  const prevBobinaCountRef = useRef(null);
-  const prevChapaCountRef = useRef(null);
-  const [materialAlerts, setMaterialAlerts] = useState([]);
+  // ── DETECÇÃO DE MATERIAIS DISPONÍVEIS (AGRUPADOS E DEDUPLICADOS) ──
+  const [bellOpen, setBellOpen] = useState(false);
+  const prevMaterialKeysRef = useRef(null);
 
-  useEffect(() => {
-    if (!isGestor) return;
+  // Agrupa os materiais em falta que agora possuem estoque compatível
+  const materiaisDisponiveis = useMemo(() => {
+    if (!isGestor) return [];
+    const grupos = new Map();
 
-    // Verificar novas bobinas
-    if (prevBobinaCountRef.current !== null && bobinasAlert.length > prevBobinaCountRef.current) {
-      const novasBobinas = bobinasAlert.slice(0, bobinasAlert.length - prevBobinaCountRef.current);
-      novasBobinas.forEach(b => {
+    // 1. Bobinas disponíveis para OPs da Desbobinadeira
+    opsDesbAguardando.forEach(op => {
+      const opEsp = normalizeEsp(op.material_espessura);
+      const opCor = (op.material_cor || "").trim().toLowerCase();
+
+      const bobinaComp = bobinasAlert.find(b => {
         const bEsp = normalizeEsp(b.chapa) || normalizeEsp(b.espessura_utilizada);
         const bEspAlts = (b.espessura_utilizada || "").split("/").map(s => normalizeEsp(s));
         const bCor = (b.cor || "").trim().toLowerCase();
-
-        const matchingOps = opsDesbAguardando.filter(op => {
-          const opEsp = normalizeEsp(op.material_espessura);
-          const opCor = (op.material_cor || "").trim().toLowerCase();
-          const espMatch = bEsp === opEsp || bEspAlts.includes(opEsp);
-          const corMatch = !opCor || !bCor || bCor.includes(opCor) || opCor.includes(bCor);
-          return espMatch && corMatch;
-        });
-
-        if (matchingOps.length > 0) {
-          const esp = bEsp || b.espessura_utilizada || "?";
-          const cor = b.cor || "";
-          const msg = `Chegou material de ${esp}${cor ? " " + cor : ""}. ${matchingOps.length} OP(s) aguardando liberação!`;
-          playMaterialDisponivelSound();
-          speakMaterialDisponivel("Desbobinadeira");
-          setMaterialAlerts(prev => [...prev, { id: Date.now() + Math.random(), message: msg, espessura: esp, cor, count: matchingOps.length, tipo: "bobina" }]);
-        }
+        const espMatch = bEsp === opEsp || bEspAlts.includes(opEsp);
+        const corMatch = !opCor || !bCor || bCor.includes(opCor) || opCor.includes(bCor);
+        return espMatch && corMatch;
       });
-    }
-    prevBobinaCountRef.current = bobinasAlert.length;
 
-    // Verificar novas chapas
-    if (prevChapaCountRef.current !== null && chapasAlert.length > prevChapaCountRef.current) {
-      const novasChapas = chapasAlert.slice(0, chapasAlert.length - prevChapaCountRef.current);
-      novasChapas.forEach(c => {
+      if (bobinaComp) {
+        const chave = `bobina_${opEsp}_${opCor}`;
+        if (!grupos.has(chave)) {
+          grupos.set(chave, {
+            id: chave,
+            tipo: "bobina",
+            titulo: `Bobina ${op.material_espessura || opEsp}${op.material_cor ? ` ${op.material_cor}` : ""}`,
+            subtitulo: `Bobina ${bobinaComp.codigo_bobina || bobinaComp.codigo || ""} disponível`,
+            ops: [op]
+          });
+        } else {
+          grupos.get(chave).ops.push(op);
+        }
+      }
+    });
+
+    // 2. Chapas disponíveis para OPs de Máquinas CD
+    opsMaqAguardando.forEach(op => {
+      const opEsp = normalizeEsp(op.material_espessura);
+
+      const chapaComp = chapasAlert.find(c => {
         const cEsp = normalizeEsp(c.espessura_mm);
         const cEspBobina = normalizeEsp((c.bobina_descricao || "").match(/[\d,]+mm/)?.[0]?.replace("mm", ""));
-
-        const matchingOps = opsMaqAguardando.filter(op => {
-          const opEsp = normalizeEsp(op.material_espessura);
-          return cEsp === opEsp || cEspBobina === opEsp;
-        });
-
-        if (matchingOps.length > 0) {
-          const esp = cEsp || c.espessura_mm || "?";
-          const msg = `Chegou chapa de ${esp}. ${matchingOps.length} OP(s) aguardando liberação!`;
-          playMaterialDisponivelSound();
-          speakMaterialDisponivel("Corte e Dobra");
-          setMaterialAlerts(prev => [...prev, { id: Date.now() + Math.random(), message: msg, espessura: esp, cor: "", count: matchingOps.length, tipo: "chapa" }]);
-        }
+        return cEsp === opEsp || cEspBobina === opEsp;
       });
-    }
-    prevChapaCountRef.current = chapasAlert.length;
-  }, [bobinasAlert.length, chapasAlert.length, opsDesbAguardando, opsMaqAguardando, isGestor]);
 
-  // Total de OPs aguardando material (para o badge)
-  const totalAguardandoMaterial = opsDesbAguardando.length + opsMaqAguardando.length;
+      if (chapaComp) {
+        const chave = `chapa_${opEsp}`;
+        if (!grupos.has(chave)) {
+          grupos.set(chave, {
+            id: chave,
+            tipo: "chapa",
+            titulo: `Chapa de ${op.material_espessura || opEsp}mm`,
+            subtitulo: `Chapas prontas no estoque`,
+            ops: [op]
+          });
+        } else {
+          grupos.get(chave).ops.push(op);
+        }
+      }
+    });
+
+    return Array.from(grupos.values());
+  }, [opsDesbAguardando, opsMaqAguardando, bobinasAlert, chapasAlert, isGestor]);
+
+  // Disparo de notificação não-intrusiva (som + toast) apenas para novos materiais que chegaram
+  useEffect(() => {
+    if (!isGestor) return;
+    const chavesAtuais = new Set(materiaisDisponiveis.map(m => m.id));
+
+    if (prevMaterialKeysRef.current !== null) {
+      const novas = Array.from(chavesAtuais).filter(k => !prevMaterialKeysRef.current.has(k));
+      if (novas.length > 0) {
+        playMaterialDisponivelSound();
+        speakMaterialDisponivel("Corte e Dobra");
+        const itensNovos = materiaisDisponiveis.filter(m => novas.includes(m.id));
+        itensNovos.forEach(item => {
+          toast.success(`📦 Material Disponível no Estoque!`, {
+            description: `${item.titulo} — ${item.ops.length} OP(s) podem ser liberadas!`,
+            duration: 8000,
+            action: {
+              label: "Ver OPs",
+              onClick: () => {
+                window.location.href = "/corte-dobra/producao?tab=sem_material";
+              }
+            }
+          });
+        });
+      }
+    }
+    prevMaterialKeysRef.current = chavesAtuais;
+  }, [materiaisDisponiveis, isGestor]);
 
   // CORTE 3M/6M finalizado sem dobra vinculada → pendente atribuição
   const pendingDobradeira = useMemo(() => {
@@ -198,19 +232,10 @@ export default function AlertBellCD({ user }) {
     return corteFinalizadas.filter(o => !dobraCorteIds.has(o.id));
   }, [ordensMaquina]);
 
-  // Abrir popup automaticamente quando novas OPs precisam atribuição
-  useEffect(() => {
-    if (pendingDobradeira.length > prevPendingCountRef.current) {
-      setPopupOpen(true);
-      setMinimized(false);
-    }
-    prevPendingCountRef.current = pendingDobradeira.length;
-  }, [pendingDobradeira.length]);
-
   if (!isGestor) return null;
 
   const pendingCount = pendingDobradeira.length;
-  const totalAlerts = pendingCount + materialAlerts.length;
+  const totalAlerts = pendingCount + materiaisDisponiveis.length;
 
   return (
     <>
@@ -227,79 +252,130 @@ export default function AlertBellCD({ user }) {
         )}
       </button>
 
-      <button
-        onClick={() => {
-          setPopupOpen(true);
-          setMinimized(false);
-          if (materialAlerts.length > 0) {
-            setMaterialAlerts([]);
-          }
-        }}
-        className="relative p-2 rounded-lg border border-border bg-card hover:bg-muted transition-colors cursor-pointer"
-        title="Alertas de produção"
-      >
-        <Bell className={`w-4 h-4 ${totalAlerts > 0 ? "text-red-500" : "text-muted-foreground"}`} />
-        {totalAlerts > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 animate-pulse">
-            {totalAlerts}
-          </span>
-        )}
-      </button>
-
-      {/* POPUP PROMINENTE — Material disponível (portal para escapar do header) */}
-      {materialAlerts.length > 0 && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={() => setMaterialAlerts([])}>
-          <div
-            className="relative bg-card border-2 border-green-500 rounded-2xl shadow-2xl p-6 w-[90vw] max-w-md animate-in zoom-in-95 duration-300"
-            onClick={e => e.stopPropagation()}
+      <Popover open={bellOpen} onOpenChange={setBellOpen}>
+        <PopoverTrigger asChild>
+          <button
+            className="relative p-2 rounded-lg border border-border bg-card hover:bg-muted transition-colors cursor-pointer"
+            title="Alertas de Produção e Estoque"
           >
-            {/* Barra superior colorida */}
-            <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-green-500 to-emerald-600 rounded-t-2xl" />
+            <Bell className={`w-4 h-4 ${totalAlerts > 0 ? "text-amber-500" : "text-muted-foreground"}`} />
+            {totalAlerts > 0 && (
+              <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 animate-pulse">
+                {totalAlerts}
+              </span>
+            )}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-[340px] sm:w-[420px] p-0 shadow-2xl border border-border bg-card rounded-2xl overflow-hidden z-[100]">
+          {/* Header */}
+          <div className="p-3.5 bg-muted/40 border-b border-border flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bell className="w-4 h-4 text-primary" />
+              <span className="font-bold text-sm text-foreground">Alertas do Corte e Dobra</span>
+            </div>
+            <Badge variant="outline" className={`text-xs font-semibold ${totalAlerts > 0 ? "border-amber-400 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40" : ""}`}>
+              {totalAlerts} pendência(s)
+            </Badge>
+          </div>
 
-            <div className="flex flex-col items-center text-center gap-3 pt-2">
-              <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center animate-pulse">
-                <PackageCheck className="w-8 h-8 text-green-600" />
-              </div>
-              <h3 className="text-xl font-bold text-foreground">MATERIAL DISPONÍVEL!</h3>
-              <p className="text-sm text-muted-foreground">
-                Foram detectados {materialAlerts.length} alerta(s) de material que chegou ao estoque
-              </p>
-
-              <div className="w-full space-y-2 mt-2">
-                {materialAlerts.map(a => (
-                  <div key={a.id} className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-left">
-                    <PackageCheck className="w-4 h-4 text-green-600 flex-shrink-0" />
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-foreground">{a.message}</p>
-                      <p className="text-xs text-muted-foreground">{a.count} OP(s) podem ser liberadas</p>
+          {/* Lista com rolagem controlada */}
+          <div className="max-h-[380px] overflow-y-auto divide-y divide-border p-2 space-y-2">
+            {materiaisDisponiveis.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 px-2 pt-1 flex items-center gap-1.5">
+                  <PackageCheck className="w-3.5 h-3.5" />
+                  Materiais Disponíveis no Estoque ({materiaisDisponiveis.length})
+                </p>
+                {materiaisDisponiveis.map(m => (
+                  <div key={m.id} className="p-2.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-foreground truncate">{m.titulo}</p>
+                      <p className="text-[11px] text-muted-foreground">{m.ops.length} OP(s) podem ser liberadas</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {m.ops.slice(0, 3).map(op => (
+                          <span key={op.id} className="text-[10px] bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200 px-1.5 py-0.5 rounded font-mono font-semibold">
+                            {op.numero_pedido ? `#${op.numero_pedido}` : op.cliente ? op.cliente.slice(0, 12) : "OP"}
+                          </span>
+                        ))}
+                        {m.ops.length > 3 && (
+                          <span className="text-[10px] text-muted-foreground">+{m.ops.length - 3} mais</span>
+                        )}
+                      </div>
                     </div>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shrink-0"
+                      onClick={() => {
+                        setBellOpen(false);
+                        window.location.href = "/corte-dobra/producao?tab=sem_material";
+                      }}
+                    >
+                      Liberar
+                    </Button>
                   </div>
                 ))}
               </div>
+            )}
 
-              <div className="flex gap-2 w-full mt-3">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => setMaterialAlerts([])}
-                >
-                  Fechar
-                </Button>
-                <Button
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                  onClick={() => {
-                    setMaterialAlerts([]);
-                    window.location.href = "/corte-dobra/producao";
-                  }}
-                >
-                  Ver OPs
-                </Button>
+            {pendingDobradeira.length > 0 && (
+              <div className="space-y-1.5 pt-2">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 px-2 flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5" />
+                  Cortes Concluídos — Vincular Dobra ({pendingDobradeira.length})
+                </p>
+                <div className="p-2.5 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 flex items-center justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-foreground">{pendingDobradeira.length} corte(s) finalizados</p>
+                    <p className="text-[11px] text-muted-foreground">Necessitam selecionar a máquina de dobra</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs border-amber-400 text-amber-700 dark:text-amber-300 hover:bg-amber-100 shrink-0 font-semibold"
+                    onClick={() => {
+                      setBellOpen(false);
+                      setPopupOpen(true);
+                    }}
+                  >
+                    Atribuir
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
+
+            {totalAlerts === 0 && (
+              <div className="py-8 text-center text-muted-foreground">
+                <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-500 mb-2 opacity-80" />
+                <p className="text-xs font-semibold text-foreground">Tudo em dia!</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Nenhum alerta de material ou máquina pendente.</p>
+              </div>
+            )}
           </div>
-        </div>,
-        document.body
-      )}
+
+          {/* Footer */}
+          <div className="p-2.5 bg-muted/30 border-t border-border flex items-center justify-between gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs h-7 text-muted-foreground hover:text-foreground"
+              onClick={() => setBellOpen(false)}
+            >
+              Fechar
+            </Button>
+            <Button
+              size="sm"
+              className="text-xs h-7 gap-1 font-semibold"
+              onClick={() => {
+                setBellOpen(false);
+                window.location.href = "/corte-dobra/producao";
+              }}
+            >
+              Ir para Produção
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </PopoverContent>
+      </Popover>
 
       {/* Badge vermelho flutuante quando minimizado */}
       {minimized && pendingCount > 0 && (

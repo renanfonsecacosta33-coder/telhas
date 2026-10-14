@@ -72,6 +72,10 @@ export default function ProducaoCD() {
   const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
   const [viewMode, setViewMode] = useState(() => {
     try {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get("tab");
+      if (tabParam === "sem_material" || tabParam === "sem-material") return "sem_material";
+      if (tabParam === "fila_pcp" || tabParam === "fila-pcp") return "fila_pcp";
       const saved = localStorage.getItem("ajl_viewmode_corte_dobra");
       if (saved === "tabela") return "tabela";
       if (saved === "kanban") return "kanban";
@@ -79,6 +83,14 @@ export default function ProducaoCD() {
     } catch {}
     return "maquinas";
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get("tab");
+    if (tabParam === "sem_material" || tabParam === "sem-material") {
+      setViewMode("sem_material");
+    }
+  }, []);
   const [pedidoHistoricoNumero, setPedidoHistoricoNumero] = useState(null);
   const [zoom, setZoom] = useState("normal"); // compacto | normal | grande
   const [buscaPedido, setBuscaPedido] = useState("");
