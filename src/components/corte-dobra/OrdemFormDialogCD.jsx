@@ -21,6 +21,7 @@ import { useTolerancias } from "@/hooks/useTolerancias";
 import { getBobinaStatus, calcMetrosDisponiveis } from "@/lib/bobinaStatusHelper";
 import { validarBobina, filtrarBobinasCompativeis } from "@/lib/bobinaValidation";
 import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
+import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 
 const MAQUINAS_INICIAIS = [
   { id: "DESBOBINADEIRA 01", label: "Desbobinadeira 01 (até 3,00mm)", icon: Layers },
@@ -256,8 +257,13 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
       if (m === "DESBOBINADEIRA") return "DESBOBINADEIRA 01";
       return m;
     };
-
     if (editItem) {
+      const textoPecaEdit = `${editItem.observacoes || ""} ${editItem.dimensoes_livres || ""} ${editItem.tipo_peca || ""}`;
+      const specEdit = extrairEspecificacao(textoPecaEdit, editItem.quantidade);
+      const compMmInicial = (editItem.comprimento_mm && Number(editItem.comprimento_mm) > 300)
+        ? editItem.comprimento_mm
+        : (specEdit?.comprimento_mm && specEdit.comprimento_mm > 300 ? specEdit.comprimento_mm : (editItem.comprimento_mm || ""));
+
       setForm({
         data: editItem.data || format(new Date(), "yyyy-MM-dd"),
         maquina_inicial: resolverMaq(editItem.maquina_inicial || editItem.maquina),
@@ -265,7 +271,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         chapa_cd_id: editItem.chapa_cd_id || "",
         tipo_peca: editItem.tipo_peca || "",
         dimensoes_livres: editItem.dimensoes_livres || "",
-        comprimento_mm: editItem.comprimento_mm || "",
+        comprimento_mm: compMmInicial,
         quantidade: editItem.quantidade || "",
         destino: editItem.destino || "estoque",
         numero_pedido: editItem.numero_pedido || "",

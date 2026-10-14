@@ -93,36 +93,103 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
   const isMaquinaPadrao = isCorte || isDobra;
   const maxComprimento = form.maquina?.includes("3M") ? 3000 : form.maquina?.includes("6M") ? 6000 : 99999;
 
-  // Bobinas do estoque de Corte e Dobra (busca tolerante: sem falha por unidade ou casing)
-  const { data: bobinasCD = [] } = useQuery({
+  // Bobinas ativas do estoque da fábrica (busca abrangente e tolerante)
+  const { data: todasBobinasRaw = [] } = useQuery({
     queryKey: ["bobinas-cd-estoque", unidadeConsulta],
     queryFn: async () => {
       let bobs = [];
       try {
-        const res = await base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false }, "-created_date", 2000);
+        const res = await base44.entities.Bobina.list("-created_date", 2000);
         if (Array.isArray(res) && res.length > 0) bobs = res;
       } catch (e1) {
-        console.warn("[OrdemMaquinaFormDialog] Falha ao filtrar Bobina setor corte_dobra:", e1);
+        console.warn("[OrdemMaquinaFormDialog] Falha ao listar Bobinas:", e1);
       }
       if (bobs.length === 0) {
         try {
-          const res = await base44.entities.Bobina.list("-created_date", 2000);
-          if (Array.isArray(res)) {
-            bobs = res.filter(b => !b.arquivada && (b.setor === "corte_dobra" || /(chapa|cd|corte|dobra|bobininha|slitter)/i.test(`${b.qualidade || ""} ${b.descricao || ""}`)));
-          }
+          const res = await base44.entities.Bobina.filter({}, "-created_date", 2000);
+          if (Array.isArray(res) && res.length > 0) bobs = res;
         } catch (e2) {}
       }
-      if (!unidadeConsulta || unidadeConsulta === "todas") return bobs;
+
+      // Filtra apenas bobinas ativas (não arquivadas nem descartadas nem encerradas)
+      const ativas = bobs.filter(b => {
+        if (!b) return false;
+        if (b.arquivada) return false;
+        const st = String(b.status || "").toLowerCase().trim();
+        if (["arquivada", "arquivado", "descartada", "descartado", "encerrada", "encerrado", "zerada"].includes(st)) return false;
+        return true;
+      });
+
+      if (!unidadeConsulta || unidadeConsulta === "todas") return ativas;
       const fn = String(unidadeConsulta).trim().toLowerCase();
-      const filtradas = bobs.filter(b => {
-        if (!b.unidade) return true; // Bobina sem unidade atribuída fica disponível
+      const filtradas = ativas.filter(b => {
+        if (!b.unidade) return true; // Bobina sem unidade atribuída fica disponível na matriz/geral
         const u = String(b.unidade).trim().toLowerCase();
         return u === fn || (fn.includes("matriz") && u.includes("matriz"));
       });
-      return filtradas.length > 0 ? filtradas : bobs;
+      return filtradas.length > 0 ? filtradas : ativas;
     },
     enabled: open && form.maquina !== "PERFILADEIRA",
   });
+
+  // Espessura numérica desejada para o pedido
+  const espessuraDesejada = useMemo(() => {
+    let esp = parseFloat(String(form.material_espessura || "").replace(",", "."));
+    if (isNaN(esp) && produtoFixo) {
+      const m = String(produtoFixo).match(/([0-9]+[.,][0-9]{1,2})/);
+      if (m) esp = parseFloat(m[1].replace(",", "."));
+    }
+    return isNaN(esp) ? null : esp;
+  }, [form.material_espessura, produtoFixo]);
+
+  // Lista ordenada de bobinas:
+  // 1. Bobinas com a mesma espessura e material do pedido (Recomendadas)
+  // 2. Bobinas com a mesma espessura do pedido
+  // 3. Demais bobinas ativas ordenadas por espessura e código
+  const bobinasCD = useMemo(() => {
+    if (!todasBobinasRaw || todasBobinasRaw.length === 0) return [];
+
+    const pProd = (produtoFixo || "").toUpperCase();
+
+    const parseEspBobina = (b) => {
+      const raw = b.chapa || b.espessura_real || b.espessura_mm || b.espessura_utilizada || "";
+      const n = parseFloat(String(raw).replace(",", "."));
+      return isNaN(n) ? null : n;
+    };
+
+    return [...todasBobinasRaw].sort((a, b) => {
+      const espA = parseEspBobina(a);
+      const espB = parseEspBobina(b);
+
+      if (espessuraDesejada != null) {
+        const diffA = espA != null ? Math.abs(espA - espessuraDesejada) : 999;
+        const diffB = espB != null ? Math.abs(espB - espessuraDesejada) : 999;
+
+        const isCompativelA = diffA <= 0.05;
+        const isCompativelB = diffB <= 0.05;
+
+        // Se uma for compatível e a outra não
+        if (isCompativelA && !isCompativelB) return -1;
+        if (!isCompativelA && isCompativelB) return 1;
+
+        // Se ambas forem compatíveis em espessura, prioriza material (GI/GV, FQ, FF)
+        if (isCompativelA && isCompativelB) {
+          const qualA = (a.qualidade || a.cor || "").toUpperCase();
+          const qualB = (b.qualidade || b.cor || "").toUpperCase();
+          const matchMatA = (pProd.includes("GI") || pProd.includes("GALV")) ? (qualA.includes("GI") || qualA.includes("GV") || qualA.includes("GL")) : true;
+          const matchMatB = (pProd.includes("GI") || pProd.includes("GALV")) ? (qualB.includes("GI") || qualB.includes("GV") || qualB.includes("GL")) : true;
+          if (matchMatA && !matchMatB) return -1;
+          if (!matchMatA && matchMatB) return 1;
+        }
+
+        // Se nenhuma for compatível exata, ordena pela proximidade da espessura
+        if (diffA !== diffB) return diffA - diffB;
+      }
+
+      // Ordenação padrão por código
+      return String(a.codigo || "").localeCompare(String(b.codigo || ""), undefined, { numeric: true });
+    });
+  }, [todasBobinasRaw, espessuraDesejada, produtoFixo]);
 
   const filiaisHook = filialAtiva === "todas" ? null : [filialAtiva];
   const { preBaixaMap } = usePreBaixaBobinas("corte_dobra", filiaisHook);
@@ -267,7 +334,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
       setForm({
         data: defaultDate || format(new Date(), "yyyy-MM-dd"),
         maquina: maquinaProp || "",
-        chapa_origem: maquinaProp === "PERFILADEIRA" ? "direto" : "chaparia",
+        chapa_origem: (maquinaProp === "PERFILADEIRA" || maquinaProp?.startsWith("DESBOBINADEIRA")) ? "direto" : "chaparia",
         chapa_cd_id: "",
         bobina_id: "",
         tipo_peca: "",
@@ -344,24 +411,28 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
       }
     }
 
-    // 3. Se não tiver bobina selecionada, busca bobina compatível no estoque
-    if (!form.bobina_id && bobinasCD.length > 0 && !isNaN(esp)) {
+    // 3. Se não tiver bobina selecionada, busca bobina compatível no estoque (ordem recomendada)
+    if (!form.bobina_id && bobinasCD.length > 0) {
       const pProd = (produtoFixo || "").toUpperCase();
       const compativel = bobinasCD.find(b => {
-        const bEsp = parseFloat(String(b.espessura_mm || b.espessura_utilizada || "").replace(",", "."));
-        if (isNaN(bEsp) || Math.abs(bEsp - esp) > 0.15) return false;
+        const bEsp = parseFloat(String(b.chapa || b.espessura_real || b.espessura_mm || b.espessura_utilizada || "").replace(",", "."));
+        if (espessuraDesejada != null && (isNaN(bEsp) || Math.abs(bEsp - espessuraDesejada) > 0.05)) return false;
         const bQual = (b.qualidade || b.cor || "").toUpperCase();
-        if ((pProd.includes("GI") || pProd.includes("GALV")) && !bQual.includes("GI") && !bQual.includes("GALV")) return false;
+        if ((pProd.includes("GI") || pProd.includes("GALV")) && !bQual.includes("GI") && !bQual.includes("GV") && !bQual.includes("GL")) return false;
         if (pProd.includes("FQ") && !bQual.includes("FQ")) return false;
         if (pProd.includes("FF") && !bQual.includes("FF")) return false;
         return true;
       }) || bobinasCD.find(b => {
-        const bEsp = parseFloat(String(b.espessura_mm || b.espessura_utilizada || "").replace(",", "."));
-        return !isNaN(bEsp) && Math.abs(bEsp - esp) <= 0.15;
-      });
+        const bEsp = parseFloat(String(b.chapa || b.espessura_real || b.espessura_mm || b.espessura_utilizada || "").replace(",", "."));
+        return espessuraDesejada != null && !isNaN(bEsp) && Math.abs(bEsp - espessuraDesejada) <= 0.05;
+      }) || bobinasCD[0];
 
       if (compativel) {
         set("bobina_id", compativel.id);
+        const bEspStr = compativel.chapa || compativel.espessura_real || compativel.espessura_mm || compativel.espessura_utilizada || "";
+        if (bEspStr && !form.material_espessura) {
+          set("material_espessura", bEspStr);
+        }
       }
     }
 
@@ -1108,37 +1179,54 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
                       set("bobina_id", v);
                       const b = bobinasCD.find(x => x.id === v);
                       if (b) {
-                        set("material_espessura", b.espessura_mm || b.espessura_utilizada || "");
+                        const bEspStr = b.chapa || b.espessura_real || b.espessura_mm || b.espessura_utilizada || "";
+                        if (bEspStr) set("material_espessura", bEspStr);
                       }
                     }}
                   >
                     <SelectTrigger className="font-medium bg-background">
-                      <SelectValue placeholder="Selecione a bobina de corte e dobra..." />
+                      <SelectValue placeholder="Selecione a bobina..." />
                     </SelectTrigger>
                     <SelectContent className="max-h-64">
-                      {bobinasCD.map(b => (
-                        <SelectItem key={b.id} value={b.id} className="py-2 cursor-pointer">
-                          <div className="flex items-center justify-between gap-2 w-full pr-2">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-mono font-bold text-primary">[{b.codigo || "—"}]</span>
-                              <span className="font-semibold">{b.qualidade || b.cor || "Bobina"}</span>
-                              <span className="text-muted-foreground text-xs">{b.espessura_mm || b.espessura_utilizada}mm</span>
-                              <span className="text-green-600 font-bold text-xs">· {Number(b.peso_kg || b.peso_atual || 0).toLocaleString("pt-BR")}kg</span>
-                              {b.unidade && <span className="text-[10px] text-muted-foreground bg-muted px-1 rounded">{b.unidade}</span>}
+                      {bobinasCD.map(b => {
+                        const bEspStr = b.chapa || b.espessura_real || b.espessura_mm || b.espessura_utilizada || "";
+                        const bEspNum = parseFloat(String(bEspStr).replace(",", "."));
+                        const isRecomendada = espessuraDesejada != null && bEspNum != null && Math.abs(bEspNum - espessuraDesejada) <= 0.05;
+                        const pesoDisp = Number(b.peso_kg || b.peso_atual || b.peso_liquido || 0);
+
+                        return (
+                          <SelectItem key={b.id} value={b.id} className="py-2 cursor-pointer">
+                            <div className="flex items-center justify-between gap-2 w-full pr-2">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-mono font-bold text-primary">[{b.codigo || "—"}]</span>
+                                <span className="font-semibold">{b.qualidade || b.cor || "Bobina"}</span>
+                                {bEspStr && (
+                                  <span className="text-muted-foreground text-xs">{bEspStr}mm</span>
+                                )}
+                                {pesoDisp > 0 && (
+                                  <span className="text-green-600 font-bold text-xs">· {pesoDisp.toLocaleString("pt-BR")}kg</span>
+                                )}
+                                {b.unidade && <span className="text-[10px] text-muted-foreground bg-muted px-1 rounded">{b.unidade}</span>}
+                                {isRecomendada && (
+                                  <span className="text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 font-bold px-1.5 py-0.5 rounded-full">
+                                    ★ Compatível {bEspStr}mm
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        </SelectItem>
-                      ))}
+                          </SelectItem>
+                        );
+                      })}
                       {bobinasCD.length === 0 && (
-                        <SelectItem value="_vazio" disabled>Nenhuma bobina de C&D cadastrada no estoque</SelectItem>
+                        <SelectItem value="_vazio" disabled>Nenhuma bobina disponível no estoque</SelectItem>
                       )}
                     </SelectContent>
                   </Select>
                   {bobinaObj && (
                     <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800/40 rounded-lg px-3 py-2 text-xs flex flex-wrap gap-3 text-orange-800 dark:text-orange-300">
-                      <span>Bobina: <strong>[{bobinaObj.codigo || "—"}] {bobinaObj.qualidade || ""}</strong></span>
-                      <span>Espessura: <strong>{bobinaObj.espessura_mm || bobinaObj.espessura_utilizada}mm</strong></span>
-                      <span>Peso Disponível: <strong>{Number(bobinaObj.peso_kg || bobinaObj.peso_atual || 0).toLocaleString("pt-BR")}kg</strong></span>
+                      <span>Bobina: <strong>[{bobinaObj.codigo || "—"}] {bobinaObj.qualidade || bobinaObj.cor || ""}</strong></span>
+                      <span>Espessura: <strong>{bobinaObj.chapa || bobinaObj.espessura_real || bobinaObj.espessura_mm || bobinaObj.espessura_utilizada || "—"}mm</strong></span>
+                      <span>Peso Disponível: <strong>{Number(bobinaObj.peso_kg || bobinaObj.peso_atual || bobinaObj.peso_liquido || 0).toLocaleString("pt-BR")}kg</strong></span>
                       {bobinaObj.unidade && <span>Unidade: <strong>{bobinaObj.unidade}</strong></span>}
                     </div>
                   )}

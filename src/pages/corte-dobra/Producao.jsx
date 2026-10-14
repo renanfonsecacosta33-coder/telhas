@@ -634,15 +634,23 @@ export default function ProducaoCD() {
         tipo_peca: data.tipo_peca || "Blank",
         dimensoes_livres: data.dimensoes_livres || "",
         comprimento_mm: (() => {
-          // 1º: campo explícito do formulário; 2º: extrai o comprimento de "1200x3000" (última medida); 3º: OP original; 4º: padrão 3000
-          if (data.comprimento_mm && Number(data.comprimento_mm) > 0) return Number(data.comprimento_mm);
+          // 1º: campo explícito do formulário se for corte válido (> 300mm)
+          if (data.comprimento_mm && Number(data.comprimento_mm) > 300) return Number(data.comprimento_mm);
+          
+          // 2º: extração inteligente da observação/dimensões (ex: "PERFIL U 25X200X25 C/4700 MM" -> 4700mm)
+          const textoPeca = `${data.observacoes || ""} ${data.dimensoes_livres || ""} ${data.tipo_peca || ""}`;
+          const spec = extrairEspecificacao(textoPeca, data.quantidade);
+          if (spec?.comprimento_mm && spec.comprimento_mm > 300) return spec.comprimento_mm;
+
+          // 3º: extrai o comprimento de "1200x3000" (última medida se > 300)
           const dim = String(data.dimensoes_livres || "").trim();
           if (dim) {
             const partes = dim.match(/(\d+[.,]?\d*)\s*[x×]\s*(\d+[.,]?\d*)/i);
-            if (partes) return parseFloat(partes[2].replace(",", ".")) || 3000;
-            const m = dim.match(/(\d+[.,]?\d*)/);
-            if (m) return parseFloat(m[1].replace(",", ".")) || 3000;
+            if (partes && parseFloat(partes[2]) > 300) return parseFloat(partes[2].replace(",", "."));
+            const m = dim.match(/\b([1-9]\d{3,4})\b/);
+            if (m) return parseFloat(m[1].replace(",", "."));
           }
+          if (data.comprimento_mm && Number(data.comprimento_mm) > 0) return Number(data.comprimento_mm);
           return editMaq?.comprimento_mm || 3000;
         })(),
         quantidade: Number(data.quantidade),

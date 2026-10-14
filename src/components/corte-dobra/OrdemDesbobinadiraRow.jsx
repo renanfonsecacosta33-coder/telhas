@@ -25,6 +25,7 @@ import { comprimirImagemParaUpload } from "@/lib/compressImage";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import { getEspessuraNumeroDesb, isAbaixoDoMinimoDesbobinadeira02, ESPESSURA_MINIMA_DESBOBINADEIRA_02 } from "@/lib/regrasFabrica";
 import { useRegrasProducao } from "@/lib/regrasProducao";
+import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -57,7 +58,7 @@ const ZOOM_CFG = {
   grande:   { card: "p-5",   title: "text-lg", info: "text-base", badge: "text-sm", cronText: "text-base", cronLabel: "text-sm", cronPad: "px-4 py-2.5", btn: "h-10 text-sm", obs: "text-sm py-2", gap: "gap-2.5", mb: "mb-3" },
 };
 
-export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "normal", ordens = [], pedidoSeq, bobinaCustoMap = {}, user, chapaVinculada, onGerarChapa }) {
+export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "normal", ordens = [], pedidoSeq, bobinaCustoMap = {}, user, chapaVinculada, onGerarChapa, bobinas = [] }) {
   const regras = useRegrasProducao();
   const z = ZOOM_CFG[zoom] || ZOOM_CFG.normal;
   const [pauseDialog, setPauseDialog] = useState(false);
@@ -79,9 +80,103 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
   const [confirmarCancelarOpen, setConfirmarCancelarOpen] = useState(false);
   const [senhaDesb02Open, setSenhaDesb02Open] = useState(false);
 
+  // ── RESOLUÇÃO INTELIGENTE DE ESPECIFICAÇÃO TÉCNICA E ESPESSURA ──
+  const textoPecaCompleto = [o.observacoes, o.tipo_peca, o.dimensoes_livres].filter(Boolean).join(" ");
+  const specTec = useMemo(() => {
+    return extrairEspecificacao(textoPecaCompleto, o.quantidade);
+  }, [textoPecaCompleto, o.quantidade]);
+
+  // Espessura da Bobina / Material com busca profunda e fallback inteligente
+  const { espessuraFinal, espessuraOrigem } = useMemo(() => {
+    // 1. Campo explícito espessura_utilizada na ordem
+    const espDireta = String(o.espessura_utilizada || "").replace("mm", "").trim();
+    if (espDireta && !isNaN(parseFloat(espDireta.replace(",", ".")))) {
+      return { espessuraFinal: espDireta, espessuraOrigem: "bobina" };
+    }
+
+    // 2. Busca na bobina vinculada via bobinas (prop)
+    if (o.bobina_id && Array.isArray(bobinas) && bobinas.length > 0) {
+      const bVinculada = bobinas.find(b => b.id === o.bobina_id);
+      if (bVinculada) {
+        const espB = String(bVinculada.espessura_utilizada || bVinculada.chapa || bVinculada.espessura_real || "").replace("mm", "").trim();
+        if (espB && !isNaN(parseFloat(espB.replace(",", ".")))) {
+          return { espessuraFinal: espB, espessuraOrigem: "bobina" };
+        }
+      }
+    }
+
+    // 3. Procura na bobina_descricao (ex: "[CD0207] • 1,83 • Galvanizado")
+    if (o.bobina_descricao) {
+      const mDesc = String(o.bobina_descricao).match(/\b(\d+[.,]\d+)\s*(?:mm)?\b/);
+      if (mDesc) {
+        return { espessuraFinal: mDesc[1].replace(".", ","), espessuraOrigem: "bobina_texto" };
+      }
+    }
+
+    // 4. Extrai da descrição/observação da peça (ex: "CHAPA 14", "1,95", "PERFIL U 25X200X25")
+    const mPecaEsp = textoPecaCompleto.match(/\b(\d+[.,]\d+)\s*(?:mm|chapa|ch)?\b/i);
+    if (mPecaEsp) {
+      return { espessuraFinal: mPecaEsp[1].replace(".", ","), espessuraOrigem: "pedido" };
+    }
+
+    // 5. Bitola ou calibre comercial (#14 -> 1,95mm, #16 -> 1,55mm, etc.)
+    const mGauge = textoPecaCompleto.match(/(?:#|msg\s*#?|ch\s*#?|chapa\s*#?)\s*(1[2-9]|2[0-8])\b/i);
+    const GAUGE_MAP = { "12": "2,65", "13": "2,25", "14": "1,95", "16": "1,55", "18": "1,25", "19": "1,11", "20": "0,90", "22": "0,75", "24": "0,65", "26": "0,45", "28": "0,40" };
+    if (mGauge && GAUGE_MAP[mGauge[1]]) {
+      return { espessuraFinal: GAUGE_MAP[mGauge[1]], espessuraOrigem: "pedido" };
+    }
+
+    return { espessuraFinal: null, espessuraOrigem: null };
+  }, [o.espessura_utilizada, o.bobina_id, o.bobina_descricao, bobinas, textoPecaCompleto]);
+
+  // Limpeza da descrição da bobina (remove "GV mm" quebrado e sufixos incorretos)
+  const bobinaDescricaoLimpa = useMemo(() => {
+    if (!o.bobina_descricao) return "Bobina";
+    let desc = String(o.bobina_descricao).trim();
+    // Remove "mm" isolado ou no final
+    desc = desc.replace(/\bmm\b/gi, "").replace(/\s*·\s*$/, "").trim();
+    // Substitui "GV" por "Galvanizado"
+    desc = desc.replace(/\bGV\b/g, "Galvanizado");
+    return desc || "Bobina";
+  }, [o.bobina_descricao]);
+
+  // Medidas de Corte e Demanda do Desbobinador
+  const { comprimentoCorteMm, desenvMm, abasFmt, metragemTotalM, pesoEstimadoKg } = useMemo(() => {
+    let compMm = Number(o.comprimento_mm) || 0;
+    // Se o valor gravado foi muito pequeno (<= 300mm, ex: 25mm capturado de uma aba), corrige pelo comprimento real
+    if (compMm <= 300 && specTec.comprimento_mm && specTec.comprimento_mm > 300) {
+      compMm = specTec.comprimento_mm;
+    } else if (compMm <= 0 && specTec.comprimento_mm) {
+      compMm = specTec.comprimento_mm;
+    }
+    if (compMm <= 0) compMm = 3000; // Padrão industrial
+
+    const desenv = specTec.desenvolvimento_mm || (o.largura_mm ? Number(o.largura_mm) : null);
+    const abasStr = specTec.abas && specTec.abas.length > 0 ? specTec.abas.join("×") + " mm" : null;
+
+    const qtd = Number(o.quantidade) || 1;
+    const totalM = +((qtd * compMm) / 1000).toFixed(1);
+
+    // Cálculo físico do peso
+    let pesoKg = o.kg_estimado && o.kg_estimado > 50 ? o.kg_estimado : null;
+    if (!pesoKg || (Number(o.comprimento_mm) <= 300 && compMm > 300)) {
+      const largM = desenv ? desenv / 1000 : (o.tamanho_corte_guilhotina ? Number(o.tamanho_corte_guilhotina) / 1000 : 1.2);
+      const espFloat = parseFloat(String(espessuraFinal || "1.95").replace(",", ".")) || 1.95;
+      pesoKg = Math.round(totalM * largM * espFloat * 7.85);
+    }
+
+    return {
+      comprimentoCorteMm: compMm,
+      desenvMm: desenv,
+      abasFmt: abasStr,
+      metragemTotalM: totalM,
+      pesoEstimadoKg: pesoKg || o.kg_estimado || 0
+    };
+  }, [o.comprimento_mm, o.quantidade, o.largura_mm, o.tamanho_corte_guilhotina, o.kg_estimado, specTec, espessuraFinal]);
+
   // Validação estrita de espessura mínima da Desbobinadeira 02 (mínimo: 0,80mm)
-  const espNum = getEspessuraNumeroDesb(o);
-  const isAbaixoMinimo02 = isAbaixoDoMinimoDesbobinadeira02(o);
+  const espNum = getEspessuraNumeroDesb(o) || (espessuraFinal ? parseFloat(espessuraFinal.replace(",", ".")) : null);
+  const isAbaixoMinimo02 = isAbaixoDoMinimoDesbobinadeira02(o) || (o.maquina === "DESBOBINADEIRA 02" && espNum !== null && espNum < (ESPESSURA_MINIMA_DESBOBINADEIRA_02 - 0.005));
 
   useEffect(() => {
     const iv = setInterval(() => setTick(t => t + 1), 1000);
@@ -449,11 +544,16 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                   <AlertCircle className="w-3 h-3 mr-0.5" /> RETRABALHO{o.retrabalho_etapa > 1 ? ` E${o.retrabalho_etapa}` : ""}
                 </Badge>
               )}
-              <span className={`font-bold ${z.title} font-mono ${etpCor ? etpCor.text : "text-orange-600"}`}>{o.bobina_descricao || "Bobina"}</span>
-              {o.espessura_utilizada && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                  <CorChapaDot espessura={o.espessura_utilizada} size="xs" />
-                  <Layers className="w-3 h-3" /> {o.espessura_utilizada}mm
+              <span className={`font-black ${z.title} font-mono ${etpCor ? etpCor.text : "text-orange-600 dark:text-orange-400"}`}>{bobinaDescricaoLimpa}</span>
+              {espessuraFinal && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs sm:text-sm font-black bg-blue-600 dark:bg-blue-600 text-white shadow-xs tracking-wide">
+                  <CorChapaDot espessura={espessuraFinal} size="sm" />
+                  <Layers className="w-4 h-4 shrink-0" /> ESPESSURA: {espessuraFinal} mm
+                </span>
+              )}
+              {espessuraOrigem === "pedido" && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-700" title="A bobina no estoque estava sem espessura cadastrada. Espessura identificada pelas especificações do pedido.">
+                  ⚠️ Espessura detectada pelo pedido
                 </span>
               )}
               {isAbaixoMinimo02 && (
@@ -477,13 +577,72 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                 </span>
               </div>
             )}
-            <div className={`flex flex-wrap gap-x-4 gap-y-0.5 ${z.info} text-muted-foreground`}>
-              {o.quantidade > 0 && <span className="font-semibold text-foreground">{o.quantidade} peças</span>}
-              {o.comprimento_mm > 0 && <span>{o.comprimento_mm}mm de corte</span>}
-              {o.kg_estimado > 0 && (
-                <span className="font-semibold text-emerald-700">≈ {o.kg_estimado.toFixed(1)} kg</span>
+
+            {/* Grade de Produção em Alta Visibilidade para o Desbobinador */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2 my-2.5 p-2.5 rounded-xl bg-orange-50/70 dark:bg-orange-950/20 border-2 border-orange-200/80 dark:border-orange-800/60 shadow-2xs">
+              {/* Comprimento de Corte */}
+              <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-orange-300 dark:border-orange-700 shadow-2xs">
+                <span className="text-[10px] font-black uppercase text-orange-600 dark:text-orange-400 tracking-wider">Corte / Avanço</span>
+                <span className="text-base sm:text-lg font-black font-mono text-slate-900 dark:text-white leading-tight">
+                  {comprimentoCorteMm.toLocaleString("pt-BR")} mm
+                </span>
+                <span className="text-[10px] text-muted-foreground font-semibold">({(comprimentoCorteMm / 1000).toFixed(2)} metros)</span>
+              </div>
+
+              {/* Quantidade a Desbobinar */}
+              <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
+                <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Quantidade</span>
+                <span className="text-base sm:text-lg font-black font-mono text-foreground leading-tight">
+                  {o.quantidade} {o.quantidade === 1 ? "chapa" : "chapas"}
+                </span>
+                <span className="text-[10px] text-muted-foreground font-semibold">a cortar</span>
+              </div>
+
+              {/* Desenvolvimento / Largura */}
+              {desenvMm && (
+                <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900 shadow-2xs">
+                  <span className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 tracking-wider">Largura / Desenv</span>
+                  <span className="text-base sm:text-lg font-black font-mono text-blue-700 dark:text-blue-300 leading-tight">
+                    {desenvMm} mm
+                  </span>
+                  <span className="text-[10px] text-muted-foreground font-semibold truncate" title={abasFmt || "largura"}>
+                    {abasFmt ? abasFmt : "corte blank"}
+                  </span>
+                </div>
               )}
+
+              {/* Metragem Total Bobina */}
+              <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-900 shadow-2xs">
+                <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider">Consumo Bobina</span>
+                <span className="text-base sm:text-lg font-black font-mono text-emerald-700 dark:text-emerald-300 leading-tight">
+                  {metragemTotalM} m
+                </span>
+                <span className="text-[10px] text-muted-foreground font-semibold">linear total</span>
+              </div>
+
+              {/* Peso Teórico Real */}
+              <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs col-span-2 sm:col-span-1">
+                <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Peso Teórico</span>
+                <span className="text-base sm:text-lg font-black font-mono text-slate-900 dark:text-slate-100 leading-tight">
+                  ≈ {pesoEstimadoKg.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg
+                </span>
+                <span className="text-[10px] text-muted-foreground font-semibold">massa de aço</span>
+              </div>
             </div>
+
+            {/* Etiqueta Técnica do Produto / Perfil se detectada */}
+            {specTec?.tipo_label && (
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-black bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-300 dark:border-blue-700 font-mono">
+                  📦 {specTec.tipo_label}
+                </span>
+                {specTec.resumo_formatado && (
+                  <span className="text-xs text-muted-foreground font-semibold">
+                    {specTec.resumo_formatado}
+                  </span>
+                )}
+              </div>
+            )}
             {/* Pedido e Cliente em Alto Destaque */}
             {(o.numero_pedido || o.cliente) && (
               <div className="flex flex-wrap items-center gap-2 my-1.5 p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/80 shadow-xs">
