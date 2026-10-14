@@ -4,9 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Trash2, Layers, ShoppingCart, User, AlertTriangle, Ban } from "lucide-react";
-import UploadButton from "@/components/ui/UploadButton";
+import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers, Image as ImageIcon, ScanLine, ShoppingCart, User, AlertTriangle, Ban, Truck, Zap } from "lucide-react";
 import { format } from "date-fns";
 import { formatarDataSegura } from "@/lib/formatData";
 import { base44 } from "@/api/base44Client";
@@ -18,7 +16,13 @@ import ValidacaoEtiquetaDialog from "@/components/corte-dobra/ValidacaoEtiquetaD
 import DualPhotoGallery from "@/components/corte-dobra/DualPhotoGallery";
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
 import ApontamentoOpButton from "@/components/producao/ApontamentoOpButton";
-import { PrioridadeBadge } from "@/lib/prioridadeHelper";
+import {
+  PrioridadeBadge,
+  BannerPrioridadeDestaque,
+  isPedidoRetiraAgora,
+  isPedidoRota,
+  getCardPrioridadeClasses
+} from "@/lib/prioridadeHelper";
 import SmartImage from "@/components/ui/SmartImage";
 import { comprimirImagemParaUpload } from "@/lib/compressImage";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
@@ -530,10 +534,16 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
 
   const retrabalho = o.is_retrabalho;
   const etpCor = retrabalho ? getEtapaColor(o.retrabalho_etapa) : null;
+  const cardPrioCls = getCardPrioridadeClasses(o);
+  const ehRetira = isPedidoRetiraAgora(o);
+  const ehRota = isPedidoRota(o);
 
   return (
     <>
-      <div className={`border-l-4 ${etpCor ? etpCor.border : "border-l-orange-400"} ${etpCor ? etpCor.bg : "bg-white"} rounded-xl ${z.card} shadow-sm hover:shadow-md transition-shadow`}>
+      <div className={`border-l-4 ${cardPrioCls || (etpCor ? etpCor.border : "border-l-orange-400")} ${etpCor ? etpCor.bg : "bg-white"} rounded-xl ${z.card} shadow-sm hover:shadow-md transition-all`}>
+        {/* Banner de Prioridade Destaque Máximo */}
+        <BannerPrioridadeDestaque pedido={o} />
+
         {/* Header */}
         <div className={`flex items-start justify-between ${z.gap} ${z.mb}`}>
           <div className="flex-1 min-w-0">
@@ -563,6 +573,11 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               )}
               <StatusBadge status={o.status} />
               <PrioridadeBadge pedido={o} />
+              {ehRota && !ehRetira && (
+                <Badge className="bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-400 text-xs gap-1.5 font-black shadow-xs tracking-wide">
+                  <Truck className="w-3.5 h-3.5" /> 🚚 CARGA DE ROTA
+                </Badge>
+              )}
               {o.data < format(new Date(), "yyyy-MM-dd") && o.status !== "finalizado" && o.status !== "cancelado" && (
                 <Badge className="bg-red-500 text-white border-red-600 animate-pulse text-xs">⚠️ Prioridade (Dia Anterior)</Badge>
               )}

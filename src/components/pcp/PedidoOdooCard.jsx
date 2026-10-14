@@ -17,8 +17,14 @@ import CroquiThumb from "@/components/pcp/CroquiThumb";
 import PedidoItensLista from "@/components/pcp/PedidoItensLista";
 import LocalizacaoStatusHero from "@/components/pcp/LocalizacaoStatusHero";
 import { notificarStatus } from "@/lib/biNotificador";
-import { toast } from "sonner";
-import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelper";
+import {
+  SeletorPrioridadeDropdown,
+  PrioridadeBadge,
+  BannerPrioridadeDestaque,
+  isPedidoRetiraAgora,
+  isPedidoRota,
+  getCardPrioridadeClasses
+} from "@/lib/prioridadeHelper";
 import { classGrupo, obterStatusExecucaoPedido } from "@/lib/pedidoOdooHelper";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
@@ -229,21 +235,25 @@ export default function PedidoOdooCard({
 
   const cfgSetor = SETOR_CARD_CFG[grupoSetor] || SETOR_CARD_CFG.cd;
   const isCompacto = compacto || dentroDeGrupo;
+  const cardPrioCls = getCardPrioridadeClasses(pedido);
 
   if (isCompacto) {
     return (
       <div
         onClick={onClick}
         className={`${cfgSetor.bgTint} border rounded-xl p-2.5 hover:shadow-md transition-all cursor-pointer flex flex-col gap-2 relative overflow-hidden ${
-          urgencia?.borderLeftClass || cfgSetor.borderLeft
+          cardPrioCls || (urgencia?.borderLeftClass || cfgSetor.borderLeft)
         } ${
-          isPrioritario
+          cardPrioCls
+            ? ""
+            : isPrioritario
             ? "border-amber-400 dark:border-amber-600 ring-1 ring-amber-300/50"
             : isConcluido
             ? "border-emerald-300 dark:border-emerald-800"
             : urgencia?.ringClass || cfgSetor.borderBase
         }`}
       >
+        <BannerPrioridadeDestaque pedido={pedido} />
         {/* Cabeçalho Compacto: Focado na identificação da OF, setor e status */}
         <div className="flex items-start justify-between gap-1.5 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
@@ -428,15 +438,18 @@ export default function PedidoOdooCard({
     <div
       onClick={onClick}
       className={`${cfgSetor.bgTint} border rounded-2xl p-4 hover:shadow-lg transition-all cursor-pointer flex flex-col gap-3 relative overflow-hidden ${
-        urgencia?.borderLeftClass || cfgSetor.borderLeft
+        cardPrioCls || (urgencia?.borderLeftClass || cfgSetor.borderLeft)
       } ${
-        isPrioritario
+        cardPrioCls
+          ? ""
+          : isPrioritario
           ? "border-amber-400 dark:border-amber-600 ring-1 ring-amber-300/50"
           : isConcluido
           ? "border-emerald-300 dark:border-emerald-800"
           : urgencia?.ringClass || cfgSetor.borderBase
       }`}
     >
+      <BannerPrioridadeDestaque pedido={pedido} />
       <div className="flex items-start gap-2.5">
         {onToggleSelect && (
           <div

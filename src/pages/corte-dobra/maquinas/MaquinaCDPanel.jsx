@@ -290,10 +290,11 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     },
   });
 
-  // Prioridade 1 a 5 ou ROTA: P1 e P2 exigem autorização do gestor
+  // Prioridade RETIRA_AGORA, ROTA ou 1 a 5: P1 e P2 exigem autorização do gestor
   const handleSetPrioridade = (o, nivel) => {
+    const ehRetiraAgora = nivel === "RETIRA_AGORA";
     const ehRota = nivel === "ROTA";
-    const nivelNum = !ehRota && nivel ? Number(nivel) : null;
+    const nivelNum = !ehRetiraAgora && !ehRota && nivel ? Number(nivel) : null;
     if (nivelNum === 1 || nivelNum === 2) {
       setPrioridadePendente({ ordem: o, nivel: nivelNum });
       setSenhaGestorOpen(true);
@@ -301,8 +302,11 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
       updateMaq.mutate({
         id: o.id,
         data: {
-          prioridade: Boolean(nivelNum || ehRota),
-          prioridade_nivel: ehRota ? "ROTA" : nivelNum,
+          prioridade: Boolean(ehRetiraAgora || ehRota || nivelNum),
+          prioridade_nivel: ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : nivelNum,
+          cliente_retira_agora: ehRetiraAgora,
+          cliente_retira: ehRetiraAgora,
+          retira_agora: ehRetiraAgora,
           is_rota: ehRota,
           rota: ehRota
         }

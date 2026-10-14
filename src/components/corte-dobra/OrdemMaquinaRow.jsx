@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import {
   Play, Pause, CheckCircle2, Timer, Coffee, Square, Circle,
   AlertCircle, Clock, Camera, Loader2, Layers, Package, ShoppingCart, Trash2, Image as ImageIcon,
-  Edit3, History, Star, User, Users, PackageX, AlertTriangle, Ban, ChevronDown, ChevronUp, Calculator
+  Edit3, History, Star, User, Users, PackageX, AlertTriangle, Ban, ChevronDown, ChevronUp, Calculator,
+  Truck, Zap
 } from "lucide-react";
 import { registrarAuditoria } from "@/lib/auditHelper";
 import UploadButton from "@/components/ui/UploadButton";
@@ -26,7 +27,14 @@ import IniciarOpOperadoresDialog from "@/components/producao/IniciarOpOperadores
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
 import ApontamentoOpButton from "@/components/producao/ApontamentoOpButton";
 import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo } from "@/lib/pedidoOdooHelper";
-import { PrioridadeBadge, getPrioridadeNivel } from "@/lib/prioridadeHelper";
+import {
+  PrioridadeBadge,
+  getPrioridadeNivel,
+  BannerPrioridadeDestaque,
+  isPedidoRetiraAgora,
+  isPedidoRota,
+  getCardPrioridadeClasses
+} from "@/lib/prioridadeHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import { useRegrasProducao } from "@/lib/regrasProducao";
 import CroquiPeca2D from "@/components/corte-dobra/CroquiPeca2D";
@@ -522,9 +530,16 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
   const borderColorRet = etpCor ? etpCor.border : borderColor;
   const bgRet = etpCor ? etpCor.bg : "bg-white";
 
+  const cardPrioCls = getCardPrioridadeClasses(o);
+  const ehRetira = isPedidoRetiraAgora(o);
+  const ehRota = isPedidoRota(o);
+
   return (
     <>
-      <div className={`border-l-4 ${borderColorRet} ${bgRet} rounded-xl ${z.card} shadow-sm hover:shadow-md transition-shadow`}>
+      <div className={`border-l-4 ${cardPrioCls || borderColorRet} ${bgRet} rounded-xl ${z.card} shadow-sm hover:shadow-md transition-all`}>
+        {/* Banner de Prioridade Destaque Máximo */}
+        <BannerPrioridadeDestaque pedido={o} />
+
         {/* Header */}
         <div className={`flex items-start justify-between ${z.gap} ${z.mb}`}>
           <div className="flex-1 min-w-0">
@@ -541,6 +556,11 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               )}
               <StatusBadge status={o.status} />
               <PrioridadeBadge pedido={o} />
+              {ehRota && !ehRetira && (
+                <Badge className="bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-400 text-xs gap-1.5 font-black shadow-xs tracking-wide">
+                  <Truck className="w-3.5 h-3.5" /> 🚚 CARGA DE ROTA
+                </Badge>
+              )}
               {o.operador && (
                 <Badge variant="outline" className="text-xs bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300 flex items-center gap-1 font-medium">
                   <Users className="w-3 h-3 text-indigo-500" /> {o.operador}

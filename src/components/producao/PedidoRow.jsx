@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route, Camera, Scissors, Snowflake, Lock, RotateCcw, ShoppingCart, User, Users, Zap, PackageCheck, Pencil, Check, X, Calendar } from "lucide-react";
+import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route, Camera, Scissors, Snowflake, Lock, RotateCcw, ShoppingCart, User, Users, Zap, PackageCheck, Pencil, Check, X, Calendar, Truck } from "lucide-react";
 import ImageLink from "@/components/ui/ImageLink";
 import RetrabalhoTelhasDialog from "@/components/producao/RetrabalhoTelhasDialog";
 import { format } from "date-fns";
@@ -21,7 +21,13 @@ import { playFinishSound, speakOpFinalizada, playAlertSound } from "@/lib/sounds
 import { useFilial } from "@/contexts/FilialContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
-import { PrioridadeBadge } from "@/lib/prioridadeHelper";
+import {
+  PrioridadeBadge,
+  BannerPrioridadeDestaque,
+  isPedidoRetiraAgora,
+  isPedidoRota,
+  getCardPrioridadeClasses
+} from "@/lib/prioridadeHelper";
 import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco";
 import SmartImage from "@/components/ui/SmartImage";
 import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/compressImage";
@@ -1281,9 +1287,16 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
 
   const steps = ETAPAS[p.produto];
 
+  const cardPrioCls = getCardPrioridadeClasses(p);
+  const ehRetira = isPedidoRetiraAgora(p);
+  const ehRota = isPedidoRota(p);
+
   return (
     <>
-      <div className={`border-l-4 ${borderColor} bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow`}>
+      <div className={`border-l-4 ${cardPrioCls || borderColor} bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-all`}>
+        {/* Banner Ultra-Chamativo para Cliente Retira Agora ou Pedido de Rota */}
+        <BannerPrioridadeDestaque pedido={p} />
+
         {/* Header */}
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex-1 min-w-0">
@@ -1328,9 +1341,9 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                 </>
               )}
               <PrioridadeBadge pedido={p} />
-              {p.rota && (
-                <Badge className="bg-red-600 text-white border-red-700 text-xs gap-1 animate-pulse">
-                  <Route className="w-3 h-3" /> ROTA
+              {ehRota && !ehRetira && (
+                <Badge className="bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-400 text-xs gap-1.5 font-black shadow-xs tracking-wide">
+                  <Truck className="w-3.5 h-3.5" /> 🚚 CARGA DE ROTA
                 </Badge>
               )}
               {isPerfiladoNestaMaquina ? (
@@ -2150,7 +2163,13 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <Button
                       size="sm"
-                      className={`gap-1 border-0 ${p.rota ? "bg-red-500 hover:bg-red-600 text-white" : "bg-amber-500 hover:bg-amber-600 text-white font-bold shadow-xs"}`}
+                      className={`gap-1 border-0 ${
+                        ehRetira
+                          ? "bg-red-600 hover:bg-red-700 text-white font-black animate-pulse shadow-md ring-2 ring-red-400"
+                          : ehRota
+                          ? "bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-sm"
+                          : "bg-amber-500 hover:bg-amber-600 text-white font-bold shadow-xs"
+                      }`}
                       onClick={handleIniciar}
                     >
                       <Play className="w-3 h-3 fill-current" /> {p.maquina === "COLAGEM" ? "Iniciar Colagem" : (p.etapa_anterior_concluida || (p.maquina === "BANDEJA" && isTelhaBandeja(p))) ? "Continuar na Bandeja" : "Iniciar"}

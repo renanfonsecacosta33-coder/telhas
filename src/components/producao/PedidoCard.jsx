@@ -5,7 +5,7 @@ import { Pencil, Trash2, CheckCircle2, Clock, Circle, Printer, Star } from "luci
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
-import { PrioridadeBadge } from "@/lib/prioridadeHelper";
+import { PrioridadeBadge, BannerPrioridadeDestaque, getCardPrioridadeClasses, isPedidoRetiraAgora, isPedidoRota } from "@/lib/prioridadeHelper";
 import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco";
 import ProcessoStepperPedido from "@/components/producao/ProcessoStepperPedido";
 
@@ -38,9 +38,11 @@ function formatarDiaSeguro(diaStr) {
 export default function PedidoCard({ pedido: p, maquinaCores, onEdit, onDelete, onStatusChange, onPrintOP, onTogglePrioridade }) {
   const st = STATUS_CONFIG[p.status] || STATUS_CONFIG.pendente;
   const Icon = st.icon;
+  const cardPrioCls = getCardPrioridadeClasses(p);
 
   return (
-    <div className={`px-4 py-3 hover:bg-muted/10 transition-colors ${p.prioridade ? "bg-amber-50/50 border-l-4 border-l-amber-400" : ""}`}>
+    <div className={`px-4 py-3 hover:bg-muted/10 transition-colors ${cardPrioCls || (p.prioridade ? "bg-amber-50/50 border-l-4 border-l-amber-400" : "")}`}>
+      <BannerPrioridadeDestaque pedido={p} />
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           {/* Linha 1: produto + status + prioridade + metros */}

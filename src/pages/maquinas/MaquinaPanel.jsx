@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Circle, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, ArrowLeft, BarChart2, Plus, Star, Trash2, Edit3, Route, Search, X, Calendar, Filter, History, FileText, AlertTriangle, RefreshCw, Palette, Layers } from "lucide-react";
+import { Circle, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, ArrowLeft, BarChart2, Plus, Star, Trash2, Edit3, Route, Search, X, Calendar, Filter, History, FileText, AlertTriangle, RefreshCw, Palette, Layers, Truck, Zap } from "lucide-react";
 import { format, addDays, subDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -22,7 +22,16 @@ import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedien
 import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERelatorioMaquinaModal";
 import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo, detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
-import { SeletorPrioridadeDropdown, getPesoOrdenacaoPrioridade, compararPrioridadeEData, getDataEntregaParaOrdenacao } from "@/lib/prioridadeHelper";
+import {
+  SeletorPrioridadeDropdown,
+  getPesoOrdenacaoPrioridade,
+  compararPrioridadeEData,
+  getDataEntregaParaOrdenacao,
+  BannerPrioridadeDestaque,
+  isPedidoRetiraAgora,
+  isPedidoRota,
+  getCardPrioridadeClasses
+} from "@/lib/prioridadeHelper";
 import AlterarDataPedidoMaquinaModal from "@/components/maquinas/AlterarDataPedidoMaquinaModal";
 import { normalizarTextoBusca, calcularFiltrosTipoECor, pedidoAtendeFiltroTipoECor } from "@/lib/bobinaStatusHelper";
 import TimerProducao from "@/components/producao/TimerProducao";
@@ -909,15 +918,34 @@ export default function MaquinaPanel({ maquina }) {
   };
 
   const handleSetPrioridade = (pedido, nivel) => {
+    const ehRetiraAgora = nivel === "RETIRA_AGORA";
     const ehRota = nivel === "ROTA";
-    const nivelNum = !ehRota && nivel ? Number(nivel) : null;
-    const labelAcao = ehRota ? "Marcou como Rota" : nivelNum ? `Definiu Prioridade P${nivelNum}` : "Removeu Prioridade";
-    const histData = appendHistorico(pedido, "prioridade", labelAcao, ehRota ? "Pedido de rota de entrega" : `Prioridade nível ${nivelNum || "nenhum"}`);
+    const nivelNum = !ehRetiraAgora && !ehRota && nivel ? Number(nivel) : null;
+    const labelAcao = ehRetiraAgora
+      ? "Marcou como CLIENTE RETIRA AGORA (Balcão)"
+      : ehRota
+      ? "Marcou como Carga de Rota"
+      : nivelNum
+      ? `Definiu Prioridade P${nivelNum}`
+      : "Removeu Prioridade";
+    const histData = appendHistorico(
+      pedido,
+      "prioridade",
+      labelAcao,
+      ehRetiraAgora
+        ? "Cliente aguardando retirada imediata na fábrica"
+        : ehRota
+        ? "Pedido de rota de entrega expedida"
+        : `Prioridade nível ${nivelNum || "nenhum"}`
+    );
     updateMutation.mutate({
       id: pedido.id,
       data: {
-        prioridade: Boolean((nivelNum && nivelNum >= 1 && nivelNum <= 3) || ehRota),
-        prioridade_nivel: ehRota ? "ROTA" : nivelNum,
+        prioridade: Boolean(ehRetiraAgora || ehRota || (nivelNum && nivelNum >= 1 && nivelNum <= 3)),
+        prioridade_nivel: ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : nivelNum,
+        cliente_retira_agora: ehRetiraAgora,
+        cliente_retira: ehRetiraAgora,
+        retira_agora: ehRetiraAgora,
         rota: ehRota,
         is_rota: ehRota,
         ...histData
@@ -926,9 +954,24 @@ export default function MaquinaPanel({ maquina }) {
   };
 
   const toggleRota = (pedido) => {
-    const novaRota = !pedido.rota;
-    const histData = appendHistorico(pedido, "rota", novaRota ? "Marcou como Rota" : "Removeu Rota");
-    updateMutation.mutate({ id: pedido.id, data: { rota: novaRota, ...histData } });
+    const novaRota = !(pedido.rota || pedido.is_rota);
+    const histData = appendHistorico(
+      pedido,
+      "rota",
+      novaRota ? "Marcou como Carga de Rota" : "Removeu Carga de Rota"
+    );
+    updateMutation.mutate({
+      id: pedido.id,
+      data: {
+        rota: novaRota,
+        is_rota: novaRota,
+        prioridade_nivel: novaRota ? "ROTA" : (pedido.prioridade_nivel === "ROTA" ? null : pedido.prioridade_nivel),
+        cliente_retira_agora: novaRota ? false : pedido.cliente_retira_agora,
+        cliente_retira: novaRota ? false : pedido.cliente_retira,
+        retira_agora: novaRota ? false : pedido.retira_agora,
+        ...histData
+      }
+    });
   };
 
   const handleEditPedido = (pedido, formData) => {
@@ -1485,8 +1528,19 @@ export default function MaquinaPanel({ maquina }) {
                   <div className="flex justify-end gap-1 mb-1 items-center flex-wrap">
                     {p.status !== "finalizado" && p.status !== "cancelado" && (
                       <>
-                        <Button size="sm" variant="ghost" className={`text-xs h-6 px-2 ${p.rota ? "text-red-600 font-bold" : "text-muted-foreground"}`} onClick={() => toggleRota(p)}>
-                          <Route className={`w-3 h-3 mr-1 ${p.rota ? "fill-red-500 text-red-500" : ""}`} /> {p.rota ? "Rota" : "Rota"}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className={`text-xs h-6 px-2.5 font-bold transition-all ${
+                            p.rota || p.is_rota
+                              ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm border border-indigo-400"
+                              : "text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                          }`}
+                          onClick={() => toggleRota(p)}
+                          title={p.rota || p.is_rota ? "Remover de Rota de Entrega" : "Marcar como Carga de Rota de Entrega"}
+                        >
+                          <Truck className="w-3.5 h-3.5 mr-1" />
+                          {p.rota || p.is_rota ? "Carga de Rota" : "Rota"}
                         </Button>
                         <SeletorPrioridadeDropdown
                           pedido={p}

@@ -12,8 +12,14 @@ import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import PedidoOdooCard from "@/components/pcp/PedidoOdooCard";
 import { calcularProgressoRealPedido, classGrupo, obterStatusExecucaoPedido, getItens } from "@/lib/pedidoOdooHelper";
 import { verificarEstoqueGrupo, extrairDemandaItem } from "@/lib/estoqueMaterialHelper";
-import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
-import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelper";
+import {
+  SeletorPrioridadeDropdown,
+  PrioridadeBadge,
+  BannerPrioridadeDestaque,
+  isPedidoRetiraAgora,
+  isPedidoRota,
+  getCardPrioridadeClasses
+} from "@/lib/prioridadeHelper";
 
 /**
  * Card Consolidado do Pedido de Venda (Acordeon Executivo).
@@ -167,18 +173,31 @@ export default function PedidoOdooGrupoCard({
     }
   };
 
+  const ehRetiraAgoraGrupo = isPedidoRetiraAgora(grupo) || ofs.some(p => isPedidoRetiraAgora(p));
+  const ehRotaGrupo = !ehRetiraAgoraGrupo && (isPedidoRota(grupo) || ofs.some(p => isPedidoRota(p)));
+  const cardPrioCls = ehRetiraAgoraGrupo
+    ? "ring-2 ring-red-500 border-2 border-red-500 bg-red-50/30 dark:bg-red-950/20 shadow-lg shadow-red-500/10"
+    : ehRotaGrupo
+    ? "ring-1 ring-indigo-400/60 border-l-4 border-l-indigo-600 bg-indigo-50/15 dark:bg-indigo-950/15"
+    : "";
+
   return (
     <div
       className={`bg-white dark:bg-slate-900 border rounded-2xl transition-all shadow-sm relative overflow-hidden ${
-        urgencia?.borderLeftClass || ""
+        cardPrioCls || (urgencia?.borderLeftClass || "")
       } ${
-        isPrioritario
+        cardPrioCls
+          ? ""
+          : isPrioritario
           ? "border-amber-400 dark:border-amber-600 ring-1 ring-amber-400/40"
           : isPedidoTotalConcluido
           ? "border-emerald-300 dark:border-emerald-800"
           : urgencia?.ringClass || "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
       }`}
     >
+      <BannerPrioridadeDestaque
+        pedido={ehRetiraAgoraGrupo ? { prioridade_nivel: "RETIRA_AGORA" } : ehRotaGrupo ? { prioridade_nivel: "ROTA" } : grupo}
+      />
       {/* Cabeçalho Executivo do Pedido (Clicável para Expandir/Minimizar) */}
       <div
         onClick={onToggle}

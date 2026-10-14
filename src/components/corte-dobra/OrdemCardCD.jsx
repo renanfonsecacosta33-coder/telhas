@@ -15,7 +15,9 @@ import {
   AlertTriangle,
   RotateCcw,
   ShoppingCart,
-  User
+  User,
+  Truck,
+  Zap
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -26,7 +28,11 @@ import ApontamentoOpButton from "@/components/producao/ApontamentoOpButton";
 import {
   PrioridadeBadge,
   SeletorPrioridadeDropdown,
-  getPrioridadeNivel
+  getPrioridadeNivel,
+  BannerPrioridadeDestaque,
+  isPedidoRetiraAgora,
+  isPedidoRota,
+  getCardPrioridadeClasses
 } from "@/lib/prioridadeHelper";
 import ProcessoStepperPedido from "@/components/producao/ProcessoStepperPedido";
 
@@ -129,10 +135,15 @@ export default function OrdemCardCD({
   // Peso calculado / estimado
   const peso = o.peso_real || o.kg_estimado || o.peso_kg || 0;
 
+  const ehRetira = isPedidoRetiraAgora(o);
+  const ehRota = isPedidoRota(o);
+
   // Borda lateral e destaque de fundo
   let borderLeftCls = "border-l-4 border-l-transparent";
-  if (o.rota) {
-    borderLeftCls = "border-l-4 border-l-red-600 bg-red-50/30 dark:bg-red-950/20";
+  if (ehRetira) {
+    borderLeftCls = "ring-2 ring-red-500 border-l-4 border-l-red-600 bg-red-50/40 dark:bg-red-950/30 shadow-md shadow-red-500/10";
+  } else if (ehRota) {
+    borderLeftCls = "ring-1 ring-indigo-400/60 border-l-4 border-l-indigo-600 bg-indigo-50/25 dark:bg-indigo-950/20";
   } else if (prioNivel === 1) {
     borderLeftCls = "border-l-4 border-l-red-500 bg-red-50/20 dark:bg-red-950/20";
   } else if (prioNivel === 2) {
@@ -147,6 +158,9 @@ export default function OrdemCardCD({
 
   return (
     <div className={`px-4 py-3 hover:bg-muted/20 transition-colors ${borderLeftCls}`}>
+      {/* Banner de Prioridade Destaque Máximo */}
+      <BannerPrioridadeDestaque pedido={o} />
+
       <div className="flex items-start justify-between gap-3">
         {/* Lado Esquerdo: Informações estruturadas da Ordem */}
         <div className="flex-1 min-w-0 space-y-1">
@@ -154,9 +168,9 @@ export default function OrdemCardCD({
           <div className="flex items-center gap-2 flex-wrap">
             <PrioridadeBadge pedido={o} />
 
-            {o.rota && (
-              <Badge className="bg-red-600 text-white border-red-700 text-xs gap-1 animate-pulse font-black shadow-sm select-none">
-                <Route className="w-3 h-3" /> ROTA
+            {ehRota && !ehRetira && (
+              <Badge className="bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-400 text-xs gap-1 font-black shadow-sm select-none">
+                <Truck className="w-3 h-3" /> 🚚 CARGA DE ROTA
               </Badge>
             )}
 
@@ -329,14 +343,14 @@ export default function OrdemCardCD({
               variant="ghost"
               size="icon"
               className={`h-7 w-7 rounded-lg transition-colors ${
-                o.rota
-                  ? "bg-red-600 text-white hover:bg-red-700 shadow-sm"
-                  : "text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                ehRota
+                  ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm border border-indigo-400"
+                  : "text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
               }`}
-              title={o.rota ? "Remover de Rota de Entrega" : "Marcar como Rota de Entrega (Urgência)"}
+              title={ehRota ? "Remover de Rota de Entrega" : "Marcar como Carga de Rota de Entrega"}
               onClick={() => onToggleRota(o)}
             >
-              <Route className="w-4 h-4" />
+              <Truck className="w-4 h-4" />
             </Button>
           )}
 

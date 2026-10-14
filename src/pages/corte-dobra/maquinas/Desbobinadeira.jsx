@@ -756,13 +756,17 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
                               <SeletorPrioridadeDropdown
                                 pedido={o}
                                 onSelectPrioridade={(nivel) => {
+                                  const ehRetiraAgora = nivel === "RETIRA_AGORA";
                                   const ehRota = nivel === "ROTA";
-                                  const nivelVal = ehRota ? "ROTA" : (nivel ? Number(nivel) : null);
+                                  const nivelVal = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : (nivel ? Number(nivel) : null);
                                   updateOrdem.mutate({
                                     id: o.id,
                                     data: {
                                       prioridade: Boolean(nivel),
                                       prioridade_nivel: nivelVal,
+                                      cliente_retira_agora: ehRetiraAgora,
+                                      cliente_retira: ehRetiraAgora,
+                                      retira_agora: ehRetiraAgora,
                                       is_rota: ehRota,
                                       rota: ehRota
                                     }
@@ -837,13 +841,17 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
                         <SeletorPrioridadeDropdown
                           pedido={o}
                           onSelectPrioridade={(nivel) => {
+                            const ehRetiraAgora = nivel === "RETIRA_AGORA";
                             const ehRota = nivel === "ROTA";
-                            const nivelVal = ehRota ? "ROTA" : (nivel ? Number(nivel) : null);
+                            const nivelVal = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : (nivel ? Number(nivel) : null);
                             updateOrdem.mutate({
                               id: o.id,
                               data: {
                                 prioridade: Boolean(nivel),
                                 prioridade_nivel: nivelVal,
+                                cliente_retira_agora: ehRetiraAgora,
+                                cliente_retira: ehRetiraAgora,
+                                retira_agora: ehRetiraAgora,
                                 is_rota: ehRota,
                                 rota: ehRota
                               }
