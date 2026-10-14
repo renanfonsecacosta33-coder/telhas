@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { base44 } from "@/api/base44Client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatarDataSegura } from "@/lib/formatData";
 import {
   Weight, Boxes, DollarSign, RefreshCw, Pause, CheckCircle2,
   Layers, Clock, Zap, Wrench, Activity, X, Loader2, Factory,
@@ -502,7 +503,7 @@ function FinalizadosContent({ ordens }) {
                 {o.numero_pedido && <span className="font-mono font-bold text-blue-600">#{o.numero_pedido}</span>}
                 <Badge className="bg-slate-100 text-slate-600 border-slate-200 text-[10px]">{o.maquina}</Badge>
               </div>
-              <span className="text-green-600 font-medium">{o.data_finalizacao ? format(new Date(o.data_finalizacao + "T12:00:00"), "dd/MM", { locale: ptBR }) : ""}</span>
+              <span className="text-green-600 font-medium">{formatarDataSegura(o.data_finalizacao, "dd/MM", "")}</span>
             </div>
             <div className="flex items-center gap-3 text-muted-foreground">
               <span className="font-medium text-foreground truncate">{o.tipo_peca || o.bobina_descricao || "—"}</span>

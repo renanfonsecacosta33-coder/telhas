@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers, Image as ImageIcon, ScanLine, ShoppingCart, User, AlertTriangle, Ban } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
 import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { formatarDataSegura } from "@/lib/formatData";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { getEtapaColor } from "@/components/corte-dobra/RetrabalhoDialog";
@@ -400,7 +400,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               </span>
             )}
             {o.data_finalizacao && (
-              <span className="text-green-600 font-semibold">✓ {format(new Date(o.data_finalizacao + "T12:00:00"), "dd/MM", { locale: ptBR })}</span>
+              <span className="text-green-600 font-semibold">✓ {formatarDataSegura(o.data_finalizacao, "dd/MM")}</span>
             )}
           </div>
           {o.observacoes && (

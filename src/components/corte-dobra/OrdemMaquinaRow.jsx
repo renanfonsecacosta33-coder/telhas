@@ -12,7 +12,7 @@ import {
 import { registrarAuditoria } from "@/lib/auditHelper";
 import UploadButton from "@/components/ui/UploadButton";
 import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { formatarDataSegura } from "@/lib/formatData";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { getEtapaColor } from "@/components/corte-dobra/RetrabalhoDialog";
@@ -470,7 +470,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               </div>
             )}
             {o.data_finalizacao && (
-              <span className="text-green-600 font-semibold">✓ {format(new Date(o.data_finalizacao + "T12:00:00"), "dd/MM")}</span>
+              <span className="text-green-600 font-semibold">✓ {formatarDataSegura(o.data_finalizacao, "dd/MM")}</span>
             )}
           </div>
         </div>
