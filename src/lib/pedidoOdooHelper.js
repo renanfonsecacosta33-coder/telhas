@@ -839,8 +839,11 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
     ? String(pedido.data_entrega).slice(0, 10)
     : toISODate(calcularDataPrometidaSLA(dataReceb, 7));
 
-  // Extrai especificação inteligente da descrição e produto (ex: "50 PÇS c/ 2000" ou "2 X 30 M IMPORTADA")
-  const espTec = extrairEspecificacao(textoCompleto, item?.quantidade, item?.unidade);
+  // Extrai especificação inteligente priorizando a descrição/anotação digitada pelo vendedor
+  let espTec = descTexto ? extrairEspecificacao(descTexto, item?.quantidade, item?.unidade) : null;
+  if (!espTec || !espTec.tem_especificacao || (!espTec.pecas && !espTec.comprimento_mm)) {
+    espTec = extrairEspecificacao(textoCompleto, item?.quantidade, item?.unidade);
+  }
 
   // No formulário de Telhas / Desbobinador:
   // - metros = quantidade de chapas / peças / bobininhas a cortar (ex: 2)

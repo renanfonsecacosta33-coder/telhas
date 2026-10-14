@@ -92,6 +92,23 @@ function extrairCorEEspessura(t, out) {
   return out;
 }
 
+export function sanitizarTextoParaCortes(texto) {
+  if (!texto) return "";
+  let s = String(texto);
+
+  // 1. Remove menções de pintura de produto que geram falsos positivos de corte linear
+  // Ex: "c/ 02 pintura", "c/ 2 pinturas", "c/ 01 pintura", "c/ 2 faces", "2 FACES PÓS PINTADA"
+  s = s.replace(/\bc\/\s*0?[1-9]\s*pinturas?\b/gi, " ");
+  s = s.replace(/\bc\/\s*0?[1-9]\s*faces?\b/gi, " ");
+  s = s.replace(/\b[1-9]\s*faces?\s+(?:p[óo]s|pr[ée])?\s*pintad[ao]s?\b/gi, " ");
+  s = s.replace(/\b0[.,]\d+\s*c\/\s*\d+\s*(?:pinturas?|faces?)?/gi, " ");
+
+  // 2. Remove códigos numéricos de produto entre colchetes no início (ex: "[409] 409 - ")
+  s = s.replace(/\[\d+\]\s*\d+\s*[-–—]/g, " ");
+
+  return s;
+}
+
 export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
   const t = String(texto || "").trim();
   const out = {
@@ -101,7 +118,7 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
     comprimento_m: null,
     largura_mm: null,
     dimensoes_fmt: null,
-    tipo_conformacao: null, // "chapa_lisa" | "perfil_dobrado" | "linear"
+    tipo_conformacao: null, // "chapa_lisa" | "perfil_dobrado" | "linear" | "telha"
     tipo_label: null,
     abas: null,
     desenvolvimento_mm: null,
@@ -112,6 +129,100 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
     tem_especificacao: false
   };
   if (!t) return out;
+
+  const tLimpo = sanitizarTextoParaCortes(t);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // A00. DETECÇÃO EXPLÍCITA DE TELHAS COM MODELO E COMPRIMENTO (Prioridade Máxima)
+  // Suporta:
+  // - "19 telhas TP25 com 3000mm 2 FACES PÓS PINTADA PRETO BRILHANTE"
+  // - "1 telha TP25 com 1000mm 2 FACES PÓS PINTADA PRETO BRILHANTE"
+  // - "10 telhas TP-40 c/ 6000mm"
+  // - "5 telhas trapezoidais de 3,5m"
+  // - "19 telhas com 3000mm"
+  // - "19 peças TP25 com 3000mm"
+  // - Padrões múltiplos: "19 telhas TP25 c/ 3000mm + 5 telhas TP25 c/ 2000mm"
+  // ═══════════════════════════════════════════════════════════════════════════
+  const regexTelhaQtdComp = /(\d+)\s*(?:telhas?|p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|unidades?|un\.?)\s*(?:(?:do\s*tipo|modelo|mod\.?)?\s*(tp\s*-?\s*25|tp\s*-?\s*40|tp\s*-?\s*100|ondulad[ao]|trapezoidal|colonial|termoac[uú]stica|sandu[íi]che))?\s*(?:c\/|com|de|\*|x|-|–|—)?\s*(\d{1,2}\.\d{3}|\d{3,5}\s*mm|\d+(?:[.,]\d+)?\s*(?:m\b|mts?\b|metros?\b))\b/gi;
+
+  const regexTelhaModeloAntes = /(?:(?:telhas?|painel)\s*)?(tp\s*-?\s*25|tp\s*-?\s*40|tp\s*-?\s*100|ondulad[ao]|trapezoidal|colonial)\s*[-–—:]?\s*(\d+)\s*(?:telhas?|p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|unidades?|un\.?)?\s*(?:c\/|com|de|\*|x|-|–|—)?\s*(\d{1,2}\.\d{3}|\d{3,5}\s*mm|\d+(?:[.,]\d+)?\s*(?:m\b|mts?\b|metros?\b))\b/gi;
+
+  const variacoesTelha = [];
+  let mTelha;
+
+  while ((mTelha = regexTelhaQtdComp.exec(tLimpo)) !== null) {
+    const q = parseInt(mTelha[1], 10);
+    const mod = mTelha[2] ? mTelha[2].replace(/\s+/g, "").toUpperCase() : null;
+    const compRaw = mTelha[3];
+    const { mm, m: mLinear } = parseComprimento(compRaw);
+    if (q > 0 && mm && mm >= 300) {
+      variacoesTelha.push({
+        qty: q,
+        mm,
+        m: mLinear,
+        total_m: +(q * mLinear).toFixed(2),
+        modelo: mod,
+        tipo: "telha"
+      });
+    }
+  }
+
+  if (variacoesTelha.length === 0) {
+    while ((mTelha = regexTelhaModeloAntes.exec(tLimpo)) !== null) {
+      const mod = mTelha[1] ? mTelha[1].replace(/\s+/g, "").toUpperCase() : null;
+      const q = parseInt(mTelha[2], 10);
+      const compRaw = mTelha[3];
+      const { mm, m: mLinear } = parseComprimento(compRaw);
+      if (q > 0 && mm && mm >= 300) {
+        variacoesTelha.push({
+          qty: q,
+          mm,
+          m: mLinear,
+          total_m: +(q * mLinear).toFixed(2),
+          modelo: mod,
+          tipo: "telha"
+        });
+      }
+    }
+  }
+
+  if (variacoesTelha.length > 0) {
+    // 🛡️ Validação cruzada com Odoo: se a unidade for MT e temos a metragem exata
+    const uOdoo = String(unidadeOdoo || "").toUpperCase();
+    const qOdooNum = Number(qtdOdoo) || 0;
+    let varsFinais = variacoesTelha;
+    if (["MT", "M", "MTS", "METRO", "METROS"].includes(uOdoo) && qOdooNum > 0 && variacoesTelha.length > 1) {
+      const exata = variacoesTelha.find(v => Math.abs(v.total_m - qOdooNum) < 0.1);
+      if (exata) {
+        varsFinais = [exata];
+      }
+    }
+
+    const totalQtd = varsFinais.reduce((acc, v) => acc + v.qty, 0);
+    const totalMetros = +(varsFinais.reduce((acc, v) => acc + v.total_m, 0)).toFixed(2);
+    const primeiro = varsFinais[0];
+    const labelModelo = primeiro.modelo ? `Telha ${primeiro.modelo}` : "Telha";
+
+    out.tipo_conformacao = "telha";
+    out.tipo_label = labelModelo;
+    out.quantidade = totalQtd;
+    out.pecas = totalQtd;
+    out.comprimento_mm = primeiro.mm;
+    out.comprimento_m = primeiro.m;
+    out.metragem_total = totalMetros;
+    out.tem_especificacao = true;
+    out.variacoes = varsFinais;
+
+    if (varsFinais.length === 1) {
+      const v = varsFinais[0];
+      const labelTelha = v.qty === 1 ? "telha" : "telhas";
+      out.resumo_formatado = `${v.qty} ${labelTelha} c/ ${v.mm.toLocaleString("pt-BR")} mm (${totalMetros}m)`;
+    } else {
+      out.resumo_formatado = varsFinais.map(v => `${v.qty} c/ ${v.mm}mm`).join(" + ") + ` (${totalMetros}m)`;
+    }
+
+    return extrairCorEEspessura(t, out);
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // A0. PADRÃO INDUSTRIAL AJL DE CORTE E DOBRA / PERFIS / CHAPAS CORTADAS
@@ -435,10 +546,12 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
   // C. CORTES COMPOSTOS LINEARES TRADICIONAIS (Telhas e Barras Simples)
   // ═══════════════════════════════════════════════════════════════════════════
   // 1. Regex para cortes compostos: QTD + (palavra de peça opcional) + (separador opcional c/, com, de, -, :, x) + COMPRIMENTO
+  // 🛡️ Protege modelos como TP25, TP40 para que os números de modelo não sejam capturados como quantidade
+  const tLimpoCortes = tLimpo.replace(/\b(tp|mod)\s*(\d+)\b/gi, "$1_$2_MOD");
   const regexCorteComposto = /(\d+)\s*(?:p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|barras?|telhas?|chapas?|unidades?|un\.?|pc\.?)?\s*(?:c\/|com|de|x|\*|\:|-|–|—)\s*(\d+(?:[.,]\d+)?\s*(?:mm|mts?|metros?|m\b)?)[\\\/]*/gi;
 
   let match;
-  while ((match = regexCorteComposto.exec(t)) !== null) {
+  while ((match = regexCorteComposto.exec(tLimpoCortes)) !== null) {
     const q = parseInt(match[1], 10);
     const compRaw = match[2];
     if (!q || isNaN(q)) continue;
@@ -465,7 +578,7 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
   // 2. Se não encontrou no formato composto acima, tenta padrão NxM grande
   if (out.variacoes.length === 0) {
     const regexNxM = /(\d+)\s*[xX*]\s*(\d{3,5}\s*(?:mm)?|\d+[.,]\d+\s*(?:m|mts?|metros?)?)[\\\/]*/g;
-    while ((match = regexNxM.exec(t)) !== null) {
+    while ((match = regexNxM.exec(tLimpoCortes)) !== null) {
       const q = parseInt(match[1], 10);
       const compRaw = match[2];
       const { mm, m } = parseComprimento(compRaw);
@@ -645,8 +758,8 @@ export function extrairPecasDaObs(texto) {
   if (!texto) return null;
   const t = String(texto).trim();
 
-  // 1. Regex de peças/chapas/barras/tubos: "1 chapa", "2 pçs", "5 peças", "10 barras", "1 un", "2 tubos"
-  const mPecas = t.match(/\b(\d+)\s*(?:p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|barras?|chapas?|unidades?|un\.?|pc\.?|tubos?|folhas?)\b/i);
+  // 1. Regex de peças/chapas/barras/tubos/telhas: "1 chapa", "2 pçs", "5 peças", "10 barras", "1 un", "2 tubos", "19 telhas"
+  const mPecas = t.match(/\b(\d+)\s*(?:p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|barras?|chapas?|telhas?|unidades?|un\.?|pc\.?|tubos?|folhas?)\b/i);
   if (mPecas) {
     const q = parseInt(mPecas[1], 10);
     if (q > 0) return q;

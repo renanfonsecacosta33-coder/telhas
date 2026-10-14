@@ -146,10 +146,15 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
           const estoqueItem = estoqueContext ? verificarEstoqueItem(it, estoqueContext, pedido) : null;
           const demanda = estoqueItem?.demanda || extrairDemandaItem(it);
 
-          // Texto combinado para extrair especificação técnica e cortes (sem duplicar frases)
+          // Texto combinado para extrair especificação técnica e cortes
+          // 🛡️ Prioridade Máxima: A especificação/corte digitada pelo vendedor na descrição/anotação
           const textosUnicos = Array.from(new Set([anotacao, it.observacao, it.descricao].filter(Boolean)));
-          const textoParaEspecificacao = [...textosUnicos, it.produto].filter(Boolean).join(" ");
-          const espTec = extrairEspecificacao(textoParaEspecificacao, it.quantidade, unidade);
+          const textoObs = textosUnicos.join(" ");
+          let espTec = textoObs ? extrairEspecificacao(textoObs, it.quantidade, unidade) : null;
+          if (!espTec || !espTec.tem_especificacao || (!espTec.pecas && !espTec.comprimento_mm && !espTec.largura_mm)) {
+            const textoParaEspecificacao = [...textosUnicos, it.produto].filter(Boolean).join(" ");
+            espTec = extrairEspecificacao(textoParaEspecificacao, it.quantidade, unidade);
+          }
 
           // Quantidade física e Peso (Regra AJL: Fabricação em BARRAS/PEÇAS/TELHAS, Peso em KG)
           const pecasReal = (demanda?.pecas && demanda.pecas > 0) ? demanda.pecas : (espTec?.pecas > 0 ? espTec.pecas : null);

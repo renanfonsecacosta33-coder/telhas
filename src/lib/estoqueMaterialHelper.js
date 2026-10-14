@@ -214,10 +214,14 @@ export function extrairDemandaItem(item) {
   let metros = 0;
   let compMm = 0;
 
-  // 1. Tentar extrair especificação completa sem duplicar frases
+  // 1. Tentar extrair especificação completa com prioridade máxima para a anotação do vendedor
   const textosUnicos = Array.from(new Set([anotacao, obs, desc].filter(Boolean)));
-  const textoCompletoItem = [...textosUnicos, prod].filter(Boolean).join(" ");
-  const spec = extrairEspecificacao(textoCompletoItem, qtdOdoo, unid) || extrairEspecificacao(desc, qtdOdoo, unid) || extrairEspecificacao(obs, qtdOdoo, unid);
+  const textoObs = textosUnicos.join(" ");
+  let spec = textoObs ? extrairEspecificacao(textoObs, qtdOdoo, unid) : null;
+  if (!spec || !spec.tem_especificacao || (!spec.pecas && !spec.comprimento_mm && !spec.largura_mm)) {
+    const textoCompletoItem = [...textosUnicos, prod].filter(Boolean).join(" ");
+    spec = extrairEspecificacao(textoCompletoItem, qtdOdoo, unid) || extrairEspecificacao(desc, qtdOdoo, unid) || extrairEspecificacao(obs, qtdOdoo, unid);
+  }
   const pecasObs = extrairPecasDaObs(anotacao) || extrairPecasDaObs(obs) || extrairPecasDaObs(desc);
 
   // 🛡️ Auto-detecção de peso (KG):

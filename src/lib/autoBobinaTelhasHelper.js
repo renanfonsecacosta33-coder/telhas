@@ -164,7 +164,10 @@ export function selecionarMelhorBobinaTelhas({
 
   // Metragem necessária estimada
   const textoCompleto = `${produtoNome} ${descTexto}`.trim();
-  const espTec = extrairEspecificacao(textoCompleto, item?.quantidade, item?.unidade);
+  let espTec = descTexto ? extrairEspecificacao(descTexto, item?.quantidade, item?.unidade) : null;
+  if (!espTec || !espTec.tem_especificacao || (!espTec.pecas && !espTec.comprimento_mm)) {
+    espTec = extrairEspecificacao(textoCompleto, item?.quantidade, item?.unidade);
+  }
   const metragemNecessaria = Number(espTec?.metragem_total || item?.quantidade || 0);
 
   // 2. Filtro preliminar de elegibilidade
