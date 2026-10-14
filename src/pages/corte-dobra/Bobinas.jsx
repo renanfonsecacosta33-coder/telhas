@@ -36,41 +36,34 @@ export default function BobinasCD() {
   const [ordenacao, setOrdenacao] = useState("none");
   const queryClient = useQueryClient();
 
-  const { data: todasBobinasRawCD = [], isLoading } = useQuery({
+  const { data: todasBobinasRawCD = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["bobinas-cd", "raw-lista"],
     queryFn: async () => {
-      let raw = [];
-      try {
-        // Consulta única filtrada no servidor (só setor corte_dobra) p/ não estourar limite de leitura
-        const page = await base44.entities.Bobina.filter(
-          { setor: "corte_dobra" },
-          { sort: "-created_date", limit: 2000 }
-        );
-        raw = page.items || [];
-      } catch (e1) {
-        console.warn("[BobinasCD] Falha ao listar bobinas C&D:", e1);
-      }
-
-      // 🛡️ Se o servidor oscilar ou der timeout temporário e já temos bobinas no cache,
-      // preserva o cache anterior para a lista NUNCA sumir nem piscar na tela!
-      if (raw.length === 0) {
-        const cached = queryClient.getQueryData(["bobinas-cd", "raw-lista"]);
-        if (Array.isArray(cached) && cached.length > 0) {
-          return cached;
-        }
-      }
-
+      // Consulta única filtrada no servidor (só setor corte_dobra) p/ não estourar limite de leitura
+      const page = await base44.entities.Bobina.filter(
+        { setor: "corte_dobra" },
+        { sort: "-created_date", limit: 2000 }
+      );
+      // Erros (ex: limite de requisições) SOBEM para o React Query tentar de novo,
+      // em vez de virar uma lista vazia falsa na tela
+      const raw = page.items || [];
       return (Array.isArray(raw) ? raw : []).filter(b => {
         if (!b) return false;
         if (b.setor === "corte_dobra") return true;
         const cod = String(b.codigo || "").trim().toUpperCase();
-        if (cod.startsWith("CD")) return true;
-        return false;
+        return cod.startsWith("CD");
       });
     },
     staleTime: 30000,
     refetchInterval: 60000,
     placeholderData: (prev) => prev,
+    retry: (failureCount, err) => {
+      const msg = String(err?.message || err || "").toLowerCase();
+      // Limite de requisições: tenta mais vezes com pausa crescente (o limite se recupera sozinho)
+      if (msg.includes("rate limit") || msg.includes("429")) return failureCount < 5;
+      return failureCount < 2;
+    },
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 15000),
   });
 
   const bobinas = useMemo(() => {
@@ -85,19 +78,8 @@ export default function BobinasCD() {
   const filiaisHook = filialAtiva === "todas" ? null : [filialAtiva];
   const { preBaixaMap, statusMap, totalPreBaixaKg } = usePreBaixaBobinas("corte_dobra", filiaisHook);
 
-  const { data: bobinasGlobais = [], refetch: refetchCodigos } = useQuery({
-    queryKey: ["bobinas-cd-global-codigos"],
-    queryFn: async () => {
-      const page = await base44.entities.Bobina.filter(
-        { setor: "corte_dobra" },
-        { sort: "codigo", limit: 2000, fields: ["codigo"] }
-      ).catch(() => null);
-      return page?.items || [];
-    },
-    staleTime: 30000,
-  });
-
-  // Calcula o PRÓXIMO número disponível com base em TODOS os códigos existentes (incluindo arquivados)
+  // Calcula o PRÓXIMO número disponível com base em TODOS os códigos da lista já carregada
+  // (incluindo arquivados) — sem consulta extra ao servidor
   const calcProximoNumero = (lista) => {
     let max = 0;
     lista.forEach(b => {
@@ -107,13 +89,12 @@ export default function BobinasCD() {
     return max + 1;
   };
 
-  const proximoNumero = calcProximoNumero(bobinasGlobais);
+  const proximoNumero = useMemo(() => calcProximoNumero(todasBobinasRawCD), [todasBobinasRawCD]);
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      // 🔒 TRAVA ANTI-DUPLICATA: Busca lista atualizada no momento do save
-      const listaAtualizada = await base44.entities.Bobina.filter({ setor: "corte_dobra" }, "codigo", 2000);
-      queryClient.setQueryData(["bobinas-cd-global-codigos"], listaAtualizada);
+      // 🔒 TRAVA ANTI-DUPLICATA: usa a lista já carregada em cache (sem chamada extra ao servidor)
+      const listaAtualizada = queryClient.getQueryData(["bobinas-cd", "raw-lista"]) || [];
 
       // Verifica se o código já existe
       const codigoExiste = listaAtualizada.some(
@@ -387,7 +368,7 @@ export default function BobinasCD() {
             <Download className="w-4 h-4" />
             Exportar Planilha (Odoo)
           </Button>
-          <Button onClick={() => { setEditItem(null); refetchCodigos(); setDialogOpen(true); }} className="gap-2">
+          <Button onClick={() => { setEditItem(null); setDialogOpen(true); }} className="gap-2">
             <Plus className="w-4 h-4" /> Nova Bobina
           </Button>
         </div>
@@ -523,8 +504,17 @@ export default function BobinasCD() {
         <div className="flex items-center justify-center py-16">
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
         </div>
+      ) : isError ? (
+        <div className="flex flex-col items-center justify-center gap-2 py-12 text-center bg-red-50 dark:bg-red-950/30 border border-red-300 dark:border-red-800 rounded-xl">
+          <AlertTriangle className="w-8 h-8 text-red-500" />
+          <p className="font-semibold text-red-700 dark:text-red-300">Não foi possível carregar as bobinas</p>
+          <p className="text-xs text-muted-foreground">
+            O sistema atingiu o limite temporário de requisições e continua tentando automaticamente.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>Tentar agora</Button>
+        </div>
       ) : sorted.length === 0 ? (
-        <EmptyState title="Nenhuma bobina encontrada" description="Adicione bobinas ao estoque." onAdd={() => { setEditItem(null); refetchCodigos(); setDialogOpen(true); }} />
+        <EmptyState title="Nenhuma bobina encontrada" description="Adicione bobinas ao estoque." onAdd={() => { setEditItem(null); setDialogOpen(true); }} />
       ) : (
         <div className="space-y-3">
           {sorted.map(bobina => (

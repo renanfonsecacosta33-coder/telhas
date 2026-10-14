@@ -2,8 +2,8 @@ import React, { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  ChevronDown, ChevronUp, Layers, User, Calendar, Zap, Send,
-  Star, CheckCircle2, AlertTriangle, Factory, Clock, Trash2,
+  ChevronDown, ChevronUp, Layers, User, Calendar, Send,
+  Star, CheckCircle2, Factory, Trash2,
   Building2, ArrowRightLeft, Store, RefreshCw
 } from "lucide-react";
 import { formatDataBR } from "@/lib/sla";
@@ -12,13 +12,13 @@ import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import PedidoOdooCard from "@/components/pcp/PedidoOdooCard";
 import { calcularProgressoRealPedido, classGrupo, obterStatusExecucaoPedido, getItens } from "@/lib/pedidoOdooHelper";
 import { verificarEstoqueGrupo, extrairDemandaItem } from "@/lib/estoqueMaterialHelper";
+import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
 import {
   SeletorPrioridadeDropdown,
   PrioridadeBadge,
   BannerPrioridadeDestaque,
   isPedidoRetiraAgora,
-  isPedidoRota,
-  getCardPrioridadeClasses
+  isPedidoRota
 } from "@/lib/prioridadeHelper";
 
 /**

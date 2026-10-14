@@ -1,11 +1,10 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { CheckCircle2, XCircle, Clock, BookmarkPlus } from "lucide-react";
 import { format } from "date-fns";
@@ -134,7 +133,7 @@ export default function PainelSolicitacoesReserva({ setor }) {
   const { data: solicitacoes = [], isLoading } = useQuery({
     queryKey: ["solicitacoes-reserva", setor, filialAtiva],
     queryFn: () => base44.entities.SolicitacaoReserva.filter({ setor, unidade: filialAtiva }),
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   });
 
   const pendentes = solicitacoes.filter(s => s.status === "pendente");

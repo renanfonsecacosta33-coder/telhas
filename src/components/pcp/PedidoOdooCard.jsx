@@ -1,19 +1,18 @@
 import React, { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
-  Calendar, User, Tag, Layers, Factory, Scissors, Wind, Trash2, Star, ShieldAlert,
+  Calendar, User, Tag, Layers, Scissors, Wind, Trash2, Star,
   Undo2, RefreshCw, Zap, CheckCircle2, ChevronDown, ChevronUp, Home,
-  AlertTriangle, Clock, Disc, Building2, ArrowRightLeft, Store
+  Building2, ArrowRightLeft, Store
 } from "lucide-react";
 import {
   formatDataBR,
   slaDiasPorCategoria
 } from "@/lib/sla";
 import { urgenciaPrazo } from "@/lib/prazoUrgencia";
-import { slaCountdown, slaCountdownCls, progressoChecklist } from "@/lib/regrasFabrica";
+import { toast } from "sonner";
+import { progressoChecklist } from "@/lib/regrasFabrica";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
-import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
-import CroquiThumb from "@/components/pcp/CroquiThumb";
 import PedidoItensLista from "@/components/pcp/PedidoItensLista";
 import LocalizacaoStatusHero from "@/components/pcp/LocalizacaoStatusHero";
 import { notificarStatus } from "@/lib/biNotificador";
@@ -21,8 +20,6 @@ import {
   SeletorPrioridadeDropdown,
   PrioridadeBadge,
   BannerPrioridadeDestaque,
-  isPedidoRetiraAgora,
-  isPedidoRota,
   getCardPrioridadeClasses
 } from "@/lib/prioridadeHelper";
 import { classGrupo, obterStatusExecucaoPedido } from "@/lib/pedidoOdooHelper";

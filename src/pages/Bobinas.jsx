@@ -65,24 +65,26 @@ export default function Bobinas() {
 
   // Busca resiliente: carrega bobinas da fábrica com múltiplas camadas de fallback
   // para evitar que bobinas sumam por falta de indexador ou campos nulos no DB
-  const { data: todasBobinasRaw = [], isLoading } = useQuery({
+  const { data: todasBobinasRaw = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["bobinas", "lista-fabrica"],
     queryFn: async () => {
-      let raw = [];
-      try {
-        // Consulta única filtrada no servidor (tudo exceto corte_dobra) p/ não estourar limite de leitura
-        const page = await base44.entities.Bobina.filter(
-          { setor: { $ne: "corte_dobra" } },
-          { sort: "-created_date", limit: 2000 }
-        );
-        raw = page.items || [];
-      } catch (e1) {
-        console.warn("[Bobinas] Falha ao listar bobinas de Telhas:", e1);
-      }
-      return Array.isArray(raw) ? raw : [];
+      // Consulta única filtrada no servidor (tudo exceto corte_dobra) p/ não estourar limite de leitura
+      const page = await base44.entities.Bobina.filter(
+        { setor: { $ne: "corte_dobra" } },
+        { sort: "-created_date", limit: 2000 }
+      );
+      // Erros (ex: limite de requisições) SOBEM para o React Query tentar de novo,
+      // em vez de virar uma lista vazia falsa na tela
+      return Array.isArray(page?.items) ? page.items : [];
     },
     staleTime: 30000,
     refetchInterval: 60000,
+    retry: (failureCount, err) => {
+      const msg = String(err?.message || err || "").toLowerCase();
+      if (msg.includes("rate limit") || msg.includes("429")) return failureCount < 5;
+      return failureCount < 2;
+    },
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 15000),
   });
 
   // Filtra apenas setor de telhas (qualquer bobina que NÃO seja exclusivamente de corte_dobra)
@@ -516,6 +518,15 @@ export default function Bobinas() {
       {isLoading ? (
         <div className="flex items-center justify-center py-16">
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
+        </div>
+      ) : isError ? (
+        <div className="bg-red-50 dark:bg-red-950/30 border border-red-300 dark:border-red-800 rounded-xl py-12 flex flex-col items-center justify-center gap-2 text-center">
+          <Package className="w-8 h-8 text-red-500" />
+          <p className="font-semibold text-red-700 dark:text-red-300">Não foi possível carregar as bobinas</p>
+          <p className="text-xs text-muted-foreground">
+            O sistema atingiu o limite temporário de requisições e continua tentando automaticamente.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>Tentar agora</Button>
         </div>
       ) : sorted.length === 0 ? (
         <div className="bg-card border border-border rounded-xl p-8 text-center space-y-4">

@@ -1,11 +1,10 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { CheckCircle2, XCircle, Clock, ArrowLeftRight, Truck, PackageCheck } from "lucide-react";
 import { format } from "date-fns";
@@ -182,14 +181,14 @@ export default function PainelTransferencias({ setor }) {
   const { data: recebidas = [], isLoading } = useQuery({
     queryKey: ["transferencias-recebidas", setor, filialAtiva],
     queryFn: () => base44.entities.Transferencia.filter({ setor, unidade_destino: filialAtiva }),
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   });
 
   // Transferências enviadas (origem = filial ativa)
   const { data: enviadas = [] } = useQuery({
     queryKey: ["transferencias-enviadas", setor, filialAtiva],
     queryFn: () => base44.entities.Transferencia.filter({ setor, unidade_origem: filialAtiva }),
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   });
 
   const pendentesRecebidas = recebidas.filter(t => t.status === "pendente");
