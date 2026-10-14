@@ -71,51 +71,19 @@ export default function Bobinas() {
     queryFn: async () => {
       let raw = [];
       try {
-        const res = await base44.entities.Bobina.list("-created_date", 2000);
-        if (Array.isArray(res) && res.length > 0) {
-          raw = res;
-        }
+        // Consulta única filtrada no servidor (tudo exceto corte_dobra) p/ não estourar limite de leitura
+        const page = await base44.entities.Bobina.filter(
+          { setor: { $ne: "corte_dobra" } },
+          { sort: "-created_date", limit: 2000 }
+        );
+        raw = page.items || [];
       } catch (e1) {
-        console.warn("[Bobinas] Falha no Bobina.list(-created_date):", e1);
+        console.warn("[Bobinas] Falha ao listar bobinas de Telhas:", e1);
       }
-
-      if (raw.length === 0) {
-        try {
-          const res = await base44.entities.Bobina.filter({}, "-created_date", 2000);
-          if (Array.isArray(res) && res.length > 0) {
-            raw = res;
-          }
-        } catch (e2) {
-          console.warn("[Bobinas] Falha no Bobina.filter({}):", e2);
-        }
-      }
-
-      if (raw.length === 0) {
-        try {
-          const res = await base44.entities.Bobina.filter({ setor: "telhas" });
-          if (Array.isArray(res) && res.length > 0) {
-            raw = res;
-          }
-        } catch (e3) {
-          console.warn("[Bobinas] Falha no Bobina.filter({ setor }):", e3);
-        }
-      }
-
-      if (raw.length === 0) {
-        try {
-          const res = await base44.entities.Bobina.list();
-          if (Array.isArray(res)) {
-            raw = res;
-          }
-        } catch (e4) {
-          console.error("[Bobinas] Todas as tentativas de listar Bobinas falharam:", e4);
-        }
-      }
-
       return Array.isArray(raw) ? raw : [];
     },
-    staleTime: 5000,
-    refetchInterval: 25000,
+    staleTime: 30000,
+    refetchInterval: 60000,
   });
 
   // Filtra apenas setor de telhas (qualquer bobina que NÃO seja exclusivamente de corte_dobra)

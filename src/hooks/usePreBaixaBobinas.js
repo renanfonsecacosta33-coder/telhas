@@ -72,16 +72,16 @@ export function usePreBaixaBobinas(setor, filiais = null) {
         return filiais.some(f => String(f).trim().toLowerCase() === String(unidade).trim().toLowerCase());
       };
 
-      // 1. Busca todas as bobinas do sistema para mapeamento bidirecional ID <-> CÓDIGO
+      // 1. Busca bobinas NÃO arquivadas (projeção mínima de campos) para mapeamento ID <-> CÓDIGO
       let allBobinas = [];
       try {
-        allBobinas = await base44.entities.Bobina.list("-created_date", 1000);
+        const page = await base44.entities.Bobina.filter(
+          { arquivada: { $ne: true } },
+          { sort: "-created_date", limit: 1000, fields: ["id", "codigo", "chapa"] }
+        );
+        allBobinas = page.items || [];
       } catch {
-        try {
-          allBobinas = await base44.entities.Bobina.filter({}, "-created_date", 1000);
-        } catch {
-          allBobinas = [];
-        }
+        allBobinas = [];
       }
 
       const bobinaById = {};
@@ -153,13 +153,19 @@ export function usePreBaixaBobinas(setor, filiais = null) {
       if (processarTelhas) {
         let pedidos = [];
         try {
-          pedidos = await base44.entities.Pedido.list("-data", 500);
+          const page = await base44.entities.Pedido.filter(
+            { status: { $nin: ["finalizado", "cancelado"] } },
+            { sort: "-data", limit: 500, fields: [
+              "variacoes_telhas", "numero_pedido", "cliente", "produto", "metros",
+              "quantidade_telhas", "metragem_mm", "kg_superior", "kg_inferior", "kg_total",
+              "kg_secundaria", "maquina", "status", "data", "unidade",
+              "bobina_superior_id", "bobina_superior", "bobina_inferior_id", "bobina_inferior",
+              "bobina_secundaria_id", "bobina_secundaria"
+            ] }
+          );
+          pedidos = page.items || [];
         } catch {
-          try {
-            pedidos = await base44.entities.Pedido.filter({}, "-data", 500);
-          } catch {
-            pedidos = [];
-          }
+          pedidos = [];
         }
 
         const pedidosAtivos = pedidos.filter(p => {
@@ -303,13 +309,16 @@ export function usePreBaixaBobinas(setor, filiais = null) {
       if (processarCD) {
         let ordensDesb = [];
         try {
-          ordensDesb = await base44.entities.OrdemDesbobinadeira.list("-created_date", 500);
+          const page = await base44.entities.OrdemDesbobinadeira.filter(
+            { status: { $nin: ["finalizado", "cancelado"] } },
+            { sort: "-created_date", limit: 500, fields: [
+              "bobina_id", "kg_estimado", "comprimento_mm", "quantidade",
+              "numero_pedido", "cliente", "status", "data", "unidade"
+            ] }
+          );
+          ordensDesb = page.items || [];
         } catch {
-          try {
-            ordensDesb = await base44.entities.OrdemDesbobinadeira.filter({}, "-created_date", 500);
-          } catch {
-            ordensDesb = [];
-          }
+          ordensDesb = [];
         }
 
         const ordensDesbAtivas = ordensDesb.filter(o => !["finalizado", "cancelado"].includes(String(o.status || "").toLowerCase()));
@@ -339,13 +348,16 @@ export function usePreBaixaBobinas(setor, filiais = null) {
         // ── C. CORTE E DOBRA: MÁQUINAS COM BOBINA DIRETA (Perfiladeiras C&D) ──
         let ordensMaq = [];
         try {
-          ordensMaq = await base44.entities.OrdemMaquinaCD.list("-created_date", 500);
+          const page = await base44.entities.OrdemMaquinaCD.filter(
+            { status: { $nin: ["finalizado", "cancelado"] } },
+            { sort: "-created_date", limit: 500, fields: [
+              "bobina_id", "peso_kg", "numero_pedido", "cliente", "tipo_peca",
+              "maquina", "status", "data", "unidade"
+            ] }
+          );
+          ordensMaq = page.items || [];
         } catch {
-          try {
-            ordensMaq = await base44.entities.OrdemMaquinaCD.filter({}, "-created_date", 500);
-          } catch {
-            ordensMaq = [];
-          }
+          ordensMaq = [];
         }
 
         const ordensMaqAtivas = ordensMaq.filter(o => !["finalizado", "cancelado"].includes(String(o.status || "").toLowerCase()));
@@ -378,7 +390,8 @@ export function usePreBaixaBobinas(setor, filiais = null) {
       const totalPreBaixaMetros = Object.values(preBaixaMetrosMap).reduce((s, m) => s + m, 0);
       return { preBaixaMap, preBaixaMetrosMap, preBaixaOpsMap, statusMap, totalPreBaixaKg, totalPreBaixaMetros };
     },
-    refetchInterval: 15000,
+    staleTime: 30000,
+    refetchInterval: 60000,
   });
 
   const preBaixaMap = data.preBaixaMap || {};

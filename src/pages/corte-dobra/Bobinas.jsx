@@ -42,28 +42,14 @@ export default function BobinasCD() {
     queryFn: async () => {
       let raw = [];
       try {
-        const res = await base44.entities.Bobina.list("-created_date", 2000);
-        if (Array.isArray(res) && res.length > 0) raw = res;
+        // Consulta única filtrada no servidor (só setor corte_dobra) p/ não estourar limite de leitura
+        const page = await base44.entities.Bobina.filter(
+          { setor: "corte_dobra" },
+          { sort: "-created_date", limit: 2000 }
+        );
+        raw = page.items || [];
       } catch (e1) {
-        console.warn("[BobinasCD] Falha no Bobina.list:", e1);
-      }
-      if (raw.length === 0) {
-        try {
-          const res = await base44.entities.Bobina.filter({ setor: "corte_dobra" }, "-created_date", 2000);
-          if (Array.isArray(res) && res.length > 0) raw = res;
-        } catch (e2) {}
-      }
-      if (raw.length === 0) {
-        try {
-          const res = await base44.entities.Bobina.filter({}, "-created_date", 2000);
-          if (Array.isArray(res) && res.length > 0) raw = res;
-        } catch (e3) {}
-      }
-      if (raw.length === 0) {
-        try {
-          const res = await base44.entities.Bobina.list();
-          if (Array.isArray(res) && res.length > 0) raw = res;
-        } catch (e4) {}
+        console.warn("[BobinasCD] Falha ao listar bobinas C&D:", e1);
       }
 
       // 🛡️ Se o servidor oscilar ou der timeout temporário e já temos bobinas no cache,
@@ -83,8 +69,8 @@ export default function BobinasCD() {
         return false;
       });
     },
-    staleTime: 10000,
-    refetchInterval: 30000,
+    staleTime: 30000,
+    refetchInterval: 60000,
     placeholderData: (prev) => prev,
   });
 
@@ -102,7 +88,13 @@ export default function BobinasCD() {
 
   const { data: bobinasGlobais = [], refetch: refetchCodigos } = useQuery({
     queryKey: ["bobinas-cd-global-codigos"],
-    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra" }, "codigo", 2000).catch(() => []),
+    queryFn: async () => {
+      const page = await base44.entities.Bobina.filter(
+        { setor: "corte_dobra" },
+        { sort: "codigo", limit: 2000, fields: ["codigo"] }
+      ).catch(() => null);
+      return page?.items || [];
+    },
     staleTime: 30000,
   });
 
