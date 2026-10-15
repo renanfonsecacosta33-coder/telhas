@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Circle, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, ArrowLeft, BarChart2, Plus, Star, Trash2, Edit3, Route, Search, X, Calendar, Filter, History, FileText, AlertTriangle, RefreshCw, Palette, Layers, Truck, Zap } from "lucide-react";
+import { Circle, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, ArrowLeft, BarChart2, Plus, Star, Trash2, Edit3, Route, Search, X, Calendar, Filter, History, FileText, AlertTriangle, RefreshCw, Palette, Layers, Truck, Zap, GitBranch } from "lucide-react";
 import { format, addDays, subDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -20,6 +20,7 @@ import BotaoVozFabrica from "@/components/producao/BotaoVozFabrica";
 import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
 import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERelatorioMaquinaModal";
+import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
 import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo, detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import {
@@ -118,6 +119,7 @@ export default function MaquinaPanel({ maquina }) {
   const [user, setUser] = useState(null);
   const [modalHistoricoOpen, setModalHistoricoOpen] = useState(false);
   const [modalHistoricoTab, setModalHistoricoTab] = useState("relatorio");
+  const [guiaModalOpen, setGuiaModalOpen] = useState(false);
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
 
@@ -1052,6 +1054,17 @@ export default function MaquinaPanel({ maquina }) {
           <Button
             variant="outline"
             size="sm"
+            className="gap-1.5 text-xs h-9 bg-card shadow-xs border-primary/40 text-primary hover:bg-primary/10 font-bold"
+            onClick={() => setGuiaModalOpen(true)}
+            title="Abrir Procedimento Operacional Padrão, Fluxograma e Solução de Defeitos"
+          >
+            <GitBranch className="w-4 h-4 text-primary" />
+            Guia & Fluxograma
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
             className="gap-1.5 text-xs h-9 bg-card shadow-xs"
             onClick={() => {
               setModalHistoricoTab("historico");
@@ -1730,6 +1743,13 @@ export default function MaquinaPanel({ maquina }) {
         maquinaNome={maquina}
         setor="telhas"
         initialTab={modalHistoricoTab}
+      />
+
+      {/* Modal do Guia Operacional Padrão & Fluxograma */}
+      <GuiaOperacionalModal
+        open={guiaModalOpen}
+        onClose={() => setGuiaModalOpen(false)}
+        maquinaNome={maquina}
       />
     </div>
   );

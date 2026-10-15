@@ -4,7 +4,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, AlertTriangle, Package, Weight, Archive, X, Layers, Calendar, Download, History, Building2, Globe } from "lucide-react";
+import { Plus, Search, AlertTriangle, Package, Weight, Archive, X, Layers, Calendar, Download, History, Building2, Globe, BookOpen, ChevronDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem
+} from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import BobinaFormDialog from "@/components/bobinas/BobinaFormDialog";
@@ -13,6 +19,7 @@ import BobinaCard, { getAlertaNivel } from "@/components/bobinas/BobinaCardShare
 import PainelSolicitacoesReserva from "@/components/vendedor/PainelSolicitacoesReserva";
 import PainelTransferencias from "@/components/bobinas/PainelTransferencias";
 import PreBaixaDetalhesDialog from "@/components/bobinas/PreBaixaDetalhesDialog";
+import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
 import { useFilial } from "@/contexts/FilialContext";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 import { getTimestampArquivamento, matchBobinaBuscaData, matchBobinaFiltroDataExata, compararBobinasTelhas, matchBobinaBuscaGeral } from "@/lib/bobinaStatusHelper";
@@ -48,6 +55,8 @@ export default function Bobinas() {
   const [showArquivadas, setShowArquivadas] = useState(false);
   const [filterPreBaixa, setFilterPreBaixa] = useState(false);
   const [bobinaOpsModal, setBobinaOpsModal] = useState(null);
+  const [popModalOpen, setPopModalOpen] = useState(false);
+  const [popModalKey, setPopModalKey] = useState("BOBINA_COLOCAR");
   const [filtroQualidade, setFiltroQualidade] = useState("todos");
   const [filtroFornecedor, setFiltroFornecedor] = useState("");
   const [filtroData, setFiltroData] = useState("");
@@ -308,6 +317,47 @@ export default function Bobinas() {
             onChange={setViewMode}
             storageKey="bobinas"
           />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="gap-2 border-blue-500/40 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                title="Guias Operacionais de Bobinas"
+              >
+                <BookOpen className="w-4 h-4 text-blue-500" />
+                Guias de Bobinas
+                <ChevronDown className="w-3 h-3 text-blue-400" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuItem
+                onClick={() => {
+                  setPopModalKey("BOBINA_COLOCAR");
+                  setPopModalOpen(true);
+                }}
+                className="gap-2 cursor-pointer text-xs font-semibold py-2"
+              >
+                <Package className="w-4 h-4 text-blue-500 shrink-0" />
+                <div>
+                  <p className="font-bold">POP: Como Colocar Bobina</p>
+                  <p className="text-[10px] text-slate-500 font-normal">Setup físico, ponte rolante e mandril</p>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  setPopModalKey("BOBINA_ALTERAR");
+                  setPopModalOpen(true);
+                }}
+                className="gap-2 cursor-pointer text-xs font-semibold py-2"
+              >
+                <History className="w-4 h-4 text-amber-500 shrink-0" />
+                <div>
+                  <p className="font-bold">POP: Como Alterar Bobina</p>
+                  <p className="text-[10px] text-slate-500 font-normal">Substituição na OP e pesagem de saldo</p>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="outline"
             onClick={() => setHistoricoReservasOpen(true)}
@@ -633,6 +683,12 @@ export default function Bobinas() {
       <DeleteConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} onConfirm={() => deleteMutation.mutate(deleteItem.id)} itemName={deleteItem ? `${deleteItem.cor} - ${deleteItem.chapa}` : ""} />
       <ExportarBobinasDialog open={exportarDialogOpen} onOpenChange={setExportarDialogOpen} setorInicial="telhas" />
       <HistoricoReservasDialog open={historicoReservasOpen} onOpenChange={setHistoricoReservasOpen} setorFiltro="telhas" />
+
+      <GuiaOperacionalModal
+        open={popModalOpen}
+        onOpenChange={setPopModalOpen}
+        maquinaNome={popModalKey}
+      />
     </div>
   );
 }

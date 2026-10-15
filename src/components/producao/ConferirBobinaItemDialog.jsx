@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,8 +9,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Layers, AlertTriangle, Play, Weight, Palette, Ruler } from "lucide-react";
+import { Layers, AlertTriangle, Play, Weight, Palette, Ruler, BookOpen } from "lucide-react";
 import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco";
+import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
 
 export default function ConferirBobinaItemDialog({
   open,
@@ -21,6 +22,7 @@ export default function ConferirBobinaItemDialog({
   bobinas = [],
   onConfirmarInicio
 }) {
+  const [guiaBobinaOpen, setGuiaBobinaOpen] = useState(false);
   // Localiza bobinas configuradas para este item (com fallback para as bobinas da OP)
   const bobinaSupId = item?.bobina_id || pedido?.bobina_superior_id || pedido?.bobina_superior;
   const bobinaInfId = item?.bobina_inf_id || pedido?.bobina_inferior_id || pedido?.bobina_inferior;
@@ -163,11 +165,23 @@ export default function ConferirBobinaItemDialog({
         {/* Alerta de Verificação Obrigatória */}
         <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 flex items-start gap-2.5">
           <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          <div className="text-xs text-amber-900 space-y-1">
+          <div className="text-xs text-amber-900 space-y-1.5 flex-1">
             <p className="font-bold">Atenção para troca de cor ou espessura!</p>
             <p className="text-amber-800 leading-relaxed">
               Como este pedido possui múltiplos itens, confirme na máquina se a bobina instalada no momento confere com os dados acima antes de iniciar o corte.
             </p>
+            <div className="pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setGuiaBobinaOpen(true)}
+                className="h-7 text-[11px] font-bold text-amber-900 border-amber-300 bg-white/90 hover:bg-amber-100 gap-1.5 shadow-xs"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-amber-600" />
+                Como trocar & pesar a bobina? (Guia POP)
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -187,6 +201,13 @@ export default function ConferirBobinaItemDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Guia Operacional Modal */}
+      <GuiaOperacionalModal
+        open={guiaBobinaOpen}
+        onOpenChange={setGuiaBobinaOpen}
+        maquinaNome="BOBINA_ALTERAR"
+      />
     </Dialog>
   );
 }

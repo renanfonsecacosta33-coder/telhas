@@ -11,7 +11,7 @@ import {
   Factory, Scissors, Wind, Layers, AlertTriangle, CheckCircle2, Star,
   ChevronDown, ChevronUp, Calendar, Filter, X, Clock, Trash2, CheckSquare, Square,
   Building2, ArrowRightLeft, Store, Globe, User, Briefcase, Hash, Package, ShieldCheck,
-  Target
+  Target, BookOpen
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -35,6 +35,7 @@ import PedidoOdooDetalheDialog from "@/components/pcp/PedidoOdooDetalheDialog";
 import WebhookSimulatorDialog from "@/components/pcp/WebhookSimulatorDialog";
 import RecuperarPedidoOdooDialog from "@/components/pcp/RecuperarPedidoOdooDialog";
 import AuditarRestaurarOpsDialog from "@/components/pcp/AuditarRestaurarOpsDialog";
+import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
 import { reajustarTodasBobinasMaquinasAutomaticamente } from "@/lib/reajusteAutomaticoBobinas";
 import { executarReparoBobininhasBanco } from "@/lib/repararBobininhasHelper";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
@@ -102,6 +103,8 @@ export default function CentralPCP() {
   const [webhookOpen, setWebhookOpen] = useState(false);
   const [recuperarModalOpen, setRecuperarModalOpen] = useState(false);
   const [auditarModalOpen, setAuditarModalOpen] = useState(false);
+  const [popModalOpen, setPopModalOpen] = useState(false);
+  const [popModalKey, setPopModalKey] = useState("PCP_CENTRAL");
   const [distribuindo, setDistribuindo] = useState(false);
   const [selecionados, setSelecionados] = useState(new Set());
   const [senhaGestorOpen, setSenhaGestorOpen] = useState(false);
@@ -2357,6 +2360,49 @@ export default function CentralPCP() {
               <span className="md:hidden">Auditar</span>
             </Button>
 
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs font-bold text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                  title="Guias Operacionais e Fluxogramas do PCP"
+                >
+                  <BookOpen className="w-3.5 h-3.5 text-blue-500" />
+                  <span className="hidden sm:inline">Guias do PCP</span>
+                  <ChevronDown className="w-3 h-3 text-blue-400" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-60">
+                <DropdownMenuItem
+                  onClick={() => {
+                    setPopModalKey("PCP_CENTRAL");
+                    setPopModalOpen(true);
+                  }}
+                  className="gap-2 cursor-pointer text-xs font-semibold py-2"
+                >
+                  <Inbox className="w-4 h-4 text-orange-500 shrink-0" />
+                  <div>
+                    <p className="font-bold">POP: Central PCP & Odoo</p>
+                    <p className="text-[10px] text-slate-500 font-normal">Recepção de pedidos e filtros</p>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setPopModalKey("PCP_FILA");
+                    setPopModalOpen(true);
+                  }}
+                  className="gap-2 cursor-pointer text-xs font-semibold py-2"
+                >
+                  <Layers className="w-4 h-4 text-blue-500 shrink-0" />
+                  <div>
+                    <p className="font-bold">POP: Gestão da Fila PCP</p>
+                    <p className="text-[10px] text-slate-500 font-normal">FIFO, Prioridade P1 e Bloqueios</p>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <Button
               onClick={() => setWebhookOpen(true)}
               size="sm"
@@ -3514,6 +3560,13 @@ export default function CentralPCP() {
         open={Boolean(pedidoHistoricoNumero)}
         onClose={() => setPedidoHistoricoNumero(null)}
         numeroPedido={pedidoHistoricoNumero}
+      />
+
+      {/* Guia Operacional e Fluxograma do PCP */}
+      <GuiaOperacionalModal
+        open={popModalOpen}
+        onOpenChange={setPopModalOpen}
+        maquinaNome={popModalKey}
       />
 
       {/* Barra Flutuante de Ações em Lote */}

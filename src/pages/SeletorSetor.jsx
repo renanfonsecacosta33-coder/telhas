@@ -27,7 +27,8 @@ import {
   Camera,
   ShieldCheck,
   Download,
-  Smartphone
+  Smartphone,
+  GitBranch
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import UserAvatarButton from "@/components/UserAvatarButton";
@@ -246,6 +247,17 @@ const ALL_MODULES = [
     iconBg: "bg-cyan-500/10 shadow-cyan-900/20",
     type: "route",
     routeTarget: "/auditoria"
+  },
+  {
+    key: "app_pops_fluxogramas",
+    title: "POPs & Fluxogramas",
+    description: "Instruções de trabalho, fluxos visuais e solução de defeitos",
+    icon: <GitBranch className="w-6 h-6 sm:w-7 sm:h-7 text-indigo-400" />,
+    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
+    borderColor: "border-slate-700/50 hover:border-indigo-500/50",
+    iconBg: "bg-indigo-500/10 shadow-indigo-900/20",
+    type: "route",
+    routeTarget: "/pops"
   }
 ];
 
@@ -323,6 +335,7 @@ export default function SeletorSetor() {
     }
 
     if (role === "super_admin" || role === "admin") return true;
+    if (appKey === "app_pops_fluxogramas") return true;
 
     if (role === "encarregado") {
       return ["app_fabrica_telhas", "app_corte_dobra", "app_expedicao", "app_hora_extra", "app_logistica", "app_consulta_estoque", "app_dashboard_ajl", "app_central_pcp"].includes(appKey);

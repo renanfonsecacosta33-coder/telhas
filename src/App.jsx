@@ -63,6 +63,7 @@ import DesenvolvimentoCD from '@/pages/corte-dobra/Desenvolvimento';
 import AuditoriaPage from '@/pages/AuditoriaPage';
 import TimelineCarregamentoPage from '@/pages/TimelineCarregamentoPage';
 import CatalogoCD from '@/pages/corte-dobra/Catalogo';
+import CentralPopsPage from '@/pages/CentralPopsPage';
 import RetalhosCD from '@/pages/corte-dobra/Retalhos';
 import SlitterPage from '@/pages/corte-dobra/Slitter';
 import CalculosCD from '@/pages/corte-dobra/Calculos';
@@ -225,6 +226,7 @@ const AuthenticatedApp = () => {
         <Route path="/expedicao/logistica"   element={<LogisticaExpedicao />} />
       </Route>
       <Route path="/arquivo-rotas" element={<ArquivoRotas />} />
+      <Route path="/pops" element={<CentralPopsPage />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
     </FilialProvider>
