@@ -40,11 +40,13 @@ function getEspessuraNumeroBobina(b) {
 }
 
 function labelBobina(b) {
+  if (!b) return "";
   const parts = [];
   if (b.codigo) parts.push(`[${b.codigo}]`);
-  if (b.espessura_utilizada) parts.push(b.espessura_utilizada);
-  else if (b.chapa) parts.push(b.chapa);
-  if (b.cor) parts.push(b.cor);
+  const esp = String(b.espessura_utilizada || b.chapa || b.espessura_real || b.espessura_mm || b.espessura || "").replace("mm", "").trim();
+  if (esp) parts.push(`${esp} mm`);
+  const corOuQualidade = b.qualidade === "GV" ? "Galvanizado" : (b.qualidade === "GL (IMP)" ? "Galvalume Imp." : (b.qualidade || b.cor || ""));
+  if (corOuQualidade) parts.push(corOuQualidade);
   if (b.largura_mm) parts.push(`${b.largura_mm}mm`);
   return parts.join(" · ");
 }

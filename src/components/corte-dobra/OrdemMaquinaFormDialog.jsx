@@ -703,8 +703,15 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     }
 
     const chapaSnap = chapaObj ? `${chapaObj.bobina_descricao || ""} · ${chapaObj.comprimento_mm}mm` : "";
-    const bobinaSnap = bobinaObj ? `[${bobinaObj.codigo || "—"}] ${bobinaObj.qualidade || ""} ${bobinaObj.espessura_mm || ""}mm` : "";
-    const slitterSnap = bobinaObj ? `[${bobinaObj.codigo || "—"}] ${bobinaObj.qualidade || ""} ${bobinaObj.espessura_mm || ""}mm — ${bobinaObj.materiais_producao || ""}` : "";
+    const espBobinaObj = bobinaObj ? String(bobinaObj.espessura_utilizada || bobinaObj.chapa || bobinaObj.espessura_real || bobinaObj.espessura_mm || bobinaObj.espessura || "").replace("mm", "").trim() : "";
+    const matNomeBobina = bobinaObj ? (bobinaObj.qualidade === "GV" ? "Galvanizado" : (bobinaObj.qualidade === "GL (IMP)" ? "Galvalume Imp." : (bobinaObj.qualidade || bobinaObj.cor || "Aço"))) : "";
+    const largBobinaFmt = bobinaObj?.largura_mm ? ` · ${bobinaObj.largura_mm}mm` : "";
+    const bobinaSnap = bobinaObj
+      ? `[${bobinaObj.codigo || "—"}]${espBobinaObj ? ` · ${espBobinaObj} mm` : ""}${matNomeBobina ? ` · ${matNomeBobina}` : ""}${largBobinaFmt}`
+      : "";
+    const slitterSnap = bobinaObj
+      ? `[${bobinaObj.codigo || "—"}]${espBobinaObj ? ` · ${espBobinaObj} mm` : ""}${matNomeBobina ? ` · ${matNomeBobina}` : ""}${bobinaObj.materiais_producao ? ` — ${bobinaObj.materiais_producao}` : ""}`
+      : "";
 
     // Monta o payload 100% sanitizado para o backend Base44
     const ordemData = {
@@ -715,6 +722,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
       dimensoes_livres: (form.dimensoes_livres || "").trim(),
       numero_pedido: (form.numero_pedido || "").trim(),
       ...(isDesbobinadeira && form.comprimento_mm ? { comprimento_mm: Number(form.comprimento_mm) } : {}),
+      ...(espBobinaObj ? { espessura_utilizada: espBobinaObj } : {}),
       cliente: (form.cliente || "").trim(),
       vendedor: (form.vendedor || "").trim(),
       quantidade: qtdNum,

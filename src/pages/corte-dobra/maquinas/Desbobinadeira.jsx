@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Layers, AlertTriangle, Search, X, Star, Ban, Trash2, History, FileText } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Layers, AlertTriangle, Search, X, Star, Ban, Trash2, History, FileText, GitBranch } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -23,6 +23,7 @@ import { isOperadorDestaMaquina } from "@/lib/somPermissaoHelper";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
 import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERelatorioMaquinaModal";
+import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
 
 export function getMaquinaOrdemDesb(ordem) {
   if (!ordem) return "DESBOBINADEIRA 01";
@@ -49,6 +50,7 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
   const [ordemRetrabalho, setOrdemRetrabalho] = useState(null);
   const [modalHistoricoOpen, setModalHistoricoOpen] = useState(false);
   const [modalHistoricoTab, setModalHistoricoTab] = useState("relatorio");
+  const [guiaModalOpen, setGuiaModalOpen] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -118,17 +120,52 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
     refetchInterval: 10000,
   });
 
-  // Mapa de custo por bobina (para exibir custo da OP — apenas gestores)
-  const { data: bobinasCusto = [] } = useQuery({
+  // Todas as bobinas ativas (para cruzamento de espessura, código e custo da OP)
+  const { data: todasBobinas = [] } = useQuery({
     queryKey: ["bobinas-cd-ativas", filialAtiva],
-    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false, unidade: filialAtiva }),
+    queryFn: () => {
+      const filter = { arquivada: false };
+      if (filialAtiva && filialAtiva !== "todas") {
+        filter.unidade = filialAtiva;
+      }
+      return base44.entities.Bobina.filter(filter, "-created_date", 500);
+    },
     refetchInterval: 30000,
   });
   const bobinaCustoMap = useMemo(() => {
     const m = {};
-    bobinasCusto.forEach(b => { if (b.custo) m[b.id] = b.custo; });
+    todasBobinas.forEach(b => { if (b.custo) m[b.id] = b.custo; });
     return m;
-  }, [bobinasCusto]);
+  }, [todasBobinas]);
+
+  // Pedidos Odoo para resolução inteligente de itens e espessuras
+  const { data: pedidosOdoo = [] } = useQuery({
+    queryKey: ["pedidos-odoo-desbobinadeira", filialAtiva],
+    queryFn: () => {
+      const filter = {};
+      if (filialAtiva && filialAtiva !== "todas") {
+        filter.unidade = filialAtiva;
+      }
+      return base44.entities.PedidoOdoo.filter(filter, "-data_recebimento", 500);
+    },
+    refetchInterval: 20000,
+  });
+
+  const pedidosOdooMap = useMemo(() => {
+    const map = {};
+    for (const p of pedidosOdoo) {
+      if (p.numero_pedido) {
+        const numLimpo = String(p.numero_pedido).replace(/^#/, "").trim().toUpperCase();
+        map[numLimpo] = p;
+        map[p.numero_pedido] = p;
+      }
+      if (p.numero_oc) {
+        const ocLimpa = String(p.numero_oc).replace(/^#/, "").trim().toUpperCase();
+        map[ocLimpa] = p;
+      }
+    }
+    return map;
+  }, [pedidosOdoo]);
 
   // Consulta de chapas geradas no estoque da Chaparia para validação cruzada
   const { data: chapasDoEstoque = [] } = useQuery({
@@ -545,6 +582,17 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
           <Button
             variant="outline"
             size="sm"
+            className="gap-1.5 text-xs h-9 bg-card shadow-xs border-primary/40 text-primary hover:bg-primary/10 font-bold"
+            onClick={() => setGuiaModalOpen(true)}
+            title="Abrir Procedimento Operacional Padrão, Fluxograma e Solução de Defeitos"
+          >
+            <GitBranch className="w-4 h-4 text-primary" />
+            Guia & Fluxograma
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
             className="gap-1.5 text-xs h-9 border-border bg-card shadow-xs"
             onClick={() => {
               setModalHistoricoTab("historico");
@@ -745,7 +793,8 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
                           ordens={ordens}
                           pedidoSeq={pedidoSeqMap[o.id]}
                           bobinaCustoMap={bobinaCustoMap}
-                          bobinas={bobinasCusto}
+                          bobinas={todasBobinas}
+                          pedidosOdooMap={pedidosOdooMap}
                           user={user}
                           chapaVinculada={chapaMapPorOrdem[o.id]}
                           onGerarChapa={handleGerarChapaManual}
@@ -830,7 +879,8 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
                     ordens={ordens}
                     pedidoSeq={pedidoSeqMap[o.id]}
                     bobinaCustoMap={bobinaCustoMap}
-                    bobinas={bobinasCusto}
+                    bobinas={todasBobinas}
+                    pedidosOdooMap={pedidosOdooMap}
                     user={user}
                     chapaVinculada={chapaMapPorOrdem[o.id]}
                     onGerarChapa={handleGerarChapaManual}
@@ -892,7 +942,8 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
                           ordens={ordens}
                           pedidoSeq={pedidoSeqMap[o.id]}
                           bobinaCustoMap={bobinaCustoMap}
-                          bobinas={bobinasCusto}
+                          bobinas={todasBobinas}
+                          pedidosOdooMap={pedidosOdooMap}
                           user={user}
                           chapaVinculada={chapaMapPorOrdem[o.id]}
                           onGerarChapa={handleGerarChapaManual}
@@ -962,6 +1013,13 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
         maquinaNome={maquinaAtiva}
         setor="corte_dobra"
         initialTab={modalHistoricoTab}
+      />
+
+      {/* Modal do Guia Operacional Padrão & Fluxograma */}
+      <GuiaOperacionalModal
+        open={guiaModalOpen}
+        onClose={() => setGuiaModalOpen(false)}
+        maquinaNome={maquinaAtiva}
       />
     </div>
   );

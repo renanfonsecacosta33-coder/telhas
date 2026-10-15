@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import UploadButton from "@/components/ui/UploadButton";
-import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Trash2, Layers, ShoppingCart, User, AlertTriangle, Ban, Truck } from "lucide-react";
+import { Play, Pause, Square, CheckCircle2, Timer, Coffee, Circle, AlertCircle, Clock, Camera, Loader2, Trash2, Layers, Image as ImageIcon, ScanLine, ShoppingCart, User, AlertTriangle, Ban, Truck, Zap, Sparkles, Edit } from "lucide-react";
 import { format } from "date-fns";
 import { formatarDataSegura } from "@/lib/formatData";
 import { base44 } from "@/api/base44Client";
@@ -63,7 +63,7 @@ const ZOOM_CFG = {
   grande:   { card: "p-5",   title: "text-lg", info: "text-base", badge: "text-sm", cronText: "text-base", cronLabel: "text-sm", cronPad: "px-4 py-2.5", btn: "h-10 text-sm", obs: "text-sm py-2", gap: "gap-2.5", mb: "mb-3" },
 };
 
-export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "normal", ordens = [], pedidoSeq, bobinaCustoMap = {}, user, chapaVinculada, onGerarChapa, bobinas = [] }) {
+export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "normal", ordens = [], pedidoSeq, bobinaCustoMap = {}, user, chapaVinculada, onGerarChapa, bobinas = [], pedidosOdooMap = {} }) {
   const regras = useRegrasProducao();
   const z = ZOOM_CFG[zoom] || ZOOM_CFG.normal;
   const [pauseDialog, setPauseDialog] = useState(false);
@@ -85,65 +85,216 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
   const [confirmarCancelarOpen, setConfirmarCancelarOpen] = useState(false);
   const [senhaDesb02Open, setSenhaDesb02Open] = useState(false);
 
+  // Estados para modal de definição rápida de bobina / espessura
+  const [definirBobinaOpen, setDefinirBobinaOpen] = useState(false);
+  const [novaEspessuraInput, setNovaEspessuraInput] = useState("");
+  const [bobinaSelecionadaId, setBobinaSelecionadaId] = useState("");
+  const [salvandoBobina, setSalvandoBobina] = useState(false);
+
   // ── RESOLUÇÃO INTELIGENTE DE ESPECIFICAÇÃO TÉCNICA E ESPESSURA ──
-  const textoPecaCompleto = [o.observacoes, o.tipo_peca, o.dimensoes_livres].filter(Boolean).join(" ");
+  const textoPecaCompleto = [o.observacoes, o.tipo_peca, o.dimensoes_livres, o.especificacoes_tecnicas].filter(Boolean).join(" ");
   const specTec = useMemo(() => {
     return extrairEspecificacao(textoPecaCompleto, o.quantidade);
   }, [textoPecaCompleto, o.quantidade]);
 
+  // Código da Bobina extraído de snapshot ou gravado na ordem
+  const codigoBobinaExtraido = useMemo(() => {
+    if (o.bobina_codigo) return o.bobina_codigo;
+    const mCod = String(o.bobina_descricao || "").match(/\[([A-Z0-9_\-\/]+)\]/i);
+    if (mCod) return mCod[1];
+    return null;
+  }, [o.bobina_codigo, o.bobina_descricao]);
+
+  // Localiza o objeto da Bobina no estoque CD (por ID ou por Código)
+  const bobinaEncontrada = useMemo(() => {
+    if (!Array.isArray(bobinas) || bobinas.length === 0) return null;
+    if (o.bobina_id) {
+      const bById = bobinas.find(b => b.id === o.bobina_id || b.codigo === o.bobina_id);
+      if (bById) return bById;
+    }
+    if (codigoBobinaExtraido) {
+      const bByCod = bobinas.find(b => b.codigo && String(b.codigo).toUpperCase() === codigoBobinaExtraido.toUpperCase());
+      if (bByCod) return bByCod;
+    }
+    return null;
+  }, [bobinas, o.bobina_id, codigoBobinaExtraido]);
+
+  // Pedido Odoo correspondente vinculado (se houver)
+  const pedidoOdooVinculado = useMemo(() => {
+    if (!pedidosOdooMap || Object.keys(pedidosOdooMap).length === 0) return null;
+    const numLimpo = String(o.numero_pedido || "").replace(/^#/, "").trim().toUpperCase();
+    if (numLimpo && pedidosOdooMap[numLimpo]) return pedidosOdooMap[numLimpo];
+    const ocLimpa = String(o.numero_oc || "").replace(/^#/, "").trim().toUpperCase();
+    if (ocLimpa && pedidosOdooMap[ocLimpa]) return pedidosOdooMap[ocLimpa];
+    return null;
+  }, [pedidosOdooMap, o.numero_pedido, o.numero_oc]);
+
   // Espessura da Bobina / Material com busca profunda e fallback inteligente
-  const { espessuraFinal, espessuraOrigem } = useMemo(() => {
-    // 1. Campo explícito espessura_utilizada na ordem
-    const espDireta = String(o.espessura_utilizada || "").replace("mm", "").trim();
-    if (espDireta && !isNaN(parseFloat(espDireta.replace(",", ".")))) {
-      return { espessuraFinal: espDireta, espessuraOrigem: "bobina" };
+  const { espessuraFinal, espessuraOrigem, espessuraDetalhe } = useMemo(() => {
+    const sanitizarEsp = (val) => {
+      if (!val) return null;
+      const s = String(val).replace("mm", "").replace("#", "").trim();
+      const n = parseFloat(s.replace(",", "."));
+      if (!isNaN(n) && n > 0 && n < 20) {
+        return s.replace(".", ",");
+      }
+      return null;
+    };
+
+    // 1. Campo explícito na própria ordem
+    const espDireta = sanitizarEsp(o.espessura_utilizada || o.espessura_exigida || o.material_espessura || o.espessura_mm || o.espessura);
+    if (espDireta) {
+      return { espessuraFinal: espDireta, espessuraOrigem: "ordem", espessuraDetalhe: "Informada na ordem" };
     }
 
-    // 2. Busca na bobina vinculada via bobinas (prop)
-    if (o.bobina_id && Array.isArray(bobinas) && bobinas.length > 0) {
-      const bVinculada = bobinas.find(b => b.id === o.bobina_id);
-      if (bVinculada) {
-        const espB = String(bVinculada.espessura_utilizada || bVinculada.chapa || bVinculada.espessura_real || "").replace("mm", "").trim();
-        if (espB && !isNaN(parseFloat(espB.replace(",", ".")))) {
-          return { espessuraFinal: espB, espessuraOrigem: "bobina" };
-        }
+    // 2. Busca na bobina vinculada (por id ou código extraído)
+    if (bobinaEncontrada) {
+      const espBob = sanitizarEsp(bobinaEncontrada.espessura_utilizada || bobinaEncontrada.chapa || bobinaEncontrada.espessura_real || bobinaEncontrada.espessura_mm || bobinaEncontrada.espessura);
+      if (espBob) {
+        return { espessuraFinal: espBob, espessuraOrigem: "bobina", espessuraDetalhe: `Estoque [${bobinaEncontrada.codigo || "CD"}]` };
       }
     }
 
-    // 3. Procura na bobina_descricao (ex: "[CD0207] • 1,83 • Galvanizado")
+    // 3. Busca na Chapa Vinculada da Chaparia (se houver)
+    if (chapaVinculada) {
+      const espChapa = sanitizarEsp(chapaVinculada.espessura_mm || chapaVinculada.chapa || chapaVinculada.espessura);
+      if (espChapa) {
+        return { espessuraFinal: espChapa, espessuraOrigem: "chapa", espessuraDetalhe: "Chapa de Estoque vinculada" };
+      }
+    }
+
+    // 4. Procura número decimal na bobina_descricao (ex: "[CD0207] • 1,83 • Galvanizado")
     if (o.bobina_descricao) {
       const mDesc = String(o.bobina_descricao).match(/\b(\d+[.,]\d+)\s*(?:mm)?\b/);
       if (mDesc) {
-        return { espessuraFinal: mDesc[1].replace(".", ","), espessuraOrigem: "bobina_texto" };
+        const espDesc = sanitizarEsp(mDesc[1]);
+        if (espDesc) return { espessuraFinal: espDesc, espessuraOrigem: "bobina_texto", espessuraDetalhe: "Descrição gravada" };
       }
     }
 
-    // 4. Extrai da descrição/observação da peça (ex: "CHAPA 14", "1,95", "PERFIL U 25X200X25")
-    const mPecaEsp = textoPecaCompleto.match(/\b(\d+[.,]\d+)\s*(?:mm|chapa|ch)?\b/i);
-    if (mPecaEsp) {
-      return { espessuraFinal: mPecaEsp[1].replace(".", ","), espessuraOrigem: "pedido" };
+    // 5. Cruzamento com Pedido Odoo Vinculado (itens e tags)
+    if (pedidoOdooVinculado) {
+      if (pedidoOdooVinculado.itens_json) {
+        try {
+          const itens = typeof pedidoOdooVinculado.itens_json === "string" ? JSON.parse(pedidoOdooVinculado.itens_json) : pedidoOdooVinculado.itens_json;
+          if (Array.isArray(itens) && itens.length > 0) {
+            const matchItem = itens.find(it => {
+              const itEsp = sanitizarEsp(it.espessura || it.chapa);
+              if (!itEsp) return false;
+              if (o.tipo_peca && it.produto && String(it.produto).toLowerCase().includes(String(o.tipo_peca).toLowerCase())) return true;
+              return false;
+            }) || itens.find(it => sanitizarEsp(it.espessura || it.chapa));
+
+            if (matchItem) {
+              const espItem = sanitizarEsp(matchItem.espessura || matchItem.chapa);
+              if (espItem) return { espessuraFinal: espItem, espessuraOrigem: "odoo", espessuraDetalhe: `Item Pedido Odoo #${pedidoOdooVinculado.numero_pedido}` };
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (pedidoOdooVinculado.espessuras_tags) {
+        try {
+          const tags = typeof pedidoOdooVinculado.espessuras_tags === "string" ? JSON.parse(pedidoOdooVinculado.espessuras_tags) : pedidoOdooVinculado.espessuras_tags;
+          if (Array.isArray(tags) && tags.length > 0) {
+            const espTag = sanitizarEsp(tags[0]?.espessura);
+            if (espTag) return { espessuraFinal: espTag, espessuraOrigem: "odoo", espessuraDetalhe: `Tag Pedido Odoo #${pedidoOdooVinculado.numero_pedido}` };
+          }
+        } catch (_) {}
+      }
+
+      const espOdoo = sanitizarEsp(pedidoOdooVinculado.espessura);
+      if (espOdoo) {
+        return { espessuraFinal: espOdoo, espessuraOrigem: "odoo", espessuraDetalhe: `Pedido Odoo #${pedidoOdooVinculado.numero_pedido}` };
+      }
     }
 
-    // 5. Bitola ou calibre comercial (#14 -> 1,95mm, #16 -> 1,55mm, etc.)
-    const mGauge = textoPecaCompleto.match(/(?:#|msg\s*#?|ch\s*#?|chapa\s*#?)\s*(1[2-9]|2[0-8])\b/i);
+    // 6. Extrai número decimal da descrição/observação da peça (ex: "CHAPA 1.95", "ESP 1,50MM", "2,00")
+    const mPecaEsp = textoPecaCompleto.match(/(?:esp|espessura|chapa|ch)?\s*[:=]?\s*(\d+[.,]\d+)\s*(?:mm)?/i);
+    if (mPecaEsp) {
+      const espMatch = sanitizarEsp(mPecaEsp[1]);
+      if (espMatch) return { espessuraFinal: espMatch, espessuraOrigem: "pedido", espessuraDetalhe: "Descrição técnica" };
+    }
+
+    // 7. Bitola / Calibre comercial (#14 -> 1,95mm, #16 -> 1,55mm, etc.)
+    const mGauge = textoPecaCompleto.match(/(?:#|msg\s*#?|ch\s*#?|chapa\s*#?|calibre\s*#?)\s*(1[2-9]|2[0-8])\b/i);
     const GAUGE_MAP = { "12": "2,65", "13": "2,25", "14": "1,95", "16": "1,55", "18": "1,25", "19": "1,11", "20": "0,90", "22": "0,75", "24": "0,65", "26": "0,45", "28": "0,40" };
     if (mGauge && GAUGE_MAP[mGauge[1]]) {
-      return { espessuraFinal: GAUGE_MAP[mGauge[1]], espessuraOrigem: "pedido" };
+      return { espessuraFinal: GAUGE_MAP[mGauge[1]], espessuraOrigem: "pedido", espessuraDetalhe: `Bitola #${mGauge[1]} (${GAUGE_MAP[mGauge[1]]} mm)` };
     }
 
-    return { espessuraFinal: null, espessuraOrigem: null };
-  }, [o.espessura_utilizada, o.bobina_id, o.bobina_descricao, bobinas, textoPecaCompleto]);
+    return { espessuraFinal: null, espessuraOrigem: null, espessuraDetalhe: null };
+  }, [o, bobinaEncontrada, chapaVinculada, pedidoOdooVinculado, textoPecaCompleto]);
 
-  // Limpeza da descrição da bobina (remove "GV mm" quebrado e sufixos incorretos)
+  // Nome limpo e normalizado do Material / Qualidade
+  const materialBobinaNome = useMemo(() => {
+    if (bobinaEncontrada) {
+      if (bobinaEncontrada.qualidade === "GV") return "Galvanizado";
+      if (bobinaEncontrada.qualidade === "GL (IMP)") return "Galvalume Imp.";
+      if (bobinaEncontrada.qualidade) return bobinaEncontrada.qualidade;
+      if (bobinaEncontrada.cor) return bobinaEncontrada.cor;
+    }
+    const raw = String(o.bobina_descricao || o.material || "").toUpperCase();
+    if (raw.includes("GL") || raw.includes("GALVALUME")) return "Galvalume";
+    if (raw.includes("FF") || raw.includes("FRIO")) return "Flandres / Frio";
+    if (raw.includes("FQ") || raw.includes("QUENTE")) return "Fino a Quente";
+    return "Galvanizado";
+  }, [bobinaEncontrada, o.bobina_descricao, o.material]);
+
+  // Largura da bobina
+  const larguraBobinaMm = useMemo(() => {
+    if (bobinaEncontrada?.largura_mm) return Number(bobinaEncontrada.largura_mm);
+    const mLarg = String(o.bobina_descricao || "").match(/(\d{3,4})\s*mm/i);
+    if (mLarg) return Number(mLarg[1]);
+    return null;
+  }, [bobinaEncontrada, o.bobina_descricao]);
+
+  // Limpeza da descrição da bobina (NUNCA exibe "GV mm" quebrado ou espaços em branco)
   const bobinaDescricaoLimpa = useMemo(() => {
-    if (!o.bobina_descricao) return "Bobina";
-    let desc = String(o.bobina_descricao).trim();
-    // Remove "mm" isolado ou no final
-    desc = desc.replace(/\bmm\b/gi, "").replace(/\s*·\s*$/, "").trim();
-    // Substitui "GV" por "Galvanizado"
+    const cod = codigoBobinaExtraido ? `[${codigoBobinaExtraido}]` : "";
+    let desc = String(o.bobina_descricao || "").trim();
+    // Remove "mm" quebrado
+    desc = desc.replace(/\bmm\b/gi, "").replace(/\s*·\s*$/, "").replace(/\s+/g, " ").trim();
     desc = desc.replace(/\bGV\b/g, "Galvanizado");
-    return desc || "Bobina";
-  }, [o.bobina_descricao]);
+    if (desc === "Bobina" || desc === "Galvanizado" || !desc) {
+      return [cod, materialBobinaNome].filter(Boolean).join(" · ") || "Bobina Aço";
+    }
+    return desc;
+  }, [o.bobina_descricao, codigoBobinaExtraido, materialBobinaNome]);
+
+  // Ação de salvar alteração rápida de Bobina / Espessura
+  const handleSalvarEspessuraOuBobina = async () => {
+    setSalvandoBobina(true);
+    try {
+      const updates = {};
+      if (bobinaSelecionadaId) {
+        const b = bobinas.find(x => x.id === bobinaSelecionadaId);
+        if (b) {
+          const espB = String(b.espessura_utilizada || b.chapa || b.espessura_real || b.espessura_mm || "").replace("mm", "").trim();
+          updates.bobina_id = b.id;
+          updates.espessura_utilizada = espB || novaEspessuraInput.trim() || undefined;
+          const matB = b.qualidade === "GV" ? "Galvanizado" : (b.qualidade || b.cor || "Galvanizado");
+          const largB = b.largura_mm ? ` · ${b.largura_mm}mm` : "";
+          updates.bobina_descricao = `[${b.codigo || "CD"}]${espB ? ` · ${espB} mm` : ""}${matB ? ` · ${matB}` : ""}${largB}`;
+        }
+      } else if (novaEspessuraInput.trim()) {
+        const espLimpa = novaEspessuraInput.trim().replace("mm", "").trim();
+        updates.espessura_utilizada = espLimpa;
+        const cod = codigoBobinaExtraido ? `[${codigoBobinaExtraido}]` : "";
+        updates.bobina_descricao = [cod, `${espLimpa} mm`, materialBobinaNome].filter(Boolean).join(" · ");
+      }
+
+      await base44.entities.OrdemDesbobinadeira.update(o.id, updates);
+      if (typeof onUpdate === "function") onUpdate(o.id, updates);
+      toast.success("✅ Especificações da Bobina atualizadas!");
+      setDefinirBobinaOpen(false);
+    } catch (err) {
+      console.error("Erro ao salvar espessura da bobina:", err);
+      toast.error("Erro ao atualizar bobina: " + (err.message || "Erro desconhecido"));
+    } finally {
+      setSalvandoBobina(false);
+    }
+  };
 
   // Medidas de Corte e Demanda do Desbobinador
   const { comprimentoCorteMm, desenvMm, abasFmt, metragemTotalM, pesoEstimadoKg } = useMemo(() => {
@@ -384,11 +535,13 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                   <AlertCircle className="w-3 h-3 mr-0.5" /> RETRABALHO{o.retrabalho_etapa > 1 ? ` E${o.retrabalho_etapa}` : ""}
                 </Badge>
               )}
-              <span className={`font-bold text-sm font-mono ${etpCorFin ? etpCorFin.text : "text-green-700"}`}>{o.bobina_descricao || "Bobina"}</span>
-              {o.espessura_utilizada && (
+              <span className={`font-bold text-sm font-mono ${etpCorFin ? etpCorFin.text : "text-green-700"}`}>
+                {codigoBobinaExtraido ? `[${codigoBobinaExtraido}] ` : ""}{bobinaDescricaoLimpa}
+              </span>
+              {espessuraFinal && (
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                  <CorChapaDot espessura={o.espessura_utilizada} size="xs" />
-                  <Layers className="w-2.5 h-2.5" /> {o.espessura_utilizada}mm
+                  <CorChapaDot espessura={espessuraFinal} size="xs" />
+                  <Layers className="w-2.5 h-2.5" /> {espessuraFinal} mm
                 </span>
               )}
               <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px]">
@@ -555,17 +708,13 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                   <AlertCircle className="w-3 h-3 mr-0.5" /> RETRABALHO{o.retrabalho_etapa > 1 ? ` E${o.retrabalho_etapa}` : ""}
                 </Badge>
               )}
-              <span className={`font-black ${z.title} font-mono ${etpCor ? etpCor.text : "text-orange-600 dark:text-orange-400"}`}>{bobinaDescricaoLimpa}</span>
-              {espessuraFinal && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs sm:text-sm font-black bg-blue-600 dark:bg-blue-600 text-white shadow-xs tracking-wide">
-                  <CorChapaDot espessura={espessuraFinal} size="sm" />
-                  <Layers className="w-4 h-4 shrink-0" /> ESPESSURA: {espessuraFinal} mm
-                </span>
-              )}
-              {espessuraOrigem === "pedido" && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-700" title="A bobina no estoque estava sem espessura cadastrada. Espessura identificada pelas especificações do pedido.">
-                  ⚠️ Espessura detectada pelo pedido
-                </span>
+              <span className={`font-black ${z.title} font-mono ${etpCor ? etpCor.text : "text-orange-600 dark:text-orange-400"}`}>
+                {codigoBobinaExtraido ? `[${codigoBobinaExtraido}]` : ""}{o.numero_pedido ? ` • Pedido #${o.numero_pedido}` : ` • OP #${o.id}`}
+              </span>
+              {pedidoSeq && (
+                <Badge variant="outline" className="text-xs font-mono font-bold bg-muted/60">
+                  {pedidoSeq}
+                </Badge>
               )}
               {isAbaixoMinimo02 && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black bg-amber-500/15 text-amber-800 dark:text-amber-200 border-2 border-amber-400 dark:border-amber-600 animate-pulse shadow-xs" title="Desbobinadeira 02 aceita no mínimo 0,80mm. Exige senha de gestor para iniciar.">
@@ -593,6 +742,93 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                 </span>
               </div>
             )}
+
+            {/* SUPER BLOCO DA BOBINA & ESPESSURA — DESTAQUE MÁXIMO PARA O OPERADOR */}
+            <div className={`my-2.5 p-3 rounded-xl border-2 transition-all ${
+              espessuraFinal
+                ? "bg-slate-900 text-white border-blue-500 shadow-md"
+                : "bg-red-50 dark:bg-red-950/40 border-2 border-red-500 text-red-900 dark:text-red-200 shadow-md"
+            }`}>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                {/* Lado Esquerdo: Tag Gigante de Espessura + Dados da Bobina */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  {/* Tag Gigante da Espessura */}
+                  {espessuraFinal ? (
+                    <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-blue-600 text-white font-mono shadow-inner border border-blue-400">
+                      <CorChapaDot espessura={espessuraFinal} size="md" />
+                      <div className="flex flex-col leading-none">
+                        <span className="text-[9px] font-black uppercase tracking-wider text-blue-100 flex items-center gap-1">
+                          <Layers className="w-3 h-3" /> ESPESSURA BOBINA
+                        </span>
+                        <span className="text-xl sm:text-2xl font-black text-white tracking-tight mt-0.5">
+                          {espessuraFinal} mm
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNovaEspessuraInput("");
+                        setBobinaSelecionadaId(o.bobina_id || "");
+                        setDefinirBobinaOpen(true);
+                      }}
+                      className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black text-xs sm:text-sm shadow-md transition-all active:scale-95 animate-pulse"
+                    >
+                      <AlertTriangle className="w-5 h-5 text-yellow-300 shrink-0" />
+                      <div className="flex flex-col text-left leading-tight">
+                        <span className="text-[10px] uppercase text-red-100 font-bold">Atenção Desbobinador</span>
+                        <span>⚠️ ESPESSURA NÃO INFORMADA — CLIQUE PARA AJUSTAR</span>
+                      </div>
+                    </button>
+                  )}
+
+                  {/* Detalhes da Bobina */}
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-black font-mono text-base sm:text-lg text-yellow-400 tracking-wide">
+                        {codigoBobinaExtraido ? `[${codigoBobinaExtraido}]` : "[BOBINA]"} {materialBobinaNome}
+                      </span>
+                      {larguraBobinaMm ? (
+                        <span className="px-2 py-0.5 rounded text-xs font-bold bg-white/20 text-white border border-white/30 font-mono">
+                          Largura: {larguraBobinaMm} mm
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-xs text-slate-300 flex-wrap font-medium">
+                      {espessuraDetalhe && (
+                        <span className="text-blue-200">
+                          Origem: {espessuraDetalhe}
+                        </span>
+                      )}
+                      {bobinaEncontrada?.peso_atual ? (
+                        <span className="text-emerald-300">
+                          • Saldo Estoque: {Math.round(bobinaEncontrada.peso_atual)} kg
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lado Direito: Botão Rápido de Alterar / Definir Bobina */}
+                <div className="flex items-center gap-2 self-start md:self-center">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setNovaEspessuraInput(espessuraFinal || "");
+                      setBobinaSelecionadaId(o.bobina_id || bobinaEncontrada?.id || "");
+                      setDefinirBobinaOpen(true);
+                    }}
+                    className="h-8 text-xs font-bold gap-1.5 bg-white/10 hover:bg-white/20 text-white border-white/20 shadow-xs"
+                  >
+                    <Layers className="w-3.5 h-3.5 text-yellow-300" />
+                    {espessuraFinal ? "Trocar / Ajustar Bobina" : "Definir Bobina"}
+                  </Button>
+                </div>
+              </div>
+            </div>
 
             {/* Grade de Produção em Alta Visibilidade para o Desbobinador */}
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2 my-2.5 p-2.5 rounded-xl bg-orange-50/70 dark:bg-orange-950/20 border-2 border-orange-200/80 dark:border-orange-800/60 shadow-2xs">
@@ -1072,6 +1308,116 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               }}
             >
               <Trash2 className="w-4 h-4" /> Sim, Excluir Definitivamente
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Rápido de Definição / Troca de Bobina e Espessura */}
+      <Dialog open={definirBobinaOpen} onOpenChange={setDefinirBobinaOpen}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <Layers className="w-5 h-5 text-orange-500" />
+              Definir Bobina e Espessura — {o.numero_pedido ? `Pedido #${o.numero_pedido}` : `OP #${o.id}`}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Selecione a bobina compatível do estoque ou digite a espessura em milímetros para a desbobinadeira.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Atalhos Rápidos de Espessura Comercial */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Atalhos de Espessura Comercial (mm):</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { label: "1,25 (#18)", val: "1,25" },
+                  { label: "1,50 mm", val: "1,50" },
+                  { label: "1,55 (#16)", val: "1,55" },
+                  { label: "1,83 mm", val: "1,83" },
+                  { label: "1,95 (#14)", val: "1,95" },
+                  { label: "2,00 mm", val: "2,00" },
+                  { label: "2,65 (#12)", val: "2,65" },
+                  { label: "3,00 mm", val: "3,00" },
+                  { label: "4,75 mm", val: "4,75" },
+                ].map((item) => (
+                  <button
+                    key={item.val}
+                    type="button"
+                    onClick={() => setNovaEspessuraInput(item.val)}
+                    className={`px-2 py-1 rounded text-xs font-bold transition-all border ${
+                      novaEspessuraInput === item.val
+                        ? "bg-blue-600 text-white border-blue-700 shadow-xs"
+                        : "bg-muted hover:bg-muted/80 text-foreground border-border"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Input Manual de Espessura */}
+            <div className="space-y-1.5">
+              <Label htmlFor="input-espessura" className="text-xs font-semibold">
+                Espessura Desejada (mm) *
+              </Label>
+              <Input
+                id="input-espessura"
+                placeholder="Ex: 1,95"
+                value={novaEspessuraInput}
+                onChange={(e) => setNovaEspessuraInput(e.target.value)}
+                className="font-mono text-base font-bold"
+              />
+            </div>
+
+            {/* Seleção de Bobina do Estoque (opcional) */}
+            <div className="space-y-1.5">
+              <Label htmlFor="select-bobina" className="text-xs font-semibold">
+                Vincular Bobina do Estoque:
+              </Label>
+              <select
+                id="select-bobina"
+                value={bobinaSelecionadaId}
+                onChange={(e) => {
+                  const bId = e.target.value;
+                  setBobinaSelecionadaId(bId);
+                  if (bId) {
+                    const b = bobinas.find(x => x.id === bId);
+                    if (b) {
+                      const esp = String(b.espessura_utilizada || b.chapa || b.espessura_real || b.espessura_mm || "").replace("mm", "").trim();
+                      if (esp) setNovaEspessuraInput(esp);
+                    }
+                  }
+                }}
+                className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm font-medium focus:outline-hidden focus:ring-2 focus:ring-ring"
+              >
+                <option value="">-- Nenhuma bobina vinculada (usar apenas espessura) --</option>
+                {bobinas.map((b) => {
+                  const espB = b.espessura_utilizada || b.chapa || b.espessura_real || b.espessura_mm || "-";
+                  const saldo = b.peso_atual ? `${Math.round(b.peso_atual)}kg` : "";
+                  return (
+                    <option key={b.id} value={b.id}>
+                      [{b.codigo || "CD"}] {espB}mm · {b.qualidade || b.cor || "GV"} {b.largura_mm ? `· ${b.largura_mm}mm` : ""} {saldo ? `(${saldo})` : ""}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setDefinirBobinaOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1"
+              disabled={salvandoBobina || (!novaEspessuraInput.trim() && !bobinaSelecionadaId)}
+              onClick={handleSalvarEspessuraOuBobina}
+            >
+              {salvandoBobina ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              Salvar Especificações
             </Button>
           </DialogFooter>
         </DialogContent>
