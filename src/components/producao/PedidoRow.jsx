@@ -798,9 +798,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const isPerfiladoNestaMaquina = Boolean(
     mPainelNorm &&
     mPainelNorm !== "COLAGEM" &&
-    mAtualNorm !== mPainelNorm && // A máquina atual não é mais esta máquina (já seguiu para a próxima!)
-    (mOrigemNorm === mPainelNorm || p.etapa_anterior_concluida === maquina || (!p.maquina_origem && (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem"))) &&
-    (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem" || p.status === "finalizado" || p.perfilacao_concluida)
+    (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem" || p.perfilacao_concluida)
   );
   // TELHA BANDEJA: fluxo multi-etapa sequencial (legado, caso não use a tríade de fluxo paralelo)
   const isBandejaMultiEtapa = !isComponenteParaleloBandeja && p.tipo_componente_bandeja !== "colagem_final" && !p.grupo_bandeja_id && p.produto === "TELHA BANDEJA" && ["TP - 40", "COLONIAL", "TP - 25", "BANDEJA", "COLAGEM"].includes(p.maquina);

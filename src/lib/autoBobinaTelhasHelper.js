@@ -582,11 +582,10 @@ export async function rotearLoteTelhasAgrupadas({
     const produtoNome = it.produto || it.descricao || "";
     const textoCompleto = `${produtoNome} ${descTexto} ${it.observacoes || ""}`.trim();
     const prodTipo = detectarTipoProdutoTelha(produtoNome, descTexto);
+    const maquinaDetectada = detectarMaquinaTelha(textoCompleto) || "TP - 40";
     let maquina = (prodTipo === "CUMEEIRA" || /\bCUMEEIRA\b/i.test(textoCompleto))
       ? "CUMEEIRA"
-      : (prodTipo === "TELHA BANDEJA")
-      ? (detectarMaquinaTelha(textoCompleto) || "TP - 40")
-      : (it.maquina || detectarMaquinaTelha(textoCompleto) || "TP - 40");
+      : (it.maquina && it.maquina !== "COLAGEM" && it.maquina !== "DESBOBINADOR" ? it.maquina : maquinaDetectada);
     const esp = it.espessura ? String(it.espessura) : (detectarEspessura(textoCompleto) || "0.43");
     const cor = detectarCorTelha(produtoNome, descTexto) || "NATURAL";
     const chave = `${maquina}___${prodTipo}___${esp}___${cor}`.toUpperCase();

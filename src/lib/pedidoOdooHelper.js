@@ -823,9 +823,8 @@ import { detectarCorTelha } from "@/lib/bobinaValidation";
 export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
   const descTexto = item?.descricao || item?.observacao || pedido?.observacoes || "";
   const produtoNome = item?.produto || item?.descricao || "";
-  const textoCompleto = `${produtoNome} ${descTexto}`.trim();
-  const prodTipo = detectarTipoProdutoTelha(produtoNome, descTexto);
-  const maq = item?.maquina || detectarMaquinaTelha(textoCompleto) || "TP - 40";
+  const maqDetectada = detectarMaquinaTelha(textoCompleto) || "TP - 40";
+  const maq = (item?.maquina && item.maquina !== "COLAGEM" && item.maquina !== "DESBOBINADOR") ? item.maquina : maqDetectada;
   const esp = item?.espessura ? String(item.espessura) : detectarEspessura(textoCompleto);
   const origem = item?.origem || detectarOrigemAco(textoCompleto);
   const cor = item?.cor || detectarCorTelha(produtoNome, descTexto);

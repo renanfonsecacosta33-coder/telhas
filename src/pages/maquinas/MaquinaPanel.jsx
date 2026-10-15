@@ -70,20 +70,15 @@ export function isPedidoConcluidoNaMaquina(p, maquina) {
   const mAtualNorm = norm(p.maquina);
   const mOrigemNorm = norm(p.maquina_origem);
 
-  // 1. Se já avançou para a colagem ou aguardando colagem
-  if (mAtualNorm !== mPainelNorm && (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem")) {
+  // 1. Em perfiladeiras (TP-40, TP-25, etc.), se a ordem já avançou para a Colagem,
+  // ou está aguardando colagem, ou teve sua perfilação concluída:
+  // ela é 100% considerada CONCLUÍDA nesta perfiladeira (fica na aba Concluídos)
+  if (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem" || p.perfilacao_concluida) {
     return true;
   }
-  // 2. Se a perfilação já foi concluída
-  if (p.perfilacao_concluida && (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem" || mAtualNorm !== mPainelNorm)) {
-    return true;
-  }
-  // 3. Regra de isPerfiladoNestaMaquina do PedidoRow
-  if (
-    mAtualNorm !== mPainelNorm &&
-    (mOrigemNorm === mPainelNorm || p.etapa_anterior_concluida === maquina || (!p.maquina_origem && (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem"))) &&
-    (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem" || p.status === "finalizado" || p.perfilacao_concluida)
-  ) {
+
+  // 2. Se a máquina atual registrada não for este painel
+  if (mAtualNorm && mAtualNorm !== mPainelNorm) {
     return true;
   }
 
@@ -235,7 +230,17 @@ export default function MaquinaPanel({ maquina }) {
         if (p.tipo_componente_bandeja === "telha_superior" || p.tipo_componente_bandeja === "bandeja_inferior") {
           return false;
         }
-        return mNorm === "COLAGEM" || p.status === "aguardando_colagem";
+
+        // A OP SÓ DEVE APARECER NA COLAGEM SE:
+        // A perfilação já terminou (aguardando_colagem ou perfilacao_concluida)
+        // OU se já está sendo colada (em_producao / pausado / finalizado com maquina === "COLAGEM")
+        // Se ela ainda estiver pendente ou em produção na perfiladeira (sem ter sido perfilada), NUNCA deve aparecer na Colagem!
+        const estaEmColagemOuPronto = (
+          p.status === "aguardando_colagem" ||
+          p.perfilacao_concluida === true ||
+          (mNorm === "COLAGEM" && (p.status === "em_producao" || p.status === "pausado" || p.status === "finalizado"))
+        );
+        return Boolean(estaEmColagemOuPronto);
       }
 
       // Se estamos na tela do DESBOBINADOR:
@@ -383,9 +388,13 @@ export default function MaquinaPanel({ maquina }) {
     const currentIds = new Set(pedidos.map(p => p.id));
     const newOrders = pedidos.filter(p => !prevOrderIds.current.has(p.id));
     if (prevOrderIds.current.size > 0 && newOrders.length > 0) {
-      // Só toca som para pedidos pendentes que são NOVOS nesta máquina
-      // (não toca para pedidos que vieram de outra máquina já em produção/colagem)
-      const trulyNew = newOrders.filter(p => p.status === "pendente");
+      // Só toca som para pedidos pendentes que são NOVOS e que pertencem ATIVAMENTE a esta máquina
+      // (não toca para pedidos que foram para outra máquina como colagem ou já estão concluídos nesta)
+      const trulyNew = newOrders.filter(p => {
+        if (isPedidoConcluidoNaMaquina(p, maquina)) return false;
+        if (maquina === "COLAGEM") return p.status === "aguardando_colagem";
+        return p.status === "pendente";
+      });
       // Sinais sonoros da máquina só chegam para o operador cadastrado nesta máquina específica!
       if (trulyNew.length > 0 && isOperadorDestaMaquina(user, maquina)) {
         playAlertSound();
@@ -503,9 +512,10 @@ export default function MaquinaPanel({ maquina }) {
     const histData = appendHistorico(pedido, acao, label, detalhes);
     const hojeStr = format(new Date(), "yyyy-MM-dd");
     const agoraIso = new Date().toISOString();
-    const maqOrigem = extraData.maquina_origem || pedido.maquina_origem || (maquina !== "COLAGEM" ? maquina : null) || (pedido.maquina !== "COLAGEM" ? pedido.maquina : null);
+    const isPainelColagem = maquina === "COLAGEM";
+    const maqOrigem = extraData.maquina_origem || pedido.maquina_origem || (!isPainelColagem ? maquina : null) || (pedido.maquina !== "COLAGEM" ? pedido.maquina : null);
 
-    const colagemUpdates = novoStatus === "aguardando_colagem" ? {
+    const colagemUpdates = (novoStatus === "aguardando_colagem" || isPainelColagem) ? {
       maquina: "COLAGEM",
       maquina_origem: maqOrigem,
       data_perfilacao: pedido.data_perfilacao || extraData.data_perfilacao || hojeStr,
@@ -686,9 +696,10 @@ export default function MaquinaPanel({ maquina }) {
 
   const pendentes = pedidosDia.filter(p => {
     if (isPedidoConcluidoNaMaquina(p, maquina)) return false;
-    if (p.status === "pendente") return true;
-    if (maquinaNorm(p.maquina) === targetNorm && p.status === "aguardando_colagem") return true;
-    return false;
+    if (maquina === "COLAGEM") {
+      return p.status === "aguardando_colagem";
+    }
+    return p.status === "pendente";
   }).length;
 
   // Função para match de busca: número do pedido (#, dígitos ou texto), cliente, produto/modelo ou obs
