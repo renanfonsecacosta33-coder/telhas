@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Plus, Search, AlertTriangle, Package, Weight, Archive, X, Layers, Calendar, Download, History, Building2, Globe, BookOpen, ChevronDown, RefreshCw, Loader2 } from "lucide-react";
 import {
