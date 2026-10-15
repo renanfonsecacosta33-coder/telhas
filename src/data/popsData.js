@@ -892,6 +892,85 @@ export const POPS_DATA = {
       { sintoma: "Bobina não aparece na lista de seleção", causa: "Bobina está com saldo zerado, com status 'inativa' ou cadastrada em outra filial", solucao: "Verificar no menu 'Estoque de Bobinas' se a bobina pertence à filial ativa e se tem peso positivo." },
       { sintoma: "Alerta de origem não permitida (Nacional x Importado)", causa: "Pedido comercial exige aço Nacional e operador selecionou bobina Importada", solucao: "Selecionar obrigatoriamente uma bobina de origem Nacional para cumprir o contrato do cliente." }
     ]
+  },
+
+  "BOBINA_LANCAR": {
+    id: "POP-BOB-03",
+    titulo: "Como Lançar Bobina no Sistema (Telhas & C&D)",
+    subtitulo: "Entrada oficial de matéria-prima, IA OCR de Nota Fiscal, cálculo de metragem e laudo usina",
+    setor: "Almoxarifado / Recebimento",
+    setorKey: "telhas",
+    maquinasCompativeis: ["ESTOQUE BOBINAS", "CADASTRO", "NOVA BOBINA", "RECEBIMENTO", "LANCAR BOBINA"],
+    equipePadrao: "Conferente de Entrada / Encarregado de Estoque",
+    capacidade: "Cadastro individual e em lote (MultiplasBobinasNFCard), tolerância ±3% na pesagem",
+    corBadge: "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/60 dark:text-blue-300",
+    corHeader: "from-blue-600 to-indigo-700",
+    epis: [
+      { nome: "Botina Bico de Aço", norma: "NR-6", desc: "Inspeção e pesagem ao lado da bobina" },
+      { nome: "Luva de Vaqueta/Kevlar", norma: "NR-6", desc: "Conferência manual de rebarba e espessura" }
+    ],
+    regrasSeguranca: [
+      "Nunca cadastrar bobina com peso estimado: O campo 'Peso Balança (kg)' deve ser preenchido com a pesagem real da balança física.",
+      "Atenção à Origem: Selecionar estritamente 'Nacional' ou 'Importado' de acordo com o laudo da usina.",
+      "Divergência de Peso > 3%: Se a diferença entre a NF e a balança ultrapassar 3%, segregar o rolo e alertar compras."
+    ],
+    fluxo: [
+      { passo: 1, titulo: "1. Abertura da Janela 'Nova Bobina'", posto: "Estoque de Bobinas", tipo: "processo", tempo: "10 seg", desc: "Acessar '/bobinas' ou '/corte-dobra/bobinas' e clicar em '+ Nova Bobina'.", icone: "Plus" },
+      { passo: 2, titulo: "2. Leitura com IA (OCR da NF)", posto: "Câmera / PDF", tipo: "processo", tempo: "5 seg", desc: "Tirar foto da nota de papel ou anexar PDF. A IA extrai NF, fornecedor, itens e pesos.", icone: "Camera" },
+      { passo: 3, titulo: "3. Importação Individual ou Lote", posto: "Card Multi-Bobinas", tipo: "decisao", tempo: "10 seg", desc: "Se houver mais de uma bobina na NF, clicar em 'Cadastrar Todas em Lote' (gera TE0150, TE0151...).", icone: "Layers" },
+      { passo: 4, titulo: "4. Conferência Chapa, Cor e Origem", posto: "Formulário", tipo: "inspecao", tempo: "30 seg", desc: "Verificar se a chapa (ex: 0,43) e a cor estão corretas. Selecionar Nacional ou Importado.", icone: "ShieldCheck" },
+      { passo: 5, titulo: "5. Pesagem Real & Metragem", posto: "Balança Física", tipo: "inspecao", tempo: "1 min", desc: "Digitar o peso da balança. O sistema calcula a metragem exata: P / (L * E * 7850).", icone: "Scale" },
+      { passo: 6, titulo: "6. Certificado Usina & Salvar", posto: "Tablet / Etiqueta", tipo: "finalizacao", tempo: "20 seg", desc: "Anexar PDF da usina (ou termo de ausência) e salvar. Imprimir e colar etiqueta no rolo.", icone: "CheckCircle2" }
+    ],
+    passosDetalhados: [
+      {
+        numero: 1,
+        titulo: "Leitura Automática da Nota Fiscal com IA",
+        acaoFisica: "Pegar o espelho impresso da NF ou o PDF encaminhado pelo fornecedor.",
+        acaoTablet: "Clicar no botão '📸 Tirar Foto da NF' ou '📎 Anexar PDF'. Aguardar o processamento da IA por 3 a 5 segundos. O sistema preenche automaticamente: número da NF, fornecedor, pesos e especificações.",
+        criterioQualidade: "Dados da NF capturados com precisão, reduzindo em 85% o tempo de digitação."
+      },
+      {
+        numero: 2,
+        titulo: "Cadastro em Lote (Quando a NF tem 2 ou mais bobinas)",
+        acaoFisica: "Conferir quantas bobinas físicas vieram na carreta conforme a nota.",
+        acaoTablet: "Ao detectar múltiplas bobinas, surge o card verde 'MultiplasBobinasNFCard'. Clicar no botão 'Cadastrar Todas em Lote'. O sistema cria toda a sequência de códigos TE#### ou CD#### instantaneamente.",
+        criterioQualidade: "Geração de códigos sequenciais únicos sem risco de colisão ou esquecimento de rolos."
+      },
+      {
+        numero: 3,
+        titulo: "Uso da 'Bobina Modelo' (Preenchimento Rápido)",
+        acaoFisica: "Caso esteja cadastrando manualmente sem NF digital, identificar uma bobina idêntica já existente.",
+        acaoTablet: "No campo 'Bobina Modelo', pesquisar por exemplo 'Branco Pirajá 0,43'. Ao selecionar, o formulário herda automaticamente largura, chapa, qualidade e estoque mínimo.",
+        criterioQualidade: "Padronização de cadastros sem inconsistências de grafia de cor ou largura."
+      },
+      {
+        numero: 4,
+        titulo: "Pesagem na Balança e Cálculo Automático da Metragem",
+        acaoFisica: "Descarregar a bobina e colocá-la na balança industrial do galpão.",
+        acaoTablet: "Digitar o peso no campo 'Peso Balança (kg)'. O sistema roda a fórmula física de densidade (7.850 kg/m³) e gera a metragem linear exata: Metros = Peso / (Largura * Chapa * 7850).",
+        criterioQualidade: "Metragem apurada em tempo real sem necessidade de operador fazer contas manuais."
+      },
+      {
+        numero: 5,
+        titulo: "Certificado de Qualidade da Usina",
+        acaoFisica: "Localizar o laudo químico e mecânico enviado pela usina (CSN, Arcelor, etc.).",
+        acaoTablet: "Clicar em 'Anexar Certificado'. Se a carga chegou sem laudo físico, marcar 'Bobina sem certificado', justificando o motivo e assinando digitalmente.",
+        criterioQualidade: "Rastreabilidade de conformidade mecânica exigida pelos clientes de engenharia."
+      },
+      {
+        numero: 6,
+        titulo: "Gravação & Etiquetagem",
+        acaoFisica: "Anotar o código gerado (ex: TE0158) no corpo do rolo ou colar a etiqueta adesiva impressa.",
+        acaoTablet: "Clicar em 'Salvar Entrada de Bobina'. O sistema grava os dados com trava anti-duplicidade e registra a auditoria com o nome do operador logado.",
+        criterioQualidade: "Nenhuma bobina pode ir ao pátio sem o código TE/CD claramente legível."
+      }
+    ],
+    defeitos: [
+      { sintoma: "Alerta de Nota Fiscal já existente no sistema", causa: "A mesma NF já teve bobinas cadastradas anteriormente por outro operador", solucao: "Verificar se as bobinas da NF já não foram inseridas em lote antes de salvar novamente." },
+      { sintoma: "Metragem calculada muito baixa ou zerada", causa: "Chapa ou largura digitadas com formato inválido (ex: vírgula tripla ou campo vazio)", solucao: "Verificar se a chapa está em milímetros (ex: 0,43) e a largura em 1200." },
+      { sintoma: "Erro ao salvar: Código já existente", causa: "Dois operadores abriram a tela de cadastro no mesmo segundo", solucao: "O sistema regenera automaticamente o próximo código da sequência ao clicar em salvar." }
+    ]
   }
 };
 
@@ -910,7 +989,10 @@ export function getPopPorMaquina(maquinaNome = "") {
     return POPS_DATA["PCP_CENTRAL"];
   }
 
-  // Rotinas de Bobina (Colocar vs Alterar)
+  // Rotinas de Bobina (Lançar vs Colocar vs Alterar)
+  if (norm.includes("LANCAR") || norm.includes("LANÇAR") || norm.includes("CADASTRO") || norm.includes("NOVA BOBINA") || norm.includes("ENTRADA")) {
+    return POPS_DATA["BOBINA_LANCAR"];
+  }
   if (norm.includes("ALTERAR") || norm.includes("TROCAR") || norm.includes("SUBSTITUIR") || norm.includes("REAJUSTE")) {
     return POPS_DATA["BOBINA_ALTERAR"];
   }

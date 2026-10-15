@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Layers, AlertTriangle, Search, X, Star, Ban, Trash2, History, FileText, GitBranch } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Layers, AlertTriangle, Search, X, Star, Ban, Trash2, History, FileText, GitBranch, RefreshCw } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -84,11 +84,33 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
   const diasDaSemana = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
-  const { data: todasOrdens = [], isLoading } = useQuery({
+  const { data: todasOrdens = [], isLoading, isFetching, refetch } = useQuery({
     queryKey: ["ordens-desbobinadeira", filialAtiva],
-    queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva }, "-data", 500),
-    refetchInterval: 10000,
+    queryFn: () => {
+      const filter = (filialAtiva && filialAtiva !== "todas") ? { unidade: filialAtiva } : {};
+      return base44.entities.OrdemDesbobinadeira.filter(filter, "-data", 500);
+    },
+    refetchInterval: 3000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
+
+  // Inscrição em tempo real para novas ordens ou alterações na Desbobinadeira
+  useEffect(() => {
+    let unsubscribe = null;
+    try {
+      if (base44.entities?.OrdemDesbobinadeira?.subscribe) {
+        unsubscribe = base44.entities.OrdemDesbobinadeira.subscribe(() => {
+          refetch();
+        });
+      }
+    } catch (e) {
+      console.warn("Realtime subscribe OrdemDesbobinadeira:", e);
+    }
+    return () => {
+      if (typeof unsubscribe === "function") unsubscribe();
+    };
+  }, [refetch]);
 
   // Filtra as ordens para a máquina ativa (Desbobinadeira 01 ou 02)
   const ordens = useMemo(() => {
@@ -116,8 +138,13 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
   // calcular a sequência do pedido cruzando todos os setores
   const { data: ordensMaquina = [] } = useQuery({
     queryKey: ["ordens-maquina-cd", filialAtiva],
-    queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva }, "-data", 500),
-    refetchInterval: 10000,
+    queryFn: () => {
+      const filter = (filialAtiva && filialAtiva !== "todas") ? { unidade: filialAtiva } : {};
+      return base44.entities.OrdemMaquinaCD.filter(filter, "-data", 500);
+    },
+    refetchInterval: 5000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 
   // Todas as bobinas ativas (para cruzamento de espessura, código e custo da OP)
@@ -579,6 +606,25 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs h-9 border-border bg-card shadow-xs hover:border-orange-500 font-semibold"
+            onClick={() => {
+              refetch();
+              queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
+              queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
+              queryClient.invalidateQueries({ queryKey: ["bobinas-cd-ativas"] });
+              toast.success("Pedidos sincronizados!");
+            }}
+            disabled={isFetching}
+            title="Atualizar pedidos agora"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-orange-500 ${isFetching ? "animate-spin" : ""}`} />
+            <span>{isFetching ? "Sincronizando..." : "Sincronizar Pedidos"}</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse ml-0.5" title="Tempo real ativo" />
+          </Button>
+
           <Button
             variant="outline"
             size="sm"

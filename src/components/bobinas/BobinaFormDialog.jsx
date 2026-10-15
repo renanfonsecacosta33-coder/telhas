@@ -6,11 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from "@/api/base44Client";
-import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Layers, Camera, Sparkles, AlertTriangle } from "lucide-react";
+import { Paperclip, FileCheck, X, Loader2, ShieldCheck, Layers, Camera, Sparkles, AlertTriangle, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import ReservaPanel from "@/components/bobinas/ReservaPanel";
 import UploadButton from "@/components/ui/UploadButton";
 import ImageViewer from "@/components/ui/ImageViewer";
+import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useFilial } from "@/contexts/FilialContext";
 import { useAuth } from "@/lib/AuthContext";
@@ -46,6 +47,7 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
   const [semCertAssinatura, setSemCertAssinatura] = useState("");
   const [confirmarSemCert, setConfirmarSemCert] = useState(false);
   const [erros, setErros] = useState({});
+  const [guiaLancarOpen, setGuiaLancarOpen] = useState(false);
   const [viewer, setViewer] = useState({ open: false, url: "", name: "" });
   const [bobinaModeloId, setBobinaModeloId] = useState("");
   const formTopRef = useRef();
@@ -559,8 +561,23 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="w-[95vw] sm:max-w-2xl md:max-w-4xl lg:max-w-5xl max-h-[92vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-bold">{editItem ? "Editar Bobina" : "Nova Bobina"}</DialogTitle>
+        <DialogHeader className="flex flex-row items-center justify-between gap-3 space-y-0 pb-2 border-b border-border/60">
+          <div>
+            <DialogTitle className="text-xl font-bold">{editItem ? "Editar Bobina" : "Nova Bobina"}</DialogTitle>
+            <p className="text-xs text-muted-foreground">Preencha os dados da bobina de aço para entrada no estoque</p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setGuiaLancarOpen(true)}
+            className="h-8 text-xs font-bold text-blue-700 dark:text-blue-300 border-blue-400/50 bg-blue-50/50 hover:bg-blue-100 dark:hover:bg-blue-950/40 gap-1.5 shrink-0 shadow-xs"
+            title="Abrir Tutorial e POP Oficial: Como Lançar Bobina no Sistema"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            <span className="hidden sm:inline">Como Lançar? (Tutorial)</span>
+            <span className="sm:hidden">Guia</span>
+          </Button>
         </DialogHeader>
         <div className="space-y-5 py-2" ref={formTopRef}>
           {/* Card de Múltiplas Bobinas Detectadas na NF */}
@@ -1001,6 +1018,13 @@ export default function BobinaFormDialog({ open, onClose, editItem }) {
             {saving ? <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Salvando...</> : (editItem ? "Salvar" : "Adicionar")}
           </Button>
         </DialogFooter>
+
+        {/* Guia Operacional Modal */}
+        <GuiaOperacionalModal
+          open={guiaLancarOpen}
+          onOpenChange={setGuiaLancarOpen}
+          maquinaNome="BOBINA_LANCAR"
+        />
       </DialogContent>
     </Dialog>
   );

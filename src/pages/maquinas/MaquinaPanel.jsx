@@ -178,7 +178,7 @@ export default function MaquinaPanel({ maquina }) {
   const maquinaNorm = (m) => String(m || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
   const targetNorm = maquinaNorm(maquina);
 
-  const { data: todosPedidos = [], isLoading } = useQuery({
+  const { data: todosPedidos = [], isLoading, isFetching, refetch } = useQuery({
     queryKey: ["pedidos", filialAtiva],
     queryFn: async () => {
       try {
@@ -186,7 +186,8 @@ export default function MaquinaPanel({ maquina }) {
           const cacheOffline = await obterCacheLocal(`pedidos_${filialAtiva}`);
           if (cacheOffline) return cacheOffline;
         }
-        const res = await base44.entities.Pedido.filter({ unidade: filialAtiva }, "-data", 500);
+        const filter = (filialAtiva && filialAtiva !== "todas") ? { unidade: filialAtiva } : {};
+        const res = await base44.entities.Pedido.filter(filter, "-data", 500);
         salvarCacheLocal(`pedidos_${filialAtiva}`, res).catch(() => {});
         return res;
       } catch (fetchErr) {
@@ -195,8 +196,27 @@ export default function MaquinaPanel({ maquina }) {
         throw fetchErr;
       }
     },
-    refetchInterval: 10000,
+    refetchInterval: 3000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
+
+  // Inscrição em tempo real para novos pedidos ou atualizações nas perfiladeiras/colagem
+  useEffect(() => {
+    let unsubscribe = null;
+    try {
+      if (base44.entities?.Pedido?.subscribe) {
+        unsubscribe = base44.entities.Pedido.subscribe(() => {
+          refetch();
+        });
+      }
+    } catch (e) {
+      console.warn("Realtime subscribe Pedido:", e);
+    }
+    return () => {
+      if (typeof unsubscribe === "function") unsubscribe();
+    };
+  }, [refetch]);
 
   const pedidos = useMemo(() => {
     return todosPedidos.filter(p => {
@@ -1051,6 +1071,24 @@ export default function MaquinaPanel({ maquina }) {
           Voltar para Produção
         </Button>
         <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs h-9 border-border bg-card shadow-xs hover:border-primary font-semibold"
+            onClick={() => {
+              refetch();
+              queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+              queryClient.invalidateQueries({ queryKey: ["pedidos-maquina", maquina] });
+              toast.success("Pedidos sincronizados!");
+            }}
+            disabled={isFetching}
+            title="Atualizar pedidos agora"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-primary ${isFetching ? "animate-spin" : ""}`} />
+            <span>{isFetching ? "Sincronizando..." : "Sincronizar Pedidos"}</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse ml-0.5" title="Tempo real ativo" />
+          </Button>
+
           <Button
             variant="outline"
             size="sm"

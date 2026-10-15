@@ -332,6 +332,19 @@ export default function Bobinas() {
             <DropdownMenuContent align="end" className="w-64">
               <DropdownMenuItem
                 onClick={() => {
+                  setPopModalKey("BOBINA_LANCAR");
+                  setPopModalOpen(true);
+                }}
+                className="gap-2 cursor-pointer text-xs font-semibold py-2"
+              >
+                <Plus className="w-4 h-4 text-emerald-500 shrink-0" />
+                <div>
+                  <p className="font-bold">POP: Como Lançar Bobina</p>
+                  <p className="text-[10px] text-slate-500 font-normal">Entrada no sistema, IA OCR e metragem</p>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
                   setPopModalKey("BOBINA_COLOCAR");
                   setPopModalOpen(true);
                 }}
