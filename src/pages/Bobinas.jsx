@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, AlertTriangle, Package, Weight, Archive, X, Layers, Calendar, Download, History, Building2, Globe, BookOpen, ChevronDown, RefreshCw, Loader2 } from "lucide-react";
+import { Plus, Search, AlertTriangle, Package, Weight, Archive, X, Layers, Calendar, Download, History, Building2, Globe, BookOpen, ChevronDown, RefreshCw, Loader2, DollarSign } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -251,6 +251,20 @@ export default function Bobinas() {
     return null;
   };
 
+  const valorTotalEstoque = useMemo(() => {
+    return ativas.reduce((acc, b) => {
+      const c = getCustoBobina(b);
+      const peso = Number(b.peso_kg) || 0;
+      if (c && peso > 0) {
+        return acc + (c * peso);
+      }
+      if (b.custo_total && Number(b.custo_total) > 0) {
+        return acc + Number(b.custo_total);
+      }
+      return acc;
+    }, 0);
+  }, [ativas]);
+
   // Ordenação inteligente (Prioriza data de arquivamento quando visualizando arquivadas)
   const sorted = [...filtered].sort((a, b) => {
     if (showArquivadas) {
@@ -468,8 +482,8 @@ export default function Bobinas() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white border border-border rounded-xl p-4 text-center">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+        <div className="bg-white dark:bg-card border border-border rounded-xl p-4 text-center">
           <Package className="w-5 h-5 text-blue-500 mx-auto mb-1" />
           {(isLoading || isFetching) && ativas.length === 0 ? (
             <div className="flex items-center justify-center gap-1.5 py-1">
@@ -482,10 +496,11 @@ export default function Bobinas() {
           <p className="text-xs text-muted-foreground">Em Estoque</p>
           <p className="text-sm font-semibold text-muted-foreground mt-1">{totalPeso.toLocaleString("pt-BR")} kg</p>
         </div>
+
         <div
           onClick={() => setFilterPreBaixa(!filterPreBaixa)}
           className={`border rounded-xl p-4 text-center cursor-pointer transition-all hover:shadow-md ${
-            filterPreBaixa ? "bg-blue-50 border-blue-400 ring-2 ring-blue-300" : "bg-white border-border"
+            filterPreBaixa ? "bg-blue-50 border-blue-400 ring-2 ring-blue-300" : "bg-white dark:bg-card border-border"
           }`}
           title="Clique para filtrar apenas bobinas com pré-baixa"
         >
@@ -499,16 +514,36 @@ export default function Bobinas() {
             <p className="text-2xl font-bold">{totalPeso.toLocaleString("pt-BR")}</p>
           )}
           <p className="text-xs text-muted-foreground">kg em estoque</p>
-          <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex flex-col items-center gap-0.5">
-            <span className="text-xs text-blue-700 font-bold flex items-center gap-1">
+          <div className="mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800 flex flex-col items-center gap-0.5">
+            <span className="text-xs text-blue-700 dark:text-blue-400 font-bold flex items-center gap-1">
               🔄 Pré-baixa: {totalPreBaixaKg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg
             </span>
-            <span className="text-[11px] text-blue-600 font-semibold">
+            <span className="text-[11px] text-blue-600 dark:text-blue-300 font-semibold">
               ≈ {totalPreBaixaMetros > 0 ? totalPreBaixaMetros.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : Math.round(totalPreBaixaKg / 3.7)}m de telhas
             </span>
           </div>
         </div>
-        <div className={`border rounded-xl p-4 text-center ${emAlerta.length > 0 ? "bg-red-50 border-red-300" : "bg-white border-border"}`}>
+
+        {/* Card: Valor Total em Estoque (R$) */}
+        <div className="bg-emerald-500/10 border border-emerald-300 dark:border-emerald-800 rounded-xl p-4 text-center">
+          <DollarSign className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mx-auto mb-1" />
+          {(isLoading || isFetching) && ativas.length === 0 ? (
+            <div className="flex items-center justify-center gap-1.5 py-1">
+              <Loader2 className="w-4 h-4 animate-spin text-emerald-500" />
+              <span className="text-xs text-muted-foreground font-medium">Carregando...</span>
+            </div>
+          ) : (
+            <p className="text-2xl font-black text-emerald-800 dark:text-emerald-300">
+              {valorTotalEstoque > 0 ? `R$ ${valorTotalEstoque.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "—"}
+            </p>
+          )}
+          <p className="text-xs text-emerald-700 dark:text-emerald-400 font-bold">Valor em Estoque</p>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            {totalPeso > 0 && valorTotalEstoque > 0 ? `Méd: R$ ${(valorTotalEstoque / totalPeso).toFixed(2)}/kg` : "Patrimônio ativo"}
+          </p>
+        </div>
+
+        <div className={`border rounded-xl p-4 text-center ${emAlerta.length > 0 ? "bg-red-50 border-red-300 dark:bg-red-950/20 dark:border-red-800" : "bg-white dark:bg-card border-border"}`}>
           <AlertTriangle className={`w-5 h-5 mx-auto mb-1 ${emAlerta.length > 0 ? "text-red-500" : "text-gray-400"}`} />
           {(isLoading || isFetching) && ativas.length === 0 ? (
             <div className="flex items-center justify-center gap-1.5 py-1">
@@ -516,11 +551,12 @@ export default function Bobinas() {
               <span className="text-xs text-muted-foreground font-medium">Carregando...</span>
             </div>
           ) : (
-            <p className={`text-2xl font-bold ${emAlerta.length > 0 ? "text-red-700" : ""}`}>{emAlerta.length}</p>
+            <p className={`text-2xl font-bold ${emAlerta.length > 0 ? "text-red-700 dark:text-red-400" : ""}`}>{emAlerta.length}</p>
           )}
           <p className="text-xs text-muted-foreground">Em alerta</p>
         </div>
-        <div className={`border rounded-xl p-4 text-center ${reservadas.length > 0 ? "bg-purple-50 border-purple-300" : "bg-white border-border"}`}>
+
+        <div className={`border rounded-xl p-4 text-center ${reservadas.length > 0 ? "bg-purple-50 border-purple-300 dark:bg-purple-950/20 dark:border-purple-800" : "bg-white dark:bg-card border-border"}`}>
           <Archive className={`w-5 h-5 mx-auto mb-1 ${reservadas.length > 0 ? "text-purple-500" : "text-gray-400"}`} />
           {(isLoading || isFetching) && ativas.length === 0 && reservadas.length === 0 ? (
             <div className="flex items-center justify-center gap-1.5 py-1">
@@ -528,7 +564,7 @@ export default function Bobinas() {
               <span className="text-xs text-muted-foreground font-medium">Carregando...</span>
             </div>
           ) : (
-            <p className={`text-2xl font-bold ${reservadas.length > 0 ? "text-purple-700" : ""}`}>{reservadas.length}</p>
+            <p className={`text-2xl font-bold ${reservadas.length > 0 ? "text-purple-700 dark:text-purple-400" : ""}`}>{reservadas.length}</p>
           )}
           <p className="text-xs text-muted-foreground">Reservadas</p>
         </div>
