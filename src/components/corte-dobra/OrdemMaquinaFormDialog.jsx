@@ -10,7 +10,8 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
-import { Layers, Camera, PackageX, Lock, Flame, Route, User as UserIcon, Zap, ChevronDown, ChevronUp, CheckCircle2, Search, Sparkles, Truck } from "lucide-react";
+import { Layers, Camera, PackageX, Lock, Flame, Route, User as UserIcon, Zap, ChevronDown, ChevronUp, CheckCircle2, Search, Sparkles, Truck, RotateCcw, Edit2 } from "lucide-react";
+import { toast } from "sonner";
 import UploadButton from "@/components/ui/UploadButton";
 import ChapaEstoqueCombobox from "@/components/corte-dobra/ChapaEstoqueCombobox";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
@@ -307,7 +308,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         chapa_origem: editItem.chapa_origem || "chaparia",
         chapa_cd_id: editItem.chapa_cd_id || "",
         bobina_id: editItem.bobina_id || "",
-        tipo_peca: editItem.tipo_peca || "",
+        tipo_peca: editItem.tipo_peca || produtoFixo || "",
         dimensoes_livres: editItem.dimensoes_livres || (editItem.comprimento_mm ? `${editItem.comprimento_mm}mm` : ""),
         comprimento_mm: editItem.comprimento_mm || "",
         numero_pedido: editItem.numero_pedido || "",
@@ -337,8 +338,8 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         chapa_origem: (maquinaProp === "PERFILADEIRA" || maquinaProp?.startsWith("DESBOBINADEIRA")) ? "direto" : "chaparia",
         chapa_cd_id: "",
         bobina_id: "",
-        tipo_peca: "",
-        dimensoes_livres: "",
+        tipo_peca: produtoFixo || "",
+        dimensoes_livres: produtoFixo || "",
         numero_pedido: "",
         cliente: "",
         quantidade: "",
@@ -382,10 +383,8 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
 
   const tipoPecaObj = TIPOS_PECA.find(t => t.label === form.tipo_peca);
   const etapa = tipoPecaObj?.etapa || "ambas";
-  const maquinasDisponiveis = maquinaProp === "PERFILADEIRA"
-    ? MAQUINAS_PERF
-    : MAQUINAS_TODAS;
-  const isPerfiladeira = maquinaProp === "PERFILADEIRA" || etapa === "perfiladeira" || form.maquina === "PERFILADEIRA";
+  const maquinasDisponiveis = MAQUINAS_TODAS;
+  const isPerfiladeira = form.maquina === "PERFILADEIRA";
 
   // ── AUTO-SELEÇÃO INTELIGENTE DE MATÉRIA-PRIMA & TIPO DE PEÇA ──────────────
   useEffect(() => {
@@ -838,15 +837,41 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         <div className="space-y-4 py-2">
 
           {produtoFixo && (
-            <div className="space-y-1">
-              <Label className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
-                <Lock className="w-3 h-3" /> Produto (bloqueado — origem Fila PCP)
-              </Label>
+            <div className="space-y-1.5 bg-amber-500/10 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-700/60 p-3 rounded-xl">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="flex items-center gap-1.5 text-amber-800 dark:text-amber-300 font-bold text-xs">
+                  <Edit2 className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>Produto / Tipo de Peça (origem Fila PCP):</span>
+                </Label>
+                {form.tipo_peca && form.tipo_peca !== produtoFixo && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      set("tipo_peca", produtoFixo);
+                      set("dimensoes_livres", produtoFixo);
+                      toast.info("Nome original do produto restaurado!");
+                    }}
+                    className="h-6 px-2 text-[10px] text-amber-700 dark:text-amber-300 hover:bg-amber-200/50 dark:hover:bg-amber-900/40 flex items-center gap-1"
+                    title="Restaurar o nome original vindo do PCP"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Restaurar original
+                  </Button>
+                )}
+              </div>
               <Input
-                value={produtoFixo}
-                readOnly
-                className="bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700 font-bold text-amber-900 dark:text-amber-200"
+                value={form.tipo_peca !== undefined ? form.tipo_peca : produtoFixo}
+                onChange={e => {
+                  set("tipo_peca", e.target.value);
+                  set("dimensoes_livres", e.target.value);
+                }}
+                placeholder="Ex: Perfil U ZINCADO 75X40 CH 1,95..."
+                className="bg-background border-amber-400 focus-visible:ring-amber-500 font-bold text-foreground text-xs sm:text-sm"
               />
+              <p className="text-[10px] text-amber-700 dark:text-amber-400">
+                ✏️ Campo desbloqueado: você pode alterar a descrição ou especificação do produto livremente.
+              </p>
             </div>
           )}
 
@@ -857,7 +882,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
             </div>
             <div className="space-y-1">
               <Label>Máquina *</Label>
-              <Select value={form.maquina} disabled={maquinaProp === "PERFILADEIRA"} onValueChange={v => {
+              <Select value={form.maquina} onValueChange={v => {
                 set("maquina", v);
                 if (v === "PERFILADEIRA" || v?.startsWith("DESBOBINADEIRA")) set("chapa_origem", "direto");
               }}>
