@@ -1140,7 +1140,8 @@ export default function MaquinaPanel({ maquina }) {
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
 
-      {/* Botão de voltar + Dashboard + Novo Pedido */}
+      {/* Botão de voltar + Dashboard + Novo Pedido — oculto para operador */}
+      {!isOperador && (
       <div className="flex items-center justify-between">
         <Button
           variant="ghost"
@@ -1226,6 +1227,7 @@ export default function MaquinaPanel({ maquina }) {
           )}
         </div>
       </div>
+      )}
 
       {/* Header máquina */}
       <div className="bg-gradient-to-r from-primary to-primary/80 rounded-2xl p-6 text-primary-foreground shadow-lg">
@@ -1600,16 +1602,22 @@ export default function MaquinaPanel({ maquina }) {
                   </p>
                 </div>
               </div>
-              <Button
-                size="sm"
-                variant="destructive"
-                className="font-bold text-xs gap-1.5 shadow-sm ml-auto"
-                disabled={limpandoDuplicadas}
-                onClick={handleLimparDuplicadas}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                {limpandoDuplicadas ? "Removendo..." : `Limpar ${duplicadasDetectadas.length} Duplicada(s)`}
-              </Button>
+              {isOperador ? (
+                <span className="text-xs font-bold text-amber-700 dark:text-amber-300 ml-auto">
+                  Chame o encarregado para revisar as duplicadas.
+                </span>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="font-bold text-xs gap-1.5 shadow-sm ml-auto"
+                  disabled={limpandoDuplicadas}
+                  onClick={handleLimparDuplicadas}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  {limpandoDuplicadas ? "Removendo..." : `Limpar ${duplicadasDetectadas.length} Duplicada(s)`}
+                </Button>
+              )}
             </div>
           )}
 
@@ -1627,14 +1635,16 @@ export default function MaquinaPanel({ maquina }) {
                       <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0" />
                       Aviso: Esta OP é uma cópia duplicada pendente.
                     </span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-red-600 hover:bg-red-500/20 font-bold h-7 px-2 text-xs"
-                      onClick={() => handleDeletePedido(p)}
-                    >
-                      <Trash2 className="w-3 h-3 mr-1" /> Excluir esta cópia
-                    </Button>
+                    {podeGerenciar && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-red-600 hover:bg-red-500/20 font-bold h-7 px-2 text-xs"
+                        onClick={() => handleDeletePedido(p)}
+                      >
+                        <Trash2 className="w-3 h-3 mr-1" /> Excluir esta cópia
+                      </Button>
+                    )}
                   </div>
                 )}
                 {ehOutroDia && (

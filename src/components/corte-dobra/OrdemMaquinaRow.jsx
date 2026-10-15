@@ -494,10 +494,11 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
           />
         )}
 
-        {/* Observações (finalizado) */}
+        {/* Descrição (finalizado) */}
         {o.observacoes && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-1.5 text-yellow-800 text-xs whitespace-pre-line mb-2">
-            📋 {o.observacoes}
+          <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl px-3.5 py-2 mb-2 shadow-xs">
+            <p className="text-[10px] font-black text-yellow-600 uppercase tracking-widest mb-0.5">📋 DESCRIÇÃO</p>
+            <p className="text-xs font-semibold text-yellow-900 whitespace-pre-line break-words">{o.observacoes}</p>
           </div>
         )}
 
@@ -655,10 +656,11 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
           />
         )}
 
-        {/* Observações */}
+        {/* Descrição */}
         {o.observacoes && (
-          <div className={`bg-yellow-50 border border-yellow-200 rounded-lg px-3 ${z.obs} text-yellow-800 ${z.mb}`}>
-            📋 {o.observacoes}
+          <div className={`bg-yellow-50 border-2 border-yellow-400 rounded-xl px-3.5 ${z.mb} shadow-xs`}>
+            <p className="text-[10px] font-black text-yellow-600 uppercase tracking-widest mb-0.5">📋 DESCRIÇÃO</p>
+            <p className={`font-semibold text-yellow-900 whitespace-pre-line break-words ${z.obs}`}>{o.observacoes}</p>
           </div>
         )}
 

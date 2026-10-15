@@ -568,49 +568,53 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
           <p className="text-sm text-muted-foreground">Ordens de produção — Corte e Dobra</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 text-xs h-9 border-border bg-card shadow-xs hover:border-primary font-semibold"
-            onClick={() => {
-              refetch();
-              queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
-              queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
-              toast.success("Pedidos sincronizados!");
-            }}
-            disabled={isFetching}
-            title="Atualizar pedidos agora"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-primary ${isFetching ? "animate-spin" : ""}`} />
-            <span>{isFetching ? "Sincronizando..." : "Sincronizar Pedidos"}</span>
-            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse ml-0.5" title="Tempo real ativo" />
-          </Button>
+          {!isOperadorRestrito && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs h-9 border-border bg-card shadow-xs hover:border-primary font-semibold"
+                onClick={() => {
+                  refetch();
+                  queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
+                  queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
+                  toast.success("Pedidos sincronizados!");
+                }}
+                disabled={isFetching}
+                title="Atualizar pedidos agora"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-primary ${isFetching ? "animate-spin" : ""}`} />
+                <span>{isFetching ? "Sincronizando..." : "Sincronizar Pedidos"}</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse ml-0.5" title="Tempo real ativo" />
+              </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 text-xs h-9 border-border bg-card shadow-xs"
-            onClick={() => {
-              setModalHistoricoTab("historico");
-              setModalHistoricoOpen(true);
-            }}
-          >
-            <History className="w-4 h-4 text-purple-600" />
-            Histórico da Máquina
-          </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs h-9 border-border bg-card shadow-xs"
+                onClick={() => {
+                  setModalHistoricoTab("historico");
+                  setModalHistoricoOpen(true);
+                }}
+              >
+                <History className="w-4 h-4 text-purple-600" />
+                Histórico da Máquina
+              </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 text-xs h-9 border-border bg-card shadow-xs"
-            onClick={() => {
-              setModalHistoricoTab("relatorio");
-              setModalHistoricoOpen(true);
-            }}
-          >
-            <FileText className="w-4 h-4 text-blue-600" />
-            Relatório Diário
-          </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs h-9 border-border bg-card shadow-xs"
+                onClick={() => {
+                  setModalHistoricoTab("relatorio");
+                  setModalHistoricoOpen(true);
+                }}
+              >
+                <FileText className="w-4 h-4 text-blue-600" />
+                Relatório Diário
+              </Button>
+            </>
+          )}
 
           {isGestor && (
             <Button onClick={() => openNew(selectedDay)} className="gap-2 h-9">

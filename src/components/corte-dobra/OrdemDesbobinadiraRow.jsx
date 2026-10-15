@@ -657,8 +657,9 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
             )}
           </div>
           {o.observacoes && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded px-2 py-0.5 text-[11px] text-yellow-800 mt-1">
-              📋 {o.observacoes}
+            <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg px-2.5 py-1 mt-1 shadow-xs">
+              <span className="text-[9px] font-black text-yellow-600 uppercase tracking-widest block">📋 DESCRIÇÃO</span>
+              <span className="text-[11px] font-semibold text-yellow-900 whitespace-pre-line break-words block">{o.observacoes}</span>
             </div>
           )}
         </div>
@@ -958,10 +959,11 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
           />
         )}
 
-        {/* Observações */}
+        {/* Descrição */}
         {o.observacoes && (
-          <div className={`bg-yellow-50 border border-yellow-200 rounded-lg px-3 ${z.obs} text-yellow-800 ${z.mb}`}>
-            📋 {o.observacoes}
+          <div className={`bg-yellow-50 border-2 border-yellow-400 rounded-xl px-3.5 ${z.mb} shadow-xs`}>
+            <p className="text-[10px] font-black text-yellow-600 uppercase tracking-widest mb-0.5">📋 DESCRIÇÃO</p>
+            <p className={`font-semibold text-yellow-900 whitespace-pre-line break-words ${z.obs}`}>{o.observacoes}</p>
           </div>
         )}
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
@@ -74,6 +74,11 @@ export default function DashboardTelhas() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
+
+  // Usuário atual — operador vê visão reduzida (sem abas administrativas e sem custos)
+  const [user, setUser] = useState(null);
+  useEffect(() => { base44.auth.me().then(setUser).catch(() => {}); }, []);
+  const isOperador = user?.role === "operador";
 
   // Queries
   const { data: pedidos = [] } = useQuery({
@@ -344,30 +349,34 @@ export default function DashboardTelhas() {
           >
             <Factory className="w-3.5 h-3.5 inline mr-1.5 text-blue-600" /> Produção
           </button>
-          <button
-            onClick={() => setAba("estoque")}
-            className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${
-              aba === "estoque" ? "bg-white shadow text-foreground dark:bg-slate-800" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Package className="w-3.5 h-3.5 inline mr-1.5 text-amber-600" /> Estoque
-          </button>
-          <button
-            onClick={() => setAba("fila_pcp")}
-            className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${
-              aba === "fila_pcp" ? "bg-white shadow text-blue-600 dark:bg-slate-800" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Inbox className="w-3.5 h-3.5 inline mr-1.5 text-blue-600" /> Fila PCP
-          </button>
-          <button
-            onClick={() => setAba("logistica")}
-            className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${
-              aba === "logistica" ? "bg-white shadow text-indigo-600 dark:bg-slate-800" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Truck className="w-3.5 h-3.5 inline mr-1.5 text-indigo-600" /> Logística
-          </button>
+          {!isOperador && (
+            <>
+              <button
+                onClick={() => setAba("estoque")}
+                className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${
+                  aba === "estoque" ? "bg-white shadow text-foreground dark:bg-slate-800" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Package className="w-3.5 h-3.5 inline mr-1.5 text-amber-600" /> Estoque
+              </button>
+              <button
+                onClick={() => setAba("fila_pcp")}
+                className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${
+                  aba === "fila_pcp" ? "bg-white shadow text-blue-600 dark:bg-slate-800" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Inbox className="w-3.5 h-3.5 inline mr-1.5 text-blue-600" /> Fila PCP
+              </button>
+              <button
+                onClick={() => setAba("logistica")}
+                className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${
+                  aba === "logistica" ? "bg-white shadow text-indigo-600 dark:bg-slate-800" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Truck className="w-3.5 h-3.5 inline mr-1.5 text-indigo-600" /> Logística
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -548,13 +557,13 @@ export default function DashboardTelhas() {
                 color: pausadosAgora > 0 ? "text-purple-600" : "text-green-600",
                 onClick: () => setKpiDetail("pausadas")
               },
-              {
+              ...(isOperador ? [] : [{
                 label: "Custo Produção",
                 value: custoProducao > 0 ? custoProducao.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }) : "—",
                 icon: DollarSign,
                 color: "text-green-600",
                 onClick: () => setKpiDetail("custo")
-              },
+              }]),
             ].map(k => (
               <div
                 key={k.label}

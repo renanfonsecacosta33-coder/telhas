@@ -1962,18 +1962,18 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                 ) : (
                   <div className="flex items-center gap-2 flex-wrap">
                     <span
-                      onClick={() => setEditandoBobinaSup(true)}
+                      onClick={() => podeGerenciar && setEditandoBobinaSup(true)}
                       title="Clique para editar ou ajustar o texto da bobina"
-                      className="font-mono font-black text-sm text-foreground bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 hover:border-indigo-500 cursor-pointer transition-colors shadow-2xs flex items-center gap-2 group"
+                      className={`font-mono font-black text-sm text-foreground bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 ${podeGerenciar ? "hover:border-indigo-500 cursor-pointer" : ""} transition-colors shadow-2xs flex items-center gap-2 group`}
                     >
-                      <span>{overrideBobinaSup !== null ? overrideBobinaSup : (p.bobina_superior || "Bobina não definida (Clique para ajustar)")}</span>
-                      <Pencil className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                      <span>{overrideBobinaSup !== null ? overrideBobinaSup : (p.bobina_superior || "Bobina não definida")}</span>
+                      {podeGerenciar && <Pencil className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 transition-colors" />}
                     </span>
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setEditandoBobinaSup(true)}
-                      className="h-7 px-2 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 border-indigo-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 gap-1 shrink-0"
+                      onClick={() => podeGerenciar && setEditandoBobinaSup(true)}
+                      className={`h-7 px-2 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 border-indigo-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 gap-1 shrink-0 ${podeGerenciar ? "" : "hidden"}`}
                     >
                       <Pencil className="w-3 h-3" />
                       Ajustar
@@ -1988,12 +1988,12 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                       <span className="text-[11px] text-muted-foreground font-medium">Cor / RVM:</span>
                       <button
                         type="button"
-                        onClick={() => { setEditandoCorSup(true); setEditandoEspSup(false); }}
-                        className="inline-flex items-center gap-1 font-bold text-foreground hover:text-indigo-600 transition-colors cursor-pointer group"
+                        onClick={() => { if (podeGerenciar) { setEditandoCorSup(true); setEditandoEspSup(false); } }}
+                        className={`inline-flex items-center gap-1 font-bold text-foreground ${podeGerenciar ? "hover:text-indigo-600 cursor-pointer" : "cursor-default"} transition-colors group`}
                         title="Clique para alterar a Cor / RVM"
                       >
                         <span>{overrideCorSup !== null ? overrideCorSup : (p.rvm_superior || "Natural")}</span>
-                        <Pencil className="w-2.5 h-2.5 text-slate-400 group-hover:text-indigo-600" />
+                        {podeGerenciar && <Pencil className="w-2.5 h-2.5 text-slate-400 group-hover:text-indigo-600" />}
                       </button>
                     </span>
                   ) : (
@@ -2054,12 +2054,12 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                       <span className="text-[11px] text-muted-foreground font-medium">Espessura:</span>
                       <button
                         type="button"
-                        onClick={() => { setEditandoEspSup(true); setEditandoCorSup(false); }}
-                        className="inline-flex items-center gap-1 font-bold text-foreground hover:text-indigo-600 transition-colors cursor-pointer group"
+                        onClick={() => { if (podeGerenciar) { setEditandoEspSup(true); setEditandoCorSup(false); } }}
+                        className={`inline-flex items-center gap-1 font-bold text-foreground ${podeGerenciar ? "hover:text-indigo-600 cursor-pointer" : "cursor-default"} transition-colors group`}
                         title="Clique para alterar a Espessura"
                       >
                         <span>{overrideEspSup !== null ? overrideEspSup : (p.espessura_exigida || p.espessura || "0,43")} mm</span>
-                        <Pencil className="w-2.5 h-2.5 text-slate-400 group-hover:text-indigo-600" />
+                        {podeGerenciar && <Pencil className="w-2.5 h-2.5 text-slate-400 group-hover:text-indigo-600" />}
                       </button>
                     </span>
                   ) : (
@@ -2182,18 +2182,18 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                 ) : (
                   <div className="flex items-center gap-2 flex-wrap">
                     <span
-                      onClick={() => setEditandoBobinaInf(true)}
+                      onClick={() => podeGerenciar && setEditandoBobinaInf(true)}
                       title="Clique para editar ou ajustar o texto da bobina inferior"
-                      className="font-mono font-black text-sm text-foreground bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-700 hover:border-indigo-500 cursor-pointer transition-colors shadow-2xs flex items-center gap-2 group"
+                      className={`font-mono font-black text-sm text-foreground bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-700 ${podeGerenciar ? "hover:border-indigo-500 cursor-pointer" : ""} transition-colors shadow-2xs flex items-center gap-2 group`}
                     >
-                      <span>{overrideBobinaInf !== null ? overrideBobinaInf : (p.bobina_inferior || p.bobina_superior || "Mesma bobina superior (Clique para ajustar)")}</span>
-                      <Pencil className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                      <span>{overrideBobinaInf !== null ? overrideBobinaInf : (p.bobina_inferior || p.bobina_superior || "Mesma bobina superior")}</span>
+                      {podeGerenciar && <Pencil className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 transition-colors" />}
                     </span>
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setEditandoBobinaInf(true)}
-                      className="h-7 px-2 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 border-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 gap-1 shrink-0"
+                      onClick={() => podeGerenciar && setEditandoBobinaInf(true)}
+                      className={`h-7 px-2 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 border-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 gap-1 shrink-0 ${podeGerenciar ? "" : "hidden"}`}
                     >
                       <Pencil className="w-3 h-3" />
                       Ajustar
@@ -2208,12 +2208,12 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                       <span className="text-[11px] text-muted-foreground font-medium">Cor / RVM:</span>
                       <button
                         type="button"
-                        onClick={() => { setEditandoCorInf(true); setEditandoEspInf(false); }}
-                        className="inline-flex items-center gap-1 font-bold text-foreground hover:text-indigo-600 transition-colors cursor-pointer group"
+                        onClick={() => { if (podeGerenciar) { setEditandoCorInf(true); setEditandoEspInf(false); } }}
+                        className={`inline-flex items-center gap-1 font-bold text-foreground ${podeGerenciar ? "hover:text-indigo-600 cursor-pointer" : "cursor-default"} transition-colors group`}
                         title="Clique para alterar a Cor / RVM da chapa inferior"
                       >
                         <span>{overrideCorInf !== null ? overrideCorInf : (p.rvm_inferior || p.rvm_superior || "Natural")}</span>
-                        <Pencil className="w-2.5 h-2.5 text-slate-400 group-hover:text-indigo-600" />
+                        {podeGerenciar && <Pencil className="w-2.5 h-2.5 text-slate-400 group-hover:text-indigo-600" />}
                       </button>
                     </span>
                   ) : (
@@ -2274,12 +2274,12 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                       <span className="text-[11px] text-muted-foreground font-medium">Espessura:</span>
                       <button
                         type="button"
-                        onClick={() => { setEditandoEspInf(true); setEditandoCorInf(false); }}
-                        className="inline-flex items-center gap-1 font-bold text-foreground hover:text-indigo-600 transition-colors cursor-pointer group"
+                        onClick={() => { if (podeGerenciar) { setEditandoEspInf(true); setEditandoCorInf(false); } }}
+                        className={`inline-flex items-center gap-1 font-bold text-foreground ${podeGerenciar ? "hover:text-indigo-600 cursor-pointer" : "cursor-default"} transition-colors group`}
                         title="Clique para alterar a Espessura da chapa inferior"
                       >
                         <span>{overrideEspInf !== null ? overrideEspInf : (p.espessura_inferior || p.espessura_exigida || p.espessura || "0,43")} mm</span>
-                        <Pencil className="w-2.5 h-2.5 text-slate-400 group-hover:text-indigo-600" />
+                        {podeGerenciar && <Pencil className="w-2.5 h-2.5 text-slate-400 group-hover:text-indigo-600" />}
                       </button>
                     </span>
                   ) : (
@@ -2343,10 +2343,10 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
           </div>
         )}
 
-        {/* Detalhes técnicos complementares */}
-        <div className="flex flex-wrap items-center gap-2 mb-3">
+        {/* Detalhes técnicos complementares — ocultos para operador */}
+        <div className={`flex flex-wrap items-center gap-2 mb-3 ${(isOperador && !(p.maquina === "COLAGEM" && p.isopor_utilizado > 0)) ? "hidden" : ""}`}>
           {p.bobina_secundaria && (
-            <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-semibold border border-blue-200">
+            <span className={`bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-semibold border border-blue-200 ${isOperador ? "hidden" : ""}`}>
               2ª Bobina: {p.bobina_secundaria} ({p.kg_secundaria || 0}kg)
             </span>
           )}
@@ -2374,26 +2374,26 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
             );
           })()}
           {p.rvm_superior && (
-            <span className="bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded-full">
+            <span className={`bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded-full ${isOperador ? "hidden" : ""}`}>
               {p.rvm_superior}{p.rvm_inferior ? ` / ${p.rvm_inferior}` : ""}
             </span>
           )}
           {temEpsReal && p.eps && (
-            <span className="bg-emerald-50 text-emerald-700 text-xs px-2 py-0.5 rounded-full">EPS: {p.eps}</span>
+            <span className={`bg-emerald-50 text-emerald-700 text-xs px-2 py-0.5 rounded-full ${isOperador ? "hidden" : ""}`}>EPS: {p.eps}</span>
           )}
           {p.kg_total > 0 && (
-            <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full">{p.kg_total} kg</span>
+            <span className={`bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full ${isOperador ? "hidden" : ""}`}>{p.kg_total} kg</span>
           )}
           {p.data_prevista && (
-            <span className="bg-orange-50 text-orange-700 text-xs px-2 py-0.5 rounded-full">
+            <span className={`bg-orange-50 text-orange-700 text-xs px-2 py-0.5 rounded-full ${isOperador ? "hidden" : ""}`}>
               Previsto: {format(new Date(p.data_prevista + "T12:00:00"), "dd/MM")}
             </span>
           )}
         </div>
 
         {p.observacoes && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-1.5 text-xs text-yellow-800 mb-3">
-            {p.observacoes}
+          <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl px-3.5 py-2.5 mb-3 shadow-xs">
+            <p className="text-[10px] font-black text-yellow-600 uppercase tracking-widest mb-1">📋 DESCRIÇÃO</p><p className="text-sm font-semibold text-yellow-900 break-words whitespace-pre-line">{p.observacoes}</p>
           </div>
         )}
 
@@ -2481,8 +2481,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
           )
         )}
 
-        {/* Etapas */}
-        {steps && (
+        {/* Etapas — ocultas para operador */}
+        {steps && !isOperador && (
           <div className="bg-slate-50 rounded-lg p-3 mb-3 border border-slate-200">
             <button
               onClick={() => setMostrarEtapas(v => !v)}
