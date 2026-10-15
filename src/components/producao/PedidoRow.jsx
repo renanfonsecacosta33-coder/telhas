@@ -28,7 +28,7 @@ import {
   isPedidoRota,
   getCardPrioridadeClasses
 } from "@/lib/prioridadeHelper";
-import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco";
+import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco"; import AlertaMultiplasOpsMesmoPedido from "@/components/producao/AlertaMultiplasOpsMesmoPedido";
 import SmartImage from "@/components/ui/SmartImage";
 import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/compressImage";
 import { isTelhaBandeja, verificarStatusComponentesBandeja } from "@/lib/bandejaHelper";
@@ -1624,7 +1624,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
           </div>
         </div>
 
-        {/* Destaque: Quantidade de Telhas + Metragem individual */}
+        <AlertaMultiplasOpsMesmoPedido pedido={p} todosPedidos={todosPedidos} />
         {(p.metros > 0 || p.metragem_mm > 0 || temVariacoes) && (
           <div className="flex items-stretch gap-2 mb-3">
             <div className="flex-1 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2 text-center">
