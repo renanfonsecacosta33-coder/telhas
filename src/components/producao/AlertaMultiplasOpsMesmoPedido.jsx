@@ -15,6 +15,10 @@ function normalizarNum(num) {
   return String(num || "").trim().replace(/^#/, "").toUpperCase();
 }
 
+function normalizarMaquina(m) {
+  return String(m || "").trim().toUpperCase();
+}
+
 function resumoMedidas(op) {
   const qtd = Number(op.metros || op.quantidade_telhas || 0);
   let vars = [];
@@ -29,44 +33,72 @@ function resumoMedidas(op) {
   return `${qtdFmt}${mmFmt}`.trim() || "Ver detalhes na OP";
 }
 
+function ordenarGrupo(grupo) {
+  return [...grupo].sort((a, b) => {
+    const da = a.data || "";
+    const db = b.data || "";
+    if (da !== db) return da < db ? -1 : 1;
+    const ca = a.created_date || a.id || "";
+    const cb = b.created_date || b.id || "";
+    return ca < cb ? -1 : ca > cb ? 1 : 0;
+  });
+}
+
 /**
  * Alerta ao operador quando o mesmo número de pedido (ex: #S01286) possui
- * mais de uma OP / modelo de telha distinto na fila (mesma máquina ou não).
+ * mais de uma OP / modelo de telha distinto. Quando as OPs irmãs estão na
+ * MESMA máquina, exibe o indicador sequencial "1/2", "2/2"...
  */
 export default function AlertaMultiplasOpsMesmoPedido({ pedido, todosPedidos = [] }) {
   const numAtual = normalizarNum(pedido?.numero_pedido);
   if (!numAtual) return null;
 
-  const irmas = todosPedidos.filter(op => {
+  const maqAtual = normalizarMaquina(pedido?.maquina);
+  const todasIrmas = todosPedidos.filter(op => {
     if (!op || op.id === pedido.id) return false;
     if (normalizarNum(op.numero_pedido) !== numAtual) return false;
     return op.status !== "cancelado";
   });
 
-  if (irmas.length === 0) return null;
+  if (todasIrmas.length === 0) return null;
 
-  const pendentes = irmas.filter(op => op.status !== "finalizado");
+  // OPs irmãs na MESMA máquina -> indicador "X/Y"
+  const irmaMesmaMaquina = todasIrmas.filter(op => normalizarMaquina(op.maquina) === maqAtual);
+  const grupoMesmaMaquina = ordenarGrupo([pedido, ...irmaMesmaMaquina]);
+  const total = grupoMesmaMaquina.length;
+  const indice = grupoMesmaMaquina.findIndex(op => op.id === pedido.id) + 1;
+  const temIrmasMesmaMaquina = total > 1;
+
+  const pendentes = todasIrmas.filter(op => op.status !== "finalizado");
 
   return (
     <div className="mb-3 rounded-xl border-2 border-amber-500/50 bg-amber-500/10 px-3 py-2.5 flex flex-col gap-2">
       <div className="flex items-start gap-2.5">
         <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-        <div>
+        <div className="min-w-0">
           <p className="text-sm font-black text-amber-900 dark:text-amber-200 leading-tight">
-            Atenção: esta OP possui {irmas.length} outro(s) modelo(s) de telha no mesmo pedido #{numAtual}
+            {temIrmasMesmaMaquina
+              ? <>OP <span className="font-mono">{indice}/{total}</span> do pedido #{numAtual} — existem {total} modelos de telha distintos deste pedido nesta máquina</>
+              : <>Este pedido #{numAtual} possui {todasIrmas.length} outro(s) modelo(s) de telha</>}
           </p>
           <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mt-0.5">
-            {pendentes.length > 0
-              ? `Ainda falta(m) ${pendentes.length} OP(s) deste pedido para ser(em) tirada(s). Confira abaixo antes de dar o pedido como concluído.`
-              : "Os demais modelos deste pedido já foram finalizados."}
+            {temIrmasMesmaMaquina
+              ? "As OPs deste pedido estão uma abaixo da outra na fila. Confira todas antes de dar o pedido como concluído."
+              : pendentes.length > 0
+                ? `Ainda falta(m) ${pendentes.length} OP(s) deste pedido para ser(em) tirada(s) em outra máquina.`
+                : "Os demais modelos deste pedido já foram finalizados."}
           </p>
         </div>
-        <span className="ml-auto shrink-0 px-2.5 py-1 rounded-full text-xs font-black bg-amber-500 text-white shadow-sm">
-          OP {1 + irmas.length}x
+        <span className={`ml-auto shrink-0 px-2.5 py-1 rounded-full text-xs font-black shadow-sm ${
+          temIrmasMesmaMaquina
+            ? "bg-amber-500 text-white"
+            : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+        }`}>
+          {temIrmasMesmaMaquina ? `${indice}/${total}` : `+${todasIrmas.length}`}
         </span>
       </div>
       <div className="flex flex-wrap gap-1.5">
-        {irmas.map(op => (
+        {todasIrmas.map(op => (
           <span
             key={op.id}
             className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-bold border ${
@@ -76,7 +108,7 @@ export default function AlertaMultiplasOpsMesmoPedido({ pedido, todosPedidos = [
             }`}
             title={`Máquina: ${op.maquina || "?"}`}
           >
-            {op.maquina && op.maquina !== pedido.maquina && (
+            {op.maquina && normalizarMaquina(op.maquina) !== maqAtual && (
               <span className="font-black text-amber-700 dark:text-amber-400">[{op.maquina}]</span>
             )}
             {resumoMedidas(op)}

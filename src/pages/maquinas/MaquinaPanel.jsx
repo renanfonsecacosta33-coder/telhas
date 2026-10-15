@@ -932,6 +932,28 @@ export default function MaquinaPanel({ maquina }) {
       return getPesoOrdenacaoPrioridade(a) - getPesoOrdenacaoPrioridade(b);
     });
 
+    // 4.5 Agrupa OPs do mesmo número de pedido para ficarem SEMPRE uma abaixo da outra na fila
+    const agruparOpsMesmoPedido = (lista) => {
+      const grupos = new Map();
+      for (const op of lista) {
+        const num = String(op.numero_pedido || op._presets?.numero_pedido || "").trim().replace(/^#/, "").toUpperCase();
+        const chave = num || `__unica_${op.id}`;
+        if (!grupos.has(chave)) grupos.set(chave, []);
+        grupos.get(chave).push(op);
+      }
+      const saida = [];
+      const emitidos = new Set();
+      for (const op of lista) {
+        if (emitidos.has(op.id)) continue;
+        const num = String(op.numero_pedido || op._presets?.numero_pedido || "").trim().replace(/^#/, "").toUpperCase();
+        for (const g of grupos.get(num || `__unica_${op.id}`)) {
+          if (!emitidos.has(g.id)) { saida.push(g); emitidos.add(g.id); }
+        }
+      }
+      return saida;
+    };
+    const afazerAgrupadas = agruparOpsMesmoPedido(sortedAFazer);
+
     // 5. Detecta OPs duplicadas idênticas pendentes (apenas entre as que estão a fazer)
     const vistos = new Map();
     const dups = [];
@@ -955,7 +977,7 @@ export default function MaquinaPanel({ maquina }) {
       return p;
     });
 
-    const afazerProcessado = marcarDups(sortedAFazer);
+    const afazerProcessado = marcarDups(afazerAgrupadas);
     const finalizadosProcessados = sortedFinalizados;
 
     return {
