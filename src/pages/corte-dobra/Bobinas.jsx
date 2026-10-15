@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Archive, AlertTriangle, Package, Weight, X, Calendar, Download, History, BookOpen, ChevronDown } from "lucide-react";
+import { Plus, Search, Archive, AlertTriangle, Package, Weight, X, Calendar, Download, History, BookOpen, ChevronDown, RefreshCw, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -45,35 +45,83 @@ export default function BobinasCD() {
   const [popModalKey, setPopModalKey] = useState("BOBINA_LANCAR");
   const queryClient = useQueryClient();
 
-  const { data: todasBobinasRawCD = [], isLoading, isError, refetch } = useQuery({
+  const extrairLista = (res) => {
+    if (Array.isArray(res)) return res;
+    if (Array.isArray(res?.items)) return res.items;
+    if (Array.isArray(res?.data)) return res.data;
+    if (Array.isArray(res?.records)) return res.records;
+    return [];
+  };
+
+  const { data: todasBobinasRawCD = [], isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ["bobinas-cd", "raw-lista"],
     queryFn: async () => {
-      // Consulta única filtrada no servidor (só setor corte_dobra) p/ não estourar limite de leitura
-      const page = await base44.entities.Bobina.filter(
-        { setor: "corte_dobra" },
-        { sort: "-created_date", limit: 2000 }
-      );
-      // Erros (ex: limite de requisições) SOBEM para o React Query tentar de novo,
-      // em vez de virar uma lista vazia falsa na tela
-      const raw = page.items || [];
-      return (Array.isArray(raw) ? raw : []).filter(b => {
+      let raw = [];
+      try {
+        // Tenta buscar as bobinas filtradas por setor corte_dobra
+        // Parâmetros corretos do SDK: filter(query, sort, limit)
+        const res = await base44.entities.Bobina.filter(
+          { setor: "corte_dobra" },
+          "-created_date",
+          2000
+        );
+        raw = extrairLista(res);
+      } catch (errCD) {
+        console.warn("[BobinasCD] Tentando busca geral de bobinas após aviso:", errCD?.message || errCD);
+      }
+
+      // Se retornou vazio ou deu erro, tenta listar geral para pegar bobinas CD com setor vazio
+      if (raw.length === 0) {
+        try {
+          const resGeral = await base44.entities.Bobina.list("-created_date", 2000);
+          raw = extrairLista(resGeral);
+        } catch (errList) {
+          console.warn("[BobinasCD] Falha na busca ampla de bobinas:", errList?.message || errList);
+        }
+      }
+
+      // Se ainda vier vazio mas já tínhamos dados em cache, preserva o cache para a lista não sumir
+      if (raw.length === 0) {
+        const cached = queryClient.getQueryData(["bobinas-cd", "raw-lista"]);
+        if (Array.isArray(cached) && cached.length > 0) {
+          return cached;
+        }
+      }
+
+      return raw.filter(b => {
         if (!b) return false;
         if (b.setor === "corte_dobra") return true;
         const cod = String(b.codigo || "").trim().toUpperCase();
         return cod.startsWith("CD");
       });
     },
-    staleTime: 30000,
-    refetchInterval: 60000,
+    staleTime: 10000,
+    refetchInterval: 15000,
     placeholderData: (prev) => prev,
     retry: (failureCount, err) => {
       const msg = String(err?.message || err || "").toLowerCase();
-      // Limite de requisições: tenta mais vezes com pausa crescente (o limite se recupera sozinho)
       if (msg.includes("rate limit") || msg.includes("429")) return failureCount < 5;
       return failureCount < 2;
     },
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 15000),
   });
+
+  // Inscrição em tempo real para qualquer alteração ou nova bobina
+  useEffect(() => {
+    let unsub = null;
+    try {
+      if (base44.entities?.Bobina?.subscribe) {
+        unsub = base44.entities.Bobina.subscribe(() => {
+          refetch();
+        });
+      }
+    } catch (e) {
+      console.warn("Realtime subscribe Bobina CD:", e);
+    }
+    return () => {
+      if (typeof unsub === "function") unsub();
+    };
+  }, [refetch]);
 
   const bobinas = useMemo(() => {
     if (!filialAtiva || filialAtiva === "todas") return todasBobinasRawCD;
@@ -415,6 +463,23 @@ export default function BobinasCD() {
           </DropdownMenu>
           <Button
             variant="outline"
+            size="sm"
+            onClick={() => {
+              refetch();
+              queryClient.invalidateQueries({ queryKey: ["bobinas-cd"] });
+              toast.success("Atualizando estoque de bobinas...");
+            }}
+            disabled={isFetching}
+            className="gap-2 h-9 border-border bg-card shadow-xs hover:border-orange-500 font-semibold"
+            title="Atualizar estoque de bobinas agora"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-orange-500 ${isFetching ? "animate-spin" : ""}`} />
+            <span>{isFetching ? "Carregando..." : "Sincronizar"}</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse ml-0.5" title="Tempo real ativo" />
+          </Button>
+
+          <Button
+            variant="outline"
             onClick={() => setHistoricoReservasOpen(true)}
             className="gap-2 border-purple-500/40 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/30"
             title="Ver histórico e carimbo de data e hora de todas as reservas"
@@ -441,24 +506,52 @@ export default function BobinasCD() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-card border border-border rounded-xl p-4 text-center">
           <Package className="w-5 h-5 text-blue-500 mx-auto mb-1" />
-          <p className="text-2xl font-bold">{ativas.length}</p>
+          {(isLoading || isFetching) && ativas.length === 0 ? (
+            <div className="flex items-center justify-center gap-1.5 py-1">
+              <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+              <span className="text-xs text-muted-foreground font-medium">Carregando...</span>
+            </div>
+          ) : (
+            <p className="text-2xl font-bold">{ativas.length}</p>
+          )}
           <p className="text-xs text-muted-foreground">Em Estoque</p>
           <p className="text-sm font-semibold text-muted-foreground mt-1">{totalPeso.toLocaleString("pt-BR")} kg</p>
         </div>
         <div className="bg-card border border-border rounded-xl p-4 text-center">
           <Weight className="w-5 h-5 text-green-500 mx-auto mb-1" />
-          <p className="text-2xl font-bold">{totalPeso.toLocaleString("pt-BR")}</p>
+          {(isLoading || isFetching) && ativas.length === 0 ? (
+            <div className="flex items-center justify-center gap-1.5 py-1">
+              <Loader2 className="w-4 h-4 animate-spin text-green-500" />
+              <span className="text-xs text-muted-foreground font-medium">Carregando...</span>
+            </div>
+          ) : (
+            <p className="text-2xl font-bold">{totalPeso.toLocaleString("pt-BR")}</p>
+          )}
           <p className="text-xs text-muted-foreground">kg disponíveis</p>
           <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-0.5">Pré-baixa: {totalPreBaixaKg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg</p>
         </div>
         <div className={`border rounded-xl p-4 text-center ${emAlerta.length > 0 ? "bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-800" : "bg-card border-border"}`}>
           <AlertTriangle className={`w-5 h-5 mx-auto mb-1 ${emAlerta.length > 0 ? "text-red-500" : "text-gray-400"}`} />
-          <p className={`text-2xl font-bold ${emAlerta.length > 0 ? "text-red-700 dark:text-red-400" : ""}`}>{emAlerta.length}</p>
+          {(isLoading || isFetching) && ativas.length === 0 ? (
+            <div className="flex items-center justify-center gap-1.5 py-1">
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              <span className="text-xs text-muted-foreground font-medium">Carregando...</span>
+            </div>
+          ) : (
+            <p className={`text-2xl font-bold ${emAlerta.length > 0 ? "text-red-700 dark:text-red-400" : ""}`}>{emAlerta.length}</p>
+          )}
           <p className="text-xs text-muted-foreground">Em alerta</p>
         </div>
         <div className="bg-card border border-border rounded-xl p-4 text-center">
           <Archive className="w-5 h-5 text-orange-400 mx-auto mb-1" />
-          <p className="text-2xl font-bold">{arquivadas.length}</p>
+          {(isLoading || isFetching) && ativas.length === 0 && arquivadas.length === 0 ? (
+            <div className="flex items-center justify-center gap-1.5 py-1">
+              <Loader2 className="w-4 h-4 animate-spin text-orange-400" />
+              <span className="text-xs text-muted-foreground font-medium">Carregando...</span>
+            </div>
+          ) : (
+            <p className="text-2xl font-bold">{arquivadas.length}</p>
+          )}
           <p className="text-xs text-muted-foreground">Arquivadas</p>
         </div>
       </div>
@@ -563,11 +656,20 @@ export default function BobinasCD() {
       </div>
 
       {/* Lista */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-16">
-          <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
+      {(isLoading || isFetching) && sorted.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 bg-card border border-border rounded-2xl shadow-xs text-center space-y-4">
+          <div className="relative">
+            <div className="w-14 h-14 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin mx-auto" />
+            <Package className="w-6 h-6 text-orange-500 absolute inset-0 m-auto" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-foreground">Carregando estoque de bobinas...</h3>
+            <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+              Sincronizando estoque de bobinas com a fábrica em tempo real. Por favor, aguarde...
+            </p>
+          </div>
         </div>
-      ) : isError ? (
+      ) : isError && sorted.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 py-12 text-center bg-red-50 dark:bg-red-950/30 border border-red-300 dark:border-red-800 rounded-xl">
           <AlertTriangle className="w-8 h-8 text-red-500" />
           <p className="font-semibold text-red-700 dark:text-red-300">Não foi possível carregar as bobinas</p>
