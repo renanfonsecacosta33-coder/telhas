@@ -36,7 +36,8 @@ import {
   ArrowDown,
   HelpCircle,
   Laptop,
-  LayoutGrid
+  LayoutGrid,
+  X
 } from "lucide-react";
 import { getPopPorMaquina, POPS_DATA } from "@/data/popsData";
 
@@ -229,15 +230,27 @@ export default function GuiaOperacionalModal({
               </DialogDescription>
             </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleImprimir}
-              className="bg-white/10 hover:bg-white/20 text-white border-white/30 gap-1.5 self-start sm:self-auto text-xs shrink-0 cursor-pointer"
-            >
-              <Printer className="w-4 h-4" />
-              <span>Imprimir Ficha</span>
-            </Button>
+            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleImprimir}
+                className="bg-white/10 hover:bg-white/20 text-white border-white/30 gap-1.5 text-xs shrink-0 cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span className="hidden sm:inline">Imprimir Ficha</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onClose}
+                className="bg-white/20 hover:bg-white/30 text-white border-white/40 gap-1.5 text-xs font-bold shrink-0 cursor-pointer shadow-sm hover:scale-105 transition-all"
+                title="Fechar e sair do guia"
+              >
+                <X className="w-4 h-4 text-white" />
+                <span>Sair</span>
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -574,6 +587,21 @@ export default function GuiaOperacionalModal({
 
           </div>
         </Tabs>
+
+        {/* Rodapé com botão de Fechar / Sair sempre visível */}
+        <div className="border-t border-border bg-muted/40 px-6 py-3 shrink-0 flex items-center justify-between">
+          <div className="text-xs text-muted-foreground flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span>Manual Operacional Padronizado · {pop.id}</span>
+          </div>
+          <Button
+            onClick={onClose}
+            className="bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900 font-bold text-xs h-8 px-4 gap-1.5 shadow-sm cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+            <span>Fechar / Sair</span>
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
