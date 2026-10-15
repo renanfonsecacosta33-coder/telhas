@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Search, AlertTriangle, X, Star, Layers, PackageX, Ban, Trash2, History, FileText, RefreshCw } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Search, AlertTriangle, X, Star, Layers, PackageX, Ban, Trash2, History, FileText, RefreshCw, CheckCircle, ChevronDown } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -38,6 +38,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const [filtroChapa, setFiltroChapa] = useState("todas");
   const [filtroTipo, setFiltroTipo] = useState("todos");
   const [filtroCor, setFiltroCor] = useState("todas");
+  const [finalizadosAbertos, setFinalizadosAbertos] = useState(false);
   const [dialogRetrabalho, setDialogRetrabalho] = useState(false);
   const [ordemRetrabalho, setOrdemRetrabalho] = useState(null);
   const [senhaGestorOpen, setSenhaGestorOpen] = useState(false);
@@ -89,7 +90,8 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
       }
     },
     refetchInterval: 3000,
-    staleTime: 0,
+    staleTime: 5000,
+    placeholderData: (prev) => prev,
     refetchOnWindowFocus: true,
   });
 
@@ -119,7 +121,8 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
       return base44.entities.OrdemDesbobinadeira.filter(filter, "-data", 500);
     },
     refetchInterval: 5000,
-    staleTime: 0,
+    staleTime: 5000,
+    placeholderData: (prev) => prev,
     refetchOnWindowFocus: true,
   });
 
@@ -471,6 +474,15 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     return r;
   }, [ordensDia, filtroEspessura, filtroChapa, filtroTipo, filtroCor]);
 
+  // Separação estrita: Ativas (a produzir) vs Finalizadas (minimizadas por padrão como nas Telhas)
+  const ordensDiaAtivas = useMemo(() => {
+    return ordensDiaFiltradas.filter(o => o.status !== "finalizado");
+  }, [ordensDiaFiltradas]);
+
+  const ordensDiaFinalizadas = useMemo(() => {
+    return ordensDiaFiltradas.filter(o => o.status === "finalizado");
+  }, [ordensDiaFiltradas]);
+
   const ordensSemanaFiltradas = useMemo(() => {
     let r = ordensSemana;
     if (filtroEspessura !== "todas") r = r.filter(o => {
@@ -509,6 +521,39 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
       </div>
     );
   }
+
+  // Renderizador unificado do card de ordem de máquina
+  const renderOrdemItem = (o) => (
+    <div key={o.id}>
+      <OrdemMaquinaRow
+        ordem={o}
+        onUpdate={(id, data) => updateMaq.mutate({ id, data })}
+        onDelete={(id) => deleteMaq.mutate(id)}
+        isGestor={isGestor}
+        ordens={todasOrdensDaMaquina}
+        pedidoSeq={pedidoSeqMap[o.id]}
+        user={user}
+      />
+      {isGestor && (
+        <div className="flex justify-end mt-1 gap-1">
+          {o.status !== "finalizado" && o.status !== "cancelado" && (
+            <SeletorPrioridadeDropdown
+              pedido={o}
+              onSelectPrioridade={(nivel) => handleSetPrioridade(o, nivel)}
+            />
+          )}
+          {o.status === "pendente" && (
+            <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
+          )}
+          {o.status === "finalizado" && (
+            <Button size="sm" variant="ghost" className="text-xs text-red-600 h-6 px-2 hover:bg-red-50" onClick={() => { setOrdemRetrabalho(o); setDialogRetrabalho(true); }}>
+              <AlertTriangle className="w-3 h-3 mr-1" /> Retrabalho
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -764,33 +809,51 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
                   <div className="px-4 py-4 text-xs text-muted-foreground text-center">Sem ordens</div>
                 ) : (
                   <div className="p-4 space-y-3">
-                    {ordensDoDia.sort((a, b) => {
-                      const p = (b.prioridade ? 1 : 0) - (a.prioridade ? 1 : 0);
-                      if (p !== 0) return p;
-                      const ord = { em_producao: 0, pausado: 1, aguardando_corte: 2, pendente: 3, finalizado: 4, cancelado: 5 };
-                      return (ord[a.status] ?? 3) - (ord[b.status] ?? 3);
-                    }).map(o => (
-                      <div key={o.id}>
-                        <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} onDelete={(id) => deleteMaq.mutate(id)} isGestor={isGestor} ordens={todasOrdensDaMaquina} pedidoSeq={pedidoSeqMap[o.id]} user={user} />
-                        {isGestor && (
-                          <div className="flex justify-end mt-1 gap-1">
-                            {o.status !== "finalizado" && o.status !== "cancelado" && (
-                              <Button size="sm" variant="ghost" className={`text-xs h-6 px-2 ${o.prioridade ? "text-amber-600 font-bold" : "text-muted-foreground"}`} onClick={() => updateMaq.mutate({ id: o.id, data: { prioridade: !o.prioridade } })}>
-                                <Star className={`w-3 h-3 mr-1 ${o.prioridade ? "fill-amber-500 text-amber-500" : ""}`} /> {o.prioridade ? "Prioritária" : "Prioridade"}
-                              </Button>
-                            )}
-                            {o.status === "pendente" && (
-                              <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
-                            )}
-                            {o.status === "finalizado" && (
-                            <Button size="sm" variant="ghost" className="text-xs text-red-600 h-6 px-2 hover:bg-red-50" onClick={() => { setOrdemRetrabalho(o); setDialogRetrabalho(true); }}>
-                              <AlertTriangle className="w-3 h-3 mr-1" /> Retrabalho
-                            </Button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                    {(() => {
+                      const ativas = ordensDoDia.filter(o => o.status !== "finalizado").sort((a, b) => {
+                        const p = (b.prioridade ? 1 : 0) - (a.prioridade ? 1 : 0);
+                        if (p !== 0) return p;
+                        const ord = { em_producao: 0, pausado: 1, aguardando_corte: 2, pendente: 3, cancelado: 5 };
+                        return (ord[a.status] ?? 3) - (ord[b.status] ?? 3);
+                      });
+                      const concluidas = ordensDoDia.filter(o => o.status === "finalizado");
+
+                      return (
+                        <>
+                          {ativas.length === 0 && concluidas.length > 0 ? (
+                            <div className="p-3 text-center rounded-lg bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 text-xs text-emerald-700 dark:text-emerald-300 font-semibold flex items-center justify-center gap-2">
+                              <CheckCircle className="w-4 h-4 text-emerald-600" />
+                              Todas as {concluidas.length} ordens deste dia já foram finalizadas!
+                            </div>
+                          ) : (
+                            ativas.map(renderOrdemItem)
+                          )}
+
+                          {concluidas.length > 0 && (
+                            <div className="pt-2 border-t border-border">
+                              <details className="group">
+                                <summary className="flex items-center justify-between p-2.5 bg-slate-100/90 dark:bg-slate-850 hover:bg-slate-200/80 dark:hover:bg-slate-800 rounded-lg cursor-pointer select-none transition-all border border-slate-200/80 dark:border-slate-700/80 list-none">
+                                  <div className="flex items-center gap-2">
+                                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                                      Ordens Finalizadas ({concluidas.length})
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-500">
+                                    <span className="group-open:hidden">Expandir</span>
+                                    <span className="hidden group-open:inline">Minimizar</span>
+                                    <ChevronDown className="w-3.5 h-3.5 transition-transform duration-200 group-open:rotate-180" />
+                                  </div>
+                                </summary>
+                                <div className="space-y-3 pt-3 opacity-90">
+                                  {concluidas.map(renderOrdemItem)}
+                                </div>
+                              </details>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
@@ -844,7 +907,9 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
               <span className="font-bold capitalize text-sm">
                 {format(new Date(selectedDay + "T12:00:00"), "EEEE, dd 'de' MMMM", { locale: ptBR })}
               </span>
-              <Badge variant="outline" className="text-xs">{ordensDiaFiltradas.length} ordens</Badge>
+              <Badge variant="outline" className="text-xs font-bold">
+                {ordensDiaAtivas.length} ativa(s) {ordensDiaFinalizadas.length > 0 ? `· ${ordensDiaFinalizadas.length} finalizada(s) ✓` : ""}
+              </Badge>
             </div>
             {isGestor && (
               <Button variant="ghost" size="sm" onClick={() => openNew(selectedDay)} className="h-7 gap-1 text-xs">
@@ -864,29 +929,69 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
             </div>
           ) : (
             <div className="p-4 space-y-3">
-              {ordensDiaFiltradas.map(o => (
-                <div key={o.id}>
-                  <OrdemMaquinaRow ordem={o} onUpdate={(id, data) => updateMaq.mutate({ id, data })} onDelete={(id) => deleteMaq.mutate(id)} isGestor={isGestor} ordens={todasOrdensDaMaquina} pedidoSeq={pedidoSeqMap[o.id]} user={user} />
-                  {isGestor && (
-                    <div className="flex justify-end mt-1 gap-1">
-                      {o.status !== "finalizado" && o.status !== "cancelado" && (
-                        <SeletorPrioridadeDropdown
-                          pedido={o}
-                          onSelectPrioridade={(nivel) => handleSetPrioridade(o, nivel)}
-                        />
-                      )}
-                      {o.status === "pendente" && (
-                        <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-6 px-2" onClick={() => openEdit(o)}>✏️ Editar</Button>
-                      )}
-                      {o.status === "finalizado" && (
-                      <Button size="sm" variant="ghost" className="text-xs text-red-600 h-6 px-2 hover:bg-red-50" onClick={() => { setOrdemRetrabalho(o); setDialogRetrabalho(true); }}>
-                        <AlertTriangle className="w-3 h-3 mr-1" /> Retrabalho
-                      </Button>
-                      )}
+              {/* 1. Aviso de todas concluídas se não há ativas */}
+              {ordensDiaAtivas.length === 0 && ordensDiaFinalizadas.length > 0 && (
+                <div className="p-4 text-center rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 text-xs text-emerald-700 dark:text-emerald-300 font-semibold flex flex-col items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-600" />
+                    <span>Não há ordens pendentes nesta máquina hoje. Todas as {ordensDiaFinalizadas.length} ordens já foram finalizadas!</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setFinalizadosAbertos(true)}
+                    className="h-7 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-100/50 mt-1"
+                  >
+                    Visualizar Ordens Finalizadas ({ordensDiaFinalizadas.length})
+                  </Button>
+                </div>
+              )}
+
+              {/* 2. Ordens Ativas (a produzir) */}
+              {ordensDiaAtivas.map(renderOrdemItem)}
+
+              {/* 3. Ordens Finalizadas / Concluídas (Minimizadas no final da fila como nas Telhas) */}
+              {ordensDiaFinalizadas.length > 0 && (
+                <div className="pt-2 border-t border-border">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setFinalizadosAbertos(v => !v)}
+                    className="flex items-center justify-between p-3.5 bg-slate-100/90 dark:bg-slate-850 hover:bg-slate-200/80 dark:hover:bg-slate-800 rounded-xl cursor-pointer select-none transition-all border border-slate-200/80 dark:border-slate-700/80"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                            Ordens Finalizadas / Concluídas
+                          </span>
+                          <Badge variant="outline" className="text-[10px] font-bold bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 border-emerald-300">
+                            {ordensDiaFinalizadas.length}
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {finalizadosAbertos || Boolean(buscaPedido.trim())
+                            ? "Lista expandida — Clique para recolher e manter minimizado"
+                            : "Minimizadas no final da fila — Clique para expandir detalhes"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                      <span>{finalizadosAbertos || Boolean(buscaPedido.trim()) ? "Minimizar" : "Expandir"}</span>
+                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${finalizadosAbertos || Boolean(buscaPedido.trim()) ? "rotate-180" : ""}`} />
+                    </div>
+                  </div>
+
+                  {(finalizadosAbertos || Boolean(buscaPedido.trim())) && (
+                    <div className="space-y-3 pt-3 opacity-90">
+                      {ordensDiaFinalizadas.map(renderOrdemItem)}
                     </div>
                   )}
                 </div>
-              ))}
+              )}
 
               {/* Seção das Ordens Canceladas no Dia Selecionado */}
               {ordensDiaCanceladas.length > 0 && (

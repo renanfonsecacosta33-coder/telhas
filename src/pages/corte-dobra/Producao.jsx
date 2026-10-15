@@ -173,10 +173,12 @@ export default function ProducaoCD() {
       return todos.filter(o => (o.unidade || "Matriz AJL") === filialAtiva);
     },
     refetchInterval: 10000,
+    staleTime: 10000,
+    placeholderData: (prev) => prev,
   });
 
   // Ordens outras máquinas
-  const { data: ordensMaq = [], isFetching: isFetchingMaq, refetch: refetchMaq } = useQuery({
+  const { data: ordensMaq = [], isLoading: isLoadingMaq, isFetching: isFetchingMaq, refetch: refetchMaq } = useQuery({
     queryKey: ["ordens-maquina-cd", filialAtiva],
     queryFn: async () => {
       const todos = await base44.entities.OrdemMaquinaCD.list("-data", 500).catch(() => []);
@@ -184,6 +186,8 @@ export default function ProducaoCD() {
       return todos.filter(o => (o.unidade || "Matriz AJL") === filialAtiva);
     },
     refetchInterval: 10000,
+    staleTime: 10000,
+    placeholderData: (prev) => prev,
   });
 
   const hojeDate = new Date();
@@ -932,76 +936,114 @@ export default function ProducaoCD() {
 
       {/* Cards de KPIs Operacionais do Dia */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {/* 1. Em Produção Agora */}
-        <div className="bg-card border border-border rounded-xl p-3.5 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5 text-blue-500 animate-pulse" /> Em Produção Agora
-            </span>
-            <Badge className="bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 text-[10px] font-bold">
-              {kpisDia.pecasEmProducao} pçs
-            </Badge>
-          </div>
-          <p className="text-2xl font-black mt-1 text-foreground">
-            {kpisDia.emProducaoCount} <span className="text-xs font-normal text-muted-foreground">OP(s)</span>
-          </p>
-        </div>
+        {(() => {
+          const isCarregandoInicial = (isLoading || isLoadingMaq) && ordens.length === 0 && ordensMaq.length === 0;
 
-        {/* 2. Na Fila Pendentes */}
-        <div className="bg-card border border-border rounded-xl p-3.5 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-amber-500" /> Na Fila (Pendentes)
-            </span>
-            <Badge className="bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 text-[10px] font-bold">
-              {kpisDia.pecasPendentes} pçs
-            </Badge>
-          </div>
-          <p className="text-2xl font-black mt-1 text-foreground">
-            {kpisDia.pendentesCount} <span className="text-xs font-normal text-muted-foreground">OP(s)</span>
-          </p>
-        </div>
+          return (
+            <>
+              {/* 1. Em Produção Agora */}
+              <div className="bg-card border border-border rounded-xl p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-blue-500 animate-pulse" /> Em Produção Agora
+                  </span>
+                  {isCarregandoInicial ? (
+                    <div className="h-4 w-12 bg-muted/60 animate-pulse rounded" />
+                  ) : (
+                    <Badge className="bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 text-[10px] font-bold">
+                      {kpisDia.pecasEmProducao} pçs
+                    </Badge>
+                  )}
+                </div>
+                {isCarregandoInicial ? (
+                  <div className="h-7 w-20 bg-muted/80 animate-pulse rounded my-1" />
+                ) : (
+                  <p className="text-2xl font-black mt-1 text-foreground">
+                    {kpisDia.emProducaoCount} <span className="text-xs font-normal text-muted-foreground">OP(s)</span>
+                  </p>
+                )}
+              </div>
 
-        {/* 3. Sem Chapa / Alerta */}
-        <button
-          type="button"
-          onClick={() => setViewMode("sem_material")}
-          className={`text-left rounded-xl p-3.5 border transition-all cursor-pointer shadow-2xs ${
-            kpisDia.semMaterialCount > 0
-              ? "bg-red-50/60 dark:bg-red-950/30 border-red-300 dark:border-red-800/60 hover:bg-red-100/40"
-              : "bg-card border-border hover:bg-muted/30"
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-              <AlertTriangle className={`w-3.5 h-3.5 ${kpisDia.semMaterialCount > 0 ? "text-red-500 animate-bounce" : "text-slate-400"}`} />
-              Sem Chapa / Alerta
-            </span>
-            {kpisDia.semMaterialCount > 0 && (
-              <Badge className="bg-red-100 text-red-700 border-red-200 text-[10px] font-bold">
-                Ação Req.
-              </Badge>
-            )}
-          </div>
-          <p className={`text-2xl font-black mt-1 ${kpisDia.semMaterialCount > 0 ? "text-red-600 dark:text-red-400" : "text-foreground"}`}>
-            {kpisDia.semMaterialCount} <span className="text-xs font-normal text-muted-foreground">travada(s)</span>
-          </p>
-        </button>
+              {/* 2. Na Fila Pendentes */}
+              <div className="bg-card border border-border rounded-xl p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-500" /> Na Fila (Pendentes)
+                  </span>
+                  {isCarregandoInicial ? (
+                    <div className="h-4 w-12 bg-muted/60 animate-pulse rounded" />
+                  ) : (
+                    <Badge className="bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 text-[10px] font-bold">
+                      {kpisDia.pecasPendentes} pçs
+                    </Badge>
+                  )}
+                </div>
+                {isCarregandoInicial ? (
+                  <div className="h-7 w-20 bg-muted/80 animate-pulse rounded my-1" />
+                ) : (
+                  <p className="text-2xl font-black mt-1 text-foreground">
+                    {kpisDia.pendentesCount} <span className="text-xs font-normal text-muted-foreground">OP(s)</span>
+                  </p>
+                )}
+              </div>
 
-        {/* 4. Finalizadas Hoje */}
-        <div className="bg-card border border-border rounded-xl p-3.5 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Finalizadas Hoje
-            </span>
-            <Badge className="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 text-[10px] font-bold">
-              {kpisDia.pecasFinalizadas} pçs ✓
-            </Badge>
-          </div>
-          <p className="text-2xl font-black mt-1 text-emerald-600 dark:text-emerald-400">
-            {kpisDia.finalizadasCount} <span className="text-xs font-normal text-muted-foreground">OP(s)</span>
-          </p>
-        </div>
+              {/* 3. Sem Chapa / Alerta */}
+              <button
+                type="button"
+                onClick={() => setViewMode("sem_material")}
+                className={`text-left rounded-xl p-3.5 border transition-all cursor-pointer shadow-2xs ${
+                  kpisDia.semMaterialCount > 0
+                    ? "bg-red-50/60 dark:bg-red-950/30 border-red-300 dark:border-red-800/60 hover:bg-red-100/40"
+                    : "bg-card border-border hover:bg-muted/30"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <AlertTriangle className={`w-3.5 h-3.5 ${kpisDia.semMaterialCount > 0 ? "text-red-500 animate-bounce" : "text-slate-400"}`} />
+                    Sem Chapa / Alerta
+                  </span>
+                  {isCarregandoInicial ? (
+                    <div className="h-4 w-12 bg-muted/60 animate-pulse rounded" />
+                  ) : kpisDia.semMaterialCount > 0 && (
+                    <Badge className="bg-red-100 text-red-700 border-red-200 text-[10px] font-bold">
+                      Ação Req.
+                    </Badge>
+                  )}
+                </div>
+                {isCarregandoInicial ? (
+                  <div className="h-7 w-20 bg-muted/80 animate-pulse rounded my-1" />
+                ) : (
+                  <p className={`text-2xl font-black mt-1 ${kpisDia.semMaterialCount > 0 ? "text-red-600 dark:text-red-400" : "text-foreground"}`}>
+                    {kpisDia.semMaterialCount} <span className="text-xs font-normal text-muted-foreground">travada(s)</span>
+                  </p>
+                )}
+              </button>
+
+              {/* 4. Finalizadas Hoje */}
+              <div className="bg-card border border-border rounded-xl p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Finalizadas Hoje
+                  </span>
+                  {isCarregandoInicial ? (
+                    <div className="h-4 w-12 bg-muted/60 animate-pulse rounded" />
+                  ) : (
+                    <Badge className="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 text-[10px] font-bold">
+                      {kpisDia.pecasFinalizadas} pçs ✓
+                    </Badge>
+                  )}
+                </div>
+                {isCarregandoInicial ? (
+                  <div className="h-7 w-20 bg-muted/80 animate-pulse rounded my-1" />
+                ) : (
+                  <p className="text-2xl font-black mt-1 text-emerald-600 dark:text-emerald-400">
+                    {kpisDia.finalizadasCount} <span className="text-xs font-normal text-muted-foreground">OP(s)</span>
+                  </p>
+                )}
+              </div>
+            </>
+          );
+        })()}
       </div>
 
       {/* Banner: Semana fora da atual */}
