@@ -1645,7 +1645,7 @@ export default function MaquinaPanel({ maquina }) {
           })}
 
           {/* Banner quando não há mais pedidos a fazer hoje */}
-          {ordenadosAFazer.length === 0 && ordenadosFinalizados.length > 0 && (
+          {ordenadosAFazer.length === 0 && (
             <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-6 text-center shadow-xs">
               <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-400 flex items-center justify-center mx-auto mb-2 font-bold text-lg">
                 ✓
@@ -1654,123 +1654,8 @@ export default function MaquinaPanel({ maquina }) {
                 Fila de Produção Deste Dia Concluída!
               </h3>
               <p className="text-xs text-emerald-800/80 dark:text-emerald-300/80 mt-1 max-w-md mx-auto">
-                Não há pedidos pendentes nesta máquina. Todos os {ordenadosFinalizados.length} pedidos já foram perfilados/finalizados.
+                Não há pedidos pendentes nesta máquina para o dia selecionado.
               </p>
-              <Button
-                size="sm"
-                variant="outline"
-                className="mt-3 text-xs h-7 gap-1.5 border-emerald-400 text-emerald-800 hover:bg-emerald-100"
-                onClick={() => setFinalizadosAbertos(true)}
-              >
-                Visualizar Pedidos Finalizados ({ordenadosFinalizados.length})
-              </Button>
-            </div>
-          )}
-
-          {/* 2. Pedidos Finalizados / Concluídos (Minimizados lá para baixo) */}
-          {ordenadosFinalizados.length > 0 && (
-            <div className="mt-8 pt-6 border-t-2 border-dashed border-slate-200 dark:border-slate-800">
-              <div className="bg-slate-50/90 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs transition-all">
-                <button
-                  type="button"
-                  onClick={() => setFinalizadosAbertos(v => !v)}
-                  className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-100/80 dark:hover:bg-slate-800/60 transition-colors cursor-pointer select-none"
-                  title={finalizadosAbertos ? "Clique para recolher e minimizar" : "Clique para expandir e ver detalhes"}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-bold text-sm shrink-0 border border-emerald-200 dark:border-emerald-800">
-                      <CheckCircle2 className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                          Pedidos Finalizados / Concluídos
-                        </span>
-                        <Badge className="bg-emerald-600 text-white font-bold text-xs h-5 px-2">
-                          {ordenadosFinalizados.length}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {finalizadosAbertos || Boolean(termoBusca.trim())
-                          ? "Lista expandida · Clique para recolher e manter minimizado"
-                          : "Minimizados no final da fila · Clique para expandir detalhes"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                    <span className="hidden sm:inline">
-                      {finalizadosAbertos || Boolean(termoBusca.trim()) ? "Minimizar" : "Expandir"}
-                    </span>
-                    <div className="p-1 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                      <ChevronDown className={cn("w-4 h-4 transition-transform duration-200", (finalizadosAbertos || Boolean(termoBusca.trim())) && "rotate-180")} />
-                    </div>
-                  </div>
-                </button>
-
-                {(finalizadosAbertos || Boolean(termoBusca.trim())) && (
-                  <div className="p-4 pt-1 border-t border-slate-200/70 dark:border-slate-800/70 space-y-4 bg-white/50 dark:bg-slate-950/30">
-                    {ordenadosFinalizados.map(p => {
-                      const dataPedido = p.data || p.data_perfilacao;
-                      const ehOutroDia = Boolean(termoBusca.trim() && dataPedido && dataPedido !== selectedDay);
-
-                      return (
-                        <div key={p.id}>
-                          {ehOutroDia && (
-                            <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-1.5 mb-1.5 text-xs text-amber-800 dark:text-amber-300">
-                              <div className="flex items-center gap-1.5 font-medium">
-                                <Calendar className="w-3.5 h-3.5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
-                                <span>
-                                  Agendado para: <strong>{format(new Date(dataPedido + "T12:00:00"), "dd/MM/yyyy (EEEE)", { locale: ptBR })}</strong>
-                                </span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedDay(dataPedido);
-                                }}
-                                className="underline font-semibold hover:text-amber-900 dark:hover:text-amber-100 cursor-pointer ml-2"
-                              >
-                                Ir para este dia
-                              </button>
-                            </div>
-                          )}
-                          {podeGerenciar && (
-                            <div className="flex justify-end gap-1 mb-1 items-center flex-wrap">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-xs h-6 px-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 font-semibold"
-                                onClick={() => setAlterandoDataPedido(p)}
-                                title="Alterar data de entrega e notificar vendedor/Odoo"
-                              >
-                                <Calendar className="w-3 h-3 mr-1" />
-                                Data: {(() => {
-                                  const d = getDataEntregaParaOrdenacao(p);
-                                  if (!d || d === "9999-99-99") return "Prazo";
-                                  try {
-                                    return format(new Date(d + "T12:00:00"), "dd/MM");
-                                  } catch {
-                                    return d;
-                                  }
-                                })()}
-                              </Button>
-                              <HistoricoPedidoTelhasButton pedido={p} />
-                              <Button size="sm" variant="ghost" className="text-xs h-6 px-2 text-muted-foreground hover:text-blue-600" onClick={() => setEditandoPedido(p)}>
-                                <Edit3 className="w-3 h-3 mr-1" /> Editar
-                              </Button>
-                              <Button size="sm" variant="ghost" className="text-xs h-6 px-2 text-muted-foreground hover:text-red-600" onClick={() => handleDeletePedido(p)}>
-                                <Trash2 className="w-3 h-3 mr-1" /> Excluir
-                              </Button>
-                            </div>
-                          )}
-                          <PedidoRow pedido={p} onStatusChange={handleStatusChange} onUpdate={handleStatusChange} userRole={user?.role} opRodando={opRodando} maquina={maquina} user={user} filialAtiva={filialAtiva} appendHistoricoFn={(pedido, acao, label, detalhes) => appendHistorico(pedido, acao, label, detalhes)} todosPedidos={todosPedidos} />
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
             </div>
           )}
         </div>

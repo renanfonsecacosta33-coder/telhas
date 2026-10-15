@@ -931,68 +931,15 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
           ) : (
             <div className="p-4 space-y-3">
               {/* 1. Aviso de todas concluídas se não há ativas */}
-              {ordensDiaAtivas.length === 0 && ordensDiaFinalizadas.length > 0 && (
-                <div className="p-4 text-center rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 text-xs text-emerald-700 dark:text-emerald-300 font-semibold flex flex-col items-center gap-2">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-600" />
-                    <span>Não há ordens pendentes nesta máquina hoje. Todas as {ordensDiaFinalizadas.length} ordens já foram finalizadas!</span>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setFinalizadosAbertos(true)}
-                    className="h-7 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-100/50 mt-1"
-                  >
-                    Visualizar Ordens Finalizadas ({ordensDiaFinalizadas.length})
-                  </Button>
+              {ordensDiaAtivas.length === 0 && (
+                <div className="p-4 text-center rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 text-xs text-emerald-700 dark:text-emerald-300 font-semibold flex items-center justify-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-600" />
+                  <span>Não há ordens pendentes nesta máquina para o dia selecionado.</span>
                 </div>
               )}
 
               {/* 2. Ordens Ativas (a produzir) */}
               {ordensDiaAtivas.map(renderOrdemItem)}
-
-              {/* 3. Ordens Finalizadas / Concluídas (Minimizadas no final da fila como nas Telhas) */}
-              {ordensDiaFinalizadas.length > 0 && (
-                <div className="pt-2 border-t border-border">
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setFinalizadosAbertos(v => !v)}
-                    className="flex items-center justify-between p-3.5 bg-slate-100/90 dark:bg-slate-850 hover:bg-slate-200/80 dark:hover:bg-slate-800 rounded-xl cursor-pointer select-none transition-all border border-slate-200/80 dark:border-slate-700/80"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
-                        <CheckCircle className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                            Ordens Finalizadas / Concluídas
-                          </span>
-                          <Badge variant="outline" className="text-[10px] font-bold bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 border-emerald-300">
-                            {ordensDiaFinalizadas.length}
-                          </Badge>
-                        </div>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                          {finalizadosAbertos || Boolean(buscaPedido.trim())
-                            ? "Lista expandida — Clique para recolher e manter minimizado"
-                            : "Minimizadas no final da fila — Clique para expandir detalhes"}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                      <span>{finalizadosAbertos || Boolean(buscaPedido.trim()) ? "Minimizar" : "Expandir"}</span>
-                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${finalizadosAbertos || Boolean(buscaPedido.trim()) ? "rotate-180" : ""}`} />
-                    </div>
-                  </div>
-
-                  {(finalizadosAbertos || Boolean(buscaPedido.trim())) && (
-                    <div className="space-y-3 pt-3 opacity-90">
-                      {ordensDiaFinalizadas.map(renderOrdemItem)}
-                    </div>
-                  )}
-                </div>
-              )}
 
               {/* Seção das Ordens Canceladas no Dia Selecionado */}
               {ordensDiaCanceladas.length > 0 && (
