@@ -931,14 +931,20 @@ export default function DashboardTelhas() {
             if (itemIdx != null) data.item_idx = itemIdx;
 
             if (isTelhaBandeja(data)) {
-              const { ordemTelha, ordemBandeja, ordemColagem } = montarTriadeTelhaBandeja({ ...data, unidade: filialAtiva });
-              try {
-                await base44.entities.Pedido.create(ordemBandeja);
-                await base44.entities.Pedido.create(ordemColagem);
-              } catch (errBandeja) {
-                console.error("[DashboardTelhas] Erro ao criar triade:", errBandeja);
-              }
-              await base44.entities.Pedido.create(ordemTelha);
+              const maquinaInicial = (data.modelo && /colonial/i.test(data.modelo)) || (data.maquina && /colonial/i.test(data.maquina))
+                ? "COLONIAL"
+                : (data.maquina && data.maquina !== "BANDEJA" && data.maquina !== "COLAGEM" ? data.maquina : "TP - 40");
+              await base44.entities.Pedido.create({
+                ...data,
+                unidade: filialAtiva,
+                maquina: maquinaInicial,
+                modelo: maquinaInicial,
+                maquina_origem: maquinaInicial,
+                status: "pendente",
+                bloqueado_colagem: false,
+                tipo_componente_bandeja: null,
+                grupo_bandeja_id: null,
+              });
             } else {
               await base44.entities.Pedido.create({ ...data, unidade: filialAtiva });
             }

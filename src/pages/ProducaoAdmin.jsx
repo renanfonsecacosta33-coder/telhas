@@ -254,14 +254,20 @@ export default function ProducaoAdmin() {
       }
 
       if (isTelhaBandeja(data)) {
-        const { ordemTelha, ordemBandeja, ordemColagem } = montarTriadeTelhaBandeja({ ...data, unidade: data.unidade || filialAtiva });
-        try {
-          await base44.entities.Pedido.create(ordemBandeja);
-          await base44.entities.Pedido.create(ordemColagem);
-        } catch (errBandeja) {
-          console.error("[ProducaoAdmin] Erro ao criar ordens de Bandeja/Colagem:", errBandeja);
-        }
-        createMutation.mutate(ordemTelha);
+        const maquinaInicial = (data.modelo && /colonial/i.test(data.modelo)) || (data.maquina && /colonial/i.test(data.maquina))
+          ? "COLONIAL"
+          : (data.maquina && data.maquina !== "BANDEJA" && data.maquina !== "COLAGEM" ? data.maquina : "TP - 40");
+        createMutation.mutate({
+          ...data,
+          unidade: data.unidade || filialAtiva,
+          maquina: maquinaInicial,
+          modelo: maquinaInicial,
+          maquina_origem: maquinaInicial,
+          status: "pendente",
+          bloqueado_colagem: false,
+          tipo_componente_bandeja: null,
+          grupo_bandeja_id: null,
+        });
         return;
       }
 

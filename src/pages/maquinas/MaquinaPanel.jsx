@@ -41,6 +41,7 @@ import { isOperadorDestaMaquina } from "@/lib/somPermissaoHelper";
 import { salvarCacheLocal, obterCacheLocal, enfileirarAcaoOffline, purgarIdDoCacheLocal } from "@/lib/offlineStorage";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
 import { reajustarTodasBobinasMaquinasAutomaticamente } from "@/lib/reajusteAutomaticoBobinas";
+import { isTelhaBandeja } from "@/lib/bandejaHelper";
 
 const STATUS_LABELS_TELHAS = {
   pendente: "Pendente",
@@ -231,6 +232,16 @@ export default function MaquinaPanel({ maquina }) {
           return false;
         }
 
+        // TELHA BANDEJA: fluxo sequencial estrito (TP-40/Colonial → BANDEJA → COLAGEM)
+        // Só acolhe na Colagem se a ordem já avançou de fato para a Colagem (mNorm === "COLAGEM")
+        // e NUNCA se ainda estiver pendente nas perfiladeiras ou com travas de tríade antiga
+        if (isTelhaBandeja(p)) {
+          if (p.bloqueado_colagem || (p.tipo_componente_bandeja === "colagem_final" && !p.perfilacao_concluida)) {
+            return false;
+          }
+          return mNorm === "COLAGEM" && (p.status === "aguardando_colagem" || p.status === "em_producao" || p.status === "pausado" || p.status === "finalizado");
+        }
+
         // A OP SÓ DEVE APARECER NA COLAGEM SE:
         // A perfilação já terminou (aguardando_colagem ou perfilacao_concluida)
         // OU se já está sendo colada (em_producao / pausado / finalizado com maquina === "COLAGEM")
@@ -373,6 +384,63 @@ export default function MaquinaPanel({ maquina }) {
           queryClient.invalidateQueries({ queryKey: ["pedidos-maquina"] });
         } catch (e) {
           console.warn("[AutoCorrecao Máquinas] Erro ao corrigir OP no banco:", e);
+        }
+      });
+    }
+  }, [todosPedidos, queryClient]);
+
+  // Auto-correção proativa para Telha Bandeja:
+  // Se houver qualquer OP de Telha Bandeja indevidamente na Colagem sem ter sido perfilada
+  // (ex: resquício de tríade antiga com bloqueado_colagem: true ou colagem_final)
+  // reposiciona na máquina inicial de perfilação (TP-40 ou Colonial) com status 'pendente'
+  useEffect(() => {
+    if (!todosPedidos || todosPedidos.length === 0) return;
+    const bandejasPresas = todosPedidos.filter(p => {
+      if (p.status === "cancelado" || p.status === "finalizado") return false;
+      if (!isTelhaBandeja(p)) return false;
+      const ehNaColagem = maquinaNorm(p.maquina) === "COLAGEM";
+      const semPerfilacao = !p.perfilacao_concluida;
+      const temTravaTriade = Boolean(
+        p.bloqueado_colagem ||
+        p.tipo_componente_bandeja === "colagem_final" ||
+        (ehNaColagem && p.status === "aguardando_colagem" && semPerfilacao)
+      );
+      return temTravaTriade;
+    });
+
+    if (bandejasPresas.length > 0) {
+      bandejasPresas.forEach(async (opErr) => {
+        const maqCerta = (opErr.modelo && /colonial/i.test(opErr.modelo)) ? "COLONIAL" : "TP - 40";
+        console.log(`[AutoCorrecao Telha Bandeja] Reposicionando OP #${opErr.numero_pedido} de COLAGEM para ${maqCerta}`);
+        try {
+          await base44.entities.Pedido.update(opErr.id, {
+            maquina: maqCerta,
+            modelo: maqCerta,
+            maquina_origem: maqCerta,
+            status: "pendente",
+            bloqueado_colagem: false,
+            tipo_componente_bandeja: null,
+            grupo_bandeja_id: null,
+          });
+
+          // Cancela eventuais ordens irmãs vazias da antiga tríade (para não duplicar componentes no galpão)
+          const ordensIrmas = todosPedidos.filter(o =>
+            o.id !== opErr.id &&
+            o.status !== "cancelado" &&
+            o.numero_pedido &&
+            String(o.numero_pedido).trim().toUpperCase() === String(opErr.numero_pedido).trim().toUpperCase() &&
+            (o.tipo_componente_bandeja === "bandeja_inferior" || o.tipo_componente_bandeja === "telha_superior")
+          );
+
+          for (const irma of ordensIrmas) {
+            console.log(`[AutoCorrecao Telha Bandeja] Cancelando ordem irmã redundante #${irma.numero_pedido} (${irma.tipo_componente_bandeja})`);
+            await base44.entities.Pedido.update(irma.id, { status: "cancelado" }).catch(() => {});
+          }
+
+          queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+          queryClient.invalidateQueries({ queryKey: ["pedidos-maquina"] });
+        } catch (e) {
+          console.warn("[AutoCorrecao Telha Bandeja] Erro ao reposicionar OP no banco:", e);
         }
       });
     }

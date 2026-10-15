@@ -85,9 +85,22 @@ export function montarTriadeTelhaBandeja(dataPrincipal) {
   return { ordemTelha, ordemBandeja, ordemColagem, grupoId };
 }
 
+export function proximaMaquinaFluxo(produto, maquinaAtual) {
+  if (isTelhaBandeja({ produto })) {
+    const norm = String(maquinaAtual || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    if (norm === "BANDEJA") return "COLAGEM";
+    if (norm === "COLONIAL") return "BANDEJA";
+    if (norm === "TP25") return "BANDEJA";
+    if (norm === "COLAGEM") return null;
+    // Padrão telha superior: TP-40, Colonial ou qualquer perfiladeira avança para BANDEJA
+    return "BANDEJA";
+  }
+  return null;
+}
+
 /**
  * Avalia o status dos componentes de uma Telha Bandeja
- * Retorna se a Colagem está liberada e os status detalhados de cada metade
+ * Se for fluxo sequencial (1 OP única), está 100% liberado sem necessidade de buscar ordens irmãs
  */
 export function verificarStatusComponentesBandeja(pedido, todosPedidos = []) {
   if (!isTelhaBandeja(pedido)) {
@@ -109,11 +122,28 @@ export function verificarStatusComponentesBandeja(pedido, todosPedidos = []) {
     return false;
   });
 
-  const opTelha = ordensDoGrupo.find(o => o.tipo_componente_bandeja === "telha_superior" || (o.maquina !== "BANDEJA" && o.maquina !== "COLAGEM"));
-  const opBandeja = ordensDoGrupo.find(o => o.tipo_componente_bandeja === "bandeja_inferior" || o.maquina === "BANDEJA");
+  const opTelha = ordensDoGrupo.find(o => o.tipo_componente_bandeja === "telha_superior");
+  const opBandeja = ordensDoGrupo.find(o => o.tipo_componente_bandeja === "bandeja_inferior");
 
-  const telhaFinalizada = opTelha ? opTelha.status === "finalizado" : false;
-  const bandejaFinalizada = opBandeja ? opBandeja.status === "finalizado" : false;
+  // Se NÃO existem ordens irmãs separadas (fluxo sequencial de OP única):
+  if (!opTelha && !opBandeja) {
+    return {
+      isBandeja: true,
+      grupoId: null,
+      opTelha: null,
+      opBandeja: null,
+      telhaFinalizada: true,
+      bandejaFinalizada: true,
+      liberadoColagem: true,
+      mensagemBloqueio: "",
+      statusTelha: "finalizado",
+      statusBandeja: "finalizado",
+      maquinaTelha: pedido.maquina_origem || "TP - 40",
+    };
+  }
+
+  const telhaFinalizada = opTelha ? opTelha.status === "finalizado" : true;
+  const bandejaFinalizada = opBandeja ? opBandeja.status === "finalizado" : true;
 
   // Se ambas as partes terminaram, a colagem está 100% liberada
   const liberadoColagem = telhaFinalizada && bandejaFinalizada;
