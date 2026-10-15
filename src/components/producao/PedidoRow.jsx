@@ -493,6 +493,174 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     }
   };
 
+  // ==========================================
+  // ESTADOS E HANDLERS: COR / RVM E ESPESSURA
+  // ==========================================
+  const CORES_RAPIDAS = ["Natural", "Preto", "Branco", "Cinza", "Cerâmica", "Azul", "Bege", "Marrom"];
+  const ESPESSURAS_RAPIDAS = ["0,35", "0,40", "0,43", "0,50", "0,65", "0,80", "0,90", "1,00", "1,20"];
+
+  // Estados Cor e Espessura Superior
+  const [editandoCorSup, setEditandoCorSup] = useState(false);
+  const [overrideCorSup, setOverrideCorSup] = useState(null);
+  const [textoCorSup, setTextoCorSup] = useState(p?.rvm_superior || p?.cor_superior || "Natural");
+  const [salvandoCorSup, setSalvandoCorSup] = useState(false);
+
+  const [editandoEspSup, setEditandoEspSup] = useState(false);
+  const [overrideEspSup, setOverrideEspSup] = useState(null);
+  const [textoEspSup, setTextoEspSup] = useState(p?.espessura_exigida || p?.espessura || "0,43");
+  const [salvandoEspSup, setSalvandoEspSup] = useState(false);
+
+  // Estados Cor e Espessura Inferior
+  const [editandoCorInf, setEditandoCorInf] = useState(false);
+  const [overrideCorInf, setOverrideCorInf] = useState(null);
+  const [textoCorInf, setTextoCorInf] = useState(p?.rvm_inferior || p?.cor_inferior || p?.rvm_superior || "Natural");
+  const [salvandoCorInf, setSalvandoCorInf] = useState(false);
+
+  const [editandoEspInf, setEditandoEspInf] = useState(false);
+  const [overrideEspInf, setOverrideEspInf] = useState(null);
+  const [textoEspInf, setTextoEspInf] = useState(p?.espessura_inferior || p?.espessura_exigida || p?.espessura || "0,43");
+  const [salvandoEspInf, setSalvandoEspInf] = useState(false);
+
+  useEffect(() => {
+    if (p?.rvm_superior && overrideCorSup === null) setTextoCorSup(p.rvm_superior);
+  }, [p?.rvm_superior, overrideCorSup]);
+
+  useEffect(() => {
+    if ((p?.espessura_exigida || p?.espessura) && overrideEspSup === null) setTextoEspSup(p.espessura_exigida || p.espessura);
+  }, [p?.espessura_exigida, p?.espessura, overrideEspSup]);
+
+  useEffect(() => {
+    if (p?.rvm_inferior && overrideCorInf === null) setTextoCorInf(p.rvm_inferior);
+  }, [p?.rvm_inferior, overrideCorInf]);
+
+  useEffect(() => {
+    if ((p?.espessura_inferior || p?.espessura_exigida) && overrideEspInf === null) setTextoEspInf(p.espessura_inferior || p.espessura_exigida);
+  }, [p?.espessura_inferior, p?.espessura_exigida, overrideEspInf]);
+
+  const handleSalvarCorSup = async (corEscolhida) => {
+    if (!p?.id) return;
+    const valor = String(corEscolhida !== undefined ? corEscolhida : textoCorSup).trim();
+    if (!valor) { toast.warning("Digite ou selecione uma cor"); return; }
+    setOverrideCorSup(valor);
+    setTextoCorSup(valor);
+    setEditandoCorSup(false);
+    setSalvandoCorSup(true);
+
+    const payload = { rvm_superior: valor, cor_superior: valor };
+    queryClient.setQueriesData({ queryKey: ["pedidos"] }, (antigos) => {
+      if (!antigos || !Array.isArray(antigos)) return antigos;
+      return antigos.map(item => item.id === p.id ? { ...item, ...payload } : item);
+    });
+
+    try {
+      await base44.entities.Pedido.update(p.id, payload);
+      toast.success(`Cor/RVM Superior ajustada para "${valor}"`);
+      if (appendHistoricoFn) {
+        appendHistoricoFn(p, "cor_ajustada", "Ajustou Cor/RVM Superior", `Cor superior alterada para "${valor}"`);
+      }
+      if (onUpdate) onUpdate(p, p.status, payload);
+    } catch (e) {
+      console.error("Erro ao salvar cor superior:", e);
+      toast.error("Erro ao salvar cor");
+      setOverrideCorSup(null);
+    } finally {
+      setSalvandoCorSup(false);
+    }
+  };
+
+  const handleSalvarEspSup = async (espEscolhida) => {
+    if (!p?.id) return;
+    const valor = String(espEscolhida !== undefined ? espEscolhida : textoEspSup).trim();
+    if (!valor) { toast.warning("Digite ou selecione uma espessura"); return; }
+    setOverrideEspSup(valor);
+    setTextoEspSup(valor);
+    setEditandoEspSup(false);
+    setSalvandoEspSup(true);
+
+    const payload = { espessura_exigida: valor, espessura: valor };
+    queryClient.setQueriesData({ queryKey: ["pedidos"] }, (antigos) => {
+      if (!antigos || !Array.isArray(antigos)) return antigos;
+      return antigos.map(item => item.id === p.id ? { ...item, ...payload } : item);
+    });
+
+    try {
+      await base44.entities.Pedido.update(p.id, payload);
+      toast.success(`Espessura Superior ajustada para "${valor} mm"`);
+      if (appendHistoricoFn) {
+        appendHistoricoFn(p, "espessura_ajustada", "Ajustou Espessura Superior", `Espessura alterada para "${valor} mm"`);
+      }
+      if (onUpdate) onUpdate(p, p.status, payload);
+    } catch (e) {
+      console.error("Erro ao salvar espessura:", e);
+      toast.error("Erro ao salvar espessura");
+      setOverrideEspSup(null);
+    } finally {
+      setSalvandoEspSup(false);
+    }
+  };
+
+  const handleSalvarCorInf = async (corEscolhida) => {
+    if (!p?.id) return;
+    const valor = String(corEscolhida !== undefined ? corEscolhida : textoCorInf).trim();
+    if (!valor) { toast.warning("Digite ou selecione uma cor"); return; }
+    setOverrideCorInf(valor);
+    setTextoCorInf(valor);
+    setEditandoCorInf(false);
+    setSalvandoCorInf(true);
+
+    const payload = { rvm_inferior: valor, cor_inferior: valor };
+    queryClient.setQueriesData({ queryKey: ["pedidos"] }, (antigos) => {
+      if (!antigos || !Array.isArray(antigos)) return antigos;
+      return antigos.map(item => item.id === p.id ? { ...item, ...payload } : item);
+    });
+
+    try {
+      await base44.entities.Pedido.update(p.id, payload);
+      toast.success(`Cor/RVM Inferior ajustada para "${valor}"`);
+      if (appendHistoricoFn) {
+        appendHistoricoFn(p, "cor_ajustada", "Ajustou Cor/RVM Inferior", `Cor inferior alterada para "${valor}"`);
+      }
+      if (onUpdate) onUpdate(p, p.status, payload);
+    } catch (e) {
+      console.error("Erro ao salvar cor inferior:", e);
+      toast.error("Erro ao salvar cor");
+      setOverrideCorInf(null);
+    } finally {
+      setSalvandoCorInf(false);
+    }
+  };
+
+  const handleSalvarEspInf = async (espEscolhida) => {
+    if (!p?.id) return;
+    const valor = String(espEscolhida !== undefined ? espEscolhida : textoEspInf).trim();
+    if (!valor) { toast.warning("Digite ou selecione uma espessura"); return; }
+    setOverrideEspInf(valor);
+    setTextoEspInf(valor);
+    setEditandoEspInf(false);
+    setSalvandoEspInf(true);
+
+    const payload = { espessura_inferior: valor };
+    queryClient.setQueriesData({ queryKey: ["pedidos"] }, (antigos) => {
+      if (!antigos || !Array.isArray(antigos)) return antigos;
+      return antigos.map(item => item.id === p.id ? { ...item, ...payload } : item);
+    });
+
+    try {
+      await base44.entities.Pedido.update(p.id, payload);
+      toast.success(`Espessura Inferior ajustada para "${valor} mm"`);
+      if (appendHistoricoFn) {
+        appendHistoricoFn(p, "espessura_ajustada", "Ajustou Espessura Inferior", `Espessura inferior alterada para "${valor} mm"`);
+      }
+      if (onUpdate) onUpdate(p, p.status, payload);
+    } catch (e) {
+      console.error("Erro ao salvar espessura inferior:", e);
+      toast.error("Erro ao salvar espessura");
+      setOverrideEspInf(null);
+    } finally {
+      setSalvandoEspInf(false);
+    }
+  };
+
   // Identifica se este pedido é de Cumeeira
   const isCumeeira = useMemo(() => {
     return (
@@ -1829,9 +1997,140 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                   </div>
                 )}
 
-                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1.5 flex-wrap">
-                  <span>Cor / RVM: <strong className="text-foreground">{p.rvm_superior || "Natural"}</strong></span>
-                  {p.espessura_exigida && <span>Espessura: <strong className="text-foreground">{p.espessura_exigida} mm</strong></span>}
+                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2 flex-wrap">
+                  {/* Cor / RVM Superior */}
+                  {!editandoCorSup ? (
+                    <span className="inline-flex items-center gap-1.5 bg-background/90 px-2 py-1 rounded-md border border-border hover:border-indigo-400 transition-colors shadow-2xs">
+                      <span className="text-[11px] text-muted-foreground font-medium">Cor / RVM:</span>
+                      <button
+                        type="button"
+                        onClick={() => { setEditandoCorSup(true); setEditandoEspSup(false); }}
+                        className="inline-flex items-center gap-1 font-bold text-foreground hover:text-indigo-600 transition-colors cursor-pointer group"
+                        title="Clique para alterar a Cor / RVM"
+                      >
+                        <span>{overrideCorSup !== null ? overrideCorSup : (p.rvm_superior || "Natural")}</span>
+                        <Pencil className="w-2.5 h-2.5 text-slate-400 group-hover:text-indigo-600" />
+                      </button>
+                    </span>
+                  ) : (
+                    <div className="w-full bg-white dark:bg-slate-900 border-2 border-indigo-500 rounded-xl p-2.5 shadow-md flex flex-col gap-2 my-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase">Cor / RVM:</span>
+                        <Input
+                          value={textoCorSup}
+                          onChange={(e) => setTextoCorSup(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSalvarCorSup();
+                            if (e.key === "Escape") setEditandoCorSup(false);
+                          }}
+                          placeholder="Digite ou escolha abaixo..."
+                          className="h-7 text-xs font-bold w-40 bg-background"
+                          autoFocus
+                        />
+                        <Button
+                          size="sm"
+                          onClick={() => handleSalvarCorSup()}
+                          disabled={salvandoCorSup}
+                          className="h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold gap-1"
+                        >
+                          <Check className="w-3 h-3" /> Salvar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setEditandoCorSup(false)}
+                          className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span className="text-[10px] text-muted-foreground mr-1">Rápido:</span>
+                        {CORES_RAPIDAS.map(cor => (
+                          <button
+                            key={cor}
+                            type="button"
+                            onClick={() => handleSalvarCorSup(cor)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all border ${
+                              (textoCorSup || "").toLowerCase() === cor.toLowerCase()
+                                ? "bg-indigo-600 text-white border-indigo-600"
+                                : "bg-muted/60 hover:bg-indigo-50 hover:text-indigo-600 border-border text-foreground"
+                            }`}
+                          >
+                            {cor}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Espessura Superior */}
+                  {!editandoEspSup ? (
+                    <span className="inline-flex items-center gap-1.5 bg-background/90 px-2 py-1 rounded-md border border-border hover:border-indigo-400 transition-colors shadow-2xs">
+                      <span className="text-[11px] text-muted-foreground font-medium">Espessura:</span>
+                      <button
+                        type="button"
+                        onClick={() => { setEditandoEspSup(true); setEditandoCorSup(false); }}
+                        className="inline-flex items-center gap-1 font-bold text-foreground hover:text-indigo-600 transition-colors cursor-pointer group"
+                        title="Clique para alterar a Espessura"
+                      >
+                        <span>{overrideEspSup !== null ? overrideEspSup : (p.espessura_exigida || p.espessura || "0,43")} mm</span>
+                        <Pencil className="w-2.5 h-2.5 text-slate-400 group-hover:text-indigo-600" />
+                      </button>
+                    </span>
+                  ) : (
+                    <div className="w-full bg-white dark:bg-slate-900 border-2 border-indigo-500 rounded-xl p-2.5 shadow-md flex flex-col gap-2 my-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase">Espessura:</span>
+                        <Input
+                          value={textoEspSup}
+                          onChange={(e) => setTextoEspSup(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSalvarEspSup();
+                            if (e.key === "Escape") setEditandoEspSup(false);
+                          }}
+                          placeholder="Ex: 0,43"
+                          className="h-7 text-xs font-bold w-24 bg-background"
+                          autoFocus
+                        />
+                        <span className="text-xs text-muted-foreground font-bold">mm</span>
+                        <Button
+                          size="sm"
+                          onClick={() => handleSalvarEspSup()}
+                          disabled={salvandoEspSup}
+                          className="h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold gap-1"
+                        >
+                          <Check className="w-3 h-3" /> Salvar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setEditandoEspSup(false)}
+                          className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span className="text-[10px] text-muted-foreground mr-1">Rápido:</span>
+                        {ESPESSURAS_RAPIDAS.map(esp => (
+                          <button
+                            key={esp}
+                            type="button"
+                            onClick={() => handleSalvarEspSup(esp)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all border ${
+                              (textoEspSup || "").replace(".", ",") === esp
+                                ? "bg-indigo-600 text-white border-indigo-600"
+                                : "bg-muted/60 hover:bg-indigo-50 hover:text-indigo-600 border-border text-foreground"
+                            }`}
+                          >
+                            {esp} mm
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {p.kg_superior > 0 && <span>Peso: <strong className="text-foreground">{p.kg_superior} kg</strong></span>}
                 </div>
               </div>
@@ -1918,9 +2217,139 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                   </div>
                 )}
 
-                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1.5 flex-wrap">
-                  <span>Cor / RVM: <strong className="text-foreground">{p.rvm_inferior || p.rvm_superior || "Natural"}</strong></span>
-                  {p.espessura_exigida && <span>Espessura: <strong className="text-foreground">{p.espessura_exigida} mm</strong></span>}
+                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2 flex-wrap">
+                  {/* Cor / RVM Inferior */}
+                  {!editandoCorInf ? (
+                    <span className="inline-flex items-center gap-1.5 bg-background/90 px-2 py-1 rounded-md border border-border hover:border-indigo-400 transition-colors shadow-2xs">
+                      <span className="text-[11px] text-muted-foreground font-medium">Cor / RVM:</span>
+                      <button
+                        type="button"
+                        onClick={() => { setEditandoCorInf(true); setEditandoEspInf(false); }}
+                        className="inline-flex items-center gap-1 font-bold text-foreground hover:text-indigo-600 transition-colors cursor-pointer group"
+                        title="Clique para alterar a Cor / RVM da chapa inferior"
+                      >
+                        <span>{overrideCorInf !== null ? overrideCorInf : (p.rvm_inferior || p.rvm_superior || "Natural")}</span>
+                        <Pencil className="w-2.5 h-2.5 text-slate-400 group-hover:text-indigo-600" />
+                      </button>
+                    </span>
+                  ) : (
+                    <div className="w-full bg-white dark:bg-slate-900 border-2 border-indigo-500 rounded-xl p-2.5 shadow-md flex flex-col gap-2 my-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase">Cor / RVM Inferior:</span>
+                        <Input
+                          value={textoCorInf}
+                          onChange={(e) => setTextoCorInf(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSalvarCorInf();
+                            if (e.key === "Escape") setEditandoCorInf(false);
+                          }}
+                          placeholder="Digite ou escolha abaixo..."
+                          className="h-7 text-xs font-bold w-40 bg-background"
+                          autoFocus
+                        />
+                        <Button
+                          size="sm"
+                          onClick={() => handleSalvarCorInf()}
+                          disabled={salvandoCorInf}
+                          className="h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold gap-1"
+                        >
+                          <Check className="w-3 h-3" /> Salvar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setEditandoCorInf(false)}
+                          className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span className="text-[10px] text-muted-foreground mr-1">Rápido:</span>
+                        {CORES_RAPIDAS.map(cor => (
+                          <button
+                            key={cor}
+                            type="button"
+                            onClick={() => handleSalvarCorInf(cor)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all border ${
+                              (textoCorInf || "").toLowerCase() === cor.toLowerCase()
+                                ? "bg-indigo-600 text-white border-indigo-600"
+                                : "bg-muted/60 hover:bg-indigo-50 hover:text-indigo-600 border-border text-foreground"
+                            }`}
+                          >
+                            {cor}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Espessura Inferior */}
+                  {!editandoEspInf ? (
+                    <span className="inline-flex items-center gap-1.5 bg-background/90 px-2 py-1 rounded-md border border-border hover:border-indigo-400 transition-colors shadow-2xs">
+                      <span className="text-[11px] text-muted-foreground font-medium">Espessura:</span>
+                      <button
+                        type="button"
+                        onClick={() => { setEditandoEspInf(true); setEditandoCorInf(false); }}
+                        className="inline-flex items-center gap-1 font-bold text-foreground hover:text-indigo-600 transition-colors cursor-pointer group"
+                        title="Clique para alterar a Espessura da chapa inferior"
+                      >
+                        <span>{overrideEspInf !== null ? overrideEspInf : (p.espessura_inferior || p.espessura_exigida || p.espessura || "0,43")} mm</span>
+                        <Pencil className="w-2.5 h-2.5 text-slate-400 group-hover:text-indigo-600" />
+                      </button>
+                    </span>
+                  ) : (
+                    <div className="w-full bg-white dark:bg-slate-900 border-2 border-indigo-500 rounded-xl p-2.5 shadow-md flex flex-col gap-2 my-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase">Espessura Inferior:</span>
+                        <Input
+                          value={textoEspInf}
+                          onChange={(e) => setTextoEspInf(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSalvarEspInf();
+                            if (e.key === "Escape") setEditandoEspInf(false);
+                          }}
+                          placeholder="Ex: 0,43"
+                          className="h-7 text-xs font-bold w-24 bg-background"
+                          autoFocus
+                        />
+                        <span className="text-xs text-muted-foreground font-bold">mm</span>
+                        <Button
+                          size="sm"
+                          onClick={() => handleSalvarEspInf()}
+                          disabled={salvandoEspInf}
+                          className="h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold gap-1"
+                        >
+                          <Check className="w-3 h-3" /> Salvar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setEditandoEspInf(false)}
+                          className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span className="text-[10px] text-muted-foreground mr-1">Rápido:</span>
+                        {ESPESSURAS_RAPIDAS.map(esp => (
+                          <button
+                            key={esp}
+                            type="button"
+                            onClick={() => handleSalvarEspInf(esp)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all border ${
+                              (textoEspInf || "").replace(".", ",") === esp
+                                ? "bg-indigo-600 text-white border-indigo-600"
+                                : "bg-muted/60 hover:bg-indigo-50 hover:text-indigo-600 border-border text-foreground"
+                            }`}
+                          >
+                            {esp} mm
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
