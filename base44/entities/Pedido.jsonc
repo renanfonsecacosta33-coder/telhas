@@ -353,7 +353,31 @@
     "rota": {
       "type": "boolean",
       "default": false,
-      "description": "Pedido de rota \u2014 super importante, indicativo visual destacado"
+      "description": "Pedido de rota — super importante, indicativo visual destacado"
+    },
+    "is_rota": {
+      "type": "boolean",
+      "default": false,
+      "description": "Flag indicando que o pedido é de rota"
+    },
+    "rota_ts": {
+      "type": "string",
+      "description": "Timestamp ISO da marcação de rota"
+    },
+    "cliente_retira": {
+      "type": "boolean",
+      "default": false,
+      "description": "Cliente retira no balcão"
+    },
+    "cliente_retira_agora": {
+      "type": "boolean",
+      "default": false,
+      "description": "Cliente aguardando retirada imediata no balcão"
+    },
+    "retira_agora": {
+      "type": "boolean",
+      "default": false,
+      "description": "Flag indicando retira imediata"
     },
     "historico_alteracoes": {
       "type": "string",

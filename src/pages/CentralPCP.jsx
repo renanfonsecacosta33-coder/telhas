@@ -983,23 +983,23 @@ export default function CentralPCP() {
   };
 
   const confirmarPrioridade = async (pedido, nivel) => {
-    const ativa = Boolean(nivel);
     const isRetiraAgora = nivel === "RETIRA_AGORA";
     const isRota = nivel === "ROTA";
-    const nivelVal = isRetiraAgora ? "RETIRA_AGORA" : isRota ? "ROTA" : (nivel ? Number(nivel) : null);
+    const nivelNumerico = (!isRetiraAgora && !isRota && nivel) ? Number(nivel) : null;
+    const ativa = Boolean(isRetiraAgora || isRota || nivelNumerico);
     const logExistente = (() => { try { return JSON.parse(pedido.historico_log || "[]"); } catch { return []; } })();
     const descr = isRetiraAgora
       ? "OF marcada como ⚡🚨 CLIENTE RETIRA AGORA (Balcão)."
       : isRota
       ? "OF marcada como 🚚 Pedido de Rota."
       : ativa
-      ? `OF marcada como Prioridade P${nivelVal} (1 a 5 - sendo 1 mais urgente).`
+      ? `OF marcada como Prioridade P${nivelNumerico} (1 a 5 - sendo 1 mais urgente).`
       : "Prioridade removida.";
 
     const novoLog = [...logExistente, {
       data: new Date().toISOString(),
       usuario: "PCP",
-      acao: ativa ? (isRetiraAgora ? "prioridade_retira_agora" : isRota ? "prioridade_rota" : `prioridade_p${nivelVal}`) : "prioridade_removida",
+      acao: ativa ? (isRetiraAgora ? "prioridade_retira_agora" : isRota ? "prioridade_rota" : `prioridade_p${nivelNumerico}`) : "prioridade_removida",
       detalhes: descr
     }];
 
@@ -1011,7 +1011,7 @@ export default function CentralPCP() {
           return {
             ...p,
             prioridade: ativa,
-            prioridade_nivel: nivelVal,
+            prioridade_nivel: nivelNumerico,
             cliente_retira_agora: isRetiraAgora,
             cliente_retira: isRetiraAgora,
             retira_agora: isRetiraAgora,
@@ -1029,12 +1029,13 @@ export default function CentralPCP() {
       await executarComRetryRateLimit(() =>
         base44.entities.PedidoOdoo.update(pedido.id, {
           prioridade: ativa,
-          prioridade_nivel: nivelVal,
+          prioridade_nivel: nivelNumerico,
           cliente_retira_agora: isRetiraAgora,
           cliente_retira: isRetiraAgora,
           retira_agora: isRetiraAgora,
           is_rota: isRota,
           rota: isRota,
+          ...(isRota ? { rota_ts: new Date().toISOString() } : {}),
           historico_log: JSON.stringify(novoLog)
         })
       );
@@ -1047,12 +1048,13 @@ export default function CentralPCP() {
               { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
               { $set: {
                 prioridade: ativa,
-                prioridade_nivel: nivelVal,
+                prioridade_nivel: nivelNumerico,
                 cliente_retira_agora: isRetiraAgora,
                 cliente_retira: isRetiraAgora,
                 retira_agora: isRetiraAgora,
                 is_rota: isRota,
-                rota: isRota
+                rota: isRota,
+                ...(isRota ? { rota_ts: new Date().toISOString() } : {})
               } }
             )
           ).catch(() => {});
@@ -1064,12 +1066,13 @@ export default function CentralPCP() {
               { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
               { $set: {
                 prioridade: ativa,
-                prioridade_nivel: nivelVal,
+                prioridade_nivel: nivelNumerico,
                 cliente_retira_agora: isRetiraAgora,
                 cliente_retira: isRetiraAgora,
                 retira_agora: isRetiraAgora,
                 is_rota: isRota,
-                rota: isRota
+                rota: isRota,
+                ...(isRota ? { rota_ts: new Date().toISOString() } : {})
               } }
             )
           ).catch(() => {});
@@ -1082,7 +1085,7 @@ export default function CentralPCP() {
           : isRota
           ? "🚚 Pedido de Rota Definido"
           : ativa
-          ? `Prioridade P${nivelVal} Definida`
+          ? `Prioridade P${nivelNumerico} Definida`
           : "Prioridade Removida",
         description: `#${pedido.numero_pedido} ${
           isRetiraAgora
@@ -1090,7 +1093,7 @@ export default function CentralPCP() {
             : isRota
             ? "marcado como rota de entrega"
             : ativa
-            ? `marcado com Prioridade P${nivelVal}`
+            ? `marcado com Prioridade P${nivelNumerico}`
             : "voltou para fila normal"
         }.`,
         className: isRetiraAgora
@@ -1122,16 +1125,16 @@ export default function CentralPCP() {
 
   const confirmarPrioridadeGrupo = async (grupo, nivel) => {
     const ofs = grupo.ofs || [];
-    const ativa = Boolean(nivel);
     const isRetiraAgora = nivel === "RETIRA_AGORA";
     const isRota = nivel === "ROTA";
-    const nivelVal = isRetiraAgora ? "RETIRA_AGORA" : isRota ? "ROTA" : (nivel ? Number(nivel) : null);
+    const nivelNumerico = (!isRetiraAgora && !isRota && nivel) ? Number(nivel) : null;
+    const ativa = Boolean(isRetiraAgora || isRota || nivelNumerico);
     const descr = isRetiraAgora
       ? `Todo o Pedido #${grupo.numero_pedido} marcado como ⚡🚨 CLIENTE RETIRA AGORA (Balcão).`
       : isRota
       ? `Todo o Pedido #${grupo.numero_pedido} marcado como 🚚 Pedido de Rota.`
       : ativa
-      ? `Todo o Pedido #${grupo.numero_pedido} marcado como Prioridade P${nivelVal}.`
+      ? `Todo o Pedido #${grupo.numero_pedido} marcado como Prioridade P${nivelNumerico}.`
       : `Prioridade removida de todo o Pedido #${grupo.numero_pedido}.`;
 
     const ofIdsSet = new Set(ofs.map((o) => o.id));
@@ -1146,14 +1149,14 @@ export default function CentralPCP() {
             data: new Date().toISOString(),
             usuario: "PCP",
             acao: ativa
-              ? (isRetiraAgora ? "prioridade_grupo_retira_agora" : isRota ? "prioridade_grupo_rota" : `prioridade_grupo_p${nivelVal}`)
+              ? (isRetiraAgora ? "prioridade_grupo_retira_agora" : isRota ? "prioridade_grupo_rota" : `prioridade_grupo_p${nivelNumerico}`)
               : "prioridade_grupo_removida",
             detalhes: descr
           }];
           return {
             ...p,
             prioridade: ativa,
-            prioridade_nivel: nivelVal,
+            prioridade_nivel: nivelNumerico,
             cliente_retira_agora: isRetiraAgora,
             cliente_retira: isRetiraAgora,
             retira_agora: isRetiraAgora,
@@ -1179,7 +1182,7 @@ export default function CentralPCP() {
           data: new Date().toISOString(),
           usuario: "PCP",
           acao: ativa
-            ? (isRetiraAgora ? "prioridade_grupo_retira_agora" : isRota ? "prioridade_grupo_rota" : `prioridade_grupo_p${nivelVal}`)
+            ? (isRetiraAgora ? "prioridade_grupo_retira_agora" : isRota ? "prioridade_grupo_rota" : `prioridade_grupo_p${nivelNumerico}`)
             : "prioridade_grupo_removida",
           detalhes: descr
         }];
@@ -1187,12 +1190,13 @@ export default function CentralPCP() {
         await executarComRetryRateLimit(() =>
           base44.entities.PedidoOdoo.update(ofItem.id, {
             prioridade: ativa,
-            prioridade_nivel: nivelVal,
+            prioridade_nivel: nivelNumerico,
             cliente_retira_agora: isRetiraAgora,
             cliente_retira: isRetiraAgora,
             retira_agora: isRetiraAgora,
             is_rota: isRota,
             rota: isRota,
+            ...(isRota ? { rota_ts: new Date().toISOString() } : {}),
             historico_log: JSON.stringify(novoLog)
           })
         );
@@ -1206,12 +1210,13 @@ export default function CentralPCP() {
               { numero_pedido: grupo.numero_pedido, status: { $ne: "cancelado" } },
               { $set: {
                 prioridade: ativa,
-                prioridade_nivel: nivelVal,
+                prioridade_nivel: nivelNumerico,
                 cliente_retira_agora: isRetiraAgora,
                 cliente_retira: isRetiraAgora,
                 retira_agora: isRetiraAgora,
                 is_rota: isRota,
-                rota: isRota
+                rota: isRota,
+                ...(isRota ? { rota_ts: new Date().toISOString() } : {})
               } }
             )
           ).catch(() => {});
@@ -1223,12 +1228,13 @@ export default function CentralPCP() {
               { numero_pedido: grupo.numero_pedido, status: { $ne: "cancelado" } },
               { $set: {
                 prioridade: ativa,
-                prioridade_nivel: nivelVal,
+                prioridade_nivel: nivelNumerico,
                 cliente_retira_agora: isRetiraAgora,
                 cliente_retira: isRetiraAgora,
                 retira_agora: isRetiraAgora,
                 is_rota: isRota,
-                rota: isRota
+                rota: isRota,
+                ...(isRota ? { rota_ts: new Date().toISOString() } : {})
               } }
             )
           ).catch(() => {});
@@ -1241,7 +1247,7 @@ export default function CentralPCP() {
           : isRota
           ? "🚚 Pedido de Rota Definido"
           : ativa
-          ? `Prioridade P${nivelVal} no Pedido Todo`
+          ? `Prioridade P${nivelNumerico} no Pedido Todo`
           : "Prioridade Removida",
         description: `Todas as ${ofs.length} OFs do Pedido #${grupo.numero_pedido} foram atualizadas com sucesso!`,
         className: isRetiraAgora
@@ -1267,12 +1273,15 @@ export default function CentralPCP() {
     if (lista.length === 0) return;
 
     const ativa = Boolean(nivel);
+    const isRetiraAgora = nivel === "RETIRA_AGORA";
     const isRota = nivel === "ROTA";
-    const nivelVal = isRota ? "ROTA" : (nivel ? Number(nivel) : null);
-    const descr = isRota
+    const nivelNumerico = (!isRetiraAgora && !isRota && nivel) ? Number(nivel) : null;
+    const descr = isRetiraAgora
+      ? "Marcado como ⚡🚨 Cliente Retira Agora em lote."
+      : isRota
       ? "Marcado como 🚚 Pedido de Rota em lote."
       : ativa
-      ? `Marcado como Prioridade P${nivelVal} em lote.`
+      ? `Marcado como Prioridade P${nivelNumerico} em lote.`
       : "Prioridade removida em lote.";
 
     const ofIdsSet = new Set(lista.map(o => o.id));
@@ -1286,14 +1295,20 @@ export default function CentralPCP() {
           const novoLog = [...logExistente, {
             data: new Date().toISOString(),
             usuario: "PCP",
-            acao: ativa ? (isRota ? "prioridade_lote_rota" : `prioridade_lote_p${nivelVal}`) : "prioridade_lote_removida",
+            acao: ativa
+              ? (isRetiraAgora ? "prioridade_lote_retira_agora" : isRota ? "prioridade_lote_rota" : `prioridade_lote_p${nivelNumerico}`)
+              : "prioridade_lote_removida",
             detalhes: descr
           }];
           return {
             ...p,
             prioridade: ativa,
-            prioridade_nivel: nivelVal,
+            prioridade_nivel: nivelNumerico,
+            cliente_retira_agora: isRetiraAgora,
+            cliente_retira: isRetiraAgora,
+            retira_agora: isRetiraAgora,
             is_rota: isRota,
+            rota: isRota,
             historico_log: JSON.stringify(novoLog)
           };
         }
@@ -1304,19 +1319,79 @@ export default function CentralPCP() {
     toast({ title: `Atualizando prioridade de ${lista.length} ordem(ns)...` });
 
     try {
+      // 2. Atualiza cada PedidoOdoo sequencialmente com retry
       for (let i = 0; i < lista.length; i++) {
         const item = lista[i];
-        if (i > 0) await new Promise(r => setTimeout(r, 100));
+        if (i > 0) await new Promise(r => setTimeout(r, 120));
+
+        const logExistente = (() => { try { return JSON.parse(item.historico_log || "[]"); } catch { return []; } })();
+        const novoLog = [...logExistente, {
+          data: new Date().toISOString(),
+          usuario: "PCP",
+          acao: ativa
+            ? (isRetiraAgora ? "prioridade_lote_retira_agora" : isRota ? "prioridade_lote_rota" : `prioridade_lote_p${nivelNumerico}`)
+            : "prioridade_lote_removida",
+          detalhes: descr
+        }];
+
         await executarComRetryRateLimit(async () => {
-          await base44.entities.Pedido.update(item.id, {
+          await base44.entities.PedidoOdoo.update(item.id, {
             prioridade: ativa,
-            prioridade_nivel: nivelVal,
+            prioridade_nivel: nivelNumerico,
+            cliente_retira_agora: isRetiraAgora,
+            cliente_retira: isRetiraAgora,
+            retira_agora: isRetiraAgora,
             is_rota: isRota,
+            rota: isRota,
+            ...(isRota ? { rota_ts: new Date().toISOString() } : {}),
+            historico_log: JSON.stringify(novoLog)
           });
         });
       }
+
+      // 3. Propagar para máquinas (Pedido e OrdemMaquinaCD) para os números de pedido afetados
+      const numerosPedidos = Array.from(new Set(lista.map(it => it.numero_pedido).filter(Boolean)));
+      for (const numPed of numerosPedidos) {
+        try {
+          await executarComRetryRateLimit(() =>
+            base44.entities.Pedido.updateMany(
+              { numero_pedido: numPed, status: { $ne: "cancelado" } },
+              { $set: {
+                prioridade: ativa,
+                prioridade_nivel: nivelNumerico,
+                cliente_retira_agora: isRetiraAgora,
+                cliente_retira: isRetiraAgora,
+                retira_agora: isRetiraAgora,
+                is_rota: isRota,
+                rota: isRota,
+                ...(isRota ? { rota_ts: new Date().toISOString() } : {})
+              } }
+            )
+          ).catch(() => {});
+        } catch (_) {}
+
+        try {
+          await executarComRetryRateLimit(() =>
+            base44.entities.OrdemMaquinaCD.updateMany(
+              { numero_pedido: numPed, status: { $ne: "cancelado" } },
+              { $set: {
+                prioridade: ativa,
+                prioridade_nivel: nivelNumerico,
+                cliente_retira_agora: isRetiraAgora,
+                cliente_retira: isRetiraAgora,
+                retira_agora: isRetiraAgora,
+                is_rota: isRota,
+                rota: isRota,
+                ...(isRota ? { rota_ts: new Date().toISOString() } : {})
+              } }
+            )
+          ).catch(() => {});
+        } catch (_) {}
+      }
+
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
       toast({ title: "Prioridade em lote atualizada com sucesso!", className: "border-emerald-500/40" });
     } catch (err) {
       console.error(err);
@@ -3600,6 +3675,15 @@ export default function CentralPCP() {
             </Button>
 
             {/* Prioridades rápidas */}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleDefinirPrioridadeLote("RETIRA_AGORA")}
+              className="bg-red-600/30 hover:bg-red-600/50 text-red-200 border-red-500/60 text-xs h-7 px-2 font-bold animate-pulse"
+              title="Definir CLIENTE RETIRA AGORA para as selecionadas"
+            >
+              ⚡🚨 RETIRA
+            </Button>
             <Button
               size="sm"
               variant="outline"

@@ -268,9 +268,29 @@
       "default": false,
       "description": "Ordem de rota de entrega — destaque visual pulsante no topo"
     },
+    "is_rota": {
+      "type": "boolean",
+      "default": false,
+      "description": "Flag indicando que a ordem é de rota"
+    },
     "rota_ts": {
       "type": "string",
       "description": "Timestamp ISO de quando a ordem foi marcada como rota"
+    },
+    "cliente_retira": {
+      "type": "boolean",
+      "default": false,
+      "description": "Cliente retira no balcão"
+    },
+    "cliente_retira_agora": {
+      "type": "boolean",
+      "default": false,
+      "description": "Cliente aguardando retirada imediata no balcão"
+    },
+    "retira_agora": {
+      "type": "boolean",
+      "default": false,
+      "description": "Flag indicando retira imediata"
     },
     "foto_carregamento_url": {
       "type": "string",

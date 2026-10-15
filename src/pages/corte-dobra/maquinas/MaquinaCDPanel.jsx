@@ -331,12 +331,13 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
         id: o.id,
         data: {
           prioridade: Boolean(ehRetiraAgora || ehRota || nivelNum),
-          prioridade_nivel: ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : nivelNum,
+          prioridade_nivel: nivelNum,
           cliente_retira_agora: ehRetiraAgora,
           cliente_retira: ehRetiraAgora,
           retira_agora: ehRetiraAgora,
           is_rota: ehRota,
-          rota: ehRota
+          rota: ehRota,
+          ...(ehRota ? { rota_ts: new Date().toISOString() } : {})
         }
       });
     }
@@ -1076,7 +1077,18 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
           if (prioridadePendente) {
             const id = prioridadePendente.ordem?.id || prioridadePendente.id;
             const nivel = prioridadePendente.nivel ?? 1;
-            updateMaq.mutate({ id, data: { prioridade: true, prioridade_nivel: nivel } });
+            updateMaq.mutate({
+              id,
+              data: {
+                prioridade: true,
+                prioridade_nivel: nivel,
+                cliente_retira_agora: false,
+                cliente_retira: false,
+                retira_agora: false,
+                is_rota: false,
+                rota: false
+              }
+            });
             setPrioridadePendente(null);
           }
         }}

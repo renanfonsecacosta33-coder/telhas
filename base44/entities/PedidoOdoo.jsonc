@@ -169,6 +169,30 @@
       "maximum": 5,
       "description": "Nível de prioridade de 1 (mais urgente) a 5 (baixa prioridade)"
     },
+    "rota": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pedido de rota / carga programada de entrega"
+    },
+    "is_rota": {
+      "type": "boolean",
+      "default": false,
+      "description": "Flag indicando que o pedido é de rota"
+    },
+    "rota_ts": {
+      "type": "string",
+      "description": "Timestamp ISO da marcação de rota"
+    },
+    "cliente_retira_agora": {
+      "type": "boolean",
+      "default": false,
+      "description": "Cliente aguardando retirada imediata no balcão"
+    },
+    "retira_agora": {
+      "type": "boolean",
+      "default": false,
+      "description": "Flag indicando retira imediata"
+    },
     "percentual_concluido": {
       "type": "number",
       "default": 0,

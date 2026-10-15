@@ -964,12 +964,13 @@ export default function MaquinaPanel({ maquina }) {
       id: pedido.id,
       data: {
         prioridade: Boolean(ehRetiraAgora || ehRota || (nivelNum && nivelNum >= 1 && nivelNum <= 3)),
-        prioridade_nivel: ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : nivelNum,
+        prioridade_nivel: nivelNum,
         cliente_retira_agora: ehRetiraAgora,
         cliente_retira: ehRetiraAgora,
         retira_agora: ehRetiraAgora,
         rota: ehRota,
         is_rota: ehRota,
+        ...(ehRota ? { rota_ts: new Date().toISOString() } : {}),
         ...histData
       }
     });
@@ -987,10 +988,11 @@ export default function MaquinaPanel({ maquina }) {
       data: {
         rota: novaRota,
         is_rota: novaRota,
-        prioridade_nivel: novaRota ? "ROTA" : (pedido.prioridade_nivel === "ROTA" ? null : pedido.prioridade_nivel),
+        prioridade_nivel: novaRota ? null : (typeof pedido.prioridade_nivel === "number" ? pedido.prioridade_nivel : null),
         cliente_retira_agora: novaRota ? false : pedido.cliente_retira_agora,
         cliente_retira: novaRota ? false : pedido.cliente_retira,
         retira_agora: novaRota ? false : pedido.retira_agora,
+        ...(novaRota ? { rota_ts: new Date().toISOString() } : {}),
         ...histData
       }
     });
