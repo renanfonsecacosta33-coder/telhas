@@ -6,6 +6,30 @@ import { Globe, ShieldCheck } from "lucide-react";
  * texto descritivo e exigência da OP.
  */
 export function detectarOrigemAco({ bobina = null, bobinaTexto = "", origemExigida = null }) {
+  // 0. Prioridade máxima: se o texto descritivo ou exigência do pedido diz explicitamente Importado ou Nacional
+  const txt = String(bobinaTexto || "").toUpperCase();
+  const exig = String(origemExigida || "").toLowerCase();
+
+  if (exig.includes("import") || txt.includes("(IMP)") || txt.includes("IMPORTAD") || txt.includes("IMP.") || txt.includes("GL (IMP)")) {
+    return {
+      origem: "Importado",
+      label: "Aço Importado",
+      isImportado: true,
+      confianca: "alta",
+      detalhe: "Qualidade: Importado (GL IMP)"
+    };
+  }
+
+  if (exig.includes("nacional") || txt.includes("NACIONAL") || txt.includes("(NAC)") || txt.includes("CSN") || txt.includes("ARCELOR")) {
+    return {
+      origem: "Nacional",
+      label: "Aço Nacional",
+      isImportado: false,
+      confianca: "alta",
+      detalhe: "Usina Nacional"
+    };
+  }
+
   // 1. Objeto Bobina com campo de origem explícito
   if (bobina?.origem) {
     const isImp = String(bobina.origem).toLowerCase().includes("import");
@@ -30,18 +54,6 @@ export function detectarOrigemAco({ bobina = null, bobinaTexto = "", origemExigi
         detalhe: `Qualidade: ${bobina.qualidade}`
       };
     }
-  }
-
-  // 3. Verificação no texto descritivo da bobina (ex: "TE0137 0,43 (GV) — Natural - 4000kg")
-  const txt = String(bobinaTexto || "").toUpperCase();
-  if (txt.includes("(IMP)") || txt.includes("IMPORTAD") || txt.includes("IMP.") || txt.includes("GL (IMP)")) {
-    return {
-      origem: "Importado",
-      label: "Aço Importado",
-      isImportado: true,
-      confianca: "alta",
-      detalhe: "Qualidade: Importado (GL IMP)"
-    };
   }
   if (txt.includes("(GV)") || txt.includes(" GALVALUME") || txt.includes("GALV")) {
     return {

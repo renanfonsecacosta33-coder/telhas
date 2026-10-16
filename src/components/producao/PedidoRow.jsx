@@ -1779,43 +1779,14 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                           )}
                         </div>
 
-                        {/* Bobinas deste item específico */}
-                        <div className="flex items-center gap-2 flex-wrap pt-0.5">
-                          {v.bobina_desc ? (
-                            <span className="text-blue-700 bg-blue-50 border border-blue-200 text-[11px] font-semibold px-2 py-0.5 rounded-md">
-                              Bobina: {v.bobina_desc}
-                            </span>
-                          ) : p.bobina_superior ? (
-                            <span className="text-slate-600 bg-slate-100 text-[11px] font-medium px-2 py-0.5 rounded-md">
-                              Bobina: {p.bobina_superior}
-                            </span>
-                          ) : null}
-
-                          {/* Selo Nacional vs Importado no Item */}
-                          {(() => {
-                            const bobItem = todasBobinas.find(b => b.id === v.bobina_id || b.codigo === v.bobina_id) || bobinaPrincipalObj;
-                            return (
-                              <BadgeOrigemAco
-                                bobina={bobItem}
-                                bobinaTexto={v.bobina_desc || p.bobina_superior}
-                                origemExigida={p.origem_exigida}
-                                size="sm"
-                              />
-                            );
-                          })()}
-
-                          {v.bobina_inf_desc && (
-                            <span className="text-indigo-700 bg-indigo-50 border border-indigo-200 text-[11px] font-semibold px-2 py-0.5 rounded-md">
-                              Bobina Inf.: {v.bobina_inf_desc}
-                            </span>
-                          )}
-
-                          {v.obs && (
+                        {/* Observações específicas desta medida/peça (se houver) */}
+                        {v.obs && (
+                          <div className="pt-0.5">
                             <span className="text-muted-foreground text-[11px] italic">
                               OBS: {v.obs}
                             </span>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
