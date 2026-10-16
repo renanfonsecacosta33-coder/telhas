@@ -111,13 +111,23 @@ export default function DashboardMaquina({ maquina }) {
         return mNorm === "COLAGEM" || p.status === "aguardando_colagem";
       }
 
+      const ehBobininhaReal = /\b(BOBININHA|BOBININHAS|BOBININA|SLITTER|CORTE\s*LONGITUDINAL|FITA\s*DE\s*A[CÇ]O|FITAS\s*DE\s*A[CÇ]O|DESBOBINAMENTO)\b/i.test(
+        `${p.item_produto || ""} ${p.modelo || ""} ${p.produto || ""} ${p.observacoes || ""}`
+      ) || p.produto === "BOBININHA";
+
       if (targetNorm === "DESBOBINADOR") {
-        const ehTelha = p.produto === "TELHA" || String(p.produto || "").toUpperCase().startsWith("TELHA") || p.produto === "CUMEEIRA";
+        const ehTelha = !ehBobininhaReal && (p.produto === "TELHA" || String(p.produto || "").toUpperCase().startsWith("TELHA") || p.produto === "CUMEEIRA");
         if (ehTelha) return false;
+        return mNorm === "DESBOBINADOR" || ehBobininhaReal;
+      }
+
+      // Bobininha nunca deve aparecer em outras máquinas
+      if (targetNorm !== "DESBOBINADOR" && ehBobininhaReal) {
+        return false;
       }
 
       // Se a OP é uma TELHA e estava erroneamente com maquina === "DESBOBINADOR"
-      const ehTelhaOuPerfil = (
+      const ehTelhaOuPerfil = !ehBobininhaReal && (
         p.produto === "TELHA" ||
         String(p.produto || "").toUpperCase().startsWith("TELHA") ||
         /\b(TELHA|TRAP[EÉ]ZIO|TP\s*[-/]?\s*40|TP\s*[-/]?\s*25|TR\s*[-/]?\s*40|TR\s*[-/]?\s*25|ONDULADA|COLONIAL)\b/i.test(

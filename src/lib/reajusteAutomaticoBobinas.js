@@ -14,25 +14,26 @@ import {
 } from "@/lib/pedidoOdooHelper";
 import { detectarCoresDuplaTelha } from "@/lib/autoBobinaTelhasHelper";
 import { isCorCompativel, isEspessuraCompatible, isOrigemCompatible } from "@/lib/bobinaValidation";
+import {
+  extrairRotuloBobinaSimplificado,
+  extrairRotuloFaceInferior,
+  ehRotuloAntigoEstoque,
+  extrairCorFace
+} from "@/lib/bobinaRotuloHelper";
 
 /**
  * Formata o rótulo escrito padronizado da bobina para exibição e gravação na OP.
- * Ex: "TE0212 0, 38 (GL (IMP)) - NATURAL · 5308.5kg"
+ * Retorna texto 100% limpo conforme especificação fabril (ex: "NACIONAL", "IMPORTADA", "BRANCA", "GRAFITE").
  */
-export function formatarRotuloBobinaEscrita(bobina, corPadrao = "NATURAL", espPadrao = "0.43") {
-  if (!bobina) {
-    return `${espPadrao}mm - ${corPadrao}`;
+export function formatarRotuloBobinaEscrita(bobina, corPadrao = "NATURAL", espPadrao = "0.43", textoOrigem = "") {
+  if (textoOrigem) {
+    return extrairRotuloBobinaSimplificado(textoOrigem);
   }
-  const cod = bobina.codigo_bobina || bobina.codigo || "";
-  const esp = bobina.espessura != null ? `${bobina.espessura}`.replace(".", ",") : espPadrao;
-  const qual = bobina.qualidade || (bobina.origem === "importado" ? "GL (IMP)" : "GL");
-  const cor = bobina.cor || corPadrao;
-  const peso = bobina.peso_kg ? ` · ${Number(bobina.peso_kg).toFixed(1)}kg` : "";
-
-  if (bobina.descricao && bobina.descricao.length > 5) {
-    return bobina.descricao;
-  }
-  return `${cod} ${esp} (${qual}) - ${cor}${peso}`.trim();
+  const cor = bobina?.cor ? extrairCorFace(bobina.cor) : null;
+  if (cor) return cor;
+  if (bobina?.origem === "importado" || bobina?.origem === "importada") return "IMPORTADA";
+  if (bobina?.origem === "nacional") return "NACIONAL";
+  return corPadrao || "NACIONAL";
 }
 
 /**
@@ -100,34 +101,50 @@ export async function reajustarTodasBobinasMaquinasAutomaticamente() {
         (ehTelhaBandeja && op.maquina === "BANDEJA" && op.maquina_origem && op.maquina_origem !== "BANDEJA")
       );
 
-      const ehTelha = op.produto === "TELHA" || String(op.produto || "").toUpperCase().startsWith("TELHA");
+      const ehBobininha = /(BOBININHA|BOBININHAS|BOBININA|SLITTER|CORTE\s*LONGITUDINAL|FITA\s*DE\s*A[CÇ]O|FITAS\s*DE\s*A[CÇ]O|DESBOBINAMENTO)/i.test(textoItem) || op.produto === "BOBININHA";
+      const ehTelha = !ehBobininha && (op.produto === "TELHA" || String(op.produto || "").toUpperCase().startsWith("TELHA"));
       const estaNoDesbobinadorErroneamente = (op.maquina === "DESBOBINADOR" || op.modelo === "DESBOBINADOR") && ehTelha;
 
-      const maqEsperada = detectarMaquinaTelha(textoItem) || (ehTelha ? "TP - 40" : "");
-      if (maqEsperada && (op.maquina !== maqEsperada || op.modelo !== maqEsperada) && (!jaPerfilouPrimeiraEtapa || estaNoDesbobinadorErroneamente)) {
+      const maqEsperada = ehBobininha
+        ? "DESBOBINADOR"
+        : (detectarMaquinaTelha(textoItem) || (ehTelha ? "TP - 40" : ""));
+
+      if (ehBobininha && op.produto !== "BOBININHA") {
+        updates.produto = "BOBININHA";
+      }
+
+      if (maqEsperada && (op.maquina !== maqEsperada || op.modelo !== maqEsperada) && (!jaPerfilouPrimeiraEtapa || estaNoDesbobinadorErroneamente || ehBobininha)) {
         const maqAnterior = op.maquina || op.modelo;
         updates.maquina = maqEsperada;
         updates.modelo = maqEsperada;
-        if (!op.maquina_origem || op.maquina_origem === "DESBOBINADOR") {
+        if (!op.maquina_origem || op.maquina_origem === "DESBOBINADOR" || ehBobininha) {
           updates.maquina_origem = maqEsperada;
         }
         if (op.observacoes && op.observacoes.includes("Auto-Roteado PCP")) {
           updates.observacoes = op.observacoes.replace(/Auto-Roteado PCP \([^)]+\)/, `Auto-Roteado PCP (${maqEsperada})`);
         }
         motivos.push(
-          estaNoDesbobinadorErroneamente
+          ehBobininha
+            ? `Item de bobininha/slitter direcionado para o DESBOBINADOR`
+            : estaNoDesbobinadorErroneamente
             ? `Telha simples estava indevidamente no DESBOBINADOR -> Transferida para perfiladeira "${maqEsperada}"`
-            : `Máquina transferida de "${maqAnterior}" para "${maqEsperada}" conforme fluxo correto (Telha primeiro na TP - 40)`
+            : `Máquina transferida de "${maqAnterior}" para "${maqEsperada}" conforme fluxo correto`
         );
       }
 
       // ── BOBINA SUPERIOR (CHAPA PRINCIPAL) ──
-      // Se não tem bobina_superior ou se for texto genérico (respeita blindagem de ajuste manual do operador)
-      const precisaReajustarSup = !op.bobina_superior_manual && (!op.bobina_superior || op.bobina_superior === "Bobina não definida");
+      // Se não tem bobina_superior ou se for formato antigo de estoque físico (ex: "CD0247 0,43 (GV)...")
+      // respeita ajuste manual salvo pelo operador
+      const rotuloAtualSup = String(op.bobina_superior || "").trim();
+      const precisaReajustarSup = !op.bobina_superior_manual && (
+        !rotuloAtualSup ||
+        rotuloAtualSup === "Bobina não definida" ||
+        ehRotuloAntigoEstoque(rotuloAtualSup)
+      );
 
       let bobinaSupEleita = null;
       if (precisaReajustarSup) {
-        // Encontra a melhor bobina no estoque
+        // Encontra a melhor bobina no estoque para manter o vínculo interno de ID
         const compativeisSup = todasBobinas.filter(b => {
           if (b.arquivada) return false;
           const corOk = isCorCompativel(b.cor, cores.corSuperior);
@@ -142,60 +159,48 @@ export async function reajustarTodasBobinasMaquinasAutomaticamente() {
         });
 
         bobinaSupEleita = compativeisSup[0] || todasBobinas.find(b => isCorCompativel(b.cor, cores.corSuperior));
-        const rotuloSup = formatarRotuloBobinaEscrita(bobinaSupEleita, cores.corSuperior, espExigida);
+
+        // RÓTULO SIMPLIFICADO DIRETO DO PEDIDO: "NACIONAL", "IMPORTADA", "BRANCA", "PRETA SUPERIOR NACIONAL INFERIOR", ETC.
+        const rotuloSup = extrairRotuloBobinaSimplificado(textoItem, ehDuplaTelha);
 
         updates.bobina_superior = rotuloSup;
         if (bobinaSupEleita?.id) updates.bobina_superior_id = bobinaSupEleita.id;
         updates.rvm_superior = bobinaSupEleita?.cor || cores.corSuperior;
-        motivos.push(`Bobina superior preenchida automaticamente do Odoo: "${rotuloSup}"`);
+        motivos.push(`Bobina superior simplificada: "${rotuloSup}"`);
       }
 
       // ── BOBINA INFERIOR (CHAPA INTERNA EM TELHA DUPLA) ──
       if (ehDuplaTelha) {
         const corInferiorExigida = cores.corInferior || "NATURAL";
-        const ehFaceInternaColorida = corInferiorExigida !== "NATURAL";
+        const rotuloAtualInf = String(op.bobina_inferior || "").trim();
 
-        // Verifica se a bobina inferior precisa ser corrigida (respeita ajuste manual do operador):
-        // Caso A: Está vazia
-        // Caso B: A cor inferior exigida é colorida (ex: PRETO/BRANCO) mas a bobina atual é Natural ou igual à superior
-        const bobinaInfAtualTexto = String(op.bobina_inferior || "");
+        // Verifica se a bobina inferior precisa ser corrigida (respeita ajuste manual do operador)
         const precisaReajustarInf =
           !op.bobina_inferior_manual && (
-            !op.bobina_inferior ||
-            op.bobina_inferior === "Mesma bobina superior" ||
-            (ehFaceInternaColorida && (bobinaInfAtualTexto.includes("NATURAL") || op.bobina_inferior === op.bobina_superior))
+            !rotuloAtualInf ||
+            rotuloAtualInf === "Mesma bobina superior" ||
+            ehRotuloAntigoEstoque(rotuloAtualInf)
           );
 
         if (precisaReajustarInf) {
           const compativeisInf = todasBobinas.filter(b => {
             if (b.arquivada) return false;
-            const corOk = isCorCompativel(b.cor, corInferiorExigida);
-            return corOk;
+            return isCorCompativel(b.cor, corInferiorExigida);
           });
 
-          // Prioriza bobinas já em uso
           compativeisInf.sort((a, b) => {
             const aAberta = (a.status === "em_uso" || a.status === "aberta") ? 0 : 1;
             const bAberta = (b.status === "em_uso" || b.status === "aberta") ? 0 : 1;
             return aAberta - bAberta;
           });
 
-          // Caso especial do Pedido S01148: TE0217 Preta
-          const bobinaEspecifica1148 = compativeisInf.find(b =>
-            (b.codigo_bobina || b.codigo || "").toUpperCase().includes("TE0217") ||
-            (b.descricao || "").toUpperCase().includes("TE0217")
-          );
-
-          const bobinaInfEleita = (numPuro.includes("1148") && bobinaEspecifica1148)
-            ? bobinaEspecifica1148
-            : compativeisInf[0];
-
-          const rotuloInf = formatarRotuloBobinaEscrita(bobinaInfEleita, corInferiorExigida, "0.40");
+          const bobinaInfEleita = compativeisInf[0];
+          const rotuloInf = extrairRotuloFaceInferior(textoItem, corInferiorExigida);
 
           updates.bobina_inferior = rotuloInf;
           if (bobinaInfEleita?.id) updates.bobina_inferior_id = bobinaInfEleita.id;
           updates.rvm_inferior = bobinaInfEleita?.cor || corInferiorExigida;
-          motivos.push(`Bobina inferior reajustada automaticamente: "${rotuloInf}" (Cor: ${corInferiorExigida})`);
+          motivos.push(`Bobina inferior simplificada: "${rotuloInf}"`);
         }
       }
 

@@ -309,10 +309,15 @@ export default function MaquinaPanel({ maquina }) {
         return Boolean(estaEmColagemOuPronto);
       }
 
+      // Identifica se este item é uma Bobininha / Fita de aço / Slitter
+      const ehBobininhaReal = /\b(BOBININHA|BOBININHAS|BOBININA|SLITTER|CORTE\s*LONGITUDINAL|FITA\s*DE\s*A[CÇ]O|FITAS\s*DE\s*A[CÇ]O|DESBOBINAMENTO)\b/i.test(
+        `${p.item_produto || ""} ${p.produto || ""} ${p.modelo || ""} ${p.observacoes || ""} ${p.produto_rotulo_pcp || ""}`
+      ) || p.produto === "BOBININHA";
+
       // Se estamos na tela do DESBOBINADOR:
       if (targetNorm === "DESBOBINADOR") {
         // Telhas perfiladas (simples ou termoacústicas), cumeeiras e bandejas NUNCA devem aparecer no Desbobinador!
-        const ehTelhaOuPerfilada = (
+        const ehTelhaOuPerfilada = !ehBobininhaReal && (
           p.produto === "TELHA" ||
           String(p.produto || "").toUpperCase().startsWith("TELHA") ||
           p.produto === "CUMEEIRA" ||
@@ -322,15 +327,17 @@ export default function MaquinaPanel({ maquina }) {
           )
         );
 
-        const ehBobininhaReal = /\b(BOBININHA|BOBININHAS|BOBININA|SLITTER|CORTE\s*LONGITUDINAL|FITA\s*DE\s*A[CÇ]O|FITAS\s*DE\s*A[CÇ]O|DESBOBINAMENTO)\b/i.test(
-          `${p.item_produto || ""} ${p.produto || ""}`
-        );
-
-        if (ehTelhaOuPerfilada && !ehBobininhaReal) {
+        if (ehTelhaOuPerfilada) {
           return false;
         }
 
         return mNorm === "DESBOBINADOR" || ehBobininhaReal;
+      }
+
+      // Se NÃO estamos no DESBOBINADOR e o item é Bobininha:
+      // Bobininhas NUNCA devem aparecer em perfiladeiras (TP-40, TP-25, Colonial, Bandeja, Colagem)!
+      if (targetNorm !== "DESBOBINADOR" && ehBobininhaReal) {
+        return false;
       }
 
       // Identifica se este item é uma CUMEEIRA
@@ -356,7 +363,7 @@ export default function MaquinaPanel({ maquina }) {
 
       // Se a OP é uma TELHA e estava erroneamente com maquina === "DESBOBINADOR":
       // Acolhe na perfiladeira correta (TP-40, TP-25, Colonial, etc.)
-      const ehTelhaOuPerfil = (
+      const ehTelhaOuPerfil = !ehBobininhaReal && (
         p.produto === "TELHA" ||
         String(p.produto || "").toUpperCase().startsWith("TELHA") ||
         /\b(TELHA|TRAP[EÉ]ZIO|TP\s*[-/]?\s*40|TP\s*[-/]?\s*25|TR\s*[-/]?\s*40|TR\s*[-/]?\s*25|ONDULADA|COLONIAL)\b/i.test(
@@ -416,8 +423,8 @@ export default function MaquinaPanel({ maquina }) {
         )
       );
       const ehBobininhaReal = /\b(BOBININHA|BOBININHAS|BOBININA|SLITTER|CORTE\s*LONGITUDINAL|FITA\s*DE\s*A[CÇ]O|FITAS\s*DE\s*A[CÇ]O|DESBOBINAMENTO)\b/i.test(
-        `${p.item_produto || ""} ${p.produto || ""}`
-      );
+        `${p.item_produto || ""} ${p.produto || ""} ${p.modelo || ""} ${p.observacoes || ""} ${p.produto_rotulo_pcp || ""}`
+      ) || p.produto === "BOBININHA";
       return ehTelha && !ehBobininhaReal;
     });
 

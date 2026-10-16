@@ -697,22 +697,22 @@ export function detectarTipoProdutoTelha(produtoTexto = "", descricaoTexto = "")
     return "TELHA + EPS + TELHA";
   }
 
-  // 3. TELHA BANDEJA
+  // 3. BOBININHA / FITA DE AÇO / SLITTER (Prioridade máxima sobre perfis de telhas)
+  if (/(BOBININHA|BOBININHAS|BOBININA|SLITTER|CORTE\s*LONGITUDINAL|FITA\s*DE\s*A[CÇ]O|FITAS\s*DE\s*A[CÇ]O|DESBOBINAMENTO|DESBOBINADOR)/i.test(p)) {
+    return "BOBININHA";
+  }
+
+  // 4. TELHA BANDEJA
   if (/\bBANDEJA\b/i.test(p)) {
     return "TELHA BANDEJA";
   }
 
-  // 4. TELHA + EPS (Monoface: Chapa superior + EPS sem chapa ou manta inferior)
+  // 5. TELHA + EPS (Monoface: Chapa superior + EPS sem chapa ou manta inferior)
   // Exige termos explícitos com limites de palavra para nunca confundir telha simples
   if (/\b(EPS|ISOPOR|SANDUICHE|SANDUÍCHE|TERMOACUSTICA|TERMOACÚSTICA|PIR|PUR)\b/i.test(p) || /(EPS\s*\d+|ISOPOR\s*\d+)/i.test(p)) {
     return "TELHA + EPS";
   }
 
-  // 5. Demais tipos específicos (apenas produtos dedicados de corte longitudinal, NUNCA telhas)
-  const ehTelha = /(TELHA|TRAP[EÉ]ZIO|CHAPA|CUMEEIRA|PAINEL|TP\s*40|TP\s*25|TR\s*40|TR\s*25|ONDULADA|COLONIAL)/i.test(p);
-  if (!ehTelha && /(BOBININHA|BOBININHAS|BOBININA|SLITTER|CORTE\s*LONGITUDINAL|FITA\s*DE\s*A[CÇ]O|FITAS\s*DE\s*A[CÇ]O|DESBOBINAMENTO|DESBOBINADOR)/i.test(p)) {
-    return "BOBININHA";
-  }
   if (p.includes("PAINEL")) {
     return "PAINEL";
   }
@@ -729,14 +729,19 @@ export function detectarMaquinaTelha(produtoTexto = "") {
   // 1. CUMEEIRA sempre é feita na máquina CUMEEIRA (mesmo que seja Cumeeira TR 25, TR 40 ou Colonial)
   if (p.includes("CUMEEIRA")) return "CUMEEIRA";
 
-  // 2. TELHA BANDEJA: Primeiro perfila a telha superior na TP - 40 (ou Colonial/TP 25), depois avança para a BANDEJA!
+  // 2. BOBININHA / Fita de aço / Slitter vai 100% para o DESBOBINADOR!
+  if (/(DESBOBINADOR|BOBININHA|BOBININHAS|BOBININA|SLITTER|CORTE\s*LONGITUDINAL|FITA\s*DE\s*A[CÇ]O|FITAS\s*DE\s*A[CÇ]O|DESBOBINAMENTO)/i.test(p)) {
+    return "DESBOBINADOR";
+  }
+
+  // 3. TELHA BANDEJA: Primeiro perfila a telha superior na TP - 40 (ou Colonial/TP 25), depois avança para a BANDEJA!
   if (/TELHA\s*(\+|\/|\s+)?\s*BANDEJA|BANDEJA\s*(\+|\/|\s+)?\s*TELHA/i.test(p) || (p.includes("TELHA") && p.includes("BANDEJA"))) {
     if (p.includes("COLONIAL")) return "COLONIAL";
     if (/(TP\s*[-/]?\s*25|TR\s*[-/]?\s*25|TRAP[EÉ]ZIO\s*25)/i.test(p)) return "TP - 25";
     return "TP - 40";
   }
 
-  // 3. Demais perfiladeiras com regex de alta precisão
+  // 4. Demais perfiladeiras com regex de alta precisão
   // Nota: TP 25 / TR 25 / Trapézio 25 / Perfil 25
   if (/(TP\s*[-/]?\s*25|TR\s*[-/]?\s*25|TRAP[EÉ]ZIO\s*25|TRAP\.\s*25|PERFIL\s*25|\b25\s*MM\b)/i.test(p)) return "TP - 25";
   // TP 40 / TR 40 / Trapézio 40 / Perfil 40
@@ -745,17 +750,12 @@ export function detectarMaquinaTelha(produtoTexto = "") {
   if (/(ONDULAD|PERFIL\s*17|\b17\s*MM\b)/i.test(p)) return "ONDULADA";
   if (p.includes("COLONIAL")) return "COLONIAL";
 
-  // 4. Se o produto é explicitamente TELHA ou TRAPÉZIO (sem especificar número), o padrão da fábrica é TP - 40
+  // 5. Se o produto é explicitamente TELHA ou TRAPÉZIO (sem especificar número), o padrão da fábrica é TP - 40
   const ehTelha = p.includes("TELHA") || p.includes("TRAPEZIO") || p.includes("TRAPÉZIO");
   if (ehTelha) return "TP - 40";
 
-  // 5. Bandeja avulsa (somente se não for Telha Bandeja)
+  // 6. Bandeja avulsa (somente se não for Telha Bandeja)
   if (p.includes("BANDEJA")) return "BANDEJA";
-
-  // 6. Bobininha / Fita de aço / Slitter (apenas produtos de corte longitudinal dedicados, NUNCA telhas!)
-  if (/(DESBOBINADOR|BOBININHA|BOBININHAS|BOBININA|SLITTER|CORTE\s*LONGITUDINAL|FITA\s*DE\s*A[CÇ]O|FITAS\s*DE\s*A[CÇ]O|DESBOBINAMENTO)/i.test(p)) {
-    return "DESBOBINADOR";
-  }
 
   return "";
 }
@@ -817,6 +817,7 @@ export function detectarEPSTelha(produtoTexto = "", maquina = "") {
 
 import { calcularDataPrometidaSLA, toISODate } from "@/lib/sla";
 import { extrairCroquiPedido } from "@/lib/croquiExtractor";
+import { extrairRotuloBobinaSimplificado, extrairRotuloFaceInferior } from "@/lib/bobinaRotuloHelper";
 import { detectarCorTelha } from "@/lib/bobinaValidation";
 
 // Monta o preset completo de Nova Ordem para Telhas
@@ -826,10 +827,13 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
   const textoCompleto = `${produtoNome} ${descTexto}`.trim();
   const prodTipo = detectarTipoProdutoTelha(produtoNome, descTexto);
   const maqDetectada = detectarMaquinaTelha(textoCompleto) || "TP - 40";
-  const maq = (item?.maquina && item.maquina !== "COLAGEM" && item.maquina !== "DESBOBINADOR") ? item.maquina : maqDetectada;
+  const maq = (prodTipo === "BOBININHA" || maqDetectada === "DESBOBINADOR")
+    ? "DESBOBINADOR"
+    : ((item?.maquina && item.maquina !== "COLAGEM") ? item.maquina : maqDetectada);
   const esp = item?.espessura ? String(item.espessura) : detectarEspessura(textoCompleto);
   const origem = item?.origem || detectarOrigemAco(textoCompleto);
   const cor = item?.cor || detectarCorTelha(produtoNome, descTexto);
+  const isDuplaTelha = prodTipo === "TELHA + EPS + TELHA" || /(dupla|sanduiche|\+\s*telha)/i.test(textoCompleto);
   const isComEps = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(prodTipo) ||
     /(eps|manta|sanduiche|isopor|termoacustica)/i.test(produtoNome) ||
     /(eps|manta|sanduiche|isopor|termoacustica)/i.test(descTexto);
@@ -896,6 +900,8 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
       espessura_exigida: esp,
       origem_exigida: origem,
       cor_exigida: cor,
+      bobina_superior: extrairRotuloBobinaSimplificado(textoCompleto, isDuplaTelha),
+      bobina_inferior: isDuplaTelha ? extrairRotuloFaceInferior(textoCompleto) : "",
       rvm_superior: cor === "NATURAL" ? "Natural" : cor,
       quantidade_telhas: metragemTotalLinear,
       metros: qtdChapas,

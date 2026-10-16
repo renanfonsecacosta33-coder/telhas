@@ -34,6 +34,7 @@ import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/c
 import { isTelhaBandeja, verificarStatusComponentesBandeja } from "@/lib/bandejaHelper";
 import { useRegrasProducao } from "@/lib/regrasProducao";
 import { detectarTipoProdutoTelha, detectarEPSTelha, detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
+import { extrairRotuloBobinaSimplificado, extrairRotuloFaceInferior, ehRotuloAntigoEstoque } from "@/lib/bobinaRotuloHelper";
 
 const PRODUTO_BG = {
   "TELHA":               "border-l-blue-400",
@@ -307,25 +308,47 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   // Estados dos Campos Escritos de Bobinas (Permite ao operador e gestor ajustar livremente o texto)
   const [editandoBobinaSup, setEditandoBobinaSup] = useState(false);
   const [overrideBobinaSup, setOverrideBobinaSup] = useState(null);
-  const [textoBobinaSup, setTextoBobinaSup] = useState(p?.bobina_superior || "");
   const [salvandoBobinaSup, setSalvandoBobinaSup] = useState(false);
 
   const [editandoBobinaInf, setEditandoBobinaInf] = useState(false);
   const [overrideBobinaInf, setOverrideBobinaInf] = useState(null);
-  const [textoBobinaInf, setTextoBobinaInf] = useState(p?.bobina_inferior || "");
   const [salvandoBobinaInf, setSalvandoBobinaInf] = useState(false);
 
-  useEffect(() => {
-    if (p?.bobina_superior && overrideBobinaSup === null) {
-      setTextoBobinaSup(p.bobina_superior);
+  // Rótulo visual simplificado instantâneo (limpa strings longas de estoque antigo como "CD0247 0,43 (GV)...")
+  const bobinaSuperiorVisual = useMemo(() => {
+    if (overrideBobinaSup !== null) return overrideBobinaSup;
+    if (p.bobina_superior_manual && p.bobina_superior) return p.bobina_superior;
+    if (ehRotuloAntigoEstoque(p.bobina_superior)) {
+      const contexto = `${p.item_produto || ""} ${p.produto_rotulo_pcp || ""} ${p.modelo || ""} ${p.observacoes_odoo || ""} ${p.observacoes || ""}`;
+      return extrairRotuloBobinaSimplificado(contexto, p.produto === "TELHA + EPS + TELHA");
     }
-  }, [p?.bobina_superior, overrideBobinaSup]);
+    return p.bobina_superior || "Bobina não definida";
+  }, [overrideBobinaSup, p.bobina_superior, p.bobina_superior_manual, p.item_produto, p.produto_rotulo_pcp, p.modelo, p.observacoes_odoo, p.observacoes, p.produto]);
+
+  const bobinaInferiorVisual = useMemo(() => {
+    if (overrideBobinaInf !== null) return overrideBobinaInf;
+    if (p.bobina_inferior_manual && p.bobina_inferior) return p.bobina_inferior;
+    if (ehRotuloAntigoEstoque(p.bobina_inferior)) {
+      const contexto = `${p.item_produto || ""} ${p.produto_rotulo_pcp || ""} ${p.modelo || ""} ${p.observacoes_odoo || ""} ${p.observacoes || ""}`;
+      return extrairRotuloFaceInferior(contexto, p.rvm_inferior || "NATURAL");
+    }
+    return p.bobina_inferior || p.bobina_superior || "Mesma bobina superior";
+  }, [overrideBobinaInf, p.bobina_inferior, p.bobina_inferior_manual, p.bobina_superior, p.item_produto, p.produto_rotulo_pcp, p.modelo, p.observacoes_odoo, p.observacoes, p.rvm_inferior]);
+
+  const [textoBobinaSup, setTextoBobinaSup] = useState(bobinaSuperiorVisual);
+  const [textoBobinaInf, setTextoBobinaInf] = useState(bobinaInferiorVisual);
 
   useEffect(() => {
-    if (p?.bobina_inferior && overrideBobinaInf === null) {
-      setTextoBobinaInf(p.bobina_inferior);
+    if (overrideBobinaSup === null) {
+      setTextoBobinaSup(bobinaSuperiorVisual);
     }
-  }, [p?.bobina_inferior, overrideBobinaInf]);
+  }, [bobinaSuperiorVisual, overrideBobinaSup]);
+
+  useEffect(() => {
+    if (overrideBobinaInf === null) {
+      setTextoBobinaInf(bobinaInferiorVisual);
+    }
+  }, [bobinaInferiorVisual, overrideBobinaInf]);
 
   const handleSalvarBobinaSup = async () => {
     if (!p?.id) return;
@@ -1966,7 +1989,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                       title="Clique para editar ou ajustar o texto da bobina"
                       className={`font-mono font-black text-sm text-foreground bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 ${podeGerenciar ? "hover:border-indigo-500 cursor-pointer" : ""} transition-colors shadow-2xs flex items-center gap-2 group`}
                     >
-                      <span>{overrideBobinaSup !== null ? overrideBobinaSup : (p.bobina_superior || "Bobina não definida")}</span>
+                      <span>{bobinaSuperiorVisual}</span>
                       {podeGerenciar && <Pencil className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 transition-colors" />}
                     </span>
                     <Button
@@ -2186,7 +2209,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                       title="Clique para editar ou ajustar o texto da bobina inferior"
                       className={`font-mono font-black text-sm text-foreground bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-700 ${podeGerenciar ? "hover:border-indigo-500 cursor-pointer" : ""} transition-colors shadow-2xs flex items-center gap-2 group`}
                     >
-                      <span>{overrideBobinaInf !== null ? overrideBobinaInf : (p.bobina_inferior || p.bobina_superior || "Mesma bobina superior")}</span>
+                      <span>{bobinaInferiorVisual}</span>
                       {podeGerenciar && <Pencil className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 transition-colors" />}
                     </span>
                     <Button

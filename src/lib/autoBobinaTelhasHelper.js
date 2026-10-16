@@ -23,6 +23,7 @@ import { isBobinaAberta, isBobinaNatural } from "@/lib/bobinaStatusHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import { calcularDataPrometidaSLA, toISODate } from "@/lib/sla";
 import { getPrioridadeNivel } from "@/lib/prioridadeHelper";
+import { extrairRotuloBobinaSimplificado, extrairRotuloFaceInferior } from "@/lib/bobinaRotuloHelper";
 
 export const LOCAL_STORAGE_KEY_AUTO_TELHAS = "pcp_auto_roteamento_telhas";
 
@@ -290,6 +291,8 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
   const prodTipo = detectarTipoProdutoTelha(produtoNome, descTexto);
   let maquina = (prodTipo === "CUMEEIRA" || /\bCUMEEIRA\b/i.test(textoCompleto))
     ? "CUMEEIRA"
+    : (prodTipo === "BOBININHA" || /\b(BOBININHA|BOBININHAS|BOBININA|SLITTER|DESBOBINADOR)\b/i.test(textoCompleto))
+    ? "DESBOBINADOR"
     : (prodTipo === "TELHA BANDEJA")
     ? (detectarMaquinaTelha(textoCompleto) || "TP - 40")
     : (item.maquina || detectarMaquinaTelha(textoCompleto) || "TP - 40");
@@ -395,10 +398,10 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     eps: eps,
     rvm_superior: bobinaEleita?.cor || (coresDupla.corSuperior !== "NATURAL" ? coresDupla.corSuperior : "Natural"),
     bobina_superior_id: bobinaEleita?.bobina_id || null,
-    bobina_superior: bobinaEleita?.descricao || "",
+    bobina_superior: extrairRotuloBobinaSimplificado(textoCompleto, isDuplaTelha),
     rvm_inferior: isDuplaTelha ? (bobinaInferiorEleita?.cor || (coresDupla.corInferior !== "NATURAL" ? coresDupla.corInferior : "Natural")) : null,
     bobina_inferior_id: isDuplaTelha ? (bobinaInferiorEleita?.bobina_id || null) : null,
-    bobina_inferior: isDuplaTelha ? (bobinaInferiorEleita?.descricao || "") : null,
+    bobina_inferior: isDuplaTelha ? extrairRotuloFaceInferior(textoCompleto, coresDupla.corInferior) : null,
     metros: Number(qtdChapas) || 1,
     quantidade_telhas: Number(qtdChapas) || 1,
     metragem_mm: Number(metragemMm) || null,
@@ -423,18 +426,18 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     });
     const opValida = opsExistentes.find(o => o.status !== "cancelado");
     if (opValida) {
-      // PRESERVAÇÃO TOTAL: OP existente NUNCA tem suas bobinas ou modelo sobrescritos!
+      // PRESERVAÇÃO TOTAL: OP existente NUNCA tem suas bobinas ou modelo sobrescritos se já foram alterados manualmente!
       const updates = {};
       // Só preenche bobinas se estavam vazias
-      if (!opValida.bobina_superior_id && bobinaEleita?.bobina_id) {
-        updates.bobina_superior_id = bobinaEleita.bobina_id;
-        updates.bobina_superior = bobinaEleita.descricao;
-        updates.rvm_superior = bobinaEleita.cor;
+      if (!opValida.bobina_superior && !opValida.bobina_superior_manual) {
+        updates.bobina_superior = extrairRotuloBobinaSimplificado(textoCompleto, isDuplaTelha);
+        if (bobinaEleita?.bobina_id) updates.bobina_superior_id = bobinaEleita.bobina_id;
+        updates.rvm_superior = bobinaEleita?.cor || "Natural";
       }
-      if (isDuplaTelha && !opValida.bobina_inferior_id && bobinaInferiorEleita?.bobina_id) {
-        updates.bobina_inferior_id = bobinaInferiorEleita.bobina_id;
-        updates.bobina_inferior = bobinaInferiorEleita.descricao;
-        updates.rvm_inferior = bobinaInferiorEleita.cor;
+      if (isDuplaTelha && !opValida.bobina_inferior && !opValida.bobina_inferior_manual) {
+        updates.bobina_inferior = extrairRotuloFaceInferior(textoCompleto, coresDupla.corInferior);
+        if (bobinaInferiorEleita?.bobina_id) updates.bobina_inferior_id = bobinaInferiorEleita.bobina_id;
+        updates.rvm_inferior = bobinaInferiorEleita?.cor || "Natural";
       }
       if (Object.keys(updates).length > 0) {
         opCriada = await base44.entities.Pedido.update(opValida.id, updates);
