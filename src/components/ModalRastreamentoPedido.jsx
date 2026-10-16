@@ -34,24 +34,25 @@ import { ptBR } from "date-fns/locale";
 // Mapa de rotas diretas para máquinas
 const MAQUINA_ROTA_MAP = {
   // Telhas
-  "TP - 25": "/?maquina=TP+-+25",
-  "TP - 40": "/?maquina=TP+-+40",
-  "ONDULADA": "/?maquina=ONDULADA",
-  "COLONIAL": "/?maquina=COLONIAL",
-  "BANDEJA": "/?maquina=BANDEJA",
-  "DESBOBINADOR": "/?maquina=DESBOBINADOR",
-  "CUMEEIRA": "/?maquina=CUMEEIRA",
-  "COLAGEM": "/?maquina=COLAGEM",
+  "TP - 25": "/maquina/tp25",
+  "TP - 40": "/maquina/tp40",
+  "ONDULADA": "/maquina/ondulada",
+  "COLONIAL": "/maquina/colonial",
+  "BANDEJA": "/maquina/bandeja",
+  "DESBOBINADOR": "/maquina/desbobinador",
+  "CUMEEIRA": "/maquina/cumeeira",
+  "COLAGEM": "/maquina/colagem",
 
   // Corte & Dobra
-  "CORTE 3M": "/corte-dobra/corte-3m",
-  "CORTE 6M": "/corte-dobra/corte-6m",
-  "DOBRA 3M": "/corte-dobra/dobra-3m",
-  "DOBRA FUNDO 6M": "/corte-dobra/dobra-fundo-6m",
-  "DOBRA INICIO 6M": "/corte-dobra/dobra-inicio-6m",
-  "PERFILADEIRA": "/corte-dobra/perfiladeira",
-  "DESBOBINADEIRA 01": "/corte-dobra/desbobinadeira",
-  "DESBOBINADEIRA 02": "/corte-dobra/desbobinadeira",
+  "CORTE 3M": "/corte-dobra/maquina/corte-3m",
+  "CORTE 6M": "/corte-dobra/maquina/corte-6m",
+  "DOBRA 3M": "/corte-dobra/maquina/dobra-3m",
+  "DOBRA FUNDO 6M": "/corte-dobra/maquina/dobra-fundo-6m",
+  "DOBRA INICIO 6M": "/corte-dobra/maquina/dobra-inicio-6m",
+  "PERFILADEIRA": "/corte-dobra/maquina/perfiladeira",
+  "DESBOBINADEIRA 01": "/corte-dobra/maquina/desbobinadeira-1",
+  "DESBOBINADEIRA 02": "/corte-dobra/maquina/desbobinadeira-2",
+  "DESBOBINADEIRA": "/corte-dobra/maquina/desbobinadeira",
 };
 
 export default function ModalRastreamentoPedido({ numeroPedido, open, onOpenChange }) {
@@ -243,10 +244,32 @@ export default function ModalRastreamentoPedido({ numeroPedido, open, onOpenChan
   const vendedorNome = pedidoOdoo?.vendedor_nome || todasOrdens[0]?.vendedor || "Vendedor não informado";
   const filialNome = pedidoOdoo?.unidade || todasOrdens[0]?.unidade || "Matriz AJL";
 
-  const handleIrParaMaquina = (maquinaNome) => {
-    const rota = MAQUINA_ROTA_MAP[maquinaNome] || (maquinaNome?.includes("CORTE") || maquinaNome?.includes("DOBRA") || maquinaNome === "PERFILADEIRA" ? "/corte-dobra" : "/");
+  const handleIrParaMaquina = (maquinaNome, ordem = null) => {
+    const maqNorm = String(maquinaNome || "").trim();
+    let rotaBase = MAQUINA_ROTA_MAP[maqNorm];
+    if (!rotaBase) {
+      const u = maqNorm.toUpperCase();
+      if (u.includes("TP") && u.includes("25")) rotaBase = "/maquina/tp25";
+      else if (u.includes("TP") && u.includes("40")) rotaBase = "/maquina/tp40";
+      else if (u.includes("COLONIAL")) rotaBase = "/maquina/colonial";
+      else if (u.includes("ONDULADA")) rotaBase = "/maquina/ondulada";
+      else if (u.includes("BANDEJA")) rotaBase = "/maquina/bandeja";
+      else if (u.includes("COLAGEM")) rotaBase = "/maquina/colagem";
+      else if (u.includes("CUMEEIRA")) rotaBase = "/maquina/cumeeira";
+      else if (u.includes("DESBOBINADOR")) rotaBase = "/maquina/desbobinador";
+      else if (u.includes("CORTE") || u.includes("DOBRA") || u.includes("PERFILADEIRA")) rotaBase = "/corte-dobra/producao";
+      else rotaBase = "/maquina/tp40";
+    }
+
+    const params = new URLSearchParams();
+    if (ordem?.id) params.set("focarId", ordem.id);
+    const numPed = ordem?.numero_pedido || numLimpo || numeroPedido;
+    if (numPed) params.set("focarPedido", numPed);
+    const dataAlvo = ordem?.data || ordem?.data_producao || ordem?.data_entrega || ordem?.data_perfilacao;
+    if (dataAlvo) params.set("data", dataAlvo);
+
     onOpenChange(false);
-    navigate(rota);
+    navigate(`${rotaBase}?${params.toString()}`);
   };
 
   const getStatusBadge = (status) => {
@@ -453,7 +476,7 @@ export default function ModalRastreamentoPedido({ numeroPedido, open, onOpenChan
                             <Button
                               size="sm"
                               className="h-8 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold cursor-pointer"
-                              onClick={() => handleIrParaMaquina(ordem.maquina)}
+                              onClick={() => handleIrParaMaquina(ordem.maquina, ordem)}
                             >
                               <span>Ir para {ordem.maquina}</span>
                               <ExternalLink className="w-3.5 h-3.5" />
@@ -509,7 +532,7 @@ export default function ModalRastreamentoPedido({ numeroPedido, open, onOpenChan
                             <Button
                               size="sm"
                               className="h-8 text-xs gap-1.5 bg-orange-600 hover:bg-orange-700 text-white font-semibold cursor-pointer"
-                              onClick={() => handleIrParaMaquina(ordem.maquina)}
+                              onClick={() => handleIrParaMaquina(ordem.maquina, ordem)}
                             >
                               <span>Ir para {ordem.maquina}</span>
                               <ExternalLink className="w-3.5 h-3.5" />
@@ -541,7 +564,7 @@ export default function ModalRastreamentoPedido({ numeroPedido, open, onOpenChan
                               size="sm" 
                               variant="outline"
                               className="h-8 text-xs gap-1"
-                              onClick={() => handleIrParaMaquina("DESBOBINADEIRA 01")}
+                              onClick={() => handleIrParaMaquina(ordem.maquina || "DESBOBINADEIRA 01", ordem)}
                             >
                               Ver Máquina <ExternalLink className="w-3 h-3" />
                             </Button>

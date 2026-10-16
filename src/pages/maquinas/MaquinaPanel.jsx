@@ -1,11 +1,11 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Circle, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, ArrowLeft, BarChart2, Plus, Star, Trash2, Edit3, Route, Search, X, Calendar, Filter, History, FileText, AlertTriangle, RefreshCw, Palette, Layers, Truck, Zap, GitBranch } from "lucide-react";
+import { Circle, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, ArrowLeft, BarChart2, Plus, Star, Trash2, Edit3, Route, Search, X, Calendar, Filter, History, FileText, AlertTriangle, RefreshCw, Palette, Layers, Truck, Zap, GitBranch, Target } from "lucide-react";
 import { format, addDays, subDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -119,6 +119,12 @@ export default function MaquinaPanel({ maquina }) {
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
 
+  const [searchParams] = useSearchParams();
+  const focarId = searchParams.get("focarId");
+  const focarPedido = searchParams.get("focarPedido");
+  const dataParam = searchParams.get("data");
+  const jaRolouRef = useRef(false);
+
   // Reset de qualquer chave de bobina montada em máquina e reajuste automático das bobinas com dados do Odoo
   useEffect(() => {
     try {
@@ -213,6 +219,55 @@ export default function MaquinaPanel({ maquina }) {
       if (typeof unsubscribe === "function") unsubscribe();
     };
   }, [refetch]);
+
+  // Localiza pedido alvo se a navegação veio com parâmetros de foco da busca/rastreamento
+  const pedidoAlvoFoco = useMemo(() => {
+    if (!focarId && !focarPedido) return null;
+    return todosPedidos.find(p => {
+      if (focarId && String(p.id) === String(focarId)) return true;
+      if (focarPedido) {
+        const pNum = String(p.numero_pedido || "").replace(/\D/g, "");
+        const fNum = String(focarPedido).replace(/\D/g, "");
+        if (pNum && fNum && (pNum === fNum || pNum.endsWith(fNum) || fNum.endsWith(pNum))) return true;
+      }
+      return false;
+    }) || null;
+  }, [todosPedidos, focarId, focarPedido]);
+
+  // Sincroniza o dia selecionado com a data do pedido alvo
+  useEffect(() => {
+    if (dataParam && dataParam.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      setSelectedDay(dataParam);
+    } else if (pedidoAlvoFoco) {
+      const d = pedidoAlvoFoco.data || pedidoAlvoFoco.data_perfilacao || pedidoAlvoFoco.data_finalizacao || pedidoAlvoFoco.data_entrega;
+      if (d && d.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        setSelectedDay(d);
+      }
+    }
+  }, [dataParam, pedidoAlvoFoco]);
+
+  // Scroll automático suave e direto para a frente do pedido
+  useEffect(() => {
+    if (!focarId && !focarPedido) return;
+    const timer = setTimeout(() => {
+      const cleanNum = focarPedido ? String(focarPedido).replace(/\D/g, "") : "";
+      const el = (focarId && document.getElementById(`pedido-card-${focarId}`))
+        || (cleanNum && document.querySelector(`[data-numero-pedido*="${cleanNum}"]`))
+        || (focarId && document.querySelector(`[data-pedido-id="${focarId}"]`));
+
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        if (!jaRolouRef.current) {
+          jaRolouRef.current = true;
+          toast.success(`🎯 Chegou na frente do Pedido #${focarPedido || focarId}!`, {
+            description: "O pedido foi centralizado e destacado com foco ativo na sua tela.",
+            duration: 6000,
+          });
+        }
+      }
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [focarId, focarPedido, selectedDay, todosPedidos]);
 
   const pedidos = useMemo(() => {
     return todosPedidos.filter(p => {
@@ -980,13 +1035,18 @@ export default function MaquinaPanel({ maquina }) {
     const afazerProcessado = marcarDups(afazerAgrupadas);
     const finalizadosProcessados = sortedFinalizados;
 
+    // Se a navegação veio focada em um pedido específico (pedidoAlvoFoco), garante que ele esteja visível na frente do operador
+    if (pedidoAlvoFoco && !afazerProcessado.some(p => p.id === pedidoAlvoFoco.id)) {
+      afazerProcessado.unshift({ ...pedidoAlvoFoco, _focoForcado: true });
+    }
+
     return {
       ordenadosAFazer: afazerProcessado,
       ordenadosFinalizados: finalizadosProcessados,
       ordenados: [...afazerProcessado, ...finalizadosProcessados],
       duplicadasDetectadas: dups,
     };
-  }, [pedidosFiltrados, maquina]);
+  }, [pedidosFiltrados, maquina, pedidoAlvoFoco]);
 
   const handleExcluirOpRegistro = async (targetId) => {
     if (!targetId) return;
@@ -1647,9 +1707,38 @@ export default function MaquinaPanel({ maquina }) {
           {ordenadosAFazer.map(p => {
             const dataPedido = p.data || p.data_perfilacao;
             const ehOutroDia = Boolean(termoBusca.trim() && dataPedido && dataPedido !== selectedDay);
+            const numLimpoP = String(p.numero_pedido || "").replace(/\D/g, "");
+            const numLimpoFoco = focarPedido ? String(focarPedido).replace(/\D/g, "") : "";
+            const isFocado = Boolean(
+              p._focoForcado ||
+              (focarId && String(p.id) === String(focarId)) ||
+              (numLimpoFoco && numLimpoP && (numLimpoP === numLimpoFoco || numLimpoP.endsWith(numLimpoFoco) || numLimpoFoco.endsWith(numLimpoP)))
+            );
 
             return (
-              <div key={p.id}>
+              <div
+                key={p.id}
+                id={`pedido-card-${p.id}`}
+                data-pedido-id={p.id}
+                data-numero-pedido={numLimpoP}
+                className={`transition-all duration-500 rounded-2xl ${
+                  isFocado
+                    ? "ring-4 ring-blue-500 dark:ring-blue-400 shadow-2xl p-2.5 bg-blue-50/30 dark:bg-blue-950/30 border-2 border-blue-400 dark:border-blue-500 my-4"
+                    : ""
+                }`}
+              >
+                {/* Banner de Chegada e Foco Imediato na Frente do Pedido */}
+                {isFocado && (
+                  <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white px-4 py-2.5 rounded-xl flex items-center justify-between font-bold text-xs sm:text-sm shadow-md mb-2.5 animate-pulse">
+                    <span className="flex items-center gap-2">
+                      <Target className="w-4 h-4 text-yellow-300 shrink-0" />
+                      <span>📍 VOCÊ CHEGOU NA FRENTE DESTE PEDIDO!</span>
+                    </span>
+                    <Badge className="bg-white text-blue-900 font-extrabold text-[11px] shadow-sm">
+                      #{p.numero_pedido || p.id}
+                    </Badge>
+                  </div>
+                )}
                 {/* Banner de OP Duplicada individual */}
                 {p._isDuplicada && (
                   <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2 mb-2 flex items-center justify-between text-xs text-red-800 dark:text-red-300">

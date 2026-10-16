@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Search, AlertTriangle, X, Star, Layers, PackageX, Ban, Trash2, History, FileText, RefreshCw, CheckCircle, ChevronDown } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Search, AlertTriangle, X, Star, Layers, PackageX, Ban, Trash2, History, FileText, RefreshCw, CheckCircle, ChevronDown, Target } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -27,6 +28,12 @@ import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERel
 
 export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const { filialAtiva } = useFilial();
+  const [searchParams] = useSearchParams();
+  const focarId = searchParams.get("focarId");
+  const focarPedido = searchParams.get("focarPedido");
+  const dataParam = searchParams.get("data");
+  const jaRolouRef = useRef(false);
+
   const [user, setUser] = useState(null);
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -94,6 +101,55 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     placeholderData: (prev) => prev,
     refetchOnWindowFocus: true,
   });
+
+  // Localiza pedido alvo se a navegação veio com parâmetros de foco da busca/rastreamento
+  const pedidoAlvoFoco = useMemo(() => {
+    if (!focarId && !focarPedido) return null;
+    return ordens.find(o => {
+      if (focarId && String(o.id) === String(focarId)) return true;
+      if (focarPedido) {
+        const pNum = String(o.numero_pedido || "").replace(/\D/g, "");
+        const fNum = String(focarPedido).replace(/\D/g, "");
+        if (pNum && fNum && (pNum === fNum || pNum.endsWith(fNum) || fNum.endsWith(pNum))) return true;
+      }
+      return false;
+    }) || null;
+  }, [ordens, focarId, focarPedido]);
+
+  // Sincroniza o dia selecionado com a data do pedido alvo
+  useEffect(() => {
+    if (dataParam && dataParam.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      setSelectedDay(dataParam);
+    } else if (pedidoAlvoFoco) {
+      const d = pedidoAlvoFoco.data || pedidoAlvoFoco.data_producao || pedidoAlvoFoco.data_entrega;
+      if (d && d.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        setSelectedDay(d);
+      }
+    }
+  }, [dataParam, pedidoAlvoFoco]);
+
+  // Scroll automático suave e direto para a frente do pedido
+  useEffect(() => {
+    if (!focarId && !focarPedido) return;
+    const timer = setTimeout(() => {
+      const cleanNum = focarPedido ? String(focarPedido).replace(/\D/g, "") : "";
+      const el = (focarId && document.getElementById(`ordem-cd-${focarId}`))
+        || (cleanNum && document.querySelector(`[data-numero-pedido*="${cleanNum}"]`))
+        || (focarId && document.querySelector(`[data-ordem-id="${focarId}"]`));
+
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        if (!jaRolouRef.current) {
+          jaRolouRef.current = true;
+          toast.success(`🎯 Chegou na frente do Pedido #${focarPedido || focarId}!`, {
+            description: "A peça foi centralizada e destacada com foco ativo na sua tela.",
+            duration: 6000,
+          });
+        }
+      }
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [focarId, focarPedido, selectedDay, ordens]);
 
   // Inscrição em tempo real para novas ordens ou alterações nas máquinas de Corte e Dobra
   useEffect(() => {
@@ -477,8 +533,12 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
 
   // Separação estrita: Ativas (a produzir) vs Finalizadas (minimizadas por padrão como nas Telhas)
   const ordensDiaAtivas = useMemo(() => {
-    return ordensDiaFiltradas.filter(o => o.status !== "finalizado");
-  }, [ordensDiaFiltradas]);
+    let list = ordensDiaFiltradas.filter(o => o.status !== "finalizado");
+    if (pedidoAlvoFoco && !list.some(o => o.id === pedidoAlvoFoco.id)) {
+      list.unshift({ ...pedidoAlvoFoco, _focoForcado: true });
+    }
+    return list;
+  }, [ordensDiaFiltradas, pedidoAlvoFoco]);
 
   const ordensDiaFinalizadas = useMemo(() => {
     return ordensDiaFiltradas.filter(o => o.status === "finalizado");
@@ -524,17 +584,47 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   }
 
   // Renderizador unificado do card de ordem de máquina
-  const renderOrdemItem = (o) => (
-    <div key={o.id}>
-      <OrdemMaquinaRow
-        ordem={o}
-        onUpdate={(id, data) => updateMaq.mutate({ id, data })}
-        onDelete={(id) => deleteMaq.mutate(id)}
-        isGestor={isGestor}
-        ordens={todasOrdensDaMaquina}
-        pedidoSeq={pedidoSeqMap[o.id]}
-        user={user}
-      />
+  const renderOrdemItem = (o) => {
+    const numLimpoO = String(o.numero_pedido || "").replace(/\D/g, "");
+    const numLimpoFoco = focarPedido ? String(focarPedido).replace(/\D/g, "") : "";
+    const isFocado = Boolean(
+      o._focoForcado ||
+      (focarId && String(o.id) === String(focarId)) ||
+      (numLimpoFoco && numLimpoO && (numLimpoO === numLimpoFoco || numLimpoO.endsWith(numLimpoFoco) || numLimpoFoco.endsWith(numLimpoO)))
+    );
+
+    return (
+      <div
+        key={o.id}
+        id={`ordem-cd-${o.id}`}
+        data-ordem-id={o.id}
+        data-numero-pedido={numLimpoO}
+        className={`transition-all duration-500 rounded-2xl ${
+          isFocado
+            ? "ring-4 ring-orange-500 shadow-2xl p-2.5 bg-orange-50/30 dark:bg-orange-950/30 border-2 border-orange-400 dark:border-orange-500 my-4"
+            : ""
+        }`}
+      >
+        {isFocado && (
+          <div className="bg-gradient-to-r from-orange-600 via-amber-600 to-orange-700 text-white px-4 py-2.5 rounded-xl flex items-center justify-between font-bold text-xs sm:text-sm shadow-md mb-2.5 animate-pulse">
+            <span className="flex items-center gap-2">
+              <Target className="w-4 h-4 text-yellow-300 shrink-0" />
+              <span>📍 VOCÊ CHEGOU NA FRENTE DESTE PEDIDO!</span>
+            </span>
+            <Badge className="bg-white text-orange-900 font-extrabold text-[11px] shadow-sm">
+              #{o.numero_pedido || o.id}
+            </Badge>
+          </div>
+        )}
+        <OrdemMaquinaRow
+          ordem={o}
+          onUpdate={(id, data) => updateMaq.mutate({ id, data })}
+          onDelete={(id) => deleteMaq.mutate(id)}
+          isGestor={isGestor}
+          ordens={todasOrdensDaMaquina}
+          pedidoSeq={pedidoSeqMap[o.id]}
+          user={user}
+        />
       {isGestor && (
         <div className="flex justify-end mt-1 gap-1">
           {o.status !== "finalizado" && o.status !== "cancelado" && (
@@ -555,6 +645,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
       )}
     </div>
   );
+};
 
   return (
     <div className="space-y-6">
