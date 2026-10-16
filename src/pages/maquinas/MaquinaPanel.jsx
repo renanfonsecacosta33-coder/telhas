@@ -813,19 +813,35 @@ export default function MaquinaPanel({ maquina }) {
   }, [pedidos, selectedDay]);
 
   const hoje = isToday(new Date(selectedDay + "T12:00:00"));
-  const totalMetros = pedidosDia.reduce((s, p) => s + calcularMetrosPedido(p), 0);
-  
-  // Para o painel da máquina:
-  // - Pedidos finalizados ou já perfilados nesta máquina e encaminhados
-  const finalizados = pedidosDia.filter(p => isPedidoConcluidoNaMaquina(p, maquina)).length;
 
-  const emProducao = pedidosDia.filter(p => {
-    if (isPedidoConcluidoNaMaquina(p, maquina)) return false;
+  // ── SEPARAÇÃO ESTRITA: PEDIDOS A FAZER (ATIVOS) vs PEDIDOS FEITOS (CONCLUÍDOS) ──
+  const pedidosAtivosDia = useMemo(() => {
+    return pedidosDia.filter(p => !isPedidoConcluidoNaMaquina(p, maquina));
+  }, [pedidosDia, maquina]);
+
+  const pedidosFeitosDia = useMemo(() => {
+    return pedidosDia.filter(p => isPedidoConcluidoNaMaquina(p, maquina));
+  }, [pedidosDia, maquina]);
+
+  // Metragens rigorosamente separadas:
+  const metrosAFazer = useMemo(() => {
+    return pedidosAtivosDia.reduce((s, p) => s + calcularMetrosPedido(p), 0);
+  }, [pedidosAtivosDia]);
+
+  const metrosFeitos = useMemo(() => {
+    return pedidosFeitosDia.reduce((s, p) => s + calcularMetrosPedido(p), 0);
+  }, [pedidosFeitosDia]);
+
+  const pedidosAFazerCount = pedidosAtivosDia.length;
+  const pedidosFeitosCount = pedidosFeitosDia.length;
+
+  const finalizados = pedidosFeitosCount;
+
+  const emProducao = pedidosAtivosDia.filter(p => {
     return p.status === "em_producao" || p.status === "pausado";
   }).length;
 
-  const pendentes = pedidosDia.filter(p => {
-    if (isPedidoConcluidoNaMaquina(p, maquina)) return false;
+  const pendentes = pedidosAtivosDia.filter(p => {
     if (maquina === "COLAGEM") {
       return p.status === "aguardando_colagem";
     }
@@ -872,16 +888,18 @@ export default function MaquinaPanel({ maquina }) {
     return false;
   };
 
-  // Base de pedidos ativos na visão (dia selecionado ou resultado da busca textual)
+  // Base de pedidos estritamente ATIVOS na visão (dia selecionado ou resultado da busca textual)
+  // Conforme solicitação do cliente: filtros e contagens operam EXCLUSIVAMENTE sobre pedidos ativos (a fazer)
   const baseParaFiltros = useMemo(() => {
     const q = termoBusca.trim();
     if (q) {
-      return pedidos.filter(p => p.status !== "cancelado" && matchPedidoBusca(p, q));
+      return pedidos.filter(p => p.status !== "cancelado" && !isPedidoConcluidoNaMaquina(p, maquina) && matchPedidoBusca(p, q));
     }
-    return pedidosDia;
-  }, [pedidosDia, pedidos, termoBusca]);
+    return pedidosAtivosDia;
+  }, [pedidosAtivosDia, pedidos, termoBusca, maquina]);
 
-  // Filtros dinâmicos gerados EXCLUSIVAMENTE a partir dos pedidos que estão atualmente na tela:
+  // Filtros dinâmicos gerados EXCLUSIVAMENTE a partir dos pedidos ativos (a fazer):
+  // As OPs já concluídas/feitas NUNCA entram na contagem dos filtros!
   const dadosFiltros = useMemo(() => {
     return calcularFiltrosTipoECor(baseParaFiltros);
   }, [baseParaFiltros]);
@@ -934,7 +952,7 @@ export default function MaquinaPanel({ maquina }) {
     setFiltroCor("todas");
   };
 
-  // Pedidos filtrados aplicando busca + filtro de Tipo e Cor de bobina
+  // Pedidos filtrados aplicando busca + filtro de Tipo e Cor de bobina (apenas pedidos ativos)
   const pedidosFiltrados = useMemo(() => {
     if (filtroTipo === "todos" && filtroCor === "todas") return baseParaFiltros;
     return baseParaFiltros.filter(p => pedidoAtendeFiltroTipoECor(p, filtroTipo, filtroCor));
@@ -1322,16 +1340,16 @@ export default function MaquinaPanel({ maquina }) {
       <div className="bg-gradient-to-r from-primary to-primary/80 rounded-2xl p-6 text-primary-foreground shadow-lg">
         <p className="text-sm opacity-75 font-medium uppercase tracking-wide">Painel da Máquina</p>
         <h1 className="text-3xl font-black mt-1">{maquina}</h1>
-        <div className="flex items-center gap-3 mt-3">
-          <div className="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-semibold">
-            {pedidosDia.length} pedido(s)
+        <div className="flex items-center gap-3 mt-3 flex-wrap">
+          <div className="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-bold flex items-center gap-1.5 shadow-xs">
+            <span>{pedidosAFazerCount} pedido(s) a fazer</span>
+            <span className="opacity-80 font-normal">({metrosAFazer.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}m)</span>
           </div>
-          <div className="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-semibold">
-            {totalMetros.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} metros
-          </div>
-          {finalizados > 0 && (
-            <div className="bg-green-500/30 rounded-lg px-3 py-1.5 text-sm font-semibold">
-              {finalizados} ✓ prontos
+          {pedidosFeitosCount > 0 && (
+            <div className="bg-emerald-500/30 border border-emerald-400/40 rounded-lg px-3 py-1.5 text-sm font-bold flex items-center gap-1.5 text-emerald-100 shadow-xs">
+              <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+              <span>{pedidosFeitosCount} feitos</span>
+              <span className="opacity-80 font-normal">({metrosFeitos.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}m)</span>
             </div>
           )}
         </div>
@@ -1396,20 +1414,66 @@ export default function MaquinaPanel({ maquina }) {
         )}
       </div>
 
-      {/* Resumo do dia */}
+      {/* Resumo do dia: Metros a Fazer, Metros Feitos, Pedidos a Fazer, Pedidos Feitos */}
       {pedidosDia.length > 0 && (
-        <div className="grid grid-cols-4 gap-3">
-          {[
-            { label: "Total", value: `${totalMetros.toFixed(0)}m`, color: "text-primary" },
-            { label: "Pendentes", value: pendentes, color: "text-slate-600" },
-            { label: "Produzindo", value: emProducao, color: "text-amber-600" },
-            { label: "Prontos", value: finalizados, color: "text-green-600" },
-          ].map(c => (
-            <div key={c.label} className="bg-card border border-border rounded-xl p-3 text-center">
-              <p className={`text-2xl font-black ${c.color}`}>{c.value}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{c.label}</p>
-            </div>
-          ))}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Card 1: Metros a Fazer */}
+          <div className="bg-card border-2 border-blue-200 dark:border-blue-900/60 rounded-xl p-3 sm:p-4 text-center shadow-xs">
+            <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide flex items-center justify-center gap-1.5">
+              <Timer className="w-3.5 h-3.5 text-blue-500" />
+              Metros a Fazer
+            </p>
+            <p className="text-2xl sm:text-3xl font-black text-blue-700 dark:text-blue-300 mt-1">
+              {metrosAFazer.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
+              <span className="text-base font-bold ml-0.5 text-blue-500">m</span>
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Fila ativa para produzir
+            </p>
+          </div>
+
+          {/* Card 2: Metros Feitos */}
+          <div className="bg-card border-2 border-emerald-200 dark:border-emerald-900/60 rounded-xl p-3 sm:p-4 text-center shadow-xs">
+            <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide flex items-center justify-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+              Metros Feitos
+            </p>
+            <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+              {metrosFeitos.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
+              <span className="text-base font-bold ml-0.5 text-emerald-500">m</span>
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Já perfilados na máquina
+            </p>
+          </div>
+
+          {/* Card 3: Pedidos a Fazer */}
+          <div className="bg-card border border-border rounded-xl p-3 sm:p-4 text-center shadow-xs">
+            <p className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide flex items-center justify-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-slate-500" />
+              Pedidos a Fazer
+            </p>
+            <p className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 mt-1">
+              {pedidosAFazerCount}
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {pendentes} pendentes{emProducao > 0 ? ` · ${emProducao} em produção` : ""}
+            </p>
+          </div>
+
+          {/* Card 4: Pedidos Feitos */}
+          <div className="bg-card border border-border rounded-xl p-3 sm:p-4 text-center shadow-xs">
+            <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wide flex items-center justify-center gap-1.5">
+              <Check className="w-3.5 h-3.5 text-emerald-600" />
+              Pedidos Feitos
+            </p>
+            <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+              {pedidosFeitosCount}
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Concluídos hoje
+            </p>
+          </div>
         </div>
       )}
 
