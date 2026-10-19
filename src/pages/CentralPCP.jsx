@@ -472,6 +472,8 @@ export default function CentralPCP() {
   // Sincronização 100% Automática em Tempo Real com o Odoo ERP:
   // Detecta alterações no progresso real das máquinas e sincroniza tanto o banco quanto o Odoo
   const syncEmAndamentoRef = useRef(new Set());
+  // Fila serializada anti-colisão e anti-rate-limit para operações de prioridade
+  const filaPrioridadeRef = useRef(Promise.resolve());
 
   useEffect(() => {
     if (!pedidos.length) return;
@@ -956,8 +958,8 @@ export default function CentralPCP() {
     }
   };
 
-  // Helper resiliente com retry exponencial para evitar e contornar erros de Rate Limit da API
-  const executarComRetryRateLimit = async (fn, maxTentativas = 4, delayBase = 350) => {
+  // Helper altamente resiliente com backoff exponencial e detecção de status HTTP 429 (Rate Limit)
+  const executarComRetryRateLimit = async (fn, maxTentativas = 5, delayBase = 1000) => {
     let ultimoErro = null;
     for (let tentativa = 1; tentativa <= maxTentativas; tentativa++) {
       try {
@@ -965,14 +967,16 @@ export default function CentralPCP() {
       } catch (err) {
         ultimoErro = err;
         const msg = String(err?.message || "").toLowerCase();
+        const status = err?.status || err?.statusCode || err?.response?.status;
         const isRateLimit =
-          err?.status === 429 ||
-          err?.statusCode === 429 ||
+          status === 429 ||
           msg.includes("rate limit") ||
-          msg.includes("too many");
+          msg.includes("too many") ||
+          msg.includes("429");
 
         if (isRateLimit && tentativa < maxTentativas) {
-          const waitMs = delayBase * Math.pow(2, tentativa - 1) + Math.floor(Math.random() * 150);
+          const waitMs = delayBase * Math.pow(2, tentativa - 1) + Math.floor(Math.random() * 500);
+          console.warn(`[PCP RateLimit] Tentativa ${tentativa}/${maxTentativas} aguardando ${waitMs}ms para retry após limite de taxa...`);
           await new Promise((resolve) => setTimeout(resolve, waitMs));
           continue;
         }
@@ -1025,23 +1029,27 @@ export default function CentralPCP() {
     });
 
     try {
+      const payloadOf = {
+        prioridade: ativa,
+        prioridade_nivel: nivelNumerico,
+        cliente_retira_agora: isRetiraAgora,
+        cliente_retira: isRetiraAgora,
+        retira_agora: isRetiraAgora,
+        is_rota: isRota,
+        rota: isRota,
+        ...(isRota ? { rota_ts: new Date().toISOString() } : {}),
+        historico_log: JSON.stringify(novoLog)
+      };
+
       // 2. Persiste a alteração no PedidoOdoo com proteção contra Rate Limit
       await executarComRetryRateLimit(() =>
-        base44.entities.PedidoOdoo.update(pedido.id, {
-          prioridade: ativa,
-          prioridade_nivel: nivelNumerico,
-          cliente_retira_agora: isRetiraAgora,
-          cliente_retira: isRetiraAgora,
-          retira_agora: isRetiraAgora,
-          is_rota: isRota,
-          rota: isRota,
-          ...(isRota ? { rota_ts: new Date().toISOString() } : {}),
-          historico_log: JSON.stringify(novoLog)
-        })
+        base44.entities.PedidoOdoo.update(pedido.id, payloadOf)
       );
 
-      // 3. Propaga para as ordens ativas vinculadas daquela OF caso já existam nas máquinas
+      // 3. Propaga para as ordens ativas vinculadas daquela OF caso já existam nas máquinas (com espaçamento seguro)
       if (pedido.numero_pedido) {
+        await new Promise((r) => setTimeout(r, 350));
+
         try {
           await executarComRetryRateLimit(() =>
             base44.entities.Pedido.updateMany(
@@ -1057,8 +1065,10 @@ export default function CentralPCP() {
                 ...(isRota ? { rota_ts: new Date().toISOString() } : {})
               } }
             )
-          ).catch(() => {});
+          ).catch((e) => console.warn("Falha ao sincronizar prioridade na máquina:", e));
         } catch (_) {}
+
+        await new Promise((r) => setTimeout(r, 350));
 
         try {
           await executarComRetryRateLimit(() =>
@@ -1075,7 +1085,7 @@ export default function CentralPCP() {
                 ...(isRota ? { rota_ts: new Date().toISOString() } : {})
               } }
             )
-          ).catch(() => {});
+          ).catch((e) => console.warn("Falha ao sincronizar prioridade no Corte & Dobra:", e));
         } catch (_) {}
       }
 
@@ -1170,37 +1180,38 @@ export default function CentralPCP() {
     });
 
     try {
-      // 2. Atualiza cada OF sequencialmente com pequeno intervalo (120ms) e retry contra Rate Limit
-      for (let i = 0; i < ofs.length; i++) {
-        const ofItem = ofs[i];
-        if (i > 0) {
-          await new Promise((r) => setTimeout(r, 120));
-        }
+      const payloadUpdate = {
+        prioridade: ativa,
+        prioridade_nivel: nivelNumerico,
+        cliente_retira_agora: isRetiraAgora,
+        cliente_retira: isRetiraAgora,
+        retira_agora: isRetiraAgora,
+        is_rota: isRota,
+        rota: isRota,
+        ...(isRota ? { rota_ts: new Date().toISOString() } : {})
+      };
 
-        const logExistente = (() => { try { return JSON.parse(ofItem.historico_log || "[]"); } catch { return []; } })();
-        const novoLog = [...logExistente, {
-          data: new Date().toISOString(),
-          usuario: "PCP",
-          acao: ativa
-            ? (isRetiraAgora ? "prioridade_grupo_retira_agora" : isRota ? "prioridade_grupo_rota" : `prioridade_grupo_p${nivelNumerico}`)
-            : "prioridade_grupo_removida",
-          detalhes: descr
-        }];
-
+      // 2. Atualiza todas as OFs do pedido de UMA SÓ VEZ com updateMany no PedidoOdoo
+      if (grupo.numero_pedido) {
         await executarComRetryRateLimit(() =>
-          base44.entities.PedidoOdoo.update(ofItem.id, {
-            prioridade: ativa,
-            prioridade_nivel: nivelNumerico,
-            cliente_retira_agora: isRetiraAgora,
-            cliente_retira: isRetiraAgora,
-            retira_agora: isRetiraAgora,
-            is_rota: isRota,
-            rota: isRota,
-            ...(isRota ? { rota_ts: new Date().toISOString() } : {}),
-            historico_log: JSON.stringify(novoLog)
-          })
+          base44.entities.PedidoOdoo.updateMany(
+            { numero_pedido: grupo.numero_pedido },
+            { $set: payloadUpdate }
+          )
         );
+      } else {
+        // Fallback sequencial com espaçamento seguro de 350ms apenas se não houver numero_pedido
+        for (let i = 0; i < ofs.length; i++) {
+          const ofItem = ofs[i];
+          if (i > 0) await new Promise((r) => setTimeout(r, 350));
+          await executarComRetryRateLimit(() =>
+            base44.entities.PedidoOdoo.update(ofItem.id, payloadUpdate)
+          );
+        }
       }
+
+      // Intervalo seguro de 350ms para evitar estourar cota por rajada
+      await new Promise((r) => setTimeout(r, 350));
 
       // 3. Propaga para as máquinas (perfiladeiras e Corte & Dobra) de forma blindada
       if (grupo.numero_pedido) {
@@ -1208,36 +1219,20 @@ export default function CentralPCP() {
           await executarComRetryRateLimit(() =>
             base44.entities.Pedido.updateMany(
               { numero_pedido: grupo.numero_pedido, status: { $ne: "cancelado" } },
-              { $set: {
-                prioridade: ativa,
-                prioridade_nivel: nivelNumerico,
-                cliente_retira_agora: isRetiraAgora,
-                cliente_retira: isRetiraAgora,
-                retira_agora: isRetiraAgora,
-                is_rota: isRota,
-                rota: isRota,
-                ...(isRota ? { rota_ts: new Date().toISOString() } : {})
-              } }
+              { $set: payloadUpdate }
             )
-          ).catch(() => {});
+          ).catch((e) => console.warn("Falha ao sincronizar grupo com Pedido:", e));
         } catch (_) {}
+
+        await new Promise((r) => setTimeout(r, 350));
 
         try {
           await executarComRetryRateLimit(() =>
             base44.entities.OrdemMaquinaCD.updateMany(
               { numero_pedido: grupo.numero_pedido, status: { $ne: "cancelado" } },
-              { $set: {
-                prioridade: ativa,
-                prioridade_nivel: nivelNumerico,
-                cliente_retira_agora: isRetiraAgora,
-                cliente_retira: isRetiraAgora,
-                retira_agora: isRetiraAgora,
-                is_rota: isRota,
-                rota: isRota,
-                ...(isRota ? { rota_ts: new Date().toISOString() } : {})
-              } }
+              { $set: payloadUpdate }
             )
-          ).catch(() => {});
+          ).catch((e) => console.warn("Falha ao sincronizar grupo com OrdemMaquinaCD:", e));
         } catch (_) {}
       }
 
@@ -1319,73 +1314,61 @@ export default function CentralPCP() {
     toast({ title: `Atualizando prioridade de ${lista.length} ordem(ns)...` });
 
     try {
-      // 2. Atualiza cada PedidoOdoo sequencialmente com retry
-      for (let i = 0; i < lista.length; i++) {
-        const item = lista[i];
-        if (i > 0) await new Promise(r => setTimeout(r, 120));
+      const payloadLote = {
+        prioridade: ativa,
+        prioridade_nivel: nivelNumerico,
+        cliente_retira_agora: isRetiraAgora,
+        cliente_retira: isRetiraAgora,
+        retira_agora: isRetiraAgora,
+        is_rota: isRota,
+        rota: isRota,
+        ...(isRota ? { rota_ts: new Date().toISOString() } : {})
+      };
 
-        const logExistente = (() => { try { return JSON.parse(item.historico_log || "[]"); } catch { return []; } })();
-        const novoLog = [...logExistente, {
-          data: new Date().toISOString(),
-          usuario: "PCP",
-          acao: ativa
-            ? (isRetiraAgora ? "prioridade_lote_retira_agora" : isRota ? "prioridade_lote_rota" : `prioridade_lote_p${nivelNumerico}`)
-            : "prioridade_lote_removida",
-          detalhes: descr
-        }];
+      // 2. Atualiza por Pedido em lote com updateMany no PedidoOdoo
+      const numerosPedidos = Array.from(new Set(lista.map(it => it.numero_pedido).filter(Boolean)));
+      for (let i = 0; i < numerosPedidos.length; i++) {
+        const numPed = numerosPedidos[i];
+        if (i > 0) await new Promise(r => setTimeout(r, 350));
+        await executarComRetryRateLimit(() =>
+          base44.entities.PedidoOdoo.updateMany(
+            { numero_pedido: numPed },
+            { $set: payloadLote }
+          )
+        );
+      }
 
-        await executarComRetryRateLimit(async () => {
-          await base44.entities.PedidoOdoo.update(item.id, {
-            prioridade: ativa,
-            prioridade_nivel: nivelNumerico,
-            cliente_retira_agora: isRetiraAgora,
-            cliente_retira: isRetiraAgora,
-            retira_agora: isRetiraAgora,
-            is_rota: isRota,
-            rota: isRota,
-            ...(isRota ? { rota_ts: new Date().toISOString() } : {}),
-            historico_log: JSON.stringify(novoLog)
-          });
-        });
+      // Itens que eventualmente não tenham numero_pedido
+      const semNumeroPedido = lista.filter(it => !it.numero_pedido);
+      for (let i = 0; i < semNumeroPedido.length; i++) {
+        const item = semNumeroPedido[i];
+        await new Promise(r => setTimeout(r, 350));
+        await executarComRetryRateLimit(() =>
+          base44.entities.PedidoOdoo.update(item.id, payloadLote)
+        );
       }
 
       // 3. Propagar para máquinas (Pedido e OrdemMaquinaCD) para os números de pedido afetados
-      const numerosPedidos = Array.from(new Set(lista.map(it => it.numero_pedido).filter(Boolean)));
       for (const numPed of numerosPedidos) {
+        await new Promise(r => setTimeout(r, 350));
         try {
           await executarComRetryRateLimit(() =>
             base44.entities.Pedido.updateMany(
               { numero_pedido: numPed, status: { $ne: "cancelado" } },
-              { $set: {
-                prioridade: ativa,
-                prioridade_nivel: nivelNumerico,
-                cliente_retira_agora: isRetiraAgora,
-                cliente_retira: isRetiraAgora,
-                retira_agora: isRetiraAgora,
-                is_rota: isRota,
-                rota: isRota,
-                ...(isRota ? { rota_ts: new Date().toISOString() } : {})
-              } }
+              { $set: payloadLote }
             )
-          ).catch(() => {});
+          ).catch((e) => console.warn("Falha ao sincronizar lote com Pedido:", e));
         } catch (_) {}
+
+        await new Promise(r => setTimeout(r, 350));
 
         try {
           await executarComRetryRateLimit(() =>
             base44.entities.OrdemMaquinaCD.updateMany(
               { numero_pedido: numPed, status: { $ne: "cancelado" } },
-              { $set: {
-                prioridade: ativa,
-                prioridade_nivel: nivelNumerico,
-                cliente_retira_agora: isRetiraAgora,
-                cliente_retira: isRetiraAgora,
-                retira_agora: isRetiraAgora,
-                is_rota: isRota,
-                rota: isRota,
-                ...(isRota ? { rota_ts: new Date().toISOString() } : {})
-              } }
+              { $set: payloadLote }
             )
-          ).catch(() => {});
+          ).catch((e) => console.warn("Falha ao sincronizar lote com OrdemMaquinaCD:", e));
         } catch (_) {}
       }
 
