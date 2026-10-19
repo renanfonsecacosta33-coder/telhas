@@ -7,6 +7,20 @@ import { diasUteisRestantes } from "@/lib/sla";
  */
 export function calcularUrgenciaDetalhada(pedido) {
   const dataAlvo = pedido?.data_previsao_fabrica || pedido?.data_entrega;
+  // Sem data prometida = Sem Prazo (antes caía como "Vence Hoje" e inflava o contador)
+  if (!dataAlvo) {
+    return {
+      dias: null,
+      status: "sem_prazo",
+      isAtrasado: false,
+      isCritico: false,
+      isModerado: false,
+      isHoje: false,
+      isAmanha: false,
+      label: "Sem Prazo",
+      classeBg: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700",
+    };
+  }
   const d = diasUteisRestantes(dataAlvo);
 
   if (d == null || isNaN(d)) {

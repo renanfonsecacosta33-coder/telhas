@@ -3,13 +3,12 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import {
-  Play, CheckCircle2, Inbox, Factory, Calendar, User, Loader2, Plus,
-  AlertTriangle, Star, CalendarClock, Clock, Search, ArrowUpDown, Flame,
-  Store, Building2, Layers, XCircle, Zap, CheckSquare, Square,
-  Undo2, ShieldAlert, Sparkles, PackageCheck, Trash2, ExternalLink, FileText, Send
+  Play, CheckCircle2, Inbox, Factory, Calendar, User, Loader2,
+  Star, CalendarClock,
+  Store, Layers, XCircle, Zap, CheckSquare, Square,
+  Undo2, Sparkles
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -20,21 +19,20 @@ import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import {
   isAutoRoteamentoTelhasAtivo,
   setAutoRoteamentoTelhasAtivo,
-  rotearPedidoTelhaDiretoParaMaquina,
-  processarLoteAutoRoteamentoTelhas
+  rotearPedidoTelhaDiretoParaMaquina
 } from "@/lib/autoBobinaTelhasHelper";
 import {
-  getItens, itensPorGrupo, computePercentual, computePercentualGrupo,
+  getItens, itensPorGrupo, computePercentual,
   buildItensJson, statusPcpPorPercentual, STATUS_ITEM, saoPedidosIguais,
-  localizarOpDoItem, normalizarUnidadeMedidaItem
+  localizarOpDoItem, normalizarUnidadeMedidaItem, detectarMaquinaTelha
 } from "@/lib/pedidoOdooHelper";
-import { formatDataBR, slaDiasPorCategoria, diasUteisRestantes } from "@/lib/sla";
-import { urgenciaPrazo } from "@/lib/prazoUrgencia";
+import { formatDataBR, diasUteisRestantes } from "@/lib/sla";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import AlterarPrazoFabrilDialog from "@/components/pcp/AlterarPrazoFabrilDialog";
 import { notificarStatus } from "@/lib/biNotificador";
 import { useFilial } from "@/contexts/FilialContext";
 import FiltrosDataPCPBar from "@/components/pcp/FiltrosDataPCPBar";
+import ResumoFilaPCPTelhas from "@/components/pcp/ResumoFilaPCPTelhas";
 import LocalizacaoStatusHero from "@/components/pcp/LocalizacaoStatusHero";
 import BadgeDistribuicaoItem, { itemEstaDistribuido } from "@/components/pcp/BadgeDistribuicaoItem";
 import FinalizarItemRapidoButton from "@/components/pcp/FinalizarItemRapidoButton";
@@ -136,6 +134,13 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
       return false;
     });
   };
+
+  // ── Classificação ÚNICA usada nos contadores, filtros e resumo (a soma sempre bate) ──
+  const isConcluidoPcp = (p) => p.status_pcp === "concluido" || (p.percentual_concluido || 0) >= 100;
+  const estaEmProducaoPcp = (p) =>
+    !isConcluidoPcp(p) &&
+    (buscarOpsDoPedido(p, pedidosProducao).some(op => op.status === "em_producao") ||
+      ((p.percentual_concluido || 0) > 0 && (p.percentual_concluido || 0) < 100));
 
   // 1. Filtragem base da filial e dos itens do setor de Telhas (com suporte a OPs da fábrica)
   const filaBase = useMemo(() => {
@@ -246,50 +251,79 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
     return mapa;
   }, [pedidos]);
 
-  // Contadores executivos de prazo e status para os botões de filtro rápido
-  const contadores = useMemo(() => {
-    let atrasados = 0;
-    let atrasadosCriticos = 0;
-    let atrasadosModerados = 0;
-    let hojeAmanha = 0;
+  // ── ANÁLISE E CONTADORES DA FILA ──
+  // Grupos EXCLUSIVOS: cada pedido cai em um único grupo (a soma fecha exatamente no total).
+  // Também conta PEDIDOS e ITENS separadamente (um pedido pode ter vários itens de telha).
+  const analiseFila = useMemo(() => {
+    const mk = () => ({ pedidos: 0, itens: 0 });
+    const buckets = {
+      concluidos: mk(), emProducao: mk(), criticos: mk(), moderados: mk(),
+      hojeAmanha: mk(), noPrazo: mk(), semPrazo: mk(),
+    };
+    let totalItens = 0;
     let prioritarios = 0;
-    let emProducao = 0;
-    let finalizados = 0;
+    const porCategoria = new Map();
 
     filaBase.forEach(p => {
-      const isConc = p.status_pcp === "concluido" || (p.percentual_concluido || 0) >= 100;
-      if (isConc) {
-        finalizados++;
+      const itensTelha = itensPorGrupo(getItens(p), "telha");
+      const nItens = itensTelha.length;
+      totalItens += nItens;
+
+      const urg = calcularUrgenciaDetalhada(p);
+      let bucket;
+      if (isConcluidoPcp(p)) {
+        bucket = buckets.concluidos;
+      } else if (estaEmProducaoPcp(p)) {
+        bucket = buckets.emProducao;
+      } else if (urg.isAtrasado) {
+        bucket = urg.isCritico ? buckets.criticos : buckets.moderados;
+      } else if (urg.isHoje || urg.isAmanha) {
+        bucket = buckets.hojeAmanha;
+      } else if (urg.status === "sem_prazo") {
+        bucket = buckets.semPrazo;
       } else {
-        const ops = buscarOpsDoPedido(p, pedidosProducao);
-        const estaProduzindo = ops.some(op => op.status === "em_producao") || ((p.percentual_concluido || 0) > 0 && (p.percentual_concluido || 0) < 100);
-        if (estaProduzindo) emProducao++;
+        bucket = buckets.noPrazo;
+      }
 
-        if (p.prioridade) prioritarios++;
+      bucket.pedidos++;
+      bucket.itens += nItens;
 
-        const urg = calcularUrgenciaDetalhada(p);
-        if (urg.isAtrasado) {
-          atrasados++;
-          if (urg.isCritico) atrasadosCriticos++;
-          else atrasadosModerados++;
-        } else if (urg.isHoje || urg.isAmanha) {
-          hojeAmanha++;
-        }
+      if (p.prioridade && bucket !== buckets.concluidos) prioritarios++;
+
+      // Itens por categoria (somente pedidos ainda NÃO concluídos = aguardando produção)
+      if (bucket !== buckets.concluidos) {
+        itensTelha.forEach(it => {
+          const cat = detectarMaquinaTelha(`${it.produto || ""} ${it.descricao || ""}`) || "Outros";
+          porCategoria.set(cat, (porCategoria.get(cat) || 0) + 1);
+        });
       }
     });
 
+    const categorias = [...porCategoria.entries()]
+      .map(([nome, itens]) => ({ nome, itens }))
+      .sort((a, b) => b.itens - a.itens || a.nome.localeCompare(b.nome));
+
     return {
-      total: filaBase.length,
-      atrasados,
-      atrasadosCriticos,
-      atrasadosModerados,
-      hojeAmanha,
-      prioritarios,
-      emProducao,
-      finalizados,
-      naoDistribuidos: naoDistribuidos.length
+      contadores: {
+        total: filaBase.length,
+        totalItens,
+        atrasados: buckets.criticos.pedidos + buckets.moderados.pedidos,
+        atrasadosCriticos: buckets.criticos.pedidos,
+        atrasadosModerados: buckets.moderados.pedidos,
+        hojeAmanha: buckets.hojeAmanha.pedidos,
+        prioritarios,
+        emProducao: buckets.emProducao.pedidos,
+        finalizados: buckets.concluidos.pedidos,
+        noPrazo: buckets.noPrazo.pedidos,
+        semPrazo: buckets.semPrazo.pedidos,
+        naoDistribuidos: naoDistribuidos.length,
+      },
+      buckets,
+      categorias,
     };
   }, [filaBase, naoDistribuidos, pedidosProducao]);
+
+  const contadores = analiseFila.contadores;
 
   // Handlers de Preset e Limpeza
   const handleSelectPreset = (presetId) => {
@@ -373,51 +407,21 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
       });
     }
 
-    // Filtros de urgência e status operacionais
+    // Filtros de urgência e status — MESMA classificação exclusiva dos contadores
     if (filtroUrgencia === "mais_atrasados") {
-      lista = lista.filter(p => {
-        const isConc = p.status_pcp === "concluido" || (p.percentual_concluido || 0) >= 100;
-        if (isConc) return false;
-        const urg = calcularUrgenciaDetalhada(p);
-        return urg.isAtrasado;
-      });
+      lista = lista.filter(p => !isConcluidoPcp(p) && !estaEmProducaoPcp(p) && calcularUrgenciaDetalhada(p).isAtrasado);
     } else if (filtroUrgencia === "atraso_critico") {
-      lista = lista.filter(p => {
-        const isConc = p.status_pcp === "concluido" || (p.percentual_concluido || 0) >= 100;
-        if (isConc) return false;
-        const urg = calcularUrgenciaDetalhada(p);
-        return urg.isCritico;
-      });
+      lista = lista.filter(p => !isConcluidoPcp(p) && !estaEmProducaoPcp(p) && calcularUrgenciaDetalhada(p).isCritico);
     } else if (filtroUrgencia === "atraso_moderado") {
-      lista = lista.filter(p => {
-        const isConc = p.status_pcp === "concluido" || (p.percentual_concluido || 0) >= 100;
-        if (isConc) return false;
-        const urg = calcularUrgenciaDetalhada(p);
-        return urg.isModerado;
-      });
+      lista = lista.filter(p => !isConcluidoPcp(p) && !estaEmProducaoPcp(p) && calcularUrgenciaDetalhada(p).isModerado);
     } else if (filtroUrgencia === "hoje_amanha") {
-      lista = lista.filter(p => {
-        const isConc = p.status_pcp === "concluido" || (p.percentual_concluido || 0) >= 100;
-        if (isConc) return false;
-        const urg = calcularUrgenciaDetalhada(p);
-        return urg.isHoje || urg.isAmanha;
-      });
+      lista = lista.filter(p => !isConcluidoPcp(p) && !estaEmProducaoPcp(p) && (() => { const u = calcularUrgenciaDetalhada(p); return u.isHoje || u.isAmanha; })());
     } else if (filtroUrgencia === "em_producao") {
-      lista = lista.filter(p => {
-        const isConc = p.status_pcp === "concluido" || (p.percentual_concluido || 0) >= 100;
-        if (isConc) return false;
-        const ops = buscarOpsDoPedido(p, pedidosProducao);
-        return ops.some(op => op.status === "em_producao") || ((p.percentual_concluido || 0) > 0 && (p.percentual_concluido || 0) < 100);
-      });
+      lista = lista.filter(p => estaEmProducaoPcp(p));
     } else if (filtroUrgencia === "finalizados") {
-      lista = lista.filter(p => {
-        return p.status_pcp === "concluido" || (p.percentual_concluido || 0) >= 100;
-      });
+      lista = lista.filter(p => isConcluidoPcp(p));
     } else if (filtroUrgencia === "prioritarios") {
-      lista = lista.filter(p => {
-        const isConc = p.status_pcp === "concluido" || (p.percentual_concluido || 0) >= 100;
-        return Boolean(p.prioridade) && !isConc;
-      });
+      lista = lista.filter(p => Boolean(p.prioridade) && !isConcluidoPcp(p));
     }
 
     // Filtro por período de datas (Data X até Data Y)
@@ -925,7 +929,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                   Fila PCP — Aguardando Produção (Telhas)
                 </h2>
                 <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30 font-bold text-xs">
-                  {contadores.total} pedido(s)
+                  {contadores.total} pedido(s) · {contadores.totalItens || 0} itens
                 </Badge>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -997,6 +1001,8 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
           onViewModeChange={setViewMode}
         />
       </div>
+
+      <ResumoFilaPCPTelhas analise={analiseFila} />
 
       {/* ══════════════ BARRA DE SELEÇÃO EM LOTE ══════════════ */}
       {todosItensPendentes.length > 0 && (
