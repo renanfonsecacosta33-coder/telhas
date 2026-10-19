@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, TrendingUp, Trash2, Truck, Inbox, Target, ShieldAlert, Layers, Trophy, Search, X, RefreshCw, Sparkles, Clock, AlertTriangle, History } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Factory, Download, Calendar, Database, TrendingUp, Trash2, Truck, Inbox, Target, ShieldAlert, Layers, Trophy, Search, X, RefreshCw, Sparkles, AlertTriangle, History } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Link, useSearchParams } from "react-router-dom";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
@@ -26,11 +26,12 @@ import HistoricoGeralProducao from "@/components/producao/HistoricoGeralProducao
 import PedidoTelhasTabelaView from "@/components/producao/PedidoTelhasTabelaView";
 import ViewModeToggle from "@/components/ui/ViewModeToggle";
 import { extrairDataISO, calcularIntervaloPreset, ordenarPedidosPCP } from "@/lib/filtroDataHelper";
-import { diasUteisRestantes } from "@/lib/sla";
 import { prepararPresetNovaOrdemTelhas, getItens, computePercentual, statusPcpPorPercentual, buildItensJson } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
-import { isTelhaBandeja, montarTriadeTelhaBandeja } from "@/lib/bandejaHelper";
+import { isTelhaBandeja } from "@/lib/bandejaHelper";
+import { calcularAtrasoPedido, estaAberto } from "@/lib/atrasoPedidosHelper";
+import PainelAtrasoProducao from "@/components/producao/PainelAtrasoProducao";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 
@@ -363,39 +364,34 @@ export default function ProducaoAdmin() {
     ordenacao !== "mais_atrasados"
   );
 
+  // Contadores — MESMA definição de atraso usada nos filtros e no painel (soma sempre bate)
   const contadores = useMemo(() => {
-    let atrasados = 0;
-    let hojeAmanha = 0;
-    let prioritarios = 0;
-    let aguardando = 0;
-    const hojeStr = format(new Date(), "yyyy-MM-dd");
+    let atrasados = 0, atrasadosCriticos = 0, atrasadosModerados = 0;
+    let hojeAmanha = 0, prioritarios = 0, aguardando = 0, emProducao = 0, finalizados = 0, semAgendamento = 0;
 
     pedidos.forEach(p => {
       if (p.status === "cancelado") return;
-      if (p.prioridade && p.status !== "finalizado") prioritarios++;
+      if (p.status === "finalizado") { finalizados++; return; }
+      if (p.prioridade) prioritarios++;
       if (p.status === "aguardando" || p.status === "pendente" || !p.status) aguardando++;
+      if (p.status === "em_producao") emProducao++;
 
-      if (p.status !== "finalizado") {
-        const dataAlvo = p.data_entrega || p.data_prevista || p.data;
-        if (dataAlvo) {
-          const dtISO = extrairDataISO(dataAlvo);
-          if (dtISO) {
-            if (dtISO < hojeStr) {
-              atrasados++;
-            } else {
-              const d = diasUteisRestantes(dtISO);
-              if (d != null && d <= 1) hojeAmanha++;
-            }
-          }
-        }
+      const atraso = calcularAtrasoPedido(p);
+      if (atraso.isAtrasado) {
+        atrasados++;
+        if (atraso.isCritico) atrasadosCriticos++;
+        else atrasadosModerados++;
+      } else if (atraso.semAgendamento) {
+        semAgendamento++;
+      } else if (atraso.isHojeAmanha) {
+        hojeAmanha++;
       }
     });
 
     return {
       total: pedidos.filter(p => p.status !== "cancelado").length,
-      atrasados,
-      hojeAmanha,
-      prioritarios,
+      atrasados, atrasadosCriticos, atrasadosModerados,
+      hojeAmanha, prioritarios, emProducao, finalizados, semAgendamento,
       naoDistribuidos: aguardando,
     };
   }, [pedidos]);
@@ -464,26 +460,24 @@ export default function ProducaoAdmin() {
       });
     }
 
-    // 2. Filtro de Urgência
-    // 2. Filtro de Urgência (apenas se não houver busca textual por termo/pedido específico)
-    const hojeStr = format(new Date(), "yyyy-MM-dd");
+    // 2. Filtro de Urgência (apenas se não houver busca textual; mesma regra dos contadores)
     if (!termoBusca.trim()) {
       if (filtroUrgencia === "mais_atrasados") {
-        lista = lista.filter(p => {
-          if (p.status === "finalizado") return false;
-          const dt = extrairDataISO(p.data_entrega || p.data_prevista || p.data);
-          return dt && dt < hojeStr;
-        });
+        lista = lista.filter(p => p.status !== "finalizado" && calcularAtrasoPedido(p).isAtrasado);
+      } else if (filtroUrgencia === "atraso_critico") {
+        lista = lista.filter(p => p.status !== "finalizado" && calcularAtrasoPedido(p).isCritico);
+      } else if (filtroUrgencia === "atraso_moderado") {
+        lista = lista.filter(p => p.status !== "finalizado" && calcularAtrasoPedido(p).isModerado);
+      } else if (filtroUrgencia === "sem_agendamento") {
+        lista = lista.filter(p => p.status !== "finalizado" && calcularAtrasoPedido(p).semAgendamento);
       } else if (filtroUrgencia === "hoje_amanha") {
-        lista = lista.filter(p => {
-          if (p.status === "finalizado") return false;
-          const dt = extrairDataISO(p.data_entrega || p.data_prevista || p.data);
-          if (!dt) return false;
-          const d = diasUteisRestantes(dt);
-          return d != null && d >= 0 && d <= 1;
-        });
+        lista = lista.filter(p => p.status !== "finalizado" && calcularAtrasoPedido(p).isHojeAmanha);
+      } else if (filtroUrgencia === "em_producao") {
+        lista = lista.filter(p => p.status === "em_producao");
+      } else if (filtroUrgencia === "finalizados") {
+        lista = lista.filter(p => p.status === "finalizado");
       } else if (filtroUrgencia === "prioritarios") {
-        lista = lista.filter(p => p.prioridade);
+        lista = lista.filter(p => p.prioridade && p.status !== "finalizado");
       } else if (filtroUrgencia === "nao_distribuidos") {
         lista = lista.filter(p => p.status === "aguardando" || p.status === "pendente" || !p.status);
       }
@@ -545,6 +539,35 @@ export default function ProducaoAdmin() {
       return !dt || dt < sStart;
     });
   }, [pedidos, weekStart]);
+
+  // ── Análise de pedidos em atraso (definição única: prazo vencido) ──
+  const analiseAtraso = useMemo(() => {
+    let vencidos = 0, criticos = 0, semAgendamento = 0, metrosAtrasados = 0;
+    let maiorAtrasoDias = 0, pedidoMaisAtrasado = null;
+
+    pedidos.filter(estaAberto).forEach(p => {
+      const a = calcularAtrasoPedido(p);
+      if (a.semAgendamento) { semAgendamento++; return; }
+      if (!a.isAtrasado) return;
+      vencidos++;
+      if (a.isCritico) criticos++;
+      metrosAtrasados += calcularMetrosPedido(p);
+      if (a.diasAtraso > maiorAtrasoDias) {
+        maiorAtrasoDias = a.diasAtraso;
+        pedidoMaisAtrasado = `#${p.numero_pedido || "—"}${p.cliente ? " · " + p.cliente : ""}`;
+      }
+    });
+
+    return {
+      vencidos,
+      criticos,
+      moderados: vencidos - criticos,
+      semAgendamento,
+      metrosAtrasados,
+      maiorAtrasoDias,
+      pedidoMaisAtrasado,
+    };
+  }, [pedidos]);
 
   // Itens para o Quadro Kanban (conforme escopo selecionado: dia, semana ou todos)
   // Inclui pedidos pendentes atrasados para que nenhum pedido fique esquecido fora da vista
@@ -882,41 +905,14 @@ export default function ProducaoAdmin() {
         </div>
       )}
 
-      {/* Banner: Pedidos Atrasados / Fora da semana */}
-      {pedidosAtrasados.length > 0 && (
-        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2 text-red-900 dark:text-red-200 font-medium">
-            <Clock className="w-4 h-4 text-red-600 shrink-0" />
-            <span>
-              Existem <strong>{pedidosAtrasados.length} pedido(s) pendente(s)</strong> de datas anteriores ou sem agendamento aguardando produção.
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setFiltroUrgencia("mais_atrasados");
-                setViewMode("dia");
-              }}
-              className="h-7 text-xs font-bold border-red-300 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40"
-            >
-              Ver Pedidos Atrasados
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setViewMode("kanban");
-                setEscopoKanban("todos");
-              }}
-              className="h-7 text-xs font-bold text-red-700 dark:text-red-300 hover:bg-red-100"
-            >
-              Ver no Kanban
-            </Button>
-          </div>
-        </div>
-      )}
+      {/* Painel: Análise de Pedidos em Atraso */}
+      <PainelAtrasoProducao
+        analise={analiseAtraso}
+        onVerAtrasados={() => { setFiltroUrgencia("mais_atrasados"); setViewMode("dia"); }}
+        onVerCriticos={() => { setFiltroUrgencia("atraso_critico"); setViewMode("dia"); }}
+        onVerSemAgendamento={() => { setFiltroUrgencia("sem_agendamento"); setViewMode("dia"); }}
+        onVerKanban={() => { setViewMode("kanban"); setEscopoKanban("todos"); }}
+      />
 
       {/* Navegação de semana */}
       <div className="bg-card border border-border rounded-xl p-4">
