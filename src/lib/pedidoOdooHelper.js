@@ -344,7 +344,8 @@ export function computePercentual(itens) {
     if (it.status === "concluido" || it.status === "finalizado") {
       totalPontos += 1.0;
     } else if (it.status === "aguardando_colagem") {
-      totalPontos += 0.85;
+      const isSand = /(eps|manta|sanduiche|isopor|termoacustica)/i.test(String(it.produto || it.descricao || ""));
+      totalPontos += isSand ? 0.85 : 1.0;
     } else if (it.status === "em_producao") {
       totalPontos += 0.50; // OP criada na máquina / em produção
     } else if (it.maquina) {
@@ -484,7 +485,8 @@ export function calcularProgressoRealPedido(pedido, pedidosProducao = [], ordens
       if (opReal.status === "finalizado") {
         soma += 100;
       } else if (opReal.status === "aguardando_colagem") {
-        soma += 85;
+        const isSand = /(eps|manta|sanduiche|isopor|termoacustica)/i.test(String(it.produto || it.descricao || ""));
+        soma += isSand ? 85 : 100;
       } else if (opReal.status === "em_producao") {
         soma += 75; // Operador deu Play / máquina rodando!
       } else if (opReal.status === "pausado") {
@@ -578,6 +580,16 @@ export function obterStatusDescritivoItem(it, pedido, pedidosProducao = [], orde
       };
     }
     if (opReal.status === "aguardando_colagem") {
+      if (!isSanduiche) {
+        return {
+          status: "Concluído",
+          status_detalhado: "100% Concluído (Perfilada)",
+          pct: 100,
+          maquina: maquinaNome,
+          fase: "concluido",
+          etapaAtiva: 4
+        };
+      }
       return {
         status: "Aguardando Colagem",
         status_detalhado: "Telha Cortada — Aguardando Colagem",
@@ -620,6 +632,26 @@ export function obterStatusDescritivoItem(it, pedido, pedidosProducao = [], orde
   }
 
   // Se não foi criada OP na máquina ainda
+  if (it.status === "aguardando_colagem") {
+    if (!isSanduiche) {
+      return {
+        status: "Concluído",
+        status_detalhado: "100% Concluído (Perfilada)",
+        pct: 100,
+        maquina: it.maquina || "Perfiladeira",
+        fase: "concluido",
+        etapaAtiva: 4
+      };
+    }
+    return {
+      status: "Aguardando Colagem",
+      status_detalhado: "Telha Cortada — Aguardando Colagem",
+      pct: 85,
+      maquina: "Bancada Colagem",
+      fase: "colagem",
+      etapaAtiva: 3
+    };
+  }
   if (it.status === "concluido") {
     return {
       status: "Concluído",

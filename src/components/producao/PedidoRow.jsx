@@ -239,8 +239,10 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
 
     // Se é cumeeira, a máquina SEMPRE é CUMEEIRA
     // Se é telha simples, NUNCA permite ficar em colagem ou com status de colagem
+    // Se ela já foi perfilada ou estava em aguardando_colagem, para telha simples ela está FINALIZADA!
+    const jaPerfilada = Boolean(pOriginal.perfilacao_concluida || pOriginal.data_perfilacao || pOriginal.status === "aguardando_colagem");
     const statusAjustado = (!ehComEps && (pOriginal.status === "aguardando_colagem" || pOriginal.maquina === "COLAGEM"))
-      ? "pendente"
+      ? (jaPerfilada ? "finalizado" : "pendente")
       : (pOriginal.status || presets.status || "pendente");
 
     const maquinaAjustada = ehCumeeira
