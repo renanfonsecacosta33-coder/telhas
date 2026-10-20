@@ -3,30 +3,64 @@ import { extrairAnexosLista } from "@/lib/croquiExtractor";
 import { getItens, classGrupo } from "@/lib/pedidoOdooHelper";
 
 /**
- * Normaliza nomes para correspondência sem case-sensitive e sem acentos
+ * Normaliza nomes para correspondência sem case-sensitive, sem acentos,
+ * removendo domínios de email e pontuações (pontos, traços, sublinhados)
+ * Ex: "adriano.klabunde@ajlferroeaco.com.br" -> "adriano klabunde"
+ * Ex: "adriano.klabunde" -> "adriano klabunde"
+ * Ex: "Adriano Klabunde" -> "adriano klabunde"
  */
 export function normalizarNome(str) {
-  return String(str || "")
+  if (!str) return "";
+  let limpo = String(str).trim();
+  // Se for e-mail, extrai a parte antes do @
+  if (limpo.includes("@")) {
+    limpo = limpo.split("@")[0];
+  }
+  return limpo
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[._\-+]/g, " ")
+    .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
 }
 
 /**
- * Identifica se dois nomes de vendedores correspondem
+ * Identifica se dois nomes de vendedores correspondem com máxima tolerância
+ * Trata variações de username (com ponto/underline), nomes abreviados,
+ * primeiro nome, sobrenome compartilhado ou emails.
  */
 export function nomesCorrespondem(nomeA, nomeB) {
   const a = normalizarNome(nomeA);
   const b = normalizarNome(nomeB);
   if (!a || !b) return false;
   if (a === b) return true;
-  // Se um nome contém o outro (ex: "Renan Fonseca" contém "Renan")
-  const partesA = a.split(/\s+/);
-  const partesB = b.split(/\s+/);
+
+  const partesA = a.split(/\s+/).filter(Boolean);
+  const partesB = b.split(/\s+/).filter(Boolean);
+
+  // 1. Se o primeiro nome bater e um dos lados tiver apenas 1 palavra (ex: "Adriano" e "Adriano Klabunde")
   if (partesA[0] === partesB[0] && (partesA.length === 1 || partesB.length === 1)) {
     return true;
   }
+
+  // 2. Se primeiro nome e último nome baterem (ex: "Adriano Silva Klabunde" e "Adriano Klabunde")
+  if (partesA.length >= 2 && partesB.length >= 2) {
+    if (partesA[0] === partesB[0] && partesA[partesA.length - 1] === partesB[partesB.length - 1]) {
+      return true;
+    }
+  }
+
+  // 3. Substring de palavra significativa (mínimo 4 caracteres)
+  const [menor, maior] = a.length <= b.length ? [a, b] : [b, a];
+  if (menor.length >= 4) {
+    // Verifica se contém como palavra delimitada
+    const regex = new RegExp(`(^|\\s)${menor.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}(\\s|$)`, "i");
+    if (regex.test(maior)) {
+      return true;
+    }
+  }
+
   return false;
 }
 

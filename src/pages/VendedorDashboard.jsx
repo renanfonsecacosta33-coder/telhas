@@ -38,29 +38,51 @@ export default function VendedorDashboard() {
   const isAdmin = user?.role === "admin" || user?.role === "super_admin" || user?.role === "gerente";
   const [vendedorFiltroAdmin, setVendedorFiltroAdmin] = useState("todos");
 
-  // 1. Pedidos recebidos do Odoo ERP
+  // Vínculo opcional persistido para o vendedor (caso o nome no Odoo seja um apelido ou diferente)
+  const [vendedorAlias, setVendedorAlias] = useState(() => {
+    try {
+      return localStorage.getItem(`vendedor_alias_${user?.id || user?.email}`) || "";
+    } catch {
+      return "";
+    }
+  });
+
+  const salvarAlias = (alias) => {
+    const val = String(alias || "").trim();
+    setVendedorAlias(val);
+    try {
+      const chave = `vendedor_alias_${user?.id || user?.email}`;
+      if (val) {
+        localStorage.setItem(chave, val);
+      } else {
+        localStorage.removeItem(chave);
+      }
+    } catch {}
+  };
+
+  // 1. Pedidos recebidos do Odoo ERP (limite de 5000 para sincronizar toda a base sem perdas)
   const { data: pedidosOdooRaw = [], isLoading: loadingOdoo, refetch: refetchOdoo } = useQuery({
     queryKey: ["pedidos-odoo-vendedor"],
-    queryFn: () => base44.entities.PedidoOdoo.list("-data_recebimento", 1000),
+    queryFn: () => base44.entities.PedidoOdoo.list("-data_recebimento", 5000),
     refetchInterval: 10000,
   });
 
   // 2. Ordens de chão de fábrica (Telhas e Corte & Dobra) para cruzar fotos, operadores e bobinas
   const { data: ordensTelhas = [], isLoading: loadingTelhas } = useQuery({
     queryKey: ["ordens-telhas-vendedor"],
-    queryFn: () => base44.entities.Pedido.list("-data", 1000),
+    queryFn: () => base44.entities.Pedido.list("-data", 2000),
     refetchInterval: 15000,
   });
 
   const { data: opsDesbob = [], isLoading: loadingDesbob } = useQuery({
     queryKey: ["ops-desbob-vendedor"],
-    queryFn: () => base44.entities.OrdemDesbobinadeira.list("-data", 1000),
+    queryFn: () => base44.entities.OrdemDesbobinadeira.list("-data", 2000),
     refetchInterval: 15000,
   });
 
   const { data: opsMaquina = [], isLoading: loadingMaquina } = useQuery({
     queryKey: ["ops-maquina-vendedor"],
-    queryFn: () => base44.entities.OrdemMaquinaCD.list("-data", 1000),
+    queryFn: () => base44.entities.OrdemMaquinaCD.list("-data", 2000),
     refetchInterval: 15000,
   });
 
@@ -79,7 +101,7 @@ export default function VendedorDashboard() {
     refetchInterval: 15000,
   });
 
-  // Lista de todos os vendedores únicos presentes nos pedidos para o seletor de Admin
+  // Lista de todos os vendedores únicos presentes nos pedidos para os seletores
   const listaVendedores = useMemo(() => {
     const setV = new Set();
     pedidosOdooRaw.forEach(p => {
@@ -88,14 +110,6 @@ export default function VendedorDashboard() {
     });
     return Array.from(setV).sort();
   }, [pedidosOdooRaw]);
-
-  // Vendedor ativo para visualização:
-  const vendedorExibidoNome = useMemo(() => {
-    if (isAdmin) {
-      return vendedorFiltroAdmin === "todos" ? "Visão Geral (Todos os Vendedores)" : vendedorFiltroAdmin;
-    }
-    return user?.full_name || "Vendedor";
-  }, [isAdmin, vendedorFiltroAdmin, user?.full_name]);
 
   // Deduplicação de pedidos Odoo por numero_pedido mantendo o registro mais atualizado
   const pedidosOdooDeduplicados = useMemo(() => {
@@ -116,9 +130,22 @@ export default function VendedorDashboard() {
 
     pedidosOdooDeduplicados.forEach(p => {
       // Regra de Vínculo:
-      // Se não for admin: filtra apenas pedidos do vendedor logado
+      // Se não for admin: filtra apenas pedidos correspondentes ao vendedor logado ou alias
       if (!isAdmin) {
-        if (!nomesCorrespondem(p.vendedor_nome, user?.full_name)) {
+        const nomesUsuario = [
+          vendedorAlias,
+          user?.full_name,
+          user?.name,
+          user?.vendedor_nome,
+          user?.email,
+        ].filter(Boolean);
+
+        const bateuVendedor = nomesUsuario.some(nu =>
+          nomesCorrespondem(p.vendedor_nome, nu) ||
+          nomesCorrespondem(p.vendedor_email, nu)
+        );
+
+        if (!bateuVendedor) {
           return;
         }
       } else {
@@ -142,7 +169,19 @@ export default function VendedorDashboard() {
     });
 
     return result;
-  }, [pedidosOdooDeduplicados, isAdmin, vendedorFiltroAdmin, user?.full_name, ordensTelhas, opsDesbob, opsMaquina, todasBobinas]);
+  }, [pedidosOdooDeduplicados, isAdmin, vendedorFiltroAdmin, vendedorAlias, user?.full_name, user?.name, user?.vendedor_nome, user?.email, ordensTelhas, opsDesbob, opsMaquina, todasBobinas]);
+
+  // Vendedor ativo para visualização:
+  const vendedorExibidoNome = useMemo(() => {
+    if (isAdmin) {
+      return vendedorFiltroAdmin === "todos" ? "Visão Geral (Todos os Vendedores)" : vendedorFiltroAdmin;
+    }
+    if (vendedorAlias) return vendedorAlias;
+    if (cards.length > 0 && cards[0]?.vendedor && cards[0]?.vendedor !== "—") {
+      return cards[0].vendedor;
+    }
+    return user?.full_name || user?.name || "Vendedor";
+  }, [isAdmin, vendedorFiltroAdmin, vendedorAlias, cards, user?.full_name, user?.name]);
 
   // KPIs dos 4 estágios do painel
   const kpis = useMemo(() => {
@@ -336,6 +375,44 @@ export default function VendedorDashboard() {
                 </DropdownMenu>
               </div>
             )}
+
+            {/* Seletor / Indicador de Vínculo Odoo para Vendedor */}
+            {!isAdmin && listaVendedores.length > 0 && (
+              <div className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-300"
+                      title="Vínculo de Vendedor no Odoo"
+                    >
+                      <User className="w-3.5 h-3.5 text-primary" />
+                      <span className="truncate max-w-[150px]">
+                        {vendedorAlias || "Vínculo Odoo"}
+                      </span>
+                      <ChevronDown className="w-3 h-3 text-slate-400" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-60 max-h-72 overflow-y-auto">
+                    <DropdownMenuItem
+                      onClick={() => salvarAlias("")}
+                      className={`text-xs font-semibold cursor-pointer ${!vendedorAlias ? "bg-primary/10 text-primary font-bold" : ""}`}
+                    >
+                      ⚡ Automático ({user?.full_name || "Perfil"})
+                    </DropdownMenuItem>
+                    {listaVendedores.map(v => (
+                      <DropdownMenuItem
+                        key={v}
+                        onClick={() => salvarAlias(v)}
+                        className={`text-xs cursor-pointer ${vendedorAlias === v ? "bg-primary/10 text-primary font-bold" : ""}`}
+                      >
+                        👤 {v}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -405,14 +482,48 @@ export default function VendedorDashboard() {
             <p className="text-xs font-semibold text-muted-foreground">Sincronizando pedidos com o chão de fábrica...</p>
           </div>
         ) : cardsFiltrados.length === 0 ? (
-          <div className="text-center py-20 rounded-2xl border border-dashed border-border bg-card/50 p-8 space-y-2">
+          <div className="text-center py-16 rounded-2xl border border-dashed border-border bg-card/50 p-8 space-y-4 max-w-xl mx-auto">
             <Package className="w-12 h-12 text-muted-foreground/30 mx-auto" />
-            <p className="text-base font-bold text-foreground">Nenhum pedido encontrado</p>
-            <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-              {!isAdmin && user?.full_name
-                ? `Não encontramos pedidos vinculados ao vendedor "${user.full_name}". Se os pedidos forem de outro nome no Odoo, verifique seu cadastro de usuário.`
-                : "Nenhum pedido atende aos filtros selecionados."}
-            </p>
+            <div className="space-y-1">
+              <p className="text-base font-bold text-foreground">Nenhum pedido encontrado</p>
+              <p className="text-xs text-muted-foreground">
+                {!isAdmin && user?.full_name
+                  ? `Não encontramos pedidos com o usuário "${user.full_name}". Se seu nome no Odoo estiver diferente, selecione-o abaixo:`
+                  : "Nenhum pedido atende aos filtros selecionados."}
+              </p>
+            </div>
+
+            {!isAdmin && listaVendedores.length > 0 && (
+              <div className="pt-2 border-t border-border/50 flex flex-col items-center gap-2">
+                <span className="text-xs text-muted-foreground font-medium">
+                  Vincular outro nome de vendedor do Odoo:
+                </span>
+                <div className="flex items-center gap-2 flex-wrap justify-center">
+                  <select
+                    value={vendedorAlias}
+                    onChange={(e) => salvarAlias(e.target.value)}
+                    className="text-xs border border-border rounded-lg px-3 py-1.5 bg-background text-foreground shadow-2xs focus:outline-hidden focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">Selecione seu nome no Odoo...</option>
+                    {listaVendedores.map((v) => (
+                      <option key={v} value={v}>
+                        {v}
+                      </option>
+                    ))}
+                  </select>
+                  {vendedorAlias && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => salvarAlias("")}
+                      className="text-xs h-8 text-red-500 hover:text-red-600"
+                    >
+                      Limpar Vínculo
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
