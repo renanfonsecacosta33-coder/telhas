@@ -17,7 +17,7 @@ import {
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
 import {
-  getItens, classGrupo, computePercentual, buildItensJson,
+  getItens, classGrupo, isItemCD, computePercentual, buildItensJson,
   statusPcpPorPercentual, STATUS_ITEM, MAQUINAS_CD,
   localizarOpDoItem, saoPedidosIguais, normalizarUnidadeMedidaItem
 } from "@/lib/pedidoOdooHelper";
@@ -27,6 +27,7 @@ import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import AlterarPrazoFabrilDialog from "@/components/pcp/AlterarPrazoFabrilDialog";
 import { notificarStatus } from "@/lib/biNotificador";
 import { useFilial } from "@/contexts/FilialContext";
+import { salvarCacheLocal, obterCacheLocal } from "@/lib/offlineStorage";
 import FiltrosDataPCPBar from "@/components/pcp/FiltrosDataPCPBar";
 import LocalizacaoStatusHero from "@/components/pcp/LocalizacaoStatusHero";
 import BadgeDistribuicaoItem, { itemEstaDistribuido } from "@/components/pcp/BadgeDistribuicaoItem";
@@ -68,9 +69,42 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
   // Retirar da máquina — PCP (gestores e admins) podem retirar um item da máquina
   const canRetirarDaMaquina = ["admin", "super_admin", "gestor"].includes(filialCtx?.user?.role);
 
+  // Busca blindada com 5000 registros e cache IndexedDB (sincronizada com Central PCP)
+  const carregarPedidosOdooCD = async () => {
+    const CHAVE_CACHE = "pedidos_odoo_pcp_cache_v2";
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const salvoOffline = await obterCacheLocal(CHAVE_CACHE);
+      if (salvoOffline && Array.isArray(salvoOffline) && salvoOffline.length > 0) {
+        return salvoOffline;
+      }
+    }
+
+    try {
+      const dados = await base44.entities.PedidoOdoo.list("-data_recebimento", 5000);
+      if (dados && Array.isArray(dados) && dados.length > 0) {
+        salvarCacheLocal(CHAVE_CACHE, dados).catch(() => {});
+        return dados;
+      }
+
+      const salvoFallback = await obterCacheLocal(CHAVE_CACHE);
+      if (salvoFallback && Array.isArray(salvoFallback) && salvoFallback.length > 0) {
+        return salvoFallback;
+      }
+      return dados || [];
+    } catch (errRede) {
+      console.warn("[FilaPCPCorteDobra] Rede instável, resgatando cache IndexedDB:", errRede);
+      const salvoLocal = await obterCacheLocal(CHAVE_CACHE);
+      if (salvoLocal && Array.isArray(salvoLocal) && salvoLocal.length > 0) {
+        return salvoLocal;
+      }
+      throw errRede;
+    }
+  };
+
   const { data: pedidos = [], isLoading, isFetching } = useQuery({
-    queryKey: ["pedidos-odoo-cd"],
-    queryFn: () => base44.entities.PedidoOdoo.list("-data_recebimento", 200),
+    queryKey: ["pedidos-odoo-pcp"],
+    queryFn: carregarPedidosOdooCD,
     refetchInterval: 10000,
     staleTime: 10000,
     placeholderData: (prev) => prev
@@ -98,34 +132,34 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
     const uPed = String(unidadePedido || "Matriz AJL").trim().toLowerCase();
     const uAtiva = String(filialAtiva).trim().toLowerCase();
     if (uPed === uAtiva) return true;
-    if (uAtiva.includes("matriz") && uPed.includes("matriz")) return true;
+    if (uAtiva.includes("matriz") && (uPed.includes("matriz") || !unidadePedido)) return true;
+    if (uPed.includes(uAtiva) || uAtiva.includes(uPed)) return true;
     return false;
   };
 
-  // Pedidos distribuídos/em produção com itens de CD da filial ativa
-  const filaBase = useMemo(() => {
-    return pedidos
-      .filter(p => ["distribuido", "em_producao"].includes(p.status_pcp))
-      .filter(p => atendeFilial(p.unidade))
-      .filter(p => getItens(p).some(i => classGrupo(i) === "cd"));
-  }, [pedidos, filialAtiva]);
-
-  // Pedidos de C&D ainda NÃO distribuídos (status_pcp = pendente_distribuicao ou pendente ou null)
-  const naoDistribuidos = useMemo(() => {
-    return pedidos
-      .filter(p => !p.status_pcp || ["pendente_distribuicao", "pendente"].includes(p.status_pcp))
-      .filter(p => atendeFilial(p.unidade))
-      .filter(p => getItens(p).some(i => classGrupo(i) === "cd"));
-  }, [pedidos, filialAtiva]);
-
-  // Base completa unificada de todos os pedidos de C&D (evita tela zerada antes da distribuição)
+  // Base completa de TODOS os pedidos que possuem itens de Corte & Dobra da filial ativa
   const todosPedidosCD = useMemo(() => {
-    const mapa = new Map();
-    [...filaBase, ...naoDistribuidos].forEach(p => {
-      if (p?.id) mapa.set(p.id, p);
-    });
-    return Array.from(mapa.values());
-  }, [filaBase, naoDistribuidos]);
+    return pedidos
+      .filter(p => atendeFilial(p.unidade))
+      .filter(p => {
+        if (p.setor === "corte_dobra" || p.setor === "cd") return true;
+        const itens = getItens(p);
+        if (itens.length === 0) {
+          return (p.itens_cd_count || 0) > 0;
+        }
+        return itens.some(i => isItemCD(i, p));
+      });
+  }, [pedidos, filialAtiva]);
+
+  // Pedidos distribuídos/em produção com itens de CD
+  const filaBase = useMemo(() => {
+    return todosPedidosCD.filter(p => ["distribuido", "em_producao"].includes(p.status_pcp));
+  }, [todosPedidosCD]);
+
+  // Pedidos de C&D ainda NÃO distribuídos
+  const naoDistribuidos = useMemo(() => {
+    return todosPedidosCD.filter(p => !p.status_pcp || ["pendente_distribuicao", "pendente"].includes(p.status_pcp));
+  }, [todosPedidosCD]);
 
   // Contagem de OFs/itens por número de pedido (marcação de pedidos com múltiplas entradas)
   const contagemPorPedido = useMemo(() => {
@@ -138,30 +172,56 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
     return mapa;
   }, [pedidos]);
 
-  // Contadores executivos de prazo (sobre a base real completa)
+  // Contadores executivos de prazo e status
   const contadores = useMemo(() => {
     let atrasados = 0;
+    let atrasadosCriticos = 0;
+    let atrasadosModerados = 0;
     let hojeAmanha = 0;
     let prioritarios = 0;
+    let emProducao = 0;
+    let finalizados = 0;
+    let pendentesDistribuicao = 0;
 
     todosPedidosCD.forEach(p => {
-      if (p.prioridade) prioritarios++;
-      const dataAlvo = p.data_previsao_fabrica || p.data_entrega;
-      const d = diasUteisRestantes(dataAlvo);
-      if (d != null && !isNaN(d)) {
-        if (d < 0) atrasados++;
-        else if (d <= 1) hojeAmanha++;
+      const isConcluido = p.status_pcp === "concluido" || (p.percentual_concluido != null && p.percentual_concluido >= 100);
+
+      if (isConcluido) {
+        finalizados++;
+      } else {
+        if (p.status_pcp === "em_producao") emProducao++;
+        if (!p.status_pcp || ["pendente_distribuicao", "pendente"].includes(p.status_pcp)) {
+          pendentesDistribuicao++;
+        }
+        if (p.prioridade) prioritarios++;
+
+        const dataAlvo = p.data_previsao_fabrica || p.data_entrega;
+        const d = diasUteisRestantes(dataAlvo);
+        if (d != null && !isNaN(d)) {
+          if (d < 0) {
+            atrasados++;
+            if (d <= -5) atrasadosCriticos++;
+            else atrasadosModerados++;
+          } else if (d === 0 || d === 1) {
+            hojeAmanha++;
+          }
+        }
       }
     });
 
     return {
-      total: todosPedidosCD.length,
+      total: todosPedidosCD.filter(p => p.status_pcp !== "concluido" && (p.percentual_concluido == null || p.percentual_concluido < 100)).length,
+      totalGeral: todosPedidosCD.length,
       atrasados,
+      atrasadosCriticos,
+      atrasadosModerados,
       hojeAmanha,
       prioritarios,
-      naoDistribuidos: naoDistribuidos.length
+      emProducao,
+      finalizados,
+      naoDistribuidos: pendentesDistribuicao
     };
-  }, [todosPedidosCD, naoDistribuidos]);
+  }, [todosPedidosCD]);
 
   // Handlers de Preset e Limpeza
   const handleSelectPreset = (presetId) => {
@@ -186,20 +246,36 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
     setDataFim("");
   };
 
-  // Agrupar itens de CD por espessura (bitola) com filtros de urgência, data e ordenação
+  // Agrupar itens de CD por espessura (bitola) com filtros de urgência, status, data e ordenação
   const gruposEspessura = useMemo(() => {
     const mapa = new Map();
-    // No filtro "Não Distribuídos", usa a base de pendentes; nos demais, usa todosPedidosCD para nunca sumir pedido
-    const base = filtroUrgencia === "nao_distribuidos" ? naoDistribuidos : todosPedidosCD;
 
-    base.forEach(pedido => {
+    todosPedidosCD.forEach(pedido => {
+      const isConcluido = pedido.status_pcp === "concluido" || (pedido.percentual_concluido != null && pedido.percentual_concluido >= 100);
       const dataAlvo = pedido.data_previsao_fabrica || pedido.data_entrega;
       const d = diasUteisRestantes(dataAlvo);
 
-      // 1. Filtros de Urgência
-      if (filtroUrgencia === "mais_atrasados" && !(d != null && d < 0)) return;
-      if (filtroUrgencia === "hoje_amanha" && !(d != null && (d === 0 || d === 1))) return;
-      if (filtroUrgencia === "prioritarios" && !pedido.prioridade) return;
+      // 1. Filtros de Urgência e Status
+      if (filtroUrgencia === "mais_atrasados") {
+        if (isConcluido || !(d != null && d < 0)) return;
+      } else if (filtroUrgencia === "atraso_critico") {
+        if (isConcluido || !(d != null && d <= -5)) return;
+      } else if (filtroUrgencia === "atraso_moderado") {
+        if (isConcluido || !(d != null && d < 0 && d > -5)) return;
+      } else if (filtroUrgencia === "hoje_amanha") {
+        if (isConcluido || !(d != null && (d === 0 || d === 1))) return;
+      } else if (filtroUrgencia === "prioritarios") {
+        if (isConcluido || !pedido.prioridade) return;
+      } else if (filtroUrgencia === "em_producao") {
+        if (isConcluido || pedido.status_pcp !== "em_producao") return;
+      } else if (filtroUrgencia === "finalizados") {
+        if (!isConcluido) return;
+      } else if (filtroUrgencia === "nao_distribuidos") {
+        if (isConcluido || (pedido.status_pcp && !["pendente_distribuicao", "pendente"].includes(pedido.status_pcp))) return;
+      } else if (filtroUrgencia === "todos") {
+        // No filtro 'todos', se não há busca ativa por texto, esconde os 100% concluídos para focar no que há para fazer
+        if (!termoBusca.trim() && isConcluido) return;
+      }
 
       // 2. Filtro de Intervalo de Datas (Data X até Data Y)
       if (dataInicio || dataFim) {
@@ -236,12 +312,15 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
 
       const itens = getItens(pedido);
 
-      // Exibe TODOS os itens de C&D do pedido — cada um ganha o selo
-      // "Distribuído → Máquina" ou "Não Distribuído" na renderização
+      // Exibe TODOS os itens de C&D do pedido
       itens.forEach(item => {
-        if (classGrupo(item) !== "cd") return;
+        if (!isItemCD(item, pedido)) return;
 
-        const esp = item.espessura || "—";
+        let esp = item.espessura;
+        if (!esp || esp === "—") {
+          const matchEsp = String(item.produto || item.descricao || "").match(/(\d+[.,]\d+)/);
+          esp = matchEsp ? matchEsp[1].replace(",", ".") : "Sob Medida";
+        }
         if (!mapa.has(esp)) mapa.set(esp, []);
         mapa.get(esp).push({ pedido, item, idx: item._idx != null ? item._idx : 0 });
       });

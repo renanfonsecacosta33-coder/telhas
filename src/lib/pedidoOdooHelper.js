@@ -107,6 +107,25 @@ export function classGrupo(itemOrCat, produtoNome = "") {
       if ((itemOrCat.itens_frisada_count || 0) > 0 && !(itemOrCat.itens_cd_count > 0) && !(itemOrCat.itens_telha_count > 0)) return "frisada";
       if ((itemOrCat.itens_telha_count || 0) > 0 && !(itemOrCat.itens_cd_count > 0) && !(itemOrCat.itens_frisada_count > 0)) return "telha";
     }
+
+    // Se o item/pedido tem setor explícito definido (ex: atribuído pelo PCP ou Odoo)
+    const setorObj = String(itemOrCat.setor || itemOrCat.sector || "").trim().toLowerCase();
+    if (setorObj === "cd" || setorObj === "corte_dobra") return "cd";
+    if (setorObj === "frisada" || setorObj === "frisadas") return "frisada";
+
+    // Se o item já possui máquina atribuída no PCP:
+    const maqStr = String(itemOrCat.maquina || itemOrCat.machine || itemOrCat.maquina_alocada || "").trim().toLowerCase();
+    if (maqStr) {
+      if (/(dobradeira|guilhotina|plasma|corte\s*3m|corte\s*6m|dobra\s*3m|dobra\s*6m|perfiladeira|desbobinadeira)/i.test(maqStr)) {
+        return "cd";
+      }
+      if (/(frisada|expedi[cç][aã]o)/i.test(maqStr)) {
+        return "frisada";
+      }
+      if (/(tp\s*-\s*25|tp\s*-\s*40|ondulada|colonial|desbobinador\b)/i.test(maqStr)) {
+        return "telha";
+      }
+    }
   } else {
     cat = String(itemOrCat || "").trim().toLowerCase();
     prod = String(produtoNome || "").trim().toLowerCase();
@@ -121,20 +140,34 @@ export function classGrupo(itemOrCat, produtoNome = "") {
     return itemOrCat.setor_forcado;
   }
 
+  // Se o item/pedido tiver máquina programada em qualquer um dos itens filhos
+  if (itens.length > 0) {
+    const temMaqCdFilho = itens.some(it => {
+      const m = String(it?.maquina || it?.machine || "").toLowerCase();
+      return /(dobradeira|guilhotina|plasma|corte\s*3m|corte\s*6m|dobra\s*3m|dobra\s*6m|perfiladeira|desbobinadeira)/i.test(m);
+    });
+    const temMaqTelhaFilho = itens.some(it => {
+      const m = String(it?.maquina || it?.machine || "").toLowerCase();
+      return /(tp\s*-\s*25|tp\s*-\s*40|ondulada|colonial|desbobinador\b)/i.test(m);
+    });
+    if (temMaqCdFilho && !temMaqTelhaFilho) return "cd";
+  }
+
   // Texto consolidado para busca de palavras-chave
   const textoGeral = `${cat} ${prod} ${desc} ${obs} ${ofNome} ${textosItensAgregados}`.toLowerCase();
 
   // 1. Frisadas / Lambris (prioridade exclusiva de Frisada/Expedição)
   if (["frisadas", "frisada"].includes(cat) || /(frisad|lambri)/i.test(textoGeral)) return "frisada";
 
-  // 2. CORTE E DOBRA (100% Perfis, Cantoneiras, Chapas/Chaparia, Cotas de Dobra e Itens em KG)
+  // 2. CORTE E DOBRA (100% Perfis, Cantoneiras, Chapas/Chaparia, Dobras, Calhas/Rufos, Cotas de Dobra e Itens em KG)
   // Regra de ouro da fábrica AJL:
   // - Chapas (incluindo erros de digitação: CHAAPA, CHAAAAPA, CHPA, CHAPARIA, CH. 0,95, etc.) são SEMPRE CORTE E DOBRA!
   // - Qualquer item com unidade KG ou com indicação de peso em KG (ex: 68 kg) é CORTE E DOBRA (telhas nunca são vendidas em KG)!
   // - Peças com cotas de dobra (ex: 20X380X20X20X3000) são peças de dobradeira CNC/manual -> CORTE E DOBRA!
   // - Tudo que for PERFIL, CANTONEIRA, TRILHO, BARRA, TUBO, DOBRA, GUILHOTINA, SLITTER é CORTE E DOBRA 100%!
-  const isChapa = /(\bch+a+p+a[s]?\b|\bchpas?\b|\bchaparia\b|\bch\s*[0-9]+[,\.]|\bchapa\s*dobrad)/i.test(textoGeral);
-  const isPerfilCd = /(perfil|perfis|cantoneir|trilho|barra|tubo|corte\s*e\s*dobra|corte_dobra|\bcd\b|guilhot|slitter|oxicorte|oxiacet|chanfr|dobradeir|dobrada|dobrado|\bdobra\b)/i.test(textoGeral);
+  // - Calhas, rufos e pingadeiras dobradas são peças clássicas de dobradeira 3m/6m de Corte e Dobra!
+  const isChapa = /(\bch+a+p+a[s]?\b|\bchpas?\b|\bchaparia\b|\bch\s*[0-9]+[,\.]|\bchapa\s*dobrad|\bblank\b|\bblanks\b)/i.test(textoGeral);
+  const isPerfilCd = /(perfil|perfis|cantoneir|trilho|barra|tubo|corte\s*e\s*dobra|corte_dobra|\bcd\b|guilhot|slitter|oxicorte|oxiacet|chanfr|dobradeir|dobrada|dobrado|\bdobra\b|pingadeira|rufo|calha|colarinho|cabeceira|condutor)/i.test(textoGeral);
   const temCotasDobra = /\b\d+\s*x\s*\d+\s*x\s*\d+/i.test(textoGeral);
   const temKg = (
     ["KG", "KGS", "QUILO", "QUILOS"].includes(unid) ||
@@ -144,28 +177,41 @@ export function classGrupo(itemOrCat, produtoNome = "") {
     /\b\d+([,\.]\d+)?\s*kg\b/i.test(textoGeral)
   );
 
-  // Telhas e bobininhas nunca são C&D, mas se não tiver termo expresso de telha perfilada/bobininha:
-  const isTelhaOuBobininhaExpressa = /\b(telha|bobininha|bobinina|bobina|desbobinamento|cumeeira|calha|rufo|pingadeira)\b/i.test(textoGeral);
+  // Telhas e bobininhas perfiladas contínuas (exclusivo galpão telhas):
+  const isTelhaOuBobininhaExpressa = /\b(telha|bobininha|bobinina|bobina\s*fita|desbobinamento\s*fita)\b/i.test(textoGeral) && !isChapa && !temCotasDobra;
 
   if (isChapa || isPerfilCd || temCotasDobra || (temKg && !isTelhaOuBobininhaExpressa)) {
     return "cd";
   }
 
-  // 3. TELHAS (Bobininhas, Telhas, Cumeeiras, Calhas, Rufos, Bandejas, etc.)
-  // Regra de ouro da fábrica: Bobininha (e variações: bobinina, fita, desbobinamento) vai SEMPRE para Telhas (máquina DESBOBINADOR),
-  // assim como Telhas, Cumeeiras, Calhas, Rufos e todo o restante!
+  // 3. TELHAS (Bobininhas, Telhas, Cumeeiras padrão)
   return "telha";
 }
 
 /**
- * Normaliza e auto-corrige a unidade de medida do item (KG, BR, UN, MT)
- * Regra de Negócio AJL:
- * - CORTE E DOBRA e FRISADAS: NUNCA usam MT (metros é exclusivo de Telhas!).
- * - O padrão em Corte e Dobra é KG.
- * - Perfis e barras (Padrão - BR, PERFIL, TRILHO, CANTONEIRA, BARRA, c/ 3000, c/ 6000, etc.) são BR.
- * - Itens de contagem unitária (Padrão - UN, acessórios) são UN.
- * - Se o Odoo enviar a unidade errada (ex: MT ou vazia para C&D/Perfis/Frisadas), auto-corrige para BR ou KG.
+ * Identifica se um item específico pertence ao galpão de Corte & Dobra
  */
+export function isItemCD(item, pedido = null) {
+  if (!item) return false;
+  if (item.setor_forcado === "cd") return true;
+  if (item.setor_forcado === "telha" || item.setor_forcado === "frisada") return false;
+  if (item.setor === "cd" || item.setor === "corte_dobra") return true;
+
+  const maq = String(item.maquina || item.machine || item.maquina_alocada || "").trim().toLowerCase();
+  if (/(dobradeira|guilhotina|plasma|corte\s*3m|corte\s*6m|dobra\s*3m|dobra\s*6m|perfiladeira|desbobinadeira)/i.test(maq)) {
+    return true;
+  }
+
+  if (pedido && (pedido.setor === "corte_dobra" || pedido.setor === "cd")) {
+    const prod = String(item.produto || item.descricao || "").toLowerCase();
+    if (!/\b(telha|tp\s*-\s*25|tp\s*-\s*40|ondulada|colonial)\b/i.test(prod)) {
+      return true;
+    }
+  }
+
+  return classGrupo(item) === "cd";
+}
+
 export function normalizarUnidadeMedidaItem(item, setorHint = null) {
   if (!item) return "UN";
 
