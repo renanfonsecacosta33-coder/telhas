@@ -288,13 +288,12 @@ export default function MaquinaPanel({ maquina }) {
         }
 
         // TELHA BANDEJA: fluxo sequencial estrito (TP-40/Colonial → BANDEJA → COLAGEM)
-        // Só acolhe na Colagem se a ordem já avançou de fato para a Colagem (mNorm === "COLAGEM")
-        // e NUNCA se ainda estiver pendente nas perfiladeiras ou com travas de tríade antiga
+        // Acolhe na Colagem se a perfilação foi concluída, se já está aguardando colagem ou se foi atribuída a COLAGEM
         if (isTelhaBandeja(p)) {
           if (p.bloqueado_colagem || (p.tipo_componente_bandeja === "colagem_final" && !p.perfilacao_concluida)) {
             return false;
           }
-          return mNorm === "COLAGEM" && (p.status === "aguardando_colagem" || p.status === "em_producao" || p.status === "pausado" || p.status === "finalizado");
+          return (mNorm === "COLAGEM" || p.status === "aguardando_colagem" || p.perfilacao_concluida === true) && (p.status !== "cancelado");
         }
 
         // A OP SÓ DEVE APARECER NA COLAGEM SE:
@@ -783,6 +782,22 @@ export default function MaquinaPanel({ maquina }) {
       // 0. Cancelados nunca devem aparecer na fila de produção da máquina
       if (p.status === "cancelado") return false;
 
+      // REGRA DE OURO PARA MÁQUINA DE COLAGEM:
+      // Todo pedido que já teve a perfilação tirada e está aguardando colagem
+      // DEVE APARECER HOJE NA FILA DE COLAGEM, mesmo que a data planejada original seja futura ou anterior!
+      if (targetNorm === "COLAGEM") {
+        if (p.status === "aguardando_colagem" || p.status === "em_producao" || p.status === "pausado") {
+          return true;
+        }
+        if (p.data_finalizacao === selectedDay || (isHoje && p.data_finalizacao && p.data_finalizacao.startsWith(hoje))) {
+          return true;
+        }
+        if (p.data === selectedDay || p.data_perfilacao === selectedDay) {
+          return true;
+        }
+        return false;
+      }
+
       // 1. Data planejada do pedido bate com o dia selecionado
       if (p.data === selectedDay) return true;
       // 2. Data em que as peças foram perfiladas nesta máquina bate com o dia selecionado
@@ -959,6 +974,56 @@ export default function MaquinaPanel({ maquina }) {
   }, [baseParaFiltros, filtroTipo, filtroCor]);
 
   const [limpandoDuplicadas, setLimpandoDuplicadas] = useState(false);
+  const [resgatandoColagem, setResgatandoColagem] = useState(false);
+
+  // Identifica pedidos termoacústicos/EPS que já foram perfilados mas não estão ativos na Colagem
+  const pedidosResgateColagem = useMemo(() => {
+    if (targetNorm !== "COLAGEM") return [];
+    return todosPedidos.filter(p => {
+      if (!p || p.status === "cancelado") return false;
+      if (p.status === "aguardando_colagem" || (maquinaNorm(p.maquina) === "COLAGEM" && p.status !== "finalizado")) {
+        return false;
+      }
+      const temEps = Boolean(
+        (p.produto && ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(p.produto)) ||
+        (p.eps && String(p.eps).trim().length > 0) ||
+        /(eps|manta|sanduiche|sanduíche|isopor|termoacustica|termoacústica|pir|pur|bandeja)/i.test(
+          `${p.produto || ""} ${p.modelo || ""} ${p.item_produto || ""} ${p.observacoes || ""} ${p.observacoes_odoo || ""}`
+        )
+      );
+      if (!temEps) return false;
+
+      // Se já foi perfilado (ou foi finalizado na perfiladeira sem foto de colagem)
+      const jaPerfilado = Boolean(p.perfilacao_concluida || p.data_perfilacao || (p.status === "finalizado" && !p.foto_colagem_eps_url));
+      return jaPerfilado;
+    });
+  }, [todosPedidos, targetNorm]);
+
+  const handleResgatarParaColagem = async () => {
+    if (pedidosResgateColagem.length === 0) return;
+    setResgatandoColagem(true);
+    let count = 0;
+    const hojeStr = format(new Date(), "yyyy-MM-dd");
+    const agoraIso = new Date().toISOString();
+    for (const ped of pedidosResgateColagem) {
+      try {
+        await base44.entities.Pedido.update(ped.id, {
+          status: "aguardando_colagem",
+          maquina: "COLAGEM",
+          maquina_origem: ped.maquina_origem || ped.maquina || "TP - 40",
+          perfilacao_concluida: true,
+          data_perfilacao: ped.data_perfilacao || hojeStr,
+          hora_perfilacao: ped.hora_perfilacao || agoraIso
+        });
+        count++;
+      } catch (err) {
+        console.error("Erro ao resgatar pedido para colagem:", err);
+      }
+    }
+    queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+    setResgatandoColagem(false);
+    toast.success(`${count} pedido(s) trazido(s) para a fila da Máquina de Colagem com sucesso!`);
+  };
   const [finalizadosAbertos, setFinalizadosAbertos] = useState(false);
 
   const {
@@ -1737,6 +1802,32 @@ export default function MaquinaPanel({ maquina }) {
         </div>
       ) : (
         <div className="space-y-4">
+{/* Card de Resgate de Pedidos para Colagem */}
+          {targetNorm === "COLAGEM" && pedidosResgateColagem.length > 0 && (
+            <div className="bg-purple-500/10 border-2 border-purple-500/40 rounded-xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3 text-purple-900 dark:text-purple-200 shadow-sm animate-in fade-in">
+              <div className="flex items-center gap-2.5">
+                <Layers className="w-5 h-5 text-purple-600 shrink-0" />
+                <div>
+                  <p className="font-bold text-sm">
+                    📥 {pedidosResgateColagem.length} pedido(s) termoacústico(s) já tirado(s) aguardando colagem
+                  </p>
+                  <p className="text-xs text-purple-700 dark:text-purple-300">
+                    Peças já perfiladas na fábrica que necessitam de EPS e colagem.
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs gap-1.5 shadow-sm ml-auto"
+                disabled={resgatandoColagem}
+                onClick={handleResgatarParaColagem}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {resgatandoColagem ? "Puxando..." : `Puxar ${pedidosResgateColagem.length} para a Fila de Colagem`}
+              </Button>
+            </div>
+          )}
+
           {/* Alerta inteligente: se houver OPs duplicadas detectadas nesta máquina */}
           {duplicadasDetectadas.length > 0 && (
             <div className="bg-amber-500/10 border-2 border-amber-500/40 rounded-xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3 text-amber-900 dark:text-amber-200 shadow-sm animate-in fade-in">

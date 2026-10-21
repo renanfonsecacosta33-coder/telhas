@@ -812,7 +812,13 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   }, [p.status]);
 
   const borderColor = PRODUTO_BG[p.produto] || "border-l-slate-300";
-  const temEpsReal = PRODUTOS_COM_EPS.includes(p.produto) || (p.produto && p.produto !== "TELHA" && /(eps|manta|sanduiche|isopor|termoacustica)/i.test(p.produto));
+  const temEpsReal = Boolean(
+    PRODUTOS_COM_EPS.includes(p.produto) ||
+    (p.eps && String(p.eps).trim().length > 0) ||
+    /(eps|manta|sanduiche|sanduíche|isopor|termoacustica|termoacústica|pir|pur|bandeja)/i.test(
+      `${p.produto || ""} ${p.modelo || ""} ${p.item_produto || ""} ${p.observacoes || ""} ${p.observacoes_odoo || ""}`
+    )
+  );
   const precisaColagem = temEpsReal;
   const maquinaNorm = (m) => String(m || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
   const mAtualNorm = maquinaNorm(p.maquina);
@@ -2690,6 +2696,23 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
 
               {p.status === "finalizado" && p.maquina !== "COLAGEM" && (
                 <>
+                  <Button
+                    size="sm"
+                    className="gap-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs"
+                    onClick={() => {
+                      onStatusChange(p, "aguardando_colagem", {
+                        maquina: "COLAGEM",
+                        maquina_origem: p.maquina_origem || p.maquina || maquina,
+                        perfilacao_concluida: true,
+                        data_perfilacao: p.data_perfilacao || format(new Date(), "yyyy-MM-dd"),
+                        hora_perfilacao: p.hora_perfilacao || new Date().toISOString()
+                      });
+                      toast.success(`Pedido #${p.numero_pedido} enviado para a Máquina de Colagem!`);
+                    }}
+                    title="Encaminhar este pedido perfilado para a Máquina de Colagem"
+                  >
+                    ➡️ Enviar para Colagem
+                  </Button>
                   {p.atendido_estoque && (
                     <div className="flex items-center gap-1.5 bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 text-teal-800 dark:text-teal-200 px-3 py-1.5 rounded-lg text-xs font-semibold">
                       <PackageCheck className="w-4 h-4 text-teal-600 dark:text-teal-400" />
