@@ -75,11 +75,15 @@ export default function ProducaoEmLoteModal({
         // Checagem anti-duplicação: verifica se já existe OP ativa para este mesmo pedido e item_idx
         if (pedido.id) {
           try {
-            const existentes = await base44.entities.Pedido.filter({
-              pedido_odoo_id: pedido.id,
-              item_idx: itemIdx,
+            let existentes = [];
+            if (pedido.id) existentes = await base44.entities.Pedido.filter({ pedido_odoo_id: pedido.id });
+            if ((!existentes || existentes.length === 0) && pedido.numero_pedido) existentes = await base44.entities.Pedido.filter({ numero_pedido: pedido.numero_pedido });
+            const jaExisteAtivo = existentes?.find(e => {
+              if (e.status === "cancelado") return false;
+              if (itemIdx != null && e.item_idx != null && String(e.item_idx) === String(itemIdx)) return true;
+              if (presetData?.metragem_mm && e.metragem_mm && Number(e.metragem_mm) === Number(presetData.metragem_mm) && e.maquina === maquinaFinal) return true;
+              return false;
             });
-            const jaExisteAtivo = existentes?.find(e => e.status !== "cancelado");
             if (jaExisteAtivo) {
               console.warn(`[ProducaoEmLote] OP já existe para pedido ${pedido.numero_pedido} item ${itemIdx}. Ignorando criação duplicada.`);
               criados++;

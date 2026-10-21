@@ -8,7 +8,7 @@ import {
   Play, CheckCircle2, Inbox, Factory, Calendar, User, Loader2,
   Star, CalendarClock,
   Store, Layers, XCircle, Zap, CheckSquare, Square,
-  Undo2, Sparkles
+  Undo2, Sparkles, AlertTriangle, Trash2
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -24,7 +24,7 @@ import {
 import {
   getItens, itensPorGrupo, computePercentual,
   buildItensJson, statusPcpPorPercentual, STATUS_ITEM, saoPedidosIguais,
-  localizarOpDoItem, normalizarUnidadeMedidaItem, detectarMaquinaTelha
+  localizarOpDoItem, normalizarUnidadeMedidaItem, detectarMaquinaTelha, gerarAssinaturaOp
 } from "@/lib/pedidoOdooHelper";
 import { formatDataBR, diasUteisRestantes } from "@/lib/sla";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
@@ -71,6 +71,48 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
   const [pedidoParaFinalizar100, setPedidoParaFinalizar100] = useState(null);
   const [autoRoteamentoAtivo, setAutoRoteamentoAtivo] = useState(() => isAutoRoteamentoTelhasAtivo());
   const [processandoAutoRoteamento, setProcessandoAutoRoteamento] = useState(false);
+  const [limpandoDuplicadasPCP, setLimpandoDuplicadasPCP] = useState(false);
+
+  // Detecção de OPs idênticas duplicadas nas máquinas de Telhas
+  const duplicadasDetectadasPCP = useMemo(() => {
+    const vistos = new Map();
+    const dups = [];
+    (pedidosProducao || []).forEach(op => {
+      if (!op || op.status === "cancelado" || op.status === "finalizado") return;
+      const chave = gerarAssinaturaOp(op);
+      if (chave) {
+        if (vistos.has(chave)) {
+          dups.push(op);
+        } else {
+          vistos.set(chave, op.id);
+        }
+      }
+    });
+    return dups;
+  }, [pedidosProducao]);
+
+  const handleLimparDuplicadasPCP = async () => {
+    if (duplicadasDetectadasPCP.length === 0) return;
+    if (!window.confirm(`Foram detectadas ${duplicadasDetectadasPCP.length} OP(s) duplicada(s) pendente(s) na fábrica.\nDeseja remover as cópias excedentes agora?\nO sistema manterá a 1ª OP original e removerá apenas as duplicadas repetidas.`)) return;
+    setLimpandoDuplicadasPCP(true);
+    let removidos = 0;
+    for (const dup of duplicadasDetectadasPCP) {
+      try {
+        await base44.entities.Pedido.delete(dup.id);
+        removidos++;
+      } catch (err) {
+        console.error("Erro ao remover duplicada PCP:", err);
+      }
+    }
+    queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+    queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+    setLimpandoDuplicadasPCP(false);
+    toast({
+      title: "Limpeza concluída!",
+      description: `${removidos} OP(s) duplicada(s) removida(s) com sucesso. Apenas as ordens originais foram mantidas.`,
+      className: "border-emerald-500/40"
+    });
+  };
 
   const filialCtx = useFilial();
   const filialAtiva = filialCtx?.filialAtiva;
@@ -1001,6 +1043,33 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
           onViewModeChange={setViewMode}
         />
       </div>
+
+      {/* ⚠️ ALERTA DE OPs DUPLICADAS DETECTADAS NAS MÁQUINAS */}
+      {duplicadasDetectadasPCP.length > 0 && (
+        <div className="mx-4 sm:mx-6 my-2 p-3 sm:p-4 bg-amber-500/10 border-2 border-amber-500/30 rounded-xl flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div>
+              <p className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                ⚠️ {duplicadasDetectadasPCP.length} OP(s) duplicada(s) detectada(s) nas máquinas de Telhas!
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                Ordens repetidas com mesmas medidas e status pendente na fábrica.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={handleLimparDuplicadasPCP}
+            disabled={limpandoDuplicadasPCP}
+            className="h-8 text-xs font-bold gap-1.5 shadow-sm"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            {limpandoDuplicadasPCP ? "Removendo..." : `Limpar ${duplicadasDetectadasPCP.length} Duplicada(s)`}
+          </Button>
+        </div>
+      )}
 
       <ResumoFilaPCPTelhas analise={analiseFila} />
 

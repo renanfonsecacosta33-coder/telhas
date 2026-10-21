@@ -417,14 +417,25 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     foto_pedido_url: item.foto_url || item.imagem_url || pedido.foto_pedido_url || extrairCroquiPedido(pedido) || ""
   };
 
-  // 4. Verificação anti-duplicação: checa se já existe OP ativa para este mesmo item
+  // 4. Verificação anti-duplicação estrita: checa se já existe OP ativa para este mesmo item/medida
   let opCriada = null;
+  let foiAtualizada = false;
   try {
-    const opsExistentes = await base44.entities.Pedido.filter({
-      pedido_odoo_id: pedido.id,
-      item_idx: itemIdx
+    let opsExistentes = [];
+    if (pedido?.id) {
+      opsExistentes = await base44.entities.Pedido.filter({ pedido_odoo_id: pedido.id });
+    }
+    if ((!opsExistentes || opsExistentes.length === 0) && pedido?.numero_pedido) {
+      opsExistentes = await base44.entities.Pedido.filter({ numero_pedido: pedido.numero_pedido });
+    }
+    const opsValidas = (opsExistentes || []).filter(o => o && String(o.status || "").toLowerCase() !== "cancelado");
+    const opValida = opsValidas.find(o => {
+      if (itemIdx != null && o.item_idx != null && String(o.item_idx) === String(itemIdx)) return true;
+      const mesmaMaq = !o.maquina || String(o.maquina).trim().toUpperCase() === String(maquina).trim().toUpperCase();
+      const mmMatch = Number(metragemMm) && Number(o.metragem_mm) === Number(metragemMm);
+      const qtdMatch = Number(qtdChapas) && (Number(o.metros) === Number(qtdChapas) || Number(o.quantidade_telhas) === Number(qtdChapas));
+      return mesmaMaq && mmMatch && qtdMatch;
     });
-    const opValida = opsExistentes.find(o => o.status !== "cancelado");
     if (opValida) {
       // PRESERVAÇÃO TOTAL: OP existente NUNCA tem suas bobinas ou modelo sobrescritos se já foram alterados manualmente!
       const updates = {};
@@ -498,6 +509,7 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
 
   return {
     op: opCriada,
+    foiAtualizada,
     maquina,
     bobina: bobinaEleita
   };
@@ -749,14 +761,28 @@ export async function rotearLoteTelhasAgrupadas({
       foto_pedido_url: primeiroItem.foto_url || primeiroItem.imagem_url || pedido.foto_pedido_url || extrairCroquiPedido(pedido) || ""
     };
 
-    // Verificação anti-duplicação:
+    // Verificação anti-duplicação estrita de lote:
     let opCriada = null;
+    let foiAtualizada = false;
     try {
-      const opsExistentes = await base44.entities.Pedido.filter({
-        pedido_odoo_id: pedido.id,
-        item_idx: itemPrincipalIdx
+      let opsExistentes = [];
+      if (pedido?.id) {
+        opsExistentes = await base44.entities.Pedido.filter({ pedido_odoo_id: pedido.id });
+      }
+      if ((!opsExistentes || opsExistentes.length === 0) && pedido?.numero_pedido) {
+        opsExistentes = await base44.entities.Pedido.filter({ numero_pedido: pedido.numero_pedido });
+      }
+      const opsValidas = (opsExistentes || []).filter(o => o && String(o.status || "").toLowerCase() !== "cancelado");
+      const opValida = opsValidas.find(o => {
+        if (o.item_idx != null && String(o.item_idx) === String(itemPrincipalIdx)) return true;
+        if (o.itens_indices) {
+          try {
+            const list = Array.isArray(o.itens_indices) ? o.itens_indices : JSON.parse(o.itens_indices);
+            if (Array.isArray(list) && todosIndices.some(idx => list.includes(idx))) return true;
+          } catch {}
+        }
+        return false;
       });
-      const opValida = opsExistentes.find(o => o.status !== "cancelado");
       if (opValida) {
         // PRESERVAÇÃO TOTAL: OP existente NUNCA tem suas bobinas ou modelo sobrescritos!
         const updates = {};

@@ -21,7 +21,7 @@ import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
 import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERelatorioMaquinaModal";
 import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
-import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo, detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
+import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo, detectarMaquinaTelha, gerarAssinaturaOp } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import {
   SeletorPrioridadeDropdown,
@@ -1038,13 +1038,9 @@ export default function MaquinaPanel({ maquina }) {
     const vistos = new Map();
     const dups = [];
     const marcarDups = (lista) => lista.map(p => {
-      const presets = p._presets || {};
-      const numPed = p.numero_pedido || presets.numero_pedido || "";
-      const odooId = p.pedido_odoo_id || presets.pedido_odoo_id || "";
-      const itemIdx = p.item_idx != null ? p.item_idx : (presets.item_idx != null ? presets.item_idx : "");
-      const metros = p.metros != null ? p.metros : (presets.metros || 0);
-      const mm = p.metragem_mm != null ? p.metragem_mm : (presets.metragem_mm || 0);
-      const chave = odooId ? `${odooId}_${itemIdx}` : (numPed ? `${numPed}_${metros}_${mm}` : "");
+      // Assinatura rigorosa: mesmo pedido + mesma maquina + modelo + mesmas medidas
+      // Nao confunde cortes diferentes do mesmo pedido com duplicatas
+      const chave = gerarAssinaturaOp(p);
 
       if (chave && p.status === "pendente") {
         if (vistos.has(chave)) {

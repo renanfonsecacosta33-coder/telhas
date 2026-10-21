@@ -1308,3 +1308,38 @@ export function obterStatusExecucaoPedido(pedido, pedidosProducao = [], ordensCD
     opsVinculadas: []
   };
 }
+
+/**
+ * Gera uma assinatura técnica única para uma OP a fim de detectar cópias idênticas reais.
+ * Distingue cortes e itens diferentes do mesmo pedido por suas medidas (mm, metros, variações),
+ * evitando falsos positivos quando um pedido tem múltiplos comprimentos.
+ */
+export function gerarAssinaturaOp(op) {
+  if (!op) return "";
+  const presets = op._presets || {};
+  const numPed = String(op.numero_pedido || presets.numero_pedido || "").trim().toUpperCase();
+  const odooId = String(op.pedido_odoo_id || presets.pedido_odoo_id || "").trim();
+  const idPedido = odooId || numPed;
+  if (!idPedido) return "";
+
+  const maquina = String(op.maquina || presets.maquina || "").trim().toUpperCase();
+  const itemIdx = op.item_idx != null && op.item_idx !== "" ? String(op.item_idx) : (presets.item_idx != null && presets.item_idx !== "" ? String(presets.item_idx) : "");
+  const modelo = String(op.modelo || op.produto || op.item_produto || presets.modelo || "").trim().toUpperCase();
+  const metros = Number(op.metros != null ? op.metros : (presets.metros || 0));
+  const mm = Number(op.metragem_mm != null ? op.metragem_mm : (presets.metragem_mm || 0));
+  const qtdTelhas = Number(op.quantidade_telhas || 0);
+
+  let varsStr = "";
+  try {
+    const rawVars = op.variacoes_telhas || presets.variacoes_telhas;
+    if (rawVars) {
+      const parsed = typeof rawVars === "string" ? JSON.parse(rawVars) : rawVars;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        varsStr = parsed.map(v => `${v.qtd || v.quantidade || 0}x${v.mm || v.tamanho_m || 0}`).sort().join(";");
+      }
+    }
+  } catch {}
+
+  // A chave exige que coincidam: pedido, máquina, modelo, itemIdx (se houver) e medidas completas
+  return `${idPedido}|${maquina}|${itemIdx}|${modelo}|${metros}|${mm}|${qtdTelhas}|${varsStr}`;
+}

@@ -285,9 +285,23 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
       if (st === "cancelado") return false; // OP cancelada permite relançar
       if (!saoPedidosIguais(p.numero_pedido, numAtual)) return false;
 
-      // Se ambos tiverem pedido_odoo_id vinculado, só é duplicado se for para o MESMO pedido_odoo_id
-      if (form.pedido_odoo_id && p.pedido_odoo_id) {
-        return p.pedido_odoo_id === form.pedido_odoo_id;
+      // Se ambos tiverem pedido_odoo_id vinculado e forem diferentes, não é duplicado
+      if (form.pedido_odoo_id && p.pedido_odoo_id && form.pedido_odoo_id !== p.pedido_odoo_id) {
+        return false;
+      }
+      // Se ambos tiverem of_odoo_id vinculado e forem diferentes, não é duplicado
+      if (form.of_odoo_id && p.of_odoo_id && String(form.of_odoo_id).trim() !== String(p.of_odoo_id).trim()) {
+        return false;
+      }
+      // Se tiverem item_idx diferente, são itens distintos
+      if (form.item_idx != null && p.item_idx != null && String(form.item_idx) !== String(p.item_idx)) {
+        return false;
+      }
+      // Se tiverem medidas/comprimentos diferentes, não é duplicado
+      const mmForm = Number(form.metragem_mm || 0);
+      const mmP = Number(p.metragem_mm || 0);
+      if (mmForm && mmP && mmForm !== mmP) {
+        return false;
       }
       // Se ambos tiverem of_odoo_id vinculado, só é duplicado se for para a MESMA OF
       if (form.of_odoo_id && p.of_odoo_id) {
