@@ -1578,6 +1578,12 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                               <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex-wrap">
                                 {item.medida && <span>Medida: <strong className="text-foreground">{item.medida}</strong></span>}
                                 <span>Metragem Linear: <strong className="text-orange-600 dark:text-orange-400 font-bold">{item.quantidade} MT</strong></span>
+                                {!maquinaItem && !detectarMaquinaTelha(`${item.produto || ""} ${item.descricao || ""}`) && (
+                                  <Badge className="bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border-amber-300 text-[10px] font-black uppercase">
+                                    <AlertTriangle className="w-3 h-3 mr-0.5 text-amber-600" />
+                                    Modelo Não Especificado - Definir Manualmente
+                                  </Badge>
+                                )}
                                 {item.espessura && <span>· Chapa <strong>{item.espessura}mm</strong></span>}
                                 {maquinaItem && (
                                   <span className="text-blue-600 dark:text-blue-400 font-bold">
@@ -1610,22 +1616,51 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                                 </Button>
                               )}
 
-                              {/* Roteamento Automático Direto com Bobina deste Item */}
+                              {/* Roteamento Item a Item com Auditoria Estrita de Modelo */}
                               {!pedido._isOpAvulsa && !concluido && (!opDoItem || opDoItem.status === "cancelado") && (
-                                <Button
-                                  size="sm"
-                                  disabled={atualizando === `auto-rotear-${pedido.id}-${finalIdx}`}
-                                  onClick={() => handleAutoRotearItem(pedido, item, finalIdx)}
-                                  className="h-8 px-2.5 text-xs font-bold gap-1 bg-amber-500 hover:bg-amber-600 text-white shadow-xs cursor-pointer"
-                                  title="Enviar este item direto para a perfiladeira com melhor bobina compatível do estoque selecionada pelo Odoo"
-                                >
-                                  {atualizando === `auto-rotear-${pedido.id}-${finalIdx}` ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                  ) : (
-                                    <Zap className="w-3.5 h-3.5 fill-current" />
-                                  )}
-                                  <span>Auto-Máquina</span>
-                                </Button>
+                                (() => {
+                                  const maqDetectada = item.maquina || detectarMaquinaTelha(`${item.produto || ""} ${item.descricao || ""}`);
+                                  if (!maqDetectada) {
+                                    return (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                          if (onNovaOrdem) {
+                                            onNovaOrdem(pedido, {
+                                              ...item,
+                                              _idx: finalIdx,
+                                              maquina: "",
+                                              data: pedido.data_entrega
+                                            });
+                                          }
+                                        }}
+                                        className="h-8 px-2.5 text-xs font-bold gap-1 border-amber-400 dark:border-amber-600 text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 shadow-xs cursor-pointer animate-pulse"
+                                        title="Modelo não especificado. Clique para conferir a descrição do vendedor e definir a máquina manualmente."
+                                      >
+                                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                                        <span>Definir Máquina</span>
+                                      </Button>
+                                    );
+                                  }
+
+                                  return (
+                                    <Button
+                                      size="sm"
+                                      disabled={atualizando === `auto-rotear-${pedido.id}-${finalIdx}`}
+                                      onClick={() => handleAutoRotearItem(pedido, item, finalIdx)}
+                                      className="h-8 px-2.5 text-xs font-bold gap-1 bg-amber-500 hover:bg-amber-600 text-white shadow-xs cursor-pointer"
+                                      title={`Enviar para ${maqDetectada} com seleção automática de bobina`}
+                                    >
+                                      {atualizando === `auto-rotear-${pedido.id}-${finalIdx}` ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      ) : (
+                                        <Zap className="w-3.5 h-3.5 fill-current" />
+                                      )}
+                                      <span>Auto-Máquina (${maqDetectada})</span>
+                                    </Button>
+                                  );
+                                })()
                               )}
 
                               {onNovaOrdem && (

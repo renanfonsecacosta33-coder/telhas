@@ -261,6 +261,137 @@ export default function AuditarRestaurarOpsDialog({
     }
   };
 
+  // ── RECOLHIMENTO E RESET DAS MÁQUINAS (Limpeza da Fila) ──
+  const recolherEResetarMaquinas = async () => {
+    if (!window.confirm(
+      "⚠️ RECOLHER E RESETAR FILA DAS MÁQUINAS\n\n" +
+      "Esta ação irá recolher todas as ordens de produção ativas e pendentes alocadas nas máquinas de volta para a Central do PCP.\n\n" +
+      "• Pedidos já 100% concluídos ou faturados NÃO serão alterados.\n" +
+      "• OPs órfãs e duplicatas serão canceladas.\n" +
+      "• Todos os itens pendentes voltarão para a Central PCP para reauditoria item a item.\n\n" +
+      "Deseja prosseguir com o recolhimento geral?"
+    )) return;
+
+    setExecutando(true);
+    setResultado(null);
+    const logs = [];
+    let opsRecolhidas = 0;
+    let opsCanceladasOrfas = 0;
+
+    try {
+      // 1. Limpa travas locais de setup de bobina
+      try {
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith("bobina_montada_") || key.startsWith("setup_bobina_") || key.includes("bobina_instalada")) {
+            localStorage.removeItem(key);
+          }
+        });
+      } catch {}
+
+      // 2. Carrega OPs locais e Pedidos Odoo
+      const [todasOps, todosPedidosOdoo] = await Promise.all([
+        base44.entities.Pedido.list("-created_date", 1000).catch(() => []),
+        base44.entities.PedidoOdoo.list("-data_recebimento", 1000).catch(() => [])
+      ]);
+
+      const mapOdoo = new Map();
+      todosPedidosOdoo.forEach(p => {
+        if (!p) return;
+        const numPuro = String(p.numero_pedido || "").replace(/^#/, "").trim().toUpperCase();
+        if (numPuro) mapOdoo.set(numPuro, p);
+      });
+
+      const todayIso = new Date().toISOString().slice(0, 10);
+
+      for (const op of todasOps) {
+        if (!op || !op.id) continue;
+        // Não altera pedidos já faturados ou 100% concluídos
+        if (op.status === "finalizado" || op.status === "cancelado") continue;
+
+        const numOpPuro = String(op.numero_pedido || "").replace(/^#/, "").trim().toUpperCase();
+        const pedOdoo = mapOdoo.get(numOpPuro);
+
+        // Se a OP é órfã (sem pedido Odoo correspondente)
+        if (!pedOdoo) {
+          await base44.entities.Pedido.update(op.id, {
+            status: "cancelado",
+            data_finalizacao: todayIso,
+            observacoes: (op.observacoes || "") + " [Cancelado: OP Órfã / Reset PCP]"
+          });
+          opsCanceladasOrfas++;
+          logs.push({
+            pedido: op.numero_pedido || op.id,
+            cliente: op.cliente,
+            maquina: op.maquina,
+            mensagem: "OP órfã cancelada e removida da máquina."
+          });
+          continue;
+        }
+
+        // Se o pedido no Odoo já foi concluído ou faturado, mantém intacto
+        const pedStatus = String(pedOdoo.status || pedOdoo.status_pcp || "").toLowerCase();
+        if (pedStatus === "concluido" || pedStatus === "faturado") {
+          continue;
+        }
+
+        // Cancela a OP ativa na máquina
+        await base44.entities.Pedido.update(op.id, {
+          status: "cancelado",
+          data_finalizacao: todayIso,
+          observacoes: (op.observacoes || "") + " [Recolhido para Central PCP]"
+        });
+
+        // Reseta os itens do PedidoOdoo para ficarem pendentes de máquina no PCP
+        const itens = getItens(pedOdoo);
+        let alterou = false;
+        const itensZerados = itens.map(it => {
+          if (it.status !== "concluido") {
+            alterou = true;
+            return {
+              ...it,
+              status: "pendente",
+              status_detalhado: "Pendente de Distribuição",
+              concluido: false,
+              distribuido: false,
+              maquina: ""
+            };
+          }
+          return it;
+        });
+
+        if (alterou) {
+          await base44.entities.PedidoOdoo.update(pedOdoo.id, {
+            itens_json: JSON.stringify(itensZerados),
+            status_pcp: "pendente_distribuicao",
+            distribuido: false
+          });
+        }
+
+        opsRecolhidas++;
+        logs.push({
+          pedido: op.numero_pedido,
+          cliente: op.cliente || pedOdoo.cliente_nome,
+          maquina: op.maquina,
+          mensagem: `OP #${op.numero_pedido} recolhida da ${op.maquina} para a Central PCP.`
+        });
+      }
+
+      setResultado({
+        opsTotal: todasOps.length,
+        opsCorrigidas: opsRecolhidas + opsCanceladasOrfas,
+        logs
+      });
+
+      toast.success(`Reset concluído! ${opsRecolhidas} OP(s) recolhidas para o PCP e ${opsCanceladasOrfas} OP(s) órfãs canceladas.`);
+      if (onSucesso) onSucesso();
+    } catch (err) {
+      console.error("[Reset Geral] Erro:", err);
+      toast.error("Erro ao resetar máquinas: " + (err?.message || ""));
+    } finally {
+      setExecutando(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -297,20 +428,20 @@ export default function AuditarRestaurarOpsDialog({
             </ul>
           </div>
 
-          {/* Botão de Disparo */}
+          {/* Botão 1: Auditoria & Restauração de Modelos */}
           <div className="flex items-center justify-between p-4 bg-orange-50/60 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900/40 rounded-xl">
             <div>
               <p className="text-xs font-bold text-orange-900 dark:text-orange-200">
-                Iniciar Varredura em Massa
+                Auditar & Restaurar Modelos Odoo
               </p>
               <p className="text-[11px] text-orange-700/80 dark:text-orange-300/80">
-                Leva poucos segundos e não afeta pedidos em produção.
+                Corrige modelos corrompidos e repara bobinas de telhas duplas.
               </p>
             </div>
             <Button
               onClick={executarAuditoria}
               disabled={executando}
-              className="bg-orange-600 hover:bg-orange-700 text-white font-bold h-9 px-4 text-xs gap-1.5 shrink-0"
+              className="bg-orange-600 hover:bg-orange-700 text-white font-bold h-9 px-4 text-xs gap-1.5 shrink-0 cursor-pointer"
             >
               {executando ? (
                 <>
@@ -320,7 +451,35 @@ export default function AuditarRestaurarOpsDialog({
               ) : (
                 <>
                   <ShieldCheck className="w-4 h-4" />
-                  Executar Auditoria Agora
+                  Executar Auditoria
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Botão 2: Recolhimento Geral e Reset das Máquinas */}
+          <div className="flex items-center justify-between p-4 bg-red-50/70 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-xl">
+            <div>
+              <p className="text-xs font-bold text-red-950 dark:text-red-200 flex items-center gap-1.5">
+                <span>🔄 Recolher & Resetar Filas das Máquinas</span>
+              </p>
+              <p className="text-[11px] text-red-800/80 dark:text-red-300/80">
+                Devolve todas as OPs pendentes das máquinas para a Central do PCP para reauditoria item a item. Cancela órfãs e duplicatas. Não afeta pedidos concluídos.
+              </p>
+            </div>
+            <Button
+              onClick={recolherEResetarMaquinas}
+              disabled={executando}
+              className="bg-red-600 hover:bg-red-700 text-white font-bold h-9 px-4 text-xs gap-1.5 shrink-0 cursor-pointer shadow-xs"
+            >
+              {executando ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  Resetando...
+                </>
+              ) : (
+                <>
+                  <span>↩️ Resetar Filas para o PCP</span>
                 </>
               )}
             </Button>
