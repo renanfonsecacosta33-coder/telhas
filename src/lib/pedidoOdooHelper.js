@@ -828,13 +828,11 @@ export function detectarMaquinaTelha(produtoTexto = "") {
   if (/(ONDULAD|PERFIL\s*17|\b17\s*MM\b)/i.test(p)) return "ONDULADA";
   if (p.includes("COLONIAL")) return "COLONIAL";
 
-  // 5. Se o produto é explicitamente TELHA ou TRAPÉZIO (sem especificar número), o padrão da fábrica é TP - 40
-  const ehTelha = p.includes("TELHA") || p.includes("TRAPEZIO") || p.includes("TRAPÉZIO");
-  if (ehTelha) return "TP - 40";
-
-  // 6. Bandeja avulsa (somente se não for Telha Bandeja)
+  // 5. Bandeja avulsa (somente se não for Telha Bandeja)
   if (p.includes("BANDEJA")) return "BANDEJA";
 
+  // 6. Telha SEM MODELO Especificado -> ⛔ NENHUMA MÁQUINA (PCP Pendente)
+  // Regra AJL: NÃO vai automático para TP-40! Cai no PCP como "Modelo Não Especificado - Definir Manualmente"
   return "";
 }
 
@@ -909,7 +907,7 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
   const produtoNome = item?.produto || item?.descricao || "";
   const textoCompleto = `${produtoNome} ${descTexto}`.trim();
   const prodTipo = detectarTipoProdutoTelha(produtoNome, descTexto);
-  const maqDetectada = detectarMaquinaTelha(textoCompleto) || "TP - 40";
+  const maqDetectada = detectarMaquinaTelha(textoCompleto);
   const maq = (prodTipo === "BOBININHA" || maqDetectada === "DESBOBINADOR")
     ? "DESBOBINADOR"
     : ((item?.maquina && item.maquina !== "COLAGEM") ? item.maquina : maqDetectada);

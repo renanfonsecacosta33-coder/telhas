@@ -1322,6 +1322,31 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
                             </Badge>
                           )}
 
+                          {!pacoteConcluido && (
+                            (() => {
+                              const temItemSemModelo = telhas.some(t => {
+                                const op = localizarOpDoItem(t, opsDoPedido, telhas);
+                                const hasOp = op && op.status !== "cancelado";
+                                if (hasOp || t.status === "concluido") return false;
+                                const maq = t.maquina || detectarMaquinaTelha(`${t.produto || ""} ${t.descricao || ""}`);
+                                return !maq;
+                              });
+
+                              if (temItemSemModelo) {
+                                return (
+                                  <Badge
+                                    className="bg-amber-500/20 text-amber-800 dark:text-amber-200 border-amber-500/50 text-[10px] font-black uppercase animate-pulse"
+                                    title="Este pedido contém telha sem modelo especificado (ex: TP-40, TP-25, Ondulada). O PCP deve definir a máquina manualmente!"
+                                  >
+                                    <AlertTriangle className="w-3 h-3 mr-0.5 text-amber-600" />
+                                    Modelo Não Especificado - Definir Manualmente
+                                  </Badge>
+                                );
+                              }
+                              return null;
+                            })()
+                          )}
+
                           {!pacoteConcluido && qtdNaoDistribuidos > 0 && (
                             <Badge
                               className="bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40 text-[10px] font-black uppercase"

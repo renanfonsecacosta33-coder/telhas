@@ -1724,15 +1724,16 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                   </span>
                 )}
                 {p.cliente && (
-                  <div className="inline-flex items-center gap-1.5 text-xs sm:text-sm md:text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                    <User className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                    <span>{p.cliente}</span>
+                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs sm:text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                    <User className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                    <span>CLIENTE: {p.cliente}</span>
                   </div>
                 )}
-                {p.vendedor && (
-                  <span className="text-xs text-muted-foreground hidden sm:inline">
-                    Vendedor: <strong className="text-foreground">{p.vendedor}</strong>
-                  </span>
+                {(p.vendedor || p.vendedor_nome) && (
+                  <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs sm:text-sm font-black uppercase tracking-tight bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs">
+                    <span className="text-amber-700 dark:text-amber-400">👤 VENDEDOR:</span>
+                    <strong className="text-slate-900 dark:text-white font-black">{p.vendedor || p.vendedor_nome}</strong>
+                  </div>
                 )}
                 {(() => {
                   const rawData = p.data_entrega || p.data_previsao_fabrica || p.data_prevista || p.data;

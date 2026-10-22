@@ -320,7 +320,12 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     ? "DESBOBINADOR"
     : (prodTipo === "TELHA BANDEJA")
     ? (detectarMaquinaTelha(textoCompleto) || "TP - 40")
-    : (item.maquina || detectarMaquinaTelha(textoCompleto) || "TP - 40");
+    : (item.maquina || detectarMaquinaTelha(textoCompleto) || "");
+
+  // Se o modelo da telha não foi especificado, não roteia automaticamente!
+  if (!maquina) {
+    throw new Error(`Modelo de telha não especificado no pedido #${pedido.numero_pedido || ""}. Defina a máquina manualmente no PCP.`);
+  }
 
   const esp = item.espessura ? String(item.espessura) : (detectarEspessura(textoCompleto) || "0.43");
   const origem = item.origem || detectarOrigemAco(textoCompleto);

@@ -615,9 +615,14 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                   </span>
                 )}
                 {o.cliente && (
-                  <span className="inline-flex items-center gap-1 text-xs font-black text-foreground uppercase tracking-tight">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black text-foreground uppercase tracking-tight bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700">
                     <User className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-                    {o.cliente}
+                    CLIENTE: {o.cliente}
+                  </span>
+                )}
+                {(o.vendedor || o.vendedor_nome) && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase tracking-tight bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                    👤 VENDEDOR: {o.vendedor || o.vendedor_nome}
                   </span>
                 )}
               </div>
@@ -916,15 +921,16 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                   <span className="text-blue-300 dark:text-blue-700 font-bold hidden sm:inline">•</span>
                 )}
                 {o.cliente && (
-                  <div className="inline-flex items-center gap-1.5 text-xs sm:text-sm md:text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs sm:text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 shadow-2xs">
                     <User className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                    <span>{o.cliente}</span>
+                    <span>CLIENTE: {o.cliente}</span>
                   </div>
                 )}
-                {o.vendedor && (
-                  <span className="text-[11px] text-muted-foreground ml-auto hidden sm:inline">
-                    Vend: <strong className="text-foreground">{o.vendedor}</strong>
-                  </span>
+                {(o.vendedor || o.vendedor_nome) && (
+                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs sm:text-sm font-black uppercase tracking-tight bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs">
+                    <span className="text-amber-700 dark:text-amber-400">👤 VENDEDOR:</span>
+                    <strong className="text-slate-900 dark:text-white font-black">{o.vendedor || o.vendedor_nome}</strong>
+                  </div>
                 )}
               </div>
             )}
