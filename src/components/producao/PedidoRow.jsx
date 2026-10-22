@@ -33,7 +33,7 @@ import SmartImage from "@/components/ui/SmartImage";
 import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/compressImage";
 import { isTelhaBandeja, verificarStatusComponentesBandeja } from "@/lib/bandejaHelper";
 import { useRegrasProducao } from "@/lib/regrasProducao";
-import { detectarTipoProdutoTelha, detectarEPSTelha, detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
+import { detectarTipoProdutoTelha, detectarEPSTelha, detectarMaquinaTelha, extrairCortesBobininha } from "@/lib/pedidoOdooHelper";
 import { extrairRotuloBobinaSimplificado, extrairRotuloFaceInferior, ehRotuloAntigoEstoque } from "@/lib/bobinaRotuloHelper";
 
 const PRODUTO_BG = {

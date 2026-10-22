@@ -17,8 +17,8 @@ import { getBobinaStatus, calcMetrosDisponiveis, compararBobinasTelhas } from "@
 import { validarBobina, filtrarBobinasCompativeis, detectarCorTelha, isMesmaFilial } from "@/lib/bobinaValidation";
 import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
 import BobinaComboboxTelhas from "@/components/producao/BobinaComboboxTelhas";
-import { Building2, X, Loader2, FileText, Plus, Trash2, Camera, ShieldAlert, Flame, Route, AlertTriangle, Target, Unlock, Lock, RefreshCw, Globe, CheckCircle2, Paintbrush } from "lucide-react";
-import { detectarTipoProdutoTelha, detectarMaquinaTelha, detectarEspessura, detectarOrigemAco, detectarEPSTelha, normalizarNumPedido, saoPedidosIguais } from "@/lib/pedidoOdooHelper";
+import { Building2, X, Loader2, FileText, Plus, Trash2, Camera, ShieldAlert, Flame, Route, AlertTriangle, Target, Unlock, Lock, RefreshCw, Globe, CheckCircle2, Paintbrush, Scissors } from "lucide-react";
+import { detectarTipoProdutoTelha, detectarMaquinaTelha, detectarEspessura, detectarOrigemAco, detectarEPSTelha, normalizarNumPedido, saoPedidosIguais, extrairCortesBobininha } from "@/lib/pedidoOdooHelper";
 import { calcularDataPrometidaSLA, toISODate, formatDataBR } from "@/lib/sla";
 import { useMetasProducao } from "@/hooks/useMetasProducao";
 import { useFilial, FILIAIS } from "@/contexts/FilialContext";
