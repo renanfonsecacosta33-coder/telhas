@@ -439,16 +439,39 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
       const totalMBobina = +(qBobina * compMBobina).toFixed(2);
       const labelBobina = qBobina === 1 ? "bobininha" : "bobininhas";
 
+      // Extrai cortes reais especificados na descrição (ex: "CORTE 700-500", "CORTE 800", etc.)
+      const cortes = [];
+      const regexCorte = /\bCORTE(?:[\s:]+|[\s:]*DE[\s:]+)([0-9]{2,4}(?:[-+/xX][0-9]{2,4})*(?:\s*MM)?)/gi;
+      let mCorte;
+      while ((mCorte = regexCorte.exec(t)) !== null) {
+        let rawC = mCorte[1].trim().replace(/\s*mm$/i, "");
+        if (rawC && !cortes.includes(rawC)) cortes.push(rawC);
+      }
+      if (cortes.length === 0) {
+        const regexL = /\bLARG(?:URA|\.)?\s*[:=]?\s*([0-9]{2,4}(?:[-+/xX][0-9]{2,4})*)/gi;
+        while ((mCorte = regexL.exec(t)) !== null) {
+          let v = mCorte[1].trim();
+          if (v && !cortes.includes(v)) cortes.push(v);
+        }
+      }
+
+      const corteFmt = cortes.length > 0
+        ? (cortes.length === 1 ? `Corte ${cortes[0]}` : `Cortes: ${cortes.join(" | ")}`)
+        : "Corte 1200";
+      const corteVal = cortes.length > 0 ? cortes.join(" - ") : "1200";
+
       out.tipo_conformacao = "bobininha";
       out.tipo_label = "Bobininha";
       out.largura_corte_mm = 1200;
-      out.largura_corte_fmt = "Corte 1200";
+      out.largura_corte_fmt = corteFmt;
+      out.corte = corteVal;
+      out.cortes = cortes;
       out.quantidade = qBobina;
       out.pecas = qBobina;
       out.comprimento_m = compMBobina;
       out.comprimento_mm = compMmBobina;
       out.metragem_total = totalMBobina;
-      out.resumo_formatado = `${qBobina} ${labelBobina} c/ ${compMBobina}m (Corte 1200 - Total: ${totalMBobina}m)`;
+      out.resumo_formatado = `${qBobina} ${labelBobina} c/ ${compMBobina}m (${corteFmt} - Total: ${totalMBobina}m)`;
       out.tem_especificacao = true;
       out.variacoes = [{
         qty: qBobina,
@@ -456,7 +479,8 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
         m: compMBobina,
         total_m: totalMBobina,
         largura_mm: 1200,
-        corte: "1200",
+        corte: corteVal,
+        cortes: cortes,
         tipo: "bobininha"
       }];
       return extrairCorEEspessura(t, out);

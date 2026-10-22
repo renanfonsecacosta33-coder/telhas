@@ -2237,12 +2237,39 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                     </div>
                   )}
 
-                  {/* Largura de Entrada / Corte 1200 para Bobininhas */}
+                  {/* Largura de Entrada / Corte da Bobininha (Dinâmico conforme descrição) */}
                   {isBobininha && (
-                    <span className="inline-flex items-center gap-1.5 bg-purple-50 dark:bg-purple-950/60 text-purple-900 dark:text-purple-200 px-2.5 py-1 rounded-md border border-purple-300 dark:border-purple-700 font-bold text-xs shadow-2xs">
-                      <Scissors className="w-3.5 h-3.5 text-purple-600" />
-                      <span>Largura: 1.200 mm (Corte 1200)</span>
-                    </span>
+                    (() => {
+                      const textoCorte = `${p.corte || ""} ${p.largura_corte || ""} ${p.observacoes || ""} ${p.descricao || ""} ${p.item_produto || ""}`;
+                      const cortes = extrairCortesBobininha(textoCorte);
+
+                      if (cortes.length > 1) {
+                        return (
+                          <div className="flex flex-wrap items-center gap-1.5" title="Cortes especificados na descrição do vendedor">
+                            {cortes.map((c, i) => (
+                              <span
+                                key={i}
+                                className="inline-flex items-center gap-1 bg-purple-50 dark:bg-purple-950/60 text-purple-900 dark:text-purple-200 px-2.5 py-1 rounded-md border border-purple-300 dark:border-purple-700 font-black text-xs shadow-2xs"
+                              >
+                                <Scissors className="w-3.5 h-3.5 text-purple-600" />
+                                <span>Corte {c}</span>
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      }
+
+                      const corteLabel = cortes.length === 1
+                        ? `Corte ${cortes[0]}`
+                        : (p.corte ? `Corte ${p.corte}` : "Largura: 1.200 mm (Corte 1200)");
+
+                      return (
+                        <span className="inline-flex items-center gap-1.5 bg-purple-50 dark:bg-purple-950/60 text-purple-900 dark:text-purple-200 px-2.5 py-1 rounded-md border border-purple-300 dark:border-purple-700 font-bold text-xs shadow-2xs">
+                          <Scissors className="w-3.5 h-3.5 text-purple-600" />
+                          <span>{corteLabel}</span>
+                        </span>
+                      );
+                    })()
                   )}
                   {p.kg_superior > 0 && <span>Peso: <strong className="text-foreground">{p.kg_superior} kg</strong></span>}
                 </div>

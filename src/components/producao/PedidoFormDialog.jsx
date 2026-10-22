@@ -478,6 +478,8 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           metragem_mm: editItem.metragem_mm || "",
           quantidade_telhas: editItem.quantidade_telhas || "",
           metragem_planejada: editItem.metragem_planejada || "",
+          corte: editItem.corte || "",
+          largura_corte: editItem.largura_corte || "",
           status: editItem.status || "pendente",
           data_pedido: editItem.data_pedido || "",
           data_prevista: editItem.data_prevista || "",
@@ -1606,7 +1608,15 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Checagem se é Bobininha / Desbobinador */}
+            {(() => {
+              const isBobininha = form.produto === "BOBININHA" || form.maquina === "DESBOBINADOR" || /(bobininha|bobinina|slitter|desbobinamento)/i.test(`${form.produto} ${form.modelo} ${form.produto_rotulo_pcp || ""}`);
+              const textoCorteDesc = `${form.corte || ""} ${form.largura_corte || ""} ${form.observacoes || ""} ${form.produto_rotulo_pcp || ""} ${editItem?.descricao || ""}`;
+              const cortesDetectados = extrairCortesBobininha(textoCorteDesc);
+              const corteDisplay = form.corte || form.largura_corte || (cortesDetectados.length > 0 ? cortesDetectados.join(" / ") : "Corte 1200");
+
+              return (
+            <div className={`grid grid-cols-1 ${isBobininha ? "sm:grid-cols-4" : "sm:grid-cols-3"} gap-3`}>
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs">Espessura Exigida</Label>
@@ -1705,7 +1715,44 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                 )}
                 <p className="text-[10px] text-muted-foreground">Cor/Pintura exigida pelo cliente/pedido.</p>
               </div>
+
+              {/* Coluna 4: Corte da Bobininha (ex: Corte 800, Corte 700-500, etc.) */}
+              {isBobininha && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Corte(s) da Bobininha</Label>
+                    {form.trava_produto_pcp && !destravarTravaOdoo && (
+                      <span className="text-[10px] text-muted-foreground font-medium">Origem Odoo</span>
+                    )}
+                  </div>
+                  {form.trava_produto_pcp && !destravarTravaOdoo ? (
+                    <div className="flex items-center justify-between border border-border rounded-md px-3 py-2 bg-muted/60 min-h-[38px] text-xs font-bold text-purple-700 dark:text-purple-300">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <Scissors className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                        <span className="truncate">{corteDisplay}</span>
+                      </div>
+                      <Badge variant="secondary" className="text-[9px] ml-1 shrink-0">Fixo</Badge>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <Input
+                        placeholder="ex: 800 ou 700-500"
+                        value={form.corte || (cortesDetectados.length > 0 ? cortesDetectados.join(" / ") : "")}
+                        onChange={(e) => {
+                          set("corte", e.target.value);
+                          set("largura_corte", e.target.value);
+                        }}
+                        className={destravarTravaOdoo ? "border-amber-400 pl-8" : "pl-8"}
+                      />
+                      <Scissors className="w-3.5 h-3.5 text-purple-600 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    </div>
+                  )}
+                  <p className="text-[10px] text-muted-foreground">Cortes/tiras da bobininha (ex: 800, 700-500).</p>
+                </div>
+              )}
             </div>
+              );
+            })()}
 
             {temReqOdoo && (
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-amber-200 dark:border-amber-900/40 text-xs">

@@ -836,6 +836,36 @@ export function detectarMaquinaTelha(produtoTexto = "") {
   return "";
 }
 
+// Extrai os cortes longitudinais especificados para Bobininha (ex: "CORTE 700-500", "CORTE 800", "CORTE 600-600", etc.)
+export function extrairCortesBobininha(texto = "") {
+  const str = String(texto || "");
+  if (!str.trim()) return [];
+  const cortes = [];
+
+  // Match: CORTE 700-500, CORTE 600-600, CORTE 800, CORTE DE 800, CORTE 600-300-300
+  const regex = /\bCORTE(?:[\s:]+|[\s:]*DE[\s:]+)([0-9]{2,4}(?:[-+/xX][0-9]{2,4})*(?:\s*MM)?)/gi;
+  let match;
+  while ((match = regex.exec(str)) !== null) {
+    let raw = match[1].trim().replace(/\s*mm$/i, "");
+    if (raw && !cortes.includes(raw)) {
+      cortes.push(raw);
+    }
+  }
+
+  // Fallback para LARGURA 800 ou LARG. 800
+  if (cortes.length === 0) {
+    const regexLarg = /\bLARG(?:URA|\.)?\s*[:=]?\s*([0-9]{2,4}(?:[-+/xX][0-9]{2,4})*)/gi;
+    while ((match = regexLarg.exec(str)) !== null) {
+      let v = match[1].trim();
+      if (v && !cortes.includes(v)) {
+        cortes.push(v);
+      }
+    }
+  }
+
+  return cortes;
+}
+
 // Detecta a espessura no texto (ex: "(0,43)", "0.43", "0,50", "0.65", "1,25", etc.)
 export function detectarEspessura(produtoTexto = "") {
   const p = String(produtoTexto || "");
@@ -949,9 +979,21 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
     metragemMm = compMmFinal;
     metragemTotalLinear = totalLinearFinal;
 
+    const cortesDetectados = extrairCortesBobininha(textoCompleto);
+    const corteVal = cortesDetectados.length > 0 ? cortesDetectados.join(" - ") : "1200";
+
     const varsFinal = (espTec.variacoes && espTec.variacoes.length > 0)
       ? espTec.variacoes
-      : [{ qty: qFinal, mm: compMmFinal, m: +(compMmFinal / 1000).toFixed(3), total_m: totalLinearFinal, largura_mm: 1200, corte: "1200", tipo: "bobininha" }];
+      : [{
+          qty: qFinal,
+          mm: compMmFinal,
+          m: +(compMmFinal / 1000).toFixed(3),
+          total_m: totalLinearFinal,
+          largura_mm: 1200,
+          corte: corteVal,
+          cortes: cortesDetectados,
+          tipo: "bobininha"
+        }];
 
     variacoesTelhasJson = JSON.stringify(varsFinal);
   } else if (espTec.tem_especificacao) {
@@ -995,6 +1037,12 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
       metros: qtdChapas,
       metragem_mm: metragemMm,
       metragem_planejada: metragemTotalLinear,
+      corte: extrairCortesBobininha(textoCompleto).join(" - ") || "",
+      largura_corte: extrairCortesBobininha(textoCompleto).length > 0
+        ? (extrairCortesBobininha(textoCompleto).length === 1
+          ? `Corte ${extrairCortesBobininha(textoCompleto)[0]}`
+          : `Cortes: ${extrairCortesBobininha(textoCompleto).join(" | ")}`)
+        : "Corte 1200",
       variacoes_telhas: variacoesTelhasJson,
       observacoes_odoo: descTexto,
       observacoes_encarregado: "",

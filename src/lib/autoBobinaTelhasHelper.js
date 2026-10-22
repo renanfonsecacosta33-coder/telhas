@@ -6,6 +6,7 @@
 import { base44 } from "@/api/base44Client";
 import {
   detectarTipoProdutoTelha,
+  extrairCortesBobininha,
   detectarMaquinaTelha,
   detectarEspessura,
   detectarOrigemAco,
@@ -379,9 +380,21 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     metragemMm = compMmFinal;
     metragemTotalLinear = totalLinearFinal;
 
+    const cortesDetectados = extrairCortesBobininha(textoCompleto);
+    const corteVal = cortesDetectados.length > 0 ? cortesDetectados.join(" - ") : "1200";
+
     const varsFinal = (espTec.variacoes && espTec.variacoes.length > 0)
       ? espTec.variacoes
-      : [{ qty: qFinal, mm: compMmFinal, m: +(compMmFinal / 1000).toFixed(3), total_m: totalLinearFinal, largura_mm: 1200, corte: "1200", tipo: "bobininha" }];
+      : [{
+          qty: qFinal,
+          mm: compMmFinal,
+          m: +(compMmFinal / 1000).toFixed(3),
+          total_m: totalLinearFinal,
+          largura_mm: 1200,
+          corte: corteVal,
+          cortes: cortesDetectados,
+          tipo: "bobininha"
+        }];
 
     variacoesTelhasJson = JSON.stringify(varsFinal);
   } else if (espTec.tem_especificacao) {
