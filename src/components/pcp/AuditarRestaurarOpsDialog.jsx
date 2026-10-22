@@ -359,18 +359,37 @@ export default function AuditarRestaurarOpsDialog({
       //    Sem "catch(() => [])": falha de carregamento aborta com erro visível
       //    (antes virava silenciosamente "0 devolvidos ao PCP").
       let todasOpsTelhas, todasOpsCD, todosPedidosOdoo, finalizadosTelhas, finalizadosCD;
+      const carregarComRetry = async () => {
+        // O app polla bastante e às vezes bate no limite de leituras (429).
+        // Tenta de novo com pausa crescente antes de desistir.
+        const MAX_TENTATIVAS = 3;
+        for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
+          try {
+            return await Promise.all([
+              base44.entities.Pedido.filter({
+                status: { $in: ["pendente", "em_producao", "pausado", "aguardando_colagem", "aguardando_material"] }
+              }),
+              base44.entities.OrdemMaquinaCD.filter({
+                status: { $in: ["pendente", "aguardando_corte", "em_producao", "pausado", "aguardando_material"] }
+              }),
+              base44.entities.PedidoOdoo.list("-data_recebimento", 1000),
+              base44.entities.Pedido.count({ status: "finalizado" }),
+              base44.entities.OrdemMaquinaCD.count({ status: "finalizado" })
+            ]);
+          } catch (errTentativa) {
+            const msgErro = String(errTentativa?.message || errTentativa || "");
+            const ehLimiteLeitura = msgErro.includes("429") || msgErro.toLowerCase().includes("volume limit");
+            if (ehLimiteLeitura && tentativa < MAX_TENTATIVAS) {
+              toast.info(`Limite de leitura do servidor atingido, aguardando para tentar de novo (${tentativa}/${MAX_TENTATIVAS})...`);
+              await new Promise(r => setTimeout(r, 5000 * tentativa));
+              continue;
+            }
+            throw errTentativa;
+          }
+        }
+      };
       try {
-        [todasOpsTelhas, todasOpsCD, todosPedidosOdoo, finalizadosTelhas, finalizadosCD] = await Promise.all([
-          base44.entities.Pedido.filter({
-            status: { $in: ["pendente", "em_producao", "pausado", "aguardando_colagem", "aguardando_material"] }
-          }),
-          base44.entities.OrdemMaquinaCD.filter({
-            status: { $in: ["pendente", "aguardando_corte", "em_producao", "pausado", "aguardando_material"] }
-          }),
-          base44.entities.PedidoOdoo.list("-data_recebimento", 1000),
-          base44.entities.Pedido.count({ status: "finalizado" }),
-          base44.entities.OrdemMaquinaCD.count({ status: "finalizado" })
-        ]);
+        [todasOpsTelhas, todasOpsCD, todosPedidosOdoo, finalizadosTelhas, finalizadosCD] = await carregarComRetry();
       } catch (errLoad) {
         console.error("[Reset Geral] Falha ao carregar OPs:", errLoad);
         toast.error("Falha ao carregar as OPs do servidor (conexão ou permissão). Nenhuma OP foi alterada, tente novamente.");
