@@ -404,21 +404,28 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
     let compMBobina = null;
 
     if (matchBobininha) {
+      // Formato explícito encontrado: "2 x 30m", "2 bobininhas de 15m", etc.
       qBobina = parseInt(matchBobininha[1], 10);
       compMBobina = parseFloat(matchBobininha[2].replace(",", "."));
     } else if (isBobininha) {
-      // Tenta extrair metragem unitária do cadastro do produto (ex: "30MT", "30 MT", "50M")
+      // 🛡️ Regra AJL: Se o cadastro do produto tem medida padrão explícita (ex: "30MT", "50M")
       const matchCompProd = t.match(/\b(\d{1,3})\s*(?:mt|mts|m\b|metros)/i);
-      if (matchCompProd) {
-        compMBobina = parseFloat(matchCompProd[1]);
-        const qOdooNum = Number(qtdOdoo) || 1;
-        // Se a quantidade do Odoo for múltiplo da metragem unitária (ex: 60 no Odoo dividido por 30m = 2 bobininhas)
-        if (compMBobina > 0 && qOdooNum >= compMBobina && qOdooNum % compMBobina === 0) {
-          qBobina = Math.round(qOdooNum / compMBobina);
-        } else {
-          // Se for pequena contagem de peças (ex: 2 UN)
-          qBobina = qOdooNum > 0 ? qOdooNum : 1;
+      const qOdooNum = Number(qtdOdoo) || 0;
+
+      if (matchCompProd && parseFloat(matchCompProd[1]) < 300) {
+        const compPadrao = parseFloat(matchCompProd[1]);
+        if (qOdooNum >= compPadrao && qOdooNum % compPadrao === 0) {
+          qBobina = Math.round(qOdooNum / compPadrao);
+          compMBobina = compPadrao;
         }
+      }
+
+      // 🛡️ REGRA DE OURO (Fábrica AJL):
+      // Quando não se tem indicativo de quantas bobininhas são na descrição,
+      // SEMPRE SERÁ UMA (1)! E o comprimento desta bobininha é a metragem total do Odoo (ex: 12 MT = 1 bobininha de 12m).
+      if (!qBobina || !compMBobina || compMBobina <= 0) {
+        qBobina = 1;
+        compMBobina = qOdooNum > 0 ? qOdooNum : 1;
       }
     }
 
@@ -434,20 +441,24 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
 
       out.tipo_conformacao = "bobininha";
       out.tipo_label = "Bobininha";
+      out.largura_corte_mm = 1200;
+      out.largura_corte_fmt = "Corte 1200";
       out.quantidade = qBobina;
       out.pecas = qBobina;
       out.comprimento_m = compMBobina;
       out.comprimento_mm = compMmBobina;
       out.metragem_total = totalMBobina;
-      out.resumo_formatado = `${qBobina} ${labelBobina} c/ ${compMBobina} metros (Total: ${totalMBobina}m)`;
+      out.resumo_formatado = `${qBobina} ${labelBobina} c/ ${compMBobina}m (Corte 1200 - Total: ${totalMBobina}m)`;
       out.tem_especificacao = true;
-      out.variacoes.push({
+      out.variacoes = [{
         qty: qBobina,
         mm: compMmBobina,
         m: compMBobina,
         total_m: totalMBobina,
+        largura_mm: 1200,
+        corte: "1200",
         tipo: "bobininha"
-      });
+      }];
       return extrairCorEEspessura(t, out);
     }
   }

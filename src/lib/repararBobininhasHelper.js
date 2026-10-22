@@ -89,18 +89,40 @@ export async function executarReparoBobininhasBanco(pedidosOdoo = [], pedidosPro
       const metragemMm = Number(op.metragem_mm || 0);
       const qtdTelhasLinear = Number(op.quantidade_telhas || op.metragem_planejada || 0);
 
-      if (metros > 10 && metragemMm >= 10000 && qtdTelhasLinear >= 300) {
-        // Metragem real por rolo
-        const compMRolo = Math.round(metragemMm / 1000) || 30;
-        const qReal = Math.round(metros / compMRolo) || 2;
-        const totalLinearReal = qReal * compMRolo;
+      // Cenário de erro: 12 pçs x 12.000mm = 144m (ou metros > 1 onde a metragem planejada é metros * (metragem_mm/1000))
+      // e o pedido original não tem observação de múltiplos rolos
+      const textoObs = String(op.observacoes || op.observacoes_odoo || op.item_produto || "");
+      const temMultiplosRolos = /\b(\d{1,2})\s*(?:x|\*|de|bobininhas?|rolos?)\s*(\d+)/i.test(textoObs);
 
-        console.log(`[ReparoBobininhas] Corrigindo OP #${op.numero_pedido} (ID ${op.id}): metros ${metros} -> ${qReal}, total ${qtdTelhasLinear}m -> ${totalLinearReal}m`);
+      // Se multiplicou a quantidade de metros por ela mesma (ex: 12 pçs x 12m = 144m) sem ter múltiplos rolos
+      const precisaReparo = (!temMultiplosRolos && metros > 1 && metragemMm > 0 && Math.abs(qtdTelhasLinear - (metros * (metragemMm / 1000))) < 0.1) ||
+                            (metros > 10 && metragemMm >= 10000 && qtdTelhasLinear >= 100);
+
+      if (precisaReparo) {
+        // A metragem real do pedido é a metragem individual (ex: 12m)
+        const metrosReal = Math.round(metragemMm / 1000) || metros;
+        const compMmReal = metrosReal * 1000;
+        const espNum = parseFloat(String(op.espessura_exigida || "0.43").replace(",", ".")) || 0.43;
+        const pesoCorretoKg = Math.round(metrosReal * (espNum * 7.85 * 1.2));
+
+        const novasVars = [{
+          qty: 1,
+          mm: compMmReal,
+          m: metrosReal,
+          total_m: metrosReal,
+          largura_mm: 1200,
+          corte: "1200",
+          tipo: "bobininha"
+        }];
+
+        console.log(`[ReparoBobininhas] Corrigindo OP #${op.numero_pedido} (ID ${op.id}): metros ${metros} -> 1, total ${qtdTelhasLinear}m -> ${metrosReal}m, Corte 1200`);
         await base44.entities.Pedido.update(op.id, {
-          metros: qReal,
-          metragem_mm: metragemMm,
-          quantidade_telhas: totalLinearReal,
-          metragem_planejada: totalLinearReal
+          metros: 1,
+          quantidade_telhas: 1,
+          metragem_mm: compMmReal,
+          metragem_planejada: metrosReal,
+          kg_total: pesoCorretoKg,
+          variacoes_telhas: JSON.stringify(novasVars)
         }).catch((err) => console.warn(`[ReparoBobininhas] Falha ao atualizar Pedido ${op.id}:`, err));
       }
     }

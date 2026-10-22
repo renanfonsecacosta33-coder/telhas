@@ -365,12 +365,20 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
   let variacoesTelhasJson = "";
 
   if (espTec.tipo_conformacao === "bobininha" || prodTipo === "BOBININHA") {
-    qtdChapas = espTec.quantidade || (espTec.pecas || 1);
-    metragemMm = espTec.comprimento_mm || 30000;
-    metragemTotalLinear = espTec.metragem_total || (Number(qtdChapas) * (espTec.comprimento_m || 30));
-    if (espTec.variacoes && espTec.variacoes.length > 0) {
-      variacoesTelhasJson = JSON.stringify(espTec.variacoes);
-    }
+    // 🛡️ Regra Bobininha AJL: Se não especificado múltiplos rolos na descrição, SEMPRE 1 bobininha com a metragem total do Odoo em Corte 1200
+    const qFinal = espTec.pecas || espTec.quantidade || 1;
+    const totalLinearFinal = espTec.metragem_total || Number(item.quantidade) || 1;
+    const compMmFinal = espTec.comprimento_mm || Math.round((totalLinearFinal / qFinal) * 1000);
+
+    qtdChapas = qFinal;
+    metragemMm = compMmFinal;
+    metragemTotalLinear = totalLinearFinal;
+
+    const varsFinal = (espTec.variacoes && espTec.variacoes.length > 0)
+      ? espTec.variacoes
+      : [{ qty: qFinal, mm: compMmFinal, m: +(compMmFinal / 1000).toFixed(3), total_m: totalLinearFinal, largura_mm: 1200, corte: "1200", tipo: "bobininha" }];
+
+    variacoesTelhasJson = JSON.stringify(varsFinal);
   } else if (espTec.tem_especificacao) {
     if (espTec.variacoes && espTec.variacoes.length > 1) {
       qtdChapas = espTec.quantidade;

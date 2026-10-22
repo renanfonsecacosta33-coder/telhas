@@ -278,6 +278,12 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     };
   }, [pOriginal, maquina, produtoDetectado, epsDetectado]);
 
+  // Detecta se a OP é de Bobininha (desbobinador)
+  const isBobininha = useMemo(() => {
+    const texto = `${p.produto || ""} ${p.modelo || ""} ${p.item_produto || ""} ${p.produto_rotulo_pcp || ""} ${p.maquina || ""}`.toLowerCase();
+    return p.produto === "BOBININHA" || p.maquina === "DESBOBINADOR" || p.maquina === "BOBININHA" || /(bobininha|bobinina|slitter|desbobinamento)/i.test(texto);
+  }, [p]);
+
   const regras = useRegrasProducao();
   const [etapasOk, setEtapasOk] = useState({});
   const [mostrarEtapas, setMostrarEtapas] = useState(false);
@@ -1487,6 +1493,48 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
 
   const steps = ETAPAS[p.produto];
 
+
+  // 🛡️ Auto-reparo persistente no banco para bobininhas com metragem multiplicada incorretamente
+  useEffect(() => {
+    if (!p.id || !isBobininha) return;
+    let vars = [];
+    try { vars = JSON.parse(p.variacoes_telhas || "[]"); } catch { vars = []; }
+    if (vars.length === 1) {
+      const v0 = vars[0];
+      const textoObs = String(p.observacoes || p.observacoes_odoo || p.item_produto || "");
+      const temMultiplosRolos = /\b(\d{1,2})\s*(?:x|\*|de|bobininhas?|rolos?)\s*(\d+)/i.test(textoObs);
+      const metros = Number(p.metros || 0);
+      const mm = Number(v0.mm || p.metragem_mm || 0);
+      const qtdPlan = Number(p.metragem_planejada || p.quantidade_telhas || 0);
+
+      if (!temMultiplosRolos && (Number(v0.qty) > 1 || metros > 1) && mm >= 10000 && (qtdPlan > 50 || Number(v0.total_m) > 50)) {
+        const metrosReal = Math.round(mm / 1000);
+        const espNum = parseFloat(String(p.espessura_exigida || "0.43").replace(",", ".")) || 0.43;
+        const pesoCorretoKg = Math.round(metrosReal * (espNum * 7.85 * 1.2));
+        const novasVars = [{
+          qty: 1,
+          mm: mm,
+          m: metrosReal,
+          total_m: metrosReal,
+          largura_mm: 1200,
+          corte: "1200",
+          tipo: "bobininha"
+        }];
+
+        base44.entities.Pedido.update(p.id, {
+          metros: 1,
+          quantidade_telhas: 1,
+          metragem_mm: mm,
+          metragem_planejada: metrosReal,
+          kg_total: pesoCorretoKg,
+          variacoes_telhas: JSON.stringify(novasVars)
+        }).then(() => {
+          console.log(`[PedidoRow] Auto-reparo concluído para OP #${p.numero_pedido}: 1 bobininha de ${metrosReal}m (Corte 1200)`);
+        }).catch(() => {});
+      }
+    }
+  }, [p.id, isBobininha, p.variacoes_telhas, p.metros, p.metragem_mm, p.metragem_planejada]);
+
   const cardPrioCls = getCardPrioridadeClasses(p);
   const ehRetira = isPedidoRetiraAgora(p);
   const ehRota = isPedidoRota(p);
@@ -1659,13 +1707,13 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         {(p.metros > 0 || p.metragem_mm > 0 || temVariacoes) && (
           <div className="flex items-stretch gap-2 mb-3">
             <div className="flex-1 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2 text-center">
-              <p className="text-xs font-semibold text-indigo-500 uppercase tracking-wide">Qtd. Telhas</p>
+              <p className="text-xs font-semibold text-indigo-500 uppercase tracking-wide">{isBobininha ? "Qtd. Bobininhas" : "Qtd. Telhas"}</p>
               <p className="text-2xl font-black text-indigo-700 leading-none">
                 {temVariacoes
                   ? _variacoesTelhas.reduce((s, v) => s + (Number(v.qty) || 0), 0).toLocaleString("pt-BR")
                   : Number(p.metros || 0).toLocaleString("pt-BR")}
               </p>
-              <p className="text-xs text-indigo-400 font-medium">peças</p>
+              <p className="text-xs text-indigo-400 font-medium">{isBobininha ? "bobininhas" : "peças"}</p>
             </div>
 
             <div className="flex-1 bg-teal-50 border border-teal-200 rounded-xl px-3 py-2 text-center">
@@ -1678,7 +1726,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                   : Number(p.metragem_mm || 0).toLocaleString("pt-BR")}
               </p>
               <p className="text-xs text-teal-400 font-medium">
-                {temVariacoes ? "diferentes" : "mm por peça"}
+                {temVariacoes ? "diferentes" : (isBobininha ? "mm por bobininha" : "mm por peça")}
               </p>
             </div>
 
@@ -2117,6 +2165,13 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                     </div>
                   )}
 
+                  {/* Largura de Entrada / Corte 1200 para Bobininhas */}
+                  {isBobininha && (
+                    <span className="inline-flex items-center gap-1.5 bg-purple-50 dark:bg-purple-950/60 text-purple-900 dark:text-purple-200 px-2.5 py-1 rounded-md border border-purple-300 dark:border-purple-700 font-bold text-xs shadow-2xs">
+                      <Scissors className="w-3.5 h-3.5 text-purple-600" />
+                      <span>Largura: 1.200 mm (Corte 1200)</span>
+                    </span>
+                  )}
                   {p.kg_superior > 0 && <span>Peso: <strong className="text-foreground">{p.kg_superior} kg</strong></span>}
                 </div>
               </div>
