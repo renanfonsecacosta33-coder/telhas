@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Calendar, X, Clock, Trash2, Building2, ArrowRightLeft, Globe, User, Briefcase, Hash, Package, ShieldCheck, Target, BookOpen, RotateCcw } from "lucide-react";
-import { executarExclusaoOsBackground } from "@/lib/excluirOsHelper";
-import { sincronizarLoteOdoo } from "@/lib/sincronizarOdooHelper";
+import { executarExclusaoOsBackground } from "@/lib/excluirOsHelper"; import { sincronizarLoteOdoo } from "@/lib/sincronizarOdooHelper";
+import BotaoDevolverLotePCP from "@/components/pcp/BotaoDevolverLotePCP";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -2941,15 +2941,9 @@ export default function CentralPCP() {
               <div className="flex items-center gap-2 flex-wrap">
                 {/* Distribuir Selecionados */}
                 {selecionados.size > 0 && (
-                  <Button
-                    size="sm"
-                    disabled={distribuindo || excluindo}
-                    onClick={() => {
-                      const lista = pedidos.filter(p => selecionados.has(p.id));
-                      handleDistribuirLote(lista);
-                    }}
-                    className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-xs h-8 gap-1.5 shadow-sm font-bold"
-                  >
+                  <Button size="sm" disabled={distribuindo || excluindo}
+                    onClick={() => handleDistribuirLote(pedidos.filter(p => selecionados.has(p.id)))}
+                    className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-xs h-8 gap-1.5 shadow-sm font-bold">
                     <Zap className="w-3.5 h-3.5" />
                     {distribuindo ? "Distribuindo..." : `Distribuir Selecionadas (${selecionados.size})`}
                   </Button>
@@ -2957,20 +2951,23 @@ export default function CentralPCP() {
 
                 {/* Transferir Selecionados de Central PCP / Filial */}
                 {selecionados.size > 0 && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={distribuindo || excluindo}
-                    onClick={() => {
-                      const lista = pedidos.filter(p => selecionados.has(p.id));
-                      setModalTransferir({ aberto: true, pedidos: lista });
-                    }}
-                    className="border-indigo-400 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-xs h-8 gap-1.5 font-bold"
-                  >
+                  <Button size="sm" variant="outline" disabled={distribuindo || excluindo}
+                    onClick={() => setModalTransferir({ aberto: true, pedidos: pedidos.filter(p => selecionados.has(p.id)) })}
+                    className="border-indigo-400 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-xs h-8 gap-1.5 font-bold">
                     <ArrowRightLeft className="w-3.5 h-3.5 text-indigo-500" />
                     Transferir Loja ({selecionados.size})
                   </Button>
                 )}
+
+                {/* Devolver Selecionadas ao PCP (em massa) */}
+                <BotaoDevolverLotePCP
+                  selecionados={selecionados}
+                  pedidos={pedidos}
+                  queryClient={queryClient}
+                  toast={toast}
+                  disabled={distribuindo || excluindo || sincronizandoOdoo}
+                  onDevolvidos={() => setSelecionados(new Set())}
+                />
 
                 {/* Sincronizar Selecionadas com o Odoo */}
                 {selecionados.size > 0 && (
