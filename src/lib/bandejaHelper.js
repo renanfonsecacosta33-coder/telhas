@@ -88,11 +88,11 @@ export function montarTriadeTelhaBandeja(dataPrincipal) {
 export function proximaMaquinaFluxo(produto, maquinaAtual) {
   if (isTelhaBandeja({ produto })) {
     const norm = String(maquinaAtual || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    // 1. Se está na BANDEJA, o próximo passo OBRIGATÓRIO é a COLAGEM
     if (norm === "BANDEJA") return "COLAGEM";
-    if (norm === "COLONIAL") return "BANDEJA";
-    if (norm === "TP25") return "BANDEJA";
+    // 2. Se já está na COLAGEM, é a etapa final
     if (norm === "COLAGEM") return null;
-    // Padrão telha superior: TP-40, Colonial ou qualquer perfiladeira avança para BANDEJA
+    // 3. Qualquer perfiladeira de telha superior (TP-40, Colonial, TP-25, etc.) vai PRIMEIRO para a BANDEJA
     return "BANDEJA";
   }
   return null;

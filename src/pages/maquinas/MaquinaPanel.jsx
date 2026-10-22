@@ -288,12 +288,17 @@ export default function MaquinaPanel({ maquina }) {
         }
 
         // TELHA BANDEJA: fluxo sequencial estrito (TP-40/Colonial → BANDEJA → COLAGEM)
-        // Acolhe na Colagem se a perfilação foi concluída, se já está aguardando colagem ou se foi atribuída a COLAGEM
+        // Regra Estrita AJL: Após tirarem a telha de cima, a OP DEVE ir primeiro para a BANDEJA.
+        // A OP NUNCA pode aparecer na Colagem enquanto estiver na TP-40 ou na BANDEJA!
+        // SÓ pode chegar na Colagem após tirarem a bandeja (maquina === "COLAGEM").
         if (isTelhaBandeja(p)) {
+          if (mNorm !== "COLAGEM") {
+            return false;
+          }
           if (p.bloqueado_colagem || (p.tipo_componente_bandeja === "colagem_final" && !p.perfilacao_concluida)) {
             return false;
           }
-          return (mNorm === "COLAGEM" || p.status === "aguardando_colagem" || p.perfilacao_concluida === true) && (p.status !== "cancelado");
+          return p.status !== "cancelado";
         }
 
         // A OP SÓ DEVE APARECER NA COLAGEM SE:
@@ -982,6 +987,10 @@ export default function MaquinaPanel({ maquina }) {
     return todosPedidos.filter(p => {
       if (!p || p.status === "cancelado") return false;
       if (p.status === "aguardando_colagem" || (maquinaNorm(p.maquina) === "COLAGEM" && p.status !== "finalizado")) {
+        // Telha Bandeja só pode ser resgatada na Colagem se a máquina já for COLAGEM (já passou pela BANDEJA)
+        if (isTelhaBandeja(p) && maquinaNorm(p.maquina) !== "COLAGEM") {
+          return false;
+        }
         return false;
       }
       const temEps = Boolean(

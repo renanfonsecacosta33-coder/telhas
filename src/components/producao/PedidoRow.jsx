@@ -834,7 +834,13 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const isPerfiladoNestaMaquina = Boolean(
     mPainelNorm &&
     mPainelNorm !== "COLAGEM" &&
-    (mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem" || p.perfilacao_concluida)
+    (
+      mAtualNorm === "COLAGEM" ||
+      p.status === "aguardando_colagem" ||
+      p.perfilacao_concluida ||
+      (isBandejaMultiEtapa && mAtualNorm === "BANDEJA" && mPainelNorm !== "BANDEJA") ||
+      (isBandejaMultiEtapa && mPainelNorm === "BANDEJA" && mAtualNorm === "COLAGEM")
+    )
   );
   // TELHA BANDEJA: fluxo multi-etapa sequencial estrito (TP-40/Colonial → BANDEJA → COLAGEM)
   const isBandejaMultiEtapa = isTelhaBandeja(p);
@@ -1432,25 +1438,81 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       return;
     }
 
-    // TELHA BANDEJA multi-etapa sequencial: avança pelo fluxo (TP-40/Colonial → BANDEJA → COLAGEM)
+    // TELHA BANDEJA multi-etapa sequencial estrito: TP-40/Colonial → BANDEJA → COLAGEM
     if (isBandejaMultiEtapa && proximaEtapaBandeja) {
-      const proximoStatus = proximaEtapaBandeja === "COLAGEM" ? "aguardando_colagem" : "pendente";
-      onStatusChange(p, proximoStatus, {
-        tempo_producao_seg: prodSeg,
-        metragem_utilizada: metragemRealNum,
-        metragem_planejada: metragemRealNum,
-        inicio_producao_ts: null,
-        maquina: proximaEtapaBandeja,
-        maquina_origem: p.maquina_origem || p.maquina,
-        etapa_anterior_concluida: p.maquina,
-        data_perfilacao: hojeStr,
-        perfilacao_concluida: proximaEtapaBandeja === "COLAGEM",
-        tipo_componente_bandeja: null,
-        grupo_bandeja_id: null,
-        bloqueado_colagem: false
-      });
-      setMetragemDialog(false);
-      return;
+      let varsResetadas = [];
+      try {
+        const rawVars = JSON.parse(p.variacoes_telhas || "[]");
+        varsResetadas = rawVars.map(v => ({
+          ...v,
+          iniciado: false,
+          finalizado: false,
+          metragem_real: null
+        }));
+      } catch {
+        varsResetadas = [];
+      }
+
+      if (proximaEtapaBandeja === "BANDEJA") {
+        // Transição: TP-40/Colonial finalizou Telha Superior → PINGA NA MÁQUINA BANDEJA
+        // A OP entra como pendente na fila da BANDEJA e carrega a bobina da bandeja inferior
+        playFinishSound();
+        speakOpFinalizada(p.maquina, p.numero_pedido);
+
+        onStatusChange(p, "pendente", {
+          tempo_producao_seg: prodSeg,
+          metragem_utilizada: metragemRealNum,
+          metragem_planejada: metragemRealNum,
+          inicio_producao_ts: null,
+          maquina: "BANDEJA",
+          maquina_origem: p.maquina_origem || p.maquina,
+          etapa_anterior_concluida: p.maquina,
+          telha_superior_concluida: true,
+          data_perfilacao_telha: hojeStr,
+          data_perfilacao: hojeStr,
+          perfilacao_concluida: false,
+          // Alterna a bobina de produção para a bobina da bandeja inferior se configurada
+          ...(p.bobina_inferior ? {
+            bobina_superior: p.bobina_inferior,
+            bobina_superior_id: p.bobina_inferior_id || null,
+            rvm_superior: p.rvm_inferior || "Natural",
+            bobina_superior_utilizada: p.bobina_superior || null
+          } : {}),
+          variacoes_telhas: varsResetadas.length > 0 ? JSON.stringify(varsResetadas) : p.variacoes_telhas,
+          tipo_componente_bandeja: null,
+          grupo_bandeja_id: null,
+          bloqueado_colagem: false
+        });
+        setMetragemDialog(false);
+        return;
+      }
+
+      if (proximaEtapaBandeja === "COLAGEM") {
+        // Transição: BANDEJA finalizou Bandeja Inferior → PINGA NA MÁQUINA COLAGEM
+        // Agora ambas as partes foram perfiladas e chegam na Colagem
+        playFinishSound();
+        speakOpFinalizada(p.maquina, p.numero_pedido);
+
+        onStatusChange(p, "aguardando_colagem", {
+          tempo_producao_seg: prodSeg,
+          metragem_utilizada: metragemRealNum,
+          metragem_planejada: metragemRealNum,
+          inicio_producao_ts: null,
+          maquina: "COLAGEM",
+          maquina_origem: p.maquina_origem || "TP - 40",
+          etapa_anterior_concluida: "BANDEJA",
+          bandeja_concluida: true,
+          perfilacao_concluida: true,
+          data_perfilacao_bandeja: hojeStr,
+          data_perfilacao: hojeStr,
+          variacoes_telhas: varsResetadas.length > 0 ? JSON.stringify(varsResetadas) : p.variacoes_telhas,
+          tipo_componente_bandeja: null,
+          grupo_bandeja_id: null,
+          bloqueado_colagem: false
+        });
+        setMetragemDialog(false);
+        return;
+      }
     }
 
     // Produto sem colagem → finaliza direto; com colagem → vai pra COLAGEM
@@ -1600,7 +1662,15 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                     <CheckCircle2 className="w-3.5 h-3.5" /> Peças Tiradas na Máquina
                   </Badge>
                   <Badge className="bg-amber-100 text-amber-800 border-amber-300 font-semibold text-xs">
-                    {p.status === "finalizado" ? "✓ Colagem Concluída" : "→ Na Bancada de Colagem"}
+                    {p.status === "finalizado"
+                      ? "✓ Colagem Concluída"
+                      : (isBandejaMultiEtapa && mAtualNorm === "BANDEJA")
+                      ? "✓ Telha Superior Tirada → Na Bandeja"
+                      : (isBandejaMultiEtapa && mPainelNorm === "BANDEJA" && mAtualNorm === "COLAGEM")
+                      ? "✓ Bandeja Tirada → Na Colagem"
+                      : (isBandejaMultiEtapa && mAtualNorm === "COLAGEM")
+                      ? "✓ Perfilações Concluídas → Na Colagem"
+                      : "→ Na Bancada de Colagem"}
                   </Badge>
                 </>
               ) : (
