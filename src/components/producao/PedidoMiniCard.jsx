@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { ChevronDown, User, Tag, Layers, Hash, Ruler, Palette, Scale, Globe } from "lucide-react";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
 import { PrioridadeBadge, isPedidoRetiraAgora, isPedidoRota } from "@/lib/prioridadeHelper";
-import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco";
+import { detectarOrigemAco } from "@/components/producao/BadgeOrigemAco";
 
 const STATUS_MINI = {
   pendente: { label: "Pendente", cls: "bg-gray-100 text-gray-700 border-gray-300" },
@@ -73,15 +73,14 @@ export default function PedidoMiniCard({ pedido: p, onExpand }) {
         <CampoMini icon={Ruler} label="Total" value={totalMetros > 0 ? `${Number(totalMetros).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} metros` : "—"} destaque />
         <CampoMini icon={Palette} label="Cor" value={cor} />
         <CampoMini icon={Scale} label="Espessura" value={espessura ? `${espessura} mm` : "—"} />
-        <div className="flex items-center gap-1.5 min-w-0">
-          <Globe className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-          <div className="min-w-0">
-            <p className="text-[9px] uppercase font-bold text-muted-foreground leading-none tracking-wide">Origem</p>
-            <div className="leading-tight">
-              <BadgeOrigemAco bobinaTexto={p.bobina_superior || p.bobina_descricao} origemExigida={p.origem_exigida} size="sm" />
-            </div>
-          </div>
-        </div>
+        <CampoMini
+          icon={Globe}
+          label="Origem"
+          value={(() => {
+            const info = detectarOrigemAco({ bobinaTexto: p.bobina_superior || p.bobina_descricao, origemExigida: p.origem_exigida });
+            return info.isImportado ? "🌐 Importado" : "🇧🇷 Nacional";
+          })()}
+        />
       </div>
     </div>
   );
