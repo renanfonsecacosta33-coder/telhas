@@ -56,6 +56,20 @@ import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 
+const BadgeTempoSync = React.memo(function BadgeTempoSync({ dataUpdatedAt }) {
+  const [segundos, setSegundos] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (dataUpdatedAt) {
+        setSegundos(Math.max(0, Math.round((Date.now() - dataUpdatedAt) / 1000)));
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [dataUpdatedAt]);
+
+  return <span>Sincronizado {segundos === 0 ? "agora" : "há " + segundos + "s"}</span>;
+});
+
 const TIPOS_BUSCA = [
   { id: "todos", label: "Todos", icon: Search, placeholder: "Buscar geral (nº pedido, cliente, vendedor ou modelo)..." },
   { id: "cliente", label: "Cliente", icon: User, placeholder: "Filtrar por nome ou razão social do cliente..." },
@@ -81,6 +95,27 @@ export default function CentralPCP() {
   const { toast } = useToast();
   const [busca, setBusca] = useState("");
   const [tipoBusca, setTipoBusca] = useState("todos"); // "todos" | "cliente" | "vendedor" | "numero_pedido" | "modelo"
+  const [buscaDebounced, setBuscaDebounced] = useState("");
+
+  // Debounce ultra-fluido de 180ms para eliminar qualquer travamento ao digitar
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setBuscaDebounced(busca);
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [busca]);
+
+  const handleLimparBusca = () => {
+    setBusca("");
+    setBuscaDebounced("");
+  };
+
+  const handleSelecionarModeloRapido = (mod) => {
+    const ativo = busca.toLowerCase().trim() === mod.toLowerCase().trim();
+    const novo = ativo ? "" : mod;
+    setBusca(novo);
+    setBuscaDebounced(novo);
+  };
   const [filtro, setFiltro] = useState("ativos");
   const [filtroMaterial, setFiltroMaterial] = useState("todos"); // "todos" | "com_material" | "sem_material"
   const [filtroSetor, setFiltroSetor] = useState("todos"); // "todos" | "telhas" | "corte_dobra" | "ambos"
@@ -290,21 +325,11 @@ export default function CentralPCP() {
     staleTime: 30000,
     gcTime: 1000 * 60 * 60 * 24, // 24 horas retido em memória
     retry: 3,
-    refetchInterval: 25000,
+    refetchInterval: 30000,
     refetchOnWindowFocus: true
   });
 
-  // Contador de segundos decorridos desde a última sincronização automática com o Odoo
-  const [segundosDesdeSync, setSegundosDesdeSync] = useState(0);
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (dataUpdatedAt) {
-        const seg = Math.max(0, Math.round((Date.now() - dataUpdatedAt) / 1000));
-        setSegundosDesdeSync(seg);
-      }
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [dataUpdatedAt]);
+  // Sincronização em tempo real (timer isolado em BadgeTempoSync para zero re-renderizações parasitas)
 
   // Executa auditoria e readequação de máquinas e bobinas em segundo plano ao abrir o PCP
   useEffect(() => {
@@ -365,7 +390,7 @@ export default function CentralPCP() {
     staleTime: 30000,
     gcTime: 1000 * 60 * 60 * 24,
     retry: 3,
-    refetchInterval: 25000
+    refetchInterval: 45000
   });
 
   const { data: ordensCD = [] } = useQuery({
@@ -390,7 +415,7 @@ export default function CentralPCP() {
     staleTime: 30000,
     gcTime: 1000 * 60 * 60 * 24,
     retry: 3,
-    refetchInterval: 25000
+    refetchInterval: 45000
   });
 
   // Repara e sincroniza automaticamente qualquer Bobininha no banco de dados (ex: #S01195)
@@ -427,7 +452,7 @@ export default function CentralPCP() {
     staleTime: 45000,
     gcTime: 1000 * 60 * 60 * 24,
     retry: 3,
-    refetchInterval: 30000
+    refetchInterval: 60000
   });
 
   const { data: chapasEstoque = [] } = useQuery({
@@ -452,7 +477,7 @@ export default function CentralPCP() {
     staleTime: 45000,
     gcTime: 1000 * 60 * 60 * 24,
     retry: 3,
-    refetchInterval: 30000
+    refetchInterval: 60000
   });
 
   // Pré-baixas acumuladas em tempo real de todas as OPs ativas (Telhas + Corte e Dobra)
@@ -718,9 +743,19 @@ export default function CentralPCP() {
     setDetalheOpen(false);
     setPedidoSelecionado(null);
 
-    queryClient.setQueryData(["pedidos-odoo-pcp"], (oldData) => {
+        queryClient.setQueryData(["pedidos-odoo-pcp"], (oldData) => {
       if (!Array.isArray(oldData)) return oldData;
       return oldData.filter((item) => item.id !== pedidoId);
+    });
+
+    queryClient.setQueryData(["pedidos-producao-todos"], (oldData) => {
+      if (!Array.isArray(oldData)) return oldData;
+      return oldData.filter((item) => item.numero_pedido !== numPedido && item.id !== pedidoId);
+    });
+
+    queryClient.setQueryData(["ordens-cd-todos"], (oldData) => {
+      if (!Array.isArray(oldData)) return oldData;
+      return oldData.filter((item) => item.numero_pedido !== numPedido);
     });
 
     toast({
@@ -1749,8 +1784,8 @@ export default function CentralPCP() {
       }
     }
 
-    if (!busca || !busca.trim()) return true;
-    const q = busca.toLowerCase().trim();
+    if (!buscaDebounced || !buscaDebounced.trim()) return true;
+    const q = buscaDebounced.toLowerCase().trim();
 
     if (tipoBusca === "cliente") {
       return String(p.cliente_nome || "").toLowerCase().includes(q);
@@ -1925,11 +1960,11 @@ export default function CentralPCP() {
 
   // Se o usuário pesquisar por algo (ex: '1337790' ou 'Nytro'), auto-expande os pedidos que bateram na busca
   useEffect(() => {
-    if (busca && busca.trim().length >= 2) {
+    if (buscaDebounced && buscaDebounced.trim().length >= 2) {
       const numsParaExpandir = new Set(gruposPedidos.map(g => g.numero_pedido));
       setPedidosExpandidos(numsParaExpandir);
     }
-  }, [busca, gruposPedidos]);
+  }, [buscaDebounced, gruposPedidos]);
 
   const toggleExpandirPedido = (num) => {
     setPedidosExpandidos(prev => {
@@ -2213,7 +2248,7 @@ export default function CentralPCP() {
             ) : (
               <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                <span>Sincronizado {segundosDesdeSync === 0 ? "agora" : `há ${segundosDesdeSync}s`}</span>
+                <BadgeTempoSync dataUpdatedAt={dataUpdatedAt} />
               </div>
             )}
 
@@ -2446,6 +2481,10 @@ export default function CentralPCP() {
                 placeholder={tipoBuscaAtual.placeholder}
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") setBuscaDebounced(busca);
+                  else if (e.key === "Escape") handleLimparBusca();
+                }}
                 className="flex-1 bg-transparent px-3 py-2 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none min-w-0"
               />
 
@@ -2453,7 +2492,7 @@ export default function CentralPCP() {
               {busca && (
                 <button
                   type="button"
-                  onClick={() => setBusca("")}
+                  onClick={handleLimparBusca}
                   className="p-1 mr-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                   title="Limpar pesquisa"
                 >
@@ -2472,7 +2511,7 @@ export default function CentralPCP() {
                     <button
                       key={mod}
                       type="button"
-                      onClick={() => setBusca(ativo ? "" : mod)}
+                      onClick={() => handleSelecionarModeloRapido(mod)}
                       className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition-all ${
                         ativo
                           ? "bg-orange-500 text-white shadow-xs"
@@ -2774,7 +2813,7 @@ export default function CentralPCP() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  setBusca("");
+                  handleLimparBusca();
                   limparFiltroData();
                   setFiltro("ativos");
                 }}

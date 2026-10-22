@@ -23,9 +23,10 @@ export async function executarExclusaoOsBackground({ pedido, pedidoId, numPedido
     // Deleção de segurança caso o backend não tenha deletado
     await base44.entities.PedidoOdoo.delete(pedidoId).catch(() => {});
 
-    queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
-    queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
-    queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+    // Invalidação suave das queries ativas se necessário
+    queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"], refetchType: "active" });
+    queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"], refetchType: "active" });
+    queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"], refetchType: "active" });
 
     toast({
       title: "✅ OS #" + numPedido + " excluída com sucesso",
