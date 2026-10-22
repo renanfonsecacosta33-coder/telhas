@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 
 const TOAST_LIMIT = 20;
 const TOAST_REMOVE_DELAY = 300;
+const TOAST_AUTO_DISMISS_MS = 2000;
 
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
@@ -121,6 +122,14 @@ function toast({ ...props }) {
 
   const dismiss = () =>
     dispatch({ type: actionTypes.DISMISS_TOAST, toastId: id });
+
+  // Fecha sozinho após 2s (ou o duration informado) — antes os toasts ficavam presos
+  const durationMs = Number(props.duration) > 0 ? Number(props.duration) : TOAST_AUTO_DISMISS_MS;
+  const timeout = setTimeout(() => {
+    toastTimeouts.delete(id);
+    dismiss();
+  }, durationMs);
+  toastTimeouts.set(id, timeout);
 
   dispatch({
     type: actionTypes.ADD_TOAST,
