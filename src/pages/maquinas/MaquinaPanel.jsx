@@ -42,6 +42,7 @@ import { salvarCacheLocal, obterCacheLocal, enfileirarAcaoOffline, purgarIdDoCac
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
 import { reajustarTodasBobinasMaquinasAutomaticamente } from "@/lib/reajusteAutomaticoBobinas";
 import { isTelhaBandeja } from "@/lib/bandejaHelper";
+import PedidoMiniCard from "@/components/producao/PedidoMiniCard";
 
 const STATUS_LABELS_TELHAS = {
   pendente: "Pendente",
@@ -106,6 +107,7 @@ const DASH_PATHS = {
 export default function MaquinaPanel({ maquina }) {
   const navigate = useNavigate();
   const [selectedDay, setSelectedDay] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [expandidoMiniId, setExpandidoMiniId] = useState(null); // Visão mini: id do pedido expandido (null = todos recolhidos)
   const [termoBusca, setTermoBusca] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("todos");
   const [filtroCor, setFiltroCor] = useState("todas");
@@ -1995,7 +1997,18 @@ export default function MaquinaPanel({ maquina }) {
                     </Button>
                   </div>
                 )}
-                <PedidoRow pedido={p} onStatusChange={handleStatusChange} onUpdate={handleStatusChange} userRole={user?.role} opRodando={opRodando} maquina={maquina} user={user} filialAtiva={filialAtiva} appendHistoricoFn={(pedido, acao, label, detalhes) => appendHistorico(pedido, acao, label, detalhes)} todosPedidos={todosPedidos} />
+                {(p.status === "pendente" || p.status === "aguardando_material") && expandidoMiniId !== p.id ? (
+                  <PedidoMiniCard pedido={p} onExpand={() => setExpandidoMiniId(p.id)} />
+                ) : (
+                  <>
+                    {(p.status === "pendente" || p.status === "aguardando_material") && (
+                      <button onClick={() => setExpandidoMiniId(null)} className="w-full flex items-center justify-center gap-1 text-[11px] font-bold text-muted-foreground hover:text-foreground py-1 cursor-pointer">
+                        <ChevronDown className="w-3.5 h-3.5 rotate-180" /> Recolher para resumo
+                      </button>
+                    )}
+                    <PedidoRow pedido={p} onStatusChange={handleStatusChange} onUpdate={handleStatusChange} userRole={user?.role} opRodando={opRodando} maquina={maquina} user={user} filialAtiva={filialAtiva} appendHistoricoFn={(pedido, acao, label, detalhes) => appendHistorico(pedido, acao, label, detalhes)} todosPedidos={todosPedidos} />
+                  </>
+                )}
               </div>
             );
           })}
