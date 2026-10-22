@@ -848,10 +848,15 @@ export function detectarEspessura(produtoTexto = "") {
 }
 
 // Detecta a origem do aço exigida (Nacional / Importado / ambas)
-export function detectarOrigemAco(produtoTexto = "") {
-  const p = String(produtoTexto || "").toLowerCase();
-  if (p.includes("nacional") || p.includes("nac")) return "Nacional";
-  if (p.includes("importad") || p.includes("imp")) return "Importado";
+// Regra Estrita: se contiver "importada", "imp", "importado", categoriza OBRIGATORIAMENTE como Importado (nunca Nacional).
+export function detectarOrigemAco(produtoTexto = "", descricaoTexto = "") {
+  const p = `${produtoTexto || ""} ${descricaoTexto || ""}`.toLowerCase();
+  if (/\b(importad[ao]s?|imp\.?)\b/i.test(p) || p.includes("importad")) {
+    return "Importado";
+  }
+  if (/\b(naciona[li]s?|nac\.?)\b/i.test(p) || p.includes("nacional")) {
+    return "Nacional";
+  }
   return "ambas";
 }
 

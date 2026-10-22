@@ -140,6 +140,7 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
           const desc = stripHtml(it.descricao || it.produto || "Item sem descrição");
           const produtoLimpo = stripHtml(it.produto);
           const anotacao = extrairAnotacaoItem(it);
+          const textoDescricaoVendedor = anotacao || (desc && desc !== produtoLimpo ? desc : "") || it.observacao || "";
           const unidade = normalizarUnidadeMedidaItem(it, g);
 
           // Verificação de Matéria-Prima em Tempo Real e Demanda Física
@@ -278,22 +279,13 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
                     )}
                   </div>
 
-                  {/* Especificação técnica inteligente extraída da descrição (ex: 70 barras c/ 6.000 mm) */}
-                  {espTec && espTec.tem_especificacao && espTec.resumo_formatado && (
-                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                      <span className={`inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md border ${cfg.highlightBg} shadow-xs`}>
-                        <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
-                        <span>{espTec.resumo_formatado}</span>
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Anotação/Observação real do vendedor (itálico azul) — limpa de repetições do produto */}
-                  {anotacao && (
-                    <div className="flex items-start gap-1 mt-1">
-                      <ClipboardList className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400 shrink-0 mt-0.5" />
-                      <p className="text-xs italic text-sky-700 dark:text-sky-300 leading-snug break-words">
-                        {anotacao}
+                  
+                  {/* Descrição do Vendedor (Odoo) - Foco Principal */}
+                  {textoDescricaoVendedor && (
+                    <div className="flex items-start gap-1.5 mt-1 bg-sky-50/70 dark:bg-sky-950/40 px-2.5 py-1.5 rounded-md border border-sky-200/70 dark:border-sky-800/60 shadow-2xs">
+                      <span className="text-xs shrink-0 select-none">📄</span>
+                      <p className="text-xs font-semibold text-sky-800 dark:text-sky-200 leading-snug break-words">
+                        {textoDescricaoVendedor}
                       </p>
                     </div>
                   )}
@@ -355,7 +347,7 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
                       {(estoqueItem.status === "parcial_prebaixa" ||
                         estoqueItem.status === "indisponivel_prebaixa" ||
                         estoqueItem.status === "indisponivel" ||
-                        (estoqueItem.pecasFaltantes && estoqueItem.pecasFaltantes > 0)) && (
+                        Boolean(estoqueItem.pecasFaltantes && estoqueItem.pecasFaltantes > 0)) && (
                         <button
                           type="button"
                           disabled={enviandoAlerta[idx]}

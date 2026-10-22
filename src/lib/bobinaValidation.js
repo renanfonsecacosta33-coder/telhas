@@ -102,6 +102,14 @@ export function isOrigemCompatible(bobina, origemExigida) {
   const bobOrigem = bobina?.origem || (String(bobina?.qualidade || "").toUpperCase().includes("IMP") ? "Importado" : "Nacional");
   const bobNorm = normalizeOrigem(bobOrigem);
   if (bobNorm === reqNorm) return { ok: true, reason: null };
+
+  // 🏭 Regra de Equivalência de Fábrica:
+  // Considerar que tanto a telha marcada como "Nacional" quanto a "Importada" são atendidas por bobinas importadas no estoque da fábrica,
+  // garantindo que o vínculo e a busca de bobina não travem nem gerem falsa indisponibilidade.
+  if (bobNorm === "importado") {
+    return { ok: true, reason: null };
+  }
+
   return {
     ok: false,
     reason: "origem",
@@ -119,31 +127,30 @@ export function removerAcentos(str = "") {
 
 /**
  * Detecta a cor/RVM exigida pelo pedido de telha com base no texto do produto e observações.
- * Retorna uma chave padronizada (ex: "NATURAL", "BRANCO", "PRETO", "AZUL", "CINZA", etc.).
+ * REGRA ZERO: O produto SÓ DEVE TER COR ATRIBUÍDA se o nome de uma cor estiver explicitamente
+ * escrito no Nome do Produto OU na Descrição do Vendedor (ex: BRANCA, CERAMICA, PRETO, BEGE, AZUL, CINZA, etc.).
+ * Se nenhuma cor for citada nesses dois campos, o produto é considerado NATURAL (Galvalume / Sem Pintura).
+ * Proibição: O sistema NUNCA deve presumir, inferir ou puxar cor padrão caso ela não esteja expressamente descrita pelo vendedor.
  */
 export function detectarCorTelha(produtoTexto = "", descricaoTexto = "") {
-  const combined = removerAcentos(`${produtoTexto} ${descricaoTexto}`);
+  const combined = removerAcentos(`${produtoTexto || ""} ${descricaoTexto || ""}`);
 
-  // 1. Cores Pré-Pintadas Específicas
-  if (/(PRETO\s*9005|PRETO|PRETA|BLACK)/i.test(combined)) return "PRETO";
-  if (/(BRANCO|BRANCA|WHITE)/i.test(combined)) return "BRANCO";
-  if (/(AZUL|BLUE)/i.test(combined)) return "AZUL";
-  if (/(BEGE|AREIA|BEIGE)/i.test(combined)) return "BEGE";
-  if (/(GRAFITE)/i.test(combined)) return "GRAFITE";
-  if (/(CINZA\s*ESCURO|CINZA)/i.test(combined)) return "CINZA";
-  if (/CERAMICA/i.test(combined)) return "CERAMICA";
-  if (/TERRACOTA/i.test(combined)) return "TERRACOTA";
-  if (/(VERMELHO|VERMELHA|RED)/i.test(combined)) return "VERMELHO";
-  if (/(MARROM|BROWN)/i.test(combined)) return "MARROM";
-  if (/(VERDE|GREEN)/i.test(combined)) return "VERDE";
-  if (/(AMARELO|AMARELA|YELLOW)/i.test(combined)) return "AMARELO";
+  // Checagem rigorosa de menção explícita de cores pré-pintadas
+  if (/\b(PRETO\s*9005|PRETO|PRETA|BLACK)\b/i.test(combined)) return "PRETO";
+  if (/\b(BRANCO|BRANCA|WHITE)\b/i.test(combined)) return "BRANCO";
+  if (/\b(AZUL|BLUE)\b/i.test(combined)) return "AZUL";
+  if (/\b(BEGE|AREIA|BEIGE)\b/i.test(combined)) return "BEGE";
+  if (/\b(GRAFITE)\b/i.test(combined)) return "GRAFITE";
+  if (/\b(CINZA\s*ESCURO|CINZA|GRAY|GREY)\b/i.test(combined)) return "CINZA";
+  if (/\b(CERAMICA|CERAMICO)\b/i.test(combined)) return "CERAMICA";
+  if (/\b(TERRACOTA)\b/i.test(combined)) return "TERRACOTA";
+  if (/\b(VERMELHO|VERMELHA|RED)\b/i.test(combined)) return "VERMELHO";
+  if (/\b(MARROM|BROWN|CHOCOLATE|TABACO)\b/i.test(combined)) return "MARROM";
+  if (/\b(VERDE|GREEN)\b/i.test(combined)) return "VERDE";
+  if (/\b(AMARELO|AMARELA|YELLOW)\b/i.test(combined)) return "AMARELO";
+  if (/\b(LARANJA|ORANGE)\b/i.test(combined)) return "LARANJA";
 
-  // 2. Cores Naturais / Galvalume / Galvanizadas
-  if (/(NATURAL|GALVALUME|GALVANIZAD|GL|GV|CRU|SEM\s*PINTURA)/i.test(combined)) {
-    return "NATURAL";
-  }
-
-  // Padrão de fábrica de telhas quando não menciona cor pré-pintada é Galvalume Natural
+  // Se nenhuma cor for explicitamente citada nos textos do produto ou vendedor:
   return "NATURAL";
 }
 
@@ -160,7 +167,7 @@ export function isCorCompativel(bobina, corExigida) {
   // Caso 1: Pedido exige NATURAL / GALVALUME
   if (corAlvo === "NATURAL" || corAlvo === "GALVALUME") {
     // Bobina NÃO pode ser pré-pintada colorida (Branca, Preta, etc.)
-    const ehColorida = /(BRANC|PRET|AZUL|BEGE|GRAFIT|CINZA|TERRACOT|VERMELH|MARROM|VERD|AMAREL)/i.test(corBobina);
+    const ehColorida = /(BRANC|PRET|AZUL|BEGE|GRAFIT|CINZA|TERRACOT|CERAMIC|VERMELH|MARROM|VERD|AMAREL|LARANJ)/i.test(corBobina);
     if (ehColorida) return false;
     // Se for qualidade PP (pré-pintada) com cor definida, não serve para natural
     if (qualBobina === "PP" && corBobina) return false;

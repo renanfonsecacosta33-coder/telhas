@@ -10,7 +10,7 @@ export function detectarOrigemAco({ bobina = null, bobinaTexto = "", origemExigi
   const txt = String(bobinaTexto || "").toUpperCase();
   const exig = String(origemExigida || "").toLowerCase();
 
-  if (exig.includes("import") || txt.includes("(IMP)") || txt.includes("IMPORTAD") || txt.includes("IMP.") || txt.includes("GL (IMP)")) {
+  if (exig.includes("import") || exig.includes("imp") || txt.includes("(IMP)") || txt.includes("IMPORTAD") || txt.includes("IMP.") || txt.includes("GL (IMP)") || /\bIMP\b/.test(txt)) {
     return {
       origem: "Importado",
       label: "Aço Importado",

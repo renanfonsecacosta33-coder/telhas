@@ -25,6 +25,7 @@ import { calcularDataPrometidaSLA, toISODate } from "@/lib/sla";
 import { getPrioridadeNivel } from "@/lib/prioridadeHelper";
 import { extrairRotuloBobinaSimplificado, extrairRotuloFaceInferior } from "@/lib/bobinaRotuloHelper";
 
+export { removerAcentos, detectarCorTelha, isCorCompativel };
 export const LOCAL_STORAGE_KEY_AUTO_TELHAS = "pcp_auto_roteamento_telhas";
 
 /**
@@ -52,42 +53,65 @@ export function setAutoRoteamentoTelhasAtivo(ativo) {
   }
 }
 
-export { removerAcentos, detectarCorTelha, isCorCompativel };
 
 /**
  * Detecta as cores independentes da chapa superior e chapa inferior para telhas duplas (sanduíche).
- * Ex: Superior Natural / Inferior Preta ("PRE PINTADA PRETA PARTE INTERNA")
+ * Suporta formatos explícitos como:
+ * - "EXTERNA CERAMICA / INTERNA BRANCA"
+ * - "EXT: CERAMICA / INT: BRANCA"
+ * - "SUPERIOR CERAMICA / INFERIOR BRANCA"
+ * - "CERAMICA / BRANCA"
  */
 export function detectarCoresDuplaTelha(produtoTexto = "", descricaoTexto = "") {
-  const combined = removerAcentos(`${produtoTexto} ${descricaoTexto}`);
+  const combined = removerAcentos(`${produtoTexto || ""} ${descricaoTexto || ""}`);
   
   let corSup = "NATURAL";
   let corInf = "NATURAL";
 
-  // 1. Formato com barra: "NATURAL / PRETA", "NATURAL / BRANCA", "BRANCA / PRETA"
-  const matchBarra = combined.match(/(NATURAL|GALVALUME|BRANC[OA]|PRET[OA]|AZUL|BEGE|CINZA|TERRACOTA|VERMELH[OA]|MARROM|VERDE)\s*[\/|\\]\s*(NATURAL|GALVALUME|BRANC[OA]|PRET[OA]|AZUL|BEGE|CINZA|TERRACOTA|VERMELH[OA]|MARROM|VERDE)/i);
+  // 1. Padrão explícito com EXTERNA ... INTERNA (ex: "EXTERNA CERAMICA / INTERNA BRANCA", "EXT: BRANCA / INT: PRETA")
+  const matchExtInt = combined.match(/(?:EXTERNA|EXT|FACE\s*SUPERIOR|SUPERIOR|CHAPA\s*SUPERIOR)\s*[:=-]?\s*([A-Z]+)[^A-Z]*(?:INTERNA|INT|FACE\s*INFERIOR|INFERIOR|CHAPA\s*INFERIOR)\s*[:=-]?\s*([A-Z]+)/i);
+  if (matchExtInt) {
+    corSup = normalizarCorDupla(matchExtInt[1]);
+    corInf = normalizarCorDupla(matchExtInt[2]);
+    return { corSuperior: corSup, corInferior: corInf };
+  }
+
+  // Padrão inverso: INTERNA ... EXTERNA (ex: "INTERNA BRANCA / EXTERNA CERAMICA")
+  const matchIntExt = combined.match(/(?:INTERNA|INT|FACE\s*INFERIOR|INFERIOR|CHAPA\s*INFERIOR)\s*[:=-]?\s*([A-Z]+)[^A-Z]*(?:EXTERNA|EXT|FACE\s*SUPERIOR|SUPERIOR|CHAPA\s*SUPERIOR)\s*[:=-]?\s*([A-Z]+)/i);
+  if (matchIntExt) {
+    corInf = normalizarCorDupla(matchIntExt[1]);
+    corSup = normalizarCorDupla(matchIntExt[2]);
+    return { corSuperior: corSup, corInferior: corInf };
+  }
+
+  // 2. Formato com barra: "NATURAL / PRETA", "CERAMICA / BRANCA", "BRANCA / PRETA"
+  const matchBarra = combined.match(/(NATURAL|GALVALUME|BRANC[OA]|PRET[OA]|AZUL|BEGE|CINZA|CERAMIC[OA]|TERRACOTA|VERMELH[OA]|MARROM|VERDE|AMAREL[OA])\s*[\/|\\]\s*(NATURAL|GALVALUME|BRANC[OA]|PRET[OA]|AZUL|BEGE|CINZA|CERAMIC[OA]|TERRACOTA|VERMELH[OA]|MARROM|VERDE|AMAREL[OA])/i);
   if (matchBarra) {
     corSup = normalizarCorDupla(matchBarra[1]);
     corInf = normalizarCorDupla(matchBarra[2]);
     return { corSuperior: corSup, corInferior: corInf };
   }
 
-  // 2. Menção explícita à parte interna / chapa inferior
+  // 3. Menção explícita à parte interna / chapa inferior
   if (/PRE\s*PINTADA\s*PRET[OA]\s*PARTE\s*INTERNA|PARTE\s*INTERNA\s*PRET[OA]|FACE\s*INFERIOR\s*PRET[OA]|INFERIOR\s*PRET[OA]|CHAPA\s*INFERIOR\s*PRET[OA]/i.test(combined)) {
     corInf = "PRETO";
   } else if (/PRE\s*PINTADA\s*BRANC[OA]\s*PARTE\s*INTERNA|PARTE\s*INTERNA\s*BRANC[OA]|FACE\s*INFERIOR\s*BRANC[OA]|INFERIOR\s*BRANC[OA]|CHAPA\s*INFERIOR\s*BRANC[OA]/i.test(combined)) {
     corInf = "BRANCO";
   } else if (/PARTE\s*INTERNA\s*AZUL|FACE\s*INFERIOR\s*AZUL/i.test(combined)) {
     corInf = "AZUL";
+  } else if (/PARTE\s*INTERNA\s*CERAMIC|FACE\s*INFERIOR\s*CERAMIC/i.test(combined)) {
+    corInf = "CERAMICA";
   } else if (/PARTE\s*INTERNA\s*NATURAL|FACE\s*INFERIOR\s*NATURAL/i.test(combined)) {
     corInf = "NATURAL";
   }
 
-  // 3. Menção explícita à parte externa / chapa superior
+  // 4. Menção explícita à parte externa / chapa superior
   if (/PARTE\s*EXTERNA\s*PRET[OA]|FACE\s*SUPERIOR\s*PRET[OA]|SUPERIOR\s*PRET[OA]|CHAPA\s*SUPERIOR\s*PRET[OA]/i.test(combined)) {
     corSup = "PRETO";
   } else if (/PARTE\s*EXTERNA\s*BRANC[OA]|FACE\s*SUPERIOR\s*BRANC[OA]|SUPERIOR\s*BRANC[OA]|CHAPA\s*SUPERIOR\s*BRANC[OA]/i.test(combined)) {
     corSup = "BRANCO";
+  } else if (/PARTE\s*EXTERNA\s*CERAMIC|FACE\s*SUPERIOR\s*CERAMIC/i.test(combined)) {
+    corSup = "CERAMICA";
   } else if (/NATURAL|GALVALUME|GV|GL/i.test(combined)) {
     corSup = "NATURAL";
   } else {
@@ -105,6 +129,7 @@ function normalizarCorDupla(c = "") {
   if (/BEGE|AREIA/i.test(norm)) return "BEGE";
   if (/GRAFIT/i.test(norm)) return "GRAFITE";
   if (/CINZA/i.test(norm)) return "CINZA";
+  if (/CERAMIC/i.test(norm)) return "CERAMICA";
   if (/TERRACOT/i.test(norm)) return "TERRACOTA";
   if (/VERMELH/i.test(norm)) return "VERMELHO";
   if (/MARROM/i.test(norm)) return "MARROM";
