@@ -4,15 +4,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
-import {
-  Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send,
-  Factory, Scissors, Wind, Layers, AlertTriangle, CheckCircle2, Star,
-  ChevronDown, ChevronUp, Calendar, Filter, X, Clock, Trash2, CheckSquare, Square,
-  Building2, ArrowRightLeft, Store, Globe, User, Briefcase, Hash, Package, ShieldCheck,
-  Target, BookOpen, RotateCcw
-} from "lucide-react";
+import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Calendar, X, Clock, Trash2, Building2, ArrowRightLeft, Globe, User, Briefcase, Hash, Package, ShieldCheck, Target, BookOpen, RotateCcw } from "lucide-react";
+import { executarExclusaoOsBackground } from "@/lib/excluirOsHelper";
+import { sincronizarLoteOdoo } from "@/lib/sincronizarOdooHelper";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -39,7 +34,6 @@ import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
 import { reajustarTodasBobinasMaquinasAutomaticamente } from "@/lib/reajusteAutomaticoBobinas";
 import { executarReparoBobininhasBanco } from "@/lib/repararBobininhasHelper";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
-import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import TransferirLojaDialog from "@/components/pcp/TransferirLojaDialog";
 import ViewModeToggle from "@/components/ui/ViewModeToggle";
 import FilaPCPTabelaView from "@/components/pcp/FilaPCPTabelaView";
@@ -62,7 +56,6 @@ import {
 } from "@/lib/pedidoOdooHelper";
 import {
   isAutoRoteamentoTelhasAtivo,
-  rotearPedidoTelhaDiretoParaMaquina,
   rotearLoteTelhasAgrupadas
 } from "@/lib/autoBobinaTelhasHelper";
 import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
@@ -747,42 +740,19 @@ export default function CentralPCP() {
     });
 
     // Processamento em segundo plano com timeout
-    (async () => {
-      try {
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Timeout Odoo (3.5s)")), 3500)
-        );
-        const resPromise = base44.functions.invoke("cancelarOrdemServicoOdoo", {
-          pedido_id: pedidoId,
-          numero_pedido: numPedido,
-          odoo_id: pedido.odoo_id,
-          of_odoo_id: pedido.of_odoo_id,
-          of_nome: pedido.of_nome,
-          motivo,
-          force: true,
-        });
-
-        await Promise.race([resPromise, timeoutPromise]).catch((e) => {
-          console.warn("[Excluir OS Background] Odoo timeout ou aviso:", e.message);
-        });
-
-        // Deleção de segurança caso o backend não tenha deletado
-        await base44.entities.PedidoOdoo.delete(pedidoId).catch(() => {});
-
-        queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
-        queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
-        queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
-
-        toast({
-          title: "✅ OS #" + numPedido + " excluída com sucesso",
-          description: "Removida da fábrica e sincronizada.",
-          className: "border-emerald-500/40"
-        });
-      } catch (err) {
-        console.warn("[Excluir OS] Erro em background:", err);
-      }
-    })();
+    executarExclusaoOsBackground({ pedido, pedidoId, numPedido, motivo, queryClient, toast });
   };
+
+  const handleSolicitarFinalizar100 = (pedidosLista) => {
+    const lista = (pedidosLista || []).filter(Boolean);
+    if (!lista.length) return;
+    setFinalizarPendentes(lista);
+    setSenhaFinalizarOpen(true);
+  };
+
+  const [sincronizandoOdoo, setSincronizandoOdoo] = useState(false);
+  const handleSincronizarLoteOdoo = (lista) =>
+    sincronizarLoteOdoo(lista, { isPedidoConcluido, setSincronizandoOdoo, toast, queryClient });
 
   const confirmarFinalizar100 = async () => {
     if (!finalizarPendentes?.length) return;
