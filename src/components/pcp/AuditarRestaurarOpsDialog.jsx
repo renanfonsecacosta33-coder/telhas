@@ -107,11 +107,20 @@ export default function AuditarRestaurarOpsDialog({
       }
 
       // 2. Carrega todas as OPs de produção, Pedidos Odoo e Catálogo de Bobinas
-      const [todasOps, todosPedidosOdoo, todasBobinas] = await Promise.all([
-        base44.entities.Pedido.list("-created_date", 500).catch(() => []),
-        base44.entities.PedidoOdoo.list("-data_recebimento", 1000).catch(() => []),
-        base44.entities.Bobina.filter({ arquivada: false }).catch(() => [])
-      ]);
+      //    Sem "catch(() => [])": falha de carregamento aborta com erro visível
+      let todasOps, todosPedidosOdoo, todasBobinas;
+      try {
+        [todasOps, todosPedidosOdoo, todasBobinas] = await Promise.all([
+          base44.entities.Pedido.list("-created_date", 500),
+          base44.entities.PedidoOdoo.list("-data_recebimento", 1000),
+          base44.entities.Bobina.filter({ arquivada: false })
+        ]);
+      } catch (errLoad) {
+        console.error("[Auditoria] Falha ao carregar dados:", errLoad);
+        toast.error("Falha ao carregar as OPs do servidor (conexão ou permissão). Auditoria abortada, nada foi alterado. Tente novamente.");
+        setExecutando(false);
+        return;
+      }
 
       opsTotal = todasOps.length;
 
@@ -346,12 +355,30 @@ export default function AuditarRestaurarOpsDialog({
         });
       } catch {}
 
-      // 2. Carrega OPs locais (Telhas e CD) e Pedidos Odoo
-      const [todasOpsTelhas, todasOpsCD, todosPedidosOdoo] = await Promise.all([
-        base44.entities.Pedido.list("-created_date", 1000).catch(() => []),
-        base44.entities.OrdemMaquinaCD ? base44.entities.OrdemMaquinaCD.list("-data", 1000).catch(() => []) : [],
-        base44.entities.PedidoOdoo.list("-data_recebimento", 1000).catch(() => [])
-      ]);
+      // 2. Carrega apenas OPs ATIVAS (Telhas e CD) + Pedidos Odoo + contagem de finalizadas.
+      //    Sem "catch(() => [])": falha de carregamento aborta com erro visível
+      //    (antes virava silenciosamente "0 devolvidos ao PCP").
+      let todasOpsTelhas, todasOpsCD, todosPedidosOdoo, finalizadosTelhas, finalizadosCD;
+      try {
+        [todasOpsTelhas, todasOpsCD, todosPedidosOdoo, finalizadosTelhas, finalizadosCD] = await Promise.all([
+          base44.entities.Pedido.filter({
+            status: { $in: ["pendente", "em_producao", "pausado", "aguardando_colagem", "aguardando_material"] }
+          }),
+          base44.entities.OrdemMaquinaCD.filter({
+            status: { $in: ["pendente", "aguardando_corte", "em_producao", "pausado", "aguardando_material"] }
+          }),
+          base44.entities.PedidoOdoo.list("-data_recebimento", 1000),
+          base44.entities.Pedido.count({ status: "finalizado" }),
+          base44.entities.OrdemMaquinaCD.count({ status: "finalizado" })
+        ]);
+      } catch (errLoad) {
+        console.error("[Reset Geral] Falha ao carregar OPs:", errLoad);
+        toast.error("Falha ao carregar as OPs do servidor (conexão ou permissão). Nenhuma OP foi alterada, tente novamente.");
+        setExecutando(false);
+        return;
+      }
+      // Finalizadas nunca são carregadas nem alteradas; contadas via count() para o relatório
+      preservadosFinalizados = (finalizadosTelhas || 0) + (finalizadosCD || 0);
 
       const mapOdoo = new Map();
       todosPedidosOdoo.forEach(p => {
@@ -573,8 +600,9 @@ export default function AuditarRestaurarOpsDialog({
         logs
       });
 
+      const opsAnalisadas = todasOpsTelhas.length + todasOpsCD.length;
       toast.success(
-        `Desalocação concluída! ${recolhidosTelhas + recolhidosCD} pedido(s) devolvidos ao PCP. ${preservadosColagem} preservados na Colagem.`
+        `Desalocação concluída! ${recolhidosTelhas + recolhidosCD} de ${opsAnalisadas} OPs ativas devolvidas ao PCP. ${preservadosColagem} preservadas na Colagem.`
       );
       if (onSucesso) onSucesso();
     } catch (err) {
@@ -800,6 +828,10 @@ export default function AuditarRestaurarOpsDialog({
                       {resultado.opsRecolhidas} Pedidos Devolvidos ao PCP
                     </Badge>
                   </div>
+
+                  <p className="text-[10px] text-muted-foreground">
+                    {resultado.opsTotal} OPs ativas analisadas nas máquinas selecionadas.
+                  </p>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono">
                     <div className="p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
