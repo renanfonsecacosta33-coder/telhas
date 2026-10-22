@@ -632,12 +632,10 @@ export default function CentralPCP() {
         maquina: ""
       }));
       const updateData = {
-        status_pcp: "pendente_distribuicao",
-        percentual_concluido: 0,
-        maquinas_json: "[]",
-        etapas_telha_json: "[]",
-        itens_json: JSON.stringify(itensZerados),
-        historico_log: JSON.stringify(novoLog)
+        status_pcp: "pendente_distribuicao", percentual_concluido: 0,
+        retirado_manualmente_ts: new Date().toISOString(),
+        maquinas_json: "[]", etapas_telha_json: "[]",
+        itens_json: JSON.stringify(itensZerados), historico_log: JSON.stringify(novoLog)
       };
       if (pedido.galpao_responsavel !== undefined) updateData.galpao_responsavel = "";
       await base44.entities.PedidoOdoo.update(pedido.id, updateData);
@@ -695,12 +693,10 @@ export default function CentralPCP() {
         maquina: ""
       }));
       await base44.entities.PedidoOdoo.update(pedido.id, {
-        status_pcp: "pendente_distribuicao",
-        percentual_concluido: 0,
-        maquinas_json: "[]",
-        etapas_telha_json: "[]",
-        itens_json: JSON.stringify(itensZerados),
-        historico_log: JSON.stringify(novoLog)
+        status_pcp: "pendente_distribuicao", percentual_concluido: 0,
+        retirado_manualmente_ts: new Date().toISOString(),
+        maquinas_json: "[]", etapas_telha_json: "[]",
+        itens_json: JSON.stringify(itensZerados), historico_log: JSON.stringify(novoLog)
       });
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
       queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
@@ -1333,8 +1329,7 @@ export default function CentralPCP() {
 
       const atualizado = await base44.entities.PedidoOdoo.update(pedido.id, {
         itens_json: JSON.stringify(itensDistribuidos),
-        status_pcp: "distribuido",
-        percentual_concluido: 15,
+        status_pcp: "distribuido", percentual_concluido: 15, retirado_manualmente_ts: "",
         historico_log: JSON.stringify(novoLog)
       });
 
@@ -1367,15 +1362,15 @@ export default function CentralPCP() {
   };
 
   // Distribuição em Lote (Todos os Selecionados ou Todos os Pendentes)
-  const handleDistribuirLote = async (pedidosADistribuir) => {
+  const handleDistribuirLote = async (pedidosADistribuir, opcoes = {}) => {
     if (!pedidosADistribuir || pedidosADistribuir.length === 0) return;
     setDistribuindo(true);
     try {
       const autoTelhasAtivo = isAutoRoteamentoTelhasAtivo();
-      let sucesso = 0;
-      let telhasCount = 0;
+      let sucesso = 0; let telhasCount = 0; let preservadosManual = 0;
 
       for (const ped of pedidosADistribuir) {
+        if (opcoes.pularDevolvidosManualmente && ped.retirado_manualmente_ts) { preservadosManual++; continue; }
         try {
           const itens = parseItensPedido(ped.itens_json);
           const telhas = itensPorGrupo(itens, "telha");
@@ -1414,11 +1409,7 @@ export default function CentralPCP() {
             }
           }
 
-          const itensDistribuidos = itens.map(it => ({
-            ...it,
-            status: it.status === "concluido" ? "concluido" : (it.status === "em_producao" ? "em_producao" : "distribuido"),
-            distribuido: true
-          }));
+          const itensDistribuidos = itens.map(it => ({ ...it, status: it.status === "concluido" ? "concluido" : (it.status === "em_producao" ? "em_producao" : "distribuido"), distribuido: true }));
 
           const logExistente = (() => { try { return JSON.parse(ped.historico_log || "[]"); } catch { return []; } })();
           const novoLog = [...logExistente, {
@@ -1432,8 +1423,7 @@ export default function CentralPCP() {
 
           const atualizado = await base44.entities.PedidoOdoo.update(ped.id, {
             itens_json: JSON.stringify(itensDistribuidos),
-            status_pcp: "distribuido",
-            percentual_concluido: 15,
+            status_pcp: "distribuido", percentual_concluido: 15, retirado_manualmente_ts: "",
             historico_log: JSON.stringify(novoLog)
           });
 
@@ -1452,8 +1442,8 @@ export default function CentralPCP() {
       toast({
         title: `🚀 ${sucesso} pedidos distribuídos!`,
         description: autoTelhasAtivo && telhasCount > 0
-          ? `${sucesso} pedido(s) distribuído(s) — ${telhasCount} item(ns) de telhas enviados direto às máquinas com bobina automática. C&D na fila normal.`
-          : `Todas as ordens selecionadas foram encaminhadas simultaneamente para as filas dos galpões.`,
+          ? `${sucesso} pedido(s) distribuído(s) — ${telhasCount} item(ns) de telhas enviados direto às máquinas com bobina automática. C&D na fila normal.${preservadosManual ? ` ${preservadosManual} devolvido(s) manualmente foram preservados no PCP.` : ""}`
+          : `Todas as ordens selecionadas foram encaminhadas simultaneamente para as filas dos galpões.${preservadosManual ? ` ${preservadosManual} devolvido(s) manualmente foram preservados no PCP.` : ""}`,
         className: "border-emerald-500/40"
       });
     } catch (e) {
@@ -3002,16 +2992,9 @@ export default function CentralPCP() {
 
                 {/* Distribuir TODOS os Pendentes da fila */}
                 {selecionados.size === 0 && pedidosFiltrados.filter(p => p.status_pcp === "pendente_distribuicao").length > 0 && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={distribuindo || excluindo}
-                    onClick={() => {
-                      const pendentes = pedidosFiltrados.filter(p => p.status_pcp === "pendente_distribuicao");
-                      handleDistribuirLote(pendentes);
-                    }}
-                    className="border-orange-400 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/30 text-xs h-8 gap-1.5 font-bold"
-                  >
+                  <Button size="sm" variant="outline" disabled={distribuindo || excluindo}
+                    onClick={() => handleDistribuirLote(pedidosFiltrados.filter(p => p.status_pcp === "pendente_distribuicao"), { pularDevolvidosManualmente: true })}
+                    className="border-orange-400 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/30 text-xs h-8 gap-1.5 font-bold">
                     <Send className="w-3.5 h-3.5" />
                     {distribuindo ? "Distribuindo..." : `Distribuir Todos os Pendentes (${pedidosFiltrados.filter(p => p.status_pcp === "pendente_distribuicao").length})`}
                   </Button>

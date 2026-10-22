@@ -772,6 +772,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
 
       await base44.entities.PedidoOdoo.update(pedido.id, {
         status_pcp: "pendente_distribuicao",
+        retirado_manualmente_ts: new Date().toISOString(),
         percentual_concluido: 0,
         maquinas_json: "[]",
         etapas_telha_json: "[]",

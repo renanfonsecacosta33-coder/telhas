@@ -501,7 +501,8 @@ export default function AuditarRestaurarOpsDialog({
           await base44.entities.PedidoOdoo.update(pedOdoo.id, {
             itens_json: JSON.stringify(itensZerados),
             status_pcp: "pendente_distribuicao",
-            distribuido: false
+            distribuido: false,
+            retirado_manualmente_ts: new Date().toISOString()
           });
         }
 
@@ -588,7 +589,8 @@ export default function AuditarRestaurarOpsDialog({
           await base44.entities.PedidoOdoo.update(pedOdoo.id, {
             itens_json: JSON.stringify(itensZerados),
             status_pcp: "pendente_distribuicao",
-            distribuido: false
+            distribuido: false,
+            retirado_manualmente_ts: new Date().toISOString()
           });
         }
 

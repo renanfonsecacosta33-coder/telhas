@@ -63,6 +63,7 @@ export const devolverPedidosPCPLote = async ({ lista, queryClient, toast }) => {
       return {
         id: pedido.id,
         status_pcp: "pendente_distribuicao",
+        retirado_manualmente_ts: agoraIso,
         percentual_concluido: 0,
         maquinas_json: "[]",
         etapas_telha_json: "[]",
