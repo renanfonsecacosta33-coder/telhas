@@ -830,6 +830,9 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const mAtualNorm = maquinaNorm(p.maquina);
   const mPainelNorm = maquinaNorm(maquina);
   const mOrigemNorm = maquinaNorm(p.maquina_origem);
+  // TELHA BANDEJA: fluxo multi-etapa sequencial estrito (TP-40/Colonial → BANDEJA → COLAGEM)
+  const isBandejaMultiEtapa = isTelhaBandeja(p);
+  const proximaEtapaBandeja = isBandejaMultiEtapa ? proximaMaquinaFluxo("TELHA BANDEJA", p.maquina) : null;
   // Indica se este pedido foi tirado/perfilado nesta máquina e seguiu para a colagem/próxima etapa
   const isPerfiladoNestaMaquina = Boolean(
     mPainelNorm &&
@@ -842,9 +845,6 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       (isBandejaMultiEtapa && mPainelNorm === "BANDEJA" && mAtualNorm === "COLAGEM")
     )
   );
-  // TELHA BANDEJA: fluxo multi-etapa sequencial estrito (TP-40/Colonial → BANDEJA → COLAGEM)
-  const isBandejaMultiEtapa = isTelhaBandeja(p);
-  const proximaEtapaBandeja = isBandejaMultiEtapa ? proximaMaquinaFluxo("TELHA BANDEJA", p.maquina) : null;
 
   // Calcula tempo ao vivo
   const now = Date.now();
