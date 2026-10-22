@@ -633,7 +633,8 @@ export async function rotearLoteTelhasAgrupadas({
   itensTelhas = [],
   todasBobinas = [],
   filialAtiva = "Matriz AJL",
-  tolerancias = []
+  tolerancias = [],
+  opsExistentesPre = null
 }) {
   if (!pedido || !itensTelhas || itensTelhas.length === 0) {
     return { opsCriadas: [], itensAtualizadosMap: {} };
@@ -816,14 +817,20 @@ export async function rotearLoteTelhasAgrupadas({
     let opCriada = null;
     let foiAtualizada = false;
     try {
-      let opsExistentes = [];
-      if (pedido?.id) {
-        opsExistentes = await base44.entities.Pedido.filter({ pedido_odoo_id: pedido.id });
+      let opsValidas;
+      if (Array.isArray(opsExistentesPre)) {
+        // Lote: OPs já pré-buscadas em massa pelo chamador (evita 2 chamadas de rede por grupo)
+        opsValidas = opsExistentesPre.filter(o => o && String(o.status || "").toLowerCase() !== "cancelado");
+      } else {
+        let opsExistentes = [];
+        if (pedido?.id) {
+          opsExistentes = await base44.entities.Pedido.filter({ pedido_odoo_id: pedido.id });
+        }
+        if ((!opsExistentes || opsExistentes.length === 0) && pedido?.numero_pedido) {
+          opsExistentes = await base44.entities.Pedido.filter({ numero_pedido: pedido.numero_pedido });
+        }
+        opsValidas = (opsExistentes || []).filter(o => o && String(o.status || "").toLowerCase() !== "cancelado");
       }
-      if ((!opsExistentes || opsExistentes.length === 0) && pedido?.numero_pedido) {
-        opsExistentes = await base44.entities.Pedido.filter({ numero_pedido: pedido.numero_pedido });
-      }
-      const opsValidas = (opsExistentes || []).filter(o => o && String(o.status || "").toLowerCase() !== "cancelado");
       const opValida = opsValidas.find(o => {
         if (o.item_idx != null && String(o.item_idx) === String(itemPrincipalIdx)) return true;
         if (o.itens_indices) {
