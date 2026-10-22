@@ -11,7 +11,7 @@ import {
   Factory, Scissors, Wind, Layers, AlertTriangle, CheckCircle2, Star,
   ChevronDown, ChevronUp, Calendar, Filter, X, Clock, Trash2, CheckSquare, Square,
   Building2, ArrowRightLeft, Store, Globe, User, Briefcase, Hash, Package, ShieldCheck,
-  Target, BookOpen
+  Target, BookOpen, RotateCcw
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -2355,6 +2355,18 @@ export default function CentralPCP() {
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
               <span className="hidden md:inline">Auditar & Restaurar OPs</span>
               <span className="md:hidden">Auditar</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAuditarModalOpen(true)}
+              className="h-8 gap-1.5 text-xs font-bold text-red-700 dark:text-red-400 border-red-300 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-950/40 shadow-2xs"
+              title="Recolher e resetar todas as OPs das máquinas de volta para o PCP (exceto Colagem)"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-red-600" />
+              <span className="hidden md:inline">Reset / Recolher Máquinas</span>
+              <span className="md:hidden">Reset Máquinas</span>
             </Button>
 
             <DropdownMenu>

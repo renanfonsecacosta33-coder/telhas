@@ -264,18 +264,25 @@ export default function AuditarRestaurarOpsDialog({
   // ── RECOLHIMENTO E RESET DAS MÁQUINAS (Limpeza da Fila) ──
   const recolherEResetarMaquinas = async () => {
     if (!window.confirm(
-      "⚠️ RECOLHER E RESETAR FILA DAS MÁQUINAS\n\n" +
-      "Esta ação irá recolher todas as ordens de produção ativas e pendentes alocadas nas máquinas de volta para a Central do PCP.\n\n" +
-      "• Pedidos já 100% concluídos ou faturados NÃO serão alterados.\n" +
-      "• OPs órfãs e duplicatas serão canceladas.\n" +
-      "• Todos os itens pendentes voltarão para a Central PCP para reauditoria item a item.\n\n" +
-      "Deseja prosseguir com o recolhimento geral?"
+      "⚠️ DESALOCAÇÃO EM MASSA E RESET DAS MÁQUINAS\n\n" +
+      "Esta ação recolherá todas as ordens de produção ativas e pendentes alocadas nas máquinas de volta para a Fila do PCP.\n\n" +
+      "• MÁQUINAS AFETADAS:\n" +
+      "  - Telhas: TP - 40, TP - 25, Ondulada, Colonial, Cumeeira, Bandeja, Desbobinador\n" +
+      "  - Corte e Dobra: Corte 3M, Corte 6M, Dobra 3M, Dobra Fundo 6M, Dobra Início 6M, Perfiladeira\n\n" +
+      "• ⛔ EXCEÇÃO CRÍTICA (NÃO ALTERAR):\n" +
+      "  - COLAGEM: Ficará 100% INTACTA e preservada.\n" +
+      "  - Pedidos 100% concluídos ou faturados NÃO serão alterados.\n\n" +
+      "Deseja iniciar a desalocação em massa agora?"
     )) return;
 
     setExecutando(true);
     setResultado(null);
     const logs = [];
-    let opsRecolhidas = 0;
+    const contagemPorMaquina = {};
+    let recolhidosTelhas = 0;
+    let recolhidosCD = 0;
+    let preservadosColagem = 0;
+    let preservadosFinalizados = 0;
     let opsCanceladasOrfas = 0;
 
     try {
@@ -288,9 +295,10 @@ export default function AuditarRestaurarOpsDialog({
         });
       } catch {}
 
-      // 2. Carrega OPs locais e Pedidos Odoo
-      const [todasOps, todosPedidosOdoo] = await Promise.all([
+      // 2. Carrega OPs locais (Telhas e CD) e Pedidos Odoo
+      const [todasOpsTelhas, todasOpsCD, todosPedidosOdoo] = await Promise.all([
         base44.entities.Pedido.list("-created_date", 1000).catch(() => []),
+        base44.entities.OrdemMaquinaCD ? base44.entities.OrdemMaquinaCD.list("-data", 1000).catch(() => []) : [],
         base44.entities.PedidoOdoo.list("-data_recebimento", 1000).catch(() => [])
       ]);
 
@@ -303,10 +311,33 @@ export default function AuditarRestaurarOpsDialog({
 
       const todayIso = new Date().toISOString().slice(0, 10);
 
-      for (const op of todasOps) {
+      // ── ETAPA A: RECOLHIMENTO TELHAS (TP-40, TP-25, ONDULADA, COLONIAL, CUMEEIRA, BANDEJA, DESBOBINADOR) ──
+      for (const op of todasOpsTelhas) {
         if (!op || !op.id) continue;
-        // Não altera pedidos já faturados ou 100% concluídos
-        if (op.status === "finalizado" || op.status === "cancelado") continue;
+
+        // Se já finalizado: Preserva
+        if (op.status === "finalizado") {
+          preservadosFinalizados++;
+          continue;
+        }
+        if (op.status === "cancelado") continue;
+
+        const maqNome = String(op.maquina || "").toUpperCase();
+        const maqNorm = maqNome.replace(/[^A-Z0-9]/g, "");
+
+        // ⛔ 1. EXCEÇÃO CRÍTICA OBRIGATÓRIA: COLAGEM NUNCA É ALTERADA!
+        if (maqNorm === "COLAGEM" || op.status === "aguardando_colagem") {
+          preservadosColagem++;
+          logs.push({
+            tipo: "preservado_colagem",
+            pedido: op.numero_pedido || op.id,
+            cliente: op.cliente,
+            vendedor: op.vendedor || op.vendedor_nome,
+            maquina: "COLAGEM",
+            mensagem: "⛔ PRESERVADO INTACTO NA COLAGEM (Exceção Crítica)."
+          });
+          continue;
+        }
 
         const numOpPuro = String(op.numero_pedido || "").replace(/^#/, "").trim().toUpperCase();
         const pedOdoo = mapOdoo.get(numOpPuro);
@@ -320,9 +351,10 @@ export default function AuditarRestaurarOpsDialog({
           });
           opsCanceladasOrfas++;
           logs.push({
+            tipo: "orfa",
             pedido: op.numero_pedido || op.id,
             cliente: op.cliente,
-            maquina: op.maquina,
+            maquina: op.maquina || "Telhas",
             mensagem: "OP órfã cancelada e removida da máquina."
           });
           continue;
@@ -331,6 +363,7 @@ export default function AuditarRestaurarOpsDialog({
         // Se o pedido no Odoo já foi concluído ou faturado, mantém intacto
         const pedStatus = String(pedOdoo.status || pedOdoo.status_pcp || "").toLowerCase();
         if (pedStatus === "concluido" || pedStatus === "faturado") {
+          preservadosFinalizados++;
           continue;
         }
 
@@ -367,22 +400,113 @@ export default function AuditarRestaurarOpsDialog({
           });
         }
 
-        opsRecolhidas++;
+        recolhidosTelhas++;
+        const maqChave = op.maquina || "TP - 40";
+        contagemPorMaquina[maqChave] = (contagemPorMaquina[maqChave] || 0) + 1;
+
         logs.push({
+          tipo: "recolhido",
           pedido: op.numero_pedido,
           cliente: op.cliente || pedOdoo.cliente_nome,
+          vendedor: op.vendedor || pedOdoo.vendedor_nome,
           maquina: op.maquina,
-          mensagem: `OP #${op.numero_pedido} recolhida da ${op.maquina} para a Central PCP.`
+          mensagem: `OP #${op.numero_pedido} recolhida de ${op.maquina} para a Central PCP.`
+        });
+      }
+
+      // ── ETAPA B: RECOLHIMENTO CORTE E DOBRA (CORTE 3M, CORTE 6M, DOBRA 3M, DOBRA FUNDO 6M, DOBRA INICIO 6M, PERFILADEIRA) ──
+      for (const op of todasOpsCD) {
+        if (!op || !op.id) continue;
+
+        if (op.status === "finalizado") {
+          preservadosFinalizados++;
+          continue;
+        }
+        if (op.status === "cancelado") continue;
+
+        const numOpPuro = String(op.numero_pedido || "").replace(/^#/, "").trim().toUpperCase();
+        const pedOdoo = mapOdoo.get(numOpPuro);
+
+        // Se a OP é órfã
+        if (!pedOdoo) {
+          await base44.entities.OrdemMaquinaCD.update(op.id, {
+            status: "cancelado",
+            data_finalizacao: todayIso,
+            observacao: (op.observacao || "") + " [Cancelado: OP Órfã / Reset PCP]"
+          });
+          opsCanceladasOrfas++;
+          continue;
+        }
+
+        const pedStatus = String(pedOdoo.status || pedOdoo.status_pcp || "").toLowerCase();
+        if (pedStatus === "concluido" || pedStatus === "faturado") {
+          preservadosFinalizados++;
+          continue;
+        }
+
+        // Cancela a OP da máquina de CD
+        await base44.entities.OrdemMaquinaCD.update(op.id, {
+          status: "cancelado",
+          data_finalizacao: todayIso,
+          observacao: (op.observacao || "") + " [Recolhido para Central PCP]"
+        });
+
+        // Reseta os itens do PedidoOdoo
+        const itens = getItens(pedOdoo);
+        let alterou = false;
+        const itensZerados = itens.map(it => {
+          if (it.status !== "concluido") {
+            alterou = true;
+            return {
+              ...it,
+              status: "pendente",
+              status_detalhado: "Pendente de Distribuição",
+              concluido: false,
+              distribuido: false,
+              maquina: ""
+            };
+          }
+          return it;
+        });
+
+        if (alterou) {
+          await base44.entities.PedidoOdoo.update(pedOdoo.id, {
+            itens_json: JSON.stringify(itensZerados),
+            status_pcp: "pendente_distribuicao",
+            distribuido: false
+          });
+        }
+
+        recolhidosCD++;
+        const maqChave = op.maquina || "CORTE 3M";
+        contagemPorMaquina[maqChave] = (contagemPorMaquina[maqChave] || 0) + 1;
+
+        logs.push({
+          tipo: "recolhido",
+          pedido: op.numero_pedido,
+          cliente: op.cliente || pedOdoo.cliente_nome,
+          vendedor: op.vendedor || pedOdoo.vendedor_nome,
+          maquina: op.maquina,
+          mensagem: `OP #${op.numero_pedido} recolhida de ${op.maquina} para a Central PCP.`
         });
       }
 
       setResultado({
-        opsTotal: todasOps.length,
-        opsCorrigidas: opsRecolhidas + opsCanceladasOrfas,
+        tipo: "reset_geral",
+        opsTotal: todasOpsTelhas.length + todasOpsCD.length,
+        opsRecolhidas: recolhidosTelhas + recolhidosCD,
+        recolhidosTelhas,
+        recolhidosCD,
+        preservadosColagem,
+        preservadosFinalizados,
+        opsCanceladasOrfas,
+        contagemPorMaquina,
         logs
       });
 
-      toast.success(`Reset concluído! ${opsRecolhidas} OP(s) recolhidas para o PCP e ${opsCanceladasOrfas} OP(s) órfãs canceladas.`);
+      toast.success(
+        `Desalocação concluída! ${recolhidosTelhas + recolhidosCD} pedido(s) devolvidos ao PCP. ${preservadosColagem} preservados na Colagem.`
+      );
       if (onSucesso) onSucesso();
     } catch (err) {
       console.error("[Reset Geral] Erro:", err);
@@ -488,15 +612,63 @@ export default function AuditarRestaurarOpsDialog({
           {/* Resultados da Execução */}
           {resultado && (
             <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between text-xs font-bold">
-                <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle2 className="w-4 h-4" />
-                  Auditoria Concluída: {resultado.opsTotal} OPs analisadas
-                </span>
-                <Badge variant={resultado.opsCorrigidas > 0 ? "default" : "secondary"} className="text-xs">
-                  {resultado.opsCorrigidas} OP(s) Corrigida(s)
-                </Badge>
-              </div>
+              {resultado.tipo === "reset_geral" ? (
+                <div className="p-3.5 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 rounded-xl space-y-2 text-xs">
+                  <div className="flex items-center justify-between font-black text-slate-900 dark:text-white">
+                    <span className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300 text-sm">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      Relatório de Desalocação em Massa
+                    </span>
+                    <Badge className="bg-blue-600 text-white font-bold text-xs">
+                      {resultado.opsRecolhidas} Pedidos Devolvidos ao PCP
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono">
+                    <div className="p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
+                      <p className="text-[10px] text-muted-foreground uppercase font-sans">Telhas</p>
+                      <p className="text-base font-black text-orange-600">{resultado.recolhidosTelhas} OPs</p>
+                    </div>
+                    <div className="p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
+                      <p className="text-[10px] text-muted-foreground uppercase font-sans">Corte & Dobra</p>
+                      <p className="text-base font-black text-purple-600">{resultado.recolhidosCD} OPs</p>
+                    </div>
+                    <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg border border-emerald-300 dark:border-emerald-800">
+                      <p className="text-[10px] text-emerald-800 dark:text-emerald-300 uppercase font-sans font-bold">⛔ Na Colagem</p>
+                      <p className="text-base font-black text-emerald-700 dark:text-emerald-200">{resultado.preservadosColagem} Intactos</p>
+                    </div>
+                    <div className="p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
+                      <p className="text-[10px] text-muted-foreground uppercase font-sans">Concluídos</p>
+                      <p className="text-base font-black text-slate-700 dark:text-slate-300">{resultado.preservadosFinalizados} Intactos</p>
+                    </div>
+                  </div>
+
+                  {resultado.contagemPorMaquina && Object.keys(resultado.contagemPorMaquina).length > 0 && (
+                    <div className="pt-1.5 border-t border-blue-200/60 dark:border-blue-900/40">
+                      <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Desalocação por Máquina:
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {Object.entries(resultado.contagemPorMaquina).map(([maq, qtd]) => (
+                          <Badge key={maq} variant="outline" className="text-[11px] font-bold bg-white dark:bg-slate-900">
+                            {maq}: <span className="ml-1 text-orange-600">{qtd}</span>
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="w-4 h-4" />
+                    Auditoria Concluída: {resultado.opsTotal} OPs analisadas
+                  </span>
+                  <Badge variant={resultado.opsCorrigidas > 0 ? "default" : "secondary"} className="text-xs">
+                    {resultado.opsCorrigidas} OP(s) Corrigida(s)
+                  </Badge>
+                </div>
+              )}
 
               <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                 {resultado.logs.map((log, idx) => (
