@@ -25,6 +25,25 @@ import { detectarCoresDuplaTelha } from "@/lib/autoBobinaTelhasHelper";
 import { isCorCompativel } from "@/lib/bobinaValidation";
 import { reajustarTodasBobinasMaquinasAutomaticamente } from "@/lib/reajusteAutomaticoBobinas";
 
+const MAQUINAS_TELHAS_RECOLHER = [
+  { id: "TP - 40", label: "TP - 40", cor: "bg-blue-500" },
+  { id: "TP - 25", label: "TP - 25", cor: "bg-emerald-500" },
+  { id: "ONDULADA", label: "Ondulada", cor: "bg-purple-500" },
+  { id: "COLONIAL", label: "Colonial", cor: "bg-amber-500" },
+  { id: "CUMEEIRA", label: "Cumeeira", cor: "bg-red-500" },
+  { id: "BANDEJA", label: "Bandeja", cor: "bg-teal-500" },
+  { id: "DESBOBINADOR", label: "Desbobinador / Slitter", cor: "bg-indigo-500" }
+];
+
+const MAQUINAS_CD_RECOLHER = [
+  { id: "CORTE 3M", label: "Corte 3M" },
+  { id: "CORTE 6M", label: "Corte 6M" },
+  { id: "DOBRA 3M", label: "Dobra 3M" },
+  { id: "DOBRA FUNDO 6M", label: "Dobra Fundo 6M" },
+  { id: "DOBRA INICIO 6M", label: "Dobra Início 6M" },
+  { id: "PERFILADEIRA", label: "Perfiladeira CD" }
+];
+
 export default function AuditarRestaurarOpsDialog({
   open,
   onOpenChange,
@@ -32,6 +51,35 @@ export default function AuditarRestaurarOpsDialog({
 }) {
   const [executando, setExecutando] = useState(false);
   const [resultado, setResultado] = useState(null);
+  // Por padrão, seleciona todas as máquinas de telhas (exceto Colagem)
+  const [maquinasSelecionadas, setMaquinasSelecionadas] = useState([
+    "TP - 40", "TP - 25", "ONDULADA", "COLONIAL", "CUMEEIRA", "BANDEJA", "DESBOBINADOR"
+  ]);
+
+  const toggleMaquina = (maqId) => {
+    setMaquinasSelecionadas(prev =>
+      prev.includes(maqId) ? prev.filter(m => m !== maqId) : [...prev, maqId]
+    );
+  };
+
+  const selecionarTodasTelhas = () => {
+    setMaquinasSelecionadas(MAQUINAS_TELHAS_RECOLHER.map(m => m.id));
+  };
+
+  const selecionarTodasCD = () => {
+    setMaquinasSelecionadas(MAQUINAS_CD_RECOLHER.map(m => m.id));
+  };
+
+  const selecionarTudo = () => {
+    setMaquinasSelecionadas([
+      ...MAQUINAS_TELHAS_RECOLHER.map(m => m.id),
+      ...MAQUINAS_CD_RECOLHER.map(m => m.id)
+    ]);
+  };
+
+  const limparSelecao = () => {
+    setMaquinasSelecionadas([]);
+  };
 
   const executarAuditoria = async () => {
     setExecutando(true);
@@ -263,16 +311,19 @@ export default function AuditarRestaurarOpsDialog({
 
   // ── RECOLHIMENTO E RESET DAS MÁQUINAS (Limpeza da Fila) ──
   const recolherEResetarMaquinas = async () => {
+    if (maquinasSelecionadas.length === 0) {
+      toast.error("Selecione pelo menos uma máquina para recolher os pedidos.");
+      return;
+    }
+
+    const nomesMaqs = maquinasSelecionadas.join(", ");
     if (!window.confirm(
-      "⚠️ DESALOCAÇÃO EM MASSA E RESET DAS MÁQUINAS\n\n" +
-      "Esta ação recolherá todas as ordens de produção ativas e pendentes alocadas nas máquinas de volta para a Fila do PCP.\n\n" +
-      "• MÁQUINAS AFETADAS:\n" +
-      "  - Telhas: TP - 40, TP - 25, Ondulada, Colonial, Cumeeira, Bandeja, Desbobinador\n" +
-      "  - Corte e Dobra: Corte 3M, Corte 6M, Dobra 3M, Dobra Fundo 6M, Dobra Início 6M, Perfiladeira\n\n" +
-      "• ⛔ EXCEÇÃO CRÍTICA (NÃO ALTERAR):\n" +
-      "  - COLAGEM: Ficará 100% INTACTA e preservada.\n" +
-      "  - Pedidos 100% concluídos ou faturados NÃO serão alterados.\n\n" +
-      "Deseja iniciar a desalocação em massa agora?"
+      "⚠️ DESALOCAÇÃO DAS MÁQUINAS SELECIONADAS\n\n" +
+      `Máquinas selecionadas para recolhimento: ${nomesMaqs}\n\n` +
+      "• Os pedidos ativos nestas máquinas voltarão para a Fila do PCP.\n" +
+      "• ⛔ EXCEÇÃO CRÍTICA: A COLAGEM permanecerá 100% INTACTA.\n" +
+      "• Pedidos finalizados e faturados NÃO serão alterados.\n\n" +
+      "Deseja confirmar o recolhimento agora?"
     )) return;
 
     setExecutando(true);
@@ -336,6 +387,14 @@ export default function AuditarRestaurarOpsDialog({
             maquina: "COLAGEM",
             mensagem: "⛔ PRESERVADO INTACTO NA COLAGEM (Exceção Crítica)."
           });
+          continue;
+        }
+
+        // Filtra estritamente pelas máquinas selecionadas pelo usuário
+        const estaNaSelecao = maquinasSelecionadas.some(
+          m => m.toUpperCase().replace(/[^A-Z0-9]/g, "") === maqNorm
+        );
+        if (!estaNaSelecao) {
           continue;
         }
 
@@ -414,7 +473,7 @@ export default function AuditarRestaurarOpsDialog({
         });
       }
 
-      // ── ETAPA B: RECOLHIMENTO CORTE E DOBRA (CORTE 3M, CORTE 6M, DOBRA 3M, DOBRA FUNDO 6M, DOBRA INICIO 6M, PERFILADEIRA) ──
+      // ── ETAPA B: RECOLHIMENTO CORTE E DOBRA ──
       for (const op of todasOpsCD) {
         if (!op || !op.id) continue;
 
@@ -423,6 +482,16 @@ export default function AuditarRestaurarOpsDialog({
           continue;
         }
         if (op.status === "cancelado") continue;
+
+        const maqNomeCD = String(op.maquina || "").toUpperCase();
+        const maqNormCD = maqNomeCD.replace(/[^A-Z0-9]/g, "");
+
+        const estaNaSelecaoCD = maquinasSelecionadas.some(
+          m => m.toUpperCase().replace(/[^A-Z0-9]/g, "") === maqNormCD
+        );
+        if (!estaNaSelecaoCD) {
+          continue;
+        }
 
         const numOpPuro = String(op.numero_pedido || "").replace(/^#/, "").trim().toUpperCase();
         const pedOdoo = mapOdoo.get(numOpPuro);
@@ -581,32 +650,140 @@ export default function AuditarRestaurarOpsDialog({
             </Button>
           </div>
 
-          {/* Botão 2: Recolhimento Geral e Reset das Máquinas */}
-          <div className="flex items-center justify-between p-4 bg-red-50/70 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-xl">
-            <div>
-              <p className="text-xs font-bold text-red-950 dark:text-red-200 flex items-center gap-1.5">
-                <span>🔄 Recolher & Resetar Filas das Máquinas</span>
-              </p>
-              <p className="text-[11px] text-red-800/80 dark:text-red-300/80">
-                Devolve todas as OPs pendentes das máquinas para a Central do PCP para reauditoria item a item. Cancela órfãs e duplicatas. Não afeta pedidos concluídos.
-              </p>
+          {/* Botão 2: Seletor de Máquinas e Recolhimento Operacional */}
+          <div className="p-4 bg-red-50/80 dark:bg-red-950/30 border-2 border-red-200 dark:border-red-900/60 rounded-xl space-y-3.5">
+            <div className="flex items-start justify-between gap-2 flex-wrap">
+              <div>
+                <p className="text-sm font-black text-red-950 dark:text-red-100 flex items-center gap-1.5">
+                  <span className="text-base">🔄</span> Escolher Máquinas para Devolver ao PCP
+                </p>
+                <p className="text-xs text-red-800/80 dark:text-red-300/80">
+                  Marque as máquinas cujos pedidos devem retornar para a Fila do PCP para reauditoria.
+                </p>
+              </div>
+
+              {/* Atalhos Rápidos */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={selecionarTodasTelhas}
+                  className="h-7 text-[11px] font-bold border-red-300 dark:border-red-800 text-red-800 dark:text-red-200 hover:bg-red-100/60"
+                >
+                  Todas Telhas
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={selecionarTodasCD}
+                  className="h-7 text-[11px] font-bold border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100"
+                >
+                  Corte & Dobra
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={limparSelecao}
+                  className="h-7 text-[11px] font-medium text-muted-foreground hover:bg-slate-100"
+                >
+                  Limpar
+                </Button>
+              </div>
             </div>
-            <Button
-              onClick={recolherEResetarMaquinas}
-              disabled={executando}
-              className="bg-red-600 hover:bg-red-700 text-white font-bold h-9 px-4 text-xs gap-1.5 shrink-0 cursor-pointer shadow-xs"
-            >
-              {executando ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  Resetando...
-                </>
-              ) : (
-                <>
-                  <span>↩️ Resetar Filas para o PCP</span>
-                </>
-              )}
-            </Button>
+
+            {/* Grid 1: Máquinas de Telhas */}
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                🏭 Setor Fábrica de Telhas:
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                {MAQUINAS_TELHAS_RECOLHER.map(m => {
+                  const ativa = maquinasSelecionadas.includes(m.id);
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => toggleMaquina(m.id)}
+                      className={`flex items-center justify-between p-2 rounded-lg border text-xs font-bold transition-all text-left cursor-pointer ${
+                        ativa
+                          ? "bg-red-600 text-white border-red-700 shadow-2xs ring-1 ring-red-500"
+                          : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300"
+                      }`}
+                    >
+                      <span>{m.label}</span>
+                      <span className="text-[10px] font-black">{ativa ? "✓" : "+"}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ⛔ Alerta de Exceção da Colagem */}
+            <div className="p-2.5 rounded-lg bg-emerald-100/70 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 flex items-center justify-between text-xs font-bold text-emerald-900 dark:text-emerald-200">
+              <span className="flex items-center gap-1.5">
+                <span>🛡️</span>
+                <span>Bancada de COLAGEM:</span>
+                <span className="font-normal">PROTEGIDA (Pedidos na Colagem NUNCA são recolhidos).</span>
+              </span>
+              <Badge className="bg-emerald-600 text-white text-[10px] uppercase font-black">
+                Intacta
+              </Badge>
+            </div>
+
+            {/* Grid 2: Máquinas de Corte e Dobra */}
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                ✂️ Setor Corte e Dobra (Opcional):
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                {MAQUINAS_CD_RECOLHER.map(m => {
+                  const ativa = maquinasSelecionadas.includes(m.id);
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => toggleMaquina(m.id)}
+                      className={`flex items-center justify-between p-2 rounded-lg border text-xs font-bold transition-all text-left cursor-pointer ${
+                        ativa
+                          ? "bg-purple-600 text-white border-purple-700 shadow-2xs ring-1 ring-purple-500"
+                          : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300"
+                      }`}
+                    >
+                      <span>{m.label}</span>
+                      <span className="text-[10px] font-black">{ativa ? "✓" : "+"}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Botão de Disparo */}
+            <div className="pt-1 flex items-center justify-between gap-3">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                {maquinasSelecionadas.length === 0 ? (
+                  <span className="text-red-600 font-semibold">Nenhuma máquina marcada</span>
+                ) : (
+                  <span><strong>{maquinasSelecionadas.length}</strong> máquina(s) selecionada(s) para recolher</span>
+                )}
+              </span>
+
+              <Button
+                onClick={recolherEResetarMaquinas}
+                disabled={executando || maquinasSelecionadas.length === 0}
+                className="bg-red-600 hover:bg-red-700 text-white font-extrabold h-9 px-4 text-xs gap-1.5 shrink-0 cursor-pointer shadow-sm"
+              >
+                {executando ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    Recolhendo...
+                  </>
+                ) : (
+                  <>
+                    <span>↩️ Devolver Selecionadas ao PCP</span>
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
 
           {/* Resultados da Execução */}
