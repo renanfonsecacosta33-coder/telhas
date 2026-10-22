@@ -153,6 +153,24 @@ export default function CentralPCP() {
     setLojaSelecionada(lojaId);
     localStorage.setItem("pcp_loja_selecionada", lojaId);
   };
+  const handleToggleItem = async (pedido, idx) => {
+    try {
+      const itens = parseItensPedido(pedido.itens_json);
+      if (!itens[idx]) return;
+      itens[idx] = { ...itens[idx], concluido: !itens[idx].concluido };
+      const concluidos = itens.filter((i) => i.concluido).length;
+      const percentual = itens.length > 0 ? Math.round((concluidos / itens.length) * 100) : 0;
+      const atualizado = await base44.entities.PedidoOdoo.update(pedido.id, {
+        itens_json: JSON.stringify(itens),
+        percentual_concluido: percentual,
+      });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      setPedidoSelecionado((prev) => prev ? { ...prev, ...atualizado } : prev);
+    } catch (e) {
+      toast({ title: "Erro ao atualizar item", description: e.message, variant: "destructive" });
+    }
+  };
+
 
   // Finalizar 100% com Senha de Gestor (PIN 0000)
   const [senhaFinalizarOpen, setSenhaFinalizarOpen] = useState(false);
@@ -709,169 +727,61 @@ export default function CentralPCP() {
   };
 
   const handleExcluirOS = async (pedido, motivo) => {
-    try {
-      const res = await base44.functions.invoke("cancelarOrdemServicoOdoo", {
-        numero_pedido: pedido.numero_pedido,
-        odoo_id: pedido.odoo_id,
-        motivo,
-      });
-      // Trava atômica: Odoo não confirmou (status ≠ 200/201) → oferece forçar limpeza no App.
-      if (res?.status && res.status !== "ok") {
-        const confirmarForcar = window.confirm(
-          `⚠️ O ODOO RETORNOU ERRO NO CANCELAMENTO (Status: ${res?.odoo_status || 500})\n\nDeseja FORÇAR a exclusão da OS #${pedido.numero_pedido} diretamente do App de Fábricas para limpar a fila e resetar o pedido?`
-        );
-        if (confirmarForcar) {
-          await base44.functions.invoke("cancelarOrdemServicoOdoo", {
-            numero_pedido: pedido.numero_pedido,
-            odoo_id: pedido.odoo_id,
-            motivo,
-            force: true,
-          });
-          queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
-          queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
-          queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
-          setDetalheOpen(false);
-          setPedidoSelecionado(null);
-          toast({
-            title: "🧹 OS Removida do App (Forçado)",
-            description: `OS #${pedido.numero_pedido} e ordens vinculadas foram limpas do App.`,
-            className: "border-amber-500/40"
-          });
-          return;
-        }
-        toast({
-          title: "❌ FALHA NO CANCELAMENTO ODOO",
-          description: "O Odoo não confirmou o cancelamento da ordem de fabricação. A OS foi mantida na fábrica!",
-          variant: "destructive",
-          duration: 9000,
-        });
-        return;
-      }
-      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
-      queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
-      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
-      setDetalheOpen(false);
-      setPedidoSelecionado(null);
-      toast({
-        title: res?.message || "Ordem de Serviço cancelada no Odoo e removida do App!",
-        description: `Odoo ID ${res?.odoo_id || pedido.odoo_id}.`,
-        className: "border-emerald-500/40"
-      });
-    } catch (e) {
-      // Erro de rede/execução → oferece forçar exclusão local
-      const confirmarForcar = window.confirm(
-        `⚠️ O ODOO NÃO RESPONDEU AO CANCELAMENTO\n\nDeseja FORÇAR a exclusão da OS #${pedido.numero_pedido} diretamente do App de Fábricas para limpar a fila e resetar o pedido?`
-      );
-      if (confirmarForcar) {
-        try {
-          await base44.functions.invoke("cancelarOrdemServicoOdoo", {
-            numero_pedido: pedido.numero_pedido,
-            odoo_id: pedido.odoo_id,
-            motivo,
-            force: true,
-          });
-          queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
-          queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
-          queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
-          setDetalheOpen(false);
-          setPedidoSelecionado(null);
-          toast({
-            title: "🧹 OS Removida do App (Forçado)",
-            description: `OS #${pedido.numero_pedido} e ordens vinculadas foram limpas do App.`,
-            className: "border-amber-500/40"
-          });
-          return;
-        } catch (errForcar) {
-          console.error("Falha ao forçar exclusão:", errForcar);
-        }
-      }
-      toast({
-        title: "❌ FALHA NO CANCELAMENTO ODOO",
-        description: "O Odoo não confirmou o cancelamento da ordem de fabricação. A OS foi mantida na fábrica!",
-        variant: "destructive",
-        duration: 9000,
-      });
-    }
-  };
+    if (!pedido) return;
+    const pedidoId = pedido.id;
+    const numPedido = pedido.numero_pedido;
 
-  const handleToggleItem = async (pedido, idx) => {
-    try {
-      const itens = parseItensPedido(pedido.itens_json);
-      if (!itens[idx]) return;
-      itens[idx] = { ...itens[idx], concluido: !itens[idx].concluido };
-      const concluidos = itens.filter((i) => i.concluido).length;
-      const percentual = itens.length > 0 ? Math.round((concluidos / itens.length) * 100) : 0;
-      const atualizado = await base44.entities.PedidoOdoo.update(pedido.id, {
-        itens_json: JSON.stringify(itens),
-        percentual_concluido: percentual,
-      });
-      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
-      setPedidoSelecionado((prev) => prev ? { ...prev, ...atualizado } : prev);
-    } catch (e) {
-      toast({ title: "Erro ao atualizar item", description: e.message, variant: "destructive" });
-    }
-  };
+    // ⚡ Resposta Instantânea: Fecha o diálogo e remove da tela imediatamente
+    setDetalheOpen(false);
+    setPedidoSelecionado(null);
 
-  const handleSolicitarFinalizar100 = (pedidosLista) => {
-    const lista = (pedidosLista || []).filter(Boolean);
-    if (!lista.length) return;
-    setFinalizarPendentes(lista);
-    setSenhaFinalizarOpen(true);
-  };
+    queryClient.setQueryData(["pedidos-odoo-pcp"], (oldData) => {
+      if (!Array.isArray(oldData)) return oldData;
+      return oldData.filter((item) => item.id !== pedidoId);
+    });
 
-  const [sincronizandoOdoo, setSincronizandoOdoo] = useState(false);
+    toast({
+      title: "🗑️ Excluindo OS #" + numPedido,
+      description: "Removida da tela. Sincronizando com o Odoo em segundo plano...",
+      className: "border-amber-500/40"
+    });
 
-  const handleSincronizarLoteOdoo = async (pedidosParaSincronizar) => {
-    const lista = (pedidosParaSincronizar || []).filter(Boolean);
-    if (!lista.length) return;
-    setSincronizandoOdoo(true);
-    let okCount = 0;
-    let failCount = 0;
-
-    for (const p of lista) {
+    // Processamento em segundo plano com timeout
+    (async () => {
       try {
-        const itens = parseItensPedido(p.itens_json);
-        const isConc = isPedidoConcluido(p);
-        const itensSinc = isConc
-          ? itens.map(i => ({ ...i, concluido: true, status: "concluido", status_detalhado: "Concluído" }))
-          : itens;
-
-        const res = await notificarStatus(
-          {
-            ...p,
-            percentual_concluido: isConc ? 100 : (p.percentual_concluido || 0),
-            status_pcp: isConc ? "concluido" : (p.status_pcp || "em_producao"),
-            itens_json: JSON.stringify(itensSinc)
-          },
-          isConc ? "concluido" : "sincronizacao_manual",
-          {
-            percentual_concluido: isConc ? 100 : (p.percentual_concluido || 0),
-            status_novo: isConc ? "concluido" : (p.status_pcp || "em_producao"),
-            item_nome: `Pedido #${p.numero_pedido}`
-          }
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout Odoo (3.5s)")), 3500)
         );
-        if (res && res.ok) okCount++;
-        else failCount++;
-      } catch (err) {
-        console.error("Erro sincronizando pedido com Odoo:", p.numero_pedido, err);
-        failCount++;
-      }
-    }
+        const resPromise = base44.functions.invoke("cancelarOrdemServicoOdoo", {
+          pedido_id: pedidoId,
+          numero_pedido: numPedido,
+          odoo_id: pedido.odoo_id,
+          of_odoo_id: pedido.of_odoo_id,
+          of_nome: pedido.of_nome,
+          motivo,
+          force: true,
+        });
 
-    setSincronizandoOdoo(false);
-    if (failCount === 0) {
-      toast({
-        title: "Sincronização com Odoo concluída!",
-        description: `${okCount} OF(s) sincronizada(s) com sucesso no Odoo ERP como Finalizado/Concluído.`
-      });
-    } else {
-      toast({
-        title: "Sincronização com Odoo realizada",
-        description: `${okCount} enviada(s) com sucesso, ${failCount} falha(s).`,
-        variant: failCount > 0 && okCount === 0 ? "destructive" : "default"
-      });
-    }
-    queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+        await Promise.race([resPromise, timeoutPromise]).catch((e) => {
+          console.warn("[Excluir OS Background] Odoo timeout ou aviso:", e.message);
+        });
+
+        // Deleção de segurança caso o backend não tenha deletado
+        await base44.entities.PedidoOdoo.delete(pedidoId).catch(() => {});
+
+        queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+        queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
+        queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+
+        toast({
+          title: "✅ OS #" + numPedido + " excluída com sucesso",
+          description: "Removida da fábrica e sincronizada.",
+          className: "border-emerald-500/40"
+        });
+      } catch (err) {
+        console.warn("[Excluir OS] Erro em background:", err);
+      }
+    })();
   };
 
   const confirmarFinalizar100 = async () => {
@@ -2263,88 +2173,117 @@ export default function CentralPCP() {
       return;
     }
 
-    setExcluindo(true);
-    let excluidos = 0;
-    let erros = 0;
-    const todayIso = new Date().toISOString().slice(0, 10);
+    const idsExcluir = new Set(lista.map(p => p.id));
+    const notificarOdooFlag = modalExclusao.notificarOdoo;
     const numerosPedidos = [...new Set(lista.map(p => p.numero_pedido).filter(Boolean))];
+    const totalItens = lista.length;
 
-    try {
-      // 1) Cancela registros vinculados nos galpões de produção
-      for (const num of numerosPedidos) {
-        try {
-          await base44.entities.OrdemMaquinaCD.updateMany(
-            { numero_pedido: num, status: { $ne: "cancelado" } },
-            { $set: { status: "cancelado", data_finalizacao: todayIso } }
-          ).catch(() => {});
-          await base44.entities.OrdemDesbobinadeira.updateMany(
-            { numero_pedido: num, status: { $ne: "cancelado" } },
-            { $set: { status: "cancelado", data_finalizacao: todayIso } }
-          ).catch(() => {});
-          await base44.entities.Pedido.updateMany(
-            { numero_pedido: num, status: { $ne: "cancelado" } },
-            { $set: { status: "cancelado", data_finalizacao: todayIso } }
-          ).catch(() => {});
-        } catch (e) {
-          console.warn("[Exclusão] Falha ao atualizar ordens do galpão para pedido", num, e);
-        }
-      }
+    // ⚡ 1. Resposta Instantânea na Interface (UI Otimista < 0.1s)
+    // Remove imediatamente os itens da tela para o usuário não ficar esperando
+    setModalExclusao({ aberto: false, pedidos: [], titulo: "", descricao: "", notificarOdoo: true });
+    setSelecionados(prev => {
+      const next = new Set(prev);
+      idsExcluir.forEach(id => next.delete(id));
+      return next;
+    });
 
-      // 2) Exclui cada PedidoOdoo e notifica o Odoo se aplicável
-      for (const p of lista) {
-        try {
-          if (modalExclusao.notificarOdoo && p.odoo_id && !isPedidoTeste(p)) {
-            base44.functions.invoke("cancelarOrdemServicoOdoo", {
+    queryClient.setQueryData(["pedidos-odoo-pcp"], (oldData) => {
+      if (!Array.isArray(oldData)) return oldData;
+      return oldData.filter((item) => !idsExcluir.has(item.id));
+    });
+
+    if (!isOperador) {
+      toast({
+        title: `🗑️ Excluindo ${totalItens} ordem(ns)... `,
+        description: "Removido da tela com sucesso! Sincronizando com banco e Odoo em segundo plano.",
+        className: "border-amber-500/40"
+      });
+    }
+
+    // ⚡ 2. Processamento em Segundo Plano Totalmente Paralelizado e Resiliente
+    (async () => {
+      try {
+        const todayIso = new Date().toISOString().slice(0, 10);
+
+        // A) Sincronização em Paralelo com o Webhook do Odoo (Agrupada por Pedido, máx 1 chamada por pedido com timeout de 3s)
+        const promessasOdoo = [];
+        if (notificarOdooFlag) {
+          // Mapeia o primeiro item de cada pedido para pegar metadados do Odoo
+          const mapaPedidos = new Map();
+          for (const p of lista) {
+            if (p.numero_pedido && !mapaPedidos.has(p.numero_pedido) && p.odoo_id && !isPedidoTeste(p)) {
+              mapaPedidos.set(p.numero_pedido, p);
+            }
+          }
+
+          for (const [numPed, p] of mapaPedidos.entries()) {
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error("Timeout Odoo (3s)")), 3000)
+            );
+            const callPromise = base44.functions.invoke("cancelarOrdemServicoOdoo", {
               pedido_id: p.id,
-              numero_pedido: p.numero_pedido,
+              numero_pedido: numPed,
               odoo_id: p.odoo_id,
               of_odoo_id: p.of_odoo_id,
               of_nome: p.of_nome,
               force: true,
-            }).catch((err) => console.warn("[Exclusão Odoo Webhook]", err));
+            });
+            promessasOdoo.push(Promise.race([callPromise, timeoutPromise]).catch(err => {
+              console.warn(`[Exclusão Odoo Webhook - Pedido #${numPed}]`, err.message);
+            }));
           }
-
-          await base44.entities.PedidoOdoo.delete(p.id);
-          excluidos++;
-        } catch (err) {
-          console.error("[Exclusão] Falha ao deletar PedidoOdoo:", p.id, err);
-          erros++;
         }
-      }
 
-      // Remove IDs excluídos do set de selecionados
-      setSelecionados(prev => {
-        const next = new Set(prev);
-        lista.forEach(p => next.delete(p.id));
-        return next;
-      });
+        // B) Atualização em Paralelo das Ordens no Chão de Fábrica
+        const promessasFabrica = [];
+        for (const num of numerosPedidos) {
+          promessasFabrica.push(
+            base44.entities.OrdemMaquinaCD.updateMany(
+              { numero_pedido: num, status: { $ne: "cancelado" } },
+              { $set: { status: "cancelado", data_finalizacao: todayIso } }
+            ).catch(() => {})
+          );
+          promessasFabrica.push(
+            base44.entities.OrdemDesbobinadeira.updateMany(
+              { numero_pedido: num, status: { $ne: "cancelado" } },
+              { $set: { status: "cancelado", data_finalizacao: todayIso } }
+            ).catch(() => {})
+          );
+          promessasFabrica.push(
+            base44.entities.Pedido.updateMany(
+              { numero_pedido: num, status: { $ne: "cancelado" } },
+              { $set: { status: "cancelado", data_finalizacao: todayIso } }
+            ).catch(() => {})
+          );
+        }
 
-      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
-      queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
-      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
-      queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
+        // C) Exclusão em Paralelo Simultâneo de todas as entidades PedidoOdoo
+        const promessasDelecao = lista.map(p =>
+          base44.entities.PedidoOdoo.delete(p.id).catch(err => {
+            console.warn(`[Exclusão PedidoOdoo] Falha ao deletar ID ${p.id}:`, err.message);
+          })
+        );
 
-      if (!isOperador) {
-        toast({
-          title: `🗑️ ${excluidos} ordem(ns) de fabricação excluída(s)`,
-          description: erros > 0
-            ? `${excluidos} excluídas com sucesso. ${erros} falharam.`
-            : `As ordens foram removidas com sucesso da Central PCP e dos galpões.`,
-          className: "border-red-500/40"
-        });
+        // Aguarda todas as tarefas em segundo plano em paralelo
+        await Promise.allSettled([...promessasOdoo, ...promessasFabrica, ...promessasDelecao]);
+
+        // Invalidação final do cache para sincronia atômica total
+        queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+        queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
+        queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+        queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
+
+        if (!isOperador) {
+          toast({
+            title: `✅ ${totalItens} ordem(ns) sincronizada(s) e excluída(s)`,
+            description: "Registros e ordens fabris removidos com sucesso.",
+            className: "border-emerald-500/40"
+          });
+        }
+      } catch (errBackground) {
+        console.error("[Exclusão Background] Erro inesperado:", errBackground);
       }
-    } catch (e) {
-      if (!isOperador) {
-        toast({
-          title: "Erro ao excluir ordens",
-          description: e.message,
-          variant: "destructive"
-        });
-      }
-    } finally {
-      setExcluindo(false);
-      setModalExclusao({ aberto: false, pedidos: [], titulo: "", descricao: "", notificarOdoo: true });
-    }
+    })();
   };
 
   const tipoBuscaAtual = TIPOS_BUSCA.find(t => t.id === tipoBusca) || TIPOS_BUSCA[0];

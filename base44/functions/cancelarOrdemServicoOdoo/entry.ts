@@ -179,6 +179,7 @@ Deno.serve(async (req) => {
       const resp = await fetch(ODOO_CANCEL_WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(3500),
         body: JSON.stringify({
           api_key: ODOO_CANCEL_API_KEY,
           odoo_id: odooIdNumerico,
