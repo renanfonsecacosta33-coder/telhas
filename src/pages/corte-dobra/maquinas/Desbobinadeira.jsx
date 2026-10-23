@@ -90,8 +90,8 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
       const filter = (filialAtiva && filialAtiva !== "todas") ? { unidade: filialAtiva } : {};
       return base44.entities.OrdemDesbobinadeira.filter(filter, "-data", 500);
     },
-    refetchInterval: 3000,
-    staleTime: 0,
+    refetchInterval: 10000,
+    staleTime: 3000,
     refetchOnWindowFocus: true,
   });
 
@@ -359,7 +359,23 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
 
   const deleteOrdem = useMutation({
     mutationFn: (id) => base44.entities.OrdemDesbobinadeira.delete(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] }); toast.success("Ordem excluída!"); },
+    // Exclusão otimista: o card sai da tela imediatamente, sem esperar a resposta do servidor
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ["ordens-desbobinadeira"] });
+      const previous = queryClient.getQueriesData({ queryKey: ["ordens-desbobinadeira"] });
+      queryClient.setQueriesData({ queryKey: ["ordens-desbobinadeira"] }, (old) =>
+        Array.isArray(old) ? old.filter(o => o.id !== id) : old
+      );
+      return { previous };
+    },
+    onError: (err, id, context) => {
+      if (context?.previous) {
+        context.previous.forEach(([key, data]) => queryClient.setQueryData(key, data));
+      }
+      toast.error("Erro ao excluir ordem: " + (err?.message || "falha na comunicação"));
+    },
+    onSuccess: () => { toast.success("Ordem excluída!"); },
+    onSettled: () => { queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] }); },
   });
   const createOrdem = useMutation({
     mutationFn: (data) => base44.entities.OrdemDesbobinadeira.create(data),
