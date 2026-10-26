@@ -486,7 +486,11 @@ export default function PedidoOdooGrupoCard({
               <Button
                 variant="outline"
                 size="sm"
-                className="text-xs h-8 font-semibold text-slate-700 dark:text-slate-200 gap-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggle?.();
+                }}
+                className="text-xs h-8 font-semibold text-slate-700 dark:text-slate-200 gap-1 cursor-pointer"
               >
                 {expandido ? (
                   <>

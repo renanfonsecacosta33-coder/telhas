@@ -1977,13 +1977,20 @@ export default function CentralPCP() {
     return Array.from(map.values());
   }, [pedidosConcluidosEmTodos, filtro]);
 
-  // Se o usuário pesquisar por algo (ex: '1337790' ou 'Nytro'), auto-expande os pedidos que bateram na busca
+  // Auto-expande resultados quando o usuário digita um novo termo de busca (sem sobrescrever cliques manuais)
+  const ultimaBuscaExpandidaRef = useRef("");
   useEffect(() => {
-    if (buscaDebounced && buscaDebounced.trim().length >= 2) {
-      const numsParaExpandir = new Set(gruposPedidos.map(g => g.numero_pedido));
-      setPedidosExpandidos(numsParaExpandir);
+    const termo = (buscaDebounced || "").trim();
+    if (termo.length >= 2 && termo !== ultimaBuscaExpandidaRef.current) {
+      ultimaBuscaExpandidaRef.current = termo;
+      const novos = new Set();
+      gruposPedidos.forEach(g => { if (g.numero_pedido) novos.add(g.numero_pedido); });
+      gruposConcluidosEmTodos.forEach(g => { if (g.numero_pedido) novos.add(g.numero_pedido); });
+      setPedidosExpandidos(prev => new Set([...prev, ...novos]));
+    } else if (!termo && ultimaBuscaExpandidaRef.current) {
+      ultimaBuscaExpandidaRef.current = "";
     }
-  }, [buscaDebounced, gruposPedidos]);
+  }, [buscaDebounced, gruposPedidos, gruposConcluidosEmTodos]);
 
   const toggleExpandirPedido = (num) => {
     setPedidosExpandidos(prev => {

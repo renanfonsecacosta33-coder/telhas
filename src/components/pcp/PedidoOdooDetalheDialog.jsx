@@ -207,7 +207,10 @@ export default function PedidoOdooDetalheDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="w-[96vw] max-w-5xl max-h-[92vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6">
+        <DialogContent
+          onPointerDownOutside={(e) => e.preventDefault()}
+          className="w-[96vw] max-w-5xl max-h-[92vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6"
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 flex-wrap">
               {isPrioritario && (
