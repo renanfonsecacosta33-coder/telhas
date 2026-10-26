@@ -14,12 +14,8 @@ import CentralSaudeSistemaModal from "@/components/pcp/CentralSaudeSistemaModal"
 import { registrarHistoricoExclusao, obterHistoricoExclusoes } from "@/lib/historicoExclusoesHelper";
 import { executarAuditoriaDiariaCompleta, obterUltimoRelatorioAuditoria } from "@/lib/auditoriaDiariaHelper";
 import BotaoDevolverLotePCP from "@/components/pcp/BotaoDevolverLotePCP";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem
-} from "@/components/ui/dropdown-menu";
+import PainelFiltrosPCP from "@/components/pcp/PainelFiltrosPCP";
+import PcpHeroTools from "@/components/pcp/PcpHeroTools";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -2224,639 +2220,102 @@ export default function CentralPCP() {
   const IconeTipoBusca = tipoBuscaAtual.icon;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      {/* Header */}
-      <header className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-xs">
-        <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/setor")} className="shrink-0">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <div className="min-w-0">
-              <h1 className="flex items-center gap-2 text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
-                <Inbox className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
-                Central PCP
-              </h1>
-              <p className="text-[11px] sm:text-xs text-slate-500 hidden sm:block">
-                Aba Mãe · Integração Odoo ERP · Roteamento Industrial por Loja
-              </p>
-            </div>
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950">
+      {/* Painel Lateral de Filtros (rail fixa escura) */}
+      <PainelFiltrosPCP
+        temAcessoGlobalCentrais={temAcessoGlobalCentrais}
+        statsLoja={statsLoja}
+        filiaisPcpExibidas={filiaisPcpExibidas}
+        lojaSelecionada={lojaSelecionada}
+        onMudarLoja={handleMudarLoja}
+        stats={stats}
+        busca={busca}
+        setBusca={setBusca}
+        onLimparBusca={handleLimparBusca}
+        tiposBusca={TIPOS_BUSCA}
+        tipoBusca={tipoBusca}
+        setTipoBusca={setTipoBusca}
+        modelosRapidos={MODELOS_RAPIDOS}
+        onSelecionarModeloRapido={handleSelecionarModeloRapido}
+        filtros={FILTROS}
+        filtro={filtro}
+        setFiltro={setFiltro}
+        filtroSetor={filtroSetor}
+        setFiltroSetor={setFiltroSetor}
+        countsSetor={modoVisao === "agrupado" ? statsSetoresAgrupados : statsSetores}
+        filtroMaterial={filtroMaterial}
+        setFiltroMaterial={setFiltroMaterial}
+        statsMaterial={statsMaterial}
+        filtroDataCampo={filtroDataCampo}
+        setFiltroDataCampo={setFiltroDataCampo}
+        filtroDataPreset={filtroDataPreset}
+        setFiltroDataPreset={setFiltroDataPreset}
+        onSelectPreset={handleSelectPreset}
+        filtroDataInicio={filtroDataInicio}
+        setFiltroDataInicio={setFiltroDataInicio}
+        filtroDataFim={filtroDataFim}
+        setFiltroDataFim={setFiltroDataFim}
+        filtroDataAtivo={filtroDataAtivo}
+        onLimparFiltroData={limparFiltroData}
+        totalFiltrados={pedidosFiltrados.length}
+      />
+
+      {/* Topo: título + ações essenciais */}
+      <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 sm:px-7 lg:pl-[268px] py-4 flex items-center gap-3 flex-wrap">
+        <Button variant="ghost" size="icon" onClick={() => navigate("/setor")} className="shrink-0">
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <h1 className="flex items-center gap-2.5 text-lg sm:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white mr-auto">
+          <Inbox className="w-6 h-6 text-orange-500" />
+          Central PCP
+        </h1>
+        {!isOnline ? (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] font-bold text-amber-700 dark:text-amber-300">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+            <span>📶 Modo Local (Cache Ativo)</span>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Indicador de Sincronização em Tempo Real / Modo Offline Blindado */}
-            {!isOnline ? (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] font-bold text-amber-700 dark:text-amber-300">
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
-                <span>📶 Modo Local (Cache Ativo)</span>
-              </div>
-            ) : (
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                <BadgeTempoSync dataUpdatedAt={dataUpdatedAt} />
-              </div>
-            )}
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefetchComFeedback}
-              disabled={carregando}
-              className="h-8 gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
-              title="Forçar atualização e sincronização imediata com o Odoo ERP"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${carregando ? "animate-spin text-orange-500" : "text-emerald-600"}`} />
-              <span className="hidden md:inline">Sincronizar</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setRecuperarModalOpen(true)}
-              className="h-8 gap-1.5 text-xs font-bold text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-800 hover:bg-orange-50 dark:hover:bg-orange-950/40"
-              title="Localizar pedido ou OF que sumiu ou verificar status no banco"
-            >
-              <Search className="w-3.5 h-3.5 text-orange-500" />
-              <span>Recuperar Pedido</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setAuditarModalOpen(true)}
-              className="h-8 gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-              title="Auditar OPs no chão de fábrica e restaurar modelos e bobinas corrompidos"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="hidden md:inline">Auditar & Restaurar OPs</span>
-              <span className="md:hidden">Auditar</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setModalRelatorioAuditoriaOpen(true)}
-              className={`h-8 gap-1.5 text-xs font-bold shadow-2xs border ${
-                (relatorioAuditoria?.errosCorrigidosCount > 0 || relatorioAuditoria?.alertasPendentesCount > 0)
-                  ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 hover:bg-amber-100"
-                  : "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100"
-              }`}
-              title="Ver Relatório Diário de Auditoria e Saúde do Sistema (Rumo a Erro 0)"
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">
-                {relatorioAuditoria
-                  ? `Saúde: ${relatorioAuditoria.scoreSaude}% (${relatorioAuditoria.alertasPendentesCount > 0 ? `${relatorioAuditoria.alertasPendentesCount} pendências` : "Erro 0"})`
-                  : "Auditoria Diária"}
-              </span>
-              <span className="md:hidden">Saúde {relatorioAuditoria?.scoreSaude || 100}%</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExecutarAuditoriaConciliacaoManual}
-              disabled={conciliandoMaquinas}
-              className="h-8 gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 shadow-2xs"
-              title="Varre todas as máquinas e baixa pedidos que já foram finalizados ou cancelados no PCP"
-            >
-              <CheckCircle2 className={`w-3.5 h-3.5 text-emerald-600 ${conciliandoMaquinas ? "animate-spin" : ""}`} />
-              <span className="hidden md:inline">{conciliandoMaquinas ? "Limpando Máquinas..." : "Baixar Finalizados nas Máquinas"}</span>
-              <span className="md:hidden">Baixar Máquinas</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setAuditarModalOpen(true)}
-              className="h-8 gap-1.5 text-xs font-bold text-red-700 dark:text-red-400 border-red-300 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-950/40 shadow-2xs"
-              title="Recolher e resetar todas as OPs das máquinas de volta para o PCP (exceto Colagem)"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-red-600" />
-              <span className="hidden md:inline">Reset / Recolher Máquinas</span>
-              <span className="md:hidden">Reset Máquinas</span>
-            </Button>
-
-            {/* CENTRAL DE SAÚDE & DIAGNÓSTICO 360° (META ERRO ZERO) */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setModalSaudeOpen(true)}
-              className="h-8 gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800/70 bg-emerald-50/50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 shadow-2xs"
-              title="Central de Saúde 360°: Diagnóstico de conectividade, Odoo ERP, banco de dados e meta Erro Zero"
-            >
-              <Activity className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-              <span className="hidden lg:inline">Saúde do Sistema</span>
-              <span className="lg:hidden">Saúde</span>
-              <Badge className="ml-0.5 bg-emerald-600 text-white text-[10px] px-1.5 py-0 h-4 font-mono font-bold">
-                100% OK
-              </Badge>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setModalHistoricoExclusoesOpen(true)}
-              className="h-8 gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 shadow-2xs"
-              title="Ver histórico e motivos de todas as ordens de fabricação excluídas no PCP"
-            >
-              <History className="w-3.5 h-3.5 text-red-500" />
-              <span className="hidden md:inline">Histórico de Exclusões</span>
-              <span className="md:hidden">Exclusões</span>
-              {obterHistoricoExclusoes().length > 0 && (
-                <Badge className="ml-0.5 bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300 border-red-300 dark:border-red-800 text-[10px] px-1.5 py-0 h-4">
-                  {obterHistoricoExclusoes().length}
-                </Badge>
-              )}
-            </Button>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 gap-1.5 text-xs font-bold text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-950/40"
-                  title="Guias Operacionais e Fluxogramas do PCP"
-                >
-                  <BookOpen className="w-3.5 h-3.5 text-blue-500" />
-                  <span className="hidden sm:inline">Guias do PCP</span>
-                  <ChevronDown className="w-3 h-3 text-blue-400" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-60">
-                <DropdownMenuItem
-                  onClick={() => {
-                    setPopModalKey("PCP_CENTRAL");
-                    setPopModalOpen(true);
-                  }}
-                  className="gap-2 cursor-pointer text-xs font-semibold py-2"
-                >
-                  <Inbox className="w-4 h-4 text-orange-500 shrink-0" />
-                  <div>
-                    <p className="font-bold">POP: Central PCP & Odoo</p>
-                    <p className="text-[10px] text-slate-500 font-normal">Recepção de pedidos e filtros</p>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    setPopModalKey("PCP_FILA");
-                    setPopModalOpen(true);
-                  }}
-                  className="gap-2 cursor-pointer text-xs font-semibold py-2"
-                >
-                  <Layers className="w-4 h-4 text-blue-500 shrink-0" />
-                  <div>
-                    <p className="font-bold">POP: Gestão da Fila PCP</p>
-                    <p className="text-[10px] text-slate-500 font-normal">FIFO, Prioridade P1 e Bloqueios</p>
-                  </div>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <Button
-              onClick={() => setWebhookOpen(true)}
-              size="sm"
-              className="h-8 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold"
-            >
-              <Radio className="w-3.5 h-3.5 mr-1" />
-              <span className="hidden lg:inline">Receber / Simular Webhook Odoo</span>
-              <span className="lg:hidden">Webhook</span>
-            </Button>
-          </div>
-        </div>
-
-        {/* Barra de Seleção de Central PCP por Loja / Filial */}
-        <div className="px-4 sm:px-6 py-2 bg-slate-50/90 dark:bg-slate-900/90 border-t border-slate-200/70 dark:border-slate-800/70 flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 shrink-0 flex items-center gap-1.5 mr-1">
-              <Building2 className="w-3.5 h-3.5 text-orange-500" />
-              Central PCP:
-            </span>
-
-            {/* Aba Todas as Centrais (Apenas se tiver acesso global a mais de 1 filial) */}
-            {temAcessoGlobalCentrais && (
-              <button
-                type="button"
-                onClick={() => handleMudarLoja("todas")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                  lojaSelecionada === "todas"
-                    ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm"
-                    : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"
-                }`}
-              >
-                <Globe className="w-3.5 h-3.5" />
-                <span>Todas as Centrais</span>
-                <Badge className={`text-[10px] px-1.5 py-0 leading-tight ${
-                  lojaSelecionada === "todas"
-                    ? "bg-white/25 dark:bg-slate-900/30 text-white dark:text-slate-900"
-                    : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                }`}>
-                  {statsLoja.todas}
-                </Badge>
-              </button>
-            )}
-
-            {/* Abas das Filiais Autorizadas */}
-            {filiaisPcpExibidas.map((f) => {
-              const count = statsLoja[f.id] || 0;
-              const ativa = lojaSelecionada === f.id;
-              return (
-                <button
-                  key={f.id}
-                  type="button"
-                  onClick={() => handleMudarLoja(f.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                    ativa
-                      ? "bg-orange-500 text-white shadow-sm ring-1 ring-orange-400"
-                      : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/80"
-                  }`}
-                >
-                  <span>{f.label}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-extrabold ${
-                    ativa
-                      ? "bg-white/20 text-white"
-                      : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                  }`}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="hidden md:flex items-center gap-2 text-xs text-slate-500">
-            <span className="text-[11px] text-slate-400">Exibindo Fila de:</span>
-            <Badge variant="outline" className="text-xs font-bold border-orange-300 dark:border-orange-800 text-orange-600 dark:text-orange-400">
-              {lojaSelecionada === "todas" ? "Visão Global (Todas as Fábricas)" : `Fábrica: ${lojaSelecionada}`}
-            </Badge>
-          </div>
-        </div>
-      </header>
-
-      {/* Stats */}
-      <div className="px-4 sm:px-6 py-4 grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <StatCard label="Fila Ativa" value={stats.ativos} icon={<Zap className="w-4 h-4" />} color="text-orange-500" />
-        <StatCard label="Pendentes" value={stats.pendentes} icon={<AlertTriangle className="w-4 h-4" />} color="text-amber-500" />
-        <StatCard label="Distribuídos" value={stats.distribuidos} icon={<CheckCircle2 className="w-4 h-4" />} color="text-blue-500" />
-        <StatCard label="Concluídos" value={stats.concluidos} icon={<CheckCircle2 className="w-4 h-4" />} color="text-emerald-500" />
-        <StatCard label="Atrasados" value={stats.atrasados} icon={<AlertTriangle className="w-4 h-4" />} color="text-red-500" />
-      </div>
-
-      {/* Busca + Filtros */}
-      <div className="px-4 sm:px-6 pb-3 flex flex-col gap-2.5">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs focus-within:ring-2 focus-within:ring-orange-500/30 focus-within:border-orange-500 transition-all">
-              {/* Dropdown Seletor do Tipo de Busca */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 border-r border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 rounded-l-lg transition-colors shrink-0"
-                    title="Alternar tipo de filtro"
-                  >
-                    <IconeTipoBusca className="w-3.5 h-3.5 text-orange-500" />
-                    <span className="hidden sm:inline font-bold">{tipoBuscaAtual.label}</span>
-                    <ChevronDown className="w-3 h-3 text-slate-400" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-56 p-1">
-                  <div className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                    Filtrar Busca Por
-                  </div>
-                  {TIPOS_BUSCA.map((t) => {
-                    const ItemIcon = t.icon;
-                    const isSelected = tipoBusca === t.id;
-                    return (
-                      <DropdownMenuItem
-                        key={t.id}
-                        onClick={() => setTipoBusca(t.id)}
-                        className={`flex items-center gap-2 cursor-pointer text-xs rounded-md py-1.5 px-2 font-medium ${
-                          isSelected
-                            ? "bg-orange-500 text-white font-bold hover:bg-orange-600 focus:bg-orange-600 focus:text-white"
-                            : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        }`}
-                      >
-                        <ItemIcon className={`w-3.5 h-3.5 ${isSelected ? "text-white" : "text-slate-400"}`} />
-                        <span className="flex-1">{t.label}</span>
-                        {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                      </DropdownMenuItem>
-                    );
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Input de Pesquisa */}
-              <input
-                type="text"
-                placeholder={tipoBuscaAtual.placeholder}
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") setBuscaDebounced(busca);
-                  else if (e.key === "Escape") handleLimparBusca();
-                }}
-                className="flex-1 bg-transparent px-3 py-2 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none min-w-0"
-              />
-
-              {/* Botão X para Limpar Busca */}
-              {busca && (
-                <button
-                  type="button"
-                  onClick={handleLimparBusca}
-                  className="p-1 mr-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                  title="Limpar pesquisa"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            {/* Chips Rápidos para Modelo do Material */}
-            {tipoBusca === "modelo" && (
-              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                <span className="text-[11px] font-bold text-slate-400 shrink-0">Modelos Rápidos:</span>
-                {MODELOS_RAPIDOS.map((mod) => {
-                  const ativo = busca.toLowerCase().trim() === mod.toLowerCase().trim();
-                  return (
-                    <button
-                      key={mod}
-                      type="button"
-                      onClick={() => handleSelecionarModeloRapido(mod)}
-                      className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition-all ${
-                        ativo
-                          ? "bg-orange-500 text-white shadow-xs"
-                          : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800"
-                      }`}
-                    >
-                      {mod}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="flex gap-1.5 overflow-x-auto no-scrollbar self-start">
-            {FILTROS.map(f => (
-              <button
-                key={f.id}
-                onClick={() => setFiltro(f.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                  filtro === f.id
-                    ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm"
-                    : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60"
-                }`}
-              >
-                {f.icon && <f.icon className={`w-3.5 h-3.5 ${filtro !== f.id ? f.color : ""}`} />}
-                <span>{f.label}</span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                  filtro === f.id
-                    ? "bg-white/20 dark:bg-slate-900/20 text-white dark:text-slate-900"
-                    : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
-                }`}>
-                  {f.count}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Barra de Filtros Rápidos: Setor Industrial (Telhas / Corte & Dobra / Os 2) + Matéria-Prima em Estoque */}
-      <div className="px-4 sm:px-6 pb-2.5">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2 p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
-          {/* Filtro por Setor (Telhas / Corte & Dobra / Os 2) */}
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 mr-1 shrink-0 flex items-center gap-1">
-              <Factory className="w-3.5 h-3.5 text-blue-500" />
-              Setor:
-            </span>
-            <button
-              type="button"
-              onClick={() => setFiltroSetor("todos")}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                filtroSetor === "todos"
-                  ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs"
-                  : "bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100"
-              }`}
-            >
-              Todos ({modoVisao === "agrupado" ? statsSetoresAgrupados.total : statsSetores.total})
-            </button>
-            <button
-              type="button"
-              onClick={() => setFiltroSetor("telhas")}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                filtroSetor === "telhas"
-                  ? "bg-blue-600 text-white shadow-xs"
-                  : "bg-blue-50/70 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100/70"
-              }`}
-              title="Filtrar somente pedidos e ordens da Fábrica de Telhas"
-            >
-              <span>🏠 Somente Telhas</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${filtroSetor === "telhas" ? "bg-white/20 text-white" : "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200"}`}>
-                {modoVisao === "agrupado" ? statsSetoresAgrupados.telhas : statsSetores.telhas}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setFiltroSetor("corte_dobra")}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                filtroSetor === "corte_dobra"
-                  ? "bg-orange-600 text-white shadow-xs"
-                  : "bg-orange-50/70 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800 hover:bg-orange-100/70"
-              }`}
-              title="Filtrar somente pedidos e ordens de Corte & Dobra"
-            >
-              <span>🏗️ Somente Corte & Dobra</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${filtroSetor === "corte_dobra" ? "bg-white/20 text-white" : "bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-200"}`}>
-                {modoVisao === "agrupado" ? statsSetoresAgrupados.cd : statsSetores.cd}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setFiltroSetor("ambos")}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                filtroSetor === "ambos"
-                  ? "bg-purple-600 text-white shadow-xs"
-                  : "bg-purple-50/70 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 hover:bg-purple-100/70"
-              }`}
-              title="Filtrar pedidos que possuem itens em Ambos os barracões (Telhas + Corte & Dobra juntos no mesmo pedido)"
-            >
-              <span>📦 Os 2 (Ambos)</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${filtroSetor === "ambos" ? "bg-white/20 text-white" : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200"}`}>
-                {modoVisao === "agrupado" ? statsSetoresAgrupados.ambos : statsSetores.ambos}
-              </span>
-            </button>
-          </div>
-
-          <div className="h-4 w-px bg-slate-200 dark:bg-slate-800 hidden lg:block" />
-
-          {/* Filtro Estoque MP */}
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 mr-1 shrink-0 flex items-center gap-1">
-              <Layers className="w-3.5 h-3.5 text-indigo-500" />
-              Estoque MP:
-            </span>
-            <button
-              type="button"
-              onClick={() => setFiltroMaterial("todos")}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                filtroMaterial === "todos"
-                  ? "bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 shadow-xs"
-                  : "bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100"
-              }`}
-            >
-              Todas as OPs
-            </button>
-            <button
-              type="button"
-              onClick={() => setFiltroMaterial("com_material")}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                filtroMaterial === "com_material"
-                  ? "bg-emerald-600 text-white shadow-xs"
-                  : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100/60"
-              }`}
-              title="Ordens de Fabricação com matéria-prima em estoque (bobinas ou chapas disponíveis)"
-            >
-              <span>🟢 Com Material ({statsMaterial.comMaterial})</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setFiltroMaterial("sem_material")}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                filtroMaterial === "sem_material"
-                  ? "bg-red-600 text-white shadow-xs"
-                  : "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 hover:bg-red-100/60"
-              }`}
-              title="Ordens de Fabricação sem matéria-prima suficiente em estoque"
-            >
-              <span>🔴 Sem Material ({statsMaterial.semMaterial})</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Barra de Filtro por Data */}
-      <div className="px-4 sm:px-6 pb-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-          {/* Lado Esquerdo: Identificador + Campo Alvo + Presets */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 shrink-0">
-              <Calendar className="w-4 h-4 text-orange-500" />
-              <span>Filtrar Data:</span>
-            </div>
-
-            {/* Alternar Campo: Entrega vs Chegada */}
-            <select
-              value={filtroDataCampo}
-              onChange={(e) => setFiltroDataCampo(e.target.value)}
-              className="text-xs bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-orange-500 cursor-pointer"
-            >
-              <option value="data_entrega">📅 Prazo de Entrega (SLA)</option>
-              <option value="data_recebimento">📥 Chegada no PCP</option>
-            </select>
-
-            {/* Divisor sutil */}
-            <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
-
-            {/* Presets Rápidos */}
-            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
-              {[
-                { id: "todas", label: "Todas" },
-                { id: "hoje", label: "Hoje" },
-                { id: "amanha", label: "Amanhã" },
-                { id: "semana", label: "Próx. 7 Dias" },
-                { id: "atrasados", label: "Atrasados" },
-              ].map(p => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => handleSelectPreset(p.id)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                    filtroDataPreset === p.id
-                      ? "bg-orange-500 text-white shadow-xs"
-                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Lado Direito: Seleção Manual de Data (De e Até) + Limpar */}
-          <div className="flex items-center gap-2 flex-wrap sm:justify-end">
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-              <span className="text-[11px] font-medium">De:</span>
-              <input
-                type="date"
-                value={filtroDataInicio}
-                onChange={(e) => {
-                  setFiltroDataInicio(e.target.value);
-                  setFiltroDataPreset("personalizada");
-                }}
-                className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-orange-500 h-7"
-              />
-              <span className="text-[11px] font-medium">Até:</span>
-              <input
-                type="date"
-                value={filtroDataFim}
-                onChange={(e) => {
-                  setFiltroDataFim(e.target.value);
-                  setFiltroDataPreset("personalizada");
-                }}
-                className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-orange-500 h-7"
-              />
-            </div>
-
-            {filtroDataAtivo && (
-              <button
-                type="button"
-                onClick={limparFiltroData}
-                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors border border-rose-200 dark:border-rose-900/50 h-7 shrink-0"
-                title="Limpar filtro de data"
-              >
-                <X className="w-3.5 h-3.5" />
-                <span>Limpar</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Indicador Ativo de Filtro de Data */}
-        {filtroDataAtivo && (
-          <div className="mt-1.5 flex items-center justify-between text-[11px] text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/30 border border-orange-200/80 dark:border-orange-900/40 rounded-lg px-3 py-1">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <Calendar className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-              <span>
-                Filtrando por <strong>{filtroDataCampo === "data_entrega" ? "Prazo de Entrega" : "Chegada no PCP"}</strong>:{" "}
-                {filtroDataPreset === "hoje" && "Hoje"}
-                {filtroDataPreset === "amanha" && "Amanhã"}
-                {filtroDataPreset === "semana" && "Próximos 7 dias"}
-                {filtroDataPreset === "atrasados" && "Pedidos atrasados (vencidos)"}
-                {filtroDataPreset === "personalizada" && (
-                  filtroDataInicio && filtroDataFim && filtroDataInicio !== filtroDataFim
-                    ? `${formatDataBR(filtroDataInicio)} até ${formatDataBR(filtroDataFim)}`
-                    : formatDataBR(filtroDataInicio || filtroDataFim)
-                )}
-                {filtroDataPreset !== "hoje" && filtroDataPreset !== "amanha" && filtroDataPreset !== "semana" && filtroDataPreset !== "atrasados" && filtroDataPreset !== "personalizada" && "Personalizado"}
-              </span>
-              <span className="text-slate-400">·</span>
-              <span className="font-bold">{pedidosFiltrados.length} OFs encontradas</span>
-            </div>
-            <button
-              type="button"
-              onClick={limparFiltroData}
-              className="text-orange-600 hover:text-orange-800 dark:hover:text-orange-200 font-semibold underline text-[10px] shrink-0 ml-2"
-            >
-              Remover filtro
-            </button>
+        ) : (
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <BadgeTempoSync dataUpdatedAt={dataUpdatedAt} />
           </div>
         )}
+        <Button
+          variant="outline"
+          onClick={handleRefetchComFeedback}
+          disabled={carregando}
+          className="h-9 px-3.5 rounded-lg text-[13px] font-semibold text-slate-800 dark:text-slate-100 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 gap-1.5"
+          title="Forçar atualização e sincronização imediata com o Odoo ERP"
+        >
+          <RefreshCw className={`w-4 h-4 ${carregando ? "animate-spin text-orange-500" : "text-emerald-600"}`} />
+          Sincronizar
+        </Button>
+        <Button
+          onClick={() => setWebhookOpen(true)}
+          className="h-9 px-3.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white dark:text-emerald-50 text-[13px] font-semibold gap-1.5"
+          title="Receber / Simular Webhook Odoo"
+        >
+          <Radio className="w-4 h-4" />
+          Receber
+        </Button>
       </div>
 
+      {/* Faixa Hero: ferramentas de manutenção sobre a imagem do galpão */}
+      <PcpHeroTools
+        onRecuperarPedido={() => setRecuperarModalOpen(true)}
+        onAuditar={() => setAuditarModalOpen(true)}
+        onAbrirRelatorio={() => setModalRelatorioAuditoriaOpen(true)}
+        onConciliacaoManual={handleExecutarAuditoriaConciliacaoManual}
+        conciliando={conciliandoMaquinas}
+        relatorioAuditoria={relatorioAuditoria}
+        onAbrirSaude={() => setModalSaudeOpen(true)}
+        onAbrirExclusoes={() => setModalHistoricoExclusoesOpen(true)}
+        exclusoesCount={obterHistoricoExclusoes().length}
+        onAbrirPop={(key) => { setPopModalKey(key); setPopModalOpen(true); }}
+      />
+
       {/* Fila de Pedidos */}
-      <div className="px-4 sm:px-6 pb-12">
+      <div className="px-4 sm:px-7 lg:pl-[268px] pt-5 pb-12 flex flex-col gap-3.5">
         {carregando ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {[1,2,3].map(i => (
