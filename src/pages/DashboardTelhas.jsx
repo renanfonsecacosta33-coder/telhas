@@ -21,6 +21,7 @@ import PedidoFormDialog from "@/components/producao/PedidoFormDialog";
 import QuickActionDialogTelhas from "@/components/telhas/QuickActionDialogTelhas";
 import HistoricoBobinasTelhas from "@/components/telhas/HistoricoBobinasTelhas";
 import KpiDetailSidebarTelhas from "@/components/telhas/KpiDetailSidebarTelhas";
+import AjustarMetragensModal from "@/components/telhas/AjustarMetragensModal";
 import { calcularMetrosPedido, calcularKgPedido } from "@/lib/metrosHelper";
 import { prepararPresetNovaOrdemTelhas, getItens, computePercentual, statusPcpPorPercentual, buildItensJson } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
@@ -65,6 +66,7 @@ export default function DashboardTelhas() {
   const [filtroInicio, setFiltroInicio] = useState(weekStart);
   const [filtroFim, setFiltroFim] = useState(weekEnd);
   const [kpiDetail, setKpiDetail] = useState(null);
+  const [ajustarMetragensOpen, setAjustarMetragensOpen] = useState(false);
 
   // Estados legados da Fila PCP integrada
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -461,6 +463,17 @@ export default function DashboardTelhas() {
               <ChevronRight className="w-3.5 h-3.5 text-red-600" />
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={() => setAjustarMetragensOpen(true)}
+            className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-800 rounded-xl px-4 py-2.5 cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-all text-blue-700 dark:text-blue-300 text-sm font-bold shadow-2xs"
+            title="Corrigir pedidos com metragens erradas sem enviar de volta para as máquinas"
+          >
+            <Ruler className="w-4 h-4 text-blue-600" />
+            <span>Ajustar Metragens / Erros de Metros</span>
+            <ChevronRight className="w-3.5 h-3.5 text-blue-500" />
+          </button>
         </div>
       )}
 
@@ -473,11 +486,12 @@ export default function DashboardTelhas() {
               {
                 label: "Metros no Período",
                 value: metrosPeriodo > 0 ? `${metrosPeriodo.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}m` : "—",
-                sub: `${telhasPeriodo} telhas finalizadas`,
+                sub: `${Math.round(telhasPeriodo).toLocaleString("pt-BR")} telhas finalizadas`,
                 icon: Ruler,
                 color: "text-blue-600",
                 bg: "bg-blue-50 dark:bg-blue-950/50",
-                onClick: () => setKpiDetail("metros")
+                onClick: () => setAjustarMetragensOpen(true),
+                tooltip: "Clique para auditar e ajustar pedidos com metragens incorretas.",
               },
               {
                 label: "Em Produção",
@@ -920,6 +934,10 @@ export default function DashboardTelhas() {
         tempoPausaTotal={tempoPausaTotal}
         tempoSetupTotal={tempoSetupTotal}
         tempoTotal={tempoTotal}
+        onAjustarMetragens={() => {
+          setKpiDetail(null);
+          setAjustarMetragensOpen(true);
+        }}
         onEditarOrdem={(ordem) => {
           setEditPreset(ordem);
           setDialogOpen(true);
@@ -966,6 +984,18 @@ export default function DashboardTelhas() {
         }}
         editItem={editPreset}
         defaultDate={hoje}
+      />
+
+      {/* Modal de Ajuste Rápido de Metragens — Auditoria Direta */}
+      <AjustarMetragensModal
+        open={ajustarMetragensOpen}
+        onOpenChange={setAjustarMetragensOpen}
+        ordens={ordensPeriodo}
+        onAtualizado={() => {
+          queryClient.invalidateQueries({ queryKey: ["pedidos-dash-telhas"] });
+          queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+          queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+        }}
       />
     </div>
   );

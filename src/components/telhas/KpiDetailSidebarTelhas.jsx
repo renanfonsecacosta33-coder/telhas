@@ -51,7 +51,7 @@ const HEADER_CFG = {
 export default function KpiDetailSidebarTelhas({
   open, onClose, type, ordensPeriodo = [], bobinasAtivas = [], filialAtiva,
   eficiencia, tempoProdTotal, tempoPausaTotal, tempoSetupTotal, tempoTotal,
-  onEditarOrdem
+  onEditarOrdem, onAjustarMetragens
 }) {
   const navigate = useNavigate();
   const [allBobinas, setAllBobinas] = useState([]);
@@ -215,12 +215,31 @@ export default function KpiDetailSidebarTelhas({
               <>
                 {/* === METROS TYPE === */}
                 {type === "metros" && (
-                  <MetrosContent
-                    ordens={ordensPeriodo.filter(o => o.status === "finalizado")}
-                    onGoToPedido={handleIrAtePedido}
-                    onEditarOrdem={handleEditar}
-                    onOpenHistorico={handleAbrirHistorico}
-                  />
+                  <>
+                    {onAjustarMetragens && (
+                      <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Ruler className="w-4 h-4 text-blue-500 shrink-0" />
+                          <span className="text-xs text-blue-300 font-semibold">
+                            Metragens com valores errados ou muito altos?
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={onAjustarMetragens}
+                          className="h-7 text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shrink-0 shadow-xs"
+                        >
+                          Ajustar Maiores Valores
+                        </Button>
+                      </div>
+                    )}
+                    <MetrosContent
+                      ordens={ordensPeriodo.filter(o => o.status === "finalizado")}
+                      onGoToPedido={handleIrAtePedido}
+                      onEditarOrdem={handleEditar}
+                      onOpenHistorico={handleAbrirHistorico}
+                    />
+                  </>
                 )}
 
                 {/* === KG TYPE === */}
