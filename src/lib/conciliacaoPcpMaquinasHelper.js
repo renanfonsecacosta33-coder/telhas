@@ -14,6 +14,15 @@ export function normalizarNumeroPedido(num) {
   return digitos || semZeros || s;
 }
 
+// Um vínculo explícito com uma OF nunca pode cair no status de outra OF da mesma venda.
+export function encontrarPedidoVinculado(op, mapa) {
+  if (op.pedido_odoo_id) return mapa.get(`ID_${op.pedido_odoo_id}`) || null;
+  if (op.of_odoo_id) return mapa.get(`OF_${String(op.of_odoo_id).trim().toUpperCase()}`) || null;
+  if (op.of_nome) return mapa.get(`OFN_${String(op.of_nome).trim().toUpperCase()}`) || null;
+  const numero = normalizarNumeroPedido(op.numero_pedido);
+  return numero ? mapa.get(`NUM_${numero}`) || null : null;
+}
+
 /**
  * Verifica se dois números de pedidos são equivalentes
  */
@@ -34,28 +43,13 @@ export function numerosSaoEquivalentes(numA, numB) {
 export function opPertenceAoPedido(op, pedido) {
   if (!op || !pedido) return false;
 
-  // 1. Vínculo direto por ID único de registro
-  if (op.pedido_odoo_id && pedido.id && String(op.pedido_odoo_id) === String(pedido.id)) {
-    return true;
+  // A chave mais forte decide tanto a correspondência quanto a não correspondência.
+  if (op.pedido_odoo_id) return String(op.pedido_odoo_id) === String(pedido.id || "");
+  if (op.of_odoo_id) {
+    return String(op.of_odoo_id).trim().toUpperCase() === String(pedido.of_odoo_id || "").trim().toUpperCase();
   }
-
-  // 2. Vínculo por ID da OF do Odoo
-  const ofIdPed = String(pedido.of_odoo_id || pedido.odoo_id || "").trim().toUpperCase();
-  const ofIdOp = String(op.of_odoo_id || "").trim().toUpperCase();
-  if (ofIdPed && ofIdOp && ofIdPed === ofIdOp) {
-    return true;
-  }
-
-  // 3. Vínculo por Nome visível da OF (ex: WH/MO/406632)
-  const ofNomePed = String(pedido.of_nome || "").trim().toUpperCase();
-  const ofNomeOp = String(op.of_nome || "").trim().toUpperCase();
-  if (ofNomePed && ofNomeOp && ofNomePed === ofNomeOp) {
-    return true;
-  }
-
-  // 4. Se a OP pertence comprovadamente a outro pedido_odoo_id diferente, não confunde:
-  if (op.pedido_odoo_id && pedido.id && String(op.pedido_odoo_id) !== String(pedido.id)) {
-    return false;
+  if (op.of_nome) {
+    return String(op.of_nome).trim().toUpperCase() === String(pedido.of_nome || "").trim().toUpperCase();
   }
 
   // 5. Comparação normalizada por número de pedido de venda (SO)
@@ -281,10 +275,7 @@ export async function executarVarreduraEConciliacaoGeral({ pedidosPcp = [], quer
       const pedIdOp = op.pedido_odoo_id ? `ID_${op.pedido_odoo_id}` : null;
 
       // Checa se está concluído no PCP
-      const pedPcpConcluido = (pedIdOp && pcpConcluidos.get(pedIdOp))
-        || (ofIdOp && pcpConcluidos.get(`OF_${ofIdOp}`))
-        || (ofNomeOp && pcpConcluidos.get(`OFN_${ofNomeOp}`))
-        || (normOp && pcpConcluidos.get(`NUM_${normOp}`));
+      const pedPcpConcluido = encontrarPedidoVinculado(op, pcpConcluidos);
 
       if (pedPcpConcluido) {
         promessasTelhas.push(
@@ -313,10 +304,7 @@ export async function executarVarreduraEConciliacaoGeral({ pedidosPcp = [], quer
       }
 
       // Checa se está cancelado no PCP
-      const pedPcpCancelado = (pedIdOp && pcpCancelados.get(pedIdOp))
-        || (ofIdOp && pcpCancelados.get(`OF_${ofIdOp}`))
-        || (ofNomeOp && pcpCancelados.get(`OFN_${ofNomeOp}`))
-        || (normOp && pcpCancelados.get(`NUM_${normOp}`));
+      const pedPcpCancelado = encontrarPedidoVinculado(op, pcpCancelados);
 
       if (pedPcpCancelado) {
         promessasTelhas.push(
@@ -360,10 +348,7 @@ export async function executarVarreduraEConciliacaoGeral({ pedidosPcp = [], quer
       const pedIdOp = op.pedido_odoo_id ? `ID_${op.pedido_odoo_id}` : null;
 
       // Checa se está concluído no PCP
-      const pedPcpConcluido = (pedIdOp && pcpConcluidos.get(pedIdOp))
-        || (ofIdOp && pcpConcluidos.get(`OF_${ofIdOp}`))
-        || (ofNomeOp && pcpConcluidos.get(`OFN_${ofNomeOp}`))
-        || (normOp && pcpConcluidos.get(`NUM_${normOp}`));
+      const pedPcpConcluido = encontrarPedidoVinculado(op, pcpConcluidos);
 
       if (pedPcpConcluido) {
         promessasCD.push(
@@ -383,10 +368,7 @@ export async function executarVarreduraEConciliacaoGeral({ pedidosPcp = [], quer
       }
 
       // Checa se está cancelado no PCP
-      const pedPcpCancelado = (pedIdOp && pcpCancelados.get(pedIdOp))
-        || (ofIdOp && pcpCancelados.get(`OF_${ofIdOp}`))
-        || (ofNomeOp && pcpCancelados.get(`OFN_${ofNomeOp}`))
-        || (normOp && pcpCancelados.get(`NUM_${normOp}`));
+      const pedPcpCancelado = encontrarPedidoVinculado(op, pcpCancelados);
 
       if (pedPcpCancelado) {
         promessasCD.push(

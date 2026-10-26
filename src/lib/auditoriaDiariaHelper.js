@@ -1,7 +1,8 @@
 import { base44 } from "@/api/base44Client";
 import {
   normalizarNumeroPedido,
-  opPertenceAoPedido
+  opPertenceAoPedido,
+  encontrarPedidoVinculado
 } from "@/lib/conciliacaoPcpMaquinasHelper";
 import { detectarMaquinaTelha, getItens } from "@/lib/pedidoOdooHelper";
 
@@ -91,15 +92,9 @@ export async function executarAuditoriaDiariaCompleta({ queryClient = null, usua
       const ofNome = String(op.of_nome || "").trim().toUpperCase();
       const pedId = op.pedido_odoo_id ? `ID_${op.pedido_odoo_id}` : null;
 
-      const pcpConc = (pedId && mapPcpConcluidos.get(pedId))
-        || (ofId && mapPcpConcluidos.get(`OF_${ofId}`))
-        || (ofNome && mapPcpConcluidos.get(`OFN_${ofNome}`))
-        || (numNorm && mapPcpConcluidos.get(`NUM_${numNorm}`));
+      const pcpConc = encontrarPedidoVinculado(op, mapPcpConcluidos);
 
-      const pcpCanc = (pedId && mapPcpCancelados.get(pedId))
-        || (ofId && mapPcpCancelados.get(`OF_${ofId}`))
-        || (ofNome && mapPcpCancelados.get(`OFN_${ofNome}`))
-        || (numNorm && mapPcpCancelados.get(`NUM_${numNorm}`));
+      const pcpCanc = encontrarPedidoVinculado(op, mapPcpCancelados);
 
       // 1.1 Se a OP está ativa na máquina mas já foi finalizada no PCP
       if (op.status !== "finalizado" && op.status !== "cancelado" && pcpConc) {
@@ -206,15 +201,9 @@ export async function executarAuditoriaDiariaCompleta({ queryClient = null, usua
       const ofNome = String(op.of_nome || "").trim().toUpperCase();
       const pedId = op.pedido_odoo_id ? `ID_${op.pedido_odoo_id}` : null;
 
-      const pcpConc = (pedId && mapPcpConcluidos.get(pedId))
-        || (ofId && mapPcpConcluidos.get(`OF_${ofId}`))
-        || (ofNome && mapPcpConcluidos.get(`OFN_${ofNome}`))
-        || (numNorm && mapPcpConcluidos.get(`NUM_${numNorm}`));
+      const pcpConc = encontrarPedidoVinculado(op, mapPcpConcluidos);
 
-      const pcpCanc = (pedId && mapPcpCancelados.get(pedId))
-        || (ofId && mapPcpCancelados.get(`OF_${ofId}`))
-        || (ofNome && mapPcpCancelados.get(`OFN_${ofNome}`))
-        || (numNorm && mapPcpCancelados.get(`NUM_${numNorm}`));
+      const pcpCanc = encontrarPedidoVinculado(op, mapPcpCancelados);
 
       if (op.status !== "finalizado" && op.status !== "cancelado" && pcpConc) {
         try {
