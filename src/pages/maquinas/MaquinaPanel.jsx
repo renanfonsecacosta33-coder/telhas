@@ -62,6 +62,7 @@ const STATUS_LABELS_TELHAS = {
 export function isPedidoConcluidoNaMaquina(p, maquina) {
   if (!p) return false;
   if (p.status === "finalizado" || p.status === "cancelado") return true;
+  if (p.status_pcp === "concluido" || p.status_pcp === "cancelado" || (p.percentual_concluido != null && p.percentual_concluido >= 100)) return true;
 
   const norm = (m) => String(m || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
   const mPainelNorm = norm(maquina);
@@ -787,7 +788,7 @@ export default function MaquinaPanel({ maquina }) {
 
     return pedidos.filter(p => {
       // 0. Cancelados nunca devem aparecer na fila de produção da máquina
-      if (p.status === "cancelado") return false;
+      if (p.status === "cancelado" || p.status_pcp === "cancelado") return false;
 
       // REGRA DE OURO PARA MÁQUINA DE COLAGEM:
       // Todo pedido que já teve a perfilação tirada e está aguardando colagem

@@ -1,5 +1,6 @@
 import { parseItensPedido } from "@/lib/regrasFabrica";
 import { notificarStatus } from "@/lib/biNotificador";
+import { finalizarOpsDoPedido } from "@/lib/conciliacaoPcpMaquinasHelper";
 
 // Sincroniza em lote o status de OSs da Central PCP com o Odoo ERP
 export async function sincronizarLoteOdoo(pedidosParaSincronizar, { isPedidoConcluido, setSincronizandoOdoo, toast, queryClient }) {
@@ -16,6 +17,11 @@ export async function sincronizarLoteOdoo(pedidosParaSincronizar, { isPedidoConc
       const itensSinc = isConc
         ? itens.map(i => ({ ...i, concluido: true, status: "concluido", status_detalhado: "Concluído" }))
         : itens;
+
+      // Se o pedido está concluído, garante baixa imediata também em todas as máquinas locais (Telhas e C&D)
+      if (isConc) {
+        await finalizarOpsDoPedido({ pedido: p, usuario: "Sincronização Odoo" }).catch(() => {});
+      }
 
       const res = await notificarStatus(
         {
@@ -43,7 +49,7 @@ export async function sincronizarLoteOdoo(pedidosParaSincronizar, { isPedidoConc
   if (failCount === 0) {
     toast({
       title: "Sincronização com Odoo concluída!",
-      description: `${okCount} OF(s) sincronizada(s) com sucesso no Odoo ERP como Finalizado/Concluído.`
+      description: `${okCount} OF(s) sincronizada(s) com sucesso no Odoo ERP e baixadas nas máquinas.`
     });
   } else {
     toast({
@@ -53,4 +59,7 @@ export async function sincronizarLoteOdoo(pedidosParaSincronizar, { isPedidoConc
     });
   }
   queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+  queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+  queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+  queryClient.invalidateQueries({ queryKey: ["ordens-cd-todos"] });
 }

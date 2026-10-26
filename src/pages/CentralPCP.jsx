@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Calendar, X, Clock, Trash2, Building2, ArrowRightLeft, Globe, User, Briefcase, Hash, Package, ShieldCheck, Target, BookOpen, RotateCcw } from "lucide-react";
 import { executarExclusaoOsBackground } from "@/lib/excluirOsHelper"; import { sincronizarLoteOdoo } from "@/lib/sincronizarOdooHelper";
+import { finalizarOpsDoPedido, cancelarOpsDoPedido, executarVarreduraEConciliacaoGeral } from "@/lib/conciliacaoPcpMaquinasHelper";
 import BotaoDevolverLotePCP from "@/components/pcp/BotaoDevolverLotePCP";
 import {
   DropdownMenu,
@@ -186,6 +187,13 @@ export default function CentralPCP() {
         itens_json: JSON.stringify(itens),
         percentual_concluido: percentual,
       });
+      if (percentual === 100) {
+        finalizarOpsDoPedido({ pedido, usuario: "Central PCP" }).then(() => {
+          queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+          queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+          queryClient.invalidateQueries({ queryKey: ["ordens-cd-todos"] });
+        }).catch(() => {});
+      }
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
       setPedidoSelecionado((prev) => prev ? { ...prev, ...atualizado } : prev);
     } catch (e) {
@@ -340,6 +348,38 @@ export default function CentralPCP() {
       }
     }).catch(() => {});
   }, [queryClient]);
+
+  // Auto-conciliação contínua: baixa/cancela automaticamente nas máquinas qualquer OP já concluída ou cancelada no PCP
+  const conciliacaoExecutadaRef = useRef(false);
+  useEffect(() => {
+    if (pedidosRaw.length > 0 && !conciliacaoExecutadaRef.current) {
+      conciliacaoExecutadaRef.current = true;
+      executarVarreduraEConciliacaoGeral({ pedidosPcp: pedidosRaw, queryClient, usuario: "Auto-Conciliação Inicial" }).then(res => {
+        if (res && res.totalProcessadas > 0) {
+          console.log("[CentralPCP] Conciliação inicial de fundo:", res);
+        }
+      }).catch(err => {
+        console.warn("[CentralPCP] Falha na auto-conciliação inicial:", err);
+      });
+    }
+  }, [pedidosRaw, queryClient]);
+
+  // Handler para acionamento manual do botão 'Baixar Finalizados nas Máquinas'
+  const [conciliandoMaquinas, setConciliandoMaquinas] = useState(false);
+  const handleExecutarAuditoriaConciliacaoManual = async () => {
+    setConciliandoMaquinas(true);
+    try {
+      const res = await executarVarreduraEConciliacaoGeral({ pedidosPcp: pedidos, queryClient, usuario: "Gestor PCP (Manual)" });
+      toast({
+        title: "Varredura e Conciliação Concluída!",
+        description: `${res.totalProcessadas} OPs ajustadas (${res.telhasFinalizadas + res.cdFinalizadas} finalizadas, ${res.telhasCanceladas + res.cdCanceladas} canceladas). Filas dos operadores limpas.`
+      });
+    } catch (err) {
+      toast({ title: "Falha na conciliação", description: err.message, variant: "destructive" });
+    } finally {
+      setConciliandoMaquinas(false);
+    }
+  };
 
   const handleRefetchComFeedback = async () => {
     try {
@@ -817,14 +857,9 @@ export default function CentralPCP() {
           console.warn("[CentralPCP] Falha ao notificar Odoo em finalizar 100%:", notifErr);
         }
 
-        // 2. Finaliza OPs locais vinculadas na fábrica
+        // 2. Finaliza OPs locais vinculadas na fábrica (Telhas, C&D e Desbobinador)
         try {
-          const opsTelhas = await base44.entities.Pedido.filter({ pedido_odoo_id: pedido.id });
-          for (const op of opsTelhas) {
-            if (op.status !== "finalizado" && op.status !== "cancelado") {
-              await base44.entities.Pedido.update(op.id, { status: "finalizado", data_finalizacao: new Date().toISOString().slice(0, 10) });
-            }
-          }
+          await finalizarOpsDoPedido({ pedido, usuario: "Central PCP" });
         } catch (opErr) {
           console.warn("[CentralPCP] Falha ao finalizar OPs locais:", opErr);
         }
@@ -837,7 +872,10 @@ export default function CentralPCP() {
         description: `${finalizarPendentes.length} OF(s) marcada(s) como 100% concluída(s) e notificadas no Odoo ERP.`
       });
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-cd-todos"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
     } catch (e) {
       toast({ title: "Erro ao finalizar", description: e.message, variant: "destructive" });
     } finally {
@@ -2285,6 +2323,19 @@ export default function CentralPCP() {
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
               <span className="hidden md:inline">Auditar & Restaurar OPs</span>
               <span className="md:hidden">Auditar</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExecutarAuditoriaConciliacaoManual}
+              disabled={conciliandoMaquinas}
+              className="h-8 gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 shadow-2xs"
+              title="Varre todas as máquinas e baixa pedidos que já foram finalizados ou cancelados no PCP"
+            >
+              <CheckCircle2 className={`w-3.5 h-3.5 text-emerald-600 ${conciliandoMaquinas ? "animate-spin" : ""}`} />
+              <span className="hidden md:inline">{conciliandoMaquinas ? "Limpando Máquinas..." : "Baixar Finalizados nas Máquinas"}</span>
+              <span className="md:hidden">Baixar Máquinas</span>
             </Button>
 
             <Button

@@ -1,8 +1,14 @@
 import { base44 } from "@/api/base44Client";
+import { cancelarOpsDoPedido } from "@/lib/conciliacaoPcpMaquinasHelper";
 
 // Exclusão de OS da Central PCP: resposta instantânea na tela + sincronismo com Odoo em background
 export async function executarExclusaoOsBackground({ pedido, pedidoId, numPedido, motivo, queryClient, toast }) {
   try {
+    // 1. Cancela imediatamente as OPs locais vinculadas nas máquinas da fábrica (Telhas e C&D)
+    await cancelarOpsDoPedido({ pedido, usuario: "Exclusão PCP", motivo }).catch((e) => {
+      console.warn("[Excluir OS] Falha ao cancelar OPs locais:", e);
+    });
+
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error("Timeout Odoo (3.5s)")), 3500)
     );
@@ -25,8 +31,10 @@ export async function executarExclusaoOsBackground({ pedido, pedidoId, numPedido
 
     // Invalidação suave das queries ativas se necessário
     queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"], refetchType: "active" });
+    queryClient.invalidateQueries({ queryKey: ["pedidos"], refetchType: "active" });
     queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"], refetchType: "active" });
     queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"], refetchType: "active" });
+    queryClient.invalidateQueries({ queryKey: ["ordens-cd-todos"], refetchType: "active" });
 
     toast({
       title: "✅ OS #" + numPedido + " excluída com sucesso",
