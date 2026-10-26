@@ -233,12 +233,18 @@ export default function PedidoOdooCard({
   const cfgSetor = SETOR_CARD_CFG[grupoSetor] || SETOR_CARD_CFG.cd;
   const isCompacto = compacto || dentroDeGrupo;
   const cardPrioCls = getCardPrioridadeClasses(pedido);
+  // Fundo por estado: Concluído esverdeado, Atrasado avermelhado — sinalização imediata
+  const cardEstadoBg = isConcluido
+    ? "bg-gradient-to-br from-emerald-50/90 to-white dark:from-emerald-950/45 dark:to-slate-900"
+    : urgencia?.atrasado
+    ? "bg-gradient-to-br from-red-50/80 to-white dark:from-red-950/45 dark:to-slate-900"
+    : cfgSetor.bgTint;
 
   if (isCompacto) {
     return (
       <div
         onClick={onClick}
-        className={`${cfgSetor.bgTint} border rounded-xl p-3 hover:shadow-md transition-all cursor-pointer flex flex-col gap-2.5 relative overflow-hidden ${
+        className={`${cardEstadoBg} border rounded-xl p-3 hover:shadow-md transition-all cursor-pointer flex flex-col gap-2.5 relative overflow-hidden ${
           cardPrioCls || (urgencia?.borderLeftClass || cfgSetor.borderLeft)
         } ${
           cardPrioCls
@@ -454,7 +460,7 @@ export default function PedidoOdooCard({
   return (
     <div
       onClick={onClick}
-      className={`${cfgSetor.bgTint} border rounded-2xl p-4 hover:shadow-lg transition-all cursor-pointer flex flex-col gap-3 relative overflow-hidden ${
+      className={`${cardEstadoBg} border rounded-2xl p-4 hover:shadow-lg transition-all cursor-pointer flex flex-col gap-3 relative overflow-hidden ${
         cardPrioCls || (urgencia?.borderLeftClass || cfgSetor.borderLeft)
       } ${
         cardPrioCls

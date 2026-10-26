@@ -3,11 +3,11 @@ import { Button } from "@/components/ui/button";
 import {
   ChevronDown, ChevronUp, Layers, User, Calendar, Send,
   CheckCircle2, Trash2,
-  ArrowRightLeft, RefreshCw
+  ArrowRightLeft, RefreshCw, MoreHorizontal
 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { formatDataBR } from "@/lib/sla";
 import { urgenciaPrazo } from "@/lib/prazoUrgencia";
-import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import OfTimelineRow from "@/components/pcp/OfTimelineRow";
 import { calcularProgressoRealPedido, classGrupo, obterStatusExecucaoPedido, getItens } from "@/lib/pedidoOdooHelper";
 import { verificarEstoqueGrupo, extrairDemandaItem } from "@/lib/estoqueMaterialHelper";
@@ -215,16 +215,18 @@ export default function PedidoOdooGrupoCard({
 
   return (
     <div
-      className={`${isPedidoTotalConcluido && !cardPrioCls ? "bg-emerald-50/70 dark:bg-emerald-950/25" : "bg-white dark:bg-slate-900"} border rounded-2xl transition-all shadow-sm relative overflow-hidden ${
-        cardPrioCls || (urgencia?.borderLeftClass || "")
-      } ${
+      className={`border rounded-2xl transition-all shadow-sm relative overflow-hidden ${
         cardPrioCls
-          ? ""
-          : isPrioritario
-          ? "border-amber-400 dark:border-amber-600 ring-1 ring-amber-400/40"
+          ? cardPrioCls
           : isPedidoTotalConcluido
-          ? "border-emerald-300 dark:border-emerald-800"
-          : urgencia?.ringClass || "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+          ? "bg-gradient-to-r from-emerald-100/90 via-emerald-50/60 to-white dark:from-emerald-950/60 dark:via-emerald-950/30 dark:to-slate-900 border-l-[6px] border-l-emerald-500 border-emerald-400 dark:border-emerald-800"
+          : urgencia?.atrasado
+          ? "bg-gradient-to-r from-red-100/80 via-red-50/50 to-white dark:from-red-950/50 dark:via-red-950/25 dark:to-slate-900 border-l-[6px] border-l-red-600 border-red-400 dark:border-red-900"
+          : urgencia?.dias === 0
+          ? "bg-gradient-to-r from-amber-100/70 via-amber-50/40 to-white dark:from-amber-950/40 dark:via-amber-950/20 dark:to-slate-900 border-l-[6px] border-l-amber-500 border-amber-300 dark:border-amber-800"
+          : isPrioritario
+          ? "bg-white dark:bg-slate-900 border-amber-400 dark:border-amber-600 ring-1 ring-amber-400/40"
+          : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
       }`}
     >
       <BannerPrioridadeDestaque
@@ -304,7 +306,6 @@ export default function PedidoOdooGrupoCard({
                     Entrega: <strong className="text-slate-700 dark:text-slate-200">{formatDataBR(grupo.data_entrega)}</strong>
                   </span>
                 )}
-                <SlaCountdownBadge dataPrometida={grupo.data_entrega} />
               </div>
 
               {/* Linha 3: Composição resumida com pontos coloridos por setor */}
@@ -423,51 +424,40 @@ export default function PedidoOdooGrupoCard({
                 </button>
               )}
 
-              {onSincronizarGrupoOdoo && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSincronizarGrupoOdoo(ofs);
-                  }}
-                  className={`h-8 px-2.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 transition-colors ${
-                    isPedidoTotalConcluido
-                      ? "border border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 shadow-xs"
-                      : "border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-                  }`}
-                  title={`Sincronizar/Reenviar Pedido #${grupo.numero_pedido} (${totalOfs} OFs) com o Odoo ERP`}
-                >
-                  <RefreshCw className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                  <span className="hidden sm:inline">Sincronizar Odoo</span>
-                </button>
-              )}
-
-              {onTransferirGrupo && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onTransferirGrupo(grupo);
-                  }}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition-colors border border-slate-200 dark:border-slate-700 hover:border-indigo-300 h-8 w-8 flex items-center justify-center shrink-0"
-                  title={`Transferir Pedido #${grupo.numero_pedido} (${totalOfs} OFs) para outra filial`}
-                >
-                  <ArrowRightLeft className="w-3.5 h-3.5" />
-                </button>
-              )}
-
-              {onDeleteGrupo && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteGrupo(grupo);
-                  }}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors border border-slate-200 dark:border-slate-700 hover:border-red-300 h-8 w-8 flex items-center justify-center shrink-0"
-                  title={`Excluir Pedido #${grupo.numero_pedido} (${totalOfs} OFs)`}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+              {(onSincronizarGrupoOdoo || onTransferirGrupo || onDeleteGrupo) && (
+                <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="h-8 w-8 p-0 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"
+                        title={`Mais ações do Pedido #${grupo.numero_pedido}`}
+                      >
+                        <MoreHorizontal className="w-4 h-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      {onSincronizarGrupoOdoo && (
+                        <DropdownMenuItem onClick={() => onSincronizarGrupoOdoo(ofs)} className="gap-2 cursor-pointer">
+                          <RefreshCw className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                          Sincronizar c/ Odoo
+                        </DropdownMenuItem>
+                      )}
+                      {onTransferirGrupo && (
+                        <DropdownMenuItem onClick={() => onTransferirGrupo(grupo)} className="gap-2 cursor-pointer">
+                          <ArrowRightLeft className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                          Transferir p/ outra filial
+                        </DropdownMenuItem>
+                      )}
+                      {onDeleteGrupo && (
+                        <DropdownMenuItem onClick={() => onDeleteGrupo(grupo)} className="gap-2 cursor-pointer text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400">
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Excluir pedido
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               )}
 
               <Button

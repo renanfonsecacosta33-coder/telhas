@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { classGrupo, getItens, obterStatusExecucaoPedido } from "@/lib/pedidoOdooHelper";
 import { calcularEtapasProcesso } from "@/components/producao/ProcessoStepperPedido";
+import { urgenciaPrazo } from "@/lib/prazoUrgencia";
 
 /**
  * Linha de Timeline Vertical de uma OF dentro do card expandido do pedido (Central PCP).
@@ -51,6 +52,7 @@ export default function OfTimelineRow({
 
   const pct = progressoReal != null ? progressoReal : pedido.percentual_concluido || 0;
   const isConcluido = diag.isConcluido || pct >= 100;
+  const urg = urgenciaPrazo(pedido.data_entrega, { concluido: isConcluido });
 
   const itens = getItens(pedido);
   const grupoSetor = classGrupo(itens[0] || pedido);
@@ -95,8 +97,12 @@ export default function OfTimelineRow({
   return (
     <div
       onClick={onClick}
-      className={`of-card-arrive relative bg-white dark:bg-slate-900 border border-[#d8e0dc] dark:border-slate-700 rounded-[13px] px-4 py-[15px] grid items-center gap-3 shadow-[0_4px_12px_#223a3210] cursor-pointer hover:border-[#c3cfc9] dark:hover:border-slate-600 ${
-        isConcluido ? "dark:border-emerald-800" : ""
+      className={`of-card-arrive relative border rounded-[13px] px-4 py-[15px] grid items-center gap-3 shadow-[0_4px_12px_#223a3210] cursor-pointer ${
+        isConcluido
+          ? "bg-emerald-50/80 dark:bg-emerald-950/25 border-emerald-300 dark:border-emerald-800 hover:border-emerald-400 dark:hover:border-emerald-700"
+          : urg?.atrasado
+          ? "bg-red-50/70 dark:bg-red-950/25 border-red-300 dark:border-red-900 hover:border-red-400 dark:hover:border-red-800"
+          : "bg-white dark:bg-slate-900 border-[#d8e0dc] dark:border-slate-700 hover:border-[#c3cfc9] dark:hover:border-slate-600"
       }`}
       style={{ gridTemplateColumns: "42px minmax(0,1fr) 134px" }}
     >
