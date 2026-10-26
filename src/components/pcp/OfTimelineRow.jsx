@@ -65,6 +65,20 @@ export default function OfTimelineRow({
     : pedido.descricao || "Sem itens cadastrados";
   const itensExtras = itens.length > 1 ? `  +${itens.length - 1} item(ns)` : "";
 
+  // Descrição/observação dos itens (ex.: "6 PÇ C/ 4400 AMADEIRADA" / "11 pç c/ 1200")
+  // para leitura rápida direto na linha da OF, sem precisar abrir os detalhes
+  const linhasDescricao = useMemo(() => {
+    const linhas = [];
+    itens.slice(0, 3).forEach(it => {
+      const d = String(it.descricao || it.observacao || "")
+        .replace(/<[^>]*>/g, " ")
+        .trim();
+      if (!d || d === String(it.produto || "").trim()) return;
+      d.split(/\n+/).map(l => l.trim()).filter(Boolean).forEach(l => linhas.push(l));
+    });
+    return Array.from(new Set(linhas)).slice(0, 4);
+  }, [itens]);
+
   // Onde está (mesma lógica de localização do Hero, em formato de texto)
   const posto = (() => {
     if (isConcluido) return "Expedição Final";
@@ -146,6 +160,14 @@ export default function OfTimelineRow({
           {resumoItem}
           {itensExtras && <span className="font-semibold text-[#687773] dark:text-slate-500">{itensExtras}</span>}
         </div>
+
+        {linhasDescricao.length > 0 && (
+          <div className="text-[10.5px] italic leading-[1.5] text-[#687773] dark:text-slate-500">
+            {linhasDescricao.map((l, i) => (
+              <span key={i} className="block truncate" title={l}>{l}</span>
+            ))}
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3 items-start">
           <div className="text-[11px] leading-[1.4] text-[#53615d] dark:text-slate-400 truncate">
