@@ -5,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Calendar, X, Clock, Trash2, Building2, ArrowRightLeft, Globe, User, Briefcase, Hash, Package, ShieldCheck, Target, BookOpen, RotateCcw, History } from "lucide-react";
+import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Calendar, X, Clock, Trash2, Building2, ArrowRightLeft, Globe, User, Briefcase, Hash, Package, ShieldCheck, Target, BookOpen, RotateCcw, History, Activity } from "lucide-react";
 import { executarExclusaoOsBackground } from "@/lib/excluirOsHelper"; import { sincronizarLoteOdoo } from "@/lib/sincronizarOdooHelper";
 import { finalizarOpsDoPedido, cancelarOpsDoPedido, executarVarreduraEConciliacaoGeral, cancelarOpsDasOfsExatas } from "@/lib/conciliacaoPcpMaquinasHelper";
 import RelatorioAuditoriaDiariaModal from "@/components/pcp/RelatorioAuditoriaDiariaModal";
@@ -38,7 +38,6 @@ import WebhookSimulatorDialog from "@/components/pcp/WebhookSimulatorDialog";
 import RecuperarPedidoOdooDialog from "@/components/pcp/RecuperarPedidoOdooDialog";
 import AuditarRestaurarOpsDialog from "@/components/pcp/AuditarRestaurarOpsDialog";
 import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
-import { reajustarTodasBobinasMaquinasAutomaticamente } from "@/lib/reajusteAutomaticoBobinas";
 import { executarReparoBobininhasBanco } from "@/lib/repararBobininhasHelper";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import TransferirLojaDialog from "@/components/pcp/TransferirLojaDialog";
@@ -55,9 +54,9 @@ import { parseItensPedido } from "@/lib/regrasFabrica";
 import { notificarStatus } from "@/lib/biNotificador";
 import {
   calcularProgressoRealPedido, statusPcpPorPercentual, enriquecerItensComStatusReal,
-  itensPorGrupo, obterStatusExecucaoPedido, classGrupo
+  obterStatusExecucaoPedido, classGrupo
 } from "@/lib/pedidoOdooHelper";
-import { isAutoRoteamentoTelhasAtivo, rotearLoteTelhasAgrupadas } from "@/lib/autoBobinaTelhasHelper";
+import { isAutoRoteamentoTelhasAtivo } from "@/lib/autoBobinaTelhasHelper";
 import { distribuirLotePedidos, distribuirPedidoPCP } from "@/lib/distribuicaoPcpHelper";
 import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
@@ -372,7 +371,7 @@ export default function CentralPCP() {
       throw errRede;
     }
   };
-
+  const [modalRelatorioAuditoriaOpen, setModalRelatorioAuditoriaOpen] = useState(false);
   const { data: pedidosRaw = [], isLoading: carregando, refetch, dataUpdatedAt } = useQuery({
     queryKey: ["pedidos-odoo-pcp"],
     queryFn: carregarPedidosOdooBlindado,
@@ -387,7 +386,6 @@ export default function CentralPCP() {
   // Sincronização em tempo real (timer isolado em BadgeTempoSync para zero re-renderizações parasitas)
 
   // Handler e estado do Relatório de Auditoria Diária (carregamento leve e instantâneo da persistência)
-  const [modalRelatorioAuditoriaOpen, setModalRelatorioAuditoriaOpen] = useState(false);
   const [relatorioAuditoria, setRelatorioAuditoria] = useState(() => obterUltimoRelatorioAuditoria());
   const [executandoAuditoriaDiaria, setExecutandoAuditoriaDiaria] = useState(false);
 
@@ -2114,7 +2112,7 @@ export default function CentralPCP() {
     }
 
     const motivoExclusao = modalExclusao.motivo?.trim() || "Exclusão solicitada na Central PCP";
-    const usuarioLogado = user?.full_name || user?.email || "Gestor PCP";
+    const me = await base44.auth.me().catch(() => null); const usuarioLogado = me?.full_name || me?.email || "Gestor PCP";
     const idsExcluir = new Set(lista.map(p => p.id));
     const notificarOdooFlag = modalExclusao.notificarOdoo;
     const numerosPedidos = [...new Set(lista.map(p => p.numero_pedido).filter(Boolean))];
