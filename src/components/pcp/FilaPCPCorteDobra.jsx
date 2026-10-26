@@ -69,7 +69,7 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
   // Retirar da máquina — PCP (gestores e admins) podem retirar um item da máquina
   const canRetirarDaMaquina = ["admin", "super_admin", "gestor"].includes(filialCtx?.user?.role);
 
-  // Busca blindada com 5000 registros e cache IndexedDB (sincronizada com Central PCP)
+  // Busca otimizada (600 registros mais recentes) e cache IndexedDB (sincronizada com Central PCP)
   const carregarPedidosOdooCD = async () => {
     const CHAVE_CACHE = "pedidos_odoo_pcp_cache_v2";
 
@@ -81,7 +81,7 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
     }
 
     try {
-      const dados = await base44.entities.PedidoOdoo.list("-data_recebimento", 5000);
+      const dados = await base44.entities.PedidoOdoo.list("-data_recebimento", 600);
       if (dados && Array.isArray(dados) && dados.length > 0) {
         salvarCacheLocal(CHAVE_CACHE, dados).catch(() => {});
         return dados;
@@ -102,27 +102,47 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
     }
   };
 
-  const { data: pedidos = [], isLoading, isFetching } = useQuery({
+  const { data: pedidosRaw = [], isLoading, isFetching } = useQuery({
     queryKey: ["pedidos-odoo-pcp"],
     queryFn: carregarPedidosOdooCD,
-    refetchInterval: 10000,
-    staleTime: 10000,
+    refetchInterval: 30000,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
     placeholderData: (prev) => prev
   });
+
+  // Deduplicação estrita de pedidos em memória para C&D
+  const pedidos = useMemo(() => {
+    const vistos = new Set();
+    const lista = [];
+    for (const p of pedidosRaw) {
+      if (!p) continue;
+      const chave = p.of_odoo_id 
+        ? `OFID_${p.of_odoo_id}` 
+        : (p.of_nome ? `OFNOME_${p.of_nome}` : (p.numero_pedido ? `PED_${p.numero_pedido}` : `ID_${p.id}`));
+      if (!vistos.has(chave)) {
+        vistos.add(chave);
+        lista.push(p);
+      }
+    }
+    return lista;
+  }, [pedidosRaw]);
 
   const { data: ordensMaquina = [] } = useQuery({
     queryKey: ["ordens-maquina-cd-todas"],
     queryFn: () => base44.entities.OrdemMaquinaCD.list("-data", 500),
-    refetchInterval: 10000,
-    staleTime: 10000,
+    refetchInterval: 30000,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
     placeholderData: (prev) => prev
   });
 
   const { data: ordensDesb = [] } = useQuery({
     queryKey: ["ordens-desb-todas"],
     queryFn: () => base44.entities.OrdemDesbobinadeira.list("-data", 500),
-    refetchInterval: 10000,
-    staleTime: 10000,
+    refetchInterval: 30000,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
     placeholderData: (prev) => prev
   });
 

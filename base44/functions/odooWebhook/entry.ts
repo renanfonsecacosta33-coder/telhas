@@ -440,18 +440,25 @@ export default async function(req: Request): Promise<Response> {
     const isNovaOf = Boolean(body?.nova_of);
 
     let existingRec: any = null;
+    const duplicatasParaLimpar: string[] = [];
 
-    // Regra de Ouro: of_odoo_id / odoo_id / of_nome é o identificador único da OF no Odoo.
+    // Regra de Ouro Anti-Duplicidade: of_odoo_id / odoo_id / of_nome é o identificador único da OF no Odoo.
     // INDEPENDENTE de 'nova_of', se já existe um registro com esse of_odoo_id, odoo_id ou of_nome,
     // trata-se da MESMA Ordem de Fabricação (evita duplicações por retentativa ou loop de webhook).
     if (ofId) {
       const byOfId = await db.entities.PedidoOdoo.filter({ of_odoo_id: ofId });
       if (byOfId && byOfId.length > 0) {
         existingRec = byOfId[0];
+        if (byOfId.length > 1) {
+          duplicatasParaLimpar.push(...byOfId.slice(1).map((d: any) => d.id));
+        }
       } else {
         const byOdooId = await db.entities.PedidoOdoo.filter({ odoo_id: ofId });
         if (byOdooId && byOdooId.length > 0) {
           existingRec = byOdooId[0];
+          if (byOdooId.length > 1) {
+            duplicatasParaLimpar.push(...byOdooId.slice(1).map((d: any) => d.id));
+          }
         }
       }
     }
@@ -460,22 +467,24 @@ export default async function(req: Request): Promise<Response> {
       const byOfNome = await db.entities.PedidoOdoo.filter({ of_nome: ofNome });
       if (byOfNome && byOfNome.length > 0) {
         existingRec = byOfNome[0];
+        if (byOfNome.length > 1) {
+          duplicatasParaLimpar.push(...byOfNome.slice(1).map((d: any) => d.id));
+        }
       }
     }
 
-    if (!existingRec && ofNome && numeroPedido) {
+    if (!existingRec && numeroPedido) {
       const byPed = await db.entities.PedidoOdoo.filter({ numero_pedido: numeroPedido });
       if (byPed && byPed.length > 0) {
-        const match = byPed.find((r: any) => r.of_nome === ofNome || (ofId && r.of_odoo_id === ofId));
-        if (match) existingRec = match;
-      }
-    }
-
-    if (!existingRec && !ofId && !ofNome && !isNovaOf) {
-      // Fallback legado: se não foi enviado of_odoo_id nem odoo_id nem of_nome, busca por numero_pedido
-      const byPed = await db.entities.PedidoOdoo.filter({ numero_pedido: numeroPedido });
-      if (byPed && byPed.length > 0) {
-        existingRec = byPed[0];
+        const match = byPed.find((r: any) => 
+          (ofNome && r.of_nome === ofNome) || 
+          (ofId && (r.of_odoo_id === ofId || r.odoo_id === ofId))
+        );
+        if (match) {
+          existingRec = match;
+        } else if (!ofId && !ofNome && !isNovaOf) {
+          existingRec = byPed[0];
+        }
       }
     }
 
@@ -634,6 +643,9 @@ export default async function(req: Request): Promise<Response> {
       // Odoo envia Base64 com quebras de linha (MIME) — remove TODOS os espaços/whitespaces.
       const s = raw.replace(/\s+/g, "");
       if (s.length <= 100) return "";
+      // Blindagem contra estouro de tráfego (App entity read traffic volume limit exceeded):
+      // Imagens base64 gigantes (> 250KB) não devem ser embutidas cruas nos registros de banco
+      if (s.length > 250000) return "";
       if (s.startsWith("data:")) return s;
       if (s.startsWith("/9j/")) return `data:image/jpeg;base64,${s}`;
       if (s.startsWith("iVBORw0KGgo")) return `data:image/png;base64,${s}`;
@@ -783,6 +795,19 @@ export default async function(req: Request): Promise<Response> {
       } catch (e) {
         console.warn("Falha ao registrar Notificacao para odooWebhook:", e);
       }
+    }
+
+    // Limpeza assíncrona de duplicidades fantasmas encontradas no banco (garante base 100% limpa)
+    if (duplicatasParaLimpar.length > 0) {
+      (async () => {
+        for (const dupId of duplicatasParaLimpar) {
+          try {
+            await db.entities.PedidoOdoo.delete(dupId);
+          } catch (err: any) {
+            console.warn(`[odooWebhook] Falha ao remover duplicata fantasma ${dupId}:`, err?.message);
+          }
+        }
+      })().catch(() => {});
     }
 
     return Response.json({

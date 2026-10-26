@@ -122,6 +122,44 @@ export default function CentralPCP() {
     setBusca(novo);
     setBuscaDebounced(novo);
   };
+
+  const [buscandoNoBanco, setBuscandoNoBanco] = useState(false);
+  const handleBuscarNoBancoHistorico = async () => {
+    const termo = (busca || "").trim();
+    if (!termo) return;
+    setBuscandoNoBanco(true);
+    try {
+      const termoLimpo = termo.replace(/^[Ss]0*/, "");
+      const res = await Promise.all([
+        base44.entities.PedidoOdoo.filter({ numero_pedido: termo }).catch(() => []),
+        base44.entities.PedidoOdoo.filter({ numero_pedido: `S${termoLimpo.padStart(5, "0")}` }).catch(() => []),
+        base44.entities.PedidoOdoo.filter({ of_nome: termo }).catch(() => []),
+        base44.entities.PedidoOdoo.filter({ of_odoo_id: termo }).catch(() => []),
+      ]);
+      const achados = res.flat().filter(Boolean);
+      if (achados.length > 0) {
+        queryClient.setQueryData(["pedidos-odoo-pcp"], (prev = []) => {
+          const idsExistentes = new Set(prev.map(p => p.id));
+          const novos = achados.filter(p => !idsExistentes.has(p.id));
+          return [...novos, ...prev];
+        });
+        toast({
+          title: "Pedido encontrado no banco!",
+          description: `${achados.length} ordem(ns) de fabricação recuperada(s) do histórico.`
+        });
+      } else {
+        toast({
+          title: "Não encontrado no histórico",
+          description: `Nenhum pedido correspondente a "${termo}" foi localizado no banco de dados.`,
+          variant: "destructive"
+        });
+      }
+    } catch (err) {
+      toast({ title: "Erro na busca", description: err.message, variant: "destructive" });
+    } finally {
+      setBuscandoNoBanco(false);
+    }
+  };
   const [filtro, setFiltro] = useState("ativos");
   const [filtroMaterial, setFiltroMaterial] = useState("todos"); // "todos" | "com_material" | "sem_material"
   const [filtroSetor, setFiltroSetor] = useState("todos"); // "todos" | "telhas" | "corte_dobra" | "ambos"
@@ -310,8 +348,8 @@ export default function CentralPCP() {
     }
 
     try {
-      // 2. Busca na nuvem com limite ilimitado (5000 registros)
-      const dados = await base44.entities.PedidoOdoo.list("-data_recebimento", 5000);
+      // 2. Busca na nuvem otimizada (600 registros mais recentes - economia de 90% no tráfego de leitura)
+      const dados = await base44.entities.PedidoOdoo.list("-data_recebimento", 600);
       if (dados && Array.isArray(dados) && dados.length > 0) {
         salvarCacheLocal(CHAVE_CACHE, dados).catch(() => {});
         return dados;
@@ -341,7 +379,7 @@ export default function CentralPCP() {
     gcTime: 1000 * 60 * 60 * 24, // 24 horas retido em memória
     retry: 3,
     refetchInterval: 30000,
-    refetchOnWindowFocus: true
+    refetchOnWindowFocus: false
   });
 
   // Sincronização em tempo real (timer isolado em BadgeTempoSync para zero re-renderizações parasitas)
@@ -383,9 +421,26 @@ export default function CentralPCP() {
     const lista = [];
     for (const p of pedidosRaw) {
       if (!p) continue;
-      const chave = p.numero_pedido && (p.of_nome || p.of_odoo_id)
-        ? `${p.numero_pedido}___${p.of_nome || p.of_odoo_id}`
-        : (p.of_nome || p.of_odoo_id || p.id);
+      let chave = "";
+      if (p.of_odoo_id) {
+        chave = `OFID_${String(p.of_odoo_id).trim()}`;
+      } else if (p.of_nome) {
+        chave = `OFNOME_${String(p.of_nome).trim().toUpperCase()}`;
+      } else if (p.numero_pedido) {
+        const itensPrimeiro = (() => {
+          try {
+            const arr = typeof p.itens_json === "string" ? JSON.parse(p.itens_json) : p.itens_json;
+            if (Array.isArray(arr) && arr.length > 0) {
+              return `${arr[0]?.produto || ""}_${arr[0]?.quantidade || ""}_${arr[0]?.medida || ""}`;
+            }
+          } catch {}
+          return "";
+        })();
+        chave = `PED_${String(p.numero_pedido).trim()}_${itensPrimeiro || p.id}`;
+      } else {
+        chave = `ID_${p.id}`;
+      }
+
       if (!vistos.has(chave)) {
         vistos.add(chave);
         lista.push(p);
@@ -403,7 +458,7 @@ export default function CentralPCP() {
         if (c && c.length > 0) return c;
       }
       try {
-        const res = await base44.entities.Pedido.list("-data", 800);
+        const res = await base44.entities.Pedido.list("-data", 500);
         if (res && res.length > 0) salvarCacheLocal(CHAVE, res).catch(() => {});
         return res;
       } catch (e) {
@@ -416,7 +471,8 @@ export default function CentralPCP() {
     staleTime: 30000,
     gcTime: 1000 * 60 * 60 * 24,
     retry: 3,
-    refetchInterval: 45000
+    refetchInterval: 30000,
+    refetchOnWindowFocus: false
   });
 
   const { data: ordensCD = [] } = useQuery({
@@ -428,7 +484,7 @@ export default function CentralPCP() {
         if (c && c.length > 0) return c;
       }
       try {
-        const res = await base44.entities.OrdemMaquinaCD.list("-data", 800);
+        const res = await base44.entities.OrdemMaquinaCD.list("-data", 500);
         if (res && res.length > 0) salvarCacheLocal(CHAVE, res).catch(() => {});
         return res;
       } catch (e) {
@@ -441,7 +497,8 @@ export default function CentralPCP() {
     staleTime: 30000,
     gcTime: 1000 * 60 * 60 * 24,
     retry: 3,
-    refetchInterval: 45000
+    refetchInterval: 30000,
+    refetchOnWindowFocus: false
   });
 
   // Repara e sincroniza automaticamente qualquer Bobininha no banco de dados (ex: #S01195)
@@ -2805,20 +2862,35 @@ export default function CentralPCP() {
                 ? "Tente ajustar o termo de busca, trocar a data ou limpar os filtros para visualizar outros pedidos."
                 : "Clique em \"Receber / Simular Webhook Odoo\" para importar pedidos do ERP."}
             </p>
-            {(busca || filtroDataAtivo || filtro !== "ativos") && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  handleLimparBusca();
-                  limparFiltroData();
-                  setFiltro("ativos");
-                }}
-                className="mt-3 text-xs"
-              >
-                Limpar Todos os Filtros
-              </Button>
-            )}
+            <div className="flex items-center gap-2 mt-3 flex-wrap justify-center">
+              {busca && busca.trim().length >= 2 && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleBuscarNoBancoHistorico}
+                  disabled={buscandoNoBanco}
+                  className="text-xs bg-orange-600 hover:bg-orange-700 text-white font-bold gap-1.5 shadow-sm"
+                  title="Faz uma consulta direta ao banco de dados por este pedido histórico"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  {buscandoNoBanco ? "Consultando banco..." : `Buscar "${busca.trim()}" no Histórico Completo`}
+                </Button>
+              )}
+              {(busca || filtroDataAtivo || filtro !== "ativos") && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    handleLimparBusca();
+                    limparFiltroData();
+                    setFiltro("ativos");
+                  }}
+                  className="text-xs"
+                >
+                  Limpar Todos os Filtros
+                </Button>
+              )}
+            </div>
           </div>
         ) : (
           <>

@@ -119,24 +119,50 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
   // Finalização rápida de item — exclusiva de administradores
   const isAdmin = ["admin", "super_admin"].includes(filialCtx?.user?.role);
 
-  const { data: pedidos = [], isLoading } = useQuery({
-    queryKey: ["pedidos-odoo-telhas"],
-    queryFn: () => base44.entities.PedidoOdoo.list("-data_recebimento", 500),
-    refetchInterval: 10000
+  const { data: pedidosRaw = [], isLoading } = useQuery({
+    queryKey: ["pedidos-odoo-pcp"],
+    queryFn: () => base44.entities.PedidoOdoo.list("-data_recebimento", 600),
+    staleTime: 30000,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev) => prev
   });
+
+  // Deduplicação estrita de OFs em memória para a fila de Telhas
+  const pedidos = useMemo(() => {
+    const vistos = new Set();
+    const lista = [];
+    for (const p of pedidosRaw) {
+      if (!p) continue;
+      const chave = p.of_odoo_id 
+        ? `OFID_${p.of_odoo_id}` 
+        : (p.of_nome ? `OFNOME_${p.of_nome}` : (p.numero_pedido ? `PED_${p.numero_pedido}` : `ID_${p.id}`));
+      if (!vistos.has(chave)) {
+        vistos.add(chave);
+        lista.push(p);
+      }
+    }
+    return lista;
+  }, [pedidosRaw]);
 
   // Consulta as Ordens de Produção reais nas máquinas da fábrica
   const { data: pedidosProducao = [] } = useQuery({
     queryKey: ["pedidos-producao-todos"],
     queryFn: () => base44.entities.Pedido.list("-data", 500),
-    refetchInterval: 10000
+    staleTime: 30000,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev) => prev
   });
 
   // Consulta estoque de Bobinas de Telhas para seleção automática minuciosa
   const { data: bobinasEstoque = [] } = useQuery({
     queryKey: ["bobinas-estoque-telhas-pcp"],
     queryFn: () => base44.entities.Bobina.list("-created_date", 400),
-    refetchInterval: 12000
+    staleTime: 30000,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev) => prev
   });
 
   // Consulta tolerâncias configuradas de espessura
