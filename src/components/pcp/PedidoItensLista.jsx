@@ -308,14 +308,14 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
 
                   {/* Linha 4: Diagnóstico de Matéria-Prima em Estoque (Tempo Real) com Simulação Interativa */}
                   {estoqueItem && (
-                    <div className="flex items-center gap-1.5 mt-1.5 pt-1 border-t border-slate-100 dark:border-slate-800/80 flex-wrap">
+                    <div className={`${compacto ? "flex flex-col items-stretch gap-1.5" : "flex items-center gap-1.5 flex-wrap"} mt-1.5 pt-1 border-t border-slate-100 dark:border-slate-800/80`}>
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           setModalSimulacaoItem(estoqueItem);
                         }}
-                        className={`inline-flex items-center gap-1.5 font-bold px-2 py-1 rounded-md text-[10px] leading-tight transition-all cursor-pointer hover:shadow-xs hover:scale-[1.01] text-left group ${
+                        className={`inline-flex items-center gap-1.5 font-bold px-2 py-1 rounded-md text-[10px] leading-tight transition-all cursor-pointer hover:shadow-xs hover:scale-[1.01] text-left group ${compacto ? "w-full justify-center" : ""} ${
                           estoqueItem.status === "disponivel"
                             ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-800/80 hover:bg-emerald-100 dark:hover:bg-emerald-900/60"
                             : estoqueItem.status === "parcial_prebaixa"
@@ -355,7 +355,7 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
                             e.stopPropagation();
                             handleAvisarLeonardo(it, estoqueItem, idx);
                           }}
-                          className={`inline-flex items-center gap-1 font-bold px-2 py-1 rounded-md text-[10px] leading-tight transition-all cursor-pointer shadow-xs ${
+                          className={`inline-flex items-center gap-1 font-bold px-2 py-1 rounded-md text-[10px] leading-tight transition-all cursor-pointer shadow-xs ${compacto ? "w-full justify-center" : ""} ${
                             alertasEnviados[idx]
                               ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700"
                               : "bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white border border-red-700 hover:shadow-sm"
@@ -456,12 +456,12 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
 
               {/* BARRA DE PROGRESSO INDIVIDUAL POR ITEM */}
               <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800/80 flex flex-col gap-1">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1">
-                    <span>Progresso do Item:</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200">{statusTexto}</span>
+                <div className="flex items-center justify-between gap-2 text-[11px]">
+                  <span className="font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1 min-w-0">
+                    {!compacto && <span className="shrink-0">Progresso do Item:</span>}
+                    <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{statusTexto}</span>
                   </span>
-                  <span className={`font-black ${
+                  <span className={`font-black shrink-0 ${
                     pctItem >= 100
                       ? "text-emerald-600"
                       : g === "telha"

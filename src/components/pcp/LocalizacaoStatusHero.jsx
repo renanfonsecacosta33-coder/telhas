@@ -195,13 +195,13 @@ export default function LocalizacaoStatusHero({
   // ── MODO COMPACTO ──
   if (compacto) {
     return (
-      <div className={`flex items-center justify-between gap-2 p-2 rounded-xl border text-xs ${localizacao.corBg}`}>
-        <div className="flex items-center gap-1.5 min-w-0">
+      <div className={`flex flex-wrap items-center justify-between gap-x-2 gap-y-1 p-2 rounded-xl border text-xs ${localizacao.corBg}`}>
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-          <span className="text-[10px] uppercase font-black text-slate-500">Onde está:</span>
+          <span className="text-[10px] uppercase font-black text-slate-500 shrink-0">Onde está:</span>
           <strong className={`truncate text-xs ${localizacao.corTexto}`}>{localizacao.posto}</strong>
         </div>
-        <Badge className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 shrink-0 ${statusBadge.cls}`}>
+        <Badge className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 shrink-0 whitespace-nowrap ${statusBadge.cls}`}>
           <StatusIcon className="w-3 h-3 mr-1 shrink-0" />
           {statusBadge.label}
         </Badge>

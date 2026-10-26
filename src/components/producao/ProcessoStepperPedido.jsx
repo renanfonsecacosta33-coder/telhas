@@ -129,7 +129,7 @@ export default function ProcessoStepperPedido({
 
   if (compacto) {
     return (
-      <div className={`inline-flex items-center gap-1 bg-slate-50 dark:bg-slate-900/60 p-1 rounded-md border border-slate-200 dark:border-slate-800 ${className}`}>
+      <div className={`flex flex-wrap items-center gap-x-1 gap-y-1 bg-slate-50 dark:bg-slate-900/60 p-1 rounded-md border border-slate-200 dark:border-slate-800 ${className}`}>
         {etapas.map((et, idx) => {
           const isUltima = idx === etapas.length - 1;
           const isDone = et.status === "concluido";
