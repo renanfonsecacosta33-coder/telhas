@@ -30,6 +30,29 @@ export { removerAcentos, detectarCorTelha, isCorCompativel };
 export const LOCAL_STORAGE_KEY_AUTO_TELHAS = "pcp_auto_roteamento_telhas";
 
 /**
+ * Executa uma operação com retentativas — resistente a erros transitórios
+ * (limite de tráfego 429, falha de rede). Essencial para não criar OPs
+ * duplicadas nem deixar pedidos "meio distribuídos".
+ */
+export async function comRetry(fn, tentativas = 3, delayMs = 1500) {
+  let ultimoErro;
+  for (let i = 0; i < tentativas; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      ultimoErro = e;
+      // Respeita a janela "Retry after N seconds" do servidor (limite de tráfego),
+      // com teto de 30s por espera para não travar a interface
+      const msg = String(e?.message || e?.detail || e || "");
+      const m = msg.match(/Retry after (\d+) seconds/i);
+      const espera = m ? Math.min(Number(m[1]) * 1000 + 2000, 30000) : delayMs * (i + 1);
+      await new Promise((r) => setTimeout(r, espera));
+    }
+  }
+  throw ultimoErro;
+}
+
+/**
  * Consulta o estado do toggle (Liga/Desliga) do auto-roteamento de telhas.
  * Default: true (ligado por conveniência, pode ser desligado a qualquer momento).
  */
@@ -474,10 +497,10 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
   try {
     let opsExistentes = [];
     if (pedido?.id) {
-      opsExistentes = await base44.entities.Pedido.filter({ pedido_odoo_id: pedido.id });
+      opsExistentes = await comRetry(() => base44.entities.Pedido.filter({ pedido_odoo_id: pedido.id }));
     }
     if ((!opsExistentes || opsExistentes.length === 0) && pedido?.numero_pedido) {
-      opsExistentes = await base44.entities.Pedido.filter({ numero_pedido: pedido.numero_pedido });
+      opsExistentes = await comRetry(() => base44.entities.Pedido.filter({ numero_pedido: pedido.numero_pedido }));
     }
     const opsValidas = (opsExistentes || []).filter(o => o && String(o.status || "").toLowerCase() !== "cancelado");
     const opValida = opsValidas.find(o => {
@@ -824,10 +847,10 @@ export async function rotearLoteTelhasAgrupadas({
       } else {
         let opsExistentes = [];
         if (pedido?.id) {
-          opsExistentes = await base44.entities.Pedido.filter({ pedido_odoo_id: pedido.id });
+          opsExistentes = await comRetry(() => base44.entities.Pedido.filter({ pedido_odoo_id: pedido.id }));
         }
         if ((!opsExistentes || opsExistentes.length === 0) && pedido?.numero_pedido) {
-          opsExistentes = await base44.entities.Pedido.filter({ numero_pedido: pedido.numero_pedido });
+          opsExistentes = await comRetry(() => base44.entities.Pedido.filter({ numero_pedido: pedido.numero_pedido }));
         }
         opsValidas = (opsExistentes || []).filter(o => o && String(o.status || "").toLowerCase() !== "cancelado");
       }
