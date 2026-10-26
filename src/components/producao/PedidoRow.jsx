@@ -21,13 +21,9 @@ import { playFinishSound, speakOpFinalizada, playAlertSound } from "@/lib/sounds
 import { useFilial } from "@/contexts/FilialContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
-import {
-  PrioridadeBadge,
-  BannerPrioridadeDestaque,
-  isPedidoRetiraAgora,
-  isPedidoRota,
-  getCardPrioridadeClasses
-} from "@/lib/prioridadeHelper";
+import { PrioridadeBadge, BannerPrioridadeDestaque, isPedidoRetiraAgora, isPedidoRota, getCardPrioridadeClasses } from "@/lib/prioridadeHelper";
+import ProcessoStepperPedido from "@/components/producao/ProcessoStepperPedido";
+import PedidoRowEntrega from "@/components/producao/PedidoRowEntrega";
 import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco"; import AlertaMultiplasOpsMesmoPedido from "@/components/producao/AlertaMultiplasOpsMesmoPedido";
 import SmartImage from "@/components/ui/SmartImage";
 import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/compressImage";
@@ -1736,33 +1732,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                     <strong className="text-slate-900 dark:text-white font-black">{p.vendedor || p.vendedor_nome}</strong>
                   </div>
                 )}
-                {(() => {
-                  const rawData = p.data_entrega || p.data_previsao_fabrica || p.data_prevista || p.data;
-                  if (!rawData) return null;
-                  let fmt = "";
-                  try {
-                    const iso = /^\d{4}-\d{2}-\d{2}/.test(rawData) ? rawData.slice(0, 10) : "";
-                    if (iso) {
-                      fmt = format(new Date(iso + "T12:00:00"), "dd/MM/yyyy");
-                    } else {
-                      fmt = String(rawData);
-                    }
-                  } catch {
-                    fmt = String(rawData);
-                  }
-                  const hojeIso = format(new Date(), "yyyy-MM-dd");
-                  const isAtrasado = /^\d{4}-\d{2}-\d{2}/.test(rawData) && rawData.slice(0, 10) < hojeIso;
-                  return (
-                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded border inline-flex items-center gap-1 ${
-                      isAtrasado
-                        ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/60 animate-pulse"
-                        : "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800/60"
-                    }`} title={isAtrasado ? "Prazo de entrega em atraso!" : "Data prometida de entrega"}>
-                      <Calendar className="w-3 h-3" />
-                      Entrega: {fmt}
-                    </span>
-                  );
-                })()}
+                <PedidoRowEntrega pedido={p} />
               </div>
             )}
           </div>
@@ -1773,6 +1743,11 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
             </p>
             <ChatPedidoButton canal_id={p.id} canal_label={`PED ${p.numero_pedido || p.id.slice(-6).toUpperCase()}`} currentUser={user} />
           </div>
+        </div>
+
+        {/* Roteiro Completo da Telha na Fábrica (PCP → Bobina → Perfilação → Colagem → Expedição) */}
+        <div className="mb-2.5">
+          <ProcessoStepperPedido pedido={p} setor="telhas" compacto={true} />
         </div>
 
         <AlertaMultiplasOpsMesmoPedido pedido={p} todosPedidos={todosPedidos} />

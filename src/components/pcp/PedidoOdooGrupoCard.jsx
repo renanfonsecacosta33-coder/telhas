@@ -1,10 +1,9 @@
 import React, { useState, useMemo } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   ChevronDown, ChevronUp, Layers, User, Calendar, Send,
-  Star, CheckCircle2, Trash2,
-  Building2, ArrowRightLeft, Store, RefreshCw
+  CheckCircle2, Trash2,
+  ArrowRightLeft, RefreshCw
 } from "lucide-react";
 import { formatDataBR } from "@/lib/sla";
 import { urgenciaPrazo } from "@/lib/prazoUrgencia";
@@ -165,6 +164,39 @@ export default function PedidoOdooGrupoCard({
   // Urgência de prazo: tingir o card de vermelho progressivamente conforme o SLA se aproxima
   const urgencia = urgenciaPrazo(grupo.data_entrega, { concluido: isPedidoTotalConcluido });
 
+  // STATUS DOMINANTE: um único selo em máxima evidência, com hierarquia clara
+  // (Concluído > Atrasado > Vence hoje > Em produção > Fila da máquina > Distribuído > Pendente)
+  const statusHero = (() => {
+    if (isPedidoTotalConcluido) {
+      return { txt: "✓ Concluído 100%", cls: "bg-emerald-600 text-white border border-emerald-700" };
+    }
+    if (urgencia?.atrasado) {
+      return { txt: `⏰ ${urgencia.badgeTexto}`, cls: "bg-red-600 text-white border border-red-700 animate-pulse" };
+    }
+    if (urgencia?.dias === 0) {
+      return { txt: "⏰ Vence hoje!", cls: "bg-amber-600 text-white border border-amber-700 animate-pulse" };
+    }
+    if (produzindoAgora.length > 0) {
+      return { txt: `⚡ Em produção (${produzindoAgora.length})`, cls: "bg-blue-600 text-white border border-blue-700" };
+    }
+    if (aguardandoInicio.length > 0) {
+      return { txt: `⏳ Fila da máquina (${aguardandoInicio.length})`, cls: "bg-amber-500 text-white border border-amber-600" };
+    }
+    if (distribuidos.length > 0) {
+      return { txt: `📦 Distribuído (${distribuidos.length})`, cls: "bg-indigo-600 text-white border border-indigo-700" };
+    }
+    return { txt: "📥 Aguardando distribuição", cls: "bg-slate-700 text-white border border-slate-800" };
+  })();
+
+  // Resumo textual das OFs (substitui a nuvem de badges antigas)
+  const resumoOfs = [
+    `${concluidas.length}/${totalOfs} concluída${totalOfs > 1 ? "s" : ""}`,
+    produzindoAgora.length > 0 && `${produzindoAgora.length} produzindo`,
+    aguardandoInicio.length > 0 && `${aguardandoInicio.length} na fila da máquina`,
+    distribuidos.length > 0 && `${distribuidos.length} distribuída${distribuidos.length > 1 ? "s" : ""}`,
+    pendentes.length > 0 && `${pendentes.length} pendente${pendentes.length > 1 ? "s" : ""}`
+  ].filter(Boolean).join(" · ");
+
   // Manipulador de distribuição em lote de todas as pendentes deste pedido
   const handleDistribuirTodas = (e) => {
     e.stopPropagation();
@@ -183,7 +215,7 @@ export default function PedidoOdooGrupoCard({
 
   return (
     <div
-      className={`bg-white dark:bg-slate-900 border rounded-2xl transition-all shadow-sm relative overflow-hidden ${
+      className={`${isPedidoTotalConcluido && !cardPrioCls ? "bg-emerald-50/70 dark:bg-emerald-950/25" : "bg-white dark:bg-slate-900"} border rounded-2xl transition-all shadow-sm relative overflow-hidden ${
         cardPrioCls || (urgencia?.borderLeftClass || "")
       } ${
         cardPrioCls
@@ -201,16 +233,15 @@ export default function PedidoOdooGrupoCard({
       {/* Cabeçalho Executivo do Pedido (Clicável para Expandir/Minimizar) */}
       <div
         onClick={onToggle}
-        className={`px-3.5 py-2.5 sm:px-5 sm:py-3 cursor-pointer select-none transition-colors ${
+        className={`px-4 py-3 cursor-pointer select-none transition-colors ${
           expandido
             ? "bg-slate-50/80 dark:bg-slate-800/40 rounded-t-2xl border-b border-slate-200 dark:border-slate-800"
             : "hover:bg-slate-50/60 dark:hover:bg-slate-800/20 rounded-2xl"
         }`}
       >
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          {/* Lado Esquerdo: Identificação do Pedido, Cliente e SLA */}
-          <div className="flex items-start gap-2.5 min-w-0">
-            {/* Checkbox de Seleção do Pedido Inteiro */}
+        <div className="flex flex-col xl:flex-row xl:items-center gap-x-5 gap-y-3">
+          {/* Zona 1: Identidade + Status Dominante em Máxima Evidência */}
+          <div className="flex items-start gap-2.5 min-w-0 flex-1">
             {onToggleSelectGrupo && (
               <div
                 onClick={(e) => { e.stopPropagation(); onToggleSelectGrupo(grupo); }}
@@ -227,7 +258,6 @@ export default function PedidoOdooGrupoCard({
               </div>
             )}
 
-            {/* Botão Ícone Chevron */}
             <div
               className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 ${
                 expandido
@@ -239,94 +269,32 @@ export default function PedidoOdooGrupoCard({
             </div>
 
             <div className="min-w-0 flex-1">
+              {/* Linha 1: Pedido + ÚNICO selo de status dominante */}
               <div className="flex items-center gap-2 flex-wrap mb-1">
-                {isPrioritario && (
-                  <Badge className="bg-amber-500 text-white border-amber-600 animate-pulse text-[10px] gap-0.5">
-                    <Star className="w-3 h-3 fill-white" /> URGENTE
-                  </Badge>
-                )}
-                <h3 className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-slate-100 leading-tight inline-flex items-baseline gap-1.5 flex-wrap">
-                  <span>Pedido #{grupo.numero_pedido}</span>
-                  {grupo.numero_oc && (
-                    <span className="text-xs sm:text-sm font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded border border-indigo-200/60 dark:border-indigo-800/60">
-                      ({/^OC[\s:-]?/i.test(grupo.numero_oc) ? grupo.numero_oc : `OC: ${grupo.numero_oc}`})
-                    </span>
-                  )}
+                <h3 className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-slate-100 leading-tight">
+                  Pedido #{grupo.numero_pedido}
                 </h3>
-                <PrioridadeBadge pedido={grupo} />
-                <Badge
-                  variant="outline"
-                  className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 font-bold text-xs"
+                {grupo.numero_oc && (
+                  <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                    {/^OC[\s:-]?/i.test(grupo.numero_oc) ? grupo.numero_oc : `OC ${grupo.numero_oc}`}
+                  </span>
+                )}
+                <span
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-black uppercase tracking-wide shadow-sm ${statusHero.cls}`}
                 >
-                  <Layers className="w-3 h-3 mr-1 text-indigo-500" />
-                  {totalOfs} {totalOfs === 1 ? "OF" : "OFs"}
-                </Badge>
-                {contagemSetores.telha > 0 && (
-                  <Badge className="bg-blue-600 text-white border-blue-700 text-[10px] font-bold px-1.5 py-0 shadow-xs">
-                    🏠 {contagemSetores.telhasPecasTotal > 1 ? `${contagemSetores.telhasPecasTotal} Telhas` : "1 Telha"}
-                    {contagemSetores.telhasMetrosTotal > 0 ? ` (${contagemSetores.telhasMetrosTotal}m)` : ""}
-                  </Badge>
-                )}
-                {contagemSetores.cd > 0 && (
-                  <Badge className="bg-orange-600 text-white border-orange-700 text-[10px] font-bold px-1.5 py-0 shadow-xs">
-                    🏭 {contagemSetores.cd} C&D
-                  </Badge>
-                )}
-                {contagemSetores.frisada > 0 && (
-                  <Badge className="bg-teal-600 text-white border-teal-700 text-[10px] font-bold px-1.5 py-0 shadow-xs">
-                    🌬️ {contagemSetores.frisada} Frisada{contagemSetores.frisada > 1 ? "s" : ""}
-                  </Badge>
-                )}
-                {lojaVendaDoGrupo && (
-                  <Badge variant="outline" className="text-[10px] bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 gap-1 py-0 font-semibold">
-                    <Store className="w-2.5 h-2.5 text-slate-400" />
-                    <span>Venda: {lojaVendaDoGrupo}</span>
-                  </Badge>
-                )}
-                {unidadeDoGrupo && (
-                  <Badge variant="outline" className="text-[10px] bg-orange-50/60 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800 gap-1 py-0 font-semibold">
-                    <Building2 className="w-2.5 h-2.5 text-orange-500" />
-                    <span>PCP: {unidadeDoGrupo}</span>
-                  </Badge>
-                )}
-                {lojaVendaDoGrupo && unidadeDoGrupo && lojaVendaDoGrupo !== unidadeDoGrupo && (
-                  <Badge variant="outline" className="text-[9px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200/80 gap-0.5 py-0" title={`Vendido em ${lojaVendaDoGrupo} direcionado para fabricação em ${unidadeDoGrupo}`}>
-                    🔄 Roteado
-                  </Badge>
-                )}
-                {isAlgumaTransferida && (
-                  <Badge variant="outline" className="text-[9px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200/80 gap-0.5 py-0">
-                    ↔️ Transferido
-                  </Badge>
-                )}
-                {statusEstoqueGrupo && (
-                  <Badge
-                    variant="outline"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSimulacaoGrupoOpen(true);
-                    }}
-                    className={`text-[10px] font-bold px-2 py-0.5 shadow-xs cursor-pointer hover:scale-105 transition-all ${
-                      statusEstoqueGrupo.statusGeral === "disponivel" || statusEstoqueGrupo.statusGeral === "ok"
-                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/25"
-                        : statusEstoqueGrupo.statusGeral === "desbobinar" || statusEstoqueGrupo.statusGeral === "parcial"
-                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 hover:bg-amber-500/25"
-                        : "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40 hover:bg-red-500/25"
-                    }`}
-                    title="Clique para ver a simulação completa de matéria-prima das OFs deste pedido"
-                  >
-                    {statusEstoqueGrupo.badgeGeral}
-                  </Badge>
-                )}
+                  {statusHero.txt}
+                </span>
+                {isPrioritario && <PrioridadeBadge pedido={grupo} />}
               </div>
 
+              {/* Linha 2: Cliente · Vendedor · Entrega · SLA */}
               <div className="flex items-center gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
-                <span className="flex items-center gap-1 font-medium text-slate-700 dark:text-slate-200 truncate max-w-xs" title={grupo.cliente_nome}>
+                <span className="flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-200 truncate max-w-xs" title={grupo.cliente_nome}>
                   <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                   {grupo.cliente_nome || "Cliente não informado"}
                 </span>
                 {grupo.vendedor_nome && grupo.vendedor_nome !== "—" && (
-                  <span className="hidden sm:inline-block truncate max-w-xs text-slate-400">
+                  <span className="hidden sm:inline-block truncate max-w-xs">
                     Vendedor: <strong className="text-slate-600 dark:text-slate-300">{grupo.vendedor_nome}</strong>
                   </span>
                 )}
@@ -338,14 +306,59 @@ export default function PedidoOdooGrupoCard({
                 )}
                 <SlaCountdownBadge dataPrometida={grupo.data_entrega} />
               </div>
+
+              {/* Linha 3: Composição resumida com pontos coloridos por setor */}
+              <div className="flex items-center gap-x-3 gap-y-1 text-[11px] flex-wrap mt-1">
+                <span className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-300 font-bold">
+                  <Layers className="w-3 h-3 text-slate-400" />
+                  {totalOfs} {totalOfs === 1 ? "OF" : "OFs"}
+                </span>
+                {contagemSetores.telha > 0 && (
+                  <span className="text-blue-600 dark:text-blue-400 font-semibold">
+                    ● {contagemSetores.telhasPecasTotal > 1 ? `${contagemSetores.telhasPecasTotal} Telhas` : "1 Telha"}
+                    {contagemSetores.telhasMetrosTotal > 0 ? ` (${contagemSetores.telhasMetrosTotal}m)` : ""}
+                  </span>
+                )}
+                {contagemSetores.cd > 0 && (
+                  <span className="text-orange-600 dark:text-orange-400 font-semibold">● {contagemSetores.cd} C&D</span>
+                )}
+                {contagemSetores.frisada > 0 && (
+                  <span className="text-teal-600 dark:text-teal-400 font-semibold">
+                    ● {contagemSetores.frisada} Frisada{contagemSetores.frisada > 1 ? "s" : ""}
+                  </span>
+                )}
+                <span className="text-slate-400 dark:text-slate-500">
+                  {unidadeDoGrupo}
+                  {lojaVendaDoGrupo && lojaVendaDoGrupo !== unidadeDoGrupo && ` · Venda: ${lojaVendaDoGrupo}`}
+                </span>
+                {isAlgumaTransferida && (
+                  <span className="text-amber-600 dark:text-amber-400 font-semibold">↔ Transferido</span>
+                )}
+                {statusEstoqueGrupo && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setSimulacaoGrupoOpen(true); }}
+                    className={`px-2 py-0.5 rounded-md font-bold hover:scale-105 transition-all ${
+                      statusEstoqueGrupo.statusGeral === "disponivel" || statusEstoqueGrupo.statusGeral === "ok"
+                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40"
+                        : statusEstoqueGrupo.statusGeral === "desbobinar" || statusEstoqueGrupo.statusGeral === "parcial"
+                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/40"
+                        : "bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/40"
+                    }`}
+                    title="Clique para ver a simulação completa de matéria-prima das OFs deste pedido"
+                  >
+                    {statusEstoqueGrupo.badgeGeral}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Lado Central/Direito: Progresso Consolidado, Badges de Status e Ações */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between lg:justify-end gap-3 shrink-0">
-            {/* Barra de Progresso Geral Consolidada */}
-            <div className="min-w-[170px] sm:w-44 flex flex-col justify-center">
-              <div className="flex items-center justify-between text-[11px] font-bold mb-1">
+          {/* Lado Direito: Progresso Consolidado, Resumo das OFs e Ações */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between xl:justify-end gap-3 shrink-0">
+            {/* Zona 2: Progresso Consolidado + Resumo textual das OFs */}
+            <div className="shrink-0 w-full sm:w-56 flex flex-col justify-center gap-1">
+              <div className="flex items-center justify-between text-[11px] font-bold">
                 <span className="text-slate-500 dark:text-slate-400">Progresso Geral</span>
                 <span className={progressoConsolidado >= 100 ? "text-emerald-600" : "text-orange-600"}>
                   {progressoConsolidado}%
@@ -354,46 +367,20 @@ export default function PedidoOdooGrupoCard({
               <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-300 ${
-                    progressoConsolidado >= 100
-                      ? "bg-emerald-500"
-                      : "bg-gradient-to-r from-orange-500 to-amber-500"
+                    progressoConsolidado >= 100 ? "bg-emerald-500" : "bg-gradient-to-r from-orange-500 to-amber-500"
                   }`}
                   style={{ width: `${progressoConsolidado}%` }}
                 />
               </div>
-            </div>
-
-            {/* Badges de Status das OFs */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {produzindoAgora.length > 0 && (
-                <span className="px-2 py-0.5 rounded-md text-[11px] font-black bg-blue-600 text-white animate-pulse shadow-xs" title={`${produzindoAgora.length} OF(s) com operador rodando na máquina agora`}>
-                  ⚡ {produzindoAgora.length} rodando agora
-                </span>
-              )}
-              {aguardandoInicio.length > 0 && (
-                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-400/60" title={`${aguardandoInicio.length} OF(s) na máquina aguardando início do operador`}>
-                  ⏳ {aguardandoInicio.length} na fila da máquina
-                </span>
-              )}
-              {distribuidos.length > 0 && (
-                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900/60" title={`${distribuidos.length} OF(s) distribuída(s) no galpão`}>
-                  📦 {distribuidos.length} distribuída{distribuidos.length > 1 ? "s" : ""}
-                </span>
-              )}
-              {pendentes.length > 0 && (
-                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60" title={`${pendentes.length} OF(s) pendente(s) de distribuição no PCP`}>
-                  📥 {pendentes.length} pendente{pendentes.length > 1 ? "s" : ""}
-                </span>
-              )}
-              {concluidas.length > 0 && (
-                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/60" title={`${concluidas.length} OF(s) 100% concluída(s)`}>
-                  ✓ {concluidas.length} concluída{concluidas.length > 1 ? "s" : ""}
+              {resumoOfs && (
+                <span className="text-[10.5px] text-slate-500 dark:text-slate-400 truncate" title={resumoOfs}>
+                  {resumoOfs}
                 </span>
               )}
             </div>
 
-            {/* Botões de Ação do Grupo */}
-            <div className="flex items-center gap-2">
+            {/* Zona 3: Botões de Ação do Grupo */}
+            <div className="flex items-center gap-2 flex-wrap">
               {(onSetPrioridadeGrupo || onSetPrioridade) && (
                 <div onClick={(e) => e.stopPropagation()} title="Definir prioridade ou rota para todo o pedido">
                   <SeletorPrioridadeDropdown
