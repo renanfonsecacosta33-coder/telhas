@@ -25,9 +25,11 @@ import {
   Layers,
   Sparkles,
   Calculator,
-  RotateCcw
+  RotateCcw,
+  Lock
 } from "lucide-react";
 import { calcularMetrosPedido, calcKgDeMetros } from "@/lib/metrosHelper";
+import { useAuth } from "@/lib/AuthContext";
 
 export default function AjustarMetragensModal({
   open,
@@ -39,6 +41,13 @@ export default function AjustarMetragensModal({
   const [maquinaFiltro, setMaquinaFiltro] = useState("todas");
   const [apenasSuspeitos, setApenasSuspeitos] = useState(false);
   const [ordemEdicao, setOrdemEdicao] = useState(null);
+
+  // Regra de negócio: retificação pós-produção é exclusiva do
+  // Encarregado/PCP (gestor) — operador e vendedor apenas visualizam.
+  const { user } = useAuth();
+  const podeRetificar = ["admin", "super_admin", "gestor"].includes(
+    String(user?.role || "").toLowerCase()
+  );
 
   // Estados do formulário de edição rápida
   const [modoEdicao, setModoEdicao] = useState("direto"); // "direto" | "pecas_mm"
@@ -104,6 +113,10 @@ export default function AjustarMetragensModal({
 
   // Iniciar edição de uma ordem
   const handleIniciarEdicao = (ordem) => {
+    if (!podeRetificar) {
+      toast.error("Somente encarregado/gestor pode retificar metragens.");
+      return;
+    }
     setOrdemEdicao(ordem);
     const mAtual = calcularMetrosPedido(ordem);
     setMetrosDiretos(String(mAtual > 0 ? mAtual : ""));
@@ -159,6 +172,7 @@ export default function AjustarMetragensModal({
 
       hist.push({
         data: new Date().toISOString(),
+        usuario: user?.full_name || user?.email || "—",
         acao: "retificacao_metros_pcp",
         detalhes: `Metragem retificada manualmente de ${metrosAntigos.toFixed(1)}m para ${novosMetros}m (Ajuste rápido Dashboard sem reiniciar na máquina).`,
         metros_antigos: metrosAntigos,
@@ -198,6 +212,10 @@ export default function AjustarMetragensModal({
 
   // Zerar metragem (0m)
   const handleZerarMetros = async (ordem) => {
+    if (!podeRetificar) {
+      toast.error("Somente encarregado/gestor pode zerar metragens.");
+      return;
+    }
     if (!window.confirm(`Deseja realmente zerar os metros do pedido #${ordem.numero_pedido || ordem.id}? O pedido continuará finalizado, mas com 0 metros computados.`)) {
       return;
     }
@@ -213,6 +231,7 @@ export default function AjustarMetragensModal({
 
       hist.push({
         data: new Date().toISOString(),
+        usuario: user?.full_name || user?.email || "—",
         acao: "zerar_metros_pcp",
         detalhes: "Metragem zerada para 0m (correção de valor aberrante/duplicado).",
       });
@@ -235,6 +254,10 @@ export default function AjustarMetragensModal({
 
   // Excluir ordem duplicada/fantasma
   const handleExcluirOrdem = async (ordem) => {
+    if (!podeRetificar) {
+      toast.error("Somente encarregado/gestor pode excluir ordens.");
+      return;
+    }
     if (!window.confirm(`ATENÇÃO: Deseja EXCLUIR definitivamente a ordem #${ordem.numero_pedido || ordem.id} da máquina ${ordem.maquina}? Esta ação removerá totalmente esta ordem dos cálculos.`)) {
       return;
     }
@@ -271,6 +294,9 @@ export default function AjustarMetragensModal({
               </div>
               <DialogDescription className="text-xs text-slate-400 mt-0.5">
                 Retifique ordens com metragens incorretas diretamente, <strong>sem enviar de volta para as máquinas</strong>.
+                {!podeRetificar && (
+                  <span className="text-amber-400 font-bold"> · Visualização somente leitura (ação exclusiva de Encarregado/Gestor).</span>
+                )}
               </DialogDescription>
             </div>
           </div>
@@ -559,39 +585,48 @@ export default function AjustarMetragensModal({
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={() => handleIniciarEdicao(ordem)}
-                        className="h-8 text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white gap-1 px-3 shadow-xs"
-                        title="Editar metragem correta deste pedido"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                        <span>Editar</span>
-                      </Button>
+                      {podeRetificar ? (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => handleIniciarEdicao(ordem)}
+                            className="h-8 text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white gap-1 px-3 shadow-xs"
+                            title="Editar metragem correta deste pedido"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            <span>Editar</span>
+                          </Button>
 
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleZerarMetros(ordem)}
-                        className="h-8 text-xs font-semibold border-amber-500/40 text-amber-400 hover:bg-amber-500/10 px-2"
-                        title="Zerar metros para 0m (sem excluir o pedido)"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        <span className="hidden md:inline">Zerar</span>
-                      </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleZerarMetros(ordem)}
+                            className="h-8 text-xs font-semibold border-amber-500/40 text-amber-400 hover:bg-amber-500/10 px-2"
+                            title="Zerar metros para 0m (sem excluir o pedido)"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span className="hidden md:inline">Zerar</span>
+                          </Button>
 
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleExcluirOrdem(ordem)}
-                        className="h-8 w-8 p-0 text-slate-500 hover:text-red-400 hover:border-red-500/50 border-slate-800"
-                        title="Excluir ordem fantasma definitivamente"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleExcluirOrdem(ordem)}
+                            className="h-8 w-8 p-0 text-slate-500 hover:text-red-400 hover:border-red-500/50 border-slate-800"
+                            title="Excluir ordem fantasma definitivamente"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </>
+                      ) : (
+                        <Badge className="bg-slate-800/80 text-slate-400 border-slate-700 gap-1 text-[10px] font-bold whitespace-nowrap">
+                          <Lock className="w-3 h-3" />
+                          Só Encarregado/Gestor
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </div>
