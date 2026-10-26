@@ -235,10 +235,10 @@ export async function executarVarreduraEConciliacaoGeral({ pedidosPcp = [], quer
   try {
     const todayIso = new Date().toISOString().slice(0, 10);
 
-    // Carrega a base atual do PCP se não foi fornecida
+    // Carrega a base atual do PCP se não foi fornecida (últimos 800 pedidos)
     const listaPcp = pedidosPcp && pedidosPcp.length > 0
       ? pedidosPcp
-      : await base44.entities.PedidoOdoo.list("-data_recebimento", 5000).catch(() => []);
+      : await base44.entities.PedidoOdoo.list("-data_recebimento", 800).catch(() => []);
 
     if (!listaPcp || listaPcp.length === 0) return resultado;
 
@@ -266,7 +266,10 @@ export async function executarVarreduraEConciliacaoGeral({ pedidosPcp = [], quer
     }
 
     // ── 1. VARREDURA EM FÁBRICA DE TELHAS (Entidade: Pedido) ──
-    const todasOpsTelhas = await base44.entities.Pedido.list("-data", 5000).catch(() => []);
+    let todasOpsTelhas = await base44.entities.Pedido.filter({ status: { $nin: ["finalizado", "cancelado"] } }, "-data", 800).catch(() => []);
+    if (!todasOpsTelhas || todasOpsTelhas.length === 0) {
+      todasOpsTelhas = await base44.entities.Pedido.list("-data", 300).catch(() => []);
+    }
     const promessasTelhas = [];
 
     for (const op of todasOpsTelhas) {
@@ -342,7 +345,10 @@ export async function executarVarreduraEConciliacaoGeral({ pedidosPcp = [], quer
     }
 
     // ── 2. VARREDURA EM CORTE E DOBRA (Entidade: OrdemMaquinaCD) ──
-    const todasOpsCD = await base44.entities.OrdemMaquinaCD.list("-data", 5000).catch(() => []);
+    let todasOpsCD = await base44.entities.OrdemMaquinaCD.filter({ status: { $nin: ["finalizado", "cancelado"] } }, "-data", 800).catch(() => []);
+    if (!todasOpsCD || todasOpsCD.length === 0) {
+      todasOpsCD = await base44.entities.OrdemMaquinaCD.list("-data", 300).catch(() => []);
+    }
     const promessasCD = [];
 
     for (const op of todasOpsCD) {

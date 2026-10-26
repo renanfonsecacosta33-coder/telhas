@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { FilialProvider } from '@/contexts/FilialContext';
 import { OfflineProvider } from '@/contexts/OfflineContext';
 import OfflineStatusBar from '@/components/offline/OfflineStatusBar';
@@ -235,6 +236,7 @@ const AuthenticatedApp = () => {
 
 function App() {
   return (
+    <ErrorBoundary>
     <ThemeProvider>
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
@@ -249,8 +251,8 @@ function App() {
         </OfflineProvider>
       </QueryClientProvider>
     </AuthProvider>
-    </ThemeProvider>
-  )
+      </ThemeProvider>
+    </ErrorBoundary>)
 }
 
 export default App

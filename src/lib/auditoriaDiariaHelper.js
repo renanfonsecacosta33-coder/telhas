@@ -31,12 +31,12 @@ export async function executarAuditoriaDiariaCompleta({ queryClient = null, usua
     const todayIso = new Date().toISOString().slice(0, 10);
     const agoraTs = Date.now();
 
-    // 1. Carrega dados de todas as entidades necessárias
+    // 1. Carrega dados de todas as entidades necessárias de forma otimizada
     const [pedidosPcp, opsTelhas, opsCD, bobinas] = await Promise.all([
-      base44.entities.PedidoOdoo.list("-data_recebimento", 5000).catch(() => []),
-      base44.entities.Pedido.list("-data", 5000).catch(() => []),
-      base44.entities.OrdemMaquinaCD.list("-data", 5000).catch(() => []),
-      base44.entities.Bobina.filter({ arquivada: false }).catch(() => [])
+      base44.entities.PedidoOdoo.list("-data_recebimento", 600).catch(() => []),
+      base44.entities.Pedido.filter({ status: { $nin: ["finalizado", "cancelado"] } }, "-data", 600).catch(() => []),
+      base44.entities.OrdemMaquinaCD.filter({ status: { $nin: ["finalizado", "cancelado"] } }, "-data", 600).catch(() => []),
+      base44.entities.Bobina.filter({ arquivada: false }, "-created_date", 400).catch(() => [])
     ]);
 
     relatorio.totalVerificados = (pedidosPcp?.length || 0) + (opsTelhas?.length || 0) + (opsCD?.length || 0);
@@ -283,13 +283,16 @@ export async function executarAuditoriaDiariaCompleta({ queryClient = null, usua
       localStorage.setItem("ultimo_relatorio_auditoria_diaria", JSON.stringify(relatorio));
     } catch {}
 
-    // Invalida caches do React Query se correções foram feitas
+    // Invalida caches do React Query se correções foram feitas (suave, apenas para telas ativas)
     if (queryClient && relatorio.errosCorrigidosCount > 0) {
-      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
-      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
-      queryClient.invalidateQueries({ queryKey: ["ordens-cd-todos"] });
-      queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
-      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      setTimeout(() => {
+        const refOpt = { refetchType: "active" };
+        queryClient.invalidateQueries({ queryKey: ["pedidos"], ...refOpt });
+        queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"], ...refOpt });
+        queryClient.invalidateQueries({ queryKey: ["ordens-cd-todos"], ...refOpt });
+        queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"], ...refOpt });
+        queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"], ...refOpt });
+      }, 500);
     }
   } catch (errGeral) {
     console.error("[Robô Auditoria Diária] Falha inesperada:", errGeral);

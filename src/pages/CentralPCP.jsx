@@ -341,42 +341,10 @@ export default function CentralPCP() {
 
   // Sincronização em tempo real (timer isolado em BadgeTempoSync para zero re-renderizações parasitas)
 
-  // Executa auditoria e readequação de máquinas e bobinas em segundo plano ao abrir o PCP
-  useEffect(() => {
-    reajustarTodasBobinasMaquinasAutomaticamente().then(res => {
-      if (res && res.totalReajustadas > 0) {
-        queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
-        queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
-      }
-    }).catch(() => {});
-  }, [queryClient]);
-
-  // Auto-conciliação contínua: baixa/cancela automaticamente nas máquinas qualquer OP já concluída ou cancelada no PCP
-  const conciliacaoExecutadaRef = useRef(false);
-  useEffect(() => {
-    if (pedidosRaw.length > 0 && !conciliacaoExecutadaRef.current) {
-      conciliacaoExecutadaRef.current = true;
-      executarVarreduraEConciliacaoGeral({ pedidosPcp: pedidosRaw, queryClient, usuario: "Auto-Conciliação Inicial" }).then(res => {
-        if (res && res.totalProcessadas > 0) {
-          console.log("[CentralPCP] Conciliação inicial de fundo:", res);
-        }
-      }).catch(err => {
-        console.warn("[CentralPCP] Falha na auto-conciliação inicial:", err);
-      });
-    }
-  }, [pedidosRaw, queryClient]);
-
-  // Handler para acionamento manual do botão 'Baixar Finalizados nas Máquinas'
+  // Handler e estado do Relatório de Auditoria Diária (carregamento leve e instantâneo da persistência)
   const [modalRelatorioAuditoriaOpen, setModalRelatorioAuditoriaOpen] = useState(false);
   const [relatorioAuditoria, setRelatorioAuditoria] = useState(() => obterUltimoRelatorioAuditoria());
   const [executandoAuditoriaDiaria, setExecutandoAuditoriaDiaria] = useState(false);
-
-  // Executa auditoria diária automática no carregamento inicial
-  useEffect(() => {
-    executarAuditoriaDiariaCompleta({ queryClient }).then(rel => {
-      setRelatorioAuditoria(rel);
-    }).catch(() => {});
-  }, [queryClient]);
 
   const [conciliandoMaquinas, setConciliandoMaquinas] = useState(false);
   const handleExecutarAuditoriaConciliacaoManual = async () => {

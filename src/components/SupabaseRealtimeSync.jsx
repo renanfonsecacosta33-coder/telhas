@@ -5,8 +5,8 @@ import { base44 } from '@/api/base44Client';
 
 /**
  * Sincronização em tempo real unificada (Supabase + Base44 Nativo).
- * Escuta alterações instantâneas em pedidos e ordens de fabricação para
- * atualizar as telas dos galpões e PCP com latência de milissegundos.
+ * Escuta alterações com debounce inteligente e throttling para proteger
+ * tablets do chão de fábrica contra sobrecarga de memória ou tela congelada.
  */
 const TABELAS_SUPABASE = ['pedidos_odoo', 'ordens_producao', 'bobinas_estoque'];
 const ENTIDADES_BASE44 = [
@@ -24,23 +24,36 @@ export default function SupabaseRealtimeSync() {
 
   useEffect(() => {
     let timer = null;
+    let ultimoDisparo = 0;
 
     const dispararRefresh = () => {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        // Invalida consultas das filas e máquinas para atualização imediata
-        queryClient.invalidateQueries({ queryKey: ['ordens-desbobinadeira'] });
-        queryClient.invalidateQueries({ queryKey: ['ordens-desb-todas'] });
-        queryClient.invalidateQueries({ queryKey: ['ordens-maquina-cd'] });
-        queryClient.invalidateQueries({ queryKey: ['ordens-maquina-cd-todas'] });
-        queryClient.invalidateQueries({ queryKey: ['pedidos-odoo-pcp'] });
-        queryClient.invalidateQueries({ queryKey: ['pedidos-odoo-cd'] });
-        queryClient.invalidateQueries({ queryKey: ['pedidos-odoo-desbobinadeira'] });
-        queryClient.invalidateQueries({ queryKey: ['pedidos-producao-todos'] });
-        queryClient.invalidateQueries({ queryKey: ['pedidos'] });
-        queryClient.invalidateQueries({ queryKey: ['bobinas-cd-ativas'] });
-        queryClient.invalidateQueries({ queryKey: ['chapas-cd'] });
-      }, 250);
+      const agora = Date.now();
+      const tempoDecorrido = agora - ultimoDisparo;
+
+      const executar = () => {
+        ultimoDisparo = Date.now();
+        // Invalidação suave apenas para consultas ativas na tela do usuário
+        const refetchOpt = { refetchType: 'active' };
+        queryClient.invalidateQueries({ queryKey: ['ordens-desbobinadeira'], ...refetchOpt });
+        queryClient.invalidateQueries({ queryKey: ['ordens-desb-todas'], ...refetchOpt });
+        queryClient.invalidateQueries({ queryKey: ['ordens-maquina-cd'], ...refetchOpt });
+        queryClient.invalidateQueries({ queryKey: ['ordens-maquina-cd-todas'], ...refetchOpt });
+        queryClient.invalidateQueries({ queryKey: ['pedidos-odoo-pcp'], ...refetchOpt });
+        queryClient.invalidateQueries({ queryKey: ['pedidos-odoo-cd'], ...refetchOpt });
+        queryClient.invalidateQueries({ queryKey: ['pedidos-odoo-desbobinadeira'], ...refetchOpt });
+        queryClient.invalidateQueries({ queryKey: ['pedidos-producao-todos'], ...refetchOpt });
+        queryClient.invalidateQueries({ queryKey: ['pedidos'], ...refetchOpt });
+        queryClient.invalidateQueries({ queryKey: ['bobinas-cd-ativas'], ...refetchOpt });
+        queryClient.invalidateQueries({ queryKey: ['chapas-cd'], ...refetchOpt });
+      };
+
+      // Throttle de 2.5s se já disparou recentemente, ou debounce de 1000ms
+      if (tempoDecorrido < 2500) {
+        timer = setTimeout(executar, 2500 - tempoDecorrido);
+      } else {
+        timer = setTimeout(executar, 1000);
+      }
     };
 
     // 1. Supabase Postgres Realtime (se configurado)
