@@ -3,13 +3,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   ChevronDown, ChevronUp, Layers, User, Calendar, Send,
-  Star, CheckCircle2, Factory, Trash2,
+  Star, CheckCircle2, Trash2,
   Building2, ArrowRightLeft, Store, RefreshCw
 } from "lucide-react";
 import { formatDataBR } from "@/lib/sla";
 import { urgenciaPrazo } from "@/lib/prazoUrgencia";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
-import PedidoOdooCard from "@/components/pcp/PedidoOdooCard";
+import OfTimelineRow from "@/components/pcp/OfTimelineRow";
 import { calcularProgressoRealPedido, classGrupo, obterStatusExecucaoPedido, getItens } from "@/lib/pedidoOdooHelper";
 import { verificarEstoqueGrupo, extrairDemandaItem } from "@/lib/estoqueMaterialHelper";
 import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
@@ -509,22 +509,21 @@ export default function PedidoOdooGrupoCard({
         </div>
       </div>
 
-      {/* Grade de OFs Filhas (Exibida somente quando o grupo está Expandido) */}
+      {/* Timeline Vertical das OFs Filhas (Exibida somente quando o grupo está Expandido) */}
       {expandido && (
-        <div className="p-3 sm:p-4 bg-slate-50/70 dark:bg-slate-950/30 rounded-b-2xl border-t border-slate-100 dark:border-slate-800">
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-3 px-1">
-            <span className="font-semibold flex items-center gap-1.5">
-              <Factory className="w-3.5 h-3.5 text-orange-500" />
+        <div className="px-4 sm:px-5 py-4 bg-[#edf1ef] dark:bg-slate-950/40 rounded-b-2xl border-t border-[#cbd5d1] dark:border-slate-800 flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-4 flex-wrap min-h-[28px]">
+            <span className="text-sm font-bold tracking-[-.02em] text-[#243532] dark:text-slate-200">
               Ordens de Fabricação do Pedido #{grupo.numero_pedido} ({totalOfs})
             </span>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-[11px] text-[#687773] dark:text-slate-500">
               Clique em qualquer card para ver detalhes, fotos e checklists
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
+          <div className="flex flex-col gap-3">
             {ofs.map(p => (
-              <PedidoOdooCard
+              <OfTimelineRow
                 key={p.id}
                 pedido={p}
                 progressoReal={calcularProgressoRealPedido(p, pedidosProducao, ordensCD)}
@@ -533,16 +532,9 @@ export default function PedidoOdooGrupoCard({
                 selecionado={selecionados.has(p.id)}
                 onToggleSelect={onToggleSelect}
                 onDistribuir={onDistribuir}
-                onTransferir={onTransferir}
                 onFinalizar100={onFinalizarGrupo100 ? (p) => onFinalizarGrupo100([p]) : null}
-                onClick={() => onClickPedido && onClickPedido(p)}
-                onDelete={onDelete}
                 onRetirarFila={onRetirarFila}
-                onTogglePrioridade={onTogglePrioridade}
-                onSetPrioridade={onSetPrioridade}
-                compacto={true}
-                dentroDeGrupo={true}
-                estoqueContext={estoqueContext}
+                onClick={() => onClickPedido && onClickPedido(p)}
               />
             ))}
           </div>
