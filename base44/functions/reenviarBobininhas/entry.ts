@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { garantirOpUnica } from '../../shared/opUnicaCore.ts';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -99,39 +100,53 @@ Deno.serve(async (req) => {
       if (opViva) {
         acao = 'op_ja_viva';
       } else {
-        const nova = await comPaciencia(() =>
-          srv.entities.Pedido.create({
-            data: hoje,
-            data_pedido: dataReceb,
-            data_prevista: p.data_entrega ? String(p.data_entrega).slice(0, 10) : hoje,
-            numero_pedido: p.numero_pedido || '',
-            numero_oc: p.numero_oc || '',
-            cliente: p.cliente_nome || p.cliente || '',
-            vendedor: p.vendedor_nome || p.vendedor || '',
-            unidade: p.unidade || 'Matriz AJL',
-            produto: 'BOBININHA',
-            modelo: 'DESBOBINADOR',
-            maquina: 'DESBOBINADOR',
-            maquina_origem: 'DESBOBINADOR',
-            status: 'pendente',
-            espessura_exigida: esp,
-            origem_exigida: origem,
-            cor_exigida: 'NATURAL',
-            metros: qtd,
-            quantidade_telhas: qtd,
-            metragem_mm: mm,
-            metragem_planejada: totalM,
-            kg_total: kg,
-            variacoes_telhas: JSON.stringify([{ qty: qtd, mm, m: +(mm / 1000).toFixed(3), total_m: totalM, largura_mm: 1200, corte: '1200', tipo: 'bobininha' }]),
-            observacoes: `Reenvio automático PCP → Desbobinador — ${(it0.descricao || it0.produto || '').slice(0, 120)}`,
-            pedido_odoo_id: p.id,
-            of_odoo_id: p.of_odoo_id || '',
-            of_nome: p.of_nome || '',
-            item_idx: idxBob[0],
-            item_produto: it0.produto || '',
-            foto_pedido_url: p.foto_pedido_url || ''
+        // TRAVA ANTI-DUPLICAÇÃO: criação passa pelo núcleo compartilhado — se outra OP
+        // viva da mesma OF já cobre o item de bobininha, ela é reaproveitada.
+        const resGar = await comPaciencia(() =>
+          garantirOpUnica(srv, {
+            dadosOp: {
+              data: hoje,
+              data_pedido: dataReceb,
+              data_prevista: p.data_entrega ? String(p.data_entrega).slice(0, 10) : hoje,
+              numero_pedido: p.numero_pedido || '',
+              numero_oc: p.numero_oc || '',
+              cliente: p.cliente_nome || p.cliente || '',
+              vendedor: p.vendedor_nome || p.vendedor || '',
+              unidade: p.unidade || 'Matriz AJL',
+              produto: 'BOBININHA',
+              modelo: 'DESBOBINADOR',
+              maquina: 'DESBOBINADOR',
+              maquina_origem: 'DESBOBINADOR',
+              status: 'pendente',
+              espessura_exigida: esp,
+              origem_exigida: origem,
+              cor_exigida: 'NATURAL',
+              metros: qtd,
+              quantidade_telhas: qtd,
+              metragem_mm: mm,
+              metragem_planejada: totalM,
+              kg_total: kg,
+              variacoes_telhas: JSON.stringify([{ qty: qtd, mm, m: +(mm / 1000).toFixed(3), total_m: totalM, largura_mm: 1200, corte: '1200', tipo: 'bobininha' }]),
+              observacoes: `Reenvio automático PCP → Desbobinador — ${(it0.descricao || it0.produto || '').slice(0, 120)}`,
+              pedido_odoo_id: p.id,
+              of_odoo_id: p.of_odoo_id || '',
+              of_nome: p.of_nome || '',
+              item_idx: idxBob[0],
+              item_produto: it0.produto || '',
+              foto_pedido_url: p.foto_pedido_url || ''
+            },
+            dedup: {
+              pedido_odoo_id: p.id || '',
+              of_odoo_id: p.of_odoo_id || '',
+              of_nome: p.of_nome || '',
+              numero_pedido: p.numero_pedido || '',
+              indices: [idxBob[0]],
+              item_produto: it0.produto || '',
+              maquina: 'DESBOBINADOR'
+            }
           })
         );
+        const nova = resGar?.op || resGar;
         acao = 'op_recriada';
         if (p.id) vivaPorPedido.set(String(p.id), nova);
       }

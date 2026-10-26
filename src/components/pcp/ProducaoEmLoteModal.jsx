@@ -104,8 +104,22 @@ export default function ProducaoEmLoteModal({
           status: "pendente",
         };
 
-        // 1. Cria a OP na máquina
-        await base44.entities.Pedido.create(novaOpData);
+        // 1. Cria a OP na máquina com TRAVA NO SERVIDOR — nunca duplica o mesmo item da mesma OF
+        const resGar = await base44.functions.invoke("garantirOpUnica", {
+          dadosOp: novaOpData,
+          dedup: {
+            pedido_odoo_id: pedido.id || "",
+            of_odoo_id: pedido.of_odoo_id || "",
+            of_nome: pedido.of_nome || "",
+            numero_pedido: pedido.numero_pedido || "",
+            indices: [itemIdx],
+            item_produto: String(novaOpData.item_produto || presetData?.produto || item?.produto || ""),
+            maquina: maquinaFinal
+          }
+        });
+        if (!resGar?.data?.op && !resGar?.op) {
+          throw new Error("Servidor não confirmou a OP única");
+        }
 
         // 2. Atualiza atomicamente o PedidoOdoo buscando o mais recente
         try {

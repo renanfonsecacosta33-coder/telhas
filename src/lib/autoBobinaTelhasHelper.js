@@ -535,9 +535,23 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     console.warn("[AutoBobinaTelhas] Verificação de OP:", errCheck);
   }
 
-  // Se não existe, cria a nova OP na máquina
+  // Se não existe, cria a nova OP na máquina — TRAVA NO SERVIDOR:
+  // se outra OP da MESMA OF já cobre este item (ou uma corrida concorrente criar
+  // ao mesmo tempo), o servidor devolve a OP existente em vez de duplicar.
   if (!opCriada) {
-    opCriada = await base44.entities.Pedido.create(dadosOp);
+    const resGar = await comRetry(() => base44.functions.invoke("garantirOpUnica", {
+      dadosOp,
+      dedup: {
+        pedido_odoo_id: pedido.id || "",
+        of_odoo_id: pedido.of_odoo_id || "",
+        of_nome: pedido.of_nome || "",
+        numero_pedido: pedido.numero_pedido || "",
+        indices: [itemIdx],
+        item_produto: produtoNome,
+        maquina
+      }
+    }));
+    opCriada = resGar?.data?.op || resGar?.op || opCriada;
   }
 
   // 5. Atualiza o item no PedidoOdoo para refletir o status distribuído e a máquina
@@ -889,7 +903,20 @@ export async function rotearLoteTelhasAgrupadas({
     }
 
     if (!opCriada) {
-      opCriada = await base44.entities.Pedido.create(dadosOp);
+      // TRAVA NO SERVIDOR: nunca cria uma segunda OP para os mesmos itens da mesma OF
+      const resGar = await comRetry(() => base44.functions.invoke("garantirOpUnica", {
+        dadosOp,
+        dedup: {
+          pedido_odoo_id: pedido.id || "",
+          of_odoo_id: pedido.of_odoo_id || "",
+          of_nome: pedido.of_nome || "",
+          numero_pedido: pedido.numero_pedido || "",
+          indices: todosIndices,
+          item_produto: primeiroItem.produto || primeiroItem.descricao || "",
+          maquina: g.maquina
+        }
+      }));
+      opCriada = resGar?.data?.op || resGar?.op || opCriada;
     }
     opsCriadas.push(opCriada);
 
