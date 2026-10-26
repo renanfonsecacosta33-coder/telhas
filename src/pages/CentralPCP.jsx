@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Calendar, X, Clock, Trash2, Building2, ArrowRightLeft, Globe, User, Briefcase, Hash, Package, ShieldCheck, Target, BookOpen, RotateCcw } from "lucide-react";
 import { executarExclusaoOsBackground } from "@/lib/excluirOsHelper"; import { sincronizarLoteOdoo } from "@/lib/sincronizarOdooHelper";
-import { finalizarOpsDoPedido, cancelarOpsDoPedido, executarVarreduraEConciliacaoGeral } from "@/lib/conciliacaoPcpMaquinasHelper";
+import { finalizarOpsDoPedido, cancelarOpsDoPedido, executarVarreduraEConciliacaoGeral, cancelarOpsDasOfsExatas } from "@/lib/conciliacaoPcpMaquinasHelper";
 import RelatorioAuditoriaDiariaModal from "@/components/pcp/RelatorioAuditoriaDiariaModal";
 import { executarAuditoriaDiariaCompleta, obterUltimoRelatorioAuditoria } from "@/lib/auditoriaDiariaHelper";
 import BotaoDevolverLotePCP from "@/components/pcp/BotaoDevolverLotePCP";
@@ -643,19 +643,10 @@ export default function CentralPCP() {
       const me = await base44.auth.me().catch(() => null);
       const usuario = me?.email || "Gestor";
       const todayIso = new Date().toISOString().slice(0, 10);
-      // Cancela as Ordens de Produção vinculadas nos galpões
-      await base44.entities.OrdemMaquinaCD.updateMany(
-        { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
-        { $set: { status: "cancelado", data_finalizacao: todayIso } }
-      );
-      await base44.entities.OrdemDesbobinadeira.updateMany(
-        { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
-        { $set: { status: "cancelado", data_finalizacao: todayIso } }
-      );
-      await base44.entities.Pedido.updateMany(
-        { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
-        { $set: { status: "cancelado", data_finalizacao: todayIso } }
-      );
+      // Cancela SOMENTE as OPs desta OF — uma venda pode ter várias OFs irmãs no Odoo,
+      // e casar apenas pelo numero_pedido cancelaria a produção da OF irmã.
+      // A produção já finalizada permanece intocada.
+      await cancelarOpsDasOfsExatas({ pedidos: [pedido], todayIso });
       const logExistente = (() => { try { return JSON.parse(pedido.historico_log || "[]"); } catch { return []; } })();
       const novoLog = [...logExistente, {
         data: new Date().toISOString(),
@@ -703,19 +694,10 @@ export default function CentralPCP() {
     )) return;
     try {
       const todayIso = new Date().toISOString().slice(0, 10);
-      // Cancela as Ordens de Produção vinculadas nos galpões
-      await base44.entities.OrdemMaquinaCD.updateMany(
-        { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
-        { $set: { status: "cancelado", data_finalizacao: todayIso } }
-      );
-      await base44.entities.OrdemDesbobinadeira.updateMany(
-        { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
-        { $set: { status: "cancelado", data_finalizacao: todayIso } }
-      );
-      await base44.entities.Pedido.updateMany(
-        { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
-        { $set: { status: "cancelado", data_finalizacao: todayIso } }
-      );
+      // Cancela SOMENTE as OPs desta OF — uma venda pode ter várias OFs irmãs no Odoo,
+      // e casar apenas pelo numero_pedido cancelaria a produção da OF irmã.
+      // A produção já finalizada permanece intocada.
+      await cancelarOpsDasOfsExatas({ pedidos: [pedido], todayIso });
       // Devolve o pedido para a Central PCP
       const logExistente = (() => { try { return JSON.parse(pedido.historico_log || "[]"); } catch { return []; } })();
       const novoLog = [...logExistente, {

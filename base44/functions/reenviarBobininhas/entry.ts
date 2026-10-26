@@ -52,11 +52,16 @@ Deno.serve(async (req) => {
       srv.entities.Pedido.filter({ $or: [{ maquina: 'DESBOBINADOR' }, { produto: 'BOBININHA' }] }, '-created_date', 200)
     );
 
+    // Uma venda (numero_pedido) pode ter várias OFs irmãs no Odoo: casar OPs apenas
+    // pelo número da venda confundiria a produção de uma OF irmã. O fallback NUM_
+    // só vale para OP legada sem nenhum vínculo explícito de OF.
     const vivaPorPedido = new Map();
     for (const o of ops || []) {
       if (o.status === 'cancelado' || o.status === 'finalizado') continue;
       if (o.pedido_odoo_id) vivaPorPedido.set(String(o.pedido_odoo_id), o);
-      if (o.numero_pedido) vivaPorPedido.set('NUM_' + o.numero_pedido, o);
+      else if (o.of_odoo_id) vivaPorPedido.set('OF_' + String(o.of_odoo_id).trim().toUpperCase(), o);
+      else if (o.of_nome) vivaPorPedido.set('OFN_' + String(o.of_nome).trim().toUpperCase(), o);
+      else if (o.numero_pedido) vivaPorPedido.set('NUM_' + o.numero_pedido, o);
     }
 
     const resultados = [];
@@ -71,7 +76,10 @@ Deno.serve(async (req) => {
       });
       if (idxBob.length === 0) continue;
 
-      const opViva = vivaPorPedido.get(String(p.id)) || vivaPorPedido.get('NUM_' + p.numero_pedido);
+      const opViva = vivaPorPedido.get(String(p.id))
+        || vivaPorPedido.get('OF_' + String(p.of_odoo_id || '').trim().toUpperCase())
+        || vivaPorPedido.get('OFN_' + String(p.of_nome || '').trim().toUpperCase())
+        || vivaPorPedido.get('NUM_' + p.numero_pedido);
       const it0 = itens[idxBob[0]];
       const texto = `${it0.produto || ''} ${it0.descricao || ''}`.toUpperCase();
 

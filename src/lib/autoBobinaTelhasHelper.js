@@ -25,6 +25,7 @@ import { notificarStatus } from "@/lib/biNotificador";
 import { calcularDataPrometidaSLA, toISODate } from "@/lib/sla";
 import { getPrioridadeNivel } from "@/lib/prioridadeHelper";
 import { extrairRotuloBobinaSimplificado, extrairRotuloFaceInferior } from "@/lib/bobinaRotuloHelper";
+import { filtrarOpsDasOfsExatas } from "@/lib/conciliacaoPcpMaquinasHelper";
 
 export { removerAcentos, detectarCorTelha, isCorCompativel };
 export const LOCAL_STORAGE_KEY_AUTO_TELHAS = "pcp_auto_roteamento_telhas";
@@ -502,7 +503,7 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     if ((!opsExistentes || opsExistentes.length === 0) && pedido?.numero_pedido) {
       opsExistentes = await comRetry(() => base44.entities.Pedido.filter({ numero_pedido: pedido.numero_pedido }));
     }
-    const opsValidas = (opsExistentes || []).filter(o => o && String(o.status || "").toLowerCase() !== "cancelado");
+    const opsValidas = filtrarOpsDasOfsExatas(opsExistentes, [pedido]);
     const opValida = opsValidas.find(o => {
       if (itemIdx != null && o.item_idx != null && String(o.item_idx) === String(itemIdx)) return true;
       const mesmaMaq = !o.maquina || String(o.maquina).trim().toUpperCase() === String(maquina).trim().toUpperCase();
@@ -843,7 +844,7 @@ export async function rotearLoteTelhasAgrupadas({
       let opsValidas;
       if (Array.isArray(opsExistentesPre)) {
         // Lote: OPs já pré-buscadas em massa pelo chamador (evita 2 chamadas de rede por grupo)
-        opsValidas = opsExistentesPre.filter(o => o && String(o.status || "").toLowerCase() !== "cancelado");
+        opsValidas = filtrarOpsDasOfsExatas(opsExistentesPre, [pedido]);
       } else {
         let opsExistentes = [];
         if (pedido?.id) {
@@ -852,7 +853,7 @@ export async function rotearLoteTelhasAgrupadas({
         if ((!opsExistentes || opsExistentes.length === 0) && pedido?.numero_pedido) {
           opsExistentes = await comRetry(() => base44.entities.Pedido.filter({ numero_pedido: pedido.numero_pedido }));
         }
-        opsValidas = (opsExistentes || []).filter(o => o && String(o.status || "").toLowerCase() !== "cancelado");
+        opsValidas = filtrarOpsDasOfsExatas(opsExistentes, [pedido]);
       }
       const opValida = opsValidas.find(o => {
         if (o.item_idx != null && String(o.item_idx) === String(itemPrincipalIdx)) return true;

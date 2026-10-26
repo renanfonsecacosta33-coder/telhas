@@ -24,6 +24,60 @@ export function encontrarPedidoVinculado(op, mapa) {
 }
 
 /**
+ * Uma venda (numero_pedido) pode ter várias OFs irmãs no Odoo (ex: S01387 → PG/MO/00528 e PG/MO/00847).
+ * Toda ação destrutiva (cancelar/baixar OPs) ou de vínculo casando apenas pelo número da venda
+ * atinge a produção de uma OF irmã. Este filtro devolve SOMENTE as OPs que pertencem
+ * comprovadamente a uma das OFs informadas:
+ * - OP com vínculo explícito (pedido_odoo_id / of_odoo_id / of_nome) → exige correspondência exata;
+ * - OP legada sem nenhum vínculo de OF → aceita pelo numero_pedido (não há como distinguir, e nunca teve OF).
+ */
+export function filtrarOpsDasOfsExatas(ops, pedidos) {
+  const lista = (pedidos || []).filter(Boolean);
+  const ids = new Set(lista.map(p => String(p.id || "")).filter(Boolean));
+  const ofIds = new Set(lista.map(p => String(p.of_odoo_id || "").trim().toUpperCase()).filter(Boolean));
+  const ofNomes = new Set(lista.map(p => String(p.of_nome || "").trim().toUpperCase()).filter(Boolean));
+  const numeros = new Set(lista.map(p => String(p.numero_pedido || "").trim()).filter(Boolean));
+  return (ops || []).filter(op => {
+    if (!op || String(op.status || "").toLowerCase() === "cancelado") return false;
+    if (op.pedido_odoo_id) return ids.has(String(op.pedido_odoo_id));
+    if (op.of_odoo_id) return ofIds.has(String(op.of_odoo_id).trim().toUpperCase());
+    if (op.of_nome) return ofNomes.has(String(op.of_nome).trim().toUpperCase());
+    return numeros.has(String(op.numero_pedido || "").trim());
+  });
+}
+
+/**
+ * Cancela SOMENTE as OPs das OFs informadas, em todas as máquinas (Telhas, C&D, Desbobinadeira).
+ * Blindagem contra o cancelamento em cascata de OFs irmãs da mesma venda —
+ * e a produção já finalizada nunca é tocada.
+ */
+export async function cancelarOpsDasOfsExatas({ pedidos = [], todayIso = new Date().toISOString().slice(0, 10) } = {}) {
+  const lista = (pedidos || []).filter(Boolean);
+  const numeros = [...new Set(lista.map(p => String(p.numero_pedido || "").trim()).filter(Boolean))];
+  const resumo = { telhas: 0, cd: 0, desbobinadeira: 0 };
+  if (!numeros.length) return resumo;
+
+  const cancelar = async (entidade) => {
+    let ops = [];
+    try {
+      ops = await base44.entities[entidade].filter({ numero_pedido: { $in: numeros }, status: { $ne: "cancelado" } });
+    } catch { return 0; }
+    const alvo = filtrarOpsDasOfsExatas(ops, lista).filter(o => o && o.id && o.status !== "finalizado");
+    for (let i = 0; i < alvo.length; i += 500) {
+      await base44.entities[entidade].bulkUpdate(
+        alvo.slice(i, i + 500).map(o => ({ id: o.id, status: "cancelado", data_finalizacao: todayIso }))
+      );
+    }
+    return alvo.length;
+  };
+
+  resumo.telhas = await cancelar("Pedido");
+  resumo.cd = await cancelar("OrdemMaquinaCD");
+  resumo.desbobinadeira = await cancelar("OrdemDesbobinadeira");
+  return resumo;
+}
+
+/**
  * Verifica se dois números de pedidos são equivalentes
  */
 export function numerosSaoEquivalentes(numA, numB) {

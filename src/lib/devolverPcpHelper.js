@@ -1,4 +1,5 @@
 import { base44 } from "@/api/base44Client";
+import { cancelarOpsDasOfsExatas } from "@/lib/conciliacaoPcpMaquinasHelper";
 import { parseItensPedido } from "@/lib/regrasFabrica";
 import { notificarStatus } from "@/lib/biNotificador";
 
@@ -27,21 +28,10 @@ export const devolverPedidosPCPLote = async ({ lista, queryClient, toast }) => {
   try {
     const todayIso = new Date().toISOString().slice(0, 10);
     const agoraIso = new Date().toISOString();
-    const numeros = [...new Set(listaValida.map(p => String(p.numero_pedido || "").trim()).filter(Boolean))];
-
-    // 1. Cancela em massa as OPs ativas nos galpões (1 chamada por entidade)
-    await base44.entities.OrdemMaquinaCD.updateMany(
-      { numero_pedido: { $in: numeros }, status: { $ne: "cancelado" } },
-      { $set: { status: "cancelado", data_finalizacao: todayIso } }
-    );
-    await base44.entities.OrdemDesbobinadeira.updateMany(
-      { numero_pedido: { $in: numeros }, status: { $ne: "cancelado" } },
-      { $set: { status: "cancelado", data_finalizacao: todayIso } }
-    );
-    await base44.entities.Pedido.updateMany(
-      { numero_pedido: { $in: numeros }, status: { $ne: "cancelado" } },
-      { $set: { status: "cancelado", data_finalizacao: todayIso } }
-    );
+    // 1. Cancela SOMENTE as OPs das OFs selecionadas — uma venda pode ter várias OFs
+    //    irmãs no Odoo, e casar apenas pelo numero_pedido cancelaria a produção da
+    //    OF irmã. A produção já finalizada permanece intocada.
+    await cancelarOpsDasOfsExatas({ pedidos: listaValida, todayIso });
 
     // 2. Zera os itens de cada pedido selecionado e devolve à fila do PCP (lote único)
     const updates = listaValida.map(pedido => {

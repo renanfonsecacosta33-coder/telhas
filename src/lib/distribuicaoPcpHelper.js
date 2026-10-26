@@ -31,6 +31,9 @@ async function preBuscarOpsExistentes(alvo) {
       const porNumero = new Map();
       for (const op of opsPorNumero || []) {
         if (String(op.status || "").toLowerCase() === "cancelado") continue;
+        // OP com vínculo explícito de OF pertence a uma OF específica:
+        // nunca tratá-la como OP de outra OF irmã da mesma venda
+        if (op.pedido_odoo_id || op.of_odoo_id || op.of_nome) continue;
         if (!porNumero.has(op.numero_pedido)) porNumero.set(op.numero_pedido, []);
         porNumero.get(op.numero_pedido).push(op);
       }
