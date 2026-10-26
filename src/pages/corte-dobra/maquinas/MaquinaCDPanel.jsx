@@ -26,6 +26,7 @@ import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaq
 import { salvarCacheLocal, obterCacheLocal, enfileirarAcaoOffline } from "@/lib/offlineStorage";
 import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERelatorioMaquinaModal";
 import AlertaCancelamentoPcpBanner from "@/components/maquinas/AlertaCancelamentoPcpBanner";
+import StatusRedeBadge from "@/components/common/StatusRedeBadge";
 
 export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const { filialAtiva } = useFilial();
@@ -97,10 +98,10 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
         throw fetchErr;
       }
     },
-    refetchInterval: 3000,
-    staleTime: 5000,
+    refetchInterval: 15000,
+    staleTime: 10000,
     placeholderData: (prev) => prev,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   // Localiza pedido alvo se a navegação veio com parâmetros de foco da busca/rastreamento
@@ -177,10 +178,10 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
       const filter = (filialAtiva && filialAtiva !== "todas") ? { unidade: filialAtiva } : {};
       return base44.entities.OrdemDesbobinadeira.filter(filter, "-data", 500);
     },
-    refetchInterval: 5000,
-    staleTime: 5000,
+    refetchInterval: 15000,
+    staleTime: 10000,
     placeholderData: (prev) => prev,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const todasOrdensDaMaquina = useMemo(
@@ -653,10 +654,13 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Factory className="w-6 h-6" />
-            {maquinaLabel}
-          </h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <Factory className="w-6 h-6" />
+              {maquinaLabel}
+            </h1>
+            <StatusRedeBadge />
+          </div>
           <p className="text-sm text-muted-foreground">Ordens de produção — Corte e Dobra</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

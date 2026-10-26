@@ -209,6 +209,13 @@ export default function PedidoOdooDetalheDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => {
+            // Se houver submodal aberto, impede fechar o modal pai
+            if (confirmaExcluir || senhaDevolverOpen || simulacaoOpen || alterarPrazoOpen || editarItensOpen) {
+              e.preventDefault();
+            }
+          }}
           className="w-[96vw] max-w-5xl max-h-[92vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6"
         >
           <DialogHeader>

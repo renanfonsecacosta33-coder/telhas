@@ -22,6 +22,7 @@ import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedien
 import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERelatorioMaquinaModal";
 import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
 import AlertaCancelamentoPcpBanner from "@/components/maquinas/AlertaCancelamentoPcpBanner";
+import StatusRedeBadge from "@/components/common/StatusRedeBadge";
 import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo, detectarMaquinaTelha, gerarAssinaturaOp } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import {
@@ -202,9 +203,9 @@ export default function MaquinaPanel({ maquina }) {
         throw fetchErr;
       }
     },
-    refetchInterval: 3000,
-    staleTime: 0,
-    refetchOnWindowFocus: true,
+    refetchInterval: 15000,
+    staleTime: 10000,
+    refetchOnWindowFocus: false,
   });
 
   // Inscrição em tempo real para novos pedidos ou atualizações nas perfiladeiras/colagem
@@ -1412,8 +1413,15 @@ export default function MaquinaPanel({ maquina }) {
 
       {/* Header máquina */}
       <div className="bg-gradient-to-r from-primary to-primary/80 rounded-2xl p-6 text-primary-foreground shadow-lg">
-        <p className="text-sm opacity-75 font-medium uppercase tracking-wide">Painel da Máquina</p>
-        <h1 className="text-3xl font-black mt-1">{maquina}</h1>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <p className="text-sm opacity-75 font-medium uppercase tracking-wide">Painel da Máquina</p>
+            <h1 className="text-3xl font-black mt-1">{maquina}</h1>
+          </div>
+          <div className="bg-white/10 backdrop-blur-xs rounded-xl p-1.5 border border-white/20">
+            <StatusRedeBadge className="bg-white/20 text-white border-white/30" />
+          </div>
+        </div>
         <div className="flex items-center gap-3 mt-3 flex-wrap">
           <div className="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-bold flex items-center gap-1.5 shadow-xs">
             <span>{pedidosAFazerCount} pedido(s) a fazer</span>

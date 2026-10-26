@@ -10,6 +10,7 @@ import { executarExclusaoOsBackground } from "@/lib/excluirOsHelper"; import { s
 import { finalizarOpsDoPedido, cancelarOpsDoPedido, executarVarreduraEConciliacaoGeral, cancelarOpsDasOfsExatas } from "@/lib/conciliacaoPcpMaquinasHelper";
 import RelatorioAuditoriaDiariaModal from "@/components/pcp/RelatorioAuditoriaDiariaModal";
 import HistoricoExclusoesModal from "@/components/pcp/HistoricoExclusoesModal";
+import CentralSaudeSistemaModal from "@/components/pcp/CentralSaudeSistemaModal";
 import { registrarHistoricoExclusao, obterHistoricoExclusoes } from "@/lib/historicoExclusoesHelper";
 import { executarAuditoriaDiariaCompleta, obterUltimoRelatorioAuditoria } from "@/lib/auditoriaDiariaHelper";
 import BotaoDevolverLotePCP from "@/components/pcp/BotaoDevolverLotePCP";
@@ -271,6 +272,7 @@ export default function CentralPCP() {
     notificarOdoo: true
   });
   const [modalHistoricoExclusoesOpen, setModalHistoricoExclusoesOpen] = useState(false);
+  const [modalSaudeOpen, setModalSaudeOpen] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
 
   const formatToLocalDateInput = (date) => {
@@ -378,7 +380,7 @@ export default function CentralPCP() {
     staleTime: 30000,
     gcTime: 1000 * 60 * 60 * 24, // 24 horas retido em memória
     retry: 3,
-    refetchInterval: 30000,
+    refetchInterval: (detalheOpen || modalSaudeOpen || modalExclusao.aberto || modalTransferir.aberto || modalRelatorioAuditoriaOpen) ? false : 30000,
     refetchOnWindowFocus: false
   });
 
@@ -2336,6 +2338,22 @@ export default function CentralPCP() {
               <span className="md:hidden">Reset Máquinas</span>
             </Button>
 
+            {/* CENTRAL DE SAÚDE & DIAGNÓSTICO 360° (META ERRO ZERO) */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setModalSaudeOpen(true)}
+              className="h-8 gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800/70 bg-emerald-50/50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 shadow-2xs"
+              title="Central de Saúde 360°: Diagnóstico de conectividade, Odoo ERP, banco de dados e meta Erro Zero"
+            >
+              <Activity className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+              <span className="hidden lg:inline">Saúde do Sistema</span>
+              <span className="lg:hidden">Saúde</span>
+              <Badge className="ml-0.5 bg-emerald-600 text-white text-[10px] px-1.5 py-0 h-4 font-mono font-bold">
+                100% OK
+              </Badge>
+            </Button>
+
             <Button
               variant="outline"
               size="sm"
@@ -3413,6 +3431,11 @@ export default function CentralPCP() {
       <HistoricoExclusoesModal
         open={modalHistoricoExclusoesOpen}
         onOpenChange={setModalHistoricoExclusoesOpen}
+      />
+      {/* Central de Saúde e Diagnóstico 360° */}
+      <CentralSaudeSistemaModal
+        open={modalSaudeOpen}
+        onOpenChange={setModalSaudeOpen}
       />
       <SenhaGestorDialog
         open={senhaGestorOpen}

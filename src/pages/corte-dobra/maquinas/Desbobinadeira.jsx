@@ -25,6 +25,7 @@ import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedien
 import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERelatorioMaquinaModal";
 import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
 import AlertaCancelamentoPcpBanner from "@/components/maquinas/AlertaCancelamentoPcpBanner";
+import StatusRedeBadge from "@/components/common/StatusRedeBadge";
 
 export function getMaquinaOrdemDesb(ordem) {
   if (!ordem) return "DESBOBINADEIRA 01";
@@ -91,9 +92,9 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
       const filter = (filialAtiva && filialAtiva !== "todas") ? { unidade: filialAtiva } : {};
       return base44.entities.OrdemDesbobinadeira.filter(filter, "-data", 500);
     },
-    refetchInterval: 10000,
-    staleTime: 3000,
-    refetchOnWindowFocus: true,
+    refetchInterval: 15000,
+    staleTime: 10000,
+    refetchOnWindowFocus: false,
   });
 
   // Inscrição em tempo real para novas ordens ou alterações na Desbobinadeira
@@ -143,9 +144,9 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
       const filter = (filialAtiva && filialAtiva !== "todas") ? { unidade: filialAtiva } : {};
       return base44.entities.OrdemMaquinaCD.filter(filter, "-data", 500);
     },
-    refetchInterval: 5000,
-    staleTime: 0,
-    refetchOnWindowFocus: true,
+    refetchInterval: 15000,
+    staleTime: 10000,
+    refetchOnWindowFocus: false,
   });
 
   // Todas as bobinas ativas (para cruzamento de espessura, código e custo da OP)
@@ -611,13 +612,16 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Factory className="w-6 h-6 text-orange-500" />
-            {maquinaAtiva === "DESBOBINADEIRA 02" ? "Desbobinadeira 02" : "Desbobinadeira 01"}
-            <Badge variant="outline" className={`text-xs font-semibold ${maquinaAtiva === "DESBOBINADEIRA 02" ? "border-amber-400 text-amber-800 bg-amber-50 dark:bg-amber-950/40" : "border-orange-300 text-orange-700 bg-orange-50 dark:bg-orange-950/30"}`}>
-              {maquinaAtiva === "DESBOBINADEIRA 02" ? "Capacidade: 0,80 mm a 4,75 mm (Mínimo: 0,80 mm)" : "Capacidade: até 3,00 mm"}
-            </Badge>
-          </h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <Factory className="w-6 h-6 text-orange-500" />
+              {maquinaAtiva === "DESBOBINADEIRA 02" ? "Desbobinadeira 02" : "Desbobinadeira 01"}
+              <Badge variant="outline" className={`text-xs font-semibold ${maquinaAtiva === "DESBOBINADEIRA 02" ? "border-amber-400 text-amber-800 bg-amber-50 dark:bg-amber-950/40" : "border-orange-300 text-orange-700 bg-orange-50 dark:bg-orange-950/30"}`}>
+                {maquinaAtiva === "DESBOBINADEIRA 02" ? "Capacidade: 0,80 mm a 4,75 mm (Mínimo: 0,80 mm)" : "Capacidade: até 3,00 mm"}
+              </Badge>
+            </h1>
+            <StatusRedeBadge />
+          </div>
           <p className="text-sm text-muted-foreground">
             {maquinaAtiva === "DESBOBINADEIRA 02" ? "Desbobinamento reforçado para bobinas de 0,80 mm a 4,75 mm (OPs < 0,80mm exigem liberação do gestor)" : "Desbobinamento para bobinas de até 3,00 mm"} — Corte e Dobra
           </p>

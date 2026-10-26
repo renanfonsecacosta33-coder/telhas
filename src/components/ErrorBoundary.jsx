@@ -1,6 +1,7 @@
 import React from "react";
 import { RefreshCw, AlertTriangle, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { registrarErroTelemetria } from "@/lib/diagnosticoSistemaHelper";
 
 export class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -15,6 +16,9 @@ export class ErrorBoundary extends React.Component {
   componentDidCatch(error, errorInfo) {
     console.error("[ErrorBoundary] Erro crítico capturado:", error, errorInfo);
     this.setState({ errorInfo });
+    try {
+      registrarErroTelemetria("RenderizacaoUI", error?.message || "Exceção visual em componente", errorInfo?.componentStack);
+    } catch {}
   }
 
   handleReload = () => {
