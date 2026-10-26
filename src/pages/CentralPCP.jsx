@@ -8,6 +8,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Calendar, X, Clock, Trash2, Building2, ArrowRightLeft, Globe, User, Briefcase, Hash, Package, ShieldCheck, Target, BookOpen, RotateCcw } from "lucide-react";
 import { executarExclusaoOsBackground } from "@/lib/excluirOsHelper"; import { sincronizarLoteOdoo } from "@/lib/sincronizarOdooHelper";
 import { finalizarOpsDoPedido, cancelarOpsDoPedido, executarVarreduraEConciliacaoGeral } from "@/lib/conciliacaoPcpMaquinasHelper";
+import RelatorioAuditoriaDiariaModal from "@/components/pcp/RelatorioAuditoriaDiariaModal";
+import { executarAuditoriaDiariaCompleta, obterUltimoRelatorioAuditoria } from "@/lib/auditoriaDiariaHelper";
 import BotaoDevolverLotePCP from "@/components/pcp/BotaoDevolverLotePCP";
 import {
   DropdownMenu,
@@ -365,6 +367,17 @@ export default function CentralPCP() {
   }, [pedidosRaw, queryClient]);
 
   // Handler para acionamento manual do botão 'Baixar Finalizados nas Máquinas'
+  const [modalRelatorioAuditoriaOpen, setModalRelatorioAuditoriaOpen] = useState(false);
+  const [relatorioAuditoria, setRelatorioAuditoria] = useState(() => obterUltimoRelatorioAuditoria());
+  const [executandoAuditoriaDiaria, setExecutandoAuditoriaDiaria] = useState(false);
+
+  // Executa auditoria diária automática no carregamento inicial
+  useEffect(() => {
+    executarAuditoriaDiariaCompleta({ queryClient }).then(rel => {
+      setRelatorioAuditoria(rel);
+    }).catch(() => {});
+  }, [queryClient]);
+
   const [conciliandoMaquinas, setConciliandoMaquinas] = useState(false);
   const handleExecutarAuditoriaConciliacaoManual = async () => {
     setConciliandoMaquinas(true);
@@ -2328,6 +2341,26 @@ export default function CentralPCP() {
             <Button
               variant="outline"
               size="sm"
+              onClick={() => setModalRelatorioAuditoriaOpen(true)}
+              className={`h-8 gap-1.5 text-xs font-bold shadow-2xs border ${
+                (relatorioAuditoria?.errosCorrigidosCount > 0 || relatorioAuditoria?.alertasPendentesCount > 0)
+                  ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 hover:bg-amber-100"
+                  : "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100"
+              }`}
+              title="Ver Relatório Diário de Auditoria e Saúde do Sistema (Rumo a Erro 0)"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">
+                {relatorioAuditoria
+                  ? `Saúde: ${relatorioAuditoria.scoreSaude}% (${relatorioAuditoria.alertasPendentesCount > 0 ? `${relatorioAuditoria.alertasPendentesCount} pendências` : "Erro 0"})`
+                  : "Auditoria Diária"}
+              </span>
+              <span className="md:hidden">Saúde {relatorioAuditoria?.scoreSaude || 100}%</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleExecutarAuditoriaConciliacaoManual}
               disabled={conciliandoMaquinas}
               className="h-8 gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 shadow-2xs"
@@ -3551,6 +3584,26 @@ export default function CentralPCP() {
         open={popModalOpen}
         onOpenChange={setPopModalOpen}
         maquinaNome={popModalKey}
+      />
+
+      <RelatorioAuditoriaDiariaModal
+        open={modalRelatorioAuditoriaOpen}
+        onOpenChange={setModalRelatorioAuditoriaOpen}
+        relatorio={relatorioAuditoria}
+        executando={executandoAuditoriaDiaria}
+        onExecutarNovamente={async () => {
+          setExecutandoAuditoriaDiaria(true);
+          try {
+            const novoRel = await executarAuditoriaDiariaCompleta({ queryClient, usuario: "Gestor PCP (Manual)" });
+            setRelatorioAuditoria(novoRel);
+            toast({
+              title: "Auditoria Diária Concluída!",
+              description: `Score de Saúde: ${novoRel.scoreSaude}% — ${novoRel.statusGeral}`
+            });
+          } finally {
+            setExecutandoAuditoriaDiaria(false);
+          }
+        }}
       />
 
       {/* Barra Flutuante de Ações em Lote */}
