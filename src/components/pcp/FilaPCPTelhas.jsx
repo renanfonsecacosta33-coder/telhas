@@ -19,7 +19,8 @@ import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import {
   isAutoRoteamentoTelhasAtivo,
   setAutoRoteamentoTelhasAtivo,
-  rotearPedidoTelhaDiretoParaMaquina
+  rotearPedidoTelhaDiretoParaMaquina,
+  comRetry
 } from "@/lib/autoBobinaTelhasHelper";
 import {
   getItens, itensPorGrupo, computePercentual,
@@ -755,22 +756,22 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
     try {
       const todayIso = new Date().toISOString().slice(0, 10);
 
-      // 1. Cancela Ordens de Produção vinculadas nas perfiladeiras/máquinas da fábrica
-      try {
-        const ops = await base44.entities.Pedido.filter({
-          pedido_odoo_id: pedido.id
-        }).catch(() => []);
-
-        for (const op of ops) {
-          if (op.status !== "finalizado" && op.status !== "cancelado") {
-            await base44.entities.Pedido.update(op.id, {
+      // 1. Cancela Ordens de Produção vinculadas nas perfiladeiras/máquinas da fábrica.
+      //    Com retry e PROPAGAÇÃO do erro: se as OPs não puderem ser lidas/canceladas
+      //    (ex: limite de tráfego 429), a devolução é ABORTADA — jamais deixar OPs
+      //    vivas na máquina com o pedido zerado no PCP (OPs "fantasmas").
+      const opsCancelar = await comRetry(() =>
+        base44.entities.Pedido.filter({ pedido_odoo_id: pedido.id, status: { $ne: "cancelado" } })
+      );
+      for (const op of opsCancelar) {
+        if (op.status !== "finalizado") {
+          await comRetry(() =>
+            base44.entities.Pedido.update(op.id, {
               status: "cancelado",
               data_finalizacao: todayIso
-            });
-          }
+            })
+          );
         }
-      } catch (errOps) {
-        console.warn("[FilaPCPTelhas] Erro ao cancelar OPs locais:", errOps);
       }
 
       // 2. Reseta itens do pedido para pendente de máquina
@@ -839,22 +840,15 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
 
     setAtualizando(`devolver-item-${pedido.id}-${itemIdx}`);
     try {
-      // 1. Cancela OP específica deste item se existir
-      try {
-        const ops = await base44.entities.Pedido.filter({
-          pedido_odoo_id: pedido.id,
-          item_idx: itemIdx
-        }).catch(() => []);
-
-        for (const op of ops) {
-          if (op.status !== "finalizado" && op.status !== "cancelado") {
-            await base44.entities.Pedido.update(op.id, {
-              status: "cancelado"
-            });
-          }
+      // 1. Cancela OP específica deste item se existir (com retry — a falha PROPAGA
+      //    e aborta a devolução, para não deixar OP viva na máquina)
+      const opsItem = await comRetry(() =>
+        base44.entities.Pedido.filter({ pedido_odoo_id: pedido.id, item_idx: itemIdx, status: { $ne: "cancelado" } })
+      );
+      for (const op of opsItem) {
+        if (op.status !== "finalizado") {
+          await comRetry(() => base44.entities.Pedido.update(op.id, { status: "cancelado" }));
         }
-      } catch (errOp) {
-        console.warn("[FilaPCPTelhas] Erro ao cancelar OP do item:", errOp);
       }
 
       // 2. Atualiza item no PedidoOdoo

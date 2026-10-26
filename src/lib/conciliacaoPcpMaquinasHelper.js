@@ -57,15 +57,35 @@ export async function cancelarOpsDasOfsExatas({ pedidos = [], todayIso = new Dat
   const resumo = { telhas: 0, cd: 0, desbobinadeira: 0 };
   if (!numeros.length) return resumo;
 
+  // Retentativa resistente a erros transitórios (429 de limite de tráfego).
+  // Em caso de falha definitiva o erro PROPAGA: quem chamou NÃO deve resetar o
+  // pedido no PCP deixando OPs vivas nas máquinas (OPs "fantasmas" na fábrica).
+  const comRetryLocal = async (fn, tentativas = 3) => {
+    let ultimoErro;
+    for (let i = 0; i < tentativas; i++) {
+      try {
+        return await fn();
+      } catch (e) {
+        ultimoErro = e;
+        const msg = String(e?.message || e?.detail || e || "");
+        const m = msg.match(/Retry after (\d+) seconds/i);
+        const espera = m ? Math.min(Number(m[1]) * 1000 + 2000, 30000) : 1500 * (i + 1);
+        await new Promise((r) => setTimeout(r, espera));
+      }
+    }
+    throw ultimoErro;
+  };
+
   const cancelar = async (entidade) => {
-    let ops = [];
-    try {
-      ops = await base44.entities[entidade].filter({ numero_pedido: { $in: numeros }, status: { $ne: "cancelado" } });
-    } catch { return 0; }
+    const ops = await comRetryLocal(() =>
+      base44.entities[entidade].filter({ numero_pedido: { $in: numeros }, status: { $ne: "cancelado" } })
+    );
     const alvo = filtrarOpsDasOfsExatas(ops, lista).filter(o => o && o.id && o.status !== "finalizado");
     for (let i = 0; i < alvo.length; i += 500) {
-      await base44.entities[entidade].bulkUpdate(
-        alvo.slice(i, i + 500).map(o => ({ id: o.id, status: "cancelado", data_finalizacao: todayIso }))
+      await comRetryLocal(() =>
+        base44.entities[entidade].bulkUpdate(
+          alvo.slice(i, i + 500).map(o => ({ id: o.id, status: "cancelado", data_finalizacao: todayIso }))
+        )
       );
     }
     return alvo.length;
