@@ -221,10 +221,22 @@ export async function cancelarOpsDoPedido({ pedido, todayIso = new Date().toISOS
           detalhes: motivo ? `Motivo: ${motivo}` : `Cancelamento sincronizado do Pedido #${pedido.numero_pedido || pedido.id} no PCP.`
         });
 
+        const alertaObj = {
+          ativo: true,
+          numero_pedido: op.numero_pedido || pedido.numero_pedido,
+          cliente: op.cliente || pedido.cliente_nome,
+          produto: op.produto,
+          maquina: op.maquina,
+          motivo: motivo || "Exclusão efetuada pela Central PCP",
+          usuario,
+          data: new Date().toISOString()
+        };
+
         await base44.entities.Pedido.update(op.id, {
           status: "cancelado",
           data_finalizacao: todayIso,
-          historico_alteracoes: JSON.stringify(hist)
+          historico_alteracoes: JSON.stringify(hist),
+          alerta_cancelamento_pcp: JSON.stringify(alertaObj)
         });
         countTelhas++;
       } catch (err) {
@@ -238,9 +250,21 @@ export async function cancelarOpsDoPedido({ pedido, todayIso = new Date().toISOS
 
     for (const op of cdDoPedido) {
       try {
+        const alertaObj = {
+          ativo: true,
+          numero_pedido: op.numero_pedido || pedido.numero_pedido,
+          cliente: op.cliente || pedido.cliente_nome,
+          produto: op.produto,
+          maquina: op.maquina,
+          motivo: motivo || "Exclusão efetuada pela Central PCP",
+          usuario,
+          data: new Date().toISOString()
+        };
+
         await base44.entities.OrdemMaquinaCD.update(op.id, {
           status: "cancelado",
-          data_finalizacao: todayIso
+          data_finalizacao: todayIso,
+          alerta_cancelamento_pcp: JSON.stringify(alertaObj)
         });
         countCD++;
       } catch (err) {
@@ -255,7 +279,14 @@ export async function cancelarOpsDoPedido({ pedido, todayIso = new Date().toISOS
       for (const op of desbDoPedido) {
         await base44.entities.OrdemDesbobinadeira.update(op.id, {
           status: "cancelado",
-          data_finalizacao: todayIso
+          data_finalizacao: todayIso,
+          alerta_cancelamento_pcp: JSON.stringify({
+            ativo: true,
+            numero_pedido: op.numero_pedido || pedido.numero_pedido,
+            motivo: motivo || "Exclusão efetuada pela Central PCP",
+            usuario,
+            data: new Date().toISOString()
+          })
         }).catch(() => {});
       }
     }

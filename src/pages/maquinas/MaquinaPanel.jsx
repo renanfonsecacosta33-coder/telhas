@@ -21,6 +21,7 @@ import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
 import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERelatorioMaquinaModal";
 import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
+import AlertaCancelamentoPcpBanner from "@/components/maquinas/AlertaCancelamentoPcpBanner";
 import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo, detectarMaquinaTelha, gerarAssinaturaOp } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import {
@@ -1839,6 +1840,9 @@ export default function MaquinaPanel({ maquina }) {
               </Button>
             </div>
           )}
+
+          {/* Banner de Alerta Urgente: Cancelamento / Exclusão pelo PCP */}
+          <AlertaCancelamentoPcpBanner ordens={todosPedidos} maquinaNome={maquina} />
 
           {/* Alerta inteligente: se houver OPs duplicadas detectadas nesta máquina */}
           {duplicadasDetectadas.length > 0 && (

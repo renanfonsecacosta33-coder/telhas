@@ -24,6 +24,7 @@ import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
 import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERelatorioMaquinaModal";
 import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
+import AlertaCancelamentoPcpBanner from "@/components/maquinas/AlertaCancelamentoPcpBanner";
 
 export function getMaquinaOrdemDesb(ordem) {
   if (!ordem) return "DESBOBINADEIRA 01";
@@ -815,6 +816,9 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
 
       {/* IA Capacidade Diária (Regra 5) */}
       <CapacidadeDiariaIA ordens={ordens} dataISO={selectedDay} />
+
+      {/* Banner de Alerta Urgente: Cancelamento / Exclusão pelo PCP */}
+      <AlertaCancelamentoPcpBanner ordens={todasOrdens} maquinaNome={maquinaAtiva} />
 
       {isLoading ? (
         <div className="flex justify-center py-12">

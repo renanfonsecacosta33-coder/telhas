@@ -5,10 +5,12 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Calendar, X, Clock, Trash2, Building2, ArrowRightLeft, Globe, User, Briefcase, Hash, Package, ShieldCheck, Target, BookOpen, RotateCcw } from "lucide-react";
+import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Calendar, X, Clock, Trash2, Building2, ArrowRightLeft, Globe, User, Briefcase, Hash, Package, ShieldCheck, Target, BookOpen, RotateCcw, History } from "lucide-react";
 import { executarExclusaoOsBackground } from "@/lib/excluirOsHelper"; import { sincronizarLoteOdoo } from "@/lib/sincronizarOdooHelper";
 import { finalizarOpsDoPedido, cancelarOpsDoPedido, executarVarreduraEConciliacaoGeral, cancelarOpsDasOfsExatas } from "@/lib/conciliacaoPcpMaquinasHelper";
 import RelatorioAuditoriaDiariaModal from "@/components/pcp/RelatorioAuditoriaDiariaModal";
+import HistoricoExclusoesModal from "@/components/pcp/HistoricoExclusoesModal";
+import { registrarHistoricoExclusao, obterHistoricoExclusoes } from "@/lib/historicoExclusoesHelper";
 import { executarAuditoriaDiariaCompleta, obterUltimoRelatorioAuditoria } from "@/lib/auditoriaDiariaHelper";
 import BotaoDevolverLotePCP from "@/components/pcp/BotaoDevolverLotePCP";
 import {
@@ -27,6 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
 import PedidoOdooCard from "@/components/pcp/PedidoOdooCard";
 import PedidoOdooGrupoCard from "@/components/pcp/PedidoOdooGrupoCard";
 import PedidoOdooDetalheDialog from "@/components/pcp/PedidoOdooDetalheDialog";
@@ -220,14 +223,16 @@ export default function CentralPCP() {
   const [filtroDataInicio, setFiltroDataInicio] = useState("");
   const [filtroDataFim, setFiltroDataFim] = useState("");
 
-  // Modal de Exclusão Segura
+  // Modal de Exclusão Segura com Motivo Obrigatório e Histórico
   const [modalExclusao, setModalExclusao] = useState({
     aberto: false,
     pedidos: [],
     titulo: "",
     descricao: "",
+    motivo: "",
     notificarOdoo: true
   });
+  const [modalHistoricoExclusoesOpen, setModalHistoricoExclusoesOpen] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
 
   const formatToLocalDateInput = (date) => {
@@ -1992,7 +1997,7 @@ export default function CentralPCP() {
     }
   };
 
-  // ── EXCLUSÃO SUPER COMPLETA (SELECIONADAS, TODAS, GRUPO OU INDIVIDUAL) ──
+  // ── EXCLUSÃO SUPER COMPLETA COM MOTIVO OBRIGATÓRIO E HISTÓRICO ──
   const solicitarExclusaoSelecionadas = () => {
     const lista = pedidos.filter(p => selecionados.has(p.id));
     if (lista.length === 0) return;
@@ -2000,7 +2005,8 @@ export default function CentralPCP() {
       aberto: true,
       pedidos: lista,
       titulo: `Excluir ${lista.length} Ordem(ns) de Fabricação Selecionada(s)?`,
-      descricao: `As ${lista.length} ordens de fabricação selecionadas serão excluídas definitivamente da fila do PCP e dos galpões de produção.`,
+      descricao: `As ${lista.length} ordens de fabricação selecionadas serão excluídas definitivamente da fila do PCP e canceladas em todas as máquinas de produção.`,
+      motivo: "",
       notificarOdoo: true
     });
   };
@@ -2011,7 +2017,8 @@ export default function CentralPCP() {
       aberto: true,
       pedidos: pedidosFiltrados,
       titulo: `⚠️ Excluir TODAS as ${pedidosFiltrados.length} Ordem(ns) da Fila Atual?`,
-      descricao: `ATENÇÃO: Todas as ${pedidosFiltrados.length} ordens de fabricação exibidas na visualização atual serão permanentemente apagadas do sistema.`,
+      descricao: `ATENÇÃO: Todas as ${pedidosFiltrados.length} ordens de fabricação exibidas na visualização atual serão permanentemente canceladas e removidas do sistema.`,
+      motivo: "",
       notificarOdoo: true
     });
   };
@@ -2024,6 +2031,7 @@ export default function CentralPCP() {
       pedidos: ofs,
       titulo: `Excluir Pedido #${grupo.numero_pedido} (${ofs.length} OFs)?`,
       descricao: `Você está prestes a excluir o Pedido #${grupo.numero_pedido} (${grupo.cliente_nome}) e todas as suas ${ofs.length} Ordens de Fabricação vinculadas.`,
+      motivo: "",
       notificarOdoo: true
     });
   };
@@ -2033,7 +2041,8 @@ export default function CentralPCP() {
       aberto: true,
       pedidos: [pedido],
       titulo: `Excluir OF ${pedido.of_nome || pedido.of_odoo_id || '#' + pedido.numero_pedido}?`,
-      descricao: `Esta ordem de fabricação (${pedido.cliente_nome || 'Cliente'}) será removida da Central PCP e das filas de produção.`,
+      descricao: `Esta ordem de fabricação (${pedido.cliente_nome || 'Cliente'}) será cancelada e removida da Central PCP e de todas as máquinas.`,
+      motivo: "",
       notificarOdoo: true
     });
   };
@@ -2045,14 +2054,16 @@ export default function CentralPCP() {
       return;
     }
 
+    const motivoExclusao = modalExclusao.motivo?.trim() || "Exclusão solicitada na Central PCP";
+    const usuarioLogado = user?.full_name || user?.email || "Gestor PCP";
     const idsExcluir = new Set(lista.map(p => p.id));
     const notificarOdooFlag = modalExclusao.notificarOdoo;
     const numerosPedidos = [...new Set(lista.map(p => p.numero_pedido).filter(Boolean))];
     const totalItens = lista.length;
+    const todayIso = new Date().toISOString().slice(0, 10);
 
     // ⚡ 1. Resposta Instantânea na Interface (UI Otimista < 0.1s)
-    // Remove imediatamente os itens da tela para o usuário não ficar esperando
-    setModalExclusao({ aberto: false, pedidos: [], titulo: "", descricao: "", notificarOdoo: true });
+    setModalExclusao({ aberto: false, pedidos: [], titulo: "", descricao: "", motivo: "", notificarOdoo: true });
     setSelecionados(prev => {
       const next = new Set(prev);
       idsExcluir.forEach(id => next.delete(id));
@@ -2066,21 +2077,36 @@ export default function CentralPCP() {
 
     if (!isOperador) {
       toast({
-        title: `🗑️ Excluindo ${totalItens} ordem(ns)... `,
-        description: "Removido da tela com sucesso! Sincronizando com banco e Odoo em segundo plano.",
+        title: `🗑️ Excluindo ${totalItens} ordem(ns)...`,
+        description: `Motivo: ${motivoExclusao}. Cancelando nas máquinas e gravando histórico.`,
         className: "border-amber-500/40"
       });
     }
 
-    // ⚡ 2. Processamento em Segundo Plano Totalmente Paralelizado e Resiliente
+    // ⚡ 2. Processamento em Segundo Plano Totalmente Paralelizado e Auditável
     (async () => {
       try {
-        const todayIso = new Date().toISOString().slice(0, 10);
+        // A) Grava formalmente no Histórico de Exclusões para consulta/auditoria
+        await registrarHistoricoExclusao({
+          pedidos: lista,
+          motivo: motivoExclusao,
+          usuario: usuarioLogado,
+          todayIso
+        }).catch(err => console.warn("[Exclusão] Falha ao registrar histórico:", err));
 
-        // A) Sincronização em Paralelo com o Webhook do Odoo (Agrupada por Pedido, máx 1 chamada por pedido com timeout de 3s)
+        // B) Cancela imediatamente as OPs locais vinculadas nas máquinas da fábrica (Telhas, C&D e Desbobinadeira)
+        const promessasFabrica = lista.map(p =>
+          cancelarOpsDoPedido({
+            pedido: p,
+            todayIso,
+            usuario: usuarioLogado,
+            motivo: motivoExclusao
+          }).catch(err => console.warn("[Exclusão] Falha ao cancelar OPs locais:", err))
+        );
+
+        // C) Sincronização em Paralelo com o Webhook do Odoo
         const promessasOdoo = [];
         if (notificarOdooFlag) {
-          // Mapeia o primeiro item de cada pedido para pegar metadados do Odoo
           const mapaPedidos = new Map();
           for (const p of lista) {
             if (p.numero_pedido && !mapaPedidos.has(p.numero_pedido) && p.odoo_id && !isPedidoTeste(p)) {
@@ -2098,6 +2124,7 @@ export default function CentralPCP() {
               odoo_id: p.odoo_id,
               of_odoo_id: p.of_odoo_id,
               of_nome: p.of_nome,
+              motivo: motivoExclusao,
               force: true,
             });
             promessasOdoo.push(Promise.race([callPromise, timeoutPromise]).catch(err => {
@@ -2106,30 +2133,7 @@ export default function CentralPCP() {
           }
         }
 
-        // B) Atualização em Paralelo das Ordens no Chão de Fábrica
-        const promessasFabrica = [];
-        for (const num of numerosPedidos) {
-          promessasFabrica.push(
-            base44.entities.OrdemMaquinaCD.updateMany(
-              { numero_pedido: num, status: { $ne: "cancelado" } },
-              { $set: { status: "cancelado", data_finalizacao: todayIso } }
-            ).catch(() => {})
-          );
-          promessasFabrica.push(
-            base44.entities.OrdemDesbobinadeira.updateMany(
-              { numero_pedido: num, status: { $ne: "cancelado" } },
-              { $set: { status: "cancelado", data_finalizacao: todayIso } }
-            ).catch(() => {})
-          );
-          promessasFabrica.push(
-            base44.entities.Pedido.updateMany(
-              { numero_pedido: num, status: { $ne: "cancelado" } },
-              { $set: { status: "cancelado", data_finalizacao: todayIso } }
-            ).catch(() => {})
-          );
-        }
-
-        // C) Exclusão em Paralelo Simultâneo de todas as entidades PedidoOdoo
+        // D) Exclusão em Paralelo Simultâneo de todas as entidades PedidoOdoo
         const promessasDelecao = lista.map(p =>
           base44.entities.PedidoOdoo.delete(p.id).catch(err => {
             console.warn(`[Exclusão PedidoOdoo] Falha ao deletar ID ${p.id}:`, err.message);
@@ -2137,18 +2141,19 @@ export default function CentralPCP() {
         );
 
         // Aguarda todas as tarefas em segundo plano em paralelo
-        await Promise.allSettled([...promessasOdoo, ...promessasFabrica, ...promessasDelecao]);
+        await Promise.allSettled([...promessasFabrica, ...promessasOdoo, ...promessasDelecao]);
 
         // Invalidação final do cache para sincronia atômica total
         queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
         queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
         queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+        queryClient.invalidateQueries({ queryKey: ["pedidos"] });
         queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
 
         if (!isOperador) {
           toast({
-            title: `✅ ${totalItens} ordem(ns) sincronizada(s) e excluída(s)`,
-            description: "Registros e ordens fabris removidos com sucesso.",
+            title: `✅ ${totalItens} ordem(ns) cancelada(s) e excluída(s)`,
+            description: `Removidas das máquinas e gravadas no Histórico de Exclusões com sucesso.`,
             className: "border-emerald-500/40"
           });
         }
@@ -2272,6 +2277,23 @@ export default function CentralPCP() {
               <RotateCcw className="w-3.5 h-3.5 text-red-600" />
               <span className="hidden md:inline">Reset / Recolher Máquinas</span>
               <span className="md:hidden">Reset Máquinas</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setModalHistoricoExclusoesOpen(true)}
+              className="h-8 gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 shadow-2xs"
+              title="Ver histórico e motivos de todas as ordens de fabricação excluídas no PCP"
+            >
+              <History className="w-3.5 h-3.5 text-red-500" />
+              <span className="hidden md:inline">Histórico de Exclusões</span>
+              <span className="md:hidden">Exclusões</span>
+              {obterHistoricoExclusoes().length > 0 && (
+                <Badge className="ml-0.5 bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300 border-red-300 dark:border-red-800 text-[10px] px-1.5 py-0 h-4">
+                  {obterHistoricoExclusoes().length}
+                </Badge>
+              )}
             </Button>
 
             <DropdownMenu>
@@ -3314,6 +3336,12 @@ export default function CentralPCP() {
           queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
         }}
       />
+
+      {/* Modal de Histórico de Exclusões PCP */}
+      <HistoricoExclusoesModal
+        open={modalHistoricoExclusoesOpen}
+        onOpenChange={setModalHistoricoExclusoesOpen}
+      />
       <SenhaGestorDialog
         open={senhaGestorOpen}
         onOpenChange={setSenhaGestorOpen}
@@ -3423,6 +3451,49 @@ export default function CentralPCP() {
               </div>
             </div>
 
+            {/* Campo Obrigatório: Motivo da Exclusão com Atalhos */}
+            <div className="space-y-1.5 pt-1">
+              <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                Motivo do Cancelamento / Exclusão <span className="text-red-500">* (Obrigatório)</span>
+              </label>
+
+              {/* Botões de atalho rápido */}
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  "Cancelado pelo Cliente",
+                  "Pedido Duplicado",
+                  "Erro de Medida/Modelo",
+                  "Falta de Matéria-Prima",
+                  "Cancelamento Comercial"
+                ].map((sug) => (
+                  <button
+                    key={sug}
+                    type="button"
+                    onClick={() => setModalExclusao(prev => ({ ...prev, motivo: sug }))}
+                    className={`text-[10px] px-2 py-0.5 rounded-full border transition-all cursor-pointer ${
+                      modalExclusao.motivo === sug
+                        ? "bg-red-600 text-white border-red-600 font-bold shadow-xs"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-200"
+                    }`}
+                  >
+                    {sug}
+                  </button>
+                ))}
+              </div>
+
+              <Textarea
+                value={modalExclusao.motivo || ""}
+                onChange={(e) => setModalExclusao(prev => ({ ...prev, motivo: e.target.value }))}
+                placeholder="Informe detalhadamente o motivo da exclusão para registro no histórico..."
+                className="text-xs min-h-[60px] bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 focus-visible:ring-red-500"
+              />
+              {(!modalExclusao.motivo || modalExclusao.motivo.trim().length < 3) && (
+                <p className="text-[10px] text-red-500 font-medium">
+                  ⚠️ Por favor, informe o motivo do cancelamento para prosseguir.
+                </p>
+              )}
+            </div>
+
             {/* Checkbox opcional de sincronização com Odoo */}
             <label className="flex items-center gap-2 cursor-pointer select-none text-slate-600 dark:text-slate-300 text-[11px] pt-1">
               <input
@@ -3444,8 +3515,8 @@ export default function CentralPCP() {
                 e.preventDefault();
                 executarExclusaoConfirmada();
               }}
-              disabled={excluindo}
-              className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs h-9 gap-1.5"
+              disabled={excluindo || !modalExclusao.motivo || modalExclusao.motivo.trim().length < 3}
+              className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs h-9 gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {excluindo ? (
                 <>

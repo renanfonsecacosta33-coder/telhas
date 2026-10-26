@@ -25,6 +25,7 @@ import TimerProducao from "@/components/producao/TimerProducao";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
 import { salvarCacheLocal, obterCacheLocal, enfileirarAcaoOffline } from "@/lib/offlineStorage";
 import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERelatorioMaquinaModal";
+import AlertaCancelamentoPcpBanner from "@/components/maquinas/AlertaCancelamentoPcpBanner";
 
 export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const { filialAtiva } = useFilial();
@@ -866,6 +867,9 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
 
       {/* IA Capacidade Diária (Regra 5) */}
       <CapacidadeDiariaIA ordens={ordensDaMaquina} dataISO={selectedDay} />
+
+      {/* Banner de Alerta Urgente: Cancelamento / Exclusão pelo PCP */}
+      <AlertaCancelamentoPcpBanner ordens={todasOrdensDaMaquina} maquinaNome={maquinaLabel} />
 
       {isLoading ? (
         <div className="flex justify-center py-12">

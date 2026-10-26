@@ -1,11 +1,23 @@
 import { base44 } from "@/api/base44Client";
 import { cancelarOpsDoPedido } from "@/lib/conciliacaoPcpMaquinasHelper";
+import { registrarHistoricoExclusao } from "@/lib/historicoExclusoesHelper";
 
 // Exclusão de OS da Central PCP: resposta instantânea na tela + sincronismo com Odoo em background
-export async function executarExclusaoOsBackground({ pedido, pedidoId, numPedido, motivo, queryClient, toast }) {
+export async function executarExclusaoOsBackground({ pedido, pedidoId, numPedido, motivo, queryClient, toast, usuario = "Gestor PCP" }) {
   try {
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const motivoFinal = (motivo && String(motivo).trim()) ? String(motivo).trim() : "Exclusão solicitada na Central PCP";
+
+    // 0. Grava formalmente no Histórico de Exclusões para consulta do gestor
+    await registrarHistoricoExclusao({
+      pedidos: [pedido],
+      motivo: motivoFinal,
+      usuario: usuario || "Gestor PCP",
+      todayIso
+    }).catch((e) => console.warn("[Excluir OS] Falha ao registrar histórico:", e));
+
     // 1. Cancela imediatamente as OPs locais vinculadas nas máquinas da fábrica (Telhas e C&D)
-    await cancelarOpsDoPedido({ pedido, usuario: "Exclusão PCP", motivo }).catch((e) => {
+    await cancelarOpsDoPedido({ pedido, usuario: usuario || "Exclusão PCP", motivo: motivoFinal }).catch((e) => {
       console.warn("[Excluir OS] Falha ao cancelar OPs locais:", e);
     });
 
@@ -18,7 +30,7 @@ export async function executarExclusaoOsBackground({ pedido, pedidoId, numPedido
       odoo_id: pedido.odoo_id,
       of_odoo_id: pedido.of_odoo_id,
       of_nome: pedido.of_nome,
-      motivo,
+      motivo: motivoFinal,
       force: true,
     });
 
@@ -38,7 +50,7 @@ export async function executarExclusaoOsBackground({ pedido, pedidoId, numPedido
 
     toast({
       title: "✅ OS #" + numPedido + " excluída com sucesso",
-      description: "Removida da fábrica e sincronizada.",
+      description: `Motivo: ${motivoFinal}. Removida da fábrica e gravada no Histórico.`,
       className: "border-emerald-500/40"
     });
   } catch (err) {

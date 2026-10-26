@@ -729,20 +729,56 @@ export default function PedidoOdooDetalheDialog({
                   <li className="ml-4">• Central PCP · Galpão Telhas · Galpão Corte & Dobra · Expedição</li>
                   <li>Se o Odoo <strong>falhar</strong> → a exclusão é bloqueada e a OS permanece na tela com alerta de erro.</li>
                 </ul>
-                <Textarea
-                  placeholder="Motivo do cancelamento (opcional)..."
-                  value={motivo}
-                  onChange={(e) => setMotivo(e.target.value)}
-                  rows={2}
-                />
+                <div className="space-y-1.5 pt-2">
+                  <label className="text-xs font-bold text-slate-900 dark:text-slate-100 block">
+                    Motivo do Cancelamento / Exclusão <span className="text-red-600 font-extrabold">* (Obrigatório)</span>
+                  </label>
+
+                  {/* Atalhos Rápidos */}
+                  <div className="flex flex-wrap gap-1.5 pb-1">
+                    {[
+                      "Cancelado pelo cliente",
+                      "Alteração de medidas / modelo",
+                      "Erro de cadastro / duplicado",
+                      "Substituído por novo pedido",
+                      "Cancelamento comercial"
+                    ].map((sug) => (
+                      <button
+                        key={sug}
+                        type="button"
+                        onClick={() => setMotivo(sug)}
+                        className={`text-[10px] px-2 py-0.5 rounded-full border transition-all cursor-pointer ${
+                          motivo === sug
+                            ? "bg-red-600 text-white border-red-600 font-bold shadow-xs"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-200"
+                        }`}
+                      >
+                        {sug}
+                      </button>
+                    ))}
+                  </div>
+
+                  <Textarea
+                    placeholder="Informe detalhadamente o motivo para registro formal no Histórico de Exclusões..."
+                    value={motivo}
+                    onChange={(e) => setMotivo(e.target.value)}
+                    rows={2}
+                    className="text-xs border-slate-300 dark:border-slate-700 focus-visible:ring-red-500"
+                  />
+                  {(!motivo || motivo.trim().length < 3) && (
+                    <p className="text-[10px] text-red-600 font-bold">
+                      ⚠️ Informe o motivo (mínimo 3 caracteres) para habilitar a exclusão.
+                    </p>
+                  )}
+                </div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={excluindo}>Manter OS</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700 text-white"
-              disabled={excluindo}
+              className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed font-bold"
+              disabled={excluindo || !motivo || motivo.trim().length < 3}
               onClick={confirmarExclusao}
             >
               {excluindo ? "Cancelando..." : "Sim, excluir OS"}
