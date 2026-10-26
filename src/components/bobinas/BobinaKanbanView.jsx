@@ -75,6 +75,7 @@ export default function BobinaKanbanView({
   preBaixaOpsMap = {},
   onVerOps,
   onEdit,
+  podeGerenciar = true,
 }) {
   const colunasComItens = useMemo(() => {
     return COLUNAS_KANBAN.map((col) => {
@@ -148,7 +149,7 @@ export default function BobinaKanbanView({
                   return (
                     <div
                       key={b.id}
-                      onClick={() => onEdit?.(b)}
+                      onClick={() => podeGerenciar && onEdit?.(b)}
                       className="bg-card border border-border hover:border-orange-400/60 rounded-lg p-2.5 shadow-2xs space-y-2 cursor-pointer transition-all hover:scale-[1.01]"
                     >
                       <div className="flex items-start justify-between gap-1.5">

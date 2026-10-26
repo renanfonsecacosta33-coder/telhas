@@ -61,6 +61,7 @@ export default function BobinaTabelaView({
   onEdit,
   onDelete,
   onArquivar,
+  podeGerenciar = true,
 }) {
   // Controle para exibir ou ocultar dados de custo
   const [mostrarCustos, setMostrarCustos] = useState(() => {
@@ -381,33 +382,37 @@ export default function BobinaTabelaView({
                           <Eye className="w-3.5 h-3.5" />
                         </Button>
                       )}
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer"
-                        onClick={() => onEdit?.(b)}
-                        title="Editar Bobina"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer"
-                        onClick={() => onArquivar?.(b.id, !b.arquivada)}
-                        title={b.arquivada ? "Desarquivar Bobina" : "Arquivar Bobina"}
-                      >
-                        <Archive className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-destructive hover:text-destructive cursor-pointer"
-                        onClick={() => onDelete?.(b)}
-                        title="Excluir Bobina"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
+                      {podeGerenciar ? (
+                        <>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer"
+                            onClick={() => onEdit?.(b)}
+                            title="Corrigir estoque (PCP/Admin)"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer"
+                            onClick={() => onArquivar?.(b.id, !b.arquivada)}
+                            title={b.arquivada ? "Desarquivar Bobina" : "Arquivar Bobina"}
+                          >
+                            <Archive className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-destructive hover:text-destructive cursor-pointer"
+                            onClick={() => onDelete?.(b)}
+                            title="Excluir Bobina (PCP/Admin)"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </>
+                      ) : null}
                     </div>
                   </td>
                 </tr>

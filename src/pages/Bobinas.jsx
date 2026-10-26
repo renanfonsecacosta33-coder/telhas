@@ -46,6 +46,28 @@ const statusColors = {
 
 export default function Bobinas() {
   const { user } = useAuth();
+
+  // TRAVA DE ESTOQUE: correção de metragem/peso/exclusão de bobina é exclusiva
+  // do PCP (gestor) e administradores. O operador apenas consome via baixa
+  // automática na finalização da OP — nunca corrige estoque manualmente.
+  const podeGerenciarEstoque = ["admin", "super_admin", "gestor"].includes(
+    String(user?.role || "").toLowerCase()
+  );
+  const handleEditarBobina = (b) => {
+    if (!podeGerenciarEstoque) {
+      toast.error("Correção de estoque de bobina é exclusiva do PCP/Gestor e administradores.");
+      return;
+    }
+    setEditItem(b);
+    setDialogOpen(true);
+  };
+  const handleExcluirBobina = (b) => {
+    if (!podeGerenciarEstoque) {
+      toast.error("Exclusão de bobina é exclusiva do PCP/Gestor e administradores.");
+      return;
+    }
+    setDeleteItem(b);
+  };
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [deleteItem, setDeleteItem] = useState(null);
@@ -784,8 +806,9 @@ export default function Bobinas() {
           preBaixaOpsMap={preBaixaOpsMap}
           statusMap={statusMap}
           onVerOps={(b) => setBobinaOpsModal(b)}
-          onEdit={(b) => { setEditItem(b); setDialogOpen(true); }}
-          onDelete={(b) => setDeleteItem(b)}
+          podeGerenciar={podeGerenciarEstoque}
+          onEdit={handleEditarBobina}
+          onDelete={handleExcluirBobina}
           onArquivar={(id, val) => arquivarMutation.mutate({ id, arquivada: val })}
         />
       ) : viewMode === "kanban" ? (
@@ -796,7 +819,8 @@ export default function Bobinas() {
           preBaixaMetrosMap={preBaixaMetrosMap}
           preBaixaOpsMap={preBaixaOpsMap}
           onVerOps={(b) => setBobinaOpsModal(b)}
-          onEdit={(b) => { setEditItem(b); setDialogOpen(true); }}
+          podeGerenciar={podeGerenciarEstoque}
+          onEdit={handleEditarBobina}
         />
       ) : (
         <div className="space-y-3">
@@ -810,8 +834,9 @@ export default function Bobinas() {
               preBaixaOps={preBaixaOpsMap[bobina.id] || []}
               onVerOps={(b) => setBobinaOpsModal(b)}
               statusInfo={statusMap[bobina.id]}
-              onEdit={(b) => { setEditItem(b); setDialogOpen(true); }}
-              onDelete={(b) => setDeleteItem(b)}
+              podeGerenciar={podeGerenciarEstoque}
+              onEdit={handleEditarBobina}
+              onDelete={handleExcluirBobina}
               onArquivar={(id, val) => arquivarMutation.mutate({ id, arquivada: val })}
             />
           ))}

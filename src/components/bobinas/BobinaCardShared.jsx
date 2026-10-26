@@ -95,6 +95,7 @@ export default function BobinaCard({
   bobina,
   onEdit,
   onDelete,
+  podeGerenciar = true,
   onArquivar,
   statusColors = {},
   preBaixaKg = 0,
@@ -208,12 +209,16 @@ export default function BobinaCard({
             >
               <History className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(bobina)}>
-              <Pencil className="w-4 h-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => onDelete(bobina)}>
-              <Trash2 className="w-4 h-4" />
-            </Button>
+            {podeGerenciar && (
+              <>
+                <Button variant="ghost" size="icon" className="h-8 w-8" title="Corrigir estoque (PCP/Admin)" onClick={() => onEdit(bobina)}>
+                  <Pencil className="w-4 h-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" title="Excluir bobina (PCP/Admin)" onClick={() => onDelete(bobina)}>
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
