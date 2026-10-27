@@ -1,30 +1,20 @@
 import React from "react";
-import { Badge } from "@/components/ui/badge";
-import { ChevronDown, User, Tag, Layers, Hash, Ruler, Palette, Scale, Globe } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
 import { PrioridadeBadge, isPedidoRetiraAgora, isPedidoRota } from "@/lib/prioridadeHelper";
 import { detectarOrigemAco } from "@/components/producao/BadgeOrigemAco";
 
 const STATUS_MINI = {
-  pendente: { label: "Pendente", cls: "bg-gray-100 text-gray-700 border-gray-300" },
-  aguardando_material: { label: "Sem Material", cls: "bg-red-100 text-red-700 border-red-300" },
+  pendente: { label: "Pendente", cls: "op-status-pendente" },
+  aguardando_material: { label: "Sem Material", cls: "op-status-material" },
 };
 
-function CampoMini({ icon: Icon, label, value, destaque }) {
-  return (
-    <div className="flex items-center gap-1.5 min-w-0">
-      {Icon && <Icon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
-      <div className="min-w-0">
-        <p className="text-[9px] uppercase font-bold text-muted-foreground leading-none tracking-wide">{label}</p>
-        <p className={`text-xs font-semibold leading-tight truncate ${destaque ? "text-blue-700 dark:text-blue-400" : "text-foreground"}`}>
-          {value || "—"}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-export default function PedidoMiniCard({ pedido: p, onExpand }) {
+/**
+ * Card de OP "Foco no Turno" — resumo da OP pendente no painel da máquina.
+ * O total de metros é o herói; material (cor/espessura/origem) fica em bloco próprio.
+ * A barra de ações (Rota, Prioridade, Data, Histórico, Editar, Excluir) entra pela prop `toolbar`.
+ */
+export default function PedidoMiniCard({ pedido: p, onExpand, toolbar = null }) {
   const st = STATUS_MINI[p.status] || STATUS_MINI.pendente;
 
   let variacoes = [];
@@ -38,49 +28,87 @@ export default function PedidoMiniCard({ pedido: p, onExpand }) {
   const cor = p.cor_exigida || p.rvm_superior || "";
   const ehRetira = isPedidoRetiraAgora(p);
   const ehRota = isPedidoRota(p);
+  const titulo = [p.produto || "TELHA", p.modelo].filter(Boolean).join(" ");
+  const subtitulo = p.maquina || p.maquina_origem || "Máquina";
+  const origem = (() => {
+    const info = detectarOrigemAco({ bobinaTexto: p.bobina_superior || p.bobina_descricao, origemExigida: p.origem_exigida });
+    return info.isImportado ? "Importado" : "Nacional";
+  })();
 
   return (
-    <div
-      onClick={onExpand}
-      className="cursor-pointer group border border-slate-300 dark:border-slate-700 border-l-4 border-l-blue-500 bg-white dark:bg-slate-900 rounded-lg px-3 py-2 shadow-xs hover:shadow-md hover:border-blue-400 transition-all"
-    >
-      {/* Linha 1: pedido + status + modelo + badges */}
-      <div className="flex items-center gap-2 flex-wrap mb-1.5">
-        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-black font-mono bg-blue-600 text-white tracking-wide">
-          #{p.numero_pedido || String(p.id || "").slice(-6).toUpperCase()}
-        </span>
-        <Badge className={`border text-[10px] font-bold ${st.cls}`}>{st.label}</Badge>
-        <span className="font-bold text-sm text-foreground">{p.produto || "TELHA"}</span>
-        {p.modelo && <span className="text-xs text-muted-foreground">{p.modelo}</span>}
-        <PrioridadeBadge pedido={p} />
-        {ehRota && !ehRetira && (
-          <Badge className="bg-indigo-600 text-white text-[10px] font-black gap-1">🚚 ROTA</Badge>
-        )}
-        {ehRetira && (
-          <Badge className="bg-amber-500 text-white text-[10px] font-black gap-1">RETIRA AGORA</Badge>
-        )}
-        <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-muted-foreground group-hover:text-blue-600 transition-colors">
-          Ver detalhes <ChevronDown className="w-3.5 h-3.5" />
-        </span>
-      </div>
+    <div className="op-card-turno">
+      {toolbar && (
+        <div className="op-top">
+          {toolbar}
+        </div>
+      )}
 
-      {/* Linha 2: os 9 campos do resumo */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-1.5">
-        <CampoMini icon={User} label="Cliente" value={p.cliente} />
-        <CampoMini icon={Tag} label="Vendedor" value={p.vendedor || p.vendedor_nome} />
-        <CampoMini icon={Hash} label="Qtd. Peças" value={String(qtdPecas || "—")} />
-        <CampoMini icon={Layers} label="Medidas" value={String(qtdMedidas)} />
-        <CampoMini icon={Ruler} label="Total" value={totalMetros > 0 ? `${Number(totalMetros).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} metros` : "—"} destaque />
-        <CampoMini icon={Palette} label="Cor" value={cor} />
-        <CampoMini icon={Scale} label="Espessura" value={espessura ? `${espessura} mm` : "—"} />
-        <CampoMini
-          icon={Globe}
-          label="Origem"
-          value={(() => {
-            const info = detectarOrigemAco({ bobinaTexto: p.bobina_superior || p.bobina_descricao, origemExigida: p.origem_exigida });
-            return info.isImportado ? "🌐 Importado" : "🇧🇷 Nacional";
-          })()}
-        />
+      <div className="op-main">
+        <div className="op-info">
+          <div className="op-ident">
+            <span className="op-so">{p.numero_pedido || `OP ${String(p.id || "").slice(-6).toUpperCase()}`}</span>
+            <span className={`op-status ${st.cls}`}>{st.label}</span>
+            <PrioridadeBadge pedido={p} />
+            {ehRota && !ehRetira && <span className="op-tag op-tag-rota">🚚 Rota</span>}
+            {ehRetira && <span className="op-tag op-tag-retira">Retira Agora</span>}
+          </div>
+
+          <h2 className="op-title">{titulo}</h2>
+
+          <div className="op-subtitle">{subtitulo}</div>
+
+          <div className="op-numbers">
+            <div className="op-total">
+              <span className="op-label">Total</span>
+              <div className="op-total-value">
+                <span className="op-number">
+                  {totalMetros > 0 ? Number(totalMetros).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "—"}
+                </span>
+                <span className="op-unit">metros</span>
+              </div>
+            </div>
+            <div className="op-stat">
+              <div className="op-stat-item">
+                <span className="op-label">Qtd. Peças</span>
+                <span className="op-stat-value">{qtdPecas || "—"}</span>
+              </div>
+              <div className="op-stat-item">
+                <span className="op-label">Medidas</span>
+                <span className="op-stat-value">{qtdMedidas}</span>
+              </div>
+            </div>
+          </div>
+
+          <button type="button" className="op-detail-link" onClick={onExpand}>
+            Ver detalhes <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+
+          <div className="op-people">
+            <div className="op-person">
+              <span className="op-label">Cliente</span>
+              <strong>{p.cliente || "—"}</strong>
+            </div>
+            <div className="op-person">
+              <span className="op-label">Vendedor</span>
+              <strong>{p.vendedor || p.vendedor_nome || "—"}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div className="op-material">
+          <div className="op-field">
+            <span className="op-label">Cor</span>
+            <strong>{cor || "—"}</strong>
+          </div>
+          <div className="op-field">
+            <span className="op-label">Espessura</span>
+            <strong>{espessura ? `${espessura} mm` : "—"}</strong>
+          </div>
+          <div className="op-field">
+            <span className="op-label">Origem</span>
+            <strong>{origem}</strong>
+          </div>
+        </div>
       </div>
     </div>
   );

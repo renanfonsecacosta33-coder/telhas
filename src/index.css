@@ -407,3 +407,343 @@ html {
 .dark ::-webkit-scrollbar-thumb:active {
   background-color: #3b82f6;
 }
+
+/* ── Card de OP "Foco no Turno" (PedidoMiniCard + barra de ações do painel da máquina) ── */
+.op-card-turno {
+  position: relative;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #dce1e9;
+  border-radius: 18px;
+  box-shadow: 0 12px 32px rgba(20, 32, 56, 0.12);
+  color: #141a25;
+  padding: 22px 26px 24px;
+  animation: opArrive 0.48s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.op-card-turno * {
+  box-sizing: border-box;
+}
+.op-card-turno:before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: #2856e6;
+}
+.op-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e7eaf0;
+}
+.op-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.op-tools-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  color: #414b5e;
+  background: #f5f6f8;
+  border: 1px solid #e3e6ec;
+  border-radius: 9px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background 0.16s, color 0.16s, box-shadow 0.16s, transform 0.16s;
+}
+.op-tools-btn:hover {
+  background: #e9edfa;
+  color: #244cce;
+  box-shadow: 0 3px 9px #15234a14;
+}
+.op-tools-btn:active {
+  transform: translateY(1px);
+}
+.op-tools-btn:focus-visible {
+  outline: 3px solid #90a8ff;
+  outline-offset: 2px;
+}
+.op-tools-btn-danger {
+  color: #b53636;
+}
+.op-tools-btn-danger:hover {
+  background: #fff0f0;
+  color: #a62424;
+  box-shadow: none;
+}
+.op-tools-btn-date {
+  font-weight: 750;
+  color: #172038;
+}
+.op-tools-btn-active {
+  background: #e9edfa;
+  color: #244cce;
+  border-color: #c9d8ff;
+}
+.op-main {
+  display: grid;
+  grid-template-columns: 1fr 310px;
+  gap: 26px;
+  padding-top: 21px;
+}
+.op-info {
+  min-width: 0;
+}
+.op-ident {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 13px;
+  flex-wrap: wrap;
+}
+.op-so {
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #244cce;
+  background: #eaf0ff;
+  border: 1px solid #d4e0ff;
+  border-radius: 7px;
+  padding: 8px 10px;
+}
+.op-status {
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 750;
+  border-radius: 999px;
+  padding: 7px 11px;
+}
+.op-status-pendente {
+  color: #835913;
+  background: #fff4d6;
+  border: 1px solid #f1dfa9;
+}
+.op-status-material {
+  color: #b53636;
+  background: #fff0f0;
+  border: 1px solid #f1d0d0;
+}
+.op-tag {
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 6px 9px;
+}
+.op-tag-rota {
+  color: #244cce;
+  background: #e9edfa;
+  border: 1px solid #c9d8ff;
+}
+.op-tag-retira {
+  color: #835913;
+  background: #fff4d6;
+  border: 1px solid #f1dfa9;
+}
+.op-title {
+  font-size: 24px;
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+  font-weight: 850;
+  color: #171d29;
+  margin: 0 0 19px;
+}
+.op-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #748096;
+  margin-bottom: 20px;
+}
+.op-subtitle:before {
+  content: "";
+  width: 24px;
+  height: 3px;
+  background: #2856e6;
+  border-radius: 3px;
+}
+.op-numbers {
+  display: flex;
+  align-items: center;
+  gap: 31px;
+  padding: 19px 22px;
+  background: #f7f8fb;
+  border: 1px solid #e9edf3;
+  border-radius: 14px;
+}
+.op-total {
+  min-width: 260px;
+}
+.op-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #788397;
+  margin-bottom: 5px;
+}
+.op-total-value {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  color: #2856e6;
+  white-space: nowrap;
+}
+.op-number {
+  font-size: 54px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: -0.065em;
+  animation: opCountRise 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.op-unit {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.op-stat {
+  display: flex;
+  gap: 25px;
+  border-left: 1px solid #dfe4ec;
+  padding-left: 27px;
+}
+.op-stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.op-stat-value {
+  font-size: 27px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: #171d29;
+}
+.op-detail-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 16px;
+  color: #2856e6;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 750;
+  border: 0;
+  border-bottom: 1px solid #b8c8ff;
+  padding: 0 0 2px;
+  background: none;
+  cursor: pointer;
+  transition: color 0.16s, border-color 0.16s;
+}
+.op-detail-link:hover {
+  color: #173cb0;
+  border-bottom-color: #173cb0;
+}
+.op-people {
+  display: flex;
+  gap: 30px;
+  margin-top: 19px;
+  flex-wrap: wrap;
+}
+.op-person {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+.op-person .op-label {
+  margin: 0;
+}
+.op-person strong {
+  font-size: 14px;
+  color: #242c3b;
+  font-weight: 750;
+}
+.op-material {
+  align-self: stretch;
+  background: #f2f4f7;
+  border: 1px solid #e7eaf0;
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 15px;
+  align-content: start;
+}
+.op-field {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 1px solid #dfe3e9;
+  padding-bottom: 11px;
+}
+.op-field:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.op-field .op-label {
+  margin: 0;
+  flex-shrink: 0;
+}
+.op-field strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: #171d29;
+  text-align: right;
+}
+@keyframes opArrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes opCountRise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (max-width: 900px) {
+  .op-main {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .op-total {
+    min-width: 0;
+  }
+  .op-numbers {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .op-stat {
+    border-left: 0;
+    padding-left: 0;
+  }
+}

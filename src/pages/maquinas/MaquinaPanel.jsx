@@ -1903,6 +1903,53 @@ export default function MaquinaPanel({ maquina }) {
               (numLimpoFoco && numLimpoP && (numLimpoP === numLimpoFoco || numLimpoP.endsWith(numLimpoFoco) || numLimpoFoco.endsWith(numLimpoP)))
             );
 
+            const toolbarOp = podeGerenciar ? (
+              <div className="op-tools justify-end">
+                {p.status !== "finalizado" && p.status !== "cancelado" && (
+                  <>
+                    <button
+                      type="button"
+                      className={`op-tools-btn ${p.rota || p.is_rota ? "op-tools-btn-active" : ""}`}
+                      onClick={() => toggleRota(p)}
+                      title={p.rota || p.is_rota ? "Remover de Rota de Entrega" : "Marcar como Carga de Rota de Entrega"}
+                    >
+                      <Truck className="w-3.5 h-3.5" />
+                      {p.rota || p.is_rota ? "Carga de Rota" : "Rota"}
+                    </button>
+                    <SeletorPrioridadeDropdown
+                      pedido={p}
+                      onSelectPrioridade={(nivel) => handleSetPrioridade(p, nivel)}
+                      className="!h-9 !px-3 !text-[13px] !rounded-[9px] !font-semibold border border-[#e3e6ec] bg-[#f5f6f8] hover:bg-[#e9edfa]"
+                    />
+                  </>
+                )}
+                <button
+                  type="button"
+                  className="op-tools-btn op-tools-btn-date"
+                  onClick={() => setAlterandoDataPedido(p)}
+                  title="Alterar data de entrega e notificar vendedor/Odoo"
+                >
+                  <Calendar className="w-3 h-3" />
+                  Data: {(() => {
+                    const d = getDataEntregaParaOrdenacao(p);
+                    if (!d || d === "9999-99-99") return "Prazo";
+                    try {
+                      return format(new Date(d + "T12:00:00"), "dd/MM");
+                    } catch {
+                      return d;
+                    }
+                  })()}
+                </button>
+                <HistoricoPedidoTelhasButton pedido={p} className="op-tools-btn" />
+                <button type="button" className="op-tools-btn" onClick={() => setEditandoPedido(p)} title="Editar OP">
+                  <Edit3 className="w-3 h-3" /> Editar
+                </button>
+                <button type="button" className="op-tools-btn op-tools-btn-danger" onClick={() => handleDeletePedido(p)} title="Excluir OP">
+                  <Trash2 className="w-3 h-3" /> Excluir
+                </button>
+              </div>
+            ) : null;
+
             return (
               <div
                 key={p.id}
@@ -1965,61 +2012,11 @@ export default function MaquinaPanel({ maquina }) {
                     </button>
                   </div>
                 )}
-                {podeGerenciar && (
-                  <div className="flex justify-end gap-1 mb-1 items-center flex-wrap">
-                    {p.status !== "finalizado" && p.status !== "cancelado" && (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className={`text-xs h-6 px-2.5 font-bold transition-all ${
-                            p.rota || p.is_rota
-                              ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm border border-indigo-400"
-                              : "text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
-                          }`}
-                          onClick={() => toggleRota(p)}
-                          title={p.rota || p.is_rota ? "Remover de Rota de Entrega" : "Marcar como Carga de Rota de Entrega"}
-                        >
-                          <Truck className="w-3.5 h-3.5 mr-1" />
-                          {p.rota || p.is_rota ? "Carga de Rota" : "Rota"}
-                        </Button>
-                        <SeletorPrioridadeDropdown
-                          pedido={p}
-                          onSelectPrioridade={(nivel) => handleSetPrioridade(p, nivel)}
-                        />
-                      </>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-xs h-6 px-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 font-semibold"
-                      onClick={() => setAlterandoDataPedido(p)}
-                      title="Alterar data de entrega e notificar vendedor/Odoo"
-                    >
-                      <Calendar className="w-3 h-3 mr-1" />
-                      Data: {(() => {
-                        const d = getDataEntregaParaOrdenacao(p);
-                        if (!d || d === "9999-99-99") return "Prazo";
-                        try {
-                          return format(new Date(d + "T12:00:00"), "dd/MM");
-                        } catch {
-                          return d;
-                        }
-                      })()}
-                    </Button>
-                    <HistoricoPedidoTelhasButton pedido={p} />
-                    <Button size="sm" variant="ghost" className="text-xs h-6 px-2 text-muted-foreground hover:text-blue-600" onClick={() => setEditandoPedido(p)}>
-                      <Edit3 className="w-3 h-3 mr-1" /> Editar
-                    </Button>
-                    <Button size="sm" variant="ghost" className="text-xs h-6 px-2 text-muted-foreground hover:text-red-600" onClick={() => handleDeletePedido(p)}>
-                      <Trash2 className="w-3 h-3 mr-1" /> Excluir
-                    </Button>
-                  </div>
-                )}
                 {(p.status === "pendente" || p.status === "aguardando_material") && expandidoMiniId !== p.id ? (
-                  <PedidoMiniCard pedido={p} onExpand={() => setExpandidoMiniId(p.id)} />
+                  <PedidoMiniCard pedido={p} toolbar={toolbarOp} onExpand={() => setExpandidoMiniId(p.id)} />
                 ) : (
                   <>
+                    {toolbarOp && <div className="mb-1.5">{toolbarOp}</div>}
                     {(p.status === "pendente" || p.status === "aguardando_material") && (
                       <button onClick={() => setExpandidoMiniId(null)} className="w-full flex items-center justify-center gap-1 text-[11px] font-bold text-muted-foreground hover:text-foreground py-1 cursor-pointer">
                         <ChevronDown className="w-3.5 h-3.5 rotate-180" /> Recolher para resumo
