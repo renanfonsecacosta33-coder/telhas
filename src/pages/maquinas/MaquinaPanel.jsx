@@ -45,6 +45,7 @@ import { calcularMetrosPedido } from "@/lib/metrosHelper";
 import { reajustarTodasBobinasMaquinasAutomaticamente } from "@/lib/reajusteAutomaticoBobinas";
 import { isTelhaBandeja } from "@/lib/bandejaHelper";
 import PedidoMiniCard from "@/components/producao/PedidoMiniCard";
+import MaquinaSwitcherAdmin from "@/components/maquinas/MaquinaSwitcherAdmin";
 
 const STATUS_LABELS_TELHAS = {
   pendente: "Pendente",
@@ -1436,6 +1437,11 @@ export default function MaquinaPanel({ maquina }) {
           )}
         </div>
       </div>
+
+      {/* Troca rápida entre máquinas (apenas administradores/gestores) */}
+      {["admin", "super_admin", "gestor"].includes(user?.role) && (
+        <MaquinaSwitcherAdmin maquinaAtual={maquina} />
+      )}
 
       {/* Monitor de Ociosidade e Setup da Máquina */}
       <MonitorOciosidadeMaquina
