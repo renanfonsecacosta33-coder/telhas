@@ -4,7 +4,7 @@
 
 import { normalizarImagemBase64 } from "@/lib/imagemBase64";
 import { classGrupo, normalizarUnidadeMedidaItem } from "@/lib/pedidoOdooHelper";
-import { rotearUnidadeProducao, normalizarLojaVenda } from "@/lib/roteamentoPCP";
+import { rotearUnidadeProducao, normalizarLojaVenda, extrairLocalArmazenagem } from "@/lib/roteamentoPCP";
 
 const CATEGORIA_MAP = {
   // Telhas e Acessórios de Telhas
@@ -154,8 +154,10 @@ export function parseWebhookPayload(rawJson) {
     const rawEmpresa = p.empresa || p.company_name || p.company || p.empresa_vendedor || p.vendedor_empresa || p.company_id?.[1] || "";
     const vendedorNome = p.vendedor_nome || p.vendedor || p.user_id?.[1] || p.salesman || "";
     const loja_venda = normalizarLojaVenda(rawEmpresa, vendedorNome);
+    const local_armazenagem = extrairLocalArmazenagem(p);
     const roteamento = rotearUnidadeProducao({
       lojaVenda: loja_venda,
+      localArmazenagem: local_armazenagem,
       itensTelha: telhaCount,
       itensCd: cdCount,
       itensFrisada: frisadaCount,
@@ -173,6 +175,7 @@ export function parseWebhookPayload(rawJson) {
       vendedor_nome: vendedorNome,
       empresa_venda: String(rawEmpresa),
       loja_venda,
+      local_armazenagem: roteamento.localArmazenagem || local_armazenagem || "",
       foto_pedido_url: foto_pedido_url || anexo_1_url || anexosExtras.anexo_1_url || "",
       anexo_1_url: anexo_1_url || foto_pedido_url || anexosExtras.anexo_1_url || "",
       anexo_2_url: anexo_2_url || anexosExtras.anexo_2_url || "",

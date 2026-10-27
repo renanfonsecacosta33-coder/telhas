@@ -1,4 +1,6 @@
 import { base44 } from "@/api/base44Client";
+import { isLocalArmazenagemPinhais } from "@/lib/roteamentoPCP";
+import { getItens, classGrupo } from "@/lib/pedidoOdooHelper";
 
 /**
  * Normaliza o número de pedido para comparação resiliente:
@@ -328,6 +330,7 @@ export async function executarVarreduraEConciliacaoGeral({ pedidosPcp = [], quer
     telhasCanceladas: 0,
     cdFinalizadas: 0,
     cdCanceladas: 0,
+    pinhaisMigrados: 0,
     totalProcessadas: 0
   };
 
@@ -340,6 +343,42 @@ export async function executarVarreduraEConciliacaoGeral({ pedidosPcp = [], quer
       : await base44.entities.PedidoOdoo.list("-data_recebimento", 800).catch(() => []);
 
     if (!listaPcp || listaPcp.length === 0) return resultado;
+
+    // ── 0. REVISÃO RETROATIVA DE ROTEAMENTO PINHAIS ──
+    // Se o pedido tem armazenagem Pinhais e é exclusivamente de telhas (sem C&D e sem frisada),
+    // deve ser alocado na fila de Pinhais
+    for (const p of listaPcp) {
+      if (!p || !p.id) continue;
+      const isPendente = p.status_pcp === "pendente_distribuicao" || p.status_pcp === "em_producao";
+      const isConc = p.status_pcp === "concluido" || (p.percentual_concluido != null && p.percentual_concluido >= 100);
+      const isCanc = p.status_pcp === "cancelado" || String(p.status || "").toLowerCase() === "cancelado";
+      if (!isPendente || isConc || isCanc) continue;
+      if (p.unidade === "Pinhais") continue;
+
+      const temEstoquePinhais = isLocalArmazenagemPinhais(p.local_armazenagem || p.loja_estoque || p.armazem) ||
+        getItens(p).some(it => isLocalArmazenagemPinhais(it.local_armazenagem || it.loja_estoque || it.armazem || it.warehouse_id || it.location_id));
+
+      if (temEstoquePinhais) {
+        const itensP = getItens(p);
+        const temFrisada = itensP.some(it => classGrupo(it) === "frisada") || classGrupo(p) === "frisada";
+        const temCd = itensP.some(it => classGrupo(it) === "cd") || classGrupo(p) === "cd";
+        const temTelha = itensP.some(it => classGrupo(it) === "telha") || classGrupo(p) === "telha";
+
+        // Regra AJL: Pinhais perfila telhas, mas NÃO possui corte e dobra nem frisadas
+        if (temTelha && !temFrisada && !temCd) {
+          try {
+            await base44.entities.PedidoOdoo.update(p.id, {
+              unidade: "Pinhais",
+              motivo_transferencia: "Roteamento Automático: Telhas com local de armazenagem em Pinhais"
+            });
+            p.unidade = "Pinhais";
+            resultado.pinhaisMigrados++;
+          } catch (e) {
+            console.warn("[Varredura Pinhais] Erro ao re-rotear pedido para Pinhais:", p.id, e);
+          }
+        }
+      }
+    }
 
     // Mapas rápidos de consulta para PCP
     const pcpConcluidos = new Map();
@@ -494,7 +533,7 @@ export async function executarVarreduraEConciliacaoGeral({ pedidosPcp = [], quer
 
     // Aguarda execução em lotes
     await Promise.allSettled([...promessasTelhas, ...promessasCD]);
-    resultado.totalProcessadas = resultado.telhasFinalizadas + resultado.telhasCanceladas + resultado.cdFinalizadas + resultado.cdCanceladas;
+    resultado.totalProcessadas = resultado.telhasFinalizadas + resultado.telhasCanceladas + resultado.cdFinalizadas + resultado.cdCanceladas + (resultado.pinhaisMigrados || 0);
 
     if (queryClient && resultado.totalProcessadas > 0) {
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });

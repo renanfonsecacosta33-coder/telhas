@@ -241,6 +241,10 @@
     "historico_log": {
       "type": "string",
       "description": "JSON text com log de auditoria [{data, usuario, acao, detalhes}]"
+    },
+    "local_armazenagem": {
+      "type": "string",
+      "description": "Local de armazenagem ou estoque no Odoo (ex: AJL - Pinhais, Matriz)"
     }
   },
   "required": [

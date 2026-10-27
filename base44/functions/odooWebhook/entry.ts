@@ -314,41 +314,100 @@ function normalizarLojaVenda(empresaRaw: any, vendedorNome: any = ""): string {
   return "Matriz AJL";
 }
 
+function isLocalArmazenagemPinhais(val: any): boolean {
+  if (!val) return false;
+  if (Array.isArray(val)) {
+    return val.some(v => isLocalArmazenagemPinhais(v));
+  }
+  if (typeof val === "object") {
+    return isLocalArmazenagemPinhais(val.name || val.label || val.display_name || val.nome || "");
+  }
+  const s = String(val).toLowerCase();
+  return s.includes("pinhais") || /\bpnh\b/.test(s);
+}
+
+function extrairLocalArmazenagem(bodyOrItem: any): string {
+  if (!bodyOrItem || typeof bodyOrItem !== "object") return "";
+  const raw = 
+    bodyOrItem.local_armazenagem ||
+    bodyOrItem.loja_estoque ||
+    bodyOrItem.armazem ||
+    bodyOrItem.warehouse_id ||
+    bodyOrItem.warehouse ||
+    bodyOrItem.location_id ||
+    bodyOrItem.location_dest_id ||
+    bodyOrItem.location_src_id ||
+    bodyOrItem.location ||
+    bodyOrItem.estoque_loja ||
+    bodyOrItem.local_estoque ||
+    "";
+
+  if (Array.isArray(raw)) {
+    return String(raw[1] || raw[0] || "").trim();
+  }
+  if (typeof raw === "object" && raw !== null) {
+    return String(raw.name || raw.display_name || raw.nome || "").trim();
+  }
+  return String(raw).trim();
+}
+
 function rotearUnidadeProducao(params: {
   lojaVenda: string;
+  localArmazenagem?: string;
+  armazenagemPinhais?: boolean;
   itensTelha: number;
   itensCd: number;
   itensFrisada: number;
-}): { unidade: string; lojaVenda: string; motivo: string } {
-  const { lojaVenda, itensTelha, itensCd, itensFrisada } = params;
+}): { unidade: string; lojaVenda: string; localArmazenagem: string; motivo: string } {
+  const { lojaVenda, localArmazenagem = "", armazenagemPinhais = false, itensTelha, itensCd, itensFrisada } = params;
   const loja = normalizarLojaVenda(lojaVenda);
 
-  // REGRA 1: Se é frisada SEMPRE é na MATRIZ
+  // REGRA 1: Se é frisada SEMPRE é na MATRIZ (Pinhais não fabrica frisadas)
   if (itensFrisada > 0) {
-    return { unidade: "Matriz AJL", lojaVenda: loja, motivo: "Frisadas fabricadas exclusivamente na Matriz AJL" };
+    return {
+      unidade: "Matriz AJL",
+      lojaVenda: loja,
+      localArmazenagem: armazenagemPinhais ? "Pinhais" : localArmazenagem,
+      motivo: "Frisadas fabricadas exclusivamente na Matriz AJL (Pinhais não possui frisadas)"
+    };
   }
 
-  // REGRA 2: Corte & Dobra puro
+  // REGRA 2: Corte & Dobra puro -> SEMPRE MATRIZ ou Ivaiporã (Pinhais não corta/dobra)
   if (itensCd > 0 && itensTelha === 0) {
     if (loja === "Ivaiporã") {
-      return { unidade: "Ivaiporã", lojaVenda: "Ivaiporã", motivo: "C&D Ivaiporã fabricado em Ivaiporã" };
+      return { unidade: "Ivaiporã", lojaVenda: "Ivaiporã", localArmazenagem, motivo: "C&D Ivaiporã fabricado em Ivaiporã" };
     }
-    return { unidade: "Matriz AJL", lojaVenda: loja, motivo: `C&D vendido em ${loja} direcionado à Matriz AJL` };
+    return {
+      unidade: "Matriz AJL",
+      lojaVenda: loja,
+      localArmazenagem: armazenagemPinhais ? "Pinhais" : localArmazenagem,
+      motivo: `C&D vendido em ${loja} direcionado à Matriz AJL (Pinhais não possui corte & dobra)`
+    };
   }
 
-  // REGRA 3: Telha
+  // REGRA ESPECIAL PINHAIS: Se for TELHAS e o local de armazenagem for Pinhais -> VAI DIRETO PARA PINHAIS!
+  if (itensTelha > 0 && armazenagemPinhais) {
+    return {
+      unidade: "Pinhais",
+      lojaVenda: loja,
+      localArmazenagem: "Pinhais",
+      motivo: "Telhas destinadas ao estoque/armazenagem de Pinhais direcionadas diretamente à fábrica de Pinhais"
+    };
+  }
+
+  // REGRA 3: Telha (por loja de venda)
   if (itensTelha > 0) {
     if (loja === "Pinhais") {
-      return { unidade: "Pinhais", lojaVenda: "Pinhais", motivo: "Telhas perfiladas em Pinhais" };
+      return { unidade: "Pinhais", lojaVenda: "Pinhais", localArmazenagem, motivo: "Telhas perfiladas em Pinhais" };
     }
     if (loja === "Ivaiporã") {
-      return { unidade: "Ivaiporã", lojaVenda: "Ivaiporã", motivo: "Telhas perfiladas em Ivaiporã" };
+      return { unidade: "Ivaiporã", lojaVenda: "Ivaiporã", localArmazenagem, motivo: "Telhas perfiladas em Ivaiporã" };
     }
-    return { unidade: "Matriz AJL", lojaVenda: loja, motivo: `Telhas vendidas em ${loja} direcionadas à Matriz AJL` };
+    return { unidade: "Matriz AJL", lojaVenda: loja, localArmazenagem, motivo: `Telhas vendidas em ${loja} direcionadas à Matriz AJL` };
   }
 
-  if (loja === "Ivaiporã") return { unidade: "Ivaiporã", lojaVenda: "Ivaiporã", motivo: "Produção direcionada a Ivaiporã" };
-  return { unidade: "Matriz AJL", lojaVenda: loja, motivo: "Produção na Matriz AJL" };
+  if (loja === "Ivaiporã") return { unidade: "Ivaiporã", lojaVenda: "Ivaiporã", localArmazenagem, motivo: "Produção direcionada a Ivaiporã" };
+  return { unidade: "Matriz AJL", lojaVenda: loja, localArmazenagem, motivo: "Produção na Matriz AJL" };
 }
 
 export default async function(req: Request): Promise<Response> {
@@ -702,9 +761,18 @@ export default async function(req: Request): Promise<Response> {
     const vendedorNome = (body?.vendedor_nome || existingRec?.vendedor_nome || "").toString().trim();
     const lojaVenda = normalizarLojaVenda(rawEmpresa || existingRec?.empresa_venda || existingRec?.loja_venda, vendedorNome);
 
+    // Extração do Local de Armazenagem / Estoque (Odoo)
+    const localArmazenagemPayload = extrairLocalArmazenagem(body);
+    let armazenagemPinhais = isLocalArmazenagemPinhais(localArmazenagemPayload);
+    if (!armazenagemPinhais && mergedItems.some(it => isLocalArmazenagemPinhais(extrairLocalArmazenagem(it)))) {
+      armazenagemPinhais = true;
+    }
+
     // Roteamento industrial estrito da AJL
     const roteamento = rotearUnidadeProducao({
       lojaVenda,
+      localArmazenagem: localArmazenagemPayload,
+      armazenagemPinhais,
       itensTelha,
       itensCd: Math.max(itensCd, 0),
       itensFrisada
@@ -757,6 +825,7 @@ export default async function(req: Request): Promise<Response> {
       unidade: unidadeCalculada,
       empresa_venda: rawEmpresa || existingRec?.empresa_venda || "",
       loja_venda: lojaVenda || existingRec?.loja_venda || "Matriz AJL",
+      local_armazenagem: (armazenagemPinhais ? "Pinhais" : localArmazenagemPayload) || existingRec?.local_armazenagem || "",
       prioridade: body?.prioridade ?? existingRec?.prioridade ?? false,
       itens_json: itensJsonStr,
       total_itens: mergedItems.length,

@@ -19,6 +19,7 @@ import MaquinaSequenceCD from "@/components/pcp/MaquinaSequenceCD";
 import EtapasTelhaSequence from "@/components/pcp/EtapasTelhaSequence";
 import { parseItensPedido, progressoChecklist } from "@/lib/regrasFabrica";
 import { getItens, classGrupo } from "@/lib/pedidoOdooHelper";
+import { isLocalArmazenagemPinhais } from "@/lib/roteamentoPCP";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 import ProgramadorItensSection from "./ProgramadorItensSection";
 import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelper";
@@ -343,6 +344,13 @@ export default function PedidoOdooDetalheDialog({
               {pedido.unidade_transferida_de && (
                 <Badge variant="outline" className="text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200" title={pedido.motivo_transferencia}>
                   ↔️ De {pedido.unidade_transferida_de}
+                </Badge>
+              )}
+
+              {(isLocalArmazenagemPinhais(pedido.local_armazenagem || pedido.loja_estoque || pedido.armazem) ||
+                itens.some(it => isLocalArmazenagemPinhais(it.local_armazenagem || it.loja_estoque || it.armazem || it.warehouse_id || it.location_id))) && (
+                <Badge variant="outline" className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800" title="Itens com local de armazenagem em Pinhais">
+                  📍 Estoque: Pinhais
                 </Badge>
               )}
             </div>

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   ChevronDown, ChevronUp, Layers, User, Calendar, Send,
   CheckCircle2, Trash2,
@@ -10,6 +11,7 @@ import { formatDataBR } from "@/lib/sla";
 import { urgenciaPrazo } from "@/lib/prazoUrgencia";
 import OfTimelineRow from "@/components/pcp/OfTimelineRow";
 import { calcularProgressoRealPedido, classGrupo, obterStatusExecucaoPedido, getItens } from "@/lib/pedidoOdooHelper";
+import { isLocalArmazenagemPinhais } from "@/lib/roteamentoPCP";
 import { verificarEstoqueGrupo, extrairDemandaItem } from "@/lib/estoqueMaterialHelper";
 import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
 import {
@@ -160,6 +162,12 @@ export default function PedidoOdooGrupoCard({
   const lojaVendaDoGrupo = grupo.loja_venda || ofs[0]?.loja_venda || "";
   const unidadeDoGrupo = grupo.unidade || ofs[0]?.unidade || "Matriz AJL";
   const isAlgumaTransferida = ofs.some(p => Boolean(p.unidade_transferida_de));
+  const hasEstoquePinhais = useMemo(() => {
+    return ofs.some(p =>
+      isLocalArmazenagemPinhais(p.local_armazenagem || p.loja_estoque || p.armazem) ||
+      getItens(p).some(it => isLocalArmazenagemPinhais(it.local_armazenagem || it.loja_estoque || it.armazem || it.warehouse_id || it.location_id))
+    );
+  }, [ofs]);
 
   // Urgência de prazo: tingir o card de vermelho progressivamente conforme o SLA se aproxima
   const urgencia = urgenciaPrazo(grupo.data_entrega, { concluido: isPedidoTotalConcluido });
@@ -286,6 +294,11 @@ export default function PedidoOdooGrupoCard({
                 >
                   {statusHero.txt}
                 </span>
+                {hasEstoquePinhais && (
+                  <Badge variant="outline" className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 gap-0.5 py-0.5" title="Itens com local de armazenagem em Pinhais">
+                    📍 Estoque: Pinhais
+                  </Badge>
+                )}
                 {isPrioritario && <PrioridadeBadge pedido={grupo} />}
               </div>
 

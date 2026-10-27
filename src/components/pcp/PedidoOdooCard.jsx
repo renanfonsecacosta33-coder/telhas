@@ -23,6 +23,7 @@ import {
   getCardPrioridadeClasses
 } from "@/lib/prioridadeHelper";
 import { classGrupo, obterStatusExecucaoPedido } from "@/lib/pedidoOdooHelper";
+import { isLocalArmazenagemPinhais } from "@/lib/roteamentoPCP";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
 import ProcessoStepperPedido from "@/components/producao/ProcessoStepperPedido";
@@ -288,6 +289,11 @@ export default function PedidoOdooCard({
             <Badge className={`border text-[9px] px-1.5 py-0 leading-tight ${statusExecucao.badgeCls}`}>
               {statusExecucao.label}
             </Badge>
+            {isLocalArmazenagemPinhais(pedido.local_armazenagem) && (
+              <Badge className="bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/40 text-[9px] px-1.5 py-0 font-bold gap-0.5 shadow-2xs" title="Item destinado ao estoque/armazenagem de Pinhais">
+                📍 Estoque: Pinhais
+              </Badge>
+            )}
             {statusEstoque && (
               <Badge
                 onClick={(e) => {
