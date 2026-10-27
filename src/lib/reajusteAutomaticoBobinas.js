@@ -83,8 +83,8 @@ export async function reajustarTodasBobinasMaquinasAutomaticamente() {
       const primeiroItem = itens[0] || {};
       const textoItem = `${op.item_produto || ""} ${op.observacoes || ""} ${primeiroItem.produto || ""} ${primeiroItem.descricao || ""} ${pedOdoo?.descricao || ""}`;
 
-      const ehDuplaTelha = op.produto === "TELHA + EPS + TELHA" ||
-        /(dupla|sanduiche|\+\s*telha)/i.test(textoItem);
+      const ehDuplaTelha = op.produto === "TELHA + EPS + TELHA" || op.produto === "TELHA BANDEJA" ||
+        /(dupla|sanduiche|\+\s*telha|telha\s*bandeja)/i.test(textoItem);
 
       const cores = ehDuplaTelha
         ? detectarCoresDuplaTelha(op.item_produto || primeiroItem.produto || "", textoItem)

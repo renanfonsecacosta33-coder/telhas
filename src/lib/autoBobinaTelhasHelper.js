@@ -95,7 +95,7 @@ export function detectarCoresDuplaTelha(produtoTexto = "", descricaoTexto = "") 
   let corInf = "NATURAL";
 
   // 1. Padrão explícito com EXTERNA ... INTERNA (ex: "EXTERNA CERAMICA / INTERNA BRANCA", "EXT: BRANCA / INT: PRETA")
-  const matchExtInt = combined.match(/(?:EXTERNA|EXT|FACE\s*SUPERIOR|SUPERIOR|CHAPA\s*SUPERIOR)\s*[:=-]?\s*([A-Z]+)[^A-Z]*(?:INTERNA|INT|FACE\s*INFERIOR|INFERIOR|CHAPA\s*INFERIOR)\s*[:=-]?\s*([A-Z]+)/i);
+  const matchExtInt = combined.match(/(?:EXTERNA|EXT|FACE\s*SUPERIOR|SUPERIOR|CHAPA\s*SUPERIOR)\s*[:=-]?\s*([A-Z]+)[^A-Z]*(?:INTERNA|INT|FACE\s*INFERIOR|INFERIOR|CHAPA\s*INFERIOR|BANDEJA)\s*[:=-]?\s*([A-Z]+)/i);
   if (matchExtInt) {
     corSup = normalizarCorDupla(matchExtInt[1]);
     corInf = normalizarCorDupla(matchExtInt[2]);
@@ -118,8 +118,11 @@ export function detectarCoresDuplaTelha(produtoTexto = "", descricaoTexto = "") 
     return { corSuperior: corSup, corInferior: corInf };
   }
 
-  // 3. Menção explícita à parte interna / chapa inferior
-  if (/PRE\s*PINTADA\s*PRET[OA]\s*PARTE\s*INTERNA|PARTE\s*INTERNA\s*PRET[OA]|FACE\s*INFERIOR\s*PRET[OA]|INFERIOR\s*PRET[OA]|CHAPA\s*INFERIOR\s*PRET[OA]/i.test(combined)) {
+  // 3. Menção explícita à parte interna / chapa inferior (inclui "BANDEJA <cor>" da Telha Bandeja)
+  const matchBandejaCor = combined.match(/BANDEJA\s*[:=-]?\s*(NATURAL|GALVALUME|AMADEIRAD[AO]|PRET[OA]|BRANC[OA]|AZUL|BEGE|CINZA|CERAMIC[OA]|TERRACOTA|VERMELH[OA]|MARROM|VERDE|AMAREL[OA])/i);
+  if (matchBandejaCor) {
+    corInf = normalizarCorDupla(matchBandejaCor[1]);
+  } else if (/PRE\s*PINTADA\s*PRET[OA]\s*PARTE\s*INTERNA|PARTE\s*INTERNA\s*PRET[OA]|FACE\s*INFERIOR\s*PRET[OA]|INFERIOR\s*PRET[OA]|CHAPA\s*INFERIOR\s*PRET[OA]/i.test(combined)) {
     corInf = "PRETO";
   } else if (/PRE\s*PINTADA\s*BRANC[OA]\s*PARTE\s*INTERNA|PARTE\s*INTERNA\s*BRANC[OA]|FACE\s*INFERIOR\s*BRANC[OA]|INFERIOR\s*BRANC[OA]|CHAPA\s*INFERIOR\s*BRANC[OA]/i.test(combined)) {
     corInf = "BRANCO";
@@ -161,6 +164,7 @@ function normalizarCorDupla(c = "") {
   if (/MARROM/i.test(norm)) return "MARROM";
   if (/VERD/i.test(norm)) return "VERDE";
   if (/AMAREL/i.test(norm)) return "AMARELO";
+  if (/AMADEIRAD|MADEIR/i.test(norm)) return "AMADEIRADA";
   return "NATURAL";
 }
 
@@ -361,8 +365,9 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     ? detectarEPSTelha(textoCompleto, maquina)
     : "";
 
-  // Se for TELHA + EPS + TELHA, prepara bobinas independentes para cada face
-  const isDuplaTelha = prodTipo === "TELHA + EPS + TELHA";
+  // Se for TELHA + EPS + TELHA ou TELHA BANDEJA, prepara bobinas independentes para cada face
+  // (a bandeja inferior da Telha Bandeja tem cor própria, ex: "bandeja amadeirada")
+  const isDuplaTelha = prodTipo === "TELHA + EPS + TELHA" || prodTipo === "TELHA BANDEJA";
   const coresDupla = isDuplaTelha
     ? detectarCoresDuplaTelha(produtoNome, descTexto)
     : { corSuperior: cor || "NATURAL", corInferior: null };
@@ -774,7 +779,7 @@ export async function rotearLoteTelhasAgrupadas({
       metragem_total: somaMetrosLineares
     };
 
-    const isDuplaTelha = g.prodTipo === "TELHA + EPS + TELHA";
+    const isDuplaTelha = g.prodTipo === "TELHA + EPS + TELHA" || g.prodTipo === "TELHA BANDEJA";
     const coresDupla = isDuplaTelha
       ? detectarCoresDuplaTelha(primeiroItem.produto || primeiroItem.descricao || "", textoObservacoes.join(" "))
       : { corSuperior: g.cor || "NATURAL", corInferior: null };
