@@ -14,7 +14,8 @@ export default function FiltroTipoECorBobina({
   onLimparFiltros,
   totalBase = 0
 }) {
-  if (!dadosFiltros || (dadosFiltros.tipos.length <= 1 && dadosFiltros.cores.length === 0)) {
+  const semTipo = !dadosFiltros || !dadosFiltros.tipos || (dadosFiltros.tipos.length <= 1 && (!dadosFiltros.subtiposNatural || dadosFiltros.subtiposNatural.length === 0));
+  if (semTipo && (!dadosFiltros.cores || dadosFiltros.cores.length === 0)) {
     return null;
   }
 
@@ -22,7 +23,8 @@ export default function FiltroTipoECorBobina({
 
   return (
     <div className="pt-2.5 border-t border-border/50 space-y-2.5">
-      {/* Linha 1: TIPO DE BOBINA */}
+      {/* Linha 1: TIPO DE BOBINA (some quando só existe o chip "Todos") */}
+      {!semTipo && (
       <div className="space-y-1">
         <div className="flex items-center justify-between px-0.5">
           <span className="text-[11px] font-black text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
@@ -105,6 +107,7 @@ export default function FiltroTipoECorBobina({
           )}
         </div>
       </div>
+      )}
 
       {/* Linha 2: COR DE BOBINA (aparece quando houver pedidos coloridos na tela) */}
       {dadosFiltros.cores && dadosFiltros.cores.length > 0 && (

@@ -1646,9 +1646,10 @@ export default function MaquinaPanel({ maquina }) {
         )}
 
         {/* Filtros em 2 Linhas: TIPO DE BOBINA e COR DE BOBINA */}
-        {(dadosFiltros.tipos.length > 1 || dadosFiltros.cores.length > 0) && (
+        {(dadosFiltros.tipos.length > 1 || dadosFiltros.subtiposNatural.length > 0 || dadosFiltros.cores.length > 0) && (
           <div className="pt-2.5 border-t border-border/50 space-y-2.5">
-            {/* Linha 1: TIPO DE BOBINA */}
+            {/* Linha 1: TIPO DE BOBINA (some quando só existe o chip "Todos") */}
+            {(dadosFiltros.tipos.length > 1 || dadosFiltros.subtiposNatural.length > 0) && (
             <div className="space-y-1">
               <div className="flex items-center justify-between px-0.5">
                 <span className="text-[11px] font-black text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
@@ -1725,6 +1726,7 @@ export default function MaquinaPanel({ maquina }) {
                 )}
               </div>
             </div>
+            )}
 
             {/* Linha 2: COR DE BOBINA (aparece quando houver pedidos coloridos na tela) */}
             {dadosFiltros.cores.length > 0 && (

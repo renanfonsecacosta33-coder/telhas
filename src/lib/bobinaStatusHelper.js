@@ -852,7 +852,10 @@ export function calcularFiltrosTipoECor(pedidos = []) {
     { key: "todos", label: "Todos", count: pedidos.length, icone: "📦" }
   ];
 
-  if (countNatural > 0) {
+  // Regra anti-redundância: um chip só aparece se filtrar algo de fato
+  // (contagem menor que o total). Se todos os pedidos são do mesmo tipo,
+  // o chip seria igual ao "Todos" e não faz sentido exibi-lo.
+  if (countNatural > 0 && countNatural < pedidos.length) {
     tipos.push({
       key: "natural",
       label: "Natural / Galvalume",
@@ -862,7 +865,7 @@ export function calcularFiltrosTipoECor(pedidos = []) {
     });
   }
 
-  if (countPrePintada > 0) {
+  if (countPrePintada > 0 && countPrePintada < pedidos.length) {
     tipos.push({
       key: "pre_pintada",
       label: "Pré-Pintada (PP)",
@@ -874,7 +877,7 @@ export function calcularFiltrosTipoECor(pedidos = []) {
 
   // Subtipos de Natural (Origem e Espessuras)
   const subtiposNatural = [];
-  if (countNaturalImp > 0) {
+  if (countNaturalImp > 0 && countNaturalImp < countNatural) {
     subtiposNatural.push({
       key: "natural_imp",
       label: "Natural Importada",
@@ -883,7 +886,7 @@ export function calcularFiltrosTipoECor(pedidos = []) {
       corBadge: "bg-sky-50 text-sky-800 border-sky-300 dark:bg-sky-950 dark:text-sky-300 font-bold"
     });
   }
-  if (countNaturalNac > 0) {
+  if (countNaturalNac > 0 && countNaturalNac < countNatural) {
     subtiposNatural.push({
       key: "natural_nac",
       label: "Natural Nacional",
@@ -900,6 +903,7 @@ export function calcularFiltrosTipoECor(pedidos = []) {
   });
 
   espessurasOrdenadas.forEach(esp => {
+    if (contagemNaturaisPorEspessura[esp] >= countNatural) return; // espessura única = mesma lista que Natural
     subtiposNatural.push({
       key: `natural_${esp}`,
       label: `Natural ${esp}`,
@@ -922,7 +926,8 @@ export function calcularFiltrosTipoECor(pedidos = []) {
     { key: "marrom", label: "Marrom", icone: "🟤", dotColor: "#78350f", count: contagensCores.marrom, badgeCls: "bg-amber-900 text-amber-100 border-amber-800" },
   ];
 
-  const cores = coresConfig.filter(c => c.count > 0);
+  // Cor única presente em todos os pedidos = mesmo resultado que "Todos"
+  const cores = coresConfig.filter(c => c.count > 0 && c.count < pedidos.length);
 
   return {
     tipos,
