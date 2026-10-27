@@ -551,7 +551,13 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
         maquina
       }
     }));
-    opCriada = resGar?.data?.op || resGar?.op || opCriada;
+    opCriada = resGar?.data?.op || resGar?.op || null;
+  }
+
+  // 🛡️ NUNCA FINGIR ENVIO: sem OP com ID confirmado, o item NÃO é marcado como
+  // "em_producao"/distribuído — a OF não mente para o PCP com a máquina vazia.
+  if (!opCriada || !opCriada.id) {
+    throw new Error(`OP não confirmada na fila da ${maquina} — envio abortado (OF ${pedido.of_nome || pedido.numero_pedido || ""}). Nada foi marcado como enviado.`);
   }
 
   // 5. Atualiza o item no PedidoOdoo para refletir o status distribuído e a máquina
@@ -916,7 +922,12 @@ export async function rotearLoteTelhasAgrupadas({
           maquina: g.maquina
         }
       }));
-      opCriada = resGar?.data?.op || resGar?.op || opCriada;
+      opCriada = resGar?.data?.op || resGar?.op || null;
+    }
+    // 🛡️ NUNCA FINGIR ENVIO: sem OP criada/recuperada com ID real, a distribuição
+    // falha aqui — o PCP NÃO marca a OF como distribuída com a máquina vazia.
+    if (!opCriada || !opCriada.id) {
+      throw new Error(`OP não confirmada na fila da ${g.maquina} — envio abortado (OF ${pedido.of_nome || pedido.numero_pedido || ""}). A OF continua no PCP.`);
     }
     opsCriadas.push(opCriada);
 

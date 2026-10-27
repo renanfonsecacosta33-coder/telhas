@@ -1296,7 +1296,13 @@ export function obterStatusExecucaoPedido(pedido, pedidosProducao = [], ordensCD
 
   const temEmProducao = opsVinculadas.some(o => ["em_producao", "executando"].includes(o.status));
   const temPausado = opsVinculadas.some(o => o.status === "pausado");
-  const temPendenteMaquina = opsVinculadas.some(o => o.status === "pendente" || Boolean(o.maquina));
+  // 🛡️ VERDADE OPERACIONAL: só é "Na Fila da Máquina" se houver OP NÃO FINALIZADA
+  // com máquina atribuída. OP finalizada (mesmo com maquina preenchida) NÃO conta —
+  // senão o PCP diz "na fila da TP-40" com a máquina vazia na prática.
+  const opsAguardandoNaMaquina = opsVinculadas.filter(o =>
+    o.status !== "finalizado" && o.status !== "cancelado" && Boolean(o.maquina || o.maquina_nome)
+  );
+  const temPendenteMaquina = opsAguardandoNaMaquina.length > 0;
 
   const maquinas = Array.from(new Set(opsVinculadas.map(o => o.maquina || o.maquina_nome))).filter(Boolean);
 
@@ -1327,9 +1333,10 @@ export function obterStatusExecucaoPedido(pedido, pedidosProducao = [], ordensCD
     };
   }
 
-  // Só está na fila da máquina se de fato houver OP vinculada nesta máquina
+  // Só está na fila da máquina se de fato houver OP NÃO FINALIZADA aguardando nela
   if (temPendenteMaquina || (opsVinculadas.length > 0 && pedido.status_pcp === "em_producao")) {
-    const maqsStr = maquinas.length > 0 ? ` (${maquinas.join(", ")})` : "";
+    const maqsFila = Array.from(new Set(opsAguardandoNaMaquina.map(o => o.maquina || o.maquina_nome))).filter(Boolean);
+    const maqsStr = maqsFila.length > 0 ? ` (${maqsFila.join(", ")})` : "";
     return {
       statusChave: "aguardando_inicio",
       label: `⏳ Na Fila da Máquina${maqsStr}`,
@@ -1337,7 +1344,7 @@ export function obterStatusExecucaoPedido(pedido, pedidosProducao = [], ordensCD
       produzindoAgora: false,
       aguardandoInicio: true,
       isConcluido: false,
-      maquinas,
+      maquinas: maqsFila,
       opsVinculadas
     };
   }

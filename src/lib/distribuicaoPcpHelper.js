@@ -85,27 +85,30 @@ export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinas
           });
 
         if (telhasParaRoteamento.length > 0) {
-          try {
-            const resAgrupado = await rotearLoteTelhasAgrupadas({
-              pedido: ped,
-              itensTelhas: telhasParaRoteamento,
-              todasBobinas: bobinasEstoque,
-              filialAtiva: ped.unidade || filialAtiva,
-              // ── OTIMIZAÇÃO 2: OPs já pré-buscadas em massa (sem filtro por grupo) ──
-              opsExistentesPre: opsPorPedido.has(ped.id) ? opsPorPedido.get(ped.id) : null
-            });
+          // 🛡️ SEM engolia de erro: sem OP confirmada com ID na fila da máquina,
+          // este pedido NÃO é marcado como distribuído — falha alto e conta em falhas.
+          const resAgrupado = await rotearLoteTelhasAgrupadas({
+            pedido: ped,
+            itensTelhas: telhasParaRoteamento,
+            todasBobinas: bobinasEstoque,
+            filialAtiva: ped.unidade || filialAtiva,
+            // ── OTIMIZAÇÃO 2: OPs já pré-buscadas em massa (sem filtro por grupo) ──
+            opsExistentesPre: opsPorPedido.has(ped.id) ? opsPorPedido.get(ped.id) : null
+          });
 
-            telhasCount += telhasParaRoteamento.length;
-
-            Object.entries(resAgrupado.itensAtualizadosMap || {}).forEach(([idxStr, dadosItem]) => {
-              const i = Number(idxStr);
-              if (itens[i]) {
-                itens[i] = { ...itens[i], ...dadosItem };
-              }
-            });
-          } catch (errAuto) {
-            console.warn("[DistribuicaoLote] Falha no auto-roteamento de telha:", errAuto);
+          const opsConfirmadas = (resAgrupado.opsCriadas || []).filter(op => op?.id);
+          if (opsConfirmadas.length === 0) {
+            throw new Error(`Nenhuma OP confirmada na fila das máquinas para #${ped.numero_pedido || ped.of_nome || ""}. OF preservada no PCP.`);
           }
+
+          telhasCount += telhasParaRoteamento.length;
+
+          Object.entries(resAgrupado.itensAtualizadosMap || {}).forEach(([idxStr, dadosItem]) => {
+            const i = Number(idxStr);
+            if (itens[i]) {
+              itens[i] = { ...itens[i], ...dadosItem };
+            }
+          });
         }
       }
 
@@ -187,26 +190,29 @@ export async function distribuirPedidoPCP({ pedido, bobinasEstoque = [], filialA
       });
 
     if (telhasParaRoteamento.length > 0) {
-      try {
-        const resAgrupado = await rotearLoteTelhasAgrupadas({
-          pedido,
-          itensTelhas: telhasParaRoteamento,
-          todasBobinas: bobinasEstoque,
-          filialAtiva: pedido.unidade || filialAtiva
-        });
+      // 🛡️ SEM try/catch engolido: se a OP não chegar à fila da máquina com ID confirmado,
+      // a distribuição FALHA — a OF NUNCA é marcada como "distribuído" sem envio real.
+      const resAgrupado = await rotearLoteTelhasAgrupadas({
+        pedido,
+        itensTelhas: telhasParaRoteamento,
+        todasBobinas: bobinasEstoque,
+        filialAtiva: pedido.unidade || filialAtiva
+      });
 
-        telhasAutoRoteadas = telhasParaRoteamento.length;
-        bobinasVinculadas = resAgrupado.opsCriadas.filter(op => op.bobina_superior_id).length;
-
-        Object.entries(resAgrupado.itensAtualizadosMap || {}).forEach(([idxStr, dadosItem]) => {
-          const i = Number(idxStr);
-          if (itens[i]) {
-            itens[i] = { ...itens[i], ...dadosItem };
-          }
-        });
-      } catch (errAuto) {
-        console.warn("[Distribuicao] Falha no roteamento agrupado de telha:", errAuto);
+      const opsConfirmadas = (resAgrupado.opsCriadas || []).filter(op => op?.id);
+      if (opsConfirmadas.length === 0) {
+        throw new Error(`Nenhuma OP foi confirmada na fila das máquinas (${telhasParaRoteamento.length} item(ns) de telha). A OF continua no PCP — nada foi marcado como enviado.`);
       }
+
+      telhasAutoRoteadas = telhasParaRoteamento.length;
+      bobinasVinculadas = opsConfirmadas.filter(op => op.bobina_superior_id).length;
+
+      Object.entries(resAgrupado.itensAtualizadosMap || {}).forEach(([idxStr, dadosItem]) => {
+        const i = Number(idxStr);
+        if (itens[i]) {
+          itens[i] = { ...itens[i], ...dadosItem };
+        }
+      });
     }
   }
 
