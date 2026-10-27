@@ -12,13 +12,17 @@ import {
   SheetClose
 } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Camera, Sun, Moon, Monitor, LogOut, Briefcase, MapPin, MonitorPlay, ChevronRight, Clock, Volume2, Play } from 'lucide-react';
+import { Camera, Sun, Moon, Monitor, LogOut, Briefcase, MapPin, MonitorPlay, ChevronRight, Clock, Volume2, Play, Sparkles } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { isCopilotOculto, setCopilotOculto } from '@/lib/copilotPrefs';
 import { getModoVoz, setModoVoz, testarVoz } from '@/lib/sounds';
 
 export default function UserSettingsDrawer({ open, onOpenChange }) {
   const { user, logout } = useAuth();
   const { tema, setTema } = useTheme();
   const [modoVoz, setModoVozState] = useState(getModoVoz());
+  const [copilotOculto, setCopilotOcultoState] = useState(() => isCopilotOculto());
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -182,6 +186,31 @@ export default function UserSettingsDrawer({ open, onOpenChange }) {
               })}
             </div>
           </div>
+
+          {/* IA AJL Copilot Section (somente administradores) */}
+          {isAdmin && (
+            <div className="mb-8">
+              <h4 className="text-sm font-semibold text-foreground/80 uppercase tracking-wider mb-3">IA AJL Copilot</h4>
+              <div className="flex items-center justify-between gap-3 p-4 bg-card rounded-xl border border-border/50">
+                <div className="flex items-center gap-3">
+                  <div className="bg-purple-500/10 p-2 rounded-md text-purple-500">
+                    <Sparkles size={18} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Mostrar Copilot na tela</p>
+                    <p className="text-xs text-muted-foreground">Assistente com dados reais de estoque e produção</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={!copilotOculto}
+                  onCheckedChange={(visivel) => {
+                    setCopilotOculto(!visivel);
+                    setCopilotOcultoState(!visivel);
+                  }}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Account Info Section */}
           <div className="mb-8">
