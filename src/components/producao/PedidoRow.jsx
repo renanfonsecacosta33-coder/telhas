@@ -24,7 +24,7 @@ import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
 import { PrioridadeBadge, BannerPrioridadeDestaque, isPedidoRetiraAgora, isPedidoRota, getCardPrioridadeClasses } from "@/lib/prioridadeHelper";
 import ProcessoStepperPedido from "@/components/producao/ProcessoStepperPedido";
 import PedidoRowEntrega from "@/components/producao/PedidoRowEntrega";
-import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco"; import AlertaMultiplasOpsMesmoPedido from "@/components/producao/AlertaMultiplasOpsMesmoPedido";
+import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco"; import AlertaMultiplasOpsMesmoPedido from "@/components/producao/AlertaMultiplasOpsMesmoPedido"; import BandejaColagemInfoPanel from "@/components/producao/BandejaColagemInfoPanel";
 import SmartImage from "@/components/ui/SmartImage";
 import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/compressImage";
 import { isTelhaBandeja, verificarStatusComponentesBandeja } from "@/lib/bandejaHelper";
@@ -846,9 +846,9 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     }
     onStatusChange(p, "em_producao", updates);
     setPendingColagemUpdates(null);
-    if (temVariacoes) {
-      toast.success("Pedido pré-iniciado! Os múltiplos itens foram liberados para início e conferência individual.");
-    }
+    const idxItem = temVariacoes && p.maquina !== "COLAGEM" ? _variacoesTelhas.findIndex(v => !v.iniciado && !v.finalizado) : -1;
+    if (idxItem >= 0 && _variacoesTelhas[idxItem]) { setConferirBobinaModal({ open: true, item: _variacoesTelhas[idxItem], index: idxItem }); toast.success(`OP #${p.numero_pedido || p.id} iniciada! Confirme a bobina do Item ${idxItem + 1}.`); }
+    else if (temVariacoes) toast.success("Pedido pré-iniciado! Itens liberados para início e conferência individual.");
   };
 
   // Reverte um pedido indevidamente atribuído com EPS ou Colagem para Telha Simples na perfiladeira
@@ -1060,11 +1060,10 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       setOperadoresDialogOpen(true);
     } else {
       const updates = { inicio_producao_ts: new Date().toISOString() };
-      if (appendHistoricoFn) {
-        Object.assign(updates, appendHistoricoFn(p, "inicio_producao", "Iniciou OP", opRodando ? `Pausou OP anterior: ${opRodando.numero_pedido || opRodando.produto}` : ""));
-      }
+      if (appendHistoricoFn) Object.assign(updates, appendHistoricoFn(p, "inicio_producao", "Iniciou OP", opRodando ? `Pausou OP anterior: ${opRodando.numero_pedido || opRodando.produto}` : ""));
       onStatusChange(p, "em_producao", updates);
       toast.success(`OP #${p.numero_pedido || p.id} iniciada com sucesso!`);
+      if (temVariacoes && p.maquina !== "COLAGEM") { const i = _variacoesTelhas.findIndex(v => !v.iniciado && !v.finalizado); if (i >= 0 && _variacoesTelhas[i]) setConferirBobinaModal({ open: true, item: _variacoesTelhas[i], index: i }); }
     }
   };
 
@@ -1729,7 +1728,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                   </span>
                 ) : p.status === "pendente" ? (
                   <span className="text-xs font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                    <Lock className="w-3 h-3 text-amber-700" /> Inicie o pedido abaixo para liberar itens
+                    <Lock className="w-3 h-3 text-amber-700" /> Inicie a OP ou um item — o início é encadeado automaticamente
                   </span>
                 ) : emProducaoCount > 0 ? (
                   <span className="text-xs font-bold text-blue-800 bg-blue-100 border border-blue-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
@@ -1858,27 +1857,18 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                         </div>
                       ) : (
                         <div className="flex items-center justify-between flex-wrap gap-2">
-                          {p.status === "pendente" ? (
-                            <div className="w-full flex items-center justify-between text-xs py-1.5 px-3 rounded-lg bg-slate-100 text-slate-500 font-medium">
-                              <span>Aguardando liberação</span>
-                              <span className="text-[11px] text-amber-700 font-bold flex items-center gap-1">
-                                <Lock className="w-3.5 h-3.5" /> Inicie a OP abaixo para liberar
-                              </span>
-                            </div>
-                          ) : (
-                            <>
-                              <span className="text-xs text-slate-600 font-medium">
-                                Bobina configurada e pronta para conferir
-                              </span>
-                              <Button
-                                size="sm"
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-8 text-xs gap-1.5 shadow-sm"
-                                onClick={() => handleIniciarItem(i)}
-                              >
-                                <Play className="w-3.5 h-3.5 fill-white" /> Iniciar Item {i + 1}
-                              </Button>
-                            </>
-                          )}
+                          <>
+                            <span className="text-xs text-slate-600 font-medium">
+                              {p.status === "pendente" ? "Ao iniciar, a OP começa junto automaticamente" : "Bobina configurada e pronta para conferir"}
+                            </span>
+                            <Button
+                              size="sm"
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-8 text-xs gap-1.5 shadow-sm"
+                              onClick={() => (p.status === "pendente" ? handleIniciar() : handleIniciarItem(i))}
+                            >
+                              <Play className="w-3.5 h-3.5 fill-white" /> Iniciar Item {i + 1}
+                            </Button>
+                          </>
                         </div>
                       )}
                     </div>
@@ -1890,24 +1880,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         })()}
 
         {/* Painel Informativo para Telha Bandeja na Máquina de Colagem */}
-        {p.maquina === "COLAGEM" && isTelhaBandeja(p) && (
-          <div className="w-full bg-pink-50/90 dark:bg-pink-950/40 border-2 border-pink-300 dark:border-pink-800 rounded-2xl p-3 sm:p-4 mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-center gap-2.5">
-              <Layers className="w-5 h-5 text-pink-600 shrink-0" />
-              <div>
-                <p className="font-bold text-xs uppercase tracking-wide text-pink-950 dark:text-pink-200">
-                  Telha Bandeja — Etapa Final de Colagem e Montagem
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  Perfilação da Telha Superior ({p.maquina_origem || "TP - 40"}) e Bandeja Inferior já concluídas no fluxo de fábrica.
-                </p>
-              </div>
-            </div>
-            <Badge className="bg-emerald-600 text-white font-bold text-xs shrink-0 self-start sm:self-auto">
-              ✓ Pronto para Colagem
-            </Badge>
-          </div>
-        )}
+        {p.maquina === "COLAGEM" && isTelhaBandeja(p) && <BandejaColagemInfoPanel maquinaOrigem={p.maquina_origem} />}
 
         {/* Bloco de Destaque da Bobina & Procedência do Aço (Nacional vs Importado) — CAMPO ESCRITO EDITÁVEL */}
         {(p.bobina_superior || p.bobina_superior_id || p.origem_exigida || editandoBobinaSup) && (
