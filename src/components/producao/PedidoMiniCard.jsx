@@ -1,5 +1,4 @@
 import React from "react";
-import { ChevronDown } from "lucide-react";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
 import { PrioridadeBadge, isPedidoRetiraAgora, isPedidoRota } from "@/lib/prioridadeHelper";
 import { detectarOrigemAco } from "@/components/producao/BadgeOrigemAco";
@@ -36,9 +35,20 @@ export default function PedidoMiniCard({ pedido: p, onExpand, toolbar = null }) 
   })();
 
   return (
-    <div className="op-card-turno">
+    <div
+      className="op-card-turno"
+      role="button"
+      tabIndex={0}
+      onClick={() => onExpand?.()}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onExpand?.();
+        }
+      }}
+    >
       {toolbar && (
-        <div className="op-top">
+        <div className="op-top" onClick={(e) => e.stopPropagation()}>
           {toolbar}
         </div>
       )}
@@ -78,10 +88,6 @@ export default function PedidoMiniCard({ pedido: p, onExpand, toolbar = null }) 
               </div>
             </div>
           </div>
-
-          <button type="button" className="op-detail-link" onClick={onExpand}>
-            Ver detalhes <ChevronDown className="w-3.5 h-3.5" />
-          </button>
 
           <div className="op-people">
             <div className="op-person">
