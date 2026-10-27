@@ -26,6 +26,7 @@ import { calcularDataPrometidaSLA, toISODate } from "@/lib/sla";
 import { getPrioridadeNivel } from "@/lib/prioridadeHelper";
 import { extrairRotuloBobinaSimplificado, extrairRotuloFaceInferior } from "@/lib/bobinaRotuloHelper";
 import { filtrarOpsDasOfsExatas } from "@/lib/conciliacaoPcpMaquinasHelper";
+import { hojeLocalISO } from "@/lib/dataLocal";
 
 export { removerAcentos, detectarCorTelha, isCorCompativel };
 export const LOCAL_STORAGE_KEY_AUTO_TELHAS = "pcp_auto_roteamento_telhas";
@@ -454,7 +455,7 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
 
   // 3. Monta os dados da Ordem de Produção (tabela Pedido)
   const dadosOp = {
-    data: dataReceb,
+    data: item.data_programada || hojeLocalISO(),
     data_pedido: dataReceb,
     data_prevista: dataPrevista,
     numero_pedido: pedido.numero_pedido || "",
@@ -815,7 +816,7 @@ export async function rotearLoteTelhasAgrupadas({
     const modeloFinal = primeiroItem.modelo || (detectarMaquinaTelha(textoPrimeiro) || g.maquina);
 
     const dadosOp = {
-      data: dataReceb,
+      data: primeiroItem?.data_programada || hojeLocalISO(),
       data_pedido: dataReceb,
       data_prevista: dataPrevista,
       numero_pedido: pedido.numero_pedido || "",

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Calendar, X, Clock, Trash2, Building2, ArrowRightLeft, Globe, User, Briefcase, Hash, Package, ShieldCheck, Target, BookOpen, RotateCcw, History, Activity } from "lucide-react";
 import { executarExclusaoOsBackground } from "@/lib/excluirOsHelper"; import { sincronizarLoteOdoo } from "@/lib/sincronizarOdooHelper";
-import { finalizarOpsDoPedido, cancelarOpsDoPedido, executarVarreduraEConciliacaoGeral, cancelarOpsDasOfsExatas, comRetryLimite } from "@/lib/conciliacaoPcpMaquinasHelper";
+import { finalizarOpsDoPedido, cancelarOpsDoPedido, executarVarreduraEConciliacaoGeral, cancelarOpsDasOfsExatas, comRetryLimite } from "@/lib/conciliacaoPcpMaquinasHelper"; import { hojeLocalISO } from "@/lib/dataLocal";
 import RelatorioAuditoriaDiariaModal from "@/components/pcp/RelatorioAuditoriaDiariaModal";
 import HistoricoExclusoesModal from "@/components/pcp/HistoricoExclusoesModal";
 import CentralSaudeSistemaModal from "@/components/pcp/CentralSaudeSistemaModal";
@@ -1380,7 +1380,7 @@ export default function CentralPCP() {
       const itemAtualizado = {
         ...itens[idx],
         maquina: maquina || itens[idx].maquina || "",
-        data_programada: data_programada || itens[idx].data_programada || new Date().toISOString().slice(0, 10),
+        data_programada: data_programada || itens[idx].data_programada || hojeLocalISO(),
         status: distribuir ? "distribuido" : (itens[idx].status || "pendente"),
         distribuido: distribuir ? true : (itens[idx].distribuido || false)
       };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { hojeLocalISO } from "@/lib/dataLocal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -80,7 +81,7 @@ export default function ProgramadorItensSection({
   useEffect(() => {
     if (!pedido) return;
     const lista = parseItensPedido(pedido.itens_json);
-    const hojeIso = new Date().toISOString().slice(0, 10);
+    const hojeIso = hojeLocalISO();
     const dataPadrao = pedido.data_entrega || hojeIso;
 
     const inicializados = lista.map((it, idx) => ({
