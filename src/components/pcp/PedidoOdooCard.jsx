@@ -26,6 +26,7 @@ import { classGrupo, obterStatusExecucaoPedido } from "@/lib/pedidoOdooHelper";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
 import ProcessoStepperPedido from "@/components/producao/ProcessoStepperPedido";
+import BadgeEnvio from "@/components/pcp/BadgeEnvioDistribuicao";
 
 // Cores estritas do Ecossistema AJL conforme menu do sistema:
 // 🏠 Fábrica de Telhas → AZUL (#2563EB)
@@ -394,7 +395,7 @@ export default function PedidoOdooCard({
         {((pedido.status_pcp === "pendente_distribuicao" && onDistribuir) || (!isConcluido && (onFinalizar100 || (podeRetirarFila && onRetirarFila)))) && (
           <div className="flex flex-col gap-1.5 pt-2 mt-auto border-t border-slate-200/70 dark:border-slate-800">
             {pedido.status_pcp === "pendente_distribuicao" && onDistribuir && (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onDistribuir(pedido); }}
@@ -404,6 +405,7 @@ export default function PedidoOdooCard({
                   <Zap className="w-3.5 h-3.5" />
                   Distribuir
                 </button>
+                <BadgeEnvio pedidoId={pedido.id} />
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onClick(); }}
@@ -735,7 +737,7 @@ export default function PedidoOdooCard({
         </div>
       )}
       {pedido.status_pcp === "pendente_distribuicao" && onDistribuir && (
-        <div className="flex items-center gap-1.5 pt-1">
+        <div className="flex items-center gap-1.5 pt-1 flex-wrap">
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onDistribuir(pedido); }}
@@ -745,6 +747,7 @@ export default function PedidoOdooCard({
             <Zap className="w-3.5 h-3.5" />
             Distribuir Pedido
           </button>
+          <BadgeEnvio pedidoId={pedido.id} />
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onClick(); }}

@@ -52,8 +52,7 @@ import {
   calcularProgressoRealPedido, statusPcpPorPercentual, enriquecerItensComStatusReal,
   obterStatusExecucaoPedido, classGrupo
 } from "@/lib/pedidoOdooHelper";
-import { isAutoRoteamentoTelhasAtivo } from "@/lib/autoBobinaTelhasHelper";
-import { distribuirLotePedidos, distribuirPedidoPCP } from "@/lib/distribuicaoPcpHelper";
+import useDistribuicaoPcp from "@/hooks/useDistribuicaoPcp";
 import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
@@ -167,7 +166,6 @@ export default function CentralPCP() {
   const [auditarModalOpen, setAuditarModalOpen] = useState(false);
   const [popModalOpen, setPopModalOpen] = useState(false);
   const [popModalKey, setPopModalKey] = useState("PCP_CENTRAL");
-  const [distribuindo, setDistribuindo] = useState(false);
   const [selecionados, setSelecionados] = useState(new Set());
   const [senhaGestorOpen, setSenhaGestorOpen] = useState(false);
   const [pedidoPrioridadePendente, setPedidoPrioridadePendente] = useState(null);
@@ -1349,72 +1347,9 @@ export default function CentralPCP() {
     }
   };
 
-  const handleDistribuir = async (pedido) => {
-    setDistribuindo(true);
-    try {
-      const { atualizado, telhasAutoRoteadas, bobinasVinculadas } = await distribuirPedidoPCP({
-        pedido,
-        bobinasEstoque,
-        filialAtiva
-      });
-
-      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
-      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
-      queryClient.invalidateQueries({ queryKey: ["bobinas-estoque-pcp"] });
-      setPedidoSelecionado({ ...pedido, ...atualizado });
-
-      if (telhasAutoRoteadas > 0) {
-        toast({
-          title: "⚡ Telhas Roteadas Direto p/ Máquinas!",
-          description: `#${pedido.numero_pedido}: ${telhasAutoRoteadas} telha(s) nas perfiladeiras (${bobinasVinculadas} com bobina vinculada pelo Odoo). C&D na fila normal.`,
-          className: "border-amber-500/40"
-        });
-      } else {
-        toast({
-          title: "Pedido distribuído!",
-          description: `#${pedido.numero_pedido} enviado para os galpões.`,
-          className: "border-blue-500/40"
-        });
-      }
-    } catch (e) {
-      toast({ title: "Erro ao distribuir", description: e.message, variant: "destructive" });
-    } finally {
-      setDistribuindo(false);
-    }
-  };
-
-  // Distribuição em Lote (Todos os Selecionados ou Todos os Pendentes)
-  // OTIMIZADO: lógica em @/lib/distribuicaoPcpHelper — pré-busca única das OPs + 5 pedidos em paralelo
-  const handleDistribuirLote = async (pedidosADistribuir, opcoes = {}) => {
-    if (!pedidosADistribuir || pedidosADistribuir.length === 0) return;
-    setDistribuindo(true);
-    try {
-      const autoTelhasAtivo = isAutoRoteamentoTelhasAtivo();
-      const { sucesso, telhasCount, preservadosManual, falhas } = await distribuirLotePedidos({
-        pedidos: pedidosADistribuir,
-        opcoes,
-        bobinasEstoque,
-        filialAtiva
-      });
-
-      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
-      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
-      queryClient.invalidateQueries({ queryKey: ["bobinas-estoque-pcp"] });
-      setSelecionados(new Set());
-      toast({
-        title: `🚀 ${sucesso} pedidos distribuídos!`,
-        description: autoTelhasAtivo && telhasCount > 0
-          ? `${sucesso} pedido(s) distribuído(s) — ${telhasCount} item(ns) de telhas enviados direto às máquinas com bobina automática. C&D na fila normal.${preservadosManual ? ` ${preservadosManual} devolvido(s) manualmente foram preservados no PCP.` : ""}`
-          : `Todas as ordens selecionadas foram encaminhadas simultaneamente para as filas dos galpões.${preservadosManual ? ` ${preservadosManual} devolvido(s) manualmente foram preservados no PCP.` : ""}`,
-        className: "border-emerald-500/40",
-        ...(falhas > 0 ? { variant: "destructive" } : {})
-      });
-    } catch (e) {
-      toast({ title: "Erro na distribuição em lote", description: e.message, variant: "destructive" });
-    } finally {
-      setDistribuindo(false);
-    }
-  };
+  const { distribuindo, handleDistribuir, handleDistribuirLote } = useDistribuicaoPcp({
+    bobinasEstoque, filialAtiva, queryClient, toast, setPedidoSelecionado, setSelecionados
+  });
 
   const handleToggleSelect = (pedido) => {
     setSelecionados(prev => {

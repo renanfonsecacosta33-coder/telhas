@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { classGrupo, getItens, obterStatusExecucaoPedido } from "@/lib/pedidoOdooHelper";
 import { calcularEtapasProcesso } from "@/components/producao/ProcessoStepperPedido";
 import { urgenciaPrazo } from "@/lib/prazoUrgencia";
+import BadgeEnvio from "@/components/pcp/BadgeEnvioDistribuicao";
 
 /**
  * Linha de Timeline Vertical de uma OF dentro do card expandido do pedido (Central PCP).
@@ -154,6 +155,7 @@ export default function OfTimelineRow({
           <span className={`text-[10px] font-bold rounded-full px-2 py-1 border ${pillCls}`}>
             {diag.label}
           </span>
+          <BadgeEnvio pedidoId={pedido.id} />
         </div>
 
         <div className="text-xs leading-[1.35] text-[#34423e] dark:text-slate-300 truncate">
