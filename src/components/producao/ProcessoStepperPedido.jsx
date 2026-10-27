@@ -1,6 +1,7 @@
 import React from "react";
 import { CheckCircle2, Clock, Circle, ArrowRight, Factory, Package, Layers, Scissors, Truck, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { isTelhaBandeja } from "@/lib/bandejaHelper";
 
 /**
  * Determina o roteiro de processos de um pedido com base nas suas características.
@@ -57,6 +58,57 @@ export function calcularEtapasProcesso(pedido, setor = "telhas") {
         descricao: "Pronto para despacho",
         status: percentual >= 100 ? "concluido" : "pendente",
         icon: Truck,
+      },
+    ];
+  }
+
+  // ── ROTEIRO ESPECIAL: TELHA BANDEJA ──
+  // Central PCP -> Telha Superior (bobina da superior) -> Bandeja Inferior (bobina da inferior) -> Colagem -> Finalizado
+  if (isTelhaBandeja(pedido)) {
+    const maqNorm = String(pedido?.maquina || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    const is100 = percentual >= 100 || stGeral === "finalizado" || stGeral === "concluido";
+    const emColagem = maqNorm === "COLAGEM";
+    const emBandeja = maqNorm === "BANDEJA";
+    const perfilacaoConcluida = pedido?.perfilacao_concluida === true;
+    const superiorPronta = is100 || perfilacaoConcluida || emBandeja || emColagem || stGeral === "aguardando_colagem";
+    const bandejaPronta = is100 || perfilacaoConcluida || emColagem || stGeral === "aguardando_colagem";
+    const rodando = stGeral === "em_producao" || stGeral === "pausado";
+
+    return [
+      {
+        id: "pcp",
+        label: "PCP",
+        descricao: "Recebimento e Fila",
+        status: "concluido",
+        icon: Factory,
+      },
+      {
+        id: "telha_superior",
+        label: "Telha Superior",
+        descricao: "Tirar telha superior com a bobina da telha superior",
+        status: superiorPronta ? "concluido" : rodando ? "em_andamento" : "pendente",
+        icon: Scissors,
+      },
+      {
+        id: "bandeja_inferior",
+        label: "Bandeja",
+        descricao: "Tirar a telha inferior (bandeja) com a bobina da telha inferior",
+        status: bandejaPronta ? "concluido" : (rodando && emBandeja) ? "em_andamento" : "pendente",
+        icon: Layers,
+      },
+      {
+        id: "colagem",
+        label: "Colagem",
+        descricao: "Ir para a colagem!",
+        status: is100 ? "concluido" : (rodando && emColagem) ? "em_andamento" : "pendente",
+        icon: Package,
+      },
+      {
+        id: "finalizado",
+        label: "Finalizado",
+        descricao: "Processo finalizado",
+        status: is100 ? "concluido" : "pendente",
+        icon: CheckCircle2,
       },
     ];
   }
