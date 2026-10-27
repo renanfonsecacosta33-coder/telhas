@@ -24,7 +24,8 @@ import FiltrosDataPCPBar from "@/components/pcp/FiltrosDataPCPBar";
 import KanbanBoard from "@/components/producao/KanbanBoard";
 import HistoricoGeralProducao from "@/components/producao/HistoricoGeralProducao";
 import PedidoTelhasTabelaView from "@/components/producao/PedidoTelhasTabelaView";
-import ViewModeToggle from "@/components/ui/ViewModeToggle";
+import FaixaSemanaProducao from "@/components/producao/FaixaSemanaProducao";
+import ResumoDiaProducaoCard from "@/components/producao/ResumoDiaProducaoCard";
 import { extrairDataISO, calcularIntervaloPreset, ordenarPedidosPCP } from "@/lib/filtroDataHelper";
 import { prepararPresetNovaOrdemTelhas, getItens, computePercentual, statusPcpPorPercentual, buildItensJson } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
@@ -866,6 +867,7 @@ export default function ProducaoAdmin() {
         onOrdenacaoChange={setOrdenacao}
         contadores={contadores}
         labelNaoDistribuidos="Aguardando"
+        compacta
         viewMode={viewEstilo}
         onViewModeChange={(novo) => {
           setViewEstilo(novo);
@@ -914,157 +916,29 @@ export default function ProducaoAdmin() {
         onVerKanban={() => { setViewMode("kanban"); setEscopoKanban("todos"); }}
       />
 
-      {/* Navegação de semana */}
-      <div className="bg-card border border-border rounded-xl p-4">
-        <div className="flex items-center justify-between mb-4">
-          <Button variant="outline" size="icon" onClick={() => setCurrentWeek(w => subWeeks(w, 1))}>
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <div className="text-center">
-            <p className="font-bold text-lg">Semana de {format(weekStart, "dd 'de' MMM", { locale: ptBR })} a {format(weekEnd, "dd 'de' MMM yyyy", { locale: ptBR })}</p>
-            <Badge className="bg-primary/10 text-primary border border-primary/20">
-              Total da semana: {totalSemana.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}m
-            </Badge>
-          </div>
-          <Button variant="outline" size="icon" onClick={() => setCurrentWeek(w => addWeeks(w, 1))}>
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-        </div>
-
-        {/* Dias da semana como abas */}
-        <div className="grid grid-cols-7 gap-1">
-          {diasDaSemana.map(dia => {
-            const diaStr = format(dia, "yyyy-MM-dd");
-            const pedidosDoDia = pedidosSemana.filter(p => p.data === diaStr);
-            const totalDia = pedidosDoDia.reduce((s, p) => s + calcularMetrosPedido(p), 0);
-            const isSelected = selectedDay === diaStr;
-            const isHoje = isToday(dia);
-            const statusMeta = calcularStatusMeta(totalDia, metaGeral.min, metaGeral.max);
-            const estourou = totalDia > 0 && statusMeta.status === "limite_estourado";
-            const bateuMeta = totalDia > 0 && statusMeta.status === "meta_atingida";
-
-            return (
-              <button
-                key={diaStr}
-                onClick={() => { setSelectedDay(diaStr); setViewMode("dia"); }}
-                className={`rounded-lg p-2 text-center transition-all border relative flex flex-col justify-between min-h-[72px] ${
-                  isSelected
-                    ? (estourou ? "bg-red-600 text-white border-red-700 shadow" : "bg-primary text-primary-foreground border-primary shadow")
-                    : estourou
-                    ? "border-red-500 bg-red-500/10 text-red-900 dark:text-red-200 hover:bg-red-500/15"
-                    : bateuMeta
-                    ? "border-emerald-500/50 bg-emerald-500/5 hover:bg-emerald-500/10"
-                    : isHoje
-                    ? "border-primary/50 bg-primary/5 hover:bg-primary/10"
-                    : "border-border hover:bg-muted/50"
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-center gap-1">
-                    <p className="text-xs font-semibold uppercase">{format(dia, "EEE", { locale: ptBR })}</p>
-                    {estourou && (
-                      <span className={`text-[10px] ${isSelected ? "text-white" : "text-red-600 dark:text-red-400"}`} title="Capacidade máxima esgotada">
-                        ⚠️
-                      </span>
-                    )}
-                    {bateuMeta && !estourou && (
-                      <span className={`text-[10px] ${isSelected ? "text-white" : "text-emerald-600 dark:text-emerald-400"}`} title="Meta atingida">
-                        ✓
-                      </span>
-                    )}
-                  </div>
-                  <p className={`text-lg font-bold leading-tight ${
-                    isSelected ? "text-inherit" : estourou ? "text-red-700 dark:text-red-300" : isHoje ? "text-primary" : ""
-                  }`}>
-                    {format(dia, "dd")}
-                  </p>
-                </div>
-
-                {pedidosDoDia.length > 0 ? (
-                  <div className="w-full mt-1">
-                    <div className={`text-[11px] leading-tight font-medium ${
-                      isSelected ? "text-inherit opacity-90" : estourou ? "text-red-600 dark:text-red-400 font-bold" : bateuMeta ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-muted-foreground"
-                    }`}>
-                      {pedidosDoDia.length}p · {totalDia.toFixed(0)}m
-                    </div>
-                    {/* Barra sutil de capacidade no dia */}
-                    <div className={`w-full ${isSelected ? "bg-white/25" : "bg-muted"} rounded-full h-1 mt-1 overflow-hidden`}>
-                      <div
-                        className={`h-full transition-all ${
-                          estourou
-                            ? (isSelected ? "bg-white" : "bg-red-500")
-                            : bateuMeta
-                            ? (isSelected ? "bg-white" : "bg-emerald-500")
-                            : (isSelected ? "bg-white/70" : "bg-amber-400")
-                        }`}
-                        style={{ width: `${Math.min(100, (totalDia / (metaGeral.max || 3500)) * 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-[10px] text-muted-foreground/60 mt-1">Livre</div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Toggle visão cards / tabela / kanban */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          <ViewModeToggle
-            value={viewEstilo}
-            onChange={(novo) => {
-              setViewEstilo(novo);
-              try { localStorage.setItem("ajl_viewmode_telhas", novo); } catch {}
-              if (novo === "kanban") setViewMode("kanban");
-              else if (novo === "cards") { if (viewMode === "kanban") setViewMode("semana"); }
-            }}
-            storageKey="telhas"
-          />
-
-          {viewEstilo === "cards" && (
-            <>
-              <Button
-                variant={viewMode === "semana" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode("semana")}
-                className="text-xs font-bold"
-              >
-                Visão Semana
-              </Button>
-              <Button
-                variant={viewMode === "dia" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode("dia")}
-                className="text-xs font-bold"
-              >
-                Visão Dia — {formatarDiaSeguro(selectedDay, "dd/MM")}
-              </Button>
-            </>
-          )}
-
-          <Link to="/estoque-dashboard">
-            <Button variant="outline" size="sm" className="gap-1 text-xs font-semibold text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-700 hover:bg-teal-50 dark:hover:bg-teal-950/40">
-              <Layers className="w-3.5 h-3.5 text-teal-500" />
-              Estoque por Espessura
-            </Button>
-          </Link>
-        </div>
-
-        <div className="flex items-center gap-2 ml-auto">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => { setSelectedDay(format(new Date(), "yyyy-MM-dd")); setCurrentWeek(new Date()); setViewMode("dia"); }}
-            className="gap-1 text-xs font-bold"
-          >
-            <Calendar className="w-3 h-3" />
-            Hoje
-          </Button>
-        </div>
-      </div>
+      {/* Faixa de navegação de semana/dia — completa na Visão Semana, compacta na Visão Dia */}
+      {(viewEstilo === "cards" || viewEstilo === "kanban") && (
+        <FaixaSemanaProducao
+          dias={diasDaSemana}
+          selectedDay={selectedDay}
+          onSelectDia={(diaStr) => { setSelectedDay(diaStr); setViewMode("dia"); }}
+          onSemanaAnterior={() => setCurrentWeek(w => subWeeks(w, 1))}
+          onSemanaSeguinte={() => setCurrentWeek(w => addWeeks(w, 1))}
+          weekStart={weekStart}
+          weekEnd={weekEnd}
+          totalSemana={totalSemana}
+          modo={viewMode === "dia" ? "dia" : "semana"}
+          onModoChange={(m) => setViewMode(m)}
+          onHoje={() => { setSelectedDay(format(new Date(), "yyyy-MM-dd")); setCurrentWeek(new Date()); setViewMode("dia"); }}
+          getResumoDia={(diaStr) => {
+            const ps = pedidosSemana.filter(p => p.data === diaStr);
+            const t = ps.reduce((s, p) => s + calcularMetrosPedido(p), 0);
+            const st = calcularStatusMeta(t, metaGeral.min, metaGeral.max);
+            return { pedidos: ps.length, metros: t, estourou: t > 0 && st.status === "limite_estourado", bateuMeta: t > 0 && st.status === "meta_atingida" };
+          }}
+          mostrarModoToggle={viewEstilo === "cards"}
+        />
+      )}
 
       {isLoading ? (
         <div className="flex justify-center py-12">
@@ -1185,98 +1059,19 @@ export default function ProducaoAdmin() {
             </div>
           )}
 
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold">
-              {temFiltroAtivo ? (
-                <span className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
-                  <Search className="w-5 h-5 text-blue-600" />
-                  Resultados da Pesquisa Global ({pedidosDia.length})
-                </span>
-              ) : (
-                formatarDiaSeguro(selectedDay, "extenso")
-              )}
-            </h2>
-            <div className="flex items-center gap-2">
-              <Badge className="bg-primary/10 text-primary border border-primary/20">
-                {pedidosDia.length} pedidos · {pedidosDia.reduce((s, p) => s + calcularMetrosPedido(p), 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}m
-              </Badge>
-              {!temFiltroAtivo && (
-                <Button size="sm" onClick={() => openNew(selectedDay)} className="gap-1">
-                  <Plus className="w-3 h-3" />
-                  Pedido
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* Card de Capacidade e Metas do Dia */}
-          {(() => {
-            const totalMetrosDia = pedidosDia.reduce((s, p) => s + calcularMetrosPedido(p), 0);
-            const statusDia = calcularStatusMeta(totalMetrosDia, metaGeral.min, metaGeral.max);
-            const estourou = totalMetrosDia > 0 && statusDia.status === "limite_estourado";
-
-            return (
-              <div className="bg-card border border-border rounded-xl p-3.5 space-y-2.5 shadow-xs">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Target className="w-4 h-4 text-orange-500 shrink-0" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Capacidade do Dia:</span>
-                    <span className="text-sm font-bold">
-                      {totalMetrosDia.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}m
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      / Meta Mín: <strong>{metaGeral.min.toLocaleString("pt-BR")}m</strong> · Teto/Trava: <strong>{metaGeral.max.toLocaleString("pt-BR")}m</strong>
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant={statusDia.badgeVariant} className={`text-[11px] font-semibold ${statusDia.bgClass}`}>
-                      {statusDia.label}
-                    </Badge>
-                    {metaGeral.travarMaximo && (
-                      <Badge variant="outline" className="text-[10px] gap-1 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700">
-                        <ShieldAlert className="w-3 h-3 text-red-500" />
-                        Trava Ativa
-                      </Badge>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setMetasDialogOpen(true)}
-                      className="h-6 px-2 text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/30"
-                    >
-                      Ajustar Metas
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Barra de progresso de capacidade */}
-                <div className="space-y-1">
-                  <div className="relative w-full bg-muted rounded-full h-2 overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-300 ${statusDia.barClass}`}
-                      style={{ width: `${Math.min(100, (totalMetrosDia / (metaGeral.max || 3500)) * 100)}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-[10px] text-muted-foreground">
-                    <span>0m</span>
-                    <span>Meta Mín: {metaGeral.min.toLocaleString("pt-BR")}m</span>
-                    <span>Teto Máx: {metaGeral.max.toLocaleString("pt-BR")}m</span>
-                  </div>
-                </div>
-
-                {estourou && (
-                  <div className="flex items-center gap-2 text-xs font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/50 p-2 rounded-lg border border-red-200 dark:border-red-900/50">
-                    <ShieldAlert className="w-4 h-4 shrink-0" />
-                    <span>
-                      Capacidade diária esgotada! Excesso de <strong>+{statusDia.excesso.toLocaleString("pt-BR")}m</strong> além do limite ({metaGeral.max.toLocaleString("pt-BR")}m).
-                      {metaGeral.travarMaximo ? " Novos agendamentos para este dia estão bloqueados." : " Trava desativada nas configurações."}
-                    </span>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+          {/* Cartão-resumo do dia: métricas + capacidade + ações em um só lugar */}
+          <ResumoDiaProducaoCard
+            titulo={temFiltroAtivo ? `Resultados da Pesquisa Global (${pedidosDia.length})` : formatarDiaSeguro(selectedDay, "extenso")}
+            ehHoje={selectedDay === format(new Date(), "yyyy-MM-dd")}
+            qtdPedidos={pedidosDia.length}
+            qtdConcluidos={pedidosDia.filter(p => p.status === "finalizado").length}
+            totalMetros={pedidosDia.reduce((s, p) => s + calcularMetrosPedido(p), 0)}
+            metaGeral={metaGeral}
+            statusDia={calcularStatusMeta(pedidosDia.reduce((s, p) => s + calcularMetrosPedido(p), 0), metaGeral.min, metaGeral.max)}
+            temFiltroAtivo={temFiltroAtivo}
+            onAjustarMetas={() => setMetasDialogOpen(true)}
+            onNovoPedido={() => openNew(selectedDay)}
+          />
 
           {MAQUINAS.map(maquina => {
             const pedidosMaquina = pedidosDia.filter(p => p.maquina === maquina);

@@ -40,16 +40,25 @@ export default function FiltrosDataPCPBar({
   opcoesDataCampo = null,
   viewMode = "cards", // "cards" | "tabela" | "kanban"
   onViewModeChange,
+  compacta = false,
 }) {
   const filtroDataAtivo = Boolean(dataInicio) || Boolean(dataFim) || (filtroDataPreset !== "todas" && filtroDataPreset !== "personalizada");
   const temFiltroAtivo = filtroDataAtivo || Boolean(termoBusca) || filtroUrgencia !== "todos" || ordenacao !== "mais_atrasados";
 
   return (
-    <div className="space-y-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-2xs">
+    <div className={
+      compacta
+        ? "flex flex-wrap items-center gap-x-3 gap-y-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-2.5 shadow-2xs"
+        : "space-y-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-2xs"
+    }>
       {/* ── LINHA 1: BARRA DE BUSCA E ORDENAÇÃO ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className={
+        compacta
+          ? "flex items-center flex-wrap gap-2 flex-1 min-w-[240px]"
+          : "flex flex-col md:flex-row md:items-center justify-between gap-3"
+      }>
         {/* Campo de Busca Rápida com Lupa */}
-        <div className="relative flex-1">
+        <div className={compacta ? "relative flex-1 min-w-[200px]" : "relative flex-1"}>
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <Input
             value={termoBusca}
@@ -135,7 +144,7 @@ export default function FiltrosDataPCPBar({
       </div>
 
       {/* ── LINHA 2: CHIPS DE URGÊNCIA E STATUS (TODOS, ATRASADOS, HOJE, EM PRODUÇÃO, CONCLUÍDOS) ── */}
-      <div className="flex items-center justify-between gap-2 flex-wrap pt-0.5">
+      <div className={compacta ? "flex items-center gap-1.5 flex-wrap" : "flex items-center justify-between gap-2 flex-wrap pt-0.5"}>
         <div className="flex items-center gap-1.5 flex-wrap">
           <Button
             size="sm"
@@ -282,7 +291,7 @@ export default function FiltrosDataPCPBar({
             size="sm"
             variant="ghost"
             onClick={onLimparFiltros}
-            className="h-7 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 gap-1 ml-auto"
+            className={`h-7 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 gap-1 ${compacta ? "" : "ml-auto"}`}
           >
             <X className="w-3.5 h-3.5" /> Limpar Filtros
           </Button>
@@ -290,7 +299,11 @@ export default function FiltrosDataPCPBar({
       </div>
 
       {/* ── LINHA 3: FILTRO AVANÇADO DE DATA (DATA X ATÉ DATA Y / ENTRADA VS ENTREGA) ── */}
-      <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col xl:flex-row xl:items-center justify-between gap-3 text-xs">
+      <div className={
+        compacta
+          ? "flex items-center gap-2 flex-wrap text-xs"
+          : "pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col xl:flex-row xl:items-center justify-between gap-3 text-xs"
+      }>
         {/* Seletor de Tipo de Data e Presets */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-300 shrink-0">
