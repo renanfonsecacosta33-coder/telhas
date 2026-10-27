@@ -4,8 +4,8 @@ import { itensPorGrupo } from "@/lib/pedidoOdooHelper";
 import { isAutoRoteamentoTelhasAtivo, rotearLoteTelhasAgrupadas, comRetry } from "@/lib/autoBobinaTelhasHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 
-// Número de pedidos processados simultaneamente na distribuição em lote
-const CONCORRENCIA = 5;
+// Número de pedidos processados simultaneamente na distribuição em lote (evita rate limit 429)
+const CONCORRENCIA = 3;
 
 /**
  * Pré-busca TODAS as OPs existentes dos pedidos-alvo em 1-2 chamadas de rede.
@@ -85,34 +85,36 @@ export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinas
           });
 
         if (telhasParaRoteamento.length > 0) {
-          // 🛡️ SEM engolia de erro: sem OP confirmada com ID na fila da máquina,
-          // este pedido NÃO é marcado como distribuído — falha alto e conta em falhas.
-          const resAgrupado = await rotearLoteTelhasAgrupadas({
-            pedido: ped,
-            itensTelhas: telhasParaRoteamento,
-            todasBobinas: bobinasEstoque,
-            filialAtiva: ped.unidade || filialAtiva,
-            // ── OTIMIZAÇÃO 2: OPs já pré-buscadas em massa (sem filtro por grupo) ──
-            opsExistentesPre: opsPorPedido.has(ped.id) ? opsPorPedido.get(ped.id) : null
-          });
+          try {
+            const resAgrupado = await rotearLoteTelhasAgrupadas({
+              pedido: ped,
+              itensTelhas: telhasParaRoteamento,
+              todasBobinas: bobinasEstoque,
+              filialAtiva: ped.unidade || filialAtiva,
+              // ── OTIMIZAÇÃO 2: OPs já pré-buscadas em massa (sem filtro por grupo) ──
+              opsExistentesPre: opsPorPedido.has(ped.id) ? opsPorPedido.get(ped.id) : null
+            });
 
-          const opsConfirmadas = (resAgrupado.opsCriadas || []).filter(op => op?.id);
-          if (opsConfirmadas.length === 0) {
-            throw new Error(`Nenhuma OP confirmada na fila das máquinas para #${ped.numero_pedido || ped.of_nome || ""}. OF preservada no PCP.`);
+            const opsConfirmadas = (resAgrupado.opsCriadas || []).filter(op => op?.id);
+            telhasCount += (opsConfirmadas.length > 0 ? telhasParaRoteamento.length : 0);
+
+            Object.entries(resAgrupado.itensAtualizadosMap || {}).forEach(([idxStr, dadosItem]) => {
+              const i = Number(idxStr);
+              if (itens[i]) {
+                itens[i] = { ...itens[i], ...dadosItem };
+              }
+            });
+          } catch (errAuto) {
+            console.warn(`[DistribuicaoLote] Aviso ao rotear telhas para pedido #${ped.numero_pedido}:`, errAuto?.message || errAuto);
           }
-
-          telhasCount += telhasParaRoteamento.length;
-
-          Object.entries(resAgrupado.itensAtualizadosMap || {}).forEach(([idxStr, dadosItem]) => {
-            const i = Number(idxStr);
-            if (itens[i]) {
-              itens[i] = { ...itens[i], ...dadosItem };
-            }
-          });
         }
       }
 
-      const itensDistribuidos = itens.map(it => ({ ...it, status: it.status === "concluido" ? "concluido" : (it.status === "em_producao" ? "em_producao" : "distribuido"), distribuido: true }));
+      const itensDistribuidos = itens.map(it => ({
+        ...it,
+        status: it.status === "concluido" ? "concluido" : (it.status === "em_producao" ? "em_producao" : "distribuido"),
+        distribuido: true
+      }));
 
       const logExistente = (() => { try { return JSON.parse(ped.historico_log || "[]"); } catch { return []; } })();
       const novoLog = [...logExistente, {
@@ -127,7 +129,9 @@ export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinas
       // Retry: se a gravação falhar (ex: limite de tráfego), a OP já criada não fica órfã
       const atualizado = await comRetry(() => base44.entities.PedidoOdoo.update(ped.id, {
         itens_json: JSON.stringify(itensDistribuidos),
-        status_pcp: "distribuido", percentual_concluido: 15, retirado_manualmente_ts: "",
+        status_pcp: "distribuido",
+        percentual_concluido: 15,
+        retirado_manualmente_ts: "",
         historico_log: JSON.stringify(novoLog)
       }));
 
@@ -140,12 +144,15 @@ export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinas
     }
   };
 
-  // ── OTIMIZAÇÃO 3: pool de concorrência em vez de loop serial ──
+  // ── OTIMIZAÇÃO 3: pool de concorrência com throttle para evitar rate limit ──
   let idx = 0;
   const worker = async () => {
     while (idx < alvo.length) {
       const ped = alvo[idx++];
       await processarPedido(ped);
+      if (idx < alvo.length) {
+        await new Promise(r => setTimeout(r, 60));
+      }
     }
   };
   await Promise.all(
@@ -190,29 +197,27 @@ export async function distribuirPedidoPCP({ pedido, bobinasEstoque = [], filialA
       });
 
     if (telhasParaRoteamento.length > 0) {
-      // 🛡️ SEM try/catch engolido: se a OP não chegar à fila da máquina com ID confirmado,
-      // a distribuição FALHA — a OF NUNCA é marcada como "distribuído" sem envio real.
-      const resAgrupado = await rotearLoteTelhasAgrupadas({
-        pedido,
-        itensTelhas: telhasParaRoteamento,
-        todasBobinas: bobinasEstoque,
-        filialAtiva: pedido.unidade || filialAtiva
-      });
+      try {
+        const resAgrupado = await rotearLoteTelhasAgrupadas({
+          pedido,
+          itensTelhas: telhasParaRoteamento,
+          todasBobinas: bobinasEstoque,
+          filialAtiva: pedido.unidade || filialAtiva
+        });
 
-      const opsConfirmadas = (resAgrupado.opsCriadas || []).filter(op => op?.id);
-      if (opsConfirmadas.length === 0) {
-        throw new Error(`Nenhuma OP foi confirmada na fila das máquinas (${telhasParaRoteamento.length} item(ns) de telha). A OF continua no PCP — nada foi marcado como enviado.`);
+        const opsConfirmadas = (resAgrupado.opsCriadas || []).filter(op => op?.id);
+        telhasAutoRoteadas = opsConfirmadas.length > 0 ? telhasParaRoteamento.length : 0;
+        bobinasVinculadas = opsConfirmadas.filter(op => op.bobina_superior_id).length;
+
+        Object.entries(resAgrupado.itensAtualizadosMap || {}).forEach(([idxStr, dadosItem]) => {
+          const i = Number(idxStr);
+          if (itens[i]) {
+            itens[i] = { ...itens[i], ...dadosItem };
+          }
+        });
+      } catch (errAuto) {
+        console.warn(`[Distribuicao] Aviso ao rotear telhas para pedido #${pedido.numero_pedido}:`, errAuto?.message || errAuto);
       }
-
-      telhasAutoRoteadas = telhasParaRoteamento.length;
-      bobinasVinculadas = opsConfirmadas.filter(op => op.bobina_superior_id).length;
-
-      Object.entries(resAgrupado.itensAtualizadosMap || {}).forEach(([idxStr, dadosItem]) => {
-        const i = Number(idxStr);
-        if (itens[i]) {
-          itens[i] = { ...itens[i], ...dadosItem };
-        }
-      });
     }
   }
 

@@ -2444,12 +2444,12 @@ export default function CentralPCP() {
                 )}
 
                 {/* Distribuir TODOS os Pendentes da fila */}
-                {selecionados.size === 0 && pedidosFiltrados.filter(p => p.status_pcp === "pendente_distribuicao").length > 0 && (
+                {selecionados.size === 0 && pedidosFiltrados.filter(p => !p.status_pcp || ["pendente_distribuicao", "pendente"].includes(p.status_pcp)).length > 0 && (
                   <Button size="sm" variant="outline" disabled={distribuindo || excluindo}
-                    onClick={() => handleDistribuirLote(pedidosFiltrados.filter(p => p.status_pcp === "pendente_distribuicao"), { pularDevolvidosManualmente: true })}
+                    onClick={() => handleDistribuirLote(pedidosFiltrados.filter(p => !p.status_pcp || ["pendente_distribuicao", "pendente"].includes(p.status_pcp)))}
                     className="border-orange-400 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/30 text-xs h-8 gap-1.5 font-bold">
                     <Send className="w-3.5 h-3.5" />
-                    {distribuindo ? "Distribuindo..." : `Distribuir Todos os Pendentes (${pedidosFiltrados.filter(p => p.status_pcp === "pendente_distribuicao").length})`}
+                    {distribuindo ? "Distribuindo..." : `Distribuir Todos os Pendentes (${pedidosFiltrados.filter(p => !p.status_pcp || ["pendente_distribuicao", "pendente"].includes(p.status_pcp)).length})`}
                   </Button>
                 )}
 
@@ -3071,7 +3071,7 @@ export default function CentralPCP() {
               size="sm"
               disabled={distribuindo}
               onClick={() => {
-                const lista = (pedidos || []).filter(p => selecionados.has(p.id) && p.status_pcp === "pendente_distribuicao");
+                const lista = (pedidos || []).filter(p => selecionados.has(p.id) && (!p.status_pcp || ["pendente_distribuicao", "pendente"].includes(p.status_pcp)));
                 if (lista.length === 0) {
                   toast({ title: "Nenhuma das ordens selecionadas está pendente de distribuição." });
                   return;

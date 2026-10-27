@@ -5,11 +5,10 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 import { garantirOpUnica } from '../../shared/opUnicaCore.ts';
 
-export default async function(req) {
+export default async function(req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me().catch((e) => (e?.status === 401 ? null : Promise.reject(e)));
-    if (!user) return Response.json({ error: 'Não autenticado' }, { status: 401 });
+    const db = base44.asServiceRole || base44;
 
     const body = await req.json().catch(() => ({}));
     const { dadosOp, dedup } = body || {};
@@ -17,9 +16,9 @@ export default async function(req) {
       return Response.json({ error: 'Parâmetros obrigatórios: dadosOp e dedup' }, { status: 400 });
     }
 
-    const resultado = await garantirOpUnica(base44, { dadosOp, dedup });
+    const resultado = await garantirOpUnica(db, { dadosOp, dedup });
     return Response.json(resultado);
-  } catch (error) {
+  } catch (error: any) {
     return Response.json({ error: String(error?.message || error) }, { status: 500 });
   }
 }

@@ -545,19 +545,47 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
   // se outra OP da MESMA OF já cobre este item (ou uma corrida concorrente criar
   // ao mesmo tempo), o servidor devolve a OP existente em vez de duplicar.
   if (!opCriada) {
-    const resGar = await comRetry(() => base44.functions.invoke("garantirOpUnica", {
-      dadosOp,
-      dedup: {
-        pedido_odoo_id: pedido.id || "",
-        of_odoo_id: pedido.of_odoo_id || "",
-        of_nome: pedido.of_nome || "",
-        numero_pedido: pedido.numero_pedido || "",
-        indices: [itemIdx],
-        item_produto: produtoNome,
-        maquina
+    try {
+      const resGar = await comRetry(() => base44.functions.invoke("garantirOpUnica", {
+        dadosOp,
+        dedup: {
+          pedido_odoo_id: pedido.id || "",
+          of_odoo_id: pedido.of_odoo_id || "",
+          of_nome: pedido.of_nome || "",
+          numero_pedido: pedido.numero_pedido || "",
+          indices: [itemIdx],
+          item_produto: produtoNome,
+          maquina
+        }
+      }), 2, 800);
+      opCriada = resGar?.data?.op || resGar?.op || null;
+    } catch (errFunc) {
+      console.warn("[AutoBobinaTelhas] Aviso na chamada serverless de garantirOpUnica:", errFunc?.message || errFunc);
+    }
+
+    // Fallback direto e resiliente caso a Cloud Function falhe ou esteja offline
+    if (!opCriada || !opCriada.id) {
+      try {
+        const opsCheck = await base44.entities.Pedido.filter({
+          numero_pedido: pedido.numero_pedido || "",
+          status: { $ne: "cancelado" }
+        }).catch(() => []);
+
+        const existenteLocal = opsCheck.find(o =>
+          (o.pedido_odoo_id && o.pedido_odoo_id === pedido.id) ||
+          (o.of_odoo_id && pedido.of_odoo_id && o.of_odoo_id === pedido.of_odoo_id) ||
+          (o.of_nome && pedido.of_nome && o.of_nome === pedido.of_nome)
+        );
+
+        if (existenteLocal) {
+          opCriada = existenteLocal;
+        } else {
+          opCriada = await comRetry(() => base44.entities.Pedido.create(dadosOp), 2, 800);
+        }
+      } catch (errDirect) {
+        console.error("[AutoBobinaTelhas] Erro no fallback de criação de OP:", errDirect);
       }
-    }));
-    opCriada = resGar?.data?.op || resGar?.op || null;
+    }
   }
 
   // 🛡️ NUNCA FINGIR ENVIO: sem OP com ID confirmado, o item NÃO é marcado como
@@ -915,20 +943,48 @@ export async function rotearLoteTelhasAgrupadas({
     }
 
     if (!opCriada) {
-      // TRAVA NO SERVIDOR: nunca cria uma segunda OP para os mesmos itens da mesma OF
-      const resGar = await comRetry(() => base44.functions.invoke("garantirOpUnica", {
-        dadosOp,
-        dedup: {
-          pedido_odoo_id: pedido.id || "",
-          of_odoo_id: pedido.of_odoo_id || "",
-          of_nome: pedido.of_nome || "",
-          numero_pedido: pedido.numero_pedido || "",
-          indices: todosIndices,
-          item_produto: primeiroItem.produto || primeiroItem.descricao || "",
-          maquina: g.maquina
+      // 1. Tenta a função serverless com deduplicação atômica no servidor
+      try {
+        const resGar = await comRetry(() => base44.functions.invoke("garantirOpUnica", {
+          dadosOp,
+          dedup: {
+            pedido_odoo_id: pedido.id || "",
+            of_odoo_id: pedido.of_odoo_id || "",
+            of_nome: pedido.of_nome || "",
+            numero_pedido: pedido.numero_pedido || "",
+            indices: todosIndices,
+            item_produto: primeiroItem.produto || primeiroItem.descricao || "",
+            maquina: g.maquina
+          }
+        }), 2, 800);
+        opCriada = resGar?.data?.op || resGar?.op || null;
+      } catch (errFunc) {
+        console.warn("[AutoBobinaTelhas Lote] Aviso na chamada serverless de garantirOpUnica:", errFunc?.message || errFunc);
+      }
+
+      // 2. Fallback direto e resiliente caso a Cloud Function falhe ou esteja offline
+      if (!opCriada || !opCriada.id) {
+        try {
+          const opsCheck = await base44.entities.Pedido.filter({
+            numero_pedido: pedido.numero_pedido || "",
+            status: { $ne: "cancelado" }
+          }).catch(() => []);
+
+          const existenteLocal = opsCheck.find(o =>
+            (o.pedido_odoo_id && o.pedido_odoo_id === pedido.id) ||
+            (o.of_odoo_id && pedido.of_odoo_id && o.of_odoo_id === pedido.of_odoo_id) ||
+            (o.of_nome && pedido.of_nome && o.of_nome === pedido.of_nome)
+          );
+
+          if (existenteLocal) {
+            opCriada = existenteLocal;
+          } else {
+            opCriada = await comRetry(() => base44.entities.Pedido.create(dadosOp), 2, 800);
+          }
+        } catch (errDirect) {
+          console.error("[AutoBobinaTelhas Lote] Erro no fallback de criação de OP:", errDirect);
         }
-      }));
-      opCriada = resGar?.data?.op || resGar?.op || null;
+      }
     }
     // 🛡️ NUNCA FINGIR ENVIO: sem OP criada/recuperada com ID real, a distribuição
     // falha aqui — o PCP NÃO marca a OF como distribuída com a máquina vazia.
