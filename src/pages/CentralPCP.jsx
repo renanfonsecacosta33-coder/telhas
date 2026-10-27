@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Calendar, X, Clock, Trash2, Building2, ArrowRightLeft, Globe, User, Briefcase, Hash, Package, ShieldCheck, Target, BookOpen, RotateCcw, History, Activity } from "lucide-react";
 import { executarExclusaoOsBackground } from "@/lib/excluirOsHelper"; import { sincronizarLoteOdoo } from "@/lib/sincronizarOdooHelper";
-import { finalizarOpsDoPedido, cancelarOpsDoPedido, executarVarreduraEConciliacaoGeral, cancelarOpsDasOfsExatas } from "@/lib/conciliacaoPcpMaquinasHelper";
+import { finalizarOpsDoPedido, cancelarOpsDoPedido, executarVarreduraEConciliacaoGeral, cancelarOpsDasOfsExatas, comRetryLimite } from "@/lib/conciliacaoPcpMaquinasHelper";
 import RelatorioAuditoriaDiariaModal from "@/components/pcp/RelatorioAuditoriaDiariaModal";
 import HistoricoExclusoesModal from "@/components/pcp/HistoricoExclusoesModal";
 import CentralSaudeSistemaModal from "@/components/pcp/CentralSaudeSistemaModal";
@@ -725,7 +725,7 @@ export default function CentralPCP() {
         itens_json: JSON.stringify(itensZerados), historico_log: JSON.stringify(novoLog)
       };
       if (pedido.galpao_responsavel !== undefined) updateData.galpao_responsavel = "";
-      await base44.entities.PedidoOdoo.update(pedido.id, updateData);
+      await comRetryLimite(() => base44.entities.PedidoOdoo.update(pedido.id, updateData));
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
       queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
@@ -770,12 +770,12 @@ export default function CentralPCP() {
         concluido: false,
         maquina: ""
       }));
-      await base44.entities.PedidoOdoo.update(pedido.id, {
+      await comRetryLimite(() => base44.entities.PedidoOdoo.update(pedido.id, {
         status_pcp: "pendente_distribuicao", percentual_concluido: 0,
         retirado_manualmente_ts: new Date().toISOString(),
         maquinas_json: "[]", etapas_telha_json: "[]",
         itens_json: JSON.stringify(itensZerados), historico_log: JSON.stringify(novoLog)
-      });
+      }));
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
       queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });

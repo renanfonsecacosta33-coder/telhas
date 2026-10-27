@@ -1,5 +1,5 @@
 import { base44 } from "@/api/base44Client";
-import { cancelarOpsDasOfsExatas } from "@/lib/conciliacaoPcpMaquinasHelper";
+import { cancelarOpsDasOfsExatas, comRetryLimite } from "@/lib/conciliacaoPcpMaquinasHelper";
 import { parseItensPedido } from "@/lib/regrasFabrica";
 import { notificarStatus } from "@/lib/biNotificador";
 
@@ -63,7 +63,7 @@ export const devolverPedidosPCPLote = async ({ lista, queryClient, toast }) => {
     });
     // bulkUpdate aceita até 500 por chamada
     for (let i = 0; i < updates.length; i += 500) {
-      await base44.entities.PedidoOdoo.bulkUpdate(updates.slice(i, i + 500));
+      await comRetryLimite(() => base44.entities.PedidoOdoo.bulkUpdate(updates.slice(i, i + 500)));
     }
 
     // 3. Mini BI — evento por pedido (fire-and-forget)

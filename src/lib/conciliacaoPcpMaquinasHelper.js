@@ -53,30 +53,34 @@ export function filtrarOpsDasOfsExatas(ops, pedidos) {
  * Blindagem contra o cancelamento em cascata de OFs irmãs da mesma venda —
  * e a produção já finalizada nunca é tocada.
  */
+// Retentativa resistente a erros transitórios (429 de limite de tráfego).
+// SEMPRE respeita o "Retry after Ns" devolvido pelo servidor (com folga de 2s):
+// retentar antes do tempo queimava as tentativas e jogava o erro na tela do gestor.
+// Em caso de falha definitiva o erro PROPAGA: quem chamou NÃO deve resetar o
+// pedido no PCP deixando OPs vivas nas máquinas (OPs "fantasmas" na fábrica).
+export const comRetryLimite = async (fn, tentativas = 3) => {
+  let ultimoErro;
+  for (let i = 0; i < tentativas; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      ultimoErro = e;
+      const msg = String(e?.message || e?.detail || e || "");
+      const m = msg.match(/Retry after (\d+) seconds/i);
+      const espera = m ? Math.min(Number(m[1]) * 1000 + 2000, 45000) : 1500 * (i + 1);
+      await new Promise((r) => setTimeout(r, espera));
+    }
+  }
+  throw ultimoErro;
+};
+
 export async function cancelarOpsDasOfsExatas({ pedidos = [], todayIso = new Date().toISOString().slice(0, 10) } = {}) {
   const lista = (pedidos || []).filter(Boolean);
   const numeros = [...new Set(lista.map(p => String(p.numero_pedido || "").trim()).filter(Boolean))];
   const resumo = { telhas: 0, cd: 0, desbobinadeira: 0 };
   if (!numeros.length) return resumo;
 
-  // Retentativa resistente a erros transitórios (429 de limite de tráfego).
-  // Em caso de falha definitiva o erro PROPAGA: quem chamou NÃO deve resetar o
-  // pedido no PCP deixando OPs vivas nas máquinas (OPs "fantasmas" na fábrica).
-  const comRetryLocal = async (fn, tentativas = 3) => {
-    let ultimoErro;
-    for (let i = 0; i < tentativas; i++) {
-      try {
-        return await fn();
-      } catch (e) {
-        ultimoErro = e;
-        const msg = String(e?.message || e?.detail || e || "");
-        const m = msg.match(/Retry after (\d+) seconds/i);
-        const espera = m ? Math.min(Number(m[1]) * 1000 + 2000, 30000) : 1500 * (i + 1);
-        await new Promise((r) => setTimeout(r, espera));
-      }
-    }
-    throw ultimoErro;
-  };
+  const comRetryLocal = comRetryLimite;
 
   const cancelar = async (entidade) => {
     const ops = await comRetryLocal(() =>
