@@ -970,29 +970,26 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
 
     novos[itemIndex] = targetItem;
     const todosFinalizados = novos.length > 0 && novos.every(it => it.finalizado);
-    const novoStatusOp = todosFinalizados ? (precisaColagem ? "aguardando_colagem" : "finalizado") : "em_producao";
     const hojeStr = format(new Date(), "yyyy-MM-dd");
     const agoraIso = new Date().toISOString();
     const maqOrigem = p.maquina_origem || (p.maquina !== "COLAGEM" ? p.maquina : null) || maquina || "TP - 25";
-
-    onStatusChange(p, novoStatusOp, {
-      variacoes_telhas: JSON.stringify(novos),
-      ...(todosFinalizados ? {
-        data_finalizacao: novoStatusOp === "finalizado" ? hojeStr : undefined,
-        fim_producao_ts: agoraIso,
-        foto_finalizacao_url: fotoUrl || p.foto_finalizacao_url || "",
-        ...(precisaColagem ? {
-          maquina: "COLAGEM",
-          maquina_origem: maqOrigem,
-          data_perfilacao: p.data_perfilacao || hojeStr,
-          hora_perfilacao: p.hora_perfilacao || agoraIso,
-          perfilacao_concluida: true,
-        } : {})
-      } : {
-        maquina_origem: maqOrigem,
-        data_perfilacao: p.data_perfilacao || hojeStr,
-      })
-    });
+    // TELHA BANDEJA estrito por ITEM: Telha Superior (TP-40/Colonial) → BANDEJA → COLAGEM (nunca pular a Bandeja)
+    if (todosFinalizados && isBandejaMultiEtapa && proximaEtapaBandeja) {
+      const pBandeja = proximaEtapaBandeja === "BANDEJA";
+      const varsResetadas = JSON.stringify(novos.map(v => ({ ...v, iniciado: false, finalizado: false, metragem_real: null })));
+      playFinishSound();
+      onStatusChange(p, pBandeja ? "pendente" : "aguardando_colagem", { variacoes_telhas: varsResetadas, inicio_producao_ts: null,
+        maquina: pBandeja ? "BANDEJA" : "COLAGEM", maquina_origem: pBandeja ? (p.maquina_origem || p.maquina) : (p.maquina_origem || "TP - 40"),
+        etapa_anterior_concluida: pBandeja ? p.maquina : "BANDEJA", data_perfilacao: hojeStr,
+        ...(pBandeja ? { telha_superior_concluida: true, perfilacao_concluida: false, ...(p.bobina_inferior ? { bobina_superior: p.bobina_inferior, bobina_superior_id: p.bobina_inferior_id || null, rvm_superior: p.rvm_inferior || "Natural" } : {}) } : { bandeja_concluida: true, perfilacao_concluida: true, foto_finalizacao_url: fotoUrl || p.foto_finalizacao_url || "" }) });
+      toast.success(pBandeja ? "Telha Superior concluída! OP foi para a fila da BANDEJA." : "Bandeja Inferior concluída! OP foi para a COLAGEM.");
+      return;
+    }
+    const novoStatusOp = todosFinalizados ? (precisaColagem ? "aguardando_colagem" : "finalizado") : "em_producao";
+    onStatusChange(p, novoStatusOp, { variacoes_telhas: JSON.stringify(novos),
+      ...(todosFinalizados ? { data_finalizacao: novoStatusOp === "finalizado" ? hojeStr : undefined, fim_producao_ts: agoraIso, foto_finalizacao_url: fotoUrl || p.foto_finalizacao_url || "",
+        ...(precisaColagem ? { maquina: "COLAGEM", maquina_origem: maqOrigem, data_perfilacao: p.data_perfilacao || hojeStr, hora_perfilacao: p.hora_perfilacao || agoraIso, perfilacao_concluida: true } : {})
+      } : { maquina_origem: maqOrigem, data_perfilacao: p.data_perfilacao || hojeStr }) });
     playFinishSound();
     toast.success(`Item ${itemIndex + 1} finalizado com foto e ${metragemReal}m real!`);
   };
