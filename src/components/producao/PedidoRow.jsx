@@ -972,17 +972,17 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     const todosFinalizados = novos.length > 0 && novos.every(it => it.finalizado);
     const hojeStr = format(new Date(), "yyyy-MM-dd");
     const agoraIso = new Date().toISOString();
-    const maqOrigem = p.maquina_origem || (p.maquina !== "COLAGEM" ? p.maquina : null) || maquina || "TP - 25";
-    // TELHA BANDEJA estrito por ITEM: Telha Superior (TP-40/Colonial) → BANDEJA → COLAGEM (nunca pular a Bandeja)
+    const maqOrigem = p.maquina_origem || (p.maquina !== "COLAGEM" ? p.maquina : maquina) || "TP - 25";
+    // TELHA BANDEJA por ITEM: Superior → BANDEJA → COLAGEM (foto arquivada por etapa)
     if (todosFinalizados && isBandejaMultiEtapa && proximaEtapaBandeja) {
       const pBandeja = proximaEtapaBandeja === "BANDEJA";
-      const varsResetadas = JSON.stringify(novos.map(v => ({ ...v, iniciado: false, finalizado: false, metragem_real: null })));
+      const varsResetadas = JSON.stringify(novos.map(v => ({ ...v, iniciado: false, finalizado: false, metragem_real: null, [pBandeja ? "foto_etapa1_url" : "foto_etapa2_url"]: v.foto_item_url || null, foto_item_url: null })));
       playFinishSound();
       onStatusChange(p, pBandeja ? "pendente" : "aguardando_colagem", { variacoes_telhas: varsResetadas, inicio_producao_ts: null,
-        maquina: pBandeja ? "BANDEJA" : "COLAGEM", maquina_origem: pBandeja ? (p.maquina_origem || p.maquina) : (p.maquina_origem || "TP - 40"),
+        maquina: pBandeja ? "BANDEJA" : "COLAGEM", maquina_origem: p.maquina_origem || (pBandeja ? p.maquina : "TP - 40"),
         etapa_anterior_concluida: pBandeja ? p.maquina : "BANDEJA", data_perfilacao: hojeStr,
-        ...(pBandeja ? { telha_superior_concluida: true, perfilacao_concluida: false, ...(p.bobina_inferior ? { bobina_superior: p.bobina_inferior, bobina_superior_id: p.bobina_inferior_id || null, rvm_superior: p.rvm_inferior || "Natural" } : {}) } : { bandeja_concluida: true, perfilacao_concluida: true, foto_finalizacao_url: fotoUrl || p.foto_finalizacao_url || "" }) });
-      toast.success(pBandeja ? "Telha Superior concluída! OP foi para a fila da BANDEJA." : "Bandeja Inferior concluída! OP foi para a COLAGEM.");
+        ...(pBandeja ? { telha_superior_concluida: true, perfilacao_concluida: false, ...(p.bobina_inferior ? { bobina_superior: p.bobina_inferior, bobina_superior_id: p.bobina_inferior_id || null, rvm_superior: p.rvm_inferior || "Natural" } : {}) } : { bandeja_concluida: true, perfilacao_concluida: true, foto_finalizacao_url: fotoUrl }) });
+      toast.success(pBandeja ? "Telha Superior concluída! OP na fila da BANDEJA." : "Bandeja Inferior concluída! OP na COLAGEM.");
       return;
     }
     const novoStatusOp = todosFinalizados ? (precisaColagem ? "aguardando_colagem" : "finalizado") : "em_producao";
@@ -1350,12 +1350,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       let varsResetadas = [];
       try {
         const rawVars = JSON.parse(p.variacoes_telhas || "[]");
-        varsResetadas = rawVars.map(v => ({
-          ...v,
-          iniciado: false,
-          finalizado: false,
-          metragem_real: null
-        }));
+        varsResetadas = rawVars.map(v => ({ ...v, iniciado: false, finalizado: false, metragem_real: null, [proximaEtapaBandeja === "BANDEJA" ? "foto_etapa1_url" : "foto_etapa2_url"]: v.foto_item_url || null, foto_item_url: null }));
       } catch {
         varsResetadas = [];
       }
@@ -1807,23 +1802,13 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                       {fin ? (
                         <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
                           <div className="flex items-center gap-2 flex-wrap">
-                            {v.foto_item_url && (
-                              <a
-                                href={v.foto_item_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-green-300 text-green-800 font-bold hover:bg-green-100 transition-all shadow-xs"
-                                title="Ver foto do lote produzido"
-                              >
+                            {[["Foto do Lote", v.foto_item_url], ["Telha Superior", v.foto_etapa1_url], ["Bandeja", v.foto_etapa2_url]].filter(([, url]) => url).map(([label, url]) => (
+                              <a key={label} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-green-300 text-green-800 font-bold hover:bg-green-100 transition-all shadow-xs" title={`Ver foto: ${label}`}>
                                 <Camera className="w-3.5 h-3.5 text-green-600" />
-                                <img
-                                  src={v.foto_item_url}
-                                  alt="Foto do Item"
-                                  className="w-4 h-4 rounded object-cover border border-green-400"
-                                />
-                                <span>Ver Foto do Lote</span>
+                                <img src={url} alt={label} className="w-4 h-4 rounded object-cover border border-green-400" />
+                                <span>{label}</span>
                               </a>
-                            )}
+                            ))}
                             {v.observacao && (
                               <span className="text-slate-600 bg-white/90 px-2 py-0.5 rounded border border-green-200 text-[11px]">
                                 <strong>Obs:</strong> {v.observacao}
@@ -1876,8 +1861,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
           );
         })()}
 
-        {/* Painel Informativo para Telha Bandeja na Máquina de Colagem */}
-        {p.maquina === "COLAGEM" && isTelhaBandeja(p) && <BandejaColagemInfoPanel maquinaOrigem={p.maquina_origem} />}
+        {/* Painel da Telha Bandeja na Colagem */}
+        {p.maquina === "COLAGEM" && isTelhaBandeja(p) && <BandejaColagemInfoPanel maquinaOrigem={p.maquina_origem} pedido={p} />}
 
         {/* Bloco de Destaque da Bobina & Procedência do Aço (Nacional vs Importado) — CAMPO ESCRITO EDITÁVEL */}
         {(p.bobina_superior || p.bobina_superior_id || p.origem_exigida || editandoBobinaSup) && (
