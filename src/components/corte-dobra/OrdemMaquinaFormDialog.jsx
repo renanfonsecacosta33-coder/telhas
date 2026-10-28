@@ -14,6 +14,8 @@ import { Layers, Camera, PackageX, Lock, Flame, Route, User as UserIcon, Zap, Ch
 import { toast } from "sonner";
 import UploadButton from "@/components/ui/UploadButton";
 import ChapaEstoqueCombobox from "@/components/corte-dobra/ChapaEstoqueCombobox";
+import BoxAproveitamentoTiras from "@/components/corte-dobra/BoxAproveitamentoTiras";
+import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 import { getBobinaStatus } from "@/lib/bobinaStatusHelper";
 
@@ -62,6 +64,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     bobina_id: "",
     tipo_peca: "",
     dimensoes_livres: "",
+    desenvolvimento_mm: "",
     comprimento_mm: "",
     numero_pedido: "",
     cliente: "",
@@ -81,6 +84,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
   const fotoPedidoScanRef = useRef();
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [modoDigitarVendedor, setModoDigitarVendedor] = useState(false);
+  const [autorizaSubstituicaoBitola, setAutorizaSubstituicaoBitola] = useState(false);
 
   const { filialAtiva } = useFilial();
   // Unidade usada para buscar o estoque: prioriza a unidade do pedido da Fila PCP
@@ -310,7 +314,14 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         bobina_id: editItem.bobina_id || "",
         tipo_peca: editItem.tipo_peca || produtoFixo || "",
         dimensoes_livres: editItem.dimensoes_livres || (editItem.comprimento_mm ? `${editItem.comprimento_mm}mm` : ""),
-        comprimento_mm: editItem.comprimento_mm || "",
+        desenvolvimento_mm: editItem.desenvolvimento_mm || (() => {
+          const esp = extrairEspecificacao(`${editItem.dimensoes_livres || ""} ${editItem.tipo_peca || ""} ${editItem.descricao || ""}`, editItem.quantidade);
+          return esp?.desenvolvimento_mm || "";
+        })(),
+        comprimento_mm: editItem.comprimento_mm || (() => {
+          const esp = extrairEspecificacao(`${editItem.dimensoes_livres || ""} ${editItem.tipo_peca || ""} ${editItem.descricao || ""}`, editItem.quantidade);
+          return esp?.comprimento_mm || "";
+        })(),
         numero_pedido: editItem.numero_pedido || "",
         cliente: editItem.cliente || "",
         quantidade: editItem.quantidade || "",
@@ -657,8 +668,35 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     setUploadingFoto(false);
   };
 
+  // Inversão rápida de medidas quando digitado invertido
+  const handleInverterMedidas = () => {
+    const d = form.desenvolvimento_mm;
+    const c = form.comprimento_mm;
+    setForm(f => ({ ...f, desenvolvimento_mm: c, comprimento_mm: d }));
+    toast.success("Medidas invertidas com sucesso!");
+  };
+
+  const largBobinaAtual = bobinaObj?.largura_mm || chapaObj?.largura_mm || 1200;
+  const isDesenvExcedido = Number(form.desenvolvimento_mm) > largBobinaAtual;
+
+  // Checagem de bitola divergente
+  const espBobinaNum = bobinaObj ? parseFloat(String(bobinaObj.chapa || bobinaObj.espessura_real || bobinaObj.espessura_mm || bobinaObj.espessura_utilizada || "").replace(",", ".")) : null;
+  const isBitolaDivergente = Boolean(
+    bobinaObj && espessuraDesejada != null && espBobinaNum != null && !isNaN(espBobinaNum) && Math.abs(espBobinaNum - espessuraDesejada) > 0.05
+  );
+
   const handleSave = async () => {
     const isAguardando = Boolean(form.material_em_falta);
+
+    if (isDesenvExcedido) {
+      toast.error(`🚫 Bloqueio Operacional: Desenvolvimento (${form.desenvolvimento_mm} mm) excede a bobina (${largBobinaAtual} mm)!`);
+      return;
+    }
+
+    if (isBitolaDivergente && !autorizaSubstituicaoBitola) {
+      toast.error(`🚫 Bitola Divergente! O pedido exige ${espessuraDesejada} mm e a bobina é ${espBobinaNum} mm. Confirme a autorização para prosseguir.`);
+      return;
+    }
 
     // Validações básicas
     if (!form.maquina && !maquinaProp) {
@@ -718,9 +756,10 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
       maquina: form.maquina || maquinaProp,
       unidade: filialAtiva && filialAtiva !== "todas" ? filialAtiva : "Matriz AJL",
       tipo_peca: form.tipo_peca.trim(),
-      dimensoes_livres: (form.dimensoes_livres || "").trim(),
+      dimensoes_livres: (form.dimensoes_livres || (form.desenvolvimento_mm ? `Desenv: ${form.desenvolvimento_mm}mm × ${form.comprimento_mm || 6000}mm` : "")).trim(),
       numero_pedido: (form.numero_pedido || "").trim(),
-      ...(isDesbobinadeira && form.comprimento_mm ? { comprimento_mm: Number(form.comprimento_mm) } : {}),
+      ...(form.desenvolvimento_mm ? { desenvolvimento_mm: Number(form.desenvolvimento_mm) } : {}),
+      ...(form.comprimento_mm ? { comprimento_mm: Number(form.comprimento_mm) } : {}),
       ...(espBobinaObj ? { espessura_utilizada: espBobinaObj } : {}),
       cliente: (form.cliente || "").trim(),
       vendedor: (form.vendedor || "").trim(),
@@ -1273,11 +1312,32 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
                     </SelectContent>
                   </Select>
                   {bobinaObj && (
-                    <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800/40 rounded-lg px-3 py-2 text-xs flex flex-wrap gap-3 text-orange-800 dark:text-orange-300">
-                      <span>Bobina: <strong>[{bobinaObj.codigo || "—"}] {bobinaObj.qualidade || bobinaObj.cor || ""}</strong></span>
-                      <span>Espessura: <strong>{bobinaObj.chapa || bobinaObj.espessura_real || bobinaObj.espessura_mm || bobinaObj.espessura_utilizada || "—"}mm</strong></span>
-                      <span>Peso Disponível: <strong>{Number(bobinaObj.peso_kg || bobinaObj.peso_atual || bobinaObj.peso_liquido || 0).toLocaleString("pt-BR")}kg</strong></span>
-                      {bobinaObj.unidade && <span>Unidade: <strong>{bobinaObj.unidade}</strong></span>}
+                    <div className="space-y-2">
+                      <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800/40 rounded-lg px-3 py-2 text-xs flex flex-wrap gap-3 text-orange-800 dark:text-orange-300">
+                        <span>Bobina: <strong>[{bobinaObj.codigo || "—"}] {bobinaObj.qualidade || bobinaObj.cor || ""}</strong></span>
+                        <span>Espessura: <strong>{bobinaObj.chapa || bobinaObj.espessura_real || bobinaObj.espessura_mm || bobinaObj.espessura_utilizada || "—"}mm</strong></span>
+                        <span>Largura: <strong>{bobinaObj.largura_mm || 1200}mm</strong></span>
+                        <span>Peso Disponível: <strong>{Number(bobinaObj.peso_kg || bobinaObj.peso_atual || bobinaObj.peso_liquido || 0).toLocaleString("pt-BR")}kg</strong></span>
+                      </div>
+                      {isBitolaDivergente && (
+                        <div className="bg-red-500/10 border-2 border-red-500/60 rounded-xl p-3 text-xs text-red-700 dark:text-red-300 space-y-2 animate-in fade-in">
+                          <p className="font-extrabold text-sm text-red-700 dark:text-red-200">
+                            🚫 BLOQUEIO OPERACIONAL: Bitola Divergente da Bobina!
+                          </p>
+                          <p>
+                            A Instrução do Vendedor exige espessura <strong>{espessuraDesejada} mm</strong>, mas a bobina selecionada é de <strong>{espBobinaNum} mm</strong>.
+                          </p>
+                          <label className="flex items-center gap-2 cursor-pointer font-bold text-red-800 dark:text-red-200 pt-1 border-t border-red-300 dark:border-red-900/50">
+                            <input
+                              type="checkbox"
+                              checked={autorizaSubstituicaoBitola}
+                              onChange={e => setAutorizaSubstituicaoBitola(e.target.checked)}
+                              className="rounded border-red-400 text-red-600 focus:ring-red-500"
+                            />
+                            <span>Confirmar e autorizar expressamente a substituição da bitola</span>
+                          </label>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1387,30 +1447,68 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
           </div>
           )}
 
-          {isDesbobinadeira && (
-            <div className="space-y-1">
-              <Label>Comprimento de corte (mm) *</Label>
+          {/* ═══════════════════════════════════════════════════════════════
+              CAMPOS DE MEDIDA CRÍTICOS: DESENVOLVIMENTO VS COMPRIMENTO
+          ═══════════════════════════════════════════════════════════════ */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+            {/* 1. Desenvolvimento / Largura da Tira */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1">
+                  <span>Desenvolvimento / Largura da Tira (mm) *</span>
+                </Label>
+                <span className="text-[10px] text-muted-foreground">Soma das abas</span>
+              </div>
               <Input
                 type="number"
-                placeholder="Ex: 3000"
-                value={form.comprimento_mm}
-                onChange={e => set("comprimento_mm", e.target.value)}
-                className="font-mono font-bold"
+                placeholder="Ex: 172 (máx. 1200)"
+                value={form.desenvolvimento_mm}
+                onChange={e => set("desenvolvimento_mm", e.target.value)}
+                className={`font-mono font-bold text-sm ${isDesenvExcedido ? "border-red-500 bg-red-50 focus-visible:ring-red-500" : ""}`}
               />
-              <p className="text-[10px] text-muted-foreground">
-                Comprimento em que a desbobinadeira corta as chapas (ex: 1200 x <strong>3000</strong> mm)
+              <p className="text-[10px] text-muted-foreground leading-tight">
+                💡 Soma das abas e almas (ex: 40+92+40=<strong>172 mm</strong>). Define quantas tiras saem na largura de 1.200 mm. <strong>Nunca coloque 6 metros aqui!</strong>
               </p>
             </div>
-          )}
+
+            {/* 2. Comprimento de Corte da Barra */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1">
+                  <span>Comprimento de Corte da Barra (mm) *</span>
+                </Label>
+                <span className="text-[10px] text-muted-foreground">Linear longitudinal</span>
+              </div>
+              <Input
+                type="number"
+                placeholder="Ex: 6000 ou 2000"
+                value={form.comprimento_mm}
+                onChange={e => set("comprimento_mm", e.target.value)}
+                className="font-mono font-bold text-sm"
+              />
+              <p className="text-[10px] text-muted-foreground leading-tight">
+                📏 Comprimento longitudinal final da peça (ex: <strong>6000 mm</strong> = 6m, <strong>2000 mm</strong> = 2m).
+              </p>
+            </div>
+          </div>
+
+          {/* Trava & Box de Conferência de Aproveitamento em Tempo Real */}
+          <BoxAproveitamentoTiras
+            larguraBobina={largBobinaAtual}
+            desenvolvimento={form.desenvolvimento_mm}
+            comprimentoBarra={form.comprimento_mm}
+            quantidadePecas={form.quantidade}
+            onInverterMedidas={handleInverterMedidas}
+          />
 
           <div className="space-y-1">
-            <Label>Dimensões / Especificações</Label>
+            <Label className="text-xs font-medium">Observações / Detalhes Adicionais</Label>
             <Input
-              placeholder={devObj ? "Preenchido pelo desenvolvimento" : "Ex: A=100 B=50 CH=1,25 · 6m"}
+              placeholder={devObj ? "Preenchido pelo desenvolvimento" : "Ex: Cantoneira L 100x100 c/ 2m"}
               value={form.dimensoes_livres}
               onChange={e => set("dimensoes_livres", e.target.value)}
               readOnly={Boolean(devObj)}
-              className={devObj ? "bg-muted font-medium" : ""}
+              className={devObj ? "bg-muted font-medium text-xs" : "text-xs"}
             />
           </div>
 
@@ -1653,7 +1751,15 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave} className="bg-orange-500 hover:bg-orange-600 font-bold">
+          <Button
+            onClick={handleSave}
+            disabled={isDesenvExcedido || (isBitolaDivergente && !autorizaSubstituicaoBitola)}
+            className={`font-bold ${
+              isDesenvExcedido || (isBitolaDivergente && !autorizaSubstituicaoBitola)
+                ? "bg-slate-400 text-white cursor-not-allowed opacity-60"
+                : "bg-orange-500 hover:bg-orange-600 text-white"
+            }`}
+          >
             {editItem?.id ? "Atualizar Ordem" : "Criar Ordem"}
           </Button>
         </DialogFooter>

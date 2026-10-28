@@ -10,6 +10,7 @@ import { Layers, Circle, Search, CheckCircle2, AlertTriangle, Package, Scissors,
 import { toast } from "sonner";
 import { useFilial } from "@/contexts/FilialContext";
 import { getItens, buildItensJson } from "@/lib/pedidoOdooHelper";
+import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 
 export default function SelecionarMaterialPedidoDialog({
   open,
@@ -23,11 +24,27 @@ export default function SelecionarMaterialPedidoDialog({
   const [abaMaterial, setAbaMaterial] = useState("chapas");
   const [selecionado, setSelecionado] = useState(null);
   const [salvando, setSalvando] = useState(false);
+  const [autorizaSubstituicao, setAutorizaSubstituicao] = useState(false);
+  const [somenteCompativel, setSomenteCompativel] = useState(true);
 
   const queryClient = useQueryClient();
-  const { filialAtiva } = useFilial();
+  const { filialAtiva, user } = useFilial();
+  const isAdmin = ["admin", "super_admin", "gestor"].includes(user?.role);
 
-  const espessuraItem = item?.espessura ? String(item.espessura).replace(",", ".").trim() : "";
+  // Extrai com precisão a espessura da instrução do vendedor ou do produto
+  let espessuraItem = item?.espessura ? String(item.espessura).replace(",", ".").trim() : "";
+  if (!espessuraItem && (item?.descricao || item?.produto)) {
+    const mEsp = String(item.descricao || item.produto).match(/\b(?:ch|chapa|esp|e)?\s*([0-9]+[.,][0-9]{1,2})\s*(?:mm|gi)?\b/i);
+    if (mEsp) espessuraItem = mEsp[1].replace(",", ".");
+  }
+  const numEspItem = parseFloat(espessuraItem) || null;
+
+  function getNumEsp(obj) {
+    if (!obj) return null;
+    const str = String(obj.espessura || obj.chapa || obj.espessura_real || obj.espessura_mm || obj.espessura_utilizada || "").replace(",", ".").replace(/[^\d.]/g, "");
+    const n = parseFloat(str);
+    return isNaN(n) ? null : n;
+  }
 
   // 1. Busca chapas de C&D compatíveis da unidade
   const { data: chapas = [], isLoading: loadingChapas } = useQuery({
@@ -55,28 +72,36 @@ export default function SelecionarMaterialPedidoDialog({
 
   // Filtra chapas pela espessura do item e termo de busca
   const chapasFiltradas = chapas.filter(c => {
-    const espChapa = String(c.espessura || "").replace(",", ".").trim();
-    const matchEsp = !espessuraItem || espChapa.includes(espessuraItem) || espessuraItem.includes(espChapa);
+    const nEsp = getNumEsp(c);
+    const isCompativel = numEspItem && nEsp ? Math.abs(nEsp - numEspItem) <= 0.04 : true;
+    if (somenteCompativel && numEspItem && !isCompativel) return false;
     const termo = busca.toLowerCase();
     const matchBusca = !termo ||
       String(c.codigo || "").toLowerCase().includes(termo) ||
       String(c.descricao || "").toLowerCase().includes(termo) ||
       String(c.tipo_aco || "").toLowerCase().includes(termo) ||
       String(c.dimensoes || "").toLowerCase().includes(termo);
-    return matchEsp && matchBusca;
+    return matchBusca;
   });
 
   // Filtra bobinas pela espessura do item e termo de busca
   const bobinasFiltradas = bobinas.filter(b => {
-    const espBobina = String(b.espessura || "").replace(",", ".").trim();
-    const matchEsp = !espessuraItem || espBobina.includes(espessuraItem) || espessuraItem.includes(espBobina);
+    const nEsp = getNumEsp(b);
+    const isCompativel = numEspItem && nEsp ? Math.abs(nEsp - numEspItem) <= 0.04 : true;
+    if (somenteCompativel && numEspItem && !isCompativel) return false;
     const termo = busca.toLowerCase();
     const matchBusca = !termo ||
       String(b.codigo || b.numero_bobina || "").toLowerCase().includes(termo) ||
       String(b.tipo || b.tipo_aco || "").toLowerCase().includes(termo) ||
       String(b.cor || "").toLowerCase().includes(termo);
-    return matchEsp && matchBusca;
+    return matchBusca;
   });
+
+  // Verificação de divergência do material selecionado
+  const numEspSel = getNumEsp(selecionado);
+  const isBitolaDivergente = Boolean(
+    selecionado && numEspItem && numEspSel && Math.abs(numEspItem - numEspSel) > 0.04
+  );
 
   const handleConfirmar = async () => {
     if (!selecionado || !pedido) return;
@@ -189,12 +214,19 @@ export default function SelecionarMaterialPedidoDialog({
               </Button>
             )}
           </div>
-          <DialogDescription className="text-xs text-muted-foreground mt-1">
-            Pedido <strong>#{pedido?.numero_pedido}</strong> · Item: <strong>{item?.produto}</strong>
-            {espessuraItem && (
-              <Badge variant="outline" className="ml-2 bg-background font-bold text-[11px] text-foreground">
-                Espessura: {espessuraItem}mm
-              </Badge>
+          <DialogDescription className="text-xs text-muted-foreground mt-1 space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span>Pedido <strong>#{pedido?.numero_pedido}</strong> · Item: <strong>{item?.produto}</strong></span>
+              {espessuraItem && (
+                <Badge className="bg-amber-500 text-white font-extrabold text-[11px]">
+                  Espessura Solicitada: {espessuraItem} mm
+                </Badge>
+              )}
+            </div>
+            {item?.descricao && (
+              <div className="text-[11px] font-mono font-semibold text-slate-700 dark:text-slate-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded">
+                Instrução do Vendedor: <strong>{item.descricao}</strong>
+              </div>
             )}
           </DialogDescription>
         </DialogHeader>
@@ -209,6 +241,23 @@ export default function SelecionarMaterialPedidoDialog({
               onChange={e => setBusca(e.target.value)}
               className="pl-9 h-9 text-xs"
             />
+          </div>
+
+          <div className="flex items-center justify-between gap-2 px-1 text-xs">
+            {numEspItem && (
+              <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={somenteCompativel}
+                  onChange={e => setSomenteCompativel(e.target.checked)}
+                  className="rounded border-slate-300 text-orange-600 focus:ring-orange-500"
+                />
+                <span>Exibir apenas bitola exata ({numEspItem} mm)</span>
+              </label>
+            )}
+            <span className="text-[11px] text-muted-foreground ml-auto">
+              {somenteCompativel ? "Filtrando rigorosamente" : "Exibindo estoque completo"}
+            </span>
           </div>
 
           <Tabs value={abaMaterial} onValueChange={setAbaMaterial}>
@@ -252,9 +301,15 @@ export default function SelecionarMaterialPedidoDialog({
                         <span className="font-bold text-xs text-foreground font-mono">
                           {chapa.codigo || "CHAPA"}
                         </span>
-                        <Badge variant="outline" className="text-[10px] bg-background">
-                          {chapa.espessura ? `${chapa.espessura}mm` : "—"}
-                        </Badge>
+                        {(() => {
+                          const nEsp = getNumEsp(chapa);
+                          const comp = numEspItem && nEsp ? Math.abs(nEsp - numEspItem) <= 0.04 : true;
+                          return (
+                            <Badge className={`text-[10px] font-bold ${comp ? "bg-emerald-600 text-white" : "bg-red-600 text-white animate-pulse"}`}>
+                              {comp ? "★ " : "⚠️ "}{chapa.espessura ? `${chapa.espessura}mm` : "—"}
+                            </Badge>
+                          );
+                        })()}
                         <span className="text-xs font-semibold text-foreground truncate">
                           {chapa.descricao || chapa.tipo_aco || "Chapa de Aço"}
                         </span>
@@ -298,9 +353,15 @@ export default function SelecionarMaterialPedidoDialog({
                         <span className="font-bold text-xs text-foreground font-mono">
                           #{bobina.codigo || bobina.numero_bobina || "BOBINA"}
                         </span>
-                        <Badge variant="outline" className="text-[10px] bg-background">
-                          {bobina.espessura ? `${bobina.espessura}mm` : "—"}
-                        </Badge>
+                        {(() => {
+                          const nEsp = getNumEsp(bobina);
+                          const comp = numEspItem && nEsp ? Math.abs(nEsp - numEspItem) <= 0.04 : true;
+                          return (
+                            <Badge className={`text-[10px] font-bold ${comp ? "bg-emerald-600 text-white" : "bg-red-600 text-white animate-pulse"}`}>
+                              {comp ? "★ " : "⚠️ "}{bobina.espessura ? `${bobina.espessura}mm` : "—"}
+                            </Badge>
+                          );
+                        })()}
                         <span className="text-xs font-semibold text-foreground truncate">
                           {bobina.tipo || bobina.tipo_aco || "Bobina Master"}
                         </span>
@@ -325,10 +386,46 @@ export default function SelecionarMaterialPedidoDialog({
           )}
         </div>
 
+        {/* Alerta de Bitola Divergente com Bloqueio */}
+        {isBitolaDivergente && (
+          <div className="bg-red-500/10 border-2 border-red-500/50 rounded-xl p-3 text-xs text-red-700 dark:text-red-300 space-y-2 animate-in fade-in">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-extrabold text-sm text-red-700 dark:text-red-200">
+                  🚫 BLOQUEIO OPERACIONAL: Bitola Divergente!
+                </p>
+                <p className="mt-0.5">
+                  A Instrução do Vendedor exige espessura <strong>{numEspItem} mm</strong>, mas o material selecionado é de <strong>{numEspSel} mm</strong>.
+                </p>
+              </div>
+            </div>
+            <div className="pt-1 border-t border-red-400/40 flex items-center justify-between gap-2 flex-wrap">
+              <label className="flex items-center gap-2 cursor-pointer font-bold text-red-800 dark:text-red-200">
+                <input
+                  type="checkbox"
+                  checked={autorizaSubstituicao}
+                  onChange={e => setAutorizaSubstituicao(e.target.checked)}
+                  className="rounded border-red-400 text-red-600 focus:ring-red-500"
+                />
+                <span>Estou ciente e autorizo expressamente a substituição da bitola</span>
+              </label>
+              {isAdmin && (
+                <span className="text-[10px] bg-red-200 dark:bg-red-900 text-red-900 dark:text-red-100 px-1.5 py-0.5 rounded font-bold">
+                  Liberação Gestor/Admin
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         <DialogFooter className="border-t border-border/80 pt-3 flex items-center justify-between sm:justify-between">
           <div className="text-xs text-muted-foreground">
             {selecionado ? (
-              <span>Selecionado: <strong className="text-foreground">{selecionado.codigo || selecionado.numero_bobina}</strong></span>
+              <span>
+                Selecionado: <strong className="text-foreground">{selecionado.codigo || selecionado.numero_bobina}</strong>
+                {numEspSel && <span className="ml-1 text-slate-500">({numEspSel}mm)</span>}
+              </span>
             ) : (
               <span>Nenhum material selecionado</span>
             )}
@@ -339,8 +436,12 @@ export default function SelecionarMaterialPedidoDialog({
             </Button>
             <Button
               onClick={handleConfirmar}
-              disabled={!selecionado || salvando}
-              className="bg-orange-600 hover:bg-orange-700 text-white font-bold gap-1"
+              disabled={!selecionado || salvando || (isBitolaDivergente && !autorizaSubstituicao)}
+              className={`font-bold gap-1 ${
+                isBitolaDivergente && !autorizaSubstituicao
+                  ? "bg-slate-400 text-white cursor-not-allowed opacity-60"
+                  : "bg-orange-600 hover:bg-orange-700 text-white"
+              }`}
             >
               <CheckCircle2 className="w-4 h-4" />
               {salvando ? "Vinculando..." : "Vincular e Reservar"}

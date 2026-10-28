@@ -22,6 +22,7 @@ import { getBobinaStatus, calcMetrosDisponiveis } from "@/lib/bobinaStatusHelper
 import { validarBobina, filtrarBobinasCompativeis } from "@/lib/bobinaValidation";
 import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
+import BoxAproveitamentoTiras from "@/components/corte-dobra/BoxAproveitamentoTiras";
 
 const MAQUINAS_INICIAIS = [
   { id: "DESBOBINADEIRA 01", label: "Desbobinadeira 01 (até 3,00mm)", icon: Layers },
@@ -113,6 +114,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   const [excluindoOS, setExcluindoOS] = useState(false);
   const [bloqueio, setBloqueio] = useState({ open: false, motivos: [], titulo: "" });
   const [uploadingFoto, setUploadingFoto] = useState(false);
+  const [autorizaSubstituicaoBitola, setAutorizaSubstituicaoBitola] = useState(false);
   const [modoDigitarVendedor, setModoDigitarVendedor] = useState(false);
   const fotoInputRef = useRef();
   const fotoScanRef = useRef();
@@ -273,6 +275,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
         chapa_cd_id: editItem.chapa_cd_id || "",
         tipo_peca: editItem.tipo_peca || "",
         dimensoes_livres: editItem.dimensoes_livres || "",
+        desenvolvimento_mm: desenvInicial,
         comprimento_mm: compMmInicial,
         quantidade: editItem.quantidade || "",
         destino: editItem.destino || "estoque",
@@ -336,6 +339,23 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   const maxChapas = calcMaxChapas(bobinaObj, form.comprimento_mm);
   const metrosRestantes = calcMetragem(bobinaObj);
   const kgEstimado = calcKgEstimado(bobinaObj, form.comprimento_mm, form.quantidade);
+
+  const largBobinaAtual = bobinaObj?.largura_mm || chapaObj?.largura_mm || 1200;
+  const isDesenvExcedido = Number(form.desenvolvimento_mm) > largBobinaAtual;
+  const espBobinaNum = getEspessuraNumeroBobina(bobinaObj);
+  const isBitolaDivergente = Boolean(
+    bobinaObj && espessuraDesejada != null && espBobinaNum > 0 && Math.abs(espBobinaNum - espessuraDesejada) > 0.05
+  );
+
+  const handleInverterMedidas = () => {
+    const d = form.desenvolvimento_mm;
+    const c = form.comprimento_mm;
+    setForm(f => ({ ...f, desenvolvimento_mm: c, comprimento_mm: d }));
+    toast({
+      title: "Medidas invertidas com sucesso!",
+      description: `Desenvolvimento: ${c} mm · Comprimento: ${d} mm`,
+    });
+  };
 
   // Lógica de reserva da bobina selecionada
   const reservadaParaEste = bobinaObj?.reservada && form.destino === "pedido_direto" && form.numero_pedido && bobinaObj?.reserva_numero_pedido === form.numero_pedido;
@@ -421,6 +441,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
       maquina_inicial: maqFinal,
       bobina_descricao: isDesbobinadeira ? bobinaSnap : "",
       espessura_utilizada: bobinaObj?.espessura_utilizada || bobinaObj?.chapa || "",
+      desenvolvimento_mm: Number(form.desenvolvimento_mm) || null,
       comprimento_mm: Number(form.comprimento_mm) || 0,
       quantidade: Number(form.quantidade),
       kg_estimado: kgEstimado ? Math.round(kgEstimado * 100) / 100 : null,
@@ -446,6 +467,14 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   };
 
   const handleSave = () => {
+    if (isDesenvExcedido) {
+      alert(`🚫 Bloqueio Operacional: O Desenvolvimento informado (${form.desenvolvimento_mm} mm) ultrapassa a largura máxima da bobina-mãe (${largBobinaAtual} mm)!\n\nVerifique se o comprimento da barra não foi digitado neste campo por engano. Use o botão "Inverter com Comprimento da Barra" se necessário.`);
+      return;
+    }
+    if (isBitolaDivergente && !autorizaSubstituicaoBitola) {
+      alert(`🚫 Bitola Divergente!\n\nO pedido exige ${espessuraDesejada} mm e a bobina selecionada é de ${espBobinaNum} mm.\n\nConfirme a autorização no checkbox de substituição para continuar.`);
+      return;
+    }
     // Se material em falta, pular validação de bobina/chapa
     if (form.material_em_falta) {
       if (!form.material_espessura) { alert("Informe a espessura desejada."); return; }
