@@ -514,6 +514,10 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
       return saoPedidosIguais(o.numero_pedido, pedido.numero_pedido);
     });
 
+    const unidItem = normalizarUnidadeMedidaItem(item, "cd");
+    const descItem = item.descricao || item.produto;
+    const espItem = extrairEspecificacao(descItem, item.quantidade, unidItem);
+
     return (
       <div
         key={key}
@@ -588,8 +592,19 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                     <User className="w-3.5 h-3.5 text-slate-400" />
                     {pedido.cliente_nome || "—"}
                   </span>
-                  <span>Medida: <strong>{item.medida || "—"}</strong></span>
-                  <span>Quantidade: <strong className="text-orange-600">{item.quantidade}x</strong></span>
+                  <span>Medida: <strong>{item.medida || espItem.dimensoes_fmt || "—"}</strong></span>
+                  <span>
+                    Quantidade:{" "}
+                    <strong className="text-orange-600">
+                      {espItem.quantidade ? `${espItem.quantidade} pçs` : `${item.quantidade}x`}
+                    </strong>
+                    {unidItem === "KG" && item.quantidade != null && (
+                      <span className="text-slate-400 font-normal ml-1">({item.quantidade} KG)</span>
+                    )}
+                    {unidItem === "MT" && espItem.quantidade && espItem.quantidade !== item.quantidade && (
+                      <span className="text-slate-400 font-normal ml-1">({item.quantidade} MT)</span>
+                    )}
+                  </span>
                 </div>
               </div>
             </div>

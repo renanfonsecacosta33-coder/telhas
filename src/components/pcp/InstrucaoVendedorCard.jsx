@@ -7,7 +7,7 @@ import { stripHtml } from "@/lib/stripHtml";
 // + especificação extraída (qtd, comprimento, cor, espessura, metragem).
 export default function InstrucaoVendedorCard({ descricao, quantidadeOdoo, espessura, unidade = "MT", compact = false }) {
   const desc = stripHtml(descricao || "");
-  const esp = extrairEspecificacao(desc);
+  const esp = extrairEspecificacao(desc, quantidadeOdoo, unidade);
 
   return (
     <div className="rounded-xl border-2 border-amber-400/70 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/20 p-3">
@@ -40,7 +40,7 @@ export default function InstrucaoVendedorCard({ descricao, quantidadeOdoo, espes
             <>
               {esp.dimensoes_fmt && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-indigo-700 text-white shadow-xs">
-                  <Scissors className="w-3 h-3" /> Dobra {esp.dimensoes_fmt}
+                  <Scissors className="w-3 h-3" /> {esp.tipo_label ? esp.tipo_label.split(" (")[0] : "Dobra"} {esp.dimensoes_fmt}
                 </span>
               )}
               {esp.desenvolvimento_mm && (

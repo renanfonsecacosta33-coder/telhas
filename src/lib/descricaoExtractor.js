@@ -225,6 +225,104 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // A00. PADRÃO INDUSTRIAL AJL: PERFIS DOBRADOS / CANTONEIRAS COM ABAS E COMPRIMENTO
+  // Ex: "32 pcs L 100x100x2000" -> Qtd: 32 pcs, Tipo: Cantoneira L, Abas: 100x100 (Desenv: 200mm), Comp: 2000mm (2m)
+  // Ex: "32 pçs L 100x100x2000", "L 100X100X2000 32 PCS", "CANTONEIRA 100X100X2000 - 32 PÇS"
+  // Ex: "10 pcs U 100x50x2000", "10 pcs U 50x100x50x3000", "5 pcs 17x50x100x50x17x6000"
+  // Ex: "32 pcs L 100x100 c/ 2000mm", "32 pcs L 100x100 c/ 2m"
+  // ═══════════════════════════════════════════════════════════════════════════
+  const regexPerfilAbasComp = /(?:(\d+)\s*(?:p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|barras?|brs?|unidades?|un\.?|pc\.?)\s+)?(?:(cantoneira|perfil\s+[0-9a-z\-_]+|perfil|calha|cartola|degrau|pingadeira|rufo|[luwz])\b\s*)?(\d{1,4}(?:\s*[xX*]\s*\d{1,4}){1,5})(?:\s*mm)?(?:\s*(?:c\/|com|de)\s*(\d+(?:[.,]\d+)?\s*(?:m\b|mts?\b|metros?|mm\b)?))?(?:\s*[-–—:]?\s*(\d+)\s*(?:p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|barras?|brs?|unidades?|un\.?|pc\.?))?/i;
+  const matchAbasComp = t.match(regexPerfilAbasComp);
+
+  if (matchAbasComp) {
+    const qtdAntes = matchAbasComp[1] ? parseInt(matchAbasComp[1], 10) : null;
+    const tipoRaw = matchAbasComp[2] ? matchAbasComp[2].trim().toUpperCase() : "";
+    const cadeiaNumeros = matchAbasComp[3];
+    const compSeparado = matchAbasComp[4];
+    const qtdDepois = matchAbasComp[5] ? parseInt(matchAbasComp[5], 10) : null;
+
+    const nums = cadeiaNumeros.split(/[xX*]/).map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+    if (nums.length >= 2) {
+      const isL = tipoRaw === "L" || /CANTONEIRA/.test(tipoRaw);
+      const isU = tipoRaw === "U";
+      const temIndicativoForte = !!tipoRaw || qtdAntes != null || qtdDepois != null || nums.length >= 3 || /(?:dobr|perfil|cantoneira|chapa)/i.test(t);
+
+      if (temIndicativoForte) {
+        let abas = [];
+        let compMm = null;
+
+        if (compSeparado) {
+          abas = nums;
+          const parsed = parseComprimento(compSeparado);
+          if (parsed.mm) compMm = parsed.mm;
+        } else if (nums.length >= 3) {
+          const ultimo = nums[nums.length - 1];
+          if (ultimo >= 500 || (isL && nums.length === 3)) {
+            compMm = ultimo;
+            abas = nums.slice(0, nums.length - 1);
+          } else {
+            abas = nums;
+          }
+        } else if (nums.length === 2) {
+          abas = nums;
+        }
+
+        if (!compMm) {
+          const mComp = t.match(/(?:c\/|com|de)\s*(\d+(?:[.,]\d+)?\s*(?:m\b|mts?\b|metros?|mm\b)?)/i) ||
+                        t.match(/\b([2-9]\d{3}|1[0-2]\d{3})\s*mm\b/i) ||
+                        t.match(/\b(\d+(?:[.,]\d+)?)\s*(?:m\b|mts?\b|metros?\b)/i);
+          if (mComp) {
+            const parsed = parseComprimento(mComp[1]);
+            if (parsed.mm) compMm = parsed.mm;
+          }
+          if (!compMm) compMm = 6000;
+        }
+
+        const q = qtdAntes || qtdDepois || (unidadeOdoo === "KG" ? (Number(qtdOdoo) > 50 ? 1 : Number(qtdOdoo)) : Number(qtdOdoo)) || 1;
+        const desenv = abas.reduce((acc, a) => acc + a, 0);
+        const compM = +(compMm / 1000).toFixed(3);
+        const totalM = +(q * compM).toFixed(2);
+        const compFmt = (compMm >= 1000) ? `${(compMm / 1000).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 })} m` : `${compMm} mm`;
+
+        let labelTipo = "Perfil Dobrado";
+        if (isL) {
+          labelTipo = "Cantoneira L";
+        } else if (isU) {
+          labelTipo = abas.length >= 5 ? "Perfil U Enrijecido" : "Perfil U";
+        } else if (tipoRaw) {
+          labelTipo = tipoRaw;
+        }
+
+        const labelItem = q === 1 ? "peça" : "peças";
+
+        out.tipo_conformacao = "perfil_dobrado";
+        out.tipo_label = `${labelTipo} (${abas.join("×")})`;
+        out.abas = abas;
+        out.desenvolvimento_mm = desenv;
+        out.largura_mm = desenv;
+        out.comprimento_mm = compMm;
+        out.comprimento_m = compM;
+        out.quantidade = q;
+        out.pecas = q;
+        out.metragem_total = totalM;
+        out.dimensoes_fmt = `${abas.join("×")} mm`;
+        out.resumo_formatado = `${q} ${labelItem} c/ ${compFmt} (${labelTipo} ${abas.join("×")}) (Total: ${totalM}m)`;
+        out.tem_especificacao = true;
+        out.variacoes.push({
+          qty: q,
+          mm: compMm,
+          m: compM,
+          total_m: totalM,
+          abas,
+          desenvolvimento_mm: desenv,
+          tipo: "perfil_dobrado"
+        });
+        return extrairCorEEspessura(t, out);
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // A0. PADRÃO INDUSTRIAL AJL DE CORTE E DOBRA / PERFIS / CHAPAS CORTADAS
   // Ex: "Perfil 55 200 X 5000 M - 4 PC"
   // Ex: "Perfil 57D 200 X 5000 M (BATENTE) - 2 PC"
@@ -492,12 +590,12 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
   // ═══════════════════════════════════════════════════════════════════════════
   // Padrão 3 a 5 abas (U simples, U enrijecido com 5 abas):
   // Ex: "127X50X17X50X17MM", "75X40X17X40X17MM", "127X50X17", "75x40x17"
-  const regexPerfilMultiAbas = /\b(\d{1,3})\s*[xX*]\s*(\d{1,3})\s*[xX*]\s*(\d{1,3})(?:\s*[xX*]\s*(\d{1,3}))?(?:\s*[xX*]\s*(\d{1,3}))?(?:\s*mm)?(?![0-9a-z])/i;
+  const regexPerfilMultiAbas = /\b(\d{1,3})\s*[xX*]\s*(\d{1,3})\s*[xX*]\s*(\d{1,3})(?:\s*[xX*]\s*(\d{1,3}))?(?:\s*[xX*]\s*(\d{1,3}))?(?:\s*mm)?(?![0-9a-zA-Z])(?!\s*[xX*])/i;
   const matchPerfilMulti = !isBobininha ? t.match(regexPerfilMultiAbas) : null;
 
   // Padrão 2 abas pequenas: "92x30", "125x50", "75x40", "50x50" (onde abas >= 10 e <= 350)
   // 🛡️ NUNCA pode coincidir se a segunda aba for seguida de 'm', 'mt', 'metros' (que indica metros e não aba!)
-  const regexPerfil2Abas = /\b(\d{1,3})\s*[xX*]\s*(\d{1,3})(?:\s*mm)?(?!\s*(?:m\b|mts?\b|metros?|mt\b|[a-z]))/i;
+  const regexPerfil2Abas = /\b(\d{1,3})\s*[xX*]\s*(\d{1,3})(?:\s*mm)?(?![0-9a-zA-Z])(?!\s*[xX*])/i;
   const matchPerfil2 = (!matchPerfilMulti && !isBobininha) ? t.match(regexPerfil2Abas) : null;
 
   const aba1 = matchPerfil2 ? parseInt(matchPerfil2[1], 10) : 0;

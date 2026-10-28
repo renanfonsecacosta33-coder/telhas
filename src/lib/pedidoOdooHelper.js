@@ -39,22 +39,38 @@ export function getItens(pedido) {
     const textoCompleto = `${prod} ${desc}`.trim();
     const ehTelhaOuChapa = /(telha|chapa|perfil|cumeeira|painel)/i.test(textoCompleto);
     const isBobininha = !ehTelhaOuChapa && /(bobininha|bobinina|slitter|corte\s*longitudinal|fita\s*de\s*a[cç]o|fitas\s*de\s*a[cç]o|desbobinamento|desbobinador)/i.test(textoCompleto);
-    if (!isBobininha) return it;
-
-    const espTec = extrairEspecificacao(textoCompleto, it.quantidade, it.unidade);
-    if (espTec && espTec.tipo_conformacao === "bobininha" && espTec.pecas > 0) {
-      const qNova = espTec.pecas;
-      const compMmNovo = String(espTec.comprimento_mm || 30000);
-      const totalMNovo = espTec.metragem_total || (qNova * (espTec.comprimento_m || 30));
-      return {
-        ...it,
-        quantidade: qNova,
-        medida: compMmNovo,
-        metragem_total: totalMNovo,
-        unidade: "UN",
-        maquina: it.maquina || "DESBOBINADOR"
-      };
+    if (isBobininha) {
+      const espTec = extrairEspecificacao(textoCompleto, it.quantidade, it.unidade);
+      if (espTec && espTec.tipo_conformacao === "bobininha" && espTec.pecas > 0) {
+        const qNova = espTec.pecas;
+        const compMmNovo = String(espTec.comprimento_mm || 30000);
+        const totalMNovo = espTec.metragem_total || (qNova * (espTec.comprimento_m || 30));
+        return {
+          ...it,
+          quantidade: qNova,
+          medida: compMmNovo,
+          metragem_total: totalMNovo,
+          unidade: "UN",
+          maquina: it.maquina || "DESBOBINADOR"
+        };
+      }
     }
+
+    // Enriquecimento inteligente de itens de Corte & Dobra / Perfis / Cantoneiras
+    if (classGrupo(it) === "cd" || /(chapa|perfil|dobr|cantoneira)/i.test(textoCompleto)) {
+      const espTec = extrairEspecificacao(textoCompleto, it.quantidade, it.unidade);
+      if (espTec && espTec.tem_especificacao) {
+        return {
+          ...it,
+          quantidade_pecas: espTec.quantidade || it.quantidade_pecas,
+          comprimento_mm: espTec.comprimento_mm || it.comprimento_mm,
+          comprimento_m: espTec.comprimento_m || it.comprimento_m,
+          desenvolvimento_mm: espTec.desenvolvimento_mm || it.desenvolvimento_mm,
+          medida: it.medida && it.medida !== "—" && it.medida !== "-" ? it.medida : (espTec.dimensoes_fmt || it.medida)
+        };
+      }
+    }
+
     return it;
   });
 }
