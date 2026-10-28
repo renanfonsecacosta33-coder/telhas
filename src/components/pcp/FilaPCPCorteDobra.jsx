@@ -37,6 +37,7 @@ import {
   calcularIntervaloPreset,
   obterDataCampoPedido
 } from "@/lib/filtroDataHelper";
+import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import SelecionarMaterialPedidoDialog from "@/components/corte-dobra/SelecionarMaterialPedidoDialog";
 
 export default function FilaPCPCorteDobra({ onNovaOrdem }) {
@@ -516,7 +517,7 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
 
     const unidItem = normalizarUnidadeMedidaItem(item, "cd");
     const descItem = item.descricao || item.produto;
-    const espItem = extrairEspecificacao(descItem, item.quantidade, unidItem);
+    const espItem = extrairEspecificacao(descItem, item.quantidade, unidItem) || {};
 
     return (
       <div
@@ -592,11 +593,11 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                     <User className="w-3.5 h-3.5 text-slate-400" />
                     {pedido.cliente_nome || "—"}
                   </span>
-                  <span>Medida: <strong>{item.medida || espItem.dimensoes_fmt || "—"}</strong></span>
+                  <span>Medida: <strong>{item.medida || espItem?.dimensoes_fmt || "—"}</strong></span>
                   <span>
                     Quantidade:{" "}
                     <strong className="text-orange-600">
-                      {espItem.quantidade ? `${espItem.quantidade} pçs` : `${item.quantidade}x`}
+                      {espItem?.quantidade ? `${espItem.quantidade} pçs` : `${item.quantidade}x`}
                     </strong>
                     {unidItem === "KG" && item.quantidade != null && (
                       <span className="text-slate-400 font-normal ml-1">({item.quantidade} KG)</span>

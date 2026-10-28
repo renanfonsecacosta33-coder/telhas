@@ -74,46 +74,7 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
   const [processandoAutoRoteamento, setProcessandoAutoRoteamento] = useState(false);
   const [limpandoDuplicadasPCP, setLimpandoDuplicadasPCP] = useState(false);
 
-  // Detecção de OPs idênticas duplicadas nas máquinas de Telhas
-  const duplicadasDetectadasPCP = useMemo(() => {
-    const vistos = new Map();
-    const dups = [];
-    (pedidosProducao || []).forEach(op => {
-      if (!op || op.status === "cancelado" || op.status === "finalizado") return;
-      const chave = gerarAssinaturaOp(op);
-      if (chave) {
-        if (vistos.has(chave)) {
-          dups.push(op);
-        } else {
-          vistos.set(chave, op.id);
-        }
-      }
-    });
-    return dups;
-  }, [pedidosProducao]);
 
-  const handleLimparDuplicadasPCP = async () => {
-    if (duplicadasDetectadasPCP.length === 0) return;
-    if (!window.confirm(`Foram detectadas ${duplicadasDetectadasPCP.length} OP(s) duplicada(s) pendente(s) na fábrica.\nDeseja remover as cópias excedentes agora?\nO sistema manterá a 1ª OP original e removerá apenas as duplicadas repetidas.`)) return;
-    setLimpandoDuplicadasPCP(true);
-    let removidos = 0;
-    for (const dup of duplicadasDetectadasPCP) {
-      try {
-        await base44.entities.Pedido.delete(dup.id);
-        removidos++;
-      } catch (err) {
-        console.error("Erro ao remover duplicada PCP:", err);
-      }
-    }
-    queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
-    queryClient.invalidateQueries({ queryKey: ["pedidos"] });
-    setLimpandoDuplicadasPCP(false);
-    toast({
-      title: "Limpeza concluída!",
-      description: `${removidos} OP(s) duplicada(s) removida(s) com sucesso. Apenas as ordens originais foram mantidas.`,
-      className: "border-emerald-500/40"
-    });
-  };
 
   const filialCtx = useFilial();
   const filialAtiva = filialCtx?.filialAtiva;
@@ -155,6 +116,47 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
     refetchOnWindowFocus: false,
     placeholderData: (prev) => prev
   });
+
+  // Detecção de OPs idênticas duplicadas nas máquinas de Telhas
+  const duplicadasDetectadasPCP = useMemo(() => {
+    const vistos = new Map();
+    const dups = [];
+    (pedidosProducao || []).forEach(op => {
+      if (!op || op.status === "cancelado" || op.status === "finalizado") return;
+      const chave = gerarAssinaturaOp(op);
+      if (chave) {
+        if (vistos.has(chave)) {
+          dups.push(op);
+        } else {
+          vistos.set(chave, op.id);
+        }
+      }
+    });
+    return dups;
+  }, [pedidosProducao]);
+
+  const handleLimparDuplicadasPCP = async () => {
+    if (duplicadasDetectadasPCP.length === 0) return;
+    if (!window.confirm(`Foram detectadas ${duplicadasDetectadasPCP.length} OP(s) duplicada(s) pendente(s) na fábrica.\nDeseja remover as cópias excedentes agora?\nO sistema manterá a 1ª OP original e removerá apenas as duplicadas repetidas.`)) return;
+    setLimpandoDuplicadasPCP(true);
+    let removidos = 0;
+    for (const dup of duplicadasDetectadasPCP) {
+      try {
+        await base44.entities.Pedido.delete(dup.id);
+        removidos++;
+      } catch (err) {
+        console.error("Erro ao remover duplicada PCP:", err);
+      }
+    }
+    queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+    queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+    setLimpandoDuplicadasPCP(false);
+    toast({
+      title: "Limpeza concluída!",
+      description: `${removidos} OP(s) duplicada(s) removida(s) com sucesso. Apenas as ordens originais foram mantidas.`,
+      className: "border-emerald-500/40"
+    });
+  };
 
   // Consulta estoque de Bobinas de Telhas para seleção automática minuciosa
   const { data: bobinasEstoque = [] } = useQuery({
