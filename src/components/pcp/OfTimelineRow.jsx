@@ -105,7 +105,10 @@ export default function OfTimelineRow({
     ? PILL.blue
     : PILL.amber;
 
-  const podeDistribuir = pedido.status_pcp === "pendente_distribuicao" && onDistribuir;
+  // Já existe OP viva na máquina → não é mais pendente de distribuição,
+  // mesmo que o status_pcp tenha ficado para trás.
+  const jaNaMaquina = (diag.opsVinculadas || []).length > 0;
+  const podeDistribuir = pedido.status_pcp === "pendente_distribuicao" && !jaNaMaquina && onDistribuir;
   const podeRetirar =
     (pedido.status_pcp === "distribuido" || pedido.status_pcp === "em_producao") && onRetirarFila;
 

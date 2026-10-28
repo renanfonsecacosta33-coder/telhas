@@ -1236,20 +1236,6 @@ export function obterStatusExecucaoPedido(pedido, pedidosProducao = [], ordensCD
     };
   }
 
-  // 🛡️ SE O PEDIDO ESTÁ PENDENTE DE DISTRIBUIÇÃO NO PCP, ELE NUNCA ESTÁ EM PRODUÇÃO!
-  if (pedido?.status_pcp === "pendente_distribuicao") {
-    return {
-      statusChave: "pendente_distribuicao",
-      label: "Fila PCP — Aguardando Distribuição",
-      badgeCls: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 font-bold",
-      produzindoAgora: false,
-      aguardandoInicio: false,
-      isConcluido: false,
-      maquinas: [],
-      opsVinculadas: []
-    };
-  }
-
   const grupoSetor = classGrupo(pedido);
   const numPed = String(pedido.numero_pedido || "").trim().toUpperCase();
   const ofId = String(pedido.of_odoo_id || pedido.odoo_id || "").trim().toUpperCase();
@@ -1293,6 +1279,22 @@ export function obterStatusExecucaoPedido(pedido, pedidosProducao = [], ordensCD
   };
 
   const opsVinculadas = listaFonte.filter(matchOp);
+
+  // 🛡️ Fila do PCP = pendente de distribuição E SEM nenhuma OP viva vinculada.
+  // Se a OF já tem OP na máquina, a verdade operacional manda — mesmo que a
+  // gravação do status_pcp tenha ficado para trás.
+  if (pedido?.status_pcp === "pendente_distribuicao" && opsVinculadas.length === 0) {
+    return {
+      statusChave: "pendente_distribuicao",
+      label: "Fila PCP — Aguardando Distribuição",
+      badgeCls: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 font-bold",
+      produzindoAgora: false,
+      aguardandoInicio: false,
+      isConcluido: false,
+      maquinas: [],
+      opsVinculadas: []
+    };
+  }
 
   const temEmProducao = opsVinculadas.some(o => ["em_producao", "executando"].includes(o.status));
   const temPausado = opsVinculadas.some(o => o.status === "pausado");

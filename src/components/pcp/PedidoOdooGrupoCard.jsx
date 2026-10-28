@@ -80,7 +80,12 @@ export default function PedidoOdooGrupoCard({
 
   const produzindoAgora = statusExecucaoOfs.filter(s => !s.isConcluida && s.diag.produzindoAgora);
   const aguardandoInicio = statusExecucaoOfs.filter(s => !s.isConcluida && s.diag.aguardandoInicio);
-  const pendentes = ofs.filter(p => p.status_pcp === "pendente_distribuicao" && !isOfConcluida(p));
+  // Pendente de verdade = status_pcp pendente E sem nenhuma OP viva na máquina
+  const pendentes = ofs.filter(p => {
+    if (p.status_pcp !== "pendente_distribuicao" || isOfConcluida(p)) return false;
+    const diag = statusExecucaoOfs.find(s => s.pedido.id === p.id)?.diag;
+    return !(diag?.opsVinculadas?.length > 0);
+  });
   const distribuidos = ofs.filter(p => p.status_pcp === "distribuido" && !isOfConcluida(p) && !produzindoAgora.some(x => x.pedido.id === p.id) && !aguardandoInicio.some(x => x.pedido.id === p.id));
   const concluidas = ofs.filter(p => isOfConcluida(p));
 

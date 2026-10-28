@@ -104,6 +104,9 @@ export default function PedidoOdooCard({
     return obterStatusExecucaoPedido(pedido, pedidosProducao, ordensCD);
   }, [pedido, pedidosProducao, ordensCD]);
 
+  // Se já existe OP viva na máquina, a OF não está mais pendente de distribuição
+  const semOpNaMaquina = (statusExecucao.opsVinculadas || []).length === 0;
+  const podeDistribuirAgora = pedido.status_pcp === "pendente_distribuicao" && semOpNaMaquina && !!onDistribuir;
   const st = STATUS_PCP[pedido.status_pcp] || (isConcluido ? STATUS_PCP.concluido : STATUS_PCP.pendente_distribuicao);
   const sla = slaDiasPorCategoria(pedido);
   const chk = progressoChecklist(pedido.itens_json);
@@ -398,9 +401,9 @@ export default function PedidoOdooCard({
         />
 
         {/* Rodapé de Ações Rápidas (alturas e larguras consistentes) */}
-        {((pedido.status_pcp === "pendente_distribuicao" && onDistribuir) || (!isConcluido && (onFinalizar100 || (podeRetirarFila && onRetirarFila)))) && (
+        {(podeDistribuirAgora || (!isConcluido && (onFinalizar100 || (podeRetirarFila && onRetirarFila)))) && (
           <div className="flex flex-col gap-1.5 pt-2 mt-auto border-t border-slate-200/70 dark:border-slate-800">
-            {pedido.status_pcp === "pendente_distribuicao" && onDistribuir && (
+            {podeDistribuirAgora && (
               <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   type="button"
@@ -742,7 +745,7 @@ export default function PedidoOdooCard({
           ))}
         </div>
       )}
-      {pedido.status_pcp === "pendente_distribuicao" && onDistribuir && (
+      {podeDistribuirAgora && (
         <div className="flex items-center gap-1.5 pt-1 flex-wrap">
           <button
             type="button"
