@@ -155,7 +155,7 @@ export default function OfTimelineRow({
           <span className={`text-[10px] font-bold rounded-full px-2 py-1 border ${pillCls}`}>
             {diag.label}
           </span>
-          <BadgeEnvio pedidoId={pedido.id} />
+          <BadgeEnvio pedidoId={pedido.id} statusPcp={pedido.status_pcp} />
         </div>
 
         <div className="text-xs leading-[1.35] text-[#34423e] dark:text-slate-300 truncate">

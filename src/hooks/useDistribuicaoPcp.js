@@ -62,14 +62,19 @@ export default function useDistribuicaoPcp({
     setDistribuindo(true); iniciarEnvio([...idsLote, ID_LOTE_ENVIO]);
     try {
       const autoTelhasAtivo = isAutoRoteamentoTelhasAtivo();
-      const { sucesso, telhasCount, preservadosManual, falhas, ultimoErro } = await distribuirLotePedidos({
+      const { sucesso, telhasCount, preservadosManual, falhas, ultimoErro, idsSucesso, idsFalha } = await distribuirLotePedidos({
         pedidos: pedidosADistribuir,
         opcoes,
         bobinasEstoque,
         filialAtiva
       });
 
-      concluirEnvio([...idsLote, ID_LOTE_ENVIO]);
+      // Selo "Enviado" só para quem realmente foi distribuído; quem falhou volta
+      // a mostrar o botão Distribuir e continua pendente na fila do PCP.
+      if (idsSucesso.length > 0) concluirEnvio(idsSucesso);
+      if (idsFalha.length > 0) cancelarEnvio(idsFalha);
+      if (sucesso > 0) concluirEnvio([ID_LOTE_ENVIO]);
+      else cancelarEnvio([ID_LOTE_ENVIO]);
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
       queryClient.invalidateQueries({ queryKey: ["bobinas-estoque-pcp"] });

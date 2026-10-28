@@ -48,9 +48,13 @@ function formatSeg(seg) {
  * variante "pill"   → pílula completa para cards (padrão)
  * variante "inline" → texto puro para dentro de botões em lote
  */
-export default function BadgeEnvio({ pedidoId, variante = "pill" }) {
+export default function BadgeEnvio({ pedidoId, variante = "pill", statusPcp }) {
   const envio = useEnvioDistribuicao(pedidoId);
   if (!envio) return null;
+
+  // Envio terminado mas OF ainda "pendente_distribuicao" = a gravação não
+  // confirmou: não anunciar como enviada (o botão Distribuir continua válido).
+  if (envio.fimTs && statusPcp === "pendente_distribuicao") return null;
 
   const emAndamento = !envio.fimTs;
   const pct = pctAnimado(envio.inicioTs, envio.fimTs);

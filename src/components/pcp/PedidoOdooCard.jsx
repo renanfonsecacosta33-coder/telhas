@@ -411,7 +411,7 @@ export default function PedidoOdooCard({
                   <Zap className="w-3.5 h-3.5" />
                   Distribuir
                 </button>
-                <BadgeEnvio pedidoId={pedido.id} />
+                <BadgeEnvio pedidoId={pedido.id} statusPcp={pedido.status_pcp} />
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onClick(); }}
@@ -753,7 +753,7 @@ export default function PedidoOdooCard({
             <Zap className="w-3.5 h-3.5" />
             Distribuir Pedido
           </button>
-          <BadgeEnvio pedidoId={pedido.id} />
+          <BadgeEnvio pedidoId={pedido.id} statusPcp={pedido.status_pcp} />
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onClick(); }}

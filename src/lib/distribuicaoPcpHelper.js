@@ -56,7 +56,9 @@ async function preBuscarOpsExistentes(alvo) {
  * Retorna { sucesso, telhasCount, preservadosManual, falhas }
  */
 export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinasEstoque = [], filialAtiva = "todas" }) {
-  if (!pedidos || pedidos.length === 0) return { sucesso: 0, telhasCount: 0, preservadosManual: 0, falhas: 0 };
+  if (!pedidos || pedidos.length === 0) {
+    return { sucesso: 0, telhasCount: 0, preservadosManual: 0, falhas: 0, ultimoErro: "", idsSucesso: [], idsFalha: [] };
+  }
 
   const autoTelhasAtivo = isAutoRoteamentoTelhasAtivo();
   const alvo = pedidos.filter(ped => !(opcoes.pularDevolvidosManualmente && ped.retirado_manualmente_ts));
@@ -66,6 +68,8 @@ export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinas
   let telhasCount = 0;
   let falhas = 0;
   let ultimoErro = "";
+  const idsSucesso = [];
+  const idsFalha = [];
 
   // ── OTIMIZAÇÃO 1: pré-busca única das OPs existentes ──
   const opsPorPedido = autoTelhasAtivo && alvo.length > 0
@@ -140,8 +144,10 @@ export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinas
       // Notificação em segundo plano sem bloquear o lote
       notificarStatus(atualizado, "distribuido", { status_novo: "distribuido", percentual_concluido: 15 }).catch(() => {});
       sucesso++;
+      idsSucesso.push(ped.id);
     } catch (err) {
       falhas++;
+      idsFalha.push(ped.id);
       ultimoErro = err?.message || String(err);
       console.error("[DistribuicaoLote] falha ao distribuir pedido:", ped.numero_pedido, err);
     }
@@ -162,7 +168,7 @@ export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinas
     Array.from({ length: Math.min(CONCORRENCIA, Math.max(alvo.length, 1)) }, worker)
   );
 
-  return { sucesso, telhasCount, preservadosManual, falhas, ultimoErro };
+  return { sucesso, telhasCount, preservadosManual, falhas, ultimoErro, idsSucesso, idsFalha };
 }
 
 /**
