@@ -4,8 +4,10 @@ import { itensPorGrupo } from "@/lib/pedidoOdooHelper";
 import { isAutoRoteamentoTelhasAtivo, rotearLoteTelhasAgrupadas, comRetry } from "@/lib/autoBobinaTelhasHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 
-// Número de pedidos processados simultaneamente na distribuição em lote (evita rate limit 429)
-const CONCORRENCIA = 3;
+// Pedidos processados simultaneamente na distribuição em lote.
+// (Cada pedido já roda seus grupos de telha em paralelo — 2 pedidos mantêm a
+// pressão no servidor equivalente à de antes, sem estourar o limite 429.)
+const CONCORRENCIA = 2;
 
 /**
  * Pré-busca TODAS as OPs existentes dos pedidos-alvo em 1-2 chamadas de rede.

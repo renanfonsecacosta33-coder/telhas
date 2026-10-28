@@ -751,8 +751,8 @@ export async function rotearLoteTelhasAgrupadas({
   const opsCriadas = [];
   const itensAtualizadosMap = {}; // idx -> dados atualizados
 
-  // 2. Para cada grupo de modelo idêntico:
-  for (const g of grupos.values()) {
+  // 2. Cada grupo de modelo idêntico = 1 OP independente (máquina/medida/cor).
+  const processarGrupo = async (g) => {
     const itensDoGrupo = g.itens;
     const primeiroItem = itensDoGrupo[0];
     const itemPrincipalIdx = primeiroItem._idx != null ? primeiroItem._idx : 0;
@@ -1015,7 +1015,29 @@ export async function rotearLoteTelhasAgrupadas({
         op_agrupada_id: opCriada.id
       };
     });
-  }
+  };
+
+  // 3. Grupos EM PARALELO (pool de 3): antes cada OP esperava a anterior terminar
+  //    no servidor (3-5s cada), somando o tempo total do envio da OF.
+  const listaGrupos = Array.from(grupos.values());
+  const erros = [];
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < listaGrupos.length) {
+      const g = listaGrupos[cursor++];
+      try {
+        await processarGrupo(g);
+      } catch (errGrupo) {
+        erros.push(errGrupo);
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(3, listaGrupos.length) }, worker)
+  );
+
+  // Se algum grupo não conseguiu gerar OP, a OF não é marcada como distribuída
+  if (erros.length > 0) throw erros[0];
 
   return { opsCriadas, itensAtualizadosMap };
 }
