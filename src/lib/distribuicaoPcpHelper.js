@@ -65,6 +65,7 @@ export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinas
   let sucesso = 0;
   let telhasCount = 0;
   let falhas = 0;
+  let ultimoErro = "";
 
   // ── OTIMIZAÇÃO 1: pré-busca única das OPs existentes ──
   const opsPorPedido = autoTelhasAtivo && alvo.length > 0
@@ -85,28 +86,29 @@ export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinas
           });
 
         if (telhasParaRoteamento.length > 0) {
-          try {
-            const resAgrupado = await rotearLoteTelhasAgrupadas({
-              pedido: ped,
-              itensTelhas: telhasParaRoteamento,
-              todasBobinas: bobinasEstoque,
-              filialAtiva: ped.unidade || filialAtiva,
-              // ── OTIMIZAÇÃO 2: OPs já pré-buscadas em massa (sem filtro por grupo) ──
-              opsExistentesPre: opsPorPedido.has(ped.id) ? opsPorPedido.get(ped.id) : null
-            });
+          const resAgrupado = await rotearLoteTelhasAgrupadas({
+            pedido: ped,
+            itensTelhas: telhasParaRoteamento,
+            todasBobinas: bobinasEstoque,
+            filialAtiva: ped.unidade || filialAtiva,
+            // ── OTIMIZAÇÃO 2: OPs já pré-buscadas em massa (sem filtro por grupo) ──
+            opsExistentesPre: opsPorPedido.has(ped.id) ? opsPorPedido.get(ped.id) : null
+          });
 
-            const opsConfirmadas = (resAgrupado.opsCriadas || []).filter(op => op?.id);
-            telhasCount += (opsConfirmadas.length > 0 ? telhasParaRoteamento.length : 0);
-
-            Object.entries(resAgrupado.itensAtualizadosMap || {}).forEach(([idxStr, dadosItem]) => {
-              const i = Number(idxStr);
-              if (itens[i]) {
-                itens[i] = { ...itens[i], ...dadosItem };
-              }
-            });
-          } catch (errAuto) {
-            console.warn(`[DistribuicaoLote] Aviso ao rotear telhas para pedido #${ped.numero_pedido}:`, errAuto?.message || errAuto);
+          const opsConfirmadas = (resAgrupado.opsCriadas || []).filter(op => op?.id);
+          // 🛡️ NUNCA FINGIR ENVIO: sem OP confirmada na perfiladeira a OF não pode
+          // ser marcada como distribuída — ela permanece pendente na Central PCP.
+          if (opsConfirmadas.length === 0) {
+            throw new Error(`Nenhuma OP foi criada na perfiladeira (OF ${ped.of_nome || ped.numero_pedido}).`);
           }
+          telhasCount += telhasParaRoteamento.length;
+
+          Object.entries(resAgrupado.itensAtualizadosMap || {}).forEach(([idxStr, dadosItem]) => {
+            const i = Number(idxStr);
+            if (itens[i]) {
+              itens[i] = { ...itens[i], ...dadosItem };
+            }
+          });
         }
       }
 
@@ -140,6 +142,7 @@ export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinas
       sucesso++;
     } catch (err) {
       falhas++;
+      ultimoErro = err?.message || String(err);
       console.error("[DistribuicaoLote] falha ao distribuir pedido:", ped.numero_pedido, err);
     }
   };
@@ -159,7 +162,7 @@ export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinas
     Array.from({ length: Math.min(CONCORRENCIA, Math.max(alvo.length, 1)) }, worker)
   );
 
-  return { sucesso, telhasCount, preservadosManual, falhas };
+  return { sucesso, telhasCount, preservadosManual, falhas, ultimoErro };
 }
 
 /**
@@ -197,27 +200,28 @@ export async function distribuirPedidoPCP({ pedido, bobinasEstoque = [], filialA
       });
 
     if (telhasParaRoteamento.length > 0) {
-      try {
-        const resAgrupado = await rotearLoteTelhasAgrupadas({
-          pedido,
-          itensTelhas: telhasParaRoteamento,
-          todasBobinas: bobinasEstoque,
-          filialAtiva: pedido.unidade || filialAtiva
-        });
+      const resAgrupado = await rotearLoteTelhasAgrupadas({
+        pedido,
+        itensTelhas: telhasParaRoteamento,
+        todasBobinas: bobinasEstoque,
+        filialAtiva: pedido.unidade || filialAtiva
+      });
 
-        const opsConfirmadas = (resAgrupado.opsCriadas || []).filter(op => op?.id);
-        telhasAutoRoteadas = opsConfirmadas.length > 0 ? telhasParaRoteamento.length : 0;
-        bobinasVinculadas = opsConfirmadas.filter(op => op.bobina_superior_id).length;
-
-        Object.entries(resAgrupado.itensAtualizadosMap || {}).forEach(([idxStr, dadosItem]) => {
-          const i = Number(idxStr);
-          if (itens[i]) {
-            itens[i] = { ...itens[i], ...dadosItem };
-          }
-        });
-      } catch (errAuto) {
-        console.warn(`[Distribuicao] Aviso ao rotear telhas para pedido #${pedido.numero_pedido}:`, errAuto?.message || errAuto);
+      const opsConfirmadas = (resAgrupado.opsCriadas || []).filter(op => op?.id);
+      // 🛡️ NUNCA FINGIR ENVIO: sem OP confirmada na perfiladeira a OF não é
+      // marcada como distribuída — o erro sobe para o PCP avisar o operador.
+      if (opsConfirmadas.length === 0) {
+        throw new Error(`Nenhuma OP foi criada na perfiladeira (OF ${pedido.of_nome || pedido.numero_pedido}).`);
       }
+      telhasAutoRoteadas = telhasParaRoteamento.length;
+      bobinasVinculadas = opsConfirmadas.filter(op => op.bobina_superior_id).length;
+
+      Object.entries(resAgrupado.itensAtualizadosMap || {}).forEach(([idxStr, dadosItem]) => {
+        const i = Number(idxStr);
+        if (itens[i]) {
+          itens[i] = { ...itens[i], ...dadosItem };
+        }
+      });
     }
   }
 

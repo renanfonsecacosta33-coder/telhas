@@ -845,6 +845,14 @@ export async function rotearLoteTelhasAgrupadas({
       : "";
 
     const nivelPrioridade = getPrioridadeNivel(pedido);
+    // 🛡️ A prioridade da OP é NUMÉRICA (1..5). "RETIRA_AGORA" e "ROTA" são
+    // rótulos de fila: sem esta conversão o servidor recusa a criação da OP
+    // ("Input should be a valid number") e a telha nunca chega à máquina.
+    const ehRetiraAgora = nivelPrioridade === "RETIRA_AGORA";
+    const ehRota = nivelPrioridade === "ROTA";
+    const nivelPrioridadeNumerico = typeof nivelPrioridade === "number"
+      ? nivelPrioridade
+      : (ehRetiraAgora ? 1 : ehRota ? 2 : null);
     const textoPrimeiro = `${primeiroItem.produto || ""} ${primeiroItem.descricao || ""} ${textoObservacoes.join(" ")}`.trim();
     const modeloFinal = primeiroItem.modelo || (detectarMaquinaTelha(textoPrimeiro) || g.maquina);
 
@@ -862,9 +870,11 @@ export async function rotearLoteTelhasAgrupadas({
       maquina: g.maquina,
       maquina_origem: g.maquina,
       status: "pendente",
-      prioridade_nivel: nivelPrioridade,
+      prioridade_nivel: nivelPrioridadeNumerico,
       prioridade: Boolean(nivelPrioridade),
-      is_rota: nivelPrioridade === "ROTA",
+      is_rota: ehRota,
+      rota: ehRota,
+      cliente_retira_agora: ehRetiraAgora,
       espessura_exigida: g.esp || "0.43",
       origem_exigida: primeiroItem.origem || detectarOrigemAco(primeiroItem.produto || "") || "ambas",
       cor_exigida: g.cor || "NATURAL",

@@ -62,7 +62,7 @@ export default function useDistribuicaoPcp({
     setDistribuindo(true); iniciarEnvio([...idsLote, ID_LOTE_ENVIO]);
     try {
       const autoTelhasAtivo = isAutoRoteamentoTelhasAtivo();
-      const { sucesso, telhasCount, preservadosManual, falhas } = await distribuirLotePedidos({
+      const { sucesso, telhasCount, preservadosManual, falhas, ultimoErro } = await distribuirLotePedidos({
         pedidos: pedidosADistribuir,
         opcoes,
         bobinasEstoque,
@@ -83,10 +83,17 @@ export default function useDistribuicaoPcp({
             : `Todas as ordens selecionadas foram encaminhadas simultaneamente para as filas dos galpões.${preservadosManual ? ` ${preservadosManual} devolvido(s) manualmente foram preservados no PCP.` : ""}`,
           className: "border-emerald-500/40"
         });
+        if (falhas > 0) {
+          toast({
+            title: `⚠️ ${falhas} pedido(s) NÃO foram distribuídos`,
+            description: `${ultimoErro || "A OP não foi criada na máquina."} As OFs continuam na fila do PCP.`,
+            variant: "destructive"
+          });
+        }
       } else if (falhas > 0) {
         toast({
           title: `Falha na distribuição`,
-          description: `Não foi possível distribuir ${falhas} pedido(s). Tente novamente em instantes.`,
+          description: `${ultimoErro || `Não foi possível distribuir ${falhas} pedido(s).`} As OFs continuam na fila do PCP.`,
           variant: "destructive"
         });
       }
