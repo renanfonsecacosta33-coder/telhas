@@ -15,10 +15,9 @@ export function opMesmaOf(o, dedup) {
   const ofId = norm(dedup?.of_odoo_id);
   const ofNome = norm(dedup?.of_nome).toUpperCase();
   const numPed = norm(dedup?.numero_pedido);
-  if (pedId && norm(o?.pedido_odoo_id) === pedId) return true;
-  if (ofId && norm(o?.of_odoo_id) === ofId) return true;
-  if (ofNome && norm(o?.of_nome).toUpperCase() === ofNome) return true;
-  if (!o?.pedido_odoo_id && !o?.of_odoo_id && !o?.of_nome && numPed && norm(o?.numero_pedido) === numPed) return true;
+  if (o?.pedido_odoo_id) return Boolean(pedId) && norm(o.pedido_odoo_id) === pedId;
+  if (o?.of_odoo_id) return Boolean(ofId) && norm(o.of_odoo_id) === ofId;
+  if (o?.of_nome) return Boolean(ofNome) && norm(o.of_nome).toUpperCase() === ofNome;
   return false;
 }
 
@@ -28,21 +27,21 @@ export function opMesmaOf(o, dedup) {
  * 2. Fallback: mesmo produto + mesma máquina na mesma OF (pega OPs legadas
  *    criadas sem índice — eram exatamente as que escapavam da checagem antiga).
  */
+function indicesOp(o) {
+  const raw = o?.itens_indices || o?.item_indices;
+  const lista = Array.isArray(raw) ? raw : (raw ? JSON.parse(raw) : []);
+  return [...new Set([...(Array.isArray(lista) ? lista : []), o?.item_idx]
+    .filter(v => v !== null && v !== undefined && v !== "").map(Number).filter(Number.isInteger))];
+}
+
 export function opCobreMesmoItem(o, dedup) {
-  const indices = (dedup?.indices || []).map(Number).filter((n) => !isNaN(n));
-  if (indices.length > 0) {
-    if (o?.item_idx != null && indices.includes(Number(o.item_idx))) return true;
-    if (o?.itens_indices) {
-      try {
-        const l = Array.isArray(o.itens_indices) ? o.itens_indices : JSON.parse(o.itens_indices);
-        if (Array.isArray(l) && l.some((i) => indices.includes(Number(i)))) return true;
-      } catch { /* itens_indices inválido — ignora */ }
-    }
+  const solicitados = (dedup?.indices || []).map(Number).filter(Number.isInteger);
+  const registrados = indicesOp(o);
+  if (solicitados.length || registrados.length) {
+    return solicitados.length > 0 && solicitados.every(idx => registrados.includes(idx));
   }
-  const prod = norm(dedup?.item_produto).toUpperCase();
-  const maq = norm(dedup?.maquina).toUpperCase();
-  if (prod && maq && norm(o?.item_produto).toUpperCase() === prod && norm(o?.maquina).toUpperCase() === maq) return true;
-  return false;
+  return Boolean(dedup?.item_produto && dedup?.maquina) &&
+    norm(o?.item_produto) === norm(dedup.item_produto) && norm(o?.maquina) === norm(dedup.maquina);
 }
 
 async function buscarCandidatas(client, dedup) {
@@ -55,8 +54,14 @@ async function buscarCandidatas(client, dedup) {
   if (numPed) condicoes.push({ numero_pedido: numPed });
   if (condicoes.length === 0) return [];
   const query = condicoes.length === 1 ? condicoes[0] : { $or: condicoes };
-  const ops = await client.entities.Pedido.filter(query);
-  return (ops || []).filter((o) => String(o?.status || "").toLowerCase() !== "cancelado" && opMesmaOf(o, dedup));
+  const ops = [];
+  let cursor;
+  do {
+    const page = await client.entities.Pedido.filter({ ...query, status: { $ne: "cancelado" } }, { limit: 100, ...(cursor ? { cursor } : {}) });
+    ops.push(...page.items);
+    cursor = page.has_more ? page.next_cursor : null;
+  } while (cursor);
+  return ops.filter(o => opMesmaOf(o, dedup));
 }
 
 const maisAntiga = (a, b) => String(a?.created_date || "").localeCompare(String(b?.created_date || ""));
@@ -71,9 +76,18 @@ const maisAntiga = (a, b) => String(a?.created_date || "").localeCompare(String(
 export async function garantirOpUnica(client, { dadosOp, dedup }) {
   // 1. Verificação fresca no servidor, no momento da criação
   const candidatas = await buscarCandidatas(client, dedup);
-  const existente = candidatas.filter((o) => opCobreMesmoItem(o, dedup)).sort(maisAntiga)[0];
+  const existente = candidatas.filter(o => opCobreMesmoItem(o, dedup)).sort((a, b) =>
+    Number(a.status === "finalizado") - Number(b.status === "finalizado") || maisAntiga(a, b))[0];
   if (existente) {
     return { op: existente, criada: false, motivo: "op_existente" };
+  }
+
+  const solicitados = (dedup.indices || []).map(Number);
+  if (candidatas.some(o => indicesOp(o).some(idx => solicitados.includes(idx)))) {
+    throw new Error("Há OP cobrindo apenas parte deste grupo. Revise os itens já enviados antes de distribuir o restante.");
+  }
+  if (candidatas.some(o => !indicesOp(o).length && norm(o.item_produto) === norm(dedup.item_produto))) {
+    throw new Error("Há OP legada sem identificação de item para este produto. Revise o vínculo no PCP antes de reenviar.");
   }
 
   // 2. Cria a OP
@@ -83,18 +97,14 @@ export async function garantirOpUnica(client, { dadosOp, dedup }) {
   const recheck = await buscarCandidatas(client, dedup);
   const conflitos = recheck.filter((o) => o?.id !== nova?.id && opCobreMesmoItem(o, dedup));
   if (conflitos.length > 0) {
-    const todas = [nova, ...conflitos];
-    const vencedora = [...todas].sort(maisAntiga)[0];
-    // A mais antiga vence: se a nossa é a duplicata, apagamos ela
-    if (vencedora?.id !== nova?.id) {
-      await client.entities.Pedido.delete(nova.id).catch(() => {});
+    const vencedora = [nova, ...conflitos].sort((a, b) => maisAntiga(a, b) || norm(a.id).localeCompare(norm(b.id)))[0];
+    if (vencedora.id !== nova.id) {
+      // Nunca apaga OPs de terceiros, nem produção iniciada. Só cancela a cópia recém-criada nesta chamada.
+      const atual = await client.entities.Pedido.get(nova.id);
+      if (atual.status === "pendente") await client.entities.Pedido.update(nova.id, {
+        status: "cancelado", observacoes: `${atual.observacoes || ""}\nCópia concorrente cancelada; OP mantida: ${vencedora.id}`
+      });
       return { op: vencedora, criada: false, motivo: "concorrencia_reconciliada" };
-    }
-    // A nossa é a mais antiga: apaga as duplicatas concorrentes que ainda estão pendentes
-    for (const c of conflitos) {
-      if (String(c?.status || "").toLowerCase() === "pendente") {
-        await client.entities.Pedido.delete(c.id).catch(() => {});
-      }
     }
   }
 

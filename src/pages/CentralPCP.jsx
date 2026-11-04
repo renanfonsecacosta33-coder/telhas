@@ -5,9 +5,9 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Calendar, X, Clock, Trash2, Building2, ArrowRightLeft, Globe, User, Briefcase, Hash, Package, ShieldCheck, Target, BookOpen, RotateCcw, History, Activity } from "lucide-react";
+import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Clock, Trash2, ArrowRightLeft, User, Briefcase, Hash, Package, Target } from "lucide-react";
 import { executarExclusaoOsBackground } from "@/lib/excluirOsHelper"; import { sincronizarLoteOdoo } from "@/lib/sincronizarOdooHelper";
-import { finalizarOpsDoPedido, cancelarOpsDoPedido, executarVarreduraEConciliacaoGeral, cancelarOpsDasOfsExatas, comRetryLimite } from "@/lib/conciliacaoPcpMaquinasHelper"; import { hojeLocalISO } from "@/lib/dataLocal";
+import { finalizarOpsDoPedido, cancelarOpsDoPedido, executarVarreduraEConciliacaoGeral, cancelarOpsDasOfsExatas, comRetryLimite } from "@/lib/conciliacaoPcpMaquinasHelper";
 import RelatorioAuditoriaDiariaModal from "@/components/pcp/RelatorioAuditoriaDiariaModal";
 import HistoricoExclusoesModal from "@/components/pcp/HistoricoExclusoesModal";
 import CentralSaudeSistemaModal from "@/components/pcp/CentralSaudeSistemaModal";
@@ -34,7 +34,6 @@ import WebhookSimulatorDialog from "@/components/pcp/WebhookSimulatorDialog";
 import RecuperarPedidoOdooDialog from "@/components/pcp/RecuperarPedidoOdooDialog";
 import AuditarRestaurarOpsDialog from "@/components/pcp/AuditarRestaurarOpsDialog";
 import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
-import { executarReparoBobininhasBanco } from "@/lib/repararBobininhasHelper";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import TransferirLojaDialog from "@/components/pcp/TransferirLojaDialog";
 import ViewModeToggle from "@/components/ui/ViewModeToggle";
@@ -45,14 +44,17 @@ import { salvarCacheLocal, obterCacheLocal } from "@/lib/offlineStorage";
 import { useFilial } from "@/contexts/FilialContext";
 import { useOffline } from "@/contexts/OfflineContext";
 import { FILIAIS_PCP } from "@/lib/roteamentoPCP";
-import { calcularDataPrometidaSLA, toISODate, slaDiasPorCategoria, diasUteisRestantes, formatDataBR } from "@/lib/sla";
+import { calcularDataPrometidaSLA, toISODate, slaDiasPorCategoria, diasUteisRestantes } from "@/lib/sla";
 import { parseItensPedido } from "@/lib/regrasFabrica";
 import { notificarStatus } from "@/lib/biNotificador";
 import {
-  calcularProgressoRealPedido, statusPcpPorPercentual, enriquecerItensComStatusReal,
+  calcularProgressoRealPedido,
   obterStatusExecucaoPedido, classGrupo
 } from "@/lib/pedidoOdooHelper";
-import useDistribuicaoPcp from "@/hooks/useDistribuicaoPcp";
+import useDistribuicaoPcp from "@/hooks/useDistribuicaoPcp"; import useProgramacaoPcp from "@/hooks/useProgramacaoPcp";
+import useFilaPaginada from "@/hooks/useFilaPaginada";
+import FilaPagination from "@/components/pcp/FilaPagination";
+import { montarConsultaPcp, buscarOpsDasOfs } from "@/lib/consultaFilaPcp";
 import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
@@ -133,7 +135,7 @@ export default function CentralPCP() {
       ]);
       const achados = res.flat().filter(Boolean);
       if (achados.length > 0) {
-        queryClient.setQueryData(["pedidos-odoo-pcp"], (prev = []) => {
+        queryClient.setQueryData(filaPcp.queryKey, (prev = []) => {
           const idsExistentes = new Set(prev.map(p => p.id));
           const novos = achados.filter(p => !idsExistentes.has(p.id));
           return [...novos, ...prev];
@@ -330,51 +332,13 @@ export default function CentralPCP() {
     }
   };
 
-  // ── BUSCA ILIMITADA BLINDADA COM CACHE LOCAL INDEXEDDB (TELA NUNCA VAZIA) ──
-  const carregarPedidosOdooBlindado = async () => {
-    const CHAVE_CACHE = "pedidos_odoo_pcp_cache_v2";
-
-    // 1. Se estiver offline no navegador, resgata imediatamente do cache local do dispositivo
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      const salvoOffline = await obterCacheLocal(CHAVE_CACHE);
-      if (salvoOffline && Array.isArray(salvoOffline) && salvoOffline.length > 0) {
-        return salvoOffline;
-      }
-    }
-
-    try {
-      // 2. Busca na nuvem otimizada (600 registros mais recentes - economia de 90% no tráfego de leitura)
-      const dados = await base44.entities.PedidoOdoo.list("-data_recebimento", 600);
-      if (dados && Array.isArray(dados) && dados.length > 0) {
-        salvarCacheLocal(CHAVE_CACHE, dados).catch(() => {});
-        return dados;
-      }
-
-      // Se a rede respondeu vazio inesperadamente, resgata o cache para NUNCA esvaziar a tela
-      const salvoFallback = await obterCacheLocal(CHAVE_CACHE);
-      if (salvoFallback && Array.isArray(salvoFallback) && salvoFallback.length > 0) {
-        return salvoFallback;
-      }
-      return dados || [];
-    } catch (errRede) {
-      console.warn("[CentralPCP] Rede instável ou timeout ao buscar PedidoOdoo, resgatando cache IndexedDB:", errRede);
-      const salvoLocal = await obterCacheLocal(CHAVE_CACHE);
-      if (salvoLocal && Array.isArray(salvoLocal) && salvoLocal.length > 0) {
-        return salvoLocal;
-      }
-      throw errRede;
-    }
-  };
   const [modalRelatorioAuditoriaOpen, setModalRelatorioAuditoriaOpen] = useState(false);
-  const { data: pedidosRaw = [], isLoading: carregando, refetch, dataUpdatedAt } = useQuery({
-    queryKey: ["pedidos-odoo-pcp"],
-    queryFn: carregarPedidosOdooBlindado,
-    placeholderData: (previousData) => previousData, // Preserva 100% dos dados na tela durante revalidações
-    staleTime: 30000,
-    gcTime: 1000 * 60 * 60 * 24, // 24 horas retido em memória
-    retry: 3,
-    refetchInterval: (detalheOpen || modalSaudeOpen || modalExclusao.aberto || modalTransferir.aberto || modalRelatorioAuditoriaOpen) ? false : 30000,
-    refetchOnWindowFocus: false
+  const consultaPcp = montarConsultaPcp({ filtro, lojaSelecionada, busca: buscaDebounced, tipoBusca, filtroSetor,
+    filtroDataCampo, filtroDataInicio, filtroDataFim, filtroDataPreset });
+  const filaPcp = useFilaPaginada({ entidade: "PedidoOdoo", query: consultaPcp, prefixo: "pedidos-odoo-pcp" });
+  const { data: pedidosRaw = [], isLoading: carregando, refetch, dataUpdatedAt } = filaPcp;
+  const { data: resumoServidor = { rows: [] } } = useQuery({
+    queryKey: ["resumo-pcp"], queryFn: () => base44.entities.PedidoOdoo.aggregate({ groupBy: ["unidade", "status_pcp"] }), staleTime: 30000
   });
 
   // Sincronização em tempo real (timer isolado em BadgeTempoSync para zero re-renderizações parasitas)
@@ -421,16 +385,7 @@ export default function CentralPCP() {
       } else if (p.of_nome) {
         chave = `OFNOME_${String(p.of_nome).trim().toUpperCase()}`;
       } else if (p.numero_pedido) {
-        const itensPrimeiro = (() => {
-          try {
-            const arr = typeof p.itens_json === "string" ? JSON.parse(p.itens_json) : p.itens_json;
-            if (Array.isArray(arr) && arr.length > 0) {
-              return `${arr[0]?.produto || ""}_${arr[0]?.quantidade || ""}_${arr[0]?.medida || ""}`;
-            }
-          } catch {}
-          return "";
-        })();
-        chave = `PED_${String(p.numero_pedido).trim()}_${itensPrimeiro || p.id}`;
+        chave = `ID_${p.id}`;
       } else {
         chave = `ID_${p.id}`;
       }
@@ -444,67 +399,24 @@ export default function CentralPCP() {
   }, [pedidosRaw]);
 
   const { data: pedidosProducao = [] } = useQuery({
-    queryKey: ["pedidos-producao-todos"],
-    queryFn: async () => {
-      const CHAVE = "pedidos_producao_todos_cache_v2";
-      if (typeof navigator !== "undefined" && !navigator.onLine) {
-        const c = await obterCacheLocal(CHAVE);
-        if (c && c.length > 0) return c;
-      }
-      try {
-        const res = await base44.entities.Pedido.list("-data", 500);
-        if (res && res.length > 0) salvarCacheLocal(CHAVE, res).catch(() => {});
-        return res;
-      } catch (e) {
-        const c = await obterCacheLocal(CHAVE);
-        if (c && c.length > 0) return c;
-        throw e;
-      }
-    },
-    placeholderData: (prev) => prev,
+    queryKey: ["pedidos-producao-todos", pedidos.map(p => p.id).join(",")],
+    enabled: pedidos.length > 0,
+    queryFn: () => buscarOpsDasOfs(base44, "Pedido", pedidos),
     staleTime: 30000,
-    gcTime: 1000 * 60 * 60 * 24,
-    retry: 3,
-    refetchInterval: 30000,
+    retry: false,
     refetchOnWindowFocus: false
   });
 
   const { data: ordensCD = [] } = useQuery({
-    queryKey: ["ordens-cd-todos"],
-    queryFn: async () => {
-      const CHAVE = "ordens_cd_todos_cache_v2";
-      if (typeof navigator !== "undefined" && !navigator.onLine) {
-        const c = await obterCacheLocal(CHAVE);
-        if (c && c.length > 0) return c;
-      }
-      try {
-        const res = await base44.entities.OrdemMaquinaCD.list("-data", 500);
-        if (res && res.length > 0) salvarCacheLocal(CHAVE, res).catch(() => {});
-        return res;
-      } catch (e) {
-        const c = await obterCacheLocal(CHAVE);
-        if (c && c.length > 0) return c;
-        throw e;
-      }
-    },
-    placeholderData: (prev) => prev,
+    queryKey: ["ordens-cd-todos", pedidos.map(p => p.id).join(",")],
+    enabled: pedidos.length > 0,
+    queryFn: () => buscarOpsDasOfs(base44, "OrdemMaquinaCD", pedidos),
     staleTime: 30000,
-    gcTime: 1000 * 60 * 60 * 24,
-    retry: 3,
-    refetchInterval: 30000,
+    retry: false,
     refetchOnWindowFocus: false
   });
 
-  // Repara e sincroniza automaticamente qualquer Bobininha no banco de dados (ex: #S01195)
-  const reparoBobininhasExecutadoRef = useRef(false);
-  useEffect(() => {
-    if (pedidosRaw.length > 0 && !reparoBobininhasExecutadoRef.current) {
-      reparoBobininhasExecutadoRef.current = true;
-      executarReparoBobininhasBanco(pedidosRaw, pedidosProducao).then(() => {
-        // silencioso
-      }).catch(() => {});
-    }
-  }, [pedidosRaw, pedidosProducao]);
+  // Abrir a Central é somente leitura: reparos de quantidades não são disparados pelo carregamento.
 
   // Consultas de Matéria-Prima em Tempo Real para Análise de Disponibilidade no PCP
   const { data: bobinasEstoque = [] } = useQuery({
@@ -572,59 +484,18 @@ export default function CentralPCP() {
   useEffect(() => {
     const unsubscribe = base44.entities.PedidoOdoo.subscribe(() => {
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["resumo-pcp"] });
     });
     return unsubscribe;
   }, [queryClient]);
 
   // Sincronização 100% Automática em Tempo Real com o Odoo ERP:
   // Detecta alterações no progresso real das máquinas e sincroniza tanto o banco quanto o Odoo
-  const syncEmAndamentoRef = useRef(new Set());
+  // A sincronização é feita após a confirmação da produção, na OF exata.
   // Fila serializada anti-colisão e anti-rate-limit para operações de prioridade
   const filaPrioridadeRef = useRef(Promise.resolve());
 
-  useEffect(() => {
-    if (!pedidos.length) return;
-
-    pedidos.forEach(async (p) => {
-      if (!p.id || !p.numero_pedido) return;
-      const progressoReal = calcularProgressoRealPedido(p, pedidosProducao, ordensCD);
-      let statusReal = statusPcpPorPercentual(progressoReal, p.status_pcp);
-
-      // Se o pedido está pendente de distribuição no PCP, NÃO deve ser alterado automaticamente para 'em_producao'
-      // a menos que esteja realmente concluído (100%)
-      if (p.status_pcp === "pendente_distribuicao" && statusReal !== "concluido") {
-        statusReal = "pendente_distribuicao";
-      }
-
-      // Sincroniza SOMENTE se o percentual ou status realmente mudarem
-      const syncKey = `${p.id}_${progressoReal}_${statusReal}`;
-      if (
-        ((progressoReal !== p.percentual_concluido && p.status_pcp !== "pendente_distribuicao") ||
-         (p.status_pcp !== "concluido" && statusReal === "concluido") ||
-         (p.status_pcp !== "pendente_distribuicao" && p.status_pcp !== statusReal)) &&
-        !syncEmAndamentoRef.current.has(syncKey)
-      ) {
-        syncEmAndamentoRef.current.add(syncKey);
-        try {
-          const itensEnriquecidos = enriquecerItensComStatusReal(p, pedidosProducao, ordensCD);
-          const itensJsonEnriquecido = JSON.stringify(itensEnriquecidos);
-          const atualizado = await base44.entities.PedidoOdoo.update(p.id, {
-            percentual_concluido: progressoReal,
-            status_pcp: statusReal,
-            itens_json: itensJsonEnriquecido
-          });
-          // Notifica Mini BI do Odoo automaticamente em tempo real com itens descritivos
-          await notificarStatus(atualizado, "progresso_automatico", {
-            percentual_concluido: progressoReal,
-            status_novo: statusReal,
-            item_nome: `Pedido #${p.numero_pedido}`
-          });
-        } catch (err) {
-          console.error("[CentralPCP AutoSync] falha na sincronizacao automatica:", p.numero_pedido, err);
-        }
-      }
-    });
-  }, [pedidos, pedidosProducao, ordensCD]);
+  // Não grava status/itens a partir de uma lista parcial ou de um cache do navegador.
 
   const handleReceberWebhook = async (pedidosParsed) => {
     const novos = pedidosParsed.map((p) => {
@@ -802,7 +673,7 @@ export default function CentralPCP() {
     setDetalheOpen(false);
     setPedidoSelecionado(null);
 
-        queryClient.setQueryData(["pedidos-odoo-pcp"], (oldData) => {
+        queryClient.setQueryData(filaPcp.queryKey, (oldData) => {
       if (!Array.isArray(oldData)) return oldData;
       return oldData.filter((item) => item.id !== pedidoId);
     });
@@ -970,8 +841,8 @@ export default function CentralPCP() {
     }];
 
     // 1. Atualização Otimista Imediata no Cache do React Query
-    const snapshotAnterior = queryClient.getQueryData(["pedidos-odoo-pcp"]);
-    queryClient.setQueryData(["pedidos-odoo-pcp"], (antigos = []) => {
+    const snapshotAnterior = queryClient.getQueryData(filaPcp.queryKey);
+    queryClient.setQueryData(filaPcp.queryKey, (antigos = []) => {
       return antigos.map((p) => {
         if (p.id === pedido.id) {
           return {
@@ -1079,7 +950,7 @@ export default function CentralPCP() {
     } catch (e) {
       // Reverte em caso de falha irreversível
       if (snapshotAnterior) {
-        queryClient.setQueryData(["pedidos-odoo-pcp"], snapshotAnterior);
+        queryClient.setQueryData(filaPcp.queryKey, snapshotAnterior);
       }
       toast({ title: "Erro ao alterar prioridade", description: e.message, variant: "destructive" });
     }
@@ -1112,8 +983,8 @@ export default function CentralPCP() {
     const ofIdsSet = new Set(ofs.map((o) => o.id));
 
     // 1. Atualização Otimista Imediata no Cache do React Query
-    const snapshotAnterior = queryClient.getQueryData(["pedidos-odoo-pcp"]);
-    queryClient.setQueryData(["pedidos-odoo-pcp"], (antigos = []) => {
+    const snapshotAnterior = queryClient.getQueryData(filaPcp.queryKey);
+    queryClient.setQueryData(filaPcp.queryKey, (antigos = []) => {
       return antigos.map((p) => {
         if (ofIdsSet.has(p.id)) {
           const logExistente = (() => { try { return JSON.parse(p.historico_log || "[]"); } catch { return []; } })();
@@ -1218,7 +1089,7 @@ export default function CentralPCP() {
     } catch (e) {
       // Reverte cache se deu erro após todas as tentativas
       if (snapshotAnterior) {
-        queryClient.setQueryData(["pedidos-odoo-pcp"], snapshotAnterior);
+        queryClient.setQueryData(filaPcp.queryKey, snapshotAnterior);
       }
       toast({ title: "Erro ao alterar prioridade do pedido", description: e.message, variant: "destructive" });
     }
@@ -1244,8 +1115,8 @@ export default function CentralPCP() {
     const ofIdsSet = new Set(lista.map(o => o.id));
 
     // 1. Atualização Otimista Imediata
-    const snapshotAnterior = queryClient.getQueryData(["pedidos-odoo-pcp"]);
-    queryClient.setQueryData(["pedidos-odoo-pcp"], (antigos = []) => {
+    const snapshotAnterior = queryClient.getQueryData(filaPcp.queryKey);
+    queryClient.setQueryData(filaPcp.queryKey, (antigos = []) => {
       return antigos.map((p) => {
         if (ofIdsSet.has(p.id)) {
           const logExistente = (() => { try { return JSON.parse(p.historico_log || "[]"); } catch { return []; } })();
@@ -1341,7 +1212,7 @@ export default function CentralPCP() {
     } catch (err) {
       console.error(err);
       if (snapshotAnterior) {
-        queryClient.setQueryData(["pedidos-odoo-pcp"], snapshotAnterior);
+        queryClient.setQueryData(filaPcp.queryKey, snapshotAnterior);
       }
       toast({ title: "Erro ao atualizar prioridade em lote", description: err.message, variant: "destructive" });
     }
@@ -1371,143 +1242,25 @@ export default function CentralPCP() {
     }
   };
 
-  // Programação e Distribuição por Item
-  const handleProgramarItem = async (pedido, idx, { maquina, data_programada, distribuir = false }) => {
-    try {
-      const itens = parseItensPedido(pedido.itens_json);
-      if (!itens[idx]) return;
-
-      const itemAtualizado = {
-        ...itens[idx],
-        maquina: maquina || itens[idx].maquina || "",
-        data_programada: data_programada || itens[idx].data_programada || hojeLocalISO(),
-        status: distribuir ? "distribuido" : (itens[idx].status || "pendente"),
-        distribuido: distribuir ? true : (itens[idx].distribuido || false)
-      };
-      itens[idx] = itemAtualizado;
-
-      // Se este item específico está sendo distribuído, garante que outros itens sem marcação
-      // fiquem com distribuido: false, para não irem juntos para o galpão prematuramente
-      if (distribuir) {
-        itens.forEach((it, i) => {
-          if (i !== idx && it.distribuido === undefined) {
-            it.distribuido = false;
-          }
-        });
-      }
-
-      const algumDistribuido = itens.some(i => i.distribuido || i.status === "distribuido" || i.status === "concluido");
-      const novoStatusPcp = algumDistribuido && pedido.status_pcp === "pendente_distribuicao" 
-        ? "distribuido" 
-        : pedido.status_pcp;
-
-      const logExistente = (() => { try { return JSON.parse(pedido.historico_log || "[]"); } catch { return []; } })();
-      const novoLog = [...logExistente, {
-        data: new Date().toISOString(),
-        usuario: "PCP",
-        acao: distribuir ? "distribuicao_item" : "programacao_item",
-        detalhes: `Item "${itemAtualizado.produto || itemAtualizado.descricao}" programado para máquina ${itemAtualizado.maquina || "Padrão"} na data ${itemAtualizado.data_programada}.${distribuir ? " (Distribuído ao galpão)" : ""}`
-      }];
-
-      const atualizado = await base44.entities.PedidoOdoo.update(pedido.id, {
-        itens_json: JSON.stringify(itens),
-        status_pcp: novoStatusPcp,
-        historico_log: JSON.stringify(novoLog)
-      });
-
-      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
-      setPedidoSelecionado({ ...pedido, ...atualizado });
-
-      if (distribuir) {
-        notificarStatus(atualizado, "distribuido", {
-          status_novo: novoStatusPcp,
-          item_nome: itemAtualizado.produto || `Item #${idx + 1}`,
-          maquina_atual: itemAtualizado.maquina || ""
-        }).catch(() => {});
-      }
-
-      toast({
-        title: distribuir ? "Item distribuído!" : "Item programado!",
-        description: `Item #${idx + 1} direcionado para ${itemAtualizado.maquina || "Galpão"} (${itemAtualizado.data_programada}).`,
-        className: "border-blue-500/40"
-      });
-    } catch (err) {
-      toast({ title: "Erro ao programar item", description: err.message, variant: "destructive" });
-    }
-  };
-
-  const handleProgramarTodosItens = async (pedido, itensProgramados, distribuir = true) => {
-    try {
-      const algumDistribuido = itensProgramados.some(i => i.distribuido || i.status === "distribuido");
-      const novoStatusPcp = (distribuir || algumDistribuido) && pedido.status_pcp === "pendente_distribuicao"
-        ? "distribuido"
-        : pedido.status_pcp;
-
-      const logExistente = (() => { try { return JSON.parse(pedido.historico_log || "[]"); } catch { return []; } })();
-      const novoLog = [...logExistente, {
-        data: new Date().toISOString(),
-        usuario: "PCP",
-        acao: "programacao_itens_completa",
-        detalhes: `Programação de todos os itens do pedido #${pedido.numero_pedido} salva e distribuída.`
-      }];
-
-      const atualizado = await base44.entities.PedidoOdoo.update(pedido.id, {
-        itens_json: JSON.stringify(itensProgramados),
-        status_pcp: novoStatusPcp,
-        percentual_concluido: novoStatusPcp === "distribuido" && pedido.percentual_concluido < 15 ? 15 : pedido.percentual_concluido,
-        historico_log: JSON.stringify(novoLog)
-      });
-
-      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
-      setPedidoSelecionado({ ...pedido, ...atualizado });
-
-      if (distribuir) {
-        notificarStatus(atualizado, "distribuido", {
-          status_novo: novoStatusPcp,
-          percentual_concluido: 15
-        }).catch(() => {});
-      }
-
-      toast({
-        title: "Itens programados com sucesso!",
-        description: `Todos os itens do pedido #${pedido.numero_pedido} foram programados e enviados aos galpões.`,
-        className: "border-emerald-500/40"
-      });
-    } catch (err) {
-      toast({ title: "Erro ao programar itens", description: err.message, variant: "destructive" });
-    }
-  };
+  // Programação por item e em lote usa a mesma confirmação de destino da distribuição.
+  const { handleProgramarItem, handleProgramarTodosItens } = useProgramacaoPcp({ bobinasEstoque, filialAtiva, queryClient, toast, setPedidoSelecionado });
 
   // Identifica se um pedido está 100% concluído
-  const isPedidoConcluido = (p) => {
-    if (!p) return false;
-    if (p.status_pcp === "concluido") return true;
-    const prog = calcularProgressoRealPedido(p, pedidosProducao, ordensCD);
-    if (prog >= 100) return true;
-    if (p.percentual_concluido != null && p.percentual_concluido >= 100) return true;
-    return false;
-  };
+  // A paginação consulta o status persistido. Progresso calculado não pode esconder uma OF
+  // das Ativas antes de ela estar disponível na consulta de Concluídas.
+  const isPedidoConcluido = (p) => p?.status_pcp === "concluido";
 
   // Contadores de pedidos ativos por Loja / Filial
   const statsLoja = useMemo(() => {
-    const contagens = {
-      todas: pedidos.filter(p => !isPedidoConcluido(p)).length,
-      "Matriz AJL": 0,
-      "Pinhais": 0,
-      "Ivaiporã": 0,
-      "Ponta Grossa": 0,
-    };
-    pedidos.forEach(p => {
-      if (isPedidoConcluido(p)) return;
-      const un = p.unidade || "Matriz AJL";
-      if (contagens[un] !== undefined) {
-        contagens[un]++;
-      } else {
-        contagens["Matriz AJL"]++;
-      }
-    });
-    return contagens;
-  }, [pedidos, pedidosProducao, ordensCD]);
+    const counts = { todas: 0, "Matriz AJL": 0, Pinhais: 0, "Ivaiporã": 0, "Ponta Grossa": 0 };
+    for (const row of resumoServidor.rows) {
+      if (["concluido", "cancelado"].includes(row.status_pcp)) continue;
+      counts.todas += row.count;
+      const unidade = row.unidade || "Matriz AJL";
+      counts[unidade] = (counts[unidade] || 0) + row.count;
+    }
+    return counts;
+  }, [resumoServidor]);
 
   // Pedidos pertencentes à Central PCP selecionada (ou todos se 'todas')
   const pedidosDaLoja = useMemo(() => {
@@ -1549,17 +1302,20 @@ export default function CentralPCP() {
       }
     });
 
+    const rows = resumoServidor.rows.filter(r => lojaSelecionada === "todas" || (r.unidade || "Matriz AJL") === lojaSelecionada);
+    const count = status => rows.filter(r => r.status_pcp === status).reduce((sum, r) => sum + r.count, 0);
+    const total = rows.reduce((sum, r) => sum + r.count, 0);
     return {
-      total: pedidosDaLoja.length,
-      ativos,
-      pendentes,
-      distribuidos,
+      total,
+      ativos: total - count("concluido") - count("cancelado"),
+      pendentes: count("pendente_distribuicao"),
+      distribuidos: count("distribuido"),
       produzindo_agora: produzindoAgora,
       aguardando_maquina: aguardandoMaquina,
-      concluidos,
+      concluidos: count("concluido"),
       atrasados
     };
-  }, [pedidosDaLoja, mapaExecucaoPorId]);
+  }, [pedidosDaLoja, mapaExecucaoPorId, resumoServidor, lojaSelecionada]);
 
   const FILTROS = [
     { id: "ativos", label: "Fila Ativa", count: stats.ativos, icon: Zap, color: "text-orange-500" },
@@ -2058,7 +1814,7 @@ export default function CentralPCP() {
       return next;
     });
 
-    queryClient.setQueryData(["pedidos-odoo-pcp"], (oldData) => {
+    queryClient.setQueryData(filaPcp.queryKey, (oldData) => {
       if (!Array.isArray(oldData)) return oldData;
       return oldData.filter((item) => !idsExcluir.has(item.id));
     });
@@ -2251,6 +2007,7 @@ export default function CentralPCP() {
 
       {/* Fila de Pedidos */}
       <div className="px-4 sm:px-7 lg:pl-[268px] pt-5 pb-12 flex flex-col gap-3.5">
+        <FilaPagination fila={filaPcp} exibidos={pedidosRaw.length} />
         {carregando ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {[1,2,3].map(i => (
@@ -2631,7 +2388,7 @@ export default function CentralPCP() {
                 onSetPrioridadeGrupo={handleSetPrioridadeGrupo}
               />
             ) : viewMode === "kanban" ? (
-              <FilaPCPKanbanView
+              <FilaPCPKanbanView pedidosProducao={pedidosProducao} ordensCD={ordensCD}
                 pedidos={filtro === "todos" ? [...pedidosAtivosEmTodos, ...pedidosConcluidosEmTodos] : pedidosFiltrados}
                 gruposPedidos={gruposPedidos}
                 onOpenDetalhe={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}

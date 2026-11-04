@@ -23,6 +23,7 @@ import {
   getCardPrioridadeClasses
 } from "@/lib/prioridadeHelper";
 import { classGrupo, obterStatusExecucaoPedido } from "@/lib/pedidoOdooHelper";
+import temPendenciasDistribuicao from "@/lib/pendenciasDistribuicaoPcp";
 import { isLocalArmazenagemPinhais } from "@/lib/roteamentoPCP";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
@@ -105,8 +106,7 @@ export default function PedidoOdooCard({
   }, [pedido, pedidosProducao, ordensCD]);
 
   // Se já existe OP viva na máquina, a OF não está mais pendente de distribuição
-  const semOpNaMaquina = (statusExecucao.opsVinculadas || []).length === 0;
-  const podeDistribuirAgora = pedido.status_pcp === "pendente_distribuicao" && semOpNaMaquina && !!onDistribuir;
+  const podeDistribuirAgora = !isConcluido && !!onDistribuir && temPendenciasDistribuicao(pedido, pedidosProducao, ordensCD);
   const st = STATUS_PCP[pedido.status_pcp] || (isConcluido ? STATUS_PCP.concluido : STATUS_PCP.pendente_distribuicao);
   const sla = slaDiasPorCategoria(pedido);
   const chk = progressoChecklist(pedido.itens_json);
@@ -408,7 +408,7 @@ export default function PedidoOdooCard({
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onDistribuir(pedido); }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold ${cfgSetor.btnDistribuir} text-white shadow-xs transition-all h-8`}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-warning text-warning-foreground hover:bg-warning/90 shadow-xs transition-all h-8`}
                   title="Distribuir esta OF para os galpões"
                 >
                   <Zap className="w-3.5 h-3.5" />
@@ -750,7 +750,7 @@ export default function PedidoOdooCard({
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onDistribuir(pedido); }}
-            className={`flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold ${cfgSetor.btnDistribuir} text-white shadow-sm transition-all`}
+            className={`flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-warning text-warning-foreground hover:bg-warning/90 shadow-sm transition-all`}
             title="Distribuir este pedido individualmente para os galpões"
           >
             <Zap className="w-3.5 h-3.5" />

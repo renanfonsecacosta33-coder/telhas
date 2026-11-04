@@ -14,6 +14,9 @@ import {
   DropdownMenuItem
 } from "@/components/ui/dropdown-menu";
 import { stripHtml } from "@/lib/stripHtml";
+import temPendenciasDistribuicao from "@/lib/pendenciasDistribuicaoPcp";
+import { opDaMesmaOf } from "@/lib/opVinculoSeguro";
+import { localizarOpDoItem, getItens } from "@/lib/pedidoOdooHelper";
 import {
   classGrupo,
   normalizarUnidadeMedidaItem,
@@ -29,27 +32,9 @@ import { formatDataBR } from "@/lib/sla";
 
 // Helper para resolver o nome real da máquina onde a OF está alocada
 function resolverMaquina(ofItem, it, pedidosProducao = [], ordensCD = []) {
-  if (it?.maquina && it.maquina !== "A Definir") return it.maquina;
-  if (ofItem?.maquina && ofItem.maquina !== "A Definir") return ofItem.maquina;
-
-  // 1. Busca nos galpões de telhas
-  const pProd = (pedidosProducao || []).find(p =>
-    (p.of_odoo_id && String(p.of_odoo_id) === String(ofItem.of_odoo_id)) ||
-    (p.numero_pedido && String(p.numero_pedido) === String(ofItem.numero_pedido) && p.descricao === ofItem.descricao) ||
-    (p.numero_pedido && String(p.numero_pedido) === String(ofItem.numero_pedido))
-  );
-  if (pProd?.maquina_nome) return pProd.maquina_nome;
-  if (pProd?.maquina) return pProd.maquina;
-
-  // 2. Busca em corte e dobra
-  const oCD = (ordensCD || []).find(o =>
-    (o.of_odoo_id && String(o.of_odoo_id) === String(ofItem.of_odoo_id)) ||
-    (o.numero_pedido && String(o.numero_pedido) === String(ofItem.numero_pedido))
-  );
-  if (oCD?.maquina_nome) return oCD.maquina_nome;
-  if (oCD?.maquina) return oCD.maquina;
-
-  return "A Definir";
+  const fonte = [...pedidosProducao, ...ordensCD].filter(op => opDaMesmaOf(op, ofItem));
+  const op = localizarOpDoItem(it, fonte, getItens(ofItem));
+  return op?.maquina || it?.maquina || ofItem?.maquina || "A Definir";
 }
 
 export default function FilaPCPTabelaView({
@@ -113,8 +98,7 @@ export default function FilaPCPTabelaView({
       const somaProg = ofs.reduce((acc, p) => acc + calcularProgressoRealPedido(p, pedidosProducao, ordensCD), 0);
       const prog = ofs.length > 0 ? Math.round(somaProg / ofs.length) : 0;
       const temPendente = ofs.some(o => {
-        const pOf = calcularProgressoRealPedido(o, pedidosProducao, ordensCD);
-        return pOf === 0 && (!o.status_pcp || o.status_pcp === "pendente_distribuicao" || o.status_pcp === "pendente");
+        return temPendenciasDistribuicao(o, pedidosProducao, ordensCD);
       });
 
       if (prog >= 100) {
@@ -137,8 +121,7 @@ export default function FilaPCPTabelaView({
       const somaProg = ofs.reduce((acc, p) => acc + calcularProgressoRealPedido(p, pedidosProducao, ordensCD), 0);
       const prog = ofs.length > 0 ? Math.round(somaProg / ofs.length) : 0;
       const temPendente = ofs.some(o => {
-        const pOf = calcularProgressoRealPedido(o, pedidosProducao, ordensCD);
-        return pOf === 0 && (!o.status_pcp || o.status_pcp === "pendente_distribuicao" || o.status_pcp === "pendente");
+        return temPendenciasDistribuicao(o, pedidosProducao, ordensCD);
       });
 
       if (filtroStatusInterno === "pendentes") return temPendente && prog < 100;
@@ -313,7 +296,7 @@ export default function FilaPCPTabelaView({
               const ofsStatusInfo = ofs.map(o => {
                 const prog = calcularProgressoRealPedido(o, pedidosProducao, ordensCD);
                 const statusPcp = o.status_pcp || "pendente_distribuicao";
-                const isPendente = (statusPcp === "pendente_distribuicao" || statusPcp === "pendente") && prog === 0;
+                const isPendente = temPendenciasDistribuicao(o, pedidosProducao, ordensCD);
                 const isConcluida = prog >= 100 || statusPcp === "concluido" || statusPcp === "finalizado";
                 const isEmProducao = prog > 0 && prog < 100;
                 const isDistribuida = !isPendente && !isConcluida;
@@ -500,8 +483,8 @@ export default function FilaPCPTabelaView({
                         {pendentesCount > 0 && onDistribuirGrupo && (
                           <Button
                             size="sm"
-                            className="h-7 text-xs px-2.5 gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer shadow-2xs"
-                            onClick={() => onDistribuirGrupo(grupo)}
+                            className="h-7 text-xs px-2.5 gap-1.5 bg-warning hover:bg-warning/90 text-warning-foreground font-bold cursor-pointer shadow-2xs"
+                            onClick={() => onDistribuirGrupo(ofsStatusInfo.filter(x => x.isPendente).map(x => x.of))}
                             title={parcialmenteDistribuido ? `Distribuir as ${pendentesCount} OFs restantes deste pedido` : "Distribuir todas as OFs deste pedido para as máquinas"}
                           >
                             <Zap className="w-3.5 h-3.5" />
@@ -603,7 +586,7 @@ export default function FilaPCPTabelaView({
 
                                 const progOf = calcularProgressoRealPedido(ofItem, pedidosProducao, ordensCD);
                                 const statusPcpOf = ofItem.status_pcp || "pendente_distribuicao";
-                                const isOfPendente = (statusPcpOf === "pendente_distribuicao" || statusPcpOf === "pendente") && progOf === 0;
+                                const isOfPendente = temPendenciasDistribuicao(ofItem, pedidosProducao, ordensCD);
                                 const isOfConcluida = progOf >= 100 || statusPcpOf === "concluido" || statusPcpOf === "finalizado";
                                 const isOfEmProducao = progOf > 0 && progOf < 100;
                                 const isOfDistribuida = !isOfPendente && !isOfConcluida;
@@ -733,7 +716,7 @@ export default function FilaPCPTabelaView({
                                           {isOfPendente && onDistribuir && (
                                             <Button
                                               size="sm"
-                                              className="h-6 text-[10px] px-2 font-bold bg-blue-600 hover:bg-blue-700 text-white cursor-pointer shadow-2xs gap-1"
+                                              className="h-6 text-[10px] px-2 font-bold bg-warning hover:bg-warning/90 text-warning-foreground cursor-pointer shadow-2xs gap-1"
                                               onClick={() => onDistribuir(ofItem, it, itIdx)}
                                               title="Distribuir esta OF para a máquina"
                                             >

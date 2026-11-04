@@ -1,5 +1,7 @@
 import { stripHtml } from "@/lib/stripHtml";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
+import { indicesDaOp, opDaMesmaOf } from "@/lib/opVinculoSeguro";
+import normalizarStatusItem from "@/lib/statusItemPcp";
 
 // Helper compartilhado para itens de PedidoOdoo com status por peça.
 // Normaliza itens_json garantindo campos de status por item.
@@ -26,6 +28,7 @@ export function getItens(pedido) {
     return {
       ...STATUS_DEFAULTS,
       ...it,
+      status: normalizarStatusItem(it),
       unidade: unid,
       _idx: idx
     };
@@ -360,7 +363,7 @@ export function computePercentual(itens) {
     if (it.status === "concluido" || it.status === "finalizado") {
       totalPontos += 1.0;
     } else if (it.status === "aguardando_colagem") {
-      const isSand = /(eps|manta|sanduiche|isopor|termoacustica)/i.test(String(it.produto || it.descricao || ""));
+      const isSand = /(eps|manta|sanduiche|sanduíche|isopor|termoacustica|termoacústica|bandeja)/i.test(String(it.produto || it.descricao || ""));
       totalPontos += isSand ? 0.85 : 1.0;
     } else if (it.status === "em_producao") {
       totalPontos += 0.50; // OP criada na máquina / em produção
@@ -386,20 +389,15 @@ export function computePercentualGrupo(itens, grupo) {
 export function localizarOpDoItem(it, opsList = [], todosItens = []) {
   if (!opsList || opsList.length === 0 || !it) return null;
 
-  // 1. Vínculo exato por índice do item se a OP registrou item_idx ou itens_indices agrupados
+  // Índices registrados são autoritativos: itens diferentes nunca caem no fallback por produto.
   if (it._idx != null) {
-    const opPorIdx = opsList.find(o => {
-      if (o.item_idx != null && o.item_idx === it._idx) return true;
-      const rawIndices = o.itens_indices || o.item_indices;
-      if (rawIndices) {
-        try {
-          const list = Array.isArray(rawIndices) ? rawIndices : JSON.parse(rawIndices);
-          if (Array.isArray(list) && list.includes(it._idx)) return true;
-        } catch {}
-      }
-      return false;
-    });
-    if (opPorIdx) return opPorIdx;
+    const exatas = opsList.filter(o => indicesDaOp(o).includes(Number(it._idx)));
+    if (exatas.length) return [...exatas].sort((a, b) => {
+      const encerrado = o => o.status === "finalizado" ? 1 : 0;
+      return encerrado(a) - encerrado(b) || String(b.updated_date || "").localeCompare(String(a.updated_date || ""));
+    })[0];
+    opsList = opsList.filter(o => indicesDaOp(o).length === 0);
+    if (!opsList.length) return null;
   }
 
   // 2. Vínculo por correspondência de produto E medida/quantidade (evita colisão entre itens do mesmo produto)
@@ -456,24 +454,7 @@ export function calcularProgressoRealPedido(pedido, pedidosProducao = [], ordens
   const ofNome = String(pedido.of_nome || "").trim().toUpperCase();
 
   const matchOp = (op) => {
-    if (!op || op.status === "cancelado") return false;
-    if (op.pedido_odoo_id && pedido?.id) {
-      return op.pedido_odoo_id === pedido.id;
-    }
-    if (ofId && op.of_odoo_id) {
-      return String(op.of_odoo_id).trim().toUpperCase() === ofId;
-    }
-    if (ofNome && op.of_nome) {
-      return String(op.of_nome).trim().toUpperCase() === ofNome;
-    }
-    // Se a OP já foi vinculada a OUTRO pedido_odoo_id ou of_odoo_id, NÃO pertence a este:
-    if (op.pedido_odoo_id || op.of_odoo_id) {
-      return false;
-    }
-    if (op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed) {
-      return true;
-    }
-    return false;
+    return opDaMesmaOf(op, pedido);
   };
 
   const opsTelha = (pedidosProducao || []).filter(matchOp);
@@ -501,7 +482,7 @@ export function calcularProgressoRealPedido(pedido, pedidosProducao = [], ordens
       if (opReal.status === "finalizado") {
         soma += 100;
       } else if (opReal.status === "aguardando_colagem") {
-        const isSand = /(eps|manta|sanduiche|isopor|termoacustica)/i.test(String(it.produto || it.descricao || ""));
+        const isSand = /(eps|manta|sanduiche|sanduíche|isopor|termoacustica|termoacústica|bandeja)/i.test(String(it.produto || it.descricao || ""));
         soma += isSand ? 85 : 100;
       } else if (opReal.status === "em_producao") {
         soma += 75; // Operador deu Play / máquina rodando!
@@ -536,23 +517,7 @@ export function obterStatusDescritivoItem(it, pedido, pedidosProducao = [], orde
   const ofNome = String(pedido?.of_nome || "").trim().toUpperCase();
 
   const matchOp = (op) => {
-    if (!op || op.status === "cancelado") return false;
-    if (op.pedido_odoo_id && pedido?.id) {
-      return op.pedido_odoo_id === pedido.id;
-    }
-    if (ofId && op.of_odoo_id) {
-      return String(op.of_odoo_id).trim().toUpperCase() === ofId;
-    }
-    if (ofNome && op.of_nome) {
-      return String(op.of_nome).trim().toUpperCase() === ofNome;
-    }
-    if (op.pedido_odoo_id || op.of_odoo_id) {
-      return false;
-    }
-    if (op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed) {
-      return true;
-    }
-    return false;
+    return opDaMesmaOf(op, pedido);
   };
 
   const opsTelha = (pedidosProducao || []).filter(matchOp);
@@ -579,7 +544,7 @@ export function obterStatusDescritivoItem(it, pedido, pedidosProducao = [], orde
     opReal = localizarOpDoItem(it, opsCD, itens);
   }
 
-  const isSanduiche = /(eps|manta|sanduiche|isopor|termoacustica)/i.test(
+  const isSanduiche = /(eps|manta|sanduiche|sanduíche|isopor|termoacustica|termoacústica|bandeja)/i.test(
     String(it.produto || it.descricao || "")
   );
 
@@ -717,7 +682,7 @@ export function enriquecerItensComStatusReal(pedido, pedidosProducao = [], orden
     const info = obterStatusDescritivoItem(it, pedido, pedidosProducao, ordensCD);
     return {
       ...it,
-      status: info.status,
+      status: normalizarStatusItem({ status: info.status }),
       status_detalhado: info.status_detalhado,
       percentual: info.pct,
       maquina: info.maquina || it.maquina || ""
@@ -962,8 +927,8 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
   const cor = item?.cor || detectarCorTelha(produtoNome, descTexto);
   const isDuplaTelha = prodTipo === "TELHA + EPS + TELHA" || /(dupla|sanduiche|\+\s*telha)/i.test(textoCompleto);
   const isComEps = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"].includes(prodTipo) ||
-    /(eps|manta|sanduiche|isopor|termoacustica)/i.test(produtoNome) ||
-    /(eps|manta|sanduiche|isopor|termoacustica)/i.test(descTexto);
+    /(eps|manta|sanduiche|sanduíche|isopor|termoacustica|termoacústica|bandeja)/i.test(produtoNome) ||
+    /(eps|manta|sanduiche|sanduíche|isopor|termoacustica|termoacústica|bandeja)/i.test(descTexto);
   const eps = isComEps ? detectarEPSTelha(`${produtoNome} ${descTexto}`, maq) : "";
 
   const dataReceb = pedido?.data_recebimento ? String(pedido.data_recebimento).slice(0, 10) : new Date().toISOString().slice(0, 10);
@@ -1278,20 +1243,7 @@ export function obterStatusExecucaoPedido(pedido, pedidosProducao = [], ordensCD
     if (pedIsCd && opIsTelha) return false;
     if (pedIsTelha && !opIsTelha && /(DOBRADEIRA|GUILHOTINA|PERFIL|CHAPA|CORTE)/i.test(opMaq)) return false;
 
-    if (op.pedido_odoo_id && pedido?.id) return op.pedido_odoo_id === pedido.id;
-    if (ofId && op.of_odoo_id) return String(op.of_odoo_id).trim().toUpperCase() === ofId;
-    if (ofNome && op.of_nome) return String(op.of_nome).trim().toUpperCase() === ofNome;
-    if (op.pedido_odoo_id || op.of_odoo_id) return false;
-
-    // Vínculo por número de pedido com validação de produto/índice
-    if (op.numero_pedido && String(op.numero_pedido).trim().toUpperCase() === numPed) {
-      const itens = getItens(pedido);
-      if (itens && itens.length > 0) {
-        return Boolean(localizarOpDoItem(itens[0], [op], itens));
-      }
-      return true;
-    }
-    return false;
+    return opDaMesmaOf(op, pedido);
   };
 
   const opsVinculadas = listaFonte.filter(matchOp);
@@ -1352,7 +1304,7 @@ export function obterStatusExecucaoPedido(pedido, pedidosProducao = [], ordensCD
   }
 
   // Só está na fila da máquina se de fato houver OP NÃO FINALIZADA aguardando nela
-  if (temPendenteMaquina || (opsVinculadas.length > 0 && pedido.status_pcp === "em_producao")) {
+  if (temPendenteMaquina) {
     const maqsFila = Array.from(new Set(opsAguardandoNaMaquina.map(o => o.maquina || o.maquina_nome))).filter(Boolean);
     const maqsStr = maqsFila.length > 0 ? ` (${maqsFila.join(", ")})` : "";
     return {
@@ -1402,7 +1354,7 @@ export function gerarAssinaturaOp(op) {
   const presets = op._presets || {};
   const numPed = String(op.numero_pedido || presets.numero_pedido || "").trim().toUpperCase();
   const odooId = String(op.pedido_odoo_id || presets.pedido_odoo_id || "").trim();
-  const idPedido = odooId || numPed;
+  const idPedido = odooId || op.of_odoo_id || op.of_nome || op.id;
   if (!idPedido) return "";
 
   const maquina = String(op.maquina || presets.maquina || "").trim().toUpperCase();
@@ -1418,11 +1370,11 @@ export function gerarAssinaturaOp(op) {
     if (rawVars) {
       const parsed = typeof rawVars === "string" ? JSON.parse(rawVars) : rawVars;
       if (Array.isArray(parsed) && parsed.length > 0) {
-        varsStr = parsed.map(v => `${v.qtd || v.quantidade || 0}x${v.mm || v.tamanho_m || 0}`).sort().join(";");
+        varsStr = parsed.map(v => `${v.qty || v.qtd || v.quantidade || 0}x${v.mm || v.tamanho_m || 0}`).sort().join(";");
       }
     }
   } catch {}
 
   // A chave exige que coincidam: pedido, máquina, modelo, itemIdx (se houver) e medidas completas
-  return `${idPedido}|${maquina}|${itemIdx}|${modelo}|${metros}|${mm}|${qtdTelhas}|${varsStr}`;
+  return `${idPedido}|${maquina}|${itemIdx}|${indicesDaOp(op).sort((a, b) => a - b).join(",")}|${modelo}|${metros}|${mm}|${qtdTelhas}|${varsStr}`;
 }

@@ -5,17 +5,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Circle, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, ArrowLeft, BarChart2, Plus, Star, Trash2, Edit3, Route, Search, X, Calendar, Filter, History, FileText, AlertTriangle, RefreshCw, Palette, Layers, Truck, Zap, GitBranch, Target, Timer, Check } from "lucide-react";
+import { Circle, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, ArrowLeft, BarChart2, Plus, Trash2, Edit3, Search, X, Calendar, Filter, History, FileText, AlertTriangle, RefreshCw, Palette, Layers, Truck, GitBranch, Target, Timer, Check } from "lucide-react";
 import { format, addDays, subDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 import PedidoRow from "@/components/producao/PedidoRow";
 import PedidoFormDialog from "@/components/producao/PedidoFormDialog";
 import { useFilial } from "@/contexts/FilialContext";
 import { playAlertSound, speakNovaOp, playFinishSound, speakOpFinalizada } from "@/lib/sounds";
 import { HistoricoPedidoTelhasButton } from "@/components/producao/HistoricoPedidoTelhasSidebar";
-import PainelSolicitacoesProducao from "@/components/producao/PainelSolicitacoesProducao";
 import BotaoVozFabrica from "@/components/producao/BotaoVozFabrica";
 import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
@@ -23,26 +21,23 @@ import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERel
 import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
 import AlertaCancelamentoPcpBanner from "@/components/maquinas/AlertaCancelamentoPcpBanner";
 import StatusRedeBadge from "@/components/common/StatusRedeBadge";
-import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo, detectarMaquinaTelha, gerarAssinaturaOp } from "@/lib/pedidoOdooHelper";
-import { notificarStatus } from "@/lib/biNotificador";
+import { detectarMaquinaTelha, gerarAssinaturaOp } from "@/lib/pedidoOdooHelper";
 import {
   SeletorPrioridadeDropdown,
   getPesoOrdenacaoPrioridade,
   compararPrioridadeEData,
-  getDataEntregaParaOrdenacao,
-  BannerPrioridadeDestaque,
-  isPedidoRetiraAgora,
-  isPedidoRota,
-  getCardPrioridadeClasses
+  getDataEntregaParaOrdenacao
 } from "@/lib/prioridadeHelper";
 import AlterarDataPedidoMaquinaModal from "@/components/maquinas/AlterarDataPedidoMaquinaModal";
 import { normalizarTextoBusca, calcularFiltrosTipoECor, pedidoAtendeFiltroTipoECor } from "@/lib/bobinaStatusHelper";
 import TimerProducao from "@/components/producao/TimerProducao";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
 import { isOperadorDestaMaquina } from "@/lib/somPermissaoHelper";
-import { salvarCacheLocal, obterCacheLocal, enfileirarAcaoOffline, purgarIdDoCacheLocal } from "@/lib/offlineStorage";
+import { enfileirarAcaoOffline, purgarIdDoCacheLocal } from "@/lib/offlineStorage";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
-import { reajustarTodasBobinasMaquinasAutomaticamente } from "@/lib/reajusteAutomaticoBobinas";
+import useFilaPaginada from "@/hooks/useFilaPaginada";
+import FilaPagination from "@/components/pcp/FilaPagination";
+import { sincronizarStatusOpPcp } from "@/lib/sincronizarOpPcpSeguro";
 import { isTelhaBandeja } from "@/lib/bandejaHelper";
 import PedidoMiniCard from "@/components/producao/PedidoMiniCard";
 import MaquinaSwitcherAdmin from "@/components/maquinas/MaquinaSwitcherAdmin";
@@ -131,25 +126,7 @@ export default function MaquinaPanel({ maquina }) {
   const dataParam = searchParams.get("data");
   const jaRolouRef = useRef(false);
 
-  // Reset de qualquer chave de bobina montada em máquina e reajuste automático das bobinas com dados do Odoo
-  useEffect(() => {
-    try {
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith("bobina_montada_") || key.startsWith("setup_bobina_") || key.includes("bobina_instalada")) {
-          localStorage.removeItem(key);
-        }
-      });
-    } catch {}
-
-    // Reajusta automaticamente todas as OPs para preencher o texto da bobina com base no Odoo
-    reajustarTodasBobinasMaquinasAutomaticamente().then(res => {
-      if (res && res.totalReajustadas > 0) {
-        queryClient.invalidateQueries({ queryKey: ["pedidos"] });
-      }
-    }).catch(err => {
-      console.warn("[MaquinaPanel] Reajuste automático de bobinas:", err);
-    });
-  }, [queryClient]);
+  // Abrir um painel não altera máquinas, bobinas ou ordens em outras filas.
 
   // Consulta catálogo de bobinas para checagem de estoque e sequenciamento de setup
   const { data: todasBobinas = [] } = useQuery({
@@ -186,28 +163,16 @@ export default function MaquinaPanel({ maquina }) {
   const maquinaNorm = (m) => String(m || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
   const targetNorm = maquinaNorm(maquina);
 
-  const { data: todosPedidos = [], isLoading, isFetching, refetch } = useQuery({
-    queryKey: ["pedidos", filialAtiva],
-    queryFn: async () => {
-      try {
-        if (typeof navigator !== "undefined" && !navigator.onLine) {
-          const cacheOffline = await obterCacheLocal(`pedidos_${filialAtiva}`);
-          if (cacheOffline) return cacheOffline;
-        }
-        const filter = (filialAtiva && filialAtiva !== "todas") ? { unidade: filialAtiva } : {};
-        const res = await base44.entities.Pedido.filter(filter, "-data", 500);
-        salvarCacheLocal(`pedidos_${filialAtiva}`, res).catch(() => {});
-        return res;
-      } catch (fetchErr) {
-        const cacheOffline = await obterCacheLocal(`pedidos_${filialAtiva}`);
-        if (cacheOffline) return cacheOffline;
-        throw fetchErr;
-      }
-    },
-    refetchInterval: 15000,
-    staleTime: 10000,
-    refetchOnWindowFocus: false,
-  });
+  const consultaMaquina = {
+    ...(filialAtiva && filialAtiva !== "todas" ? { unidade: filialAtiva } : {}),
+    status: { $ne: "cancelado" },
+    $and: [
+      { $or: [{ maquina }, { maquina_origem: maquina }] },
+      { $or: [{ status: { $nin: ["finalizado", "cancelado"] } }, { data: selectedDay }, { data_perfilacao: selectedDay }, { data_finalizacao: selectedDay }] }
+    ]
+  };
+  const filaMaquina = useFilaPaginada({ entidade: "Pedido", query: consultaMaquina, prefixo: "pedidos", sort: "data", limit: 250 });
+  const { data: todosPedidos = [], isLoading, isFetching, refetch } = filaMaquina;
 
   // Inscrição em tempo real para novos pedidos ou atualizações nas perfiladeiras/colagem
   useEffect(() => {
@@ -417,106 +382,7 @@ export default function MaquinaPanel({ maquina }) {
     });
   }, [todosPedidos, targetNorm]);
 
-  // Auto-correção proativa: se houver qualquer OP de Telha com maquina: "DESBOBINADOR",
-  // corrige no banco de dados e sincroniza o cache imediatamente
-  useEffect(() => {
-    if (!todosPedidos || todosPedidos.length === 0) return;
-    const opsDeslocadas = todosPedidos.filter(p => {
-      if (p.status === "cancelado") return false;
-      const ehNoDesbobinador = maquinaNorm(p.maquina) === "DESBOBINADOR" || maquinaNorm(p.maquina_origem) === "DESBOBINADOR";
-      if (!ehNoDesbobinador) return false;
-      const ehTelha = (
-        p.produto === "TELHA" ||
-        String(p.produto || "").toUpperCase().startsWith("TELHA") ||
-        /\b(TELHA|TRAP[EÉ]ZIO|TP\s*[-/]?\s*40|TP\s*[-/]?\s*25|TR\s*[-/]?\s*40|TR\s*[-/]?\s*25|ONDULADA|COLONIAL)\b/i.test(
-          `${p.item_produto || ""} ${p.modelo || ""} ${p.produto || ""}`
-        )
-      );
-      const ehBobininhaReal = /\b(BOBININHA|BOBININHAS|BOBININA|SLITTER|CORTE\s*LONGITUDINAL|FITA\s*DE\s*A[CÇ]O|FITAS\s*DE\s*A[CÇ]O|DESBOBINAMENTO)\b/i.test(
-        `${p.item_produto || ""} ${p.produto || ""} ${p.modelo || ""} ${p.observacoes || ""} ${p.produto_rotulo_pcp || ""}`
-      ) || p.produto === "BOBININHA";
-      return ehTelha && !ehBobininhaReal;
-    });
-
-    if (opsDeslocadas.length > 0) {
-      opsDeslocadas.forEach(async (opErr) => {
-        const maqCerta = detectarMaquinaTelha(opErr) || "TP - 40";
-        console.log(`[AutoCorrecao Máquinas] Realocando OP #${opErr.numero_pedido} de DESBOBINADOR para ${maqCerta}`);
-        try {
-          await base44.entities.Pedido.update(opErr.id, {
-            maquina: maqCerta,
-            modelo: maqCerta,
-            maquina_origem: maqCerta
-          });
-          queryClient.setQueriesData({ queryKey: ["pedidos"] }, (antigos) => {
-            if (!Array.isArray(antigos)) return antigos;
-            return antigos.map(item => item.id === opErr.id ? { ...item, maquina: maqCerta, modelo: maqCerta, maquina_origem: maqCerta } : item);
-          });
-          queryClient.invalidateQueries({ queryKey: ["pedidos"] });
-          queryClient.invalidateQueries({ queryKey: ["pedidos-maquina"] });
-        } catch (e) {
-          console.warn("[AutoCorrecao Máquinas] Erro ao corrigir OP no banco:", e);
-        }
-      });
-    }
-  }, [todosPedidos, queryClient]);
-
-  // Auto-correção proativa para Telha Bandeja:
-  // Se houver qualquer OP de Telha Bandeja indevidamente na Colagem sem ter sido perfilada
-  // (ex: resquício de tríade antiga com bloqueado_colagem: true ou colagem_final)
-  // reposiciona na máquina inicial de perfilação (TP-40 ou Colonial) com status 'pendente'
-  useEffect(() => {
-    if (!todosPedidos || todosPedidos.length === 0) return;
-    const bandejasPresas = todosPedidos.filter(p => {
-      if (p.status === "cancelado" || p.status === "finalizado") return false;
-      if (!isTelhaBandeja(p)) return false;
-      const ehNaColagem = maquinaNorm(p.maquina) === "COLAGEM";
-      const semPerfilacao = !p.perfilacao_concluida;
-      const temTravaTriade = Boolean(
-        p.bloqueado_colagem ||
-        p.tipo_componente_bandeja === "colagem_final" ||
-        (ehNaColagem && p.status === "aguardando_colagem" && semPerfilacao)
-      );
-      return temTravaTriade;
-    });
-
-    if (bandejasPresas.length > 0) {
-      bandejasPresas.forEach(async (opErr) => {
-        const maqCerta = (opErr.modelo && /colonial/i.test(opErr.modelo)) ? "COLONIAL" : "TP - 40";
-        console.log(`[AutoCorrecao Telha Bandeja] Reposicionando OP #${opErr.numero_pedido} de COLAGEM para ${maqCerta}`);
-        try {
-          await base44.entities.Pedido.update(opErr.id, {
-            maquina: maqCerta,
-            modelo: maqCerta,
-            maquina_origem: maqCerta,
-            status: "pendente",
-            bloqueado_colagem: false,
-            tipo_componente_bandeja: null,
-            grupo_bandeja_id: null,
-          });
-
-          // Cancela eventuais ordens irmãs vazias da antiga tríade (para não duplicar componentes no galpão)
-          const ordensIrmas = todosPedidos.filter(o =>
-            o.id !== opErr.id &&
-            o.status !== "cancelado" &&
-            o.numero_pedido &&
-            String(o.numero_pedido).trim().toUpperCase() === String(opErr.numero_pedido).trim().toUpperCase() &&
-            (o.tipo_componente_bandeja === "bandeja_inferior" || o.tipo_componente_bandeja === "telha_superior")
-          );
-
-          for (const irma of ordensIrmas) {
-            console.log(`[AutoCorrecao Telha Bandeja] Cancelando ordem irmã redundante #${irma.numero_pedido} (${irma.tipo_componente_bandeja})`);
-            await base44.entities.Pedido.update(irma.id, { status: "cancelado" }).catch(() => {});
-          }
-
-          queryClient.invalidateQueries({ queryKey: ["pedidos"] });
-          queryClient.invalidateQueries({ queryKey: ["pedidos-maquina"] });
-        } catch (e) {
-          console.warn("[AutoCorrecao Telha Bandeja] Erro ao reposicionar OP no banco:", e);
-        }
-      });
-    }
-  }, [todosPedidos, queryClient]);
+  // Mudanças de roteiro e cancelamentos exigem ação explícita do PCP, nunca a abertura do painel.
 
   // Detectar novas OPs e anunciar por voz
   const prevOrderIds = useRef(new Set());
@@ -551,6 +417,10 @@ export default function MaquinaPanel({ maquina }) {
       if (typeof navigator !== "undefined" && !navigator.onLine) {
         throw new Error("OFFLINE_TRIGGERED");
       }
+      if (data.status) {
+        const atual = await base44.entities.Pedido.get(id);
+        if (maquinaNorm(atual.maquina) !== targetNorm) throw new Error(`Esta OP está na ${atual.maquina}, não na ${maquina}. Atualize a fila antes de continuar.`);
+      }
       return await base44.entities.Pedido.update(id, data);
     },
     onMutate: async ({ id, data }) => {
@@ -558,7 +428,7 @@ export default function MaquinaPanel({ maquina }) {
       await queryClient.cancelQueries({ queryKey: ["pedidos"] });
 
       // Salva snapshot anterior
-      const prevPedidos = queryClient.getQueryData(["pedidos", filialAtiva]);
+      const prevPedidos = queryClient.getQueryData(filaMaquina.queryKey);
 
       // ATUALIZAÇÃO INSTANTÂNEA NA MEMÓRIA (0ms): card e status mudam no mesmo milissegundo do clique
       queryClient.setQueriesData({ queryKey: ["pedidos"] }, (antigos) => {
@@ -588,12 +458,19 @@ export default function MaquinaPanel({ maquina }) {
         }
       } else {
         if (context?.prevPedidos) {
-          queryClient.setQueryData(["pedidos", filialAtiva], context.prevPedidos);
+          queryClient.setQueryData(filaMaquina.queryKey, context.prevPedidos);
         }
         toast.error("Erro ao atualizar: " + (error?.message || ""));
       }
     },
-    onSuccess: (resultadoServidor) => {
+    onSuccess: async (resultadoServidor, variables) => {
+      if (["em_producao", "pausado", "aguardando_colagem", "finalizado"].includes(variables.data.status)) {
+        try {
+          await sincronizarStatusOpPcp(resultadoServidor, user?.full_name || user?.email);
+          queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+          queryClient.invalidateQueries({ queryKey: ["resumo-pcp"] });
+        } catch (e) { toast.error("Produção salva; sincronização com PCP pendente", { description: e.message }); }
+      }
       // Atualiza o item sincronizado na memória sem disparar recarregamento massivo na tela
       if (resultadoServidor?.id) {
         queryClient.setQueriesData({ queryKey: ["pedidos"] }, (antigos) => {
@@ -663,124 +540,14 @@ export default function MaquinaPanel({ maquina }) {
       perfilacao_concluida: true,
     } : {};
 
-    const data = { ...pedido, status: novoStatus, ...colagemUpdates, ...extraData, ...histData };
+    const data = { status: novoStatus, ...colagemUpdates, ...extraData, ...histData };
     if (novoStatus === "finalizado") {
       playFinishSound();
       speakOpFinalizada(pedido.maquina, pedido.numero_pedido);
     }
     updateMutation.mutate({ id: pedido.id, data });
 
-    // Sincroniza em tempo real com o PedidoOdoo e notifica o Mini BI
-    if (pedido.numero_pedido) {
-      (async () => {
-        try {
-          const numRaw = String(pedido.numero_pedido || "").trim();
-          let odooList = await base44.entities.PedidoOdoo.filter({ numero_pedido: numRaw }, "-created_date", 1).catch(() => []);
-          if (!odooList?.length) {
-            const numUpper = numRaw.toUpperCase();
-            odooList = await base44.entities.PedidoOdoo.filter({ numero_pedido: numUpper }, "-created_date", 1).catch(() => []);
-          }
-          if (!odooList?.length) {
-            const cleanDigits = numRaw.replace(/\D/g, "");
-            if (cleanDigits) {
-              odooList = await base44.entities.PedidoOdoo.filter({ numero_pedido: `S${cleanDigits.padStart(5, "0")}` }, "-created_date", 1).catch(() => []);
-            }
-          }
-
-          if (odooList && odooList[0]) {
-            const pedOdoo = odooList[0];
-            const itens = getItens(pedOdoo);
-            let itemIdx = itens.findIndex(i => {
-              const iProd = String(i.produto || "").toLowerCase();
-              const pedProd = String(pedido.produto || "").toLowerCase();
-              return iProd.includes(pedProd) || pedProd.includes(iProd);
-            });
-            if (itemIdx < 0) {
-              itemIdx = itens.findIndex(i => classGrupo(i) === "telha");
-            }
-            const targetIdx = itemIdx >= 0 ? itemIdx : 0;
-
-            if (novoStatus === "finalizado") {
-              const fotoUrl = extraData.foto_finalizacao_url || "";
-              if (itens[targetIdx]) {
-                itens[targetIdx] = {
-                  ...itens[targetIdx],
-                  status: "concluido",
-                  quantidade_produzida: pedido.quantidade_telhas || pedido.metros || itens[targetIdx].quantidade,
-                  foto_url: fotoUrl || itens[targetIdx].foto_url || ""
-                };
-              }
-              const pct = computePercentual(itens);
-              const status_pcp = statusPcpPorPercentual(pct, "concluido");
-              const updated = await base44.entities.PedidoOdoo.update(pedOdoo.id, {
-                itens_json: buildItensJson(itens),
-                percentual_concluido: pct,
-                status_pcp,
-                ...(fotoUrl ? { foto_producao_url: fotoUrl } : {})
-              });
-              const eventoNotif = (pct >= 100 || status_pcp === "concluido") ? "concluido" : "etapa_concluida";
-              await notificarStatus(updated, eventoNotif, {
-                maquina_atual: pedido.maquina || "",
-                item_nome: itens[targetIdx]?.produto || pedido.produto || "",
-                fim_fmt: new Date().toISOString(),
-                status_novo: status_pcp,
-                percentual_concluido: pct,
-                foto_finalizacao_url: fotoUrl,
-                usuario: user?.full_name || user?.email || `Operador ${pedido.maquina || ""}`
-              });
-            } else if (novoStatus === "aguardando_colagem") {
-              if (itens[targetIdx]) {
-                itens[targetIdx] = {
-                  ...itens[targetIdx],
-                  status: "aguardando_colagem",
-                  maquina: "COLAGEM",
-                };
-              }
-              const pct = computePercentual(itens);
-              const status_pcp = statusPcpPorPercentual(pct, "em_producao");
-              const updated = await base44.entities.PedidoOdoo.update(pedOdoo.id, {
-                itens_json: buildItensJson(itens),
-                percentual_concluido: pct,
-                status_pcp
-              });
-              await notificarStatus(updated, "etapa_concluida", {
-                maquina_atual: "COLAGEM",
-                item_nome: itens[targetIdx]?.produto || pedido.produto || "",
-                status_novo: status_pcp,
-                percentual_concluido: pct,
-                usuario: user?.full_name || user?.email || `Operador ${pedido.maquina || ""}`
-              });
-            } else if (novoStatus === "em_producao") {
-              if (itens[targetIdx]) {
-                itens[targetIdx] = {
-                  ...itens[targetIdx],
-                  status: "em_producao",
-                  maquina: pedido.maquina || itens[targetIdx].maquina || "",
-                  iniciada: true
-                };
-              }
-              const pct = computePercentual(itens);
-              const status_pcp = statusPcpPorPercentual(pct, "em_producao");
-              const updated = await base44.entities.PedidoOdoo.update(pedOdoo.id, {
-                itens_json: buildItensJson(itens),
-                percentual_concluido: pct,
-                status_pcp
-              });
-              await notificarStatus(updated, "maquina_inicio", {
-                maquina_atual: pedido.maquina || "",
-                item_nome: itens[targetIdx]?.produto || pedido.produto || "",
-                inicio_fmt: new Date().toISOString(),
-                status_novo: status_pcp,
-                percentual_concluido: pct,
-                usuario: user?.full_name || user?.email || `Operador ${pedido.maquina || ""}`
-              });
-            }
-          }
-        } catch (e) {
-          console.error("[MaquinaPanel] falha notificar Mini BI:", e?.message || e);
-        }
-      })();
-    }
+    // PCP e Odoo são sincronizados no onSuccess, apenas após a gravação confirmada da OP.
   };
 
   // Pedidos que pertencem ao dia selecionado:
@@ -1137,7 +904,7 @@ export default function MaquinaPanel({ maquina }) {
     const finalizadosProcessados = sortedFinalizados;
 
     // Se a navegação veio focada em um pedido específico (pedidoAlvoFoco), garante que ele esteja visível na frente do operador
-    if (pedidoAlvoFoco && !afazerProcessado.some(p => p.id === pedidoAlvoFoco.id)) {
+    if (pedidoAlvoFoco && !isPedidoConcluidoNaMaquina(pedidoAlvoFoco, maquina) && !afazerProcessado.some(p => p.id === pedidoAlvoFoco.id)) {
       afazerProcessado.unshift({ ...pedidoAlvoFoco, _focoForcado: true });
     }
 
@@ -1802,6 +1569,7 @@ export default function MaquinaPanel({ maquina }) {
       </div>
 
       {/* Lista de pedidos */}
+      <FilaPagination fila={filaMaquina} exibidos={todosPedidos.length} />
       {isLoading ? (
         <div className="flex justify-center py-16">
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />

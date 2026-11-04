@@ -6,7 +6,8 @@ import {
 } from "lucide-react";
 import { PrioridadeBadge } from "@/lib/prioridadeHelper";
 import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
-import { classGrupo, calcularProgressoRealPedido, normalizarUnidadeMedidaItem } from "@/lib/pedidoOdooHelper";
+import { classGrupo, calcularProgressoRealPedido, normalizarUnidadeMedidaItem, obterStatusExecucaoPedido } from "@/lib/pedidoOdooHelper";
+import temPendenciasDistribuicao from "@/lib/pendenciasDistribuicaoPcp";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 
 const COLUNAS_KANBAN_PCP = [
@@ -108,16 +109,15 @@ export default function FilaPCPKanbanView({
       });
 
       const emProd = ofs.filter(p => {
-        const prog = calcularProgressoRealPedido(p, pedidosProducao, ordensCD);
-        return p.status_pcp === "em_producao" || (prog > 0 && prog < 100);
+        const diag = obterStatusExecucaoPedido(p, pedidosProducao, ordensCD);
+        return diag.produzindoAgora || diag.statusChave === "pausado";
       });
-
-      const distribuidas = ofs.filter(p => p.status_pcp === "distribuido" && !emProd.includes(p) && !concluidas.includes(p));
+      const distribuidas = ofs.filter(p => !emProd.includes(p) && !concluidas.includes(p) && (p.status_pcp === "distribuido" || obterStatusExecucaoPedido(p, pedidosProducao, ordensCD).aguardandoInicio));
 
       // Atribuição de Coluna
       if (concluidas.length === totalOfs && totalOfs > 0) {
         mapa.concluido.push({ grupo, progressoGeral, statusChave: "concluido" });
-      } else if (emProd.length > 0 || (progressoGeral > 0 && progressoGeral < 100)) {
+      } else if (emProd.length > 0) {
         mapa.em_producao.push({ grupo, progressoGeral, statusChave: "em_producao" });
       } else if (distribuidas.length > 0) {
         mapa.distribuido.push({ grupo, progressoGeral, statusChave: "distribuido" });
@@ -365,11 +365,11 @@ export default function FilaPCPKanbanView({
                       <div className="flex items-center justify-between pt-1 border-t border-border/40 text-xs flex-wrap gap-1">
                         <div className="flex items-center gap-1 flex-wrap">
                           {/* SE PENDENTE: BOTÃO DISTRIBUIR */}
-                          {onDistribuirGrupo && col.id === "pendente" && (
+                          {onDistribuirGrupo && (grupo.ofs || []).some(p => temPendenciasDistribuicao(p, pedidosProducao, ordensCD)) && (
                             <Button
                               size="sm"
-                              className="h-6 text-[10px] px-2 bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer"
-                              onClick={() => onDistribuirGrupo(grupo)}
+                              className="h-6 text-[10px] px-2 bg-warning hover:bg-warning/90 text-warning-foreground font-bold cursor-pointer"
+                              onClick={() => onDistribuirGrupo((grupo.ofs || []).filter(p => temPendenciasDistribuicao(p, pedidosProducao, ordensCD)))}
                             >
                               <Zap className="w-3 h-3 mr-1" /> Distribuir
                             </Button>

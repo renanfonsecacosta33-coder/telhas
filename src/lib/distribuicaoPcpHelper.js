@@ -1,6 +1,6 @@
 import { base44 } from "@/api/base44Client";
-import { parseItensPedido } from "@/lib/regrasFabrica";
-import { itensPorGrupo } from "@/lib/pedidoOdooHelper";
+import { getItens, itensPorGrupo, classGrupo, buildItensJson, calcularProgressoRealPedido } from "@/lib/pedidoOdooHelper";
+import { buscarOpsDasOfs } from "@/lib/consultaFilaPcp";
 import { isAutoRoteamentoTelhasAtivo, rotearLoteTelhasAgrupadas, comRetry } from "@/lib/autoBobinaTelhasHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 
@@ -15,37 +15,10 @@ const CONCORRENCIA = 2;
  * Retorna um Map pedidoId -> OPs válidas (não canceladas).
  */
 async function preBuscarOpsExistentes(alvo) {
-  const opsPorPedido = new Map();
-  try {
-    const idsPedidos = alvo.map(p => p.id).filter(Boolean);
-    const todasOps = idsPedidos.length > 0
-      ? await comRetry(() => base44.entities.Pedido.filter({ pedido_odoo_id: { $in: idsPedidos } }))
-      : [];
-    for (const op of todasOps || []) {
-      if (String(op.status || "").toLowerCase() === "cancelado") continue;
-      if (!opsPorPedido.has(op.pedido_odoo_id)) opsPorPedido.set(op.pedido_odoo_id, []);
-      opsPorPedido.get(op.pedido_odoo_id).push(op);
-    }
-    // Fallback por numero_pedido apenas para pedidos sem OP encontrada por ID
-    const faltantes = alvo.filter(p => !opsPorPedido.has(p.id) && p.numero_pedido);
-    if (faltantes.length > 0) {
-      const opsPorNumero = await comRetry(() => base44.entities.Pedido.filter({ numero_pedido: { $in: faltantes.map(p => p.numero_pedido) } }));
-      const porNumero = new Map();
-      for (const op of opsPorNumero || []) {
-        if (String(op.status || "").toLowerCase() === "cancelado") continue;
-        // OP com vínculo explícito de OF pertence a uma OF específica:
-        // nunca tratá-la como OP de outra OF irmã da mesma venda
-        if (op.pedido_odoo_id || op.of_odoo_id || op.of_nome) continue;
-        if (!porNumero.has(op.numero_pedido)) porNumero.set(op.numero_pedido, []);
-        porNumero.get(op.numero_pedido).push(op);
-      }
-      for (const p of faltantes) {
-        if (porNumero.has(p.numero_pedido)) opsPorPedido.set(p.id, porNumero.get(p.numero_pedido));
-      }
-    }
-  } catch (errPre) {
-    console.warn("[DistribuicaoLote] Pré-busca de OPs falhou, usando checagem individual:", errPre);
-    opsPorPedido.clear();
+  const opsPorPedido = new Map(alvo.map(p => [p.id, []]));
+  const ops = await buscarOpsDasOfs(base44, "Pedido", alvo);
+  for (const op of ops) {
+    if (opsPorPedido.has(op.pedido_odoo_id)) opsPorPedido.get(op.pedido_odoo_id).push(op);
   }
   return opsPorPedido;
 }
@@ -58,119 +31,27 @@ async function preBuscarOpsExistentes(alvo) {
  * Retorna { sucesso, telhasCount, preservadosManual, falhas }
  */
 export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinasEstoque = [], filialAtiva = "todas" }) {
-  if (!pedidos || pedidos.length === 0) {
-    return { sucesso: 0, telhasCount: 0, preservadosManual: 0, falhas: 0, ultimoErro: "", idsSucesso: [], idsFalha: [] };
-  }
-
-  const autoTelhasAtivo = isAutoRoteamentoTelhasAtivo();
-  const alvo = pedidos.filter(ped => !(opcoes.pularDevolvidosManualmente && ped.retirado_manualmente_ts));
-  const preservadosManual = pedidos.length - alvo.length;
-
-  let sucesso = 0;
-  let telhasCount = 0;
-  let falhas = 0;
-  let ultimoErro = "";
-  const idsSucesso = [];
-  const idsFalha = [];
-
-  // ── OTIMIZAÇÃO 1: pré-busca única das OPs existentes ──
-  const opsPorPedido = autoTelhasAtivo && alvo.length > 0
-    ? await preBuscarOpsExistentes(alvo)
-    : new Map();
-
-  const processarPedido = async (ped) => {
-    try {
-      const itens = parseItensPedido(ped.itens_json);
-      const telhas = itensPorGrupo(itens, "telha");
-
-      if (autoTelhasAtivo && telhas.length > 0) {
-        const telhasParaRoteamento = itens
-          .map((it, idx) => ({ ...it, _idx: idx }))
-          .filter((it, idx) => {
-            const ehTelha = telhas.some(t => (t._idx != null ? t._idx === idx : t.produto === it.produto));
-            return ehTelha && it.status !== "concluido";
-          });
-
-        if (telhasParaRoteamento.length > 0) {
-          const resAgrupado = await rotearLoteTelhasAgrupadas({
-            pedido: ped,
-            itensTelhas: telhasParaRoteamento,
-            todasBobinas: bobinasEstoque,
-            filialAtiva: ped.unidade || filialAtiva,
-            // ── OTIMIZAÇÃO 2: OPs já pré-buscadas em massa (sem filtro por grupo) ──
-            opsExistentesPre: opsPorPedido.has(ped.id) ? opsPorPedido.get(ped.id) : null
-          });
-
-          const opsConfirmadas = (resAgrupado.opsCriadas || []).filter(op => op?.id);
-          // 🛡️ NUNCA FINGIR ENVIO: sem OP confirmada na perfiladeira a OF não pode
-          // ser marcada como distribuída — ela permanece pendente na Central PCP.
-          if (opsConfirmadas.length === 0) {
-            throw new Error(`Nenhuma OP foi criada na perfiladeira (OF ${ped.of_nome || ped.numero_pedido}).`);
-          }
-          telhasCount += telhasParaRoteamento.length;
-
-          Object.entries(resAgrupado.itensAtualizadosMap || {}).forEach(([idxStr, dadosItem]) => {
-            const i = Number(idxStr);
-            if (itens[i]) {
-              itens[i] = { ...itens[i], ...dadosItem };
-            }
-          });
-        }
-      }
-
-      const itensDistribuidos = itens.map(it => ({
-        ...it,
-        status: it.status === "concluido" ? "concluido" : (it.status === "em_producao" ? "em_producao" : "distribuido"),
-        distribuido: true
-      }));
-
-      const logExistente = (() => { try { return JSON.parse(ped.historico_log || "[]"); } catch { return []; } })();
-      const novoLog = [...logExistente, {
-        data: new Date().toISOString(),
-        usuario: "PCP",
-        acao: "distribuicao_lote",
-        detalhes: autoTelhasAtivo
-          ? "Pedido distribuído em lote com Piloto Automático de Telhas direto para as perfiladeiras."
-          : "Pedido distribuído em lote para os galpões de produção (Telhas, C&D e Frisada)."
-      }];
-
-      // Retry: se a gravação falhar (ex: limite de tráfego), a OP já criada não fica órfã
-      const atualizado = await comRetry(() => base44.entities.PedidoOdoo.update(ped.id, {
-        itens_json: JSON.stringify(itensDistribuidos),
-        status_pcp: "distribuido",
-        percentual_concluido: 15,
-        retirado_manualmente_ts: "",
-        historico_log: JSON.stringify(novoLog)
-      }));
-
-      // Notificação em segundo plano sem bloquear o lote
-      notificarStatus(atualizado, "distribuido", { status_novo: "distribuido", percentual_concluido: 15 }).catch(() => {});
-      sucesso++;
-      idsSucesso.push(ped.id);
-    } catch (err) {
-      falhas++;
-      idsFalha.push(ped.id);
-      ultimoErro = err?.message || String(err);
-      console.error("[DistribuicaoLote] falha ao distribuir pedido:", ped.numero_pedido, err);
-    }
-  };
-
-  // ── OTIMIZAÇÃO 3: pool de concorrência com throttle para evitar rate limit ──
-  let idx = 0;
+  const alvo = pedidos.filter(p => !(opcoes.pularDevolvidosManualmente && p.retirado_manualmente_ts));
+  const resumo = { sucesso: 0, telhasCount: 0, preservadosManual: pedidos.length - alvo.length, falhas: 0, ultimoErro: "", idsSucesso: [], idsFalha: [] };
+  const ops = await preBuscarOpsExistentes(alvo);
+  let cursor = 0;
   const worker = async () => {
-    while (idx < alvo.length) {
-      const ped = alvo[idx++];
-      await processarPedido(ped);
-      if (idx < alvo.length) {
-        await new Promise(r => setTimeout(r, 60));
+    while (cursor < alvo.length) {
+      const pedido = alvo[cursor++];
+      try {
+        const resultado = await distribuirPedidoPCP({ pedido, bobinasEstoque, filialAtiva, opsExistentesPre: ops.get(pedido.id) });
+        resumo.sucesso++;
+        resumo.telhasCount += resultado.telhasAutoRoteadas;
+        resumo.idsSucesso.push(pedido.id);
+      } catch (e) {
+        resumo.falhas++;
+        resumo.idsFalha.push(pedido.id);
+        resumo.ultimoErro = e.message;
       }
     }
   };
-  await Promise.all(
-    Array.from({ length: Math.min(CONCORRENCIA, Math.max(alvo.length, 1)) }, worker)
-  );
-
-  return { sucesso, telhasCount, preservadosManual, falhas, ultimoErro, idsSucesso, idsFalha };
+  await Promise.all(Array.from({ length: Math.min(CONCORRENCIA, alvo.length) }, worker));
+  return resumo;
 }
 
 /**
@@ -181,73 +62,34 @@ export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinas
  * "meio distribuído" na fila do PCP.
  * Retorna { atualizado, telhasAutoRoteadas, bobinasVinculadas }.
  */
-export async function distribuirPedidoPCP({ pedido, bobinasEstoque = [], filialAtiva = "todas" }) {
-  const autoTelhasAtivo = isAutoRoteamentoTelhasAtivo();
-  let telhasAutoRoteadas = 0;
-  let bobinasVinculadas = 0;
-
-  const logExistente = (() => { try { return JSON.parse(pedido.historico_log || "[]"); } catch { return []; } })();
-  const novoLog = [...logExistente, {
-    data: new Date().toISOString(),
-    usuario: "PCP",
-    acao: autoTelhasAtivo ? "distribuicao_automatica_telhas_bobina" : "distribuicao_automatica",
-    detalhes: autoTelhasAtivo
-      ? "Pedido distribuído com Piloto Automático de Telhas (encaminhado direto às perfiladeiras com bobina selecionada pelo Odoo)."
-      : "Pedido distribuído automaticamente para os galpões (Telhas→Barracão Telhas, C&D→Barracão C&D, Frisada→Expedição)."
-  }];
-
-  const itens = parseItensPedido(pedido.itens_json);
-  const telhas = itensPorGrupo(itens, "telha");
-
-  if (autoTelhasAtivo && telhas.length > 0) {
-    const telhasParaRoteamento = itens
-      .map((it, idx) => ({ ...it, _idx: idx }))
-      .filter((it, idx) => {
-        const ehTelha = telhas.some(t => (t._idx != null ? t._idx === idx : t.produto === it.produto));
-        return ehTelha && it.status !== "concluido";
-      });
-
-    if (telhasParaRoteamento.length > 0) {
-      const resAgrupado = await rotearLoteTelhasAgrupadas({
-        pedido,
-        itensTelhas: telhasParaRoteamento,
-        todasBobinas: bobinasEstoque,
-        filialAtiva: pedido.unidade || filialAtiva
-      });
-
-      const opsConfirmadas = (resAgrupado.opsCriadas || []).filter(op => op?.id);
-      // 🛡️ NUNCA FINGIR ENVIO: sem OP confirmada na perfiladeira a OF não é
-      // marcada como distribuída — o erro sobe para o PCP avisar o operador.
-      if (opsConfirmadas.length === 0) {
-        throw new Error(`Nenhuma OP foi criada na perfiladeira (OF ${pedido.of_nome || pedido.numero_pedido}).`);
-      }
-      telhasAutoRoteadas = telhasParaRoteamento.length;
-      bobinasVinculadas = opsConfirmadas.filter(op => op.bobina_superior_id).length;
-
-      Object.entries(resAgrupado.itensAtualizadosMap || {}).forEach(([idxStr, dadosItem]) => {
-        const i = Number(idxStr);
-        if (itens[i]) {
-          itens[i] = { ...itens[i], ...dadosItem };
-        }
-      });
-    }
-  }
-
-  const itensDistribuidos = itens.map(it => ({
-    ...it,
-    status: it.status === "concluido" ? "concluido" : (it.status === "em_producao" ? "em_producao" : "distribuido"),
-    distribuido: true
-  }));
-
-  // Retry: se a gravação falhar, tenta de novo — a OP já criada não fica órfã
-  const atualizado = await comRetry(() => base44.entities.PedidoOdoo.update(pedido.id, {
-    itens_json: JSON.stringify(itensDistribuidos),
-    status_pcp: "distribuido", percentual_concluido: 15, retirado_manualmente_ts: "",
-    historico_log: JSON.stringify(novoLog)
-  }));
-
-  // Mini BI — notificação em segundo plano (não trava a interface do operador)
-  notificarStatus(atualizado, "distribuido", { status_novo: "distribuido", percentual_concluido: 15 }).catch(() => {});
-
-  return { atualizado, telhasAutoRoteadas, bobinasVinculadas };
+export async function distribuirPedidoPCP({ pedido, bobinasEstoque = [], filialAtiva = "todas", opsExistentesPre = null, indicesAlvo = null, itensProgramados = null, forcarRoteamento = false }) {
+  const atual = await base44.entities.PedidoOdoo.get(pedido.id);
+  if (atual.status_pcp === "concluido") return { atualizado: atual, telhasAutoRoteadas: 0, bobinasVinculadas: 0 };
+  const itens = getItens(atual).map((it, idx) => itensProgramados?.[idx] ? { ...it, maquina: itensProgramados[idx].maquina, data_programada: itensProgramados[idx].data_programada } : it);
+  if (!itens.length) throw new Error("Esta OF não possui itens válidos para distribuir.");
+  const alvo = itens.filter(it => (!indicesAlvo || indicesAlvo.includes(it._idx)) && !it.concluido && it.status !== "concluido");
+  const telhas = itensPorGrupo(alvo, "telha");
+  const auto = forcarRoteamento || isAutoRoteamentoTelhasAtivo();
+  let resultado = { opsCriadas: [], itensAtualizadosMap: {}, erros: [] };
+  if (auto && telhas.length) resultado = await rotearLoteTelhasAgrupadas({ pedido: atual, itensTelhas: telhas, todasBobinas: bobinasEstoque, filialAtiva: atual.unidade || filialAtiva, opsExistentesPre });
+  if (resultado.erros?.length && !resultado.opsCriadas.length) throw new Error(resultado.erros.map(e => e.message).join("; "));
+  const frescos = await base44.entities.PedidoOdoo.get(atual.id);
+  if (frescos.retirado_manualmente_ts && frescos.retirado_manualmente_ts !== atual.retirado_manualmente_ts) throw new Error("A OF foi devolvida ao PCP durante o envio. Revise as OPs criadas antes de continuar.");
+  const indices = new Set(alvo.map(it => it._idx));
+  const finais = getItens(frescos).map((it, idx) => {
+    if (!indices.has(idx) || it.concluido || it.status === "concluido") return it;
+    const programacao = itensProgramados?.[idx] ? { maquina: itensProgramados[idx].maquina, data_programada: itensProgramados[idx].data_programada } : {};
+    if (auto && classGrupo(it) === "telha") return { ...it, ...programacao, ...(resultado.itensAtualizadosMap[idx] || { distribuido: false, status: "pendente" }) };
+    return { ...it, ...programacao, distribuido: true, status: it.status === "em_producao" ? "em_producao" : "distribuido" };
+  });
+  const pendente = finais.some(it => !it.concluido && it.status !== "concluido" && !it.distribuido);
+  const concluido = finais.every(it => it.concluido || it.status === "concluido");
+  const status = concluido ? "concluido" : pendente ? "pendente_distribuicao" : resultado.opsCriadas.some(o => ["em_producao", "pausado", "aguardando_colagem"].includes(o.status)) ? "em_producao" : "distribuido";
+  const percentual = calcularProgressoRealPedido({ ...frescos, itens: finais }, resultado.opsCriadas);
+  const log = JSON.parse(frescos.historico_log || "[]");
+  log.push({ data: new Date().toISOString(), usuario: "PCP", acao: pendente ? "distribuicao_parcial" : "distribuicao", detalhes: `${resultado.opsCriadas.length} OP(s) confirmada(s).${resultado.erros?.length ? ` Pendências: ${resultado.erros.map(e => e.message).join("; ")}` : ""}` });
+  const atualizado = await comRetry(() => base44.entities.PedidoOdoo.update(atual.id, { itens_json: buildItensJson(finais), status_pcp: status, percentual_concluido: percentual, retirado_manualmente_ts: "", historico_log: JSON.stringify(log) }));
+  notificarStatus(atualizado, "distribuido", { status_novo: status, percentual_concluido: percentual }).catch(() => {});
+  if (resultado.erros?.length) throw new Error(`Envio parcial preservado. ${resultado.erros.map(e => e.message).join("; ")}`);
+  return { atualizado, telhasAutoRoteadas: resultado.opsCriadas.length, bobinasVinculadas: resultado.opsCriadas.filter(o => o.bobina_superior_id).length };
 }

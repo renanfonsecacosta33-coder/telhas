@@ -4,7 +4,7 @@ import {
   opPertenceAoPedido,
   encontrarPedidoVinculado
 } from "@/lib/conciliacaoPcpMaquinasHelper";
-import { detectarMaquinaTelha, getItens } from "@/lib/pedidoOdooHelper";
+import { detectarMaquinaTelha, getItens, gerarAssinaturaOp } from "@/lib/pedidoOdooHelper";
 
 /**
  * Executa a Auditoria Diária Completa do Sistema Fabril:
@@ -153,8 +153,8 @@ export async function executarAuditoriaDiariaCompleta({ queryClient = null, usua
       }
 
       // 1.4 Detecção de Duplicata Fantasma pendente
-      if (op.status === "pendente") {
-        const sig = `${numNorm}_${op.maquina}_${op.modelo}_${op.metros || op.quantidade_telhas}_${op.metragem_mm}`;
+      if (op.status === "pendente" && op.pedido_odoo_id && op.item_idx != null) {
+        const sig = gerarAssinaturaOp(op);
         if (assinaturasVistas.has(sig)) {
           // Marca ou remove cópia duplicada idêntica
           try {
@@ -173,8 +173,8 @@ export async function executarAuditoriaDiariaCompleta({ queryClient = null, usua
       }
 
       // 1.5 Correção de Modelo Incompatível (ex: Cumeeira na TP-40)
-      const ehCumeeira = (op.produto === "CUMEEIRA") || /\bcumeeira\b/i.test(`${op.item_produto || ""} ${op.modelo || ""}`);
-      if (ehCumeeira && op.maquina !== "CUMEEIRA" && op.status !== "cancelado" && op.status !== "finalizado") {
+      const ehCumeeira = /\bcumeeira\b/i.test(op.item_produto || op.produto || "");
+      if (ehCumeeira && op.maquina !== "CUMEEIRA" && op.status === "pendente" && !op.inicio_producao_ts) {
         try {
           await base44.entities.Pedido.update(op.id, {
             produto: "CUMEEIRA",

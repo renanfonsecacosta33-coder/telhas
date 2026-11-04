@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { distribuirLotePedidos, distribuirPedidoPCP } from "@/lib/distribuicaoPcpHelper";
 import { isAutoRoteamentoTelhasAtivo } from "@/lib/autoBobinaTelhasHelper";
 import { iniciarEnvio, concluirEnvio, cancelarEnvio, ID_LOTE_ENVIO } from "@/lib/envioDistribuicaoStore";
@@ -19,8 +19,11 @@ export default function useDistribuicaoPcp({
   setSelecionados,
 }) {
   const [distribuindo, setDistribuindo] = useState(false);
+  const envioAtivo = useRef(false);
 
   const handleDistribuir = async (pedido) => {
+    if (envioAtivo.current) return;
+    envioAtivo.current = true;
     setDistribuindo(true); iniciarEnvio([pedido.id]);
     try {
       const { atualizado, telhasAutoRoteadas, bobinasVinculadas } = await distribuirPedidoPCP({
@@ -33,6 +36,8 @@ export default function useDistribuicaoPcp({
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
       queryClient.invalidateQueries({ queryKey: ["bobinas-estoque-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      queryClient.invalidateQueries({ queryKey: ["resumo-pcp"] });
       setPedidoSelecionado({ ...pedido, ...atualizado });
 
       if (telhasAutoRoteadas > 0) {
@@ -50,14 +55,20 @@ export default function useDistribuicaoPcp({
       }
     } catch (e) {
       cancelarEnvio([pedido.id]);
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
       toast({ title: "Erro ao distribuir", description: e.message, variant: "destructive" });
     } finally {
+      envioAtivo.current = false;
       setDistribuindo(false);
     }
   };
 
-  const handleDistribuirLote = async (pedidosADistribuir, opcoes = {}) => {
-    if (!pedidosADistribuir || pedidosADistribuir.length === 0) return;
+  const handleDistribuirLote = async (entrada, opcoes = {}) => {
+    const pedidosADistribuir = Array.isArray(entrada) ? entrada : entrada?.ofs || [];
+    if (!pedidosADistribuir.length || envioAtivo.current) return;
+    envioAtivo.current = true;
     const idsLote = pedidosADistribuir.map(p => p.id).filter(Boolean);
     setDistribuindo(true); iniciarEnvio([...idsLote, ID_LOTE_ENVIO]);
     try {
@@ -78,6 +89,8 @@ export default function useDistribuicaoPcp({
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
       queryClient.invalidateQueries({ queryKey: ["bobinas-estoque-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      queryClient.invalidateQueries({ queryKey: ["resumo-pcp"] });
       queryClient.refetchQueries({ queryKey: ["pedidos-odoo-pcp"] });
       setSelecionados(new Set());
       if (sucesso > 0) {
@@ -106,6 +119,7 @@ export default function useDistribuicaoPcp({
       cancelarEnvio([...idsLote, ID_LOTE_ENVIO]);
       toast({ title: "Erro na distribuição em lote", description: e.message, variant: "destructive" });
     } finally {
+      envioAtivo.current = false;
       setDistribuindo(false);
     }
   };

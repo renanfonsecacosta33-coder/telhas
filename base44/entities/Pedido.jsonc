@@ -17,11 +17,11 @@
     },
     "numero_pedido": {
       "type": "string",
-      "description": "Número do pedido"
+      "description": "N\u00famero do pedido"
     },
     "numero_oc": {
       "type": "string",
-      "description": "Número da Ordem de Compra / Sub-número do pedido"
+      "description": "N\u00famero da Ordem de Compra / Sub-n\u00famero do pedido"
     },
     "produto": {
       "type": "string",
@@ -91,15 +91,15 @@
     },
     "bobina_secundaria_id": {
       "type": "string",
-      "description": "ID da 2ª bobina de aço (emenda/complementar quando a 1ª não aguenta todo o pedido)"
+      "description": "ID da 2\u00aa bobina de a\u00e7o (emenda/complementar quando a 1\u00aa n\u00e3o aguenta todo o pedido)"
     },
     "bobina_secundaria": {
       "type": "string",
-      "description": "Texto descritivo da 2ª bobina (emenda/complementar)"
+      "description": "Texto descritivo da 2\u00aa bobina (emenda/complementar)"
     },
     "kg_secundaria": {
       "type": "number",
-      "description": "Peso em KG consumido da 2ª bobina"
+      "description": "Peso em KG consumido da 2\u00aa bobina"
     },
     "rvm_superior": {
       "type": "string",
@@ -121,11 +121,11 @@
         "Importado"
       ],
       "default": "ambas",
-      "description": "Origem do aço exigida pelo pedido Odoo (trava de segurança Nacional/Importado)"
+      "description": "Origem do a\u00e7o exigida pelo pedido Odoo (trava de seguran\u00e7a Nacional/Importado)"
     },
     "cor_exigida": {
       "type": "string",
-      "description": "Cor exigida pelo pedido Odoo (trava de segurança de cor — ex: NATURAL, BRANCO, PRETO, etc.)"
+      "description": "Cor exigida pelo pedido Odoo (trava de seguran\u00e7a de cor \u2014 ex: NATURAL, BRANCO, PRETO, etc.)"
     },
     "eps": {
       "type": "string",
@@ -342,37 +342,37 @@
     "prioridade": {
       "type": "boolean",
       "default": false,
-      "description": "Pedido prioritário — fixado no topo da fila de produção"
+      "description": "Pedido priorit\u00e1rio \u2014 fixado no topo da fila de produ\u00e7\u00e3o"
     },
     "prioridade_nivel": {
       "type": "number",
       "minimum": 1,
       "maximum": 5,
-      "description": "Nível de prioridade de 1 (mais urgente) a 5 (baixa prioridade)"
+      "description": "N\u00edvel de prioridade de 1 (mais urgente) a 5 (baixa prioridade)"
     },
     "rota": {
       "type": "boolean",
       "default": false,
-      "description": "Pedido de rota — super importante, indicativo visual destacado"
+      "description": "Pedido de rota \u2014 super importante, indicativo visual destacado"
     },
     "is_rota": {
       "type": "boolean",
       "default": false,
-      "description": "Flag indicando que o pedido é de rota"
+      "description": "Flag indicando que o pedido \u00e9 de rota"
     },
     "rota_ts": {
       "type": "string",
-      "description": "Timestamp ISO da marcação de rota"
+      "description": "Timestamp ISO da marca\u00e7\u00e3o de rota"
     },
     "cliente_retira": {
       "type": "boolean",
       "default": false,
-      "description": "Cliente retira no balcão"
+      "description": "Cliente retira no balc\u00e3o"
     },
     "cliente_retira_agora": {
       "type": "boolean",
       "default": false,
-      "description": "Cliente aguardando retirada imediata no balcão"
+      "description": "Cliente aguardando retirada imediata no balc\u00e3o"
     },
     "retira_agora": {
       "type": "boolean",
@@ -410,8 +410,8 @@
     },
     "retrabalho_etapa": {
       "type": "number",
-      "description": "Etapa do retrabalho (1, 2, 3...) para diferencia\u00e7\u00e3o visual de cor",
-      "default": 1
+      "default": 1,
+      "description": "Etapa do retrabalho (1, 2, 3...) para diferencia\u00e7\u00e3o visual de cor"
     },
     "foto_pedido_url": {
       "type": "string",
@@ -442,23 +442,27 @@
     },
     "historico_expedicao": {
       "type": "string",
-      "description": "JSON string com histórico de expedição [{data, usuario, acao, detalhes}]"
+      "description": "JSON string com hist\u00f3rico de expedi\u00e7\u00e3o [{data, usuario, acao, detalhes}]"
     },
     "pedido_odoo_id": {
       "type": "string",
-      "description": "ID da OF/Pedido no Odoo (PedidoOdoo.id) para vínculo 1-para-1 exato"
+      "description": "ID da OF/Pedido no Odoo (PedidoOdoo.id) para v\u00ednculo 1-para-1 exato"
     },
     "of_odoo_id": {
       "type": "string",
-      "description": "ID da OF no Odoo (mrp.production) para vínculo 1-para-1 exato"
+      "description": "ID da OF no Odoo (mrp.production) para v\u00ednculo 1-para-1 exato"
     },
     "of_nome": {
       "type": "string",
-      "description": "Nome visível da OF no Odoo (ex: WH/MO/406632)"
+      "description": "Nome vis\u00edvel da OF no Odoo (ex: WH/MO/406632)"
     },
     "item_idx": {
       "type": "number",
-      "description": "Índice do item dentro do itens_json do PedidoOdoo"
+      "description": "\u00cdndice do item dentro do itens_json do PedidoOdoo"
+    },
+    "itens_indices": {
+      "type": "string",
+      "description": "JSON array com todos os \u00edndices dos itens da OF cobertos pela OP agrupada. Identidade exata para distribui\u00e7\u00e3o e conclus\u00e3o por item."
     },
     "item_produto": {
       "type": "string",

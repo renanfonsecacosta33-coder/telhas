@@ -5,6 +5,7 @@
 // =====================================================================
 
 import { base44 } from "@/api/base44Client";
+import { opDaMesmaOf } from "@/lib/opVinculoSeguro";
 import {
   detectarTipoProdutoTelha,
   detectarMaquinaTelha,
@@ -73,15 +74,15 @@ export async function reajustarTodasBobinasMaquinasAutomaticamente() {
       if (op.status === "cancelado") continue;
 
       const numPuro = String(op.numero_pedido || "").replace(/^#/, "").trim().toUpperCase();
-      const pedOdoo = mapOdoo.get(numPuro) || mapOdoo.get(String(op.of_nome || "").toUpperCase());
+      const pedOdoo = todosPedidosOdoo.find(p => opDaMesmaOf(op, p)) || null;
 
       const updates = {};
       const motivos = [];
 
       // Extrai itens e dados técnicos do Odoo
       const itens = pedOdoo ? getItens(pedOdoo) : [];
-      const primeiroItem = itens[0] || {};
-      const textoItem = `${op.item_produto || ""} ${op.observacoes || ""} ${primeiroItem.produto || ""} ${primeiroItem.descricao || ""} ${pedOdoo?.descricao || ""}`;
+      const primeiroItem = itens.find(it => it._idx === op.item_idx) || itens.find(it => it.produto === op.item_produto) || {};
+      const textoItem = `${op.item_produto || primeiroItem.produto || op.produto || ""} ${primeiroItem.descricao || primeiroItem.observacao || ""}`;
 
       const ehDuplaTelha = op.produto === "TELHA + EPS + TELHA" || op.produto === "TELHA BANDEJA" ||
         /(dupla|sanduiche|\+\s*telha|telha\s*bandeja)/i.test(textoItem);
@@ -107,13 +108,13 @@ export async function reajustarTodasBobinasMaquinasAutomaticamente() {
 
       const maqEsperada = ehBobininha
         ? "DESBOBINADOR"
-        : (detectarMaquinaTelha(textoItem) || (ehTelha ? "TP - 40" : ""));
+        : detectarMaquinaTelha(textoItem);
 
       if (ehBobininha && op.produto !== "BOBININHA") {
         updates.produto = "BOBININHA";
       }
 
-      if (maqEsperada && (op.maquina !== maqEsperada || op.modelo !== maqEsperada) && (!jaPerfilouPrimeiraEtapa || estaNoDesbobinadorErroneamente || ehBobininha)) {
+      if (op.status === "pendente" && !op.inicio_producao_ts && !op.perfilacao_concluida && maqEsperada && (op.maquina !== maqEsperada || op.modelo !== maqEsperada) && !jaPerfilouPrimeiraEtapa) {
         const maqAnterior = op.maquina || op.modelo;
         updates.maquina = maqEsperada;
         updates.modelo = maqEsperada;

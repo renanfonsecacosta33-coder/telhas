@@ -264,6 +264,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     if (editItem) {
       const textoPecaEdit = `${editItem.observacoes || ""} ${editItem.dimensoes_livres || ""} ${editItem.tipo_peca || ""}`;
       const specEdit = extrairEspecificacao(textoPecaEdit, editItem.quantidade);
+      const desenvInicial = editItem.desenvolvimento_mm || specEdit?.desenvolvimento_mm || "";
       const compMmInicial = (editItem.comprimento_mm && Number(editItem.comprimento_mm) > 300)
         ? editItem.comprimento_mm
         : (specEdit?.comprimento_mm && specEdit.comprimento_mm > 300 ? specEdit.comprimento_mm : (editItem.comprimento_mm || ""));
@@ -343,6 +344,8 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
   const largBobinaAtual = bobinaObj?.largura_mm || chapaObj?.largura_mm || 1200;
   const isDesenvExcedido = Number(form.desenvolvimento_mm) > largBobinaAtual;
   const espBobinaNum = getEspessuraNumeroBobina(bobinaObj);
+  const espessuraInformada = parseFloat(String(form.espessura_exigida || form.material_espessura || "").replace(",", "."));
+  const espessuraDesejada = Number.isFinite(espessuraInformada) && espessuraInformada > 0 ? espessuraInformada : null;
   const isBitolaDivergente = Boolean(
     bobinaObj && espessuraDesejada != null && espBobinaNum > 0 && Math.abs(espBobinaNum - espessuraDesejada) > 0.05
   );

@@ -8,7 +8,10 @@ import { garantirOpUnica } from '../../shared/opUnicaCore.ts';
 export default async function(req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
-    const db = base44.asServiceRole || base44;
+    const user = await base44.auth.me().catch(e => e.status === 401 ? null : Promise.reject(e));
+    if (!user) return Response.json({ error: "Autenticação obrigatória" }, { status: 401 });
+    if (!["admin", "super_admin", "gestor", "vendedor"].includes(user.role)) return Response.json({ error: "Sem permissão para distribuir OPs" }, { status: 403 });
+    const db = base44;
 
     const body = await req.json().catch(() => ({}));
     const { dadosOp, dedup } = body || {};
@@ -16,6 +19,9 @@ export default async function(req: Request): Promise<Response> {
       return Response.json({ error: 'Parâmetros obrigatórios: dadosOp e dedup' }, { status: 400 });
     }
 
+    if (!dedup.pedido_odoo_id || dadosOp.pedido_odoo_id !== dedup.pedido_odoo_id || !Array.isArray(dedup.indices) || !dedup.indices.length || dedup.indices.some(i => !Number.isInteger(i) || i < 0)) {
+      return Response.json({ error: "OF e índices dos itens devem ser informados explicitamente" }, { status: 400 });
+    }
     const resultado = await garantirOpUnica(db, { dadosOp, dedup });
     return Response.json(resultado);
   } catch (error: any) {

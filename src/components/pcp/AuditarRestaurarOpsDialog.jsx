@@ -24,6 +24,7 @@ import {
 import { detectarCoresDuplaTelha } from "@/lib/autoBobinaTelhasHelper";
 import { isCorCompativel } from "@/lib/bobinaValidation";
 import { reajustarTodasBobinasMaquinasAutomaticamente } from "@/lib/reajusteAutomaticoBobinas";
+import { opDaMesmaOf } from "@/lib/opVinculoSeguro";
 
 const MAQUINAS_TELHAS_RECOLHER = [
   { id: "TP - 40", label: "TP - 40", cor: "bg-blue-500" },
@@ -138,7 +139,7 @@ export default function AuditarRestaurarOpsDialog({
       for (const op of todasOps) {
         if (!op || !op.id) continue;
         const numOpPuro = String(op.numero_pedido || "").replace(/^#/, "").trim().toUpperCase();
-        const pedOdoo = mapOdoo.get(numOpPuro) || mapOdoo.get(String(op.of_nome || "").toUpperCase());
+        const pedOdoo = todosPedidosOdoo.find(p => opDaMesmaOf(op, p)) || null;
 
         const updates = {};
         const motivos = [];
@@ -229,8 +230,7 @@ export default function AuditarRestaurarOpsDialog({
         }
 
         // --- REGRA C: CUMEEIRA ATRIBUÍDA A MÁQUINA DE TELHAS ---
-        const ehCumeeira = op.produto === "CUMEEIRA" ||
-          /\bCUMEEIRA\b/i.test(`${op.item_produto || ""} ${op.modelo || ""}`);
+        const ehCumeeira = /\bCUMEEIRA\b/i.test(op.item_produto || op.produto || "");
         if (ehCumeeira && op.maquina !== "CUMEEIRA") {
           updates.produto = "CUMEEIRA";
           updates.maquina = "CUMEEIRA";

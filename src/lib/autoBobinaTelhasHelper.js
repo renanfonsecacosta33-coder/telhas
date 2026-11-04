@@ -27,6 +27,8 @@ import { getPrioridadeNivel } from "@/lib/prioridadeHelper";
 import { extrairRotuloBobinaSimplificado, extrairRotuloFaceInferior } from "@/lib/bobinaRotuloHelper";
 import { filtrarOpsDasOfsExatas } from "@/lib/conciliacaoPcpMaquinasHelper";
 import { hojeLocalISO } from "@/lib/dataLocal";
+import { resolverRoteamentoTelha } from "@/lib/roteamentoTelhaSeguro";
+import { opCobreIndices, validarOpConfirmada } from "@/lib/opVinculoSeguro";
 
 export { removerAcentos, detectarCorTelha, isCorCompativel };
 export const LOCAL_STORAGE_KEY_AUTO_TELHAS = "pcp_auto_roteamento_telhas";
@@ -47,7 +49,9 @@ export async function comRetry(fn, tentativas = 3, delayMs = 1500) {
       // com teto de 30s por espera para não travar a interface
       const msg = String(e?.message || e?.detail || e || "");
       const m = msg.match(/Retry after (\d+) seconds/i);
-      const espera = m ? Math.min(Number(m[1]) * 1000 + 2000, 30000) : delayMs * (i + 1);
+      const status = e?.status || e?.response?.status;
+      if (i === tentativas - 1 || (status && status < 500 && status !== 429)) throw e;
+      const espera = m ? Number(m[1]) * 1000 + 2000 : delayMs * (i + 1);
       await new Promise((r) => setTimeout(r, espera));
     }
   }
@@ -215,7 +219,7 @@ export function selecionarMelhorBobinaTelhas({
   // 1. Extração de requisitos do Odoo
   const espessuraExigida = item?.espessura ? String(item.espessura) : detectarEspessura(produtoNome);
   const origemExigida = item?.origem || detectarOrigemAco(produtoNome);
-  const corExigida = detectarCorTelha(produtoNome, descTexto);
+  const corExigida = item?.cor || detectarCorTelha(produtoNome, descTexto);
   const filialAlvo = filialAtiva && filialAtiva !== "todas" ? filialAtiva : (pedido?.unidade || "Matriz AJL");
 
   // Metragem necessária estimada
@@ -343,14 +347,8 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
   const descTexto = item.descricao || item.observacao || pedido.observacoes || "";
   const produtoNome = item.produto || item.descricao || "";
   const textoCompleto = `${produtoNome} ${descTexto}`.trim();
-  const prodTipo = detectarTipoProdutoTelha(produtoNome, descTexto);
-  let maquina = (prodTipo === "CUMEEIRA" || /\bCUMEEIRA\b/i.test(textoCompleto))
-    ? "CUMEEIRA"
-    : (prodTipo === "BOBININHA" || /\b(BOBININHA|BOBININHAS|BOBININA|SLITTER|DESBOBINADOR)\b/i.test(textoCompleto))
-    ? "DESBOBINADOR"
-    : (prodTipo === "TELHA BANDEJA")
-    ? (detectarMaquinaTelha(textoCompleto) || "TP - 40")
-    : (item.maquina || detectarMaquinaTelha(textoCompleto) || "");
+  const { prodTipo, maquina } = resolverRoteamentoTelha(item);
+
 
   // Se o modelo da telha não foi especificado, não roteia automaticamente!
   if (!maquina) {
@@ -510,13 +508,7 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
       opsExistentes = await comRetry(() => base44.entities.Pedido.filter({ numero_pedido: pedido.numero_pedido }));
     }
     const opsValidas = filtrarOpsDasOfsExatas(opsExistentes, [pedido]);
-    const opValida = opsValidas.find(o => {
-      if (itemIdx != null && o.item_idx != null && String(o.item_idx) === String(itemIdx)) return true;
-      const mesmaMaq = !o.maquina || String(o.maquina).trim().toUpperCase() === String(maquina).trim().toUpperCase();
-      const mmMatch = Number(metragemMm) && Number(o.metragem_mm) === Number(metragemMm);
-      const qtdMatch = Number(qtdChapas) && (Number(o.metros) === Number(qtdChapas) || Number(o.quantidade_telhas) === Number(qtdChapas));
-      return mesmaMaq && mmMatch && qtdMatch;
-    });
+    const opValida = opsValidas.find(o => opCobreIndices(o, [itemIdx]));
     if (opValida) {
       // PRESERVAÇÃO TOTAL: OP existente NUNCA tem suas bobinas ou modelo sobrescritos se já foram alterados manualmente!
       const updates = {};
@@ -560,33 +552,12 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
       }), 2, 800);
       opCriada = resGar?.data?.op || resGar?.op || null;
     } catch (errFunc) {
-      console.warn("[AutoBobinaTelhas] Aviso na chamada serverless de garantirOpUnica:", errFunc?.message || errFunc);
+      throw errFunc;
     }
 
-    // Fallback direto e resiliente caso a Cloud Function falhe ou esteja offline
-    if (!opCriada || !opCriada.id) {
-      try {
-        const opsCheck = await base44.entities.Pedido.filter({
-          numero_pedido: pedido.numero_pedido || "",
-          status: { $ne: "cancelado" }
-        }).catch(() => []);
-
-        const existenteLocal = opsCheck.find(o =>
-          (o.pedido_odoo_id && o.pedido_odoo_id === pedido.id) ||
-          (o.of_odoo_id && pedido.of_odoo_id && o.of_odoo_id === pedido.of_odoo_id) ||
-          (o.of_nome && pedido.of_nome && o.of_nome === pedido.of_nome)
-        );
-
-        if (existenteLocal) {
-          opCriada = existenteLocal;
-        } else {
-          opCriada = await comRetry(() => base44.entities.Pedido.create(dadosOp), 2, 800);
-        }
-      } catch (errDirect) {
-        console.error("[AutoBobinaTelhas] Erro no fallback de criação de OP:", errDirect);
-      }
-    }
+    // A validação do servidor é obrigatória; não há fallback que reutilize outra OP da mesma venda.
   }
+  validarOpConfirmada(opCriada, pedido, [itemIdx], maquina);
 
   // 🛡️ NUNCA FINGIR ENVIO: sem OP com ID confirmado, o item NÃO é marcado como
   // "em_producao"/distribuído — a OF não mente para o PCP com a máquina vazia.
@@ -600,8 +571,9 @@ export async function rotearPedidoTelhaDiretoParaMaquina({
     itens[itemIdx] = {
       ...itens[itemIdx],
       distribuido: true,
-      status: "em_producao",
-      maquina: maquina,
+      status: opCriada.status === "finalizado" ? "concluido" : opCriada.status === "pendente" ? "distribuido" : opCriada.status,
+      concluido: opCriada.status === "finalizado",
+      maquina: opCriada.maquina,
       bobina_superior_id: bobinaEleita?.bobina_id || itens[itemIdx].bobina_superior_id || "",
       bobina_superior: bobinaEleita?.codigo || itens[itemIdx].bobina_superior || ""
     };
@@ -726,14 +698,11 @@ export async function rotearLoteTelhasAgrupadas({
     const descTexto = it.descricao || it.observacao || "";
     const produtoNome = it.produto || it.descricao || "";
     const textoCompleto = `${produtoNome} ${descTexto} ${it.observacoes || ""}`.trim();
-    const prodTipo = detectarTipoProdutoTelha(produtoNome, descTexto);
-    const maquinaDetectada = detectarMaquinaTelha(textoCompleto) || "TP - 40";
-    let maquina = (prodTipo === "CUMEEIRA" || /\bCUMEEIRA\b/i.test(textoCompleto))
-      ? "CUMEEIRA"
-      : (it.maquina && it.maquina !== "COLAGEM" && it.maquina !== "DESBOBINADOR" ? it.maquina : maquinaDetectada);
+    const { prodTipo, maquina } = resolverRoteamentoTelha(it);
     const esp = it.espessura ? String(it.espessura) : (detectarEspessura(textoCompleto) || "0.43");
     const cor = detectarCorTelha(produtoNome, descTexto) || "NATURAL";
-    const chave = `${maquina}___${prodTipo}___${esp}___${cor}`.toUpperCase();
+    const cores = detectarCoresDuplaTelha(produtoNome, descTexto);
+    const chave = `${maquina}___${prodTipo}___${esp}___${cor}___${cores.corInferior}___${it.origem || detectarOrigemAco(textoCompleto)}___${it.data_programada || hojeLocalISO()}`.toUpperCase();
 
     if (!grupos.has(chave)) {
       grupos.set(chave, {
@@ -755,8 +724,9 @@ export async function rotearLoteTelhasAgrupadas({
   const processarGrupo = async (g) => {
     const itensDoGrupo = g.itens;
     const primeiroItem = itensDoGrupo[0];
-    const itemPrincipalIdx = primeiroItem._idx != null ? primeiroItem._idx : 0;
-    const todosIndices = itensDoGrupo.map(it => (it._idx != null ? it._idx : 0));
+    if (itensDoGrupo.some(it => !Number.isInteger(it._idx) || it._idx < 0)) throw new Error("Grupo sem identificação exata de todos os itens da OF.");
+    const itemPrincipalIdx = primeiroItem._idx;
+    const todosIndices = itensDoGrupo.map(it => it._idx);
 
     // Consolidar cortes / variações e metragens
     const variacoesConsolidadas = [];
@@ -832,7 +802,7 @@ export async function rotearLoteTelhasAgrupadas({
 
     const dataReceb = pedido.data_recebimento
       ? String(pedido.data_recebimento).slice(0, 10)
-      : new Date().toISOString().slice(0, 10);
+      : hojeLocalISO();
 
     const dataPrevista = pedido.data_entrega
       ? String(pedido.data_entrega).slice(0, 10)
@@ -854,7 +824,7 @@ export async function rotearLoteTelhasAgrupadas({
       ? nivelPrioridade
       : (ehRetiraAgora ? 1 : ehRota ? 2 : null);
     const textoPrimeiro = `${primeiroItem.produto || ""} ${primeiroItem.descricao || ""} ${textoObservacoes.join(" ")}`.trim();
-    const modeloFinal = primeiroItem.modelo || (detectarMaquinaTelha(textoPrimeiro) || g.maquina);
+    const modeloFinal = primeiroItem.modelo || g.maquina;
 
     const dadosOp = {
       data: primeiroItem?.data_programada || hojeLocalISO(),
@@ -919,16 +889,7 @@ export async function rotearLoteTelhasAgrupadas({
         }
         opsValidas = filtrarOpsDasOfsExatas(opsExistentes, [pedido]);
       }
-      const opValida = opsValidas.find(o => {
-        if (o.item_idx != null && String(o.item_idx) === String(itemPrincipalIdx)) return true;
-        if (o.itens_indices) {
-          try {
-            const list = Array.isArray(o.itens_indices) ? o.itens_indices : JSON.parse(o.itens_indices);
-            if (Array.isArray(list) && todosIndices.some(idx => list.includes(idx))) return true;
-          } catch {}
-        }
-        return false;
-      });
+      const opValida = opsValidas.find(o => opCobreIndices(o, todosIndices));
       if (opValida) {
         // PRESERVAÇÃO TOTAL: OP existente NUNCA tem suas bobinas ou modelo sobrescritos!
         const updates = {};
@@ -969,33 +930,12 @@ export async function rotearLoteTelhasAgrupadas({
         }), 2, 800);
         opCriada = resGar?.data?.op || resGar?.op || null;
       } catch (errFunc) {
-        console.warn("[AutoBobinaTelhas Lote] Aviso na chamada serverless de garantirOpUnica:", errFunc?.message || errFunc);
+        throw errFunc;
       }
 
-      // 2. Fallback direto e resiliente caso a Cloud Function falhe ou esteja offline
-      if (!opCriada || !opCriada.id) {
-        try {
-          const opsCheck = await base44.entities.Pedido.filter({
-            numero_pedido: pedido.numero_pedido || "",
-            status: { $ne: "cancelado" }
-          }).catch(() => []);
-
-          const existenteLocal = opsCheck.find(o =>
-            (o.pedido_odoo_id && o.pedido_odoo_id === pedido.id) ||
-            (o.of_odoo_id && pedido.of_odoo_id && o.of_odoo_id === pedido.of_odoo_id) ||
-            (o.of_nome && pedido.of_nome && o.of_nome === pedido.of_nome)
-          );
-
-          if (existenteLocal) {
-            opCriada = existenteLocal;
-          } else {
-            opCriada = await comRetry(() => base44.entities.Pedido.create(dadosOp), 2, 800);
-          }
-        } catch (errDirect) {
-          console.error("[AutoBobinaTelhas Lote] Erro no fallback de criação de OP:", errDirect);
-        }
-      }
+      // Sem criação direta no navegador: falha do servidor não autoriza reutilizar outra OP da venda.
     }
+    validarOpConfirmada(opCriada, pedido, todosIndices, g.maquina);
     // 🛡️ NUNCA FINGIR ENVIO: sem OP criada/recuperada com ID real, a distribuição
     // falha aqui — o PCP NÃO marca a OF como distribuída com a máquina vazia.
     if (!opCriada || !opCriada.id) {
@@ -1008,8 +948,9 @@ export async function rotearLoteTelhasAgrupadas({
       const idx = it._idx != null ? it._idx : 0;
       itensAtualizadosMap[idx] = {
         distribuido: true,
-        status: "em_producao",
-        maquina: g.maquina,
+        status: opCriada.status === "finalizado" ? "concluido" : opCriada.status === "pendente" ? "distribuido" : opCriada.status,
+        concluido: opCriada.status === "finalizado",
+        maquina: opCriada.maquina,
         bobina_superior_id: bobinaEleita?.bobina_id || "",
         bobina_superior: bobinaEleita?.codigo || "",
         op_agrupada_id: opCriada.id
@@ -1036,8 +977,6 @@ export async function rotearLoteTelhasAgrupadas({
     Array.from({ length: Math.min(3, listaGrupos.length) }, worker)
   );
 
-  // Se algum grupo não conseguiu gerar OP, a OF não é marcada como distribuída
-  if (erros.length > 0) throw erros[0];
-
-  return { opsCriadas, itensAtualizadosMap };
+  // Sucessos parciais são devolvidos para persistência; nenhum item confirmado é perdido.
+  return { opsCriadas, itensAtualizadosMap, erros };
 }

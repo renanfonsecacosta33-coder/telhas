@@ -10,6 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { formatDataBR } from "@/lib/sla";
 import { urgenciaPrazo } from "@/lib/prazoUrgencia";
 import OfTimelineRow from "@/components/pcp/OfTimelineRow";
+import temPendenciasDistribuicao from "@/lib/pendenciasDistribuicaoPcp";
 import { calcularProgressoRealPedido, classGrupo, obterStatusExecucaoPedido, getItens } from "@/lib/pedidoOdooHelper";
 import { isLocalArmazenagemPinhais } from "@/lib/roteamentoPCP";
 import { verificarEstoqueGrupo, extrairDemandaItem } from "@/lib/estoqueMaterialHelper";
@@ -81,11 +82,7 @@ export default function PedidoOdooGrupoCard({
   const produzindoAgora = statusExecucaoOfs.filter(s => !s.isConcluida && s.diag.produzindoAgora);
   const aguardandoInicio = statusExecucaoOfs.filter(s => !s.isConcluida && s.diag.aguardandoInicio);
   // Pendente de verdade = status_pcp pendente E sem nenhuma OP viva na máquina
-  const pendentes = ofs.filter(p => {
-    if (p.status_pcp !== "pendente_distribuicao" || isOfConcluida(p)) return false;
-    const diag = statusExecucaoOfs.find(s => s.pedido.id === p.id)?.diag;
-    return !(diag?.opsVinculadas?.length > 0);
-  });
+  const pendentes = ofs.filter(p => !isOfConcluida(p) && temPendenciasDistribuicao(p, pedidosProducao, ordensCD));
   const distribuidos = ofs.filter(p => p.status_pcp === "distribuido" && !isOfConcluida(p) && !produzindoAgora.some(x => x.pedido.id === p.id) && !aguardandoInicio.some(x => x.pedido.id === p.id));
   const concluidas = ofs.filter(p => isOfConcluida(p));
 
