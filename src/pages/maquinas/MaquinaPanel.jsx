@@ -420,6 +420,10 @@ export default function MaquinaPanel({ maquina }) {
       if (data.status) {
         const atual = await base44.entities.Pedido.get(id);
         if (maquinaNorm(atual.maquina) !== targetNorm) throw new Error(`Esta OP está na ${atual.maquina}, não na ${maquina}. Atualize a fila antes de continuar.`);
+        // FINALIZADO É TERMINAL: OP concluída não retorna para a fila da máquina
+        if (atual.status === "finalizado" && ["pendente", "em_producao", "pausado"].includes(data.status)) {
+          throw new Error(`A OP #${atual.numero_pedido || ""} já foi finalizada e não volta para a máquina. Reabra somente pelo PCP, se necessário.`);
+        }
       }
       return await base44.entities.Pedido.update(id, data);
     },
@@ -759,7 +763,9 @@ export default function MaquinaPanel({ maquina }) {
     if (targetNorm !== "COLAGEM") return [];
     return todosPedidos.filter(p => {
       if (!p || p.status === "cancelado") return false;
-      if (p.status === "aguardando_colagem" || (maquinaNorm(p.maquina) === "COLAGEM" && p.status !== "finalizado")) {
+      // FINALIZADO É TERMINAL: uma OP concluída nunca volta para a fila de máquina nenhuma
+      if (p.status === "finalizado") return false;
+      if (p.status === "aguardando_colagem" || maquinaNorm(p.maquina) === "COLAGEM") {
         // Telha Bandeja só pode ser resgatada na Colagem se a máquina já for COLAGEM (já passou pela BANDEJA)
         if (isTelhaBandeja(p) && maquinaNorm(p.maquina) !== "COLAGEM") {
           return false;
@@ -776,8 +782,7 @@ export default function MaquinaPanel({ maquina }) {
       if (!temEps) return false;
 
       // Se já foi perfilado (ou foi finalizado na perfiladeira sem foto de colagem)
-      const jaPerfilado = Boolean(p.perfilacao_concluida || p.data_perfilacao || (p.status === "finalizado" && !p.foto_colagem_eps_url));
-      return jaPerfilado;
+      return Boolean(p.perfilacao_concluida || p.data_perfilacao);
     });
   }, [todosPedidos, targetNorm]);
 
@@ -788,6 +793,7 @@ export default function MaquinaPanel({ maquina }) {
     const hojeStr = format(new Date(), "yyyy-MM-dd");
     const agoraIso = new Date().toISOString();
     for (const ped of pedidosResgateColagem) {
+      if (ped.status === "finalizado" || ped.status === "cancelado") continue;
       try {
         await base44.entities.Pedido.update(ped.id, {
           status: "aguardando_colagem",
