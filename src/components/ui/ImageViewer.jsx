@@ -84,6 +84,7 @@ export default function ImageViewer({ url, name, images = [], initialIndex = 0, 
   const [rotacao, setRotacao] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [loaded, setLoaded] = useState(() => isImagemEmCache(urlAtual));
+  const [falhou, setFalhou] = useState(false);
   const imgRef = useRef(null);
 
   const isPdf = useCallback(() => isPdfUrl(urlAtual), [urlAtual]);
@@ -93,6 +94,7 @@ export default function ImageViewer({ url, name, images = [], initialIndex = 0, 
     if (!open || !urlAtual) return;
     setRotacao(0);
     setZoom(1);
+    setFalhou(false);
 
     // Se já for PDF ou já estiver em cache/base64, marca como carregado imediatamente
     if (isPdf() || isImagemEmCache(urlAtual)) {
@@ -123,6 +125,7 @@ export default function ImageViewer({ url, name, images = [], initialIndex = 0, 
     };
     img.onerror = () => {
       clearTimeout(timeoutSeguranca);
+      setFalhou(true);
       setLoaded(true);
     };
     img.src = urlAtual;
@@ -270,6 +273,36 @@ export default function ImageViewer({ url, name, images = [], initialIndex = 0, 
             title={nomeAtual || "Documento"}
             className="w-full h-full border-0 rounded-lg"
           />
+        ) : falhou ? (
+          <div className="flex flex-col items-center justify-center gap-3 max-w-md text-center px-6 py-8 rounded-2xl bg-white/5 border border-white/15">
+            <AlertCircle className="w-10 h-10 text-amber-400" />
+            <p className="text-sm font-bold text-white">Não foi possível carregar esta imagem</p>
+            <p className="text-xs text-white/70 leading-relaxed">
+              O arquivo recebido do Odoo está inválido ou corrompido. Peça o reenvio da foto no Odoo
+              ou abra o arquivo original no link abaixo.
+            </p>
+            <div className="flex items-center gap-2 mt-1">
+              <a
+                href={urlAtual}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-2 rounded-lg bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition-colors"
+              >
+                Abrir no Odoo
+              </a>
+              <button
+                type="button"
+                onClick={() => {
+                  setFalhou(false);
+                  setLoaded(false);
+                  if (imgRef.current) imgRef.current.src = `${urlAtual}${urlAtual.includes("?") ? "&" : "?"}t=${Date.now()}`;
+                }}
+                className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors flex items-center gap-1.5"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Tentar de novo
+              </button>
+            </div>
+          </div>
         ) : (
           <img
             ref={imgRef}
@@ -286,6 +319,8 @@ export default function ImageViewer({ url, name, images = [], initialIndex = 0, 
                 const nova = e.currentTarget.src.replace("/web/content/", "/web/image/");
                 e.currentTarget.src = nova;
                 registrarImagemCarregada(nova);
+              } else {
+                setFalhou(true);
               }
               setLoaded(true);
             }}
