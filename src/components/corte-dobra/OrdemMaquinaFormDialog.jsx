@@ -687,7 +687,8 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
   );
 
   const handleSave = async () => {
-    const isAguardando = Boolean(form.material_em_falta);
+    // Ivaiporã (Corte e Dobra) não consome matéria-prima do estoque: nunca fica aguardando material
+    const isAguardando = !ehIvaipora(unidadeConsulta) && Boolean(form.material_em_falta);
 
     if (isDesenvExcedido) {
       toast.error(`🚫 Bloqueio Operacional: Desenvolvimento (${form.desenvolvimento_mm} mm) excede a bobina (${largBobinaAtual} mm)!`);
@@ -724,7 +725,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         alert("Selecione a bobina slitter.");
         return;
       }
-      if (!isPerfiladeira) {
+      if (!isPerfiladeira && !ehIvaipora(unidadeConsulta)) {
         if (form.chapa_origem === "direto" && !form.bobina_id) {
           alert("Selecione a bobina de C&D do estoque.");
           return;
@@ -1199,7 +1200,9 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
             </div>
           )}
 
-          {/* Material em falta */}
+          {/* Material em falta — não se aplica a Ivaiporã (C&D não usa matéria-prima) */}
+          {!ehIvaipora(unidadeConsulta) && (
+            <>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -1229,9 +1232,11 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
               </div>
             </div>
           )}
+            </>
+          )}
 
           {/* ══════════════ SELEÇÃO FLEXÍVEL DE MATÉRIA-PRIMA (BOBINA OU CHAPA) ══════════════ */}
-          {!form.material_em_falta && !isPerfiladeira && (
+          {!form.material_em_falta && !isPerfiladeira && !ehIvaipora(unidadeConsulta) && (
             <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-border">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <Label className="flex items-center gap-1.5 font-bold text-xs">
