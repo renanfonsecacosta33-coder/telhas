@@ -11,7 +11,7 @@ import {
   AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel
 } from "@/components/ui/alert-dialog";
 import {
-  Play, CheckCircle2, CheckCircle, ChevronDown, Inbox, Scissors, Calendar, User, Loader2, Layers,
+  Play, CheckCircle2, CheckCircle, ChevronDown, Inbox, Scissors, Calendar, User, Loader2, Layers, Send,
   Star, CalendarClock, Factory, PackageX, RefreshCw
 } from "lucide-react";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
@@ -27,7 +27,7 @@ import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import AlterarPrazoFabrilDialog from "@/components/pcp/AlterarPrazoFabrilDialog";
 import { notificarStatus } from "@/lib/biNotificador";
 import { useFilial } from "@/contexts/FilialContext";
-import { maquinasCDPorFilial } from "@/lib/maquinasPorFilial";
+import { maquinasCDPorFilial, ehIvaipora } from "@/lib/maquinasPorFilial";
 import { salvarCacheLocal, obterCacheLocal } from "@/lib/offlineStorage";
 import FiltrosDataPCPBar from "@/components/pcp/FiltrosDataPCPBar";
 import LocalizacaoStatusHero from "@/components/pcp/LocalizacaoStatusHero";
@@ -436,6 +436,40 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
     }
   };
 
+  // Ivaiporã: distribui direto para a máquina escolhida (Laser ou Dobradeira 4m),
+  // sem trava de espessura e sem seleção de chapa/bobina.
+  const handleDistribuirIvaipora = async (pedido, item, idx, maquina) => {
+    if (!maquina) {
+      toast({ title: "Selecione a máquina", description: "Escolha Laser ou Dobradeira 4m antes de distribuir.", variant: "destructive" });
+      return;
+    }
+    setAtualizando(`${pedido.id}-${idx}`);
+    try {
+      await base44.entities.OrdemMaquinaCD.create({
+        unidade: pedido.unidade || "Ivaiporã",
+        data: item.data_programada || pedido.data_previsao_fabrica || pedido.data_entrega || new Date().toISOString().slice(0, 10),
+        maquina,
+        tipo_peca: item.produto || item.descricao || "Peça",
+        dimensoes_livres: item.medicao || "",
+        quantidade: Number(item.quantidade) || 1,
+        numero_pedido: pedido.numero_pedido,
+        numero_oc: pedido.numero_oc || "",
+        cliente: pedido.cliente_nome || pedido.cliente || "",
+        vendedor: pedido.vendedor_nome || pedido.vendedor || "",
+        status: "pendente",
+        observacoes: "Distribuído pelo PCP (Ivaiporã) — envio direto para a máquina.",
+      });
+      await handleAtualizar(pedido, idx, { maquina, distribuido: true, status: "distribuido" });
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd-todas"] });
+      toast({ title: "Distribuído", description: `Item enviado direto para ${maquina}.` });
+    } catch (e) {
+      toast({ title: "Erro ao distribuir", description: e.message, variant: "destructive" });
+    } finally {
+      setAtualizando(null);
+    }
+  };
+
   // Retirar da Máquina: cancela a OP alocada na máquina e devolve o item para a fila (não distribuído)
   const handleRetirarDaMaquina = async () => {
     if (!retirarModal) return;
@@ -690,8 +724,8 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
               disabled={concluido}
             />
 
-            {/* Botão Selecionar Chapa / Bobina */}
-            {item.material_codigo ? (
+            {/* Botão Selecionar Chapa / Bobina (Ivaiporã não usa material) */}
+            {!ehIvaipora(pedido.unidade) && (item.material_codigo ? (
               <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-lg">
                 <Layers className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
@@ -717,10 +751,21 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                 <Layers className="w-3.5 h-3.5" />
                 Selecionar Chapa / Bobina
               </Button>
-            )}
+            ))}
 
-            {/* Botão Revisar Ordem */}
-            {onNovaOrdem && (
+            {/* Ivaiporã: envio direto para a máquina escolhida (sem trava de material) */}
+            {ehIvaipora(pedido.unidade) ? (
+              <Button
+                size="sm"
+                onClick={() => handleDistribuirIvaipora(pedido, item, item._idx != null ? item._idx : idx, maquinaItem)}
+                disabled={concluido || Boolean(opReal) || atualizando === `${pedido.id}-${idx}`}
+                className="h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 shadow-xs gap-1"
+                title={opReal ? `Já distribuído para ${maquinaItem}` : "Enviar direto para a máquina selecionada"}
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{opReal ? `Distribuído [${maquinaItem}]` : `Distribuir p/ ${maquinaItem || "máquina"}`}</span>
+              </Button>
+            ) : onNovaOrdem && (
               <Button
                 size="sm"
                 onClick={() => {

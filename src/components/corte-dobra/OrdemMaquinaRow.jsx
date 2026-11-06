@@ -107,7 +107,9 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
   const fotoScanRef = useRef();
 
   const isGuilhotina = o.maquina === "CORTE 3M" || o.maquina === "CORTE 6M";
+  const isLaserIvaipora = o.maquina === "LASER";
   const [validacaoChapaDialog, setValidacaoChapaDialog] = useState(false);
+  const [seguirDobra, setSeguirDobra] = useState(false);
   const [operadoresDialogOpen, setOperadoresDialogOpen] = useState(false);
   const [confirmarExclusaoOpen, setConfirmarExclusaoOpen] = useState(false);
   const [confirmarCancelarOpen, setConfirmarCancelarOpen] = useState(false);
@@ -301,6 +303,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
 
   const handleFinalizar = async () => {
     setPauseMotivo("");
+    setSeguirDobra(false);
     if (isGuilhotina) {
       // Guilhotina: abre dialog de aproveitamento (sem foto)
       const prodSeg = calcularProdSeg();
@@ -325,6 +328,30 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
     const prodSeg = calcularProdSeg();
     await finalizarOrdem(file_url, prodSeg, false, "");
+    // Ivaiporã: Laser → segue para a Dobradeira 4m como próxima etapa
+    if (seguirDobra) {
+      try {
+        await base44.entities.OrdemMaquinaCD.create({
+          unidade: o.unidade,
+          data: format(new Date(), "yyyy-MM-dd"),
+          maquina: "DOBRADEIRA 4M",
+          tipo_peca: o.tipo_peca,
+          dimensoes_livres: o.dimensoes_livres || "",
+          quantidade: o.quantidade,
+          numero_pedido: o.numero_pedido,
+          numero_oc: o.numero_oc || "",
+          cliente: o.cliente,
+          vendedor: o.vendedor,
+          status: "pendente",
+          observacoes: `Recebido do LASER${o.numero_pedido ? ` — Pedido ${o.numero_pedido}` : ""}`,
+          foto_pedido_url: o.foto_pedido_url || null,
+        });
+        toast.success("Peça enviada para a Dobradeira 4m!");
+      } catch (err) {
+        toast.error("Finalizada no Laser, mas falhou o envio para a Dobradeira: " + (err?.message || ""));
+      }
+      setSeguirDobra(false);
+    }
     setUploadingFoto(false);
     setFotoDialog(false);
   };
@@ -744,6 +771,12 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
                 onClick={() => { setPauseTipo("setup"); setPauseMotivo(""); setPauseDialog(true); }}>
                 <Pause className="w-3 h-3" /> Pausar
               </Button>
+              {isLaserIvaipora && (
+                <Button size="sm" className={`gap-1 ${z.btn} bg-blue-600 hover:bg-blue-700 text-white border-0`}
+                  onClick={() => { setSeguirDobra(true); setFotoDialog(true); }}>
+                  Seguir p/ Dobradeira 4m
+                </Button>
+              )}
               <Button size="sm" className={`gap-1 ${z.btn} bg-green-600 hover:bg-green-700 text-white border-0`} onClick={handleFinalizar}>
                 <CheckCircle2 className="w-3 h-3" /> Finalizar
               </Button>
