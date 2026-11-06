@@ -4,6 +4,9 @@ import { calcularEtapasProcesso } from "@/components/producao/ProcessoStepperPed
 import { urgenciaPrazo } from "@/lib/prazoUrgencia";
 import BadgeEnvio from "@/components/pcp/BadgeEnvioDistribuicao";
 import temPendenciasDistribuicao from "@/lib/pendenciasDistribuicaoPcp";
+import { useFilial } from "@/contexts/FilialContext";
+import { ehIvaipora } from "@/lib/maquinasPorFilial";
+import ControlesProducaoTelha from "@/components/pcp/ControlesProducaoTelha";
 
 /**
  * Linha de Timeline Vertical de uma OF dentro do card expandido do pedido (Central PCP).
@@ -59,6 +62,19 @@ export default function OfTimelineRow({
   const itens = getItens(pedido);
   const grupoSetor = classGrupo(itens[0] || pedido);
   const corSetor = COR_SETOR[grupoSetor] || COR_SETOR.cd;
+
+  // Ivaiporã: telhas podem ser produzidas direto da Central PCP
+  const { filialAtiva } = useFilial();
+  const producaoNaPcp = ehIvaipora(filialAtiva) && grupoSetor === "telha";
+  const opTelha = useMemo(() => {
+    if (!producaoNaPcp) return null;
+    return (pedidosProducao || []).find(
+      (p) =>
+        p.status !== "cancelado" &&
+        (p.pedido_odoo_id === pedido.id ||
+          (pedido.of_odoo_id && p.of_odoo_id === pedido.of_odoo_id))
+    ) || null;
+  }, [pedidosProducao, pedido, producaoNaPcp]);
 
   // Resumo do item principal (o resto dos itens fica como contagem)
   const primeiro = itens[0];
@@ -186,6 +202,8 @@ export default function OfTimelineRow({
         <div className="text-[10.5px] leading-[1.45] text-[#687773] dark:text-slate-500 border-t border-[#edf0ee] dark:border-slate-800 pt-[7px] truncate">
           Roteiro {roteiro}
         </div>
+
+        {opTelha && <ControlesProducaoTelha op={opTelha} />}
       </div>
 
       {/* Coluna de ações */}
