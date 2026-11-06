@@ -10,6 +10,7 @@ import { format, differenceInCalendarDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { gerarMensagemWhatsApp } from "@/lib/vendedorHelper";
+import CronometroProducaoVendedor from "@/components/vendedor/CronometroProducaoVendedor";
 
 function getUrgency(data_prevista) {
   if (!data_prevista) return null;
@@ -129,6 +130,11 @@ export default function PedidoVendedorCard({ card, onVerDetalhes, unreadCount = 
             </p>
           )}
         </div>
+
+        {/* Cronômetro de produção em tempo real */}
+        {card.tempoProducao?.temDados && (
+          <CronometroProducaoVendedor {...card.tempoProducao} />
+        )}
 
         {/* Descrição resumida dos itens */}
         <p className="text-xs text-muted-foreground line-clamp-2">

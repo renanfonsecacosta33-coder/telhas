@@ -346,6 +346,33 @@ export function consolidarPedidoParaVendedor(pedidoOdoo, ordensTelhas = [], opsD
     pct = 100;
   }
 
+  // 5. Tempo de produção acumulado das OPs do pedido (para o cronômetro do vendedor)
+  const agoraMs = Date.now();
+  let segProdutivo = 0;
+  let segPausa = 0;
+  let rodandoAgora = false;
+  allOrdens.forEach(o => {
+    if (o.status === "cancelado") return;
+    segProdutivo += Number(o.tempo_producao_seg) || 0;
+    segPausa += Number(o.tempo_pausa_seg) || 0;
+    if (o.status === "em_producao" && o.inicio_producao_ts) {
+      const inicio = new Date(o.inicio_producao_ts).getTime();
+      if (!isNaN(inicio)) segProdutivo += Math.max(0, Math.floor((agoraMs - inicio) / 1000));
+      rodandoAgora = true;
+    }
+    if (o.status === "pausado" && o.inicio_pausa_ts) {
+      const inicio = new Date(o.inicio_pausa_ts).getTime();
+      if (!isNaN(inicio)) segPausa += Math.max(0, Math.floor((agoraMs - inicio) / 1000));
+    }
+  });
+  const tempoProducao = {
+    seg: segProdutivo,
+    segPausa,
+    rodando: rodandoAgora,
+    emPausa: allOrdens.some(o => o.status === "pausado"),
+    temDados: allOrdens.some(o => o.tempo_producao_seg || o.inicio_producao_ts || o.status === "em_producao"),
+  };
+
   return {
     id: pedidoOdoo.id,
     odoo_id: pedidoOdoo.odoo_id,
@@ -363,6 +390,7 @@ export function consolidarPedidoParaVendedor(pedidoOdoo, ordensTelhas = [], opsD
     status_pcp: pedidoOdoo.status_pcp,
     percentual: pct,
     statusOperacional,
+    tempoProducao,
     itens,
     total_itens: itens.length,
     descricao: pedidoOdoo.descricao || (itens.length > 0 ? `${itens[0]?.quantidade || 1}x ${itens[0]?.produto || "Telha / Perfil"}` : "Ordem Industrial"),
