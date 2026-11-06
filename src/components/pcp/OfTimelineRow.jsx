@@ -7,6 +7,7 @@ import temPendenciasDistribuicao from "@/lib/pendenciasDistribuicaoPcp";
 import { useFilial } from "@/contexts/FilialContext";
 import { ehIvaipora } from "@/lib/maquinasPorFilial";
 import ControlesProducaoTelha from "@/components/pcp/ControlesProducaoTelha";
+import ControlesProducaoCD from "@/components/pcp/ControlesProducaoCD";
 
 /**
  * Linha de Timeline Vertical de uma OF dentro do card expandido do pedido (Central PCP).
@@ -63,9 +64,10 @@ export default function OfTimelineRow({
   const grupoSetor = classGrupo(itens[0] || pedido);
   const corSetor = COR_SETOR[grupoSetor] || COR_SETOR.cd;
 
-  // Ivaiporã: telhas podem ser produzidas direto da Central PCP
+  // Ivaiporã: telhas e corte e dobra são produzidos direto da Central PCP
   const { filialAtiva } = useFilial();
-  const producaoNaPcp = ehIvaipora(filialAtiva) && grupoSetor === "telha";
+  const filialIvaipora = ehIvaipora(filialAtiva);
+  const producaoNaPcp = filialIvaipora && grupoSetor === "telha";
   const opTelha = useMemo(() => {
     if (!producaoNaPcp) return null;
     return (pedidosProducao || []).find(
@@ -204,6 +206,10 @@ export default function OfTimelineRow({
         </div>
 
         {opTelha && <ControlesProducaoTelha op={opTelha} />}
+
+        {filialIvaipora && grupoSetor === "cd" && (
+          <ControlesProducaoCD pedido={pedido} ordensCD={ordensCD} />
+        )}
       </div>
 
       {/* Coluna de ações */}
