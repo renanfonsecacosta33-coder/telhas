@@ -159,7 +159,11 @@ export default function ControlesProducaoTelha({ op }) {
     if (!op.bobina_superior_id) return;
     const metragemTotal = metragemTotalPedido();
     const razao = metragemTotal > 0 ? metragemReal / metragemTotal : 1;
-    const kgReal = (Number(op.kg_superior) || 0) * razao;
+    // Peso do pedido: muitas OPs da PCP chegam só com kg_total (sem kg_superior/kg_inferior)
+    const kgPedido = (Number(op.kg_superior) || 0) > 0
+      ? Number(op.kg_superior)
+      : Math.max(0, (Number(op.kg_total) || 0) - (Number(op.kg_inferior) || 0));
+    const kgReal = kgPedido * razao;
     try {
       const lista = await base44.entities.Bobina.filter({ id: op.bobina_superior_id });
       const bob = (lista || [])[0];
