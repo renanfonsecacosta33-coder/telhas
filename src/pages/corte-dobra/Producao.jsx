@@ -48,6 +48,7 @@ import FilaPCPCorteDobra from "@/components/pcp/FilaPCPCorteDobra";
 import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, saoPedidosIguais } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
+import { ehIvaipora } from "@/lib/maquinasPorFilial";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import KanbanBoard from "@/components/producao/KanbanBoard";
 import IniciarOpOperadoresDialog from "@/components/producao/IniciarOpOperadoresDialog";
@@ -431,8 +432,38 @@ export default function ProducaoCD() {
     toast.success("Produção na guilhotina iniciada com foto da etiqueta da chapa!");
   };
 
-  const isGestor = user?.role === "admin" || user?.full_name?.toLowerCase().includes("hudson");
+  // Gestores (admin, super_admin e gestor) enxergam todas as máquinas da filial
+  const isGestor = ["admin", "super_admin", "gestor"].includes(user?.role) || user?.full_name?.toLowerCase().includes("hudson");
   const maquinaDoUsuario = user?.maquina;
+  // Um usuário pode estar vinculado a várias máquinas (lista salva em JSON)
+  const maquinasDoUsuario = useMemo(() => {
+    if (!user?.maquina) return [];
+    try {
+      const parsed = JSON.parse(user.maquina);
+      return Array.isArray(parsed) ? parsed.map(String) : [String(parsed)];
+    } catch {
+      return [String(user.maquina)];
+    }
+  }, [user?.maquina]);
+  const podeVerMaquina = (id) =>
+    isGestor ||
+    maquinasDoUsuario.length === 0 ||
+    maquinasDoUsuario.includes(id) ||
+    maquinasDoUsuario.some((m) => m.startsWith(id) || id.startsWith(m));
+  // Máquinas exibidas: regra da filial + qualquer máquina que tenha ordem nesta filial
+  const maquinasDaFilial = useMemo(() => {
+    const base = ehIvaipora(filialAtiva)
+      ? [
+          { id: "LASER", label: "Laser", cor: "bg-rose-100 text-rose-800 border-rose-200" },
+          { id: "DOBRADEIRA 4M", label: "Dobradeira 4m", cor: "bg-amber-100 text-amber-800 border-amber-200" },
+        ]
+      : MAQUINAS_OUTRAS;
+    const ids = new Set(base.map((m) => m.id));
+    const extras = [...new Set(ordensMaq.map((o) => o.maquina).filter(Boolean))]
+      .filter((id) => !ids.has(id))
+      .map((id) => ({ id, label: id, cor: "bg-slate-100 text-slate-800 border-slate-200" }));
+    return [...base, ...extras];
+  }, [ordensMaq, filialAtiva]);
 
   const openNewDesb = (date = null) => {
     setEditDesb(date ? { _presets: { data: date } } : null);
@@ -871,7 +902,7 @@ export default function ProducaoCD() {
 
   // Operador restrito: redireciona para mensagem de acesso negado se não for Desbobinadeira
   if (user && !isGestor) {
-    if (!maquinaDoUsuario) {
+    if (maquinasDoUsuario.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
@@ -883,8 +914,8 @@ export default function ProducaoCD() {
       );
     }
     // Operador de outra máquina tentando acessar esta página geral
-    const maquinasCD = ["CORTE 3M", "DOBRA 3M", "CORTE 6M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M", "PERFILADEIRA", "DESBOBINADEIRA 01", "DESBOBINADEIRA 02", "DESBOBINADEIRA"];
-    if (!maquinasCD.includes(maquinaDoUsuario)) {
+    const maquinasCD = ["CORTE 3M", "DOBRA 3M", "CORTE 6M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M", "PERFILADEIRA", "DESBOBINADEIRA 01", "DESBOBINADEIRA 02", "DESBOBINADEIRA", "LASER", "DOBRADEIRA 4M"];
+    if (!maquinasDoUsuario.some((m) => maquinasCD.includes(m))) {
       return (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
@@ -1415,7 +1446,7 @@ export default function ProducaoCD() {
           </div>
 
           {/* ── DESBOBINADEIRA ── */}
-          {(isGestor || !maquinaDoUsuario || maquinaDoUsuario === "DESBOBINADEIRA" || maquinaDoUsuario?.startsWith?.("DESBOBINADEIRA")) && (
+          {podeVerMaquina("DESBOBINADEIRA") && (
             <MaquinaBloco
               label="DESBOBINADEIRA"
               cor="bg-orange-100 text-orange-800 border-orange-200"
@@ -1441,7 +1472,7 @@ export default function ProducaoCD() {
           )}
 
           {/* ── OUTRAS MÁQUINAS ── */}
-          {MAQUINAS_OUTRAS.filter(maq => isGestor || !maquinaDoUsuario || maquinaDoUsuario === maq.id).map(maq => {
+          {maquinasDaFilial.filter(maq => podeVerMaquina(maq.id)).map(maq => {
             const ordensDaMaq = ordenarOrdensCD(ordensMaqDia.filter(o => o.maquina === maq.id));
             return (
               <MaquinaBloco key={maq.id}
