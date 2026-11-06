@@ -75,6 +75,8 @@ import DobraFundo6m from '@/pages/corte-dobra/maquinas/DobraFundo6m';
 import DobraInicio6m from '@/pages/corte-dobra/maquinas/DobraInicio6m';
 import Perfiladeira from '@/pages/corte-dobra/maquinas/Perfiladeira';
 import Desbobinadeira from '@/pages/corte-dobra/maquinas/Desbobinadeira';
+import Laser from '@/pages/corte-dobra/maquinas/Laser';
+import Dobra4m from '@/pages/corte-dobra/maquinas/Dobra4m';
 import MapaBarracao from '@/pages/corte-dobra/MapaBarracao';
 import MapaBarracaoTelhas from '@/pages/MapaBarracaoTelhas';
 import BobinaQR from '@/pages/BobinaQR';
@@ -210,6 +212,8 @@ const AuthenticatedApp = () => {
         <Route path="/corte-dobra/maquina/desbobinadeira" element={<Desbobinadeira />} />
         <Route path="/corte-dobra/maquina/desbobinadeira-1" element={<Desbobinadeira maquinaPadrao="DESBOBINADEIRA 01" />} />
         <Route path="/corte-dobra/maquina/desbobinadeira-2" element={<Desbobinadeira maquinaPadrao="DESBOBINADEIRA 02" />} />
+        <Route path="/corte-dobra/maquina/laser" element={<Laser />} />
+        <Route path="/corte-dobra/maquina/dobra-4m" element={<Dobra4m />} />
         <Route path="/corte-dobra/mapa" element={<MapaBarracao />} />
         <Route path="/corte-dobra/logistica" element={<Logistica mode="despacho" defaultTab="cd" />} />
         <Route path="/corte-dobra/configuracoes" element={<Configuracoes />} />

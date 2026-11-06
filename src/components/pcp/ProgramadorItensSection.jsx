@@ -25,6 +25,8 @@ import {
 } from "lucide-react";
 import { parseItensPedido } from "@/lib/regrasFabrica";
 import { classGrupo } from "@/lib/pedidoOdooHelper";
+import { useFilial } from "@/contexts/FilialContext";
+import { maquinasTelhaPorFilial, maquinasCDPorFilial } from "@/lib/maquinasPorFilial";
 
 const MAQUINAS_TELHA = [
   "TP - 25",
@@ -52,22 +54,32 @@ const MAQUINAS_FRISADA = [
   "Expedição"
 ];
 
-function sugerirMaquinaPadrao(item) {
+function maquinasDoGrupo(grupo, filial) {
+  if (grupo === "cd") return maquinasCDPorFilial(filial);
+  if (grupo === "telha") return maquinasTelhaPorFilial(filial);
+  if (grupo === "frisada") return MAQUINAS_FRISADA;
+  return [...maquinasTelhaPorFilial(filial), ...maquinasCDPorFilial(filial)];
+}
+
+function sugerirMaquinaPadrao(item, filial) {
+  const grupo = classGrupo(item);
+  const disponiveis = maquinasDoGrupo(grupo, filial);
+  const valida = (maq) => (disponiveis.includes(maq) ? maq : disponiveis[0] || "");
+
   if (item.maquina) return item.maquina;
   const prod = String(item.produto || item.descricao || "").toUpperCase();
-  if (prod.includes("TP 25") || prod.includes("TP-25") || prod.includes("TP25")) return "TP - 25";
-  if (prod.includes("TP 40") || prod.includes("TP-40") || prod.includes("TP40")) return "TP - 40";
-  if (prod.includes("ONDULAD")) return "ONDULADA";
-  if (prod.includes("COLONIAL")) return "COLONIAL";
-  if (prod.includes("BANDEJA")) return "BANDEJA";
-  if (prod.includes("CUMEEIRA")) return "CUMEEIRA";
-  if (prod.includes("FRISADA")) return "Frisada";
+  if (prod.includes("TP 25") || prod.includes("TP-25") || prod.includes("TP25")) return valida("TP - 25");
+  if (prod.includes("TP 40") || prod.includes("TP-40") || prod.includes("TP40")) return valida("TP - 40");
+  if (prod.includes("ONDULAD")) return valida("ONDULADA");
+  if (prod.includes("COLONIAL")) return valida("COLONIAL");
+  if (prod.includes("BANDEJA")) return valida("BANDEJA");
+  if (prod.includes("CUMEEIRA")) return valida("CUMEEIRA");
+  if (prod.includes("FRISADA")) return valida("Frisada");
 
-  const grupo = classGrupo(item);
-  if (grupo === "telha") return "TP - 25";
-  if (grupo === "cd") return "Dobradeira 6m";
-  if (grupo === "frisada") return "Frisada";
-  return "TP - 25";
+  if (grupo === "telha") return valida("TP - 25");
+  if (grupo === "cd") return valida("Dobradeira 6m");
+  if (grupo === "frisada") return valida("Frisada");
+  return valida("TP - 25");
 }
 
 export default function ProgramadorItensSection({
@@ -77,6 +89,8 @@ export default function ProgramadorItensSection({
 }) {
   const [itensLocais, setItensLocais] = useState([]);
   const [salvando, setSalvando] = useState(false);
+  const { filialAtiva } = useFilial();
+  const unidadePedido = pedido?.unidade || filialAtiva;
 
   useEffect(() => {
     if (!pedido) return;
@@ -87,7 +101,7 @@ export default function ProgramadorItensSection({
     const inicializados = lista.map((it, idx) => ({
       ...it,
       _idx: idx,
-      maquina: it.maquina || sugerirMaquinaPadrao(it),
+      maquina: it.maquina || sugerirMaquinaPadrao(it, pedido.unidade || filialAtiva),
       data_programada: it.data_programada || dataPadrao,
       status: it.status || (pedido.status_pcp === "distribuido" ? "distribuido" : "pendente"),
       distribuido: Boolean(it.distribuido || pedido.status_pcp === "distribuido")
@@ -159,11 +173,7 @@ export default function ProgramadorItensSection({
       <div className="space-y-2">
         {itensLocais.map((it, idx) => {
           const grupo = classGrupo(it);
-          const maquinasOpcoes =
-            grupo === "telha" ? MAQUINAS_TELHA :
-            grupo === "cd" ? MAQUINAS_CD :
-            grupo === "frisada" ? MAQUINAS_FRISADA :
-            [...MAQUINAS_TELHA, ...MAQUINAS_CD];
+          const maquinasOpcoes = maquinasDoGrupo(grupo, unidadePedido);
 
           const isDistribuido = it.distribuido || it.status === "distribuido" || it.status === "concluido";
 

@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usuarioTemPermissaoAba } from "@/lib/permissoesAbas";
+import { useFilial } from "@/contexts/FilialContext";
+import { ehIvaipora } from "@/lib/maquinasPorFilial";
 
 const NAV = [
   { path: "/corte-dobra", label: "Dashboard", icon: LayoutDashboard },
@@ -23,6 +25,11 @@ const NAV = [
   { path: "/corte-dobra/epi", label: "EPI", icon: ShieldCheck },
   { path: "/corte-dobra/mapa", label: "Mapa do Barracão", icon: Map },
   { path: "/corte-dobra/logistica", label: "Logística", icon: Truck },
+];
+
+const MAQUINAS_NAV_IVAIPORA = [
+  { path: "/corte-dobra/maquina/laser", label: "Laser" },
+  { path: "/corte-dobra/maquina/dobra-4m", label: "Dobradeira 4m" },
 ];
 
 const MAQUINAS_NAV = [
@@ -44,8 +51,11 @@ export default function SidebarCD({ isOpen, onToggle }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
+  const { filialAtiva } = useFilial();
+  // Ivaiporã só possui Laser e Dobradeira 4m no Corte e Dobra
+  const maquinasNav = ehIvaipora(filialAtiva) ? MAQUINAS_NAV_IVAIPORA : MAQUINAS_NAV;
   const [maquinasOpen, setMaquinasOpen] = useState(
-    MAQUINAS_NAV.some(m => location.pathname === m.path)
+    [...MAQUINAS_NAV, ...MAQUINAS_NAV_IVAIPORA].some(m => location.pathname === m.path)
   );
 
   useEffect(() => {
@@ -68,6 +78,8 @@ export default function SidebarCD({ isOpen, onToggle }) {
     "DESBOBINADEIRA 01": "/corte-dobra/maquina/desbobinadeira-1",
     "DESBOBINADEIRA 02": "/corte-dobra/maquina/desbobinadeira-2",
     "DESBOBINADEIRA": "/corte-dobra/maquina/desbobinadeira-1",
+    "LASER": "/corte-dobra/maquina/laser",
+    "DOBRADEIRA 4M": "/corte-dobra/maquina/dobra-4m",
   };
 
   function parseMaquinas(maquina) {
@@ -177,7 +189,7 @@ export default function SidebarCD({ isOpen, onToggle }) {
                 </button>
                 {isOpen && maquinasOpen && (
                   <div className="ml-4 mt-1 space-y-0.5 border-l border-slate-800 pl-3">
-                    {MAQUINAS_NAV.map(item => {
+                    {maquinasNav.map(item => {
                       const isActive = location.pathname === item.path;
                       return (
                         <Link

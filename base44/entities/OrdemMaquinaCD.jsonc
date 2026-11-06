@@ -26,9 +26,11 @@
         "CORTE 6M",
         "DOBRA FUNDO 6M",
         "DOBRA INICIO 6M",
-        "PERFILADEIRA"
+        "PERFILADEIRA",
+        "LASER",
+        "DOBRADEIRA 4M"
       ],
-      "description": "M\u00e1quina respons\u00e1vel"
+      "description": "M\u00e1quina respons\u00e1vel (Ivaipor\u00e3 opera somente com LASER e DOBRADEIRA 4M)"
     },
     "chapa_cd_id": {
       "type": "string",
@@ -65,7 +67,7 @@
     },
     "tipo_peca": {
       "type": "string",
-      "description": "Tipo de pe\u00e7a do cat\u00e1logo (ex: Perfil Serralheiro n\u00b05, Blank, Dobra simples...)"
+      "description": "Tipo de pe\u00e7a do cat\u00e1logo (ex: Perfil Serralheiro n\u00ba5, Blank, Dobra simples...)"
     },
     "dimensoes_livres": {
       "type": "string",
@@ -80,17 +82,18 @@
       "enum": [
         "DOBRA 3M",
         "DOBRA FUNDO 6M",
-        "DOBRA INICIO 6M"
+        "DOBRA INICIO 6M",
+        "DOBRADEIRA 4M"
       ],
       "description": "M\u00e1quina de dobra escolhida (para ordens de corte que geram dobra)"
     },
     "numero_pedido": {
       "type": "string",
-      "description": "Número do pedido do cliente"
+      "description": "N\u00famero do pedido do cliente"
     },
     "numero_oc": {
       "type": "string",
-      "description": "Número da Ordem de Compra / Sub-número do pedido"
+      "description": "N\u00famero da Ordem de Compra / Sub-n\u00famero do pedido"
     },
     "cliente": {
       "type": "string",
@@ -181,16 +184,20 @@
     },
     "foto_etiqueta_chapa_url": {
       "type": "string",
-      "description": "URL da foto da etiqueta da chapa (validação ao iniciar guilhotina)"
+      "description": "URL da foto da etiqueta da chapa (valida\u00e7\u00e3o ao iniciar guilhotina)"
     },
     "validacao_etiqueta_chapa_status": {
       "type": "string",
-      "enum": ["aprovado", "rejeitado", "aprovado_manual"],
-      "description": "Status da validação da etiqueta da chapa com IA ou manual"
+      "enum": [
+        "aprovado",
+        "rejeitado",
+        "aprovado_manual"
+      ],
+      "description": "Status da valida\u00e7\u00e3o da etiqueta da chapa com IA ou manual"
     },
     "validacao_etiqueta_chapa_motivo": {
       "type": "string",
-      "description": "Motivo ou detalhes da validação da etiqueta da chapa"
+      "description": "Motivo ou detalhes da valida\u00e7\u00e3o da etiqueta da chapa"
     },
     "foto_finalizacao_url": {
       "type": "string",
@@ -241,8 +248,8 @@
     },
     "retrabalho_etapa": {
       "type": "number",
-      "description": "Etapa do retrabalho (1, 2, 3...) para diferencia\u00e7\u00e3o visual de cor",
-      "default": 1
+      "default": 1,
+      "description": "Etapa do retrabalho (1, 2, 3...) para diferencia\u00e7\u00e3o visual de cor"
     },
     "retrabalho_bobina_sub_id": {
       "type": "string",
@@ -255,23 +262,23 @@
     "prioridade": {
       "type": "boolean",
       "default": false,
-      "description": "OP prioritária — fixada no topo e bloqueia início de outras OPs na mesma máquina até ser finalizada"
+      "description": "OP priorit\u00e1ria \u2014 fixada no topo e bloqueia in\u00edcio de outras OPs na mesma m\u00e1quina at\u00e9 ser finalizada"
     },
     "prioridade_nivel": {
       "type": "number",
       "minimum": 1,
       "maximum": 5,
-      "description": "Nível de prioridade de 1 (mais urgente) a 5 (baixa prioridade)"
+      "description": "N\u00edvel de prioridade de 1 (mais urgente) a 5 (baixa prioridade)"
     },
     "rota": {
       "type": "boolean",
       "default": false,
-      "description": "Ordem de rota de entrega — destaque visual pulsante no topo"
+      "description": "Ordem de rota de entrega \u2014 destaque visual pulsante no topo"
     },
     "is_rota": {
       "type": "boolean",
       "default": false,
-      "description": "Flag indicando que a ordem é de rota"
+      "description": "Flag indicando que a ordem \u00e9 de rota"
     },
     "rota_ts": {
       "type": "string",
@@ -280,12 +287,12 @@
     "cliente_retira": {
       "type": "boolean",
       "default": false,
-      "description": "Cliente retira no balcão"
+      "description": "Cliente retira no balc\u00e3o"
     },
     "cliente_retira_agora": {
       "type": "boolean",
       "default": false,
-      "description": "Cliente aguardando retirada imediata no balcão"
+      "description": "Cliente aguardando retirada imediata no balc\u00e3o"
     },
     "retira_agora": {
       "type": "boolean",

@@ -18,6 +18,7 @@ import { useMetasProducao } from "@/hooks/useMetasProducao";
 import AlertasEstoque from "@/components/producao/AlertasEstoque";
 import OPImpressao from "@/components/producao/OPImpressao";
 import { useFilial } from "@/contexts/FilialContext";
+import { ehIvaipora } from "@/lib/maquinasPorFilial";
 import ExpedicaoTab from "@/components/logistica/ExpedicaoTab";
 import FilaPCPTelhas from "@/components/pcp/FilaPCPTelhas";
 import FiltrosDataPCPBar from "@/components/pcp/FiltrosDataPCPBar";
@@ -707,7 +708,7 @@ export default function ProducaoAdmin() {
           { tab: "maq-bandeja",      label: "Bandeja",       color: "bg-pink-500",   path: "/maquina/bandeja" },
           { tab: "maq-desbobinador", label: "Desbobinador",  color: "bg-yellow-500", path: "/maquina/desbobinador" },
           { tab: "maq-cumeeira",     label: "Cumeeira",      color: "bg-teal-500",   path: "/maquina/cumeeira" },
-        ].map(m => (
+        ].filter(m => !(m.tab === "maq-colonial" && ehIvaipora(filialAtiva))).map(m => (
           <Link
             key={m.tab}
             to={m.path}

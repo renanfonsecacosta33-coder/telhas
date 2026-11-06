@@ -10,6 +10,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
+import { ehIvaipora } from "@/lib/maquinasPorFilial";
 import { Layers, Camera, PackageX, Lock, Flame, Route, User as UserIcon, Zap, ChevronDown, ChevronUp, CheckCircle2, Search, Sparkles, Truck, RotateCcw, Edit2 } from "lucide-react";
 import { toast } from "sonner";
 import UploadButton from "@/components/ui/UploadButton";
@@ -93,8 +94,8 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
 
   // flags de máquina
   const isDesbobinadeira = ["DESBOBINADEIRA 01", "DESBOBINADEIRA 02", "DESBOBINADEIRA"].includes(form.maquina);
-  const isCorte = ["CORTE 3M", "CORTE 6M"].includes(form.maquina);
-  const isDobra = ["DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M"].includes(form.maquina);
+  const isCorte = ["CORTE 3M", "CORTE 6M", "LASER"].includes(form.maquina);
+  const isDobra = ["DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M", "DOBRADEIRA 4M"].includes(form.maquina);
   const isMaquinaPadrao = isCorte || isDobra;
   const maxComprimento = form.maquina?.includes("3M") ? 3000 : form.maquina?.includes("6M") ? 6000 : 99999;
 
@@ -594,7 +595,7 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
       return;
     }
     const obj = TIPOS_PECA.find(t => t.label === label);
-    const maqsOk = getMaquinasPorEtapa(obj?.etapa || "ambas");
+    const maqsOk = getMaquinasPorEtapa(obj?.etapa || "ambas").filter(m => !ehIvaipora(unidadeConsulta) || ["LASER", "DOBRADEIRA 4M"].includes(m));
     set("tipo_peca", label);
     if (obj?.etapa === "perfiladeira") {
       set("maquina", "PERFILADEIRA");
@@ -927,33 +928,43 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
               }}>
                 <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                 <SelectContent>
-                  <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                    Desbobinadeiras
-                  </div>
-                  <SelectItem value="DESBOBINADEIRA 01">
-                    <span className="flex items-center gap-1.5 font-semibold text-orange-600 dark:text-orange-400">
-                      🌀 DESBOBINADEIRA 01 (até 3,00mm)
-                    </span>
-                  </SelectItem>
-                  <SelectItem value="DESBOBINADEIRA 02">
-                    <span className="flex items-center gap-1.5 font-semibold text-orange-600 dark:text-orange-400">
-                      🌀 DESBOBINADEIRA 02 (0,80 a 4,75mm)
-                    </span>
-                  </SelectItem>
-
-                  <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-t border-border mt-1 pt-1">
-                    Guilhotinas & Dobradeiras
-                  </div>
-                  <SelectItem value="CORTE 3M">✂️ CORTE 3M</SelectItem>
-                  <SelectItem value="CORTE 6M">✂️ CORTE 6M</SelectItem>
-                  <SelectItem value="DOBRA 3M">📐 DOBRA 3M</SelectItem>
-                  <SelectItem value="DOBRA FUNDO 6M">📐 DOBRA FUNDO 6M</SelectItem>
-                  <SelectItem value="DOBRA INICIO 6M">📐 DOBRA INICIO 6M</SelectItem>
-
-                  <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-t border-border mt-1 pt-1">
-                    Perfiladeira
-                  </div>
-                  <SelectItem value="PERFILADEIRA">⚙️ PERFILADEIRA</SelectItem>
+                  {ehIvaipora(unidadeConsulta) ? (
+                    <>
+                      <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                        Corte &amp; Dobra — Ivaiporã
+                      </div>
+                      <SelectItem value="LASER">🔦 LASER</SelectItem>
+                      <SelectItem value="DOBRADEIRA 4M">📐 DOBRADEIRA 4M</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                        Desbobinadeiras
+                      </div>
+                      <SelectItem value="DESBOBINADEIRA 01">
+                        <span className="flex items-center gap-1.5 font-semibold text-orange-600 dark:text-orange-400">
+                          🌀 DESBOBINADEIRA 01 (até 3,00mm)
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="DESBOBINADEIRA 02">
+                        <span className="flex items-center gap-1.5 font-semibold text-orange-600 dark:text-orange-400">
+                          🌀 DESBOBINADEIRA 02 (0,80 a 4,75mm)
+                        </span>
+                      </SelectItem>
+                      <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-t border-border mt-1 pt-1">
+                        Guilhotinas &amp; Dobradeiras
+                      </div>
+                      <SelectItem value="CORTE 3M">✂️ CORTE 3M</SelectItem>
+                      <SelectItem value="CORTE 6M">✂️ CORTE 6M</SelectItem>
+                      <SelectItem value="DOBRA 3M">📐 DOBRA 3M</SelectItem>
+                      <SelectItem value="DOBRA FUNDO 6M">📐 DOBRA FUNDO 6M</SelectItem>
+                      <SelectItem value="DOBRA INICIO 6M">📐 DOBRA INICIO 6M</SelectItem>
+                      <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-t border-border mt-1 pt-1">
+                        Perfiladeira
+                      </div>
+                      <SelectItem value="PERFILADEIRA">⚙️ PERFILADEIRA</SelectItem>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
 

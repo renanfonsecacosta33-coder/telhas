@@ -27,6 +27,7 @@ import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import AlterarPrazoFabrilDialog from "@/components/pcp/AlterarPrazoFabrilDialog";
 import { notificarStatus } from "@/lib/biNotificador";
 import { useFilial } from "@/contexts/FilialContext";
+import { maquinasCDPorFilial } from "@/lib/maquinasPorFilial";
 import { salvarCacheLocal, obterCacheLocal } from "@/lib/offlineStorage";
 import FiltrosDataPCPBar from "@/components/pcp/FiltrosDataPCPBar";
 import LocalizacaoStatusHero from "@/components/pcp/LocalizacaoStatusHero";
@@ -656,7 +657,7 @@ export default function FilaPCPCorteDobra({ onNovaOrdem }) {
                 <SelectValue placeholder="Selecionar máquina..." />
               </SelectTrigger>
               <SelectContent>
-                {MAQUINAS_CD.map(m => <SelectItem key={m} value={m} className="text-xs">{m}</SelectItem>)}
+                {maquinasCDPorFilial(pedido.unidade || filialAtiva).map(m => <SelectItem key={m} value={m} className="text-xs">{m}</SelectItem>)}
               </SelectContent>
             </Select>
 
