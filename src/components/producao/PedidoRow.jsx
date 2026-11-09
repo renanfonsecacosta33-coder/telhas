@@ -27,7 +27,7 @@ import PedidoRowEntrega from "@/components/producao/PedidoRowEntrega";
 import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco"; import AlertaMultiplasOpsMesmoPedido from "@/components/producao/AlertaMultiplasOpsMesmoPedido"; import BandejaColagemInfoPanel from "@/components/producao/BandejaColagemInfoPanel";
 import SmartImage from "@/components/ui/SmartImage";
 import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/compressImage";
-import { isTelhaBandeja, verificarStatusComponentesBandeja } from "@/lib/bandejaHelper";
+import { isTelhaBandeja, verificarStatusComponentesBandeja } from "@/lib/bandejaHelper"; import { descricaoItemOriginal } from "@/lib/descricaoItemOriginal";
 import { useRegrasProducao } from "@/lib/regrasProducao";
 import { detectarTipoProdutoTelha, detectarEPSTelha, detectarMaquinaTelha, extrairCortesBobininha } from "@/lib/pedidoOdooHelper";
 
@@ -1512,7 +1512,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className="font-bold text-base">{p.produto || "TELHA / PERFIL METÁLICO"}</span>
+              <span className="font-bold text-base">{descricaoItemOriginal(p) || "TELHA / PERFIL METÁLICO"}</span>
               {p.produto === "TELHA + EPS + TELHA" && (
                 <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-xs gap-1 font-bold shadow-xs">
                   <Layers className="w-3 h-3" /> DUPLA TELHA (SANDUÍCHE)

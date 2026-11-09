@@ -2,6 +2,7 @@ import React from "react";
 import { calcularMetrosPedido } from "@/lib/metrosHelper";
 import { PrioridadeBadge, isPedidoRetiraAgora, isPedidoRota } from "@/lib/prioridadeHelper";
 import { detectarOrigemAco } from "@/components/producao/BadgeOrigemAco";
+import { descricaoItemOriginal, espessuraOriginalItem } from "@/lib/descricaoItemOriginal";
 
 const STATUS_MINI = {
   pendente: { label: "Pendente", cls: "op-status-pendente" },
@@ -23,14 +24,18 @@ export default function PedidoMiniCard({ pedido: p, onExpand, toolbar = null }) 
     : (p.quantidade_telhas || 0);
   const qtdMedidas = variacoes.length > 0 ? variacoes.length : (p.metragem_mm ? 1 : 1);
   const totalMetros = calcularMetrosPedido(p);
-  const espessura = p.espessura_exigida || (() => { const m = String(p.bobina_superior || p.bobina_descricao || "").match(/(\d+[.,]?\d*)\s*mm/i); return m ? m[1] : ""; })();
+  const espessura = espessuraOriginalItem(p) || (() => { const m = String(p.bobina_superior || p.bobina_descricao || "").match(/(\d+[.,]?\d*)\s*mm/i); return m ? m[1] : ""; })();
   const cor = p.cor_exigida || p.rvm_superior || "";
   const ehRetira = isPedidoRetiraAgora(p);
   const ehRota = isPedidoRota(p);
-  const titulo = [p.produto || "TELHA", p.modelo].filter(Boolean).join(" ");
+  // Descrição EXATA do item do PCP — nada é reescrito nem redetectado aqui
+  const titulo = descricaoItemOriginal(p) || "TELHA";
   const subtitulo = p.maquina || p.maquina_origem || "Máquina";
   const origem = (() => {
-    const info = detectarOrigemAco({ bobinaTexto: p.bobina_superior || p.bobina_descricao, origemExigida: p.origem_exigida });
+    const info = detectarOrigemAco({
+      bobinaTexto: p.bobina_superior || p.bobina_descricao,
+      origemExigida: p.origem_exigida && p.origem_exigida !== "ambas" ? p.origem_exigida : p.item_produto
+    });
     return info.isImportado ? "Importado" : "Nacional";
   })();
 
