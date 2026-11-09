@@ -14,14 +14,37 @@ const invalidarQueriesPcp = (queryClient) => {
 // Cancela as OPs ativas nos galpões (Telhas + Corte & Dobra), zera os itens
 // e devolve os pedidos para "Pendente de Distribuição" (0%).
 // Retorna true se executou, false se o usuário cancelou.
+// Pedido já produzido/finalizado NUNCA pode voltar para a fila do PCP.
+const pedidoJaConcluido = (p) => {
+  if (!p) return false;
+  if (p.status_pcp === "concluido") return true;
+  if (p.percentual_concluido != null && Number(p.percentual_concluido) >= 100) return true;
+  const itens = parseItensPedido(p.itens_json);
+  return itens.length > 0 && itens.every(i =>
+    i?.concluido === true || String(i?.status || "").toLowerCase() === "concluido"
+  );
+};
+
 export const devolverPedidosPCPLote = async ({ lista, queryClient, toast }) => {
-  const listaValida = (lista || []).filter(Boolean);
-  if (!listaValida.length) return false;
+  const selecionados = (lista || []).filter(Boolean);
+  const concluidos = selecionados.filter(pedidoJaConcluido);
+  const listaValida = selecionados.filter(p => !pedidoJaConcluido(p));
+  if (!listaValida.length) {
+    toast({
+      title: "Nada para devolver",
+      description: `${concluidos.length} pedido(s) selecionado(s) já estão finalizados e permanecem concluídos.`,
+      variant: "destructive"
+    });
+    return false;
+  }
   const qtd = listaValida.length;
 
   if (!window.confirm(
     `↩️ DEVOLVER ${qtd} PEDIDO(S) À CENTRAL PCP\n\n` +
     "As OPs ativas destes pedidos nos galpões (Telhas e Corte & Dobra) serão canceladas e os itens voltarão para \"Pendente de Distribuição\" (0%).\n\n" +
+    (concluidos.length > 0
+      ? `${concluidos.length} pedido(s) já finalizado(s) NÃO serão alterados.\n\n`
+      : "") +
     "Deseja confirmar?"
   )) return false;
 
@@ -74,7 +97,9 @@ export const devolverPedidosPCPLote = async ({ lista, queryClient, toast }) => {
     invalidarQueriesPcp(queryClient);
     toast({
       title: `↩️ ${qtd} pedido(s) devolvido(s) à Central PCP!`,
-      description: "OPs dos galpões canceladas. Pedidos voltaram para Pendente de Distribuição (0%).",
+      description: concluidos.length > 0
+        ? `OPs dos galpões canceladas. ${concluidos.length} pedido(s) já finalizado(s) foram preservados como concluídos.`
+        : "OPs dos galpões canceladas. Pedidos voltaram para Pendente de Distribuição (0%).",
       className: "border-amber-500/40"
     });
     return true;

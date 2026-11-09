@@ -750,6 +750,21 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
 
   // ── DEVOLVER PEDIDO INTEIRO PARA A CENTRAL PCP (ESTORNO DE FILA) ──
   const handleDevolverPedidoCentralPCP = async (pedido) => {
+    // Pedido já finalizado é terminal: nunca volta para a fila do PCP.
+    const itensDoPedido = getItens(pedido);
+    const jaFinalizado = pedido.status_pcp === "concluido" ||
+      Number(pedido.percentual_concluido || 0) >= 100 ||
+      (itensDoPedido.length > 0 && itensDoPedido.every(i =>
+        i.concluido === true || String(i.status || "").toLowerCase() === "concluido"
+      ));
+    if (jaFinalizado) {
+      toast({
+        title: "Pedido já finalizado",
+        description: `#${pedido.numero_pedido} está concluído e não volta para a fila do PCP.`,
+        variant: "destructive"
+      });
+      return;
+    }
     if (!window.confirm(
       `↩️ DEVOLVER PARA A CENTRAL PCP\n\nDeseja retirar o pedido #${pedido.numero_pedido} da fila das máquinas e devolvê-lo para a Central PCP?\n\n• As OPs vinculadas nas máquinas serão canceladas.\n• O pedido voltará para "Pendente de Distribuição" na Central PCP.`
     )) return;
