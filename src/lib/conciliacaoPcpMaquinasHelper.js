@@ -1,6 +1,7 @@
 import { base44 } from "@/api/base44Client";
 import { isLocalArmazenagemPinhais } from "@/lib/roteamentoPCP";
 import { getItens, classGrupo } from "@/lib/pedidoOdooHelper";
+import { fecharPedidosProduzidos } from "@/lib/reconciliacaoProducaoFinalizada";
 
 /**
  * Normaliza o número de pedido para comparação resiliente:
@@ -335,6 +336,7 @@ export async function executarVarreduraEConciliacaoGeral({ pedidosPcp = [], quer
     cdFinalizadas: 0,
     cdCanceladas: 0,
     pinhaisMigrados: 0,
+    pedidosFechados: 0,
     totalProcessadas: 0
   };
 
@@ -348,7 +350,22 @@ export async function executarVarreduraEConciliacaoGeral({ pedidosPcp = [], quer
 
     if (!listaPcp || listaPcp.length === 0) return resultado;
 
-    // ── 0. REVISÃO RETROATIVA DE ROTEAMENTO PINHAIS ──
+    // ── 0. RECONCILIAÇÃO INVERSA: MÁQUINAS → PCP ──
+    // Pedido cujas OPs já foram todas finalizadas é concluído no PCP.
+    // (Antes só existia o caminho PCP → máquinas, então pedido pronto continuava na fila.)
+    const { fechados } = await fecharPedidosProduzidos({ pedidos: listaPcp, usuario }).catch(() => ({ fechados: [] }));
+    if (fechados.length) {
+      resultado.pedidosFechados = fechados.length;
+      const idsFechados = new Set(fechados.map((p) => p.id));
+      for (const p of listaPcp) {
+        if (idsFechados.has(p.id)) {
+          p.status_pcp = "concluido";
+          p.percentual_concluido = 100;
+        }
+      }
+    }
+
+    // ── 0.1 REVISÃO RETROATIVA DE ROTEAMENTO PINHAIS ──
     // Se o pedido tem armazenagem Pinhais e é exclusivamente de telhas (sem C&D e sem frisada),
     // deve ser alocado na fila de Pinhais
     for (const p of listaPcp) {

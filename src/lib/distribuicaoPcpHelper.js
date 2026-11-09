@@ -3,6 +3,7 @@ import { getItens, itensPorGrupo, classGrupo, buildItensJson, calcularProgressoR
 import { buscarOpsDasOfs } from "@/lib/consultaFilaPcp";
 import { isAutoRoteamentoTelhasAtivo, rotearLoteTelhasAgrupadas, comRetry } from "@/lib/autoBobinaTelhasHelper";
 import { notificarStatus } from "@/lib/biNotificador";
+import { carregarOpsDosPedidos, pedidoJaProduzido, fecharPedidosProduzidos } from "@/lib/reconciliacaoProducaoFinalizada";
 
 // Pedidos processados simultaneamente na distribuição em lote.
 // (Cada pedido já roda seus grupos de telha em paralelo — 2 pedidos mantêm a
@@ -31,8 +32,12 @@ async function preBuscarOpsExistentes(alvo) {
  * Retorna { sucesso, telhasCount, preservadosManual, falhas }
  */
 export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinasEstoque = [], filialAtiva = "todas" }) {
-  const alvo = pedidos.filter(p => !(opcoes.pularDevolvidosManualmente && p.retirado_manualmente_ts));
-  const resumo = { sucesso: 0, telhasCount: 0, preservadosManual: pedidos.length - alvo.length, falhas: 0, ultimoErro: "", idsSucesso: [], idsFalha: [] };
+  const preSelecionados = pedidos.filter(p => !(opcoes.pularDevolvidosManualmente && p.retirado_manualmente_ts));
+  // Pedido cuja produção já foi finalizada nas máquinas é FECHADO, nunca redistribuído.
+  const { fechados } = await fecharPedidosProduzidos({ pedidos: preSelecionados }).catch(() => ({ fechados: [] }));
+  const idsFechados = new Set((fechados || []).map(p => p.id));
+  const alvo = preSelecionados.filter(p => !idsFechados.has(p.id));
+  const resumo = { sucesso: 0, telhasCount: 0, preservadosManual: pedidos.length - alvo.length, fechados: idsFechados.size, falhas: 0, ultimoErro: "", idsSucesso: [], idsFalha: [] };
   const ops = await preBuscarOpsExistentes(alvo);
   let cursor = 0;
   const worker = async () => {
@@ -65,6 +70,13 @@ export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinas
 export async function distribuirPedidoPCP({ pedido, bobinasEstoque = [], filialAtiva = "todas", opsExistentesPre = null, indicesAlvo = null, itensProgramados = null, forcarRoteamento = false }) {
   const atual = await base44.entities.PedidoOdoo.get(pedido.id);
   if (atual.status_pcp === "concluido") return { atualizado: atual, telhasAutoRoteadas: 0, bobinasVinculadas: 0 };
+  // Trava anti-pedido-zumbi: se as OPs das máquinas já estão finalizadas, o pedido
+  // é concluído no PCP em vez de voltar para a fábrica.
+  const opsReais = await carregarOpsDosPedidos([atual]);
+  if (pedidoJaProduzido(atual, opsReais.opsTelhas, opsReais.opsCD)) {
+    await fecharPedidosProduzidos({ pedidos: [atual], ...opsReais });
+    return { atualizado: { ...atual, status_pcp: "concluido", percentual_concluido: 100 }, telhasAutoRoteadas: 0, bobinasVinculadas: 0 };
+  }
   const itens = getItens(atual).map((it, idx) => itensProgramados?.[idx] ? { ...it, maquina: itensProgramados[idx].maquina, data_programada: itensProgramados[idx].data_programada } : it);
   if (!itens.length) throw new Error("Esta OF não possui itens válidos para distribuir.");
   const alvo = itens.filter(it => (!indicesAlvo || indicesAlvo.includes(it._idx)) && !it.concluido && it.status !== "concluido");

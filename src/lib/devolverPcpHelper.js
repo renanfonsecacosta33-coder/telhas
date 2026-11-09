@@ -2,6 +2,7 @@ import { base44 } from "@/api/base44Client";
 import { cancelarOpsDasOfsExatas, comRetryLimite } from "@/lib/conciliacaoPcpMaquinasHelper";
 import { parseItensPedido } from "@/lib/regrasFabrica";
 import { notificarStatus } from "@/lib/biNotificador";
+import { carregarOpsDosPedidos, pedidoJaProduzido } from "@/lib/reconciliacaoProducaoFinalizada";
 
 const invalidarQueriesPcp = (queryClient) => {
   queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
@@ -27,8 +28,12 @@ const pedidoJaConcluido = (p) => {
 
 export const devolverPedidosPCPLote = async ({ lista, queryClient, toast }) => {
   const selecionados = (lista || []).filter(Boolean);
-  const concluidos = selecionados.filter(pedidoJaConcluido);
-  const listaValida = selecionados.filter(p => !pedidoJaConcluido(p));
+  // Produção já finalizada nas máquinas também é terminal, mesmo que o status_pcp
+  // esteja defasado (foi assim que pedidos prontos voltaram para a fila em 26/10).
+  const { opsTelhas, opsCD } = await carregarOpsDosPedidos(selecionados);
+  const jaFinalizado = (p) => pedidoJaConcluido(p) || pedidoJaProduzido(p, opsTelhas, opsCD);
+  const concluidos = selecionados.filter(jaFinalizado);
+  const listaValida = selecionados.filter(p => !jaFinalizado(p));
   if (!listaValida.length) {
     toast({
       title: "Nada para devolver",
