@@ -44,6 +44,11 @@ export default function ControlesProducaoTelha({ op }) {
     [bobinas, op?.bobina_superior_id]
   );
 
+  // Histórico de paradas desta OP (início/fim, motivo e duração) para leitura no PCP
+  const paradas = useMemo(() => {
+    try { return JSON.parse(op?.historico_pausas || "[]"); } catch { return []; }
+  }, [op?.historico_pausas]);
+
   if (!op) return null;
 
   const status = op.status || "pendente";
@@ -253,7 +258,8 @@ export default function ControlesProducaoTelha({ op }) {
       {pausado && (
         <>
           <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400">
-            Pausado{op.motivo_pausa ? ` (${op.motivo_pausa})` : ""} · {hhmmss(tempoPausaSeg())}
+            Pausado{op.motivo_pausa ? ` (${op.motivo_pausa})` : ""}
+            {op.inicio_pausa_ts ? ` desde ${format(new Date(op.inicio_pausa_ts), "HH:mm")}` : ""} · {hhmmss(tempoPausaSeg())}
           </span>
           <Button size="sm" variant="outline" onClick={retomar} disabled={salvando} className="h-7 gap-1 text-[11px]">
             <RotateCcw className="w-3 h-3" /> Retomar
@@ -262,6 +268,19 @@ export default function ControlesProducaoTelha({ op }) {
             <CheckCircle2 className="w-3 h-3" /> Finalizar
           </Button>
         </>
+      )}
+
+      {paradas.length > 0 && (
+        <span className="w-full text-[10px] leading-[1.5] text-[#3f5b52] dark:text-slate-300 border-t border-[#d8e8df] dark:border-emerald-900 pt-1.5">
+          <strong className="font-bold">{paradas.length} parada(s):</strong>{" "}
+          {paradas.map((p, i) => (
+            <span key={i} className="whitespace-nowrap">
+              {i > 0 ? " · " : ""}
+              {p.inicio ? format(new Date(p.inicio), "HH:mm") : "—"}
+              {p.fim ? `–${format(new Date(p.fim), "HH:mm")}` : ""} {p.motivo || "pausa"} ({Math.max(1, Math.round((p.segundos || 0) / 60))}min)
+            </span>
+          ))}
+        </span>
       )}
 
       {/* Pausa / Setup */}

@@ -66,7 +66,9 @@ export default function OfTimelineRow({
 
   // Ivaiporã: telhas e corte e dobra são produzidos direto da Central PCP
   const { filialAtiva } = useFilial();
-  const filialIvaipora = ehIvaipora(filialAtiva);
+  // A OF de Ivaiporã produz direto do PCP — o painel de controles precisa aparecer
+  // mesmo quando o gestor está com o seletor de filial em "Todas" ou em outra unidade.
+  const filialIvaipora = ehIvaipora(filialAtiva) || ehIvaipora(pedido.unidade);
   const producaoNaPcp = filialIvaipora && grupoSetor === "telha";
   const opTelha = useMemo(() => {
     if (!producaoNaPcp) return null;
