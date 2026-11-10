@@ -1720,7 +1720,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                   </span>
                 ) : p.status === "pendente" ? (
                   <span className="text-xs font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                    <Lock className="w-3 h-3 text-amber-700" /> Inicie a OP no botão abaixo — cada item só pede a foto
+                    <Lock className="w-3 h-3 text-amber-700" /> Inicie a OP ou um item — o início é encadeado automaticamente
                   </span>
                 ) : emProducaoCount > 0 ? (
                   <span className="text-xs font-bold text-blue-800 bg-blue-100 border border-blue-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
@@ -1839,14 +1839,18 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                         </div>
                       ) : (
                         <div className="flex items-center justify-between flex-wrap gap-2">
-                          <span className="text-xs text-slate-600 font-medium">
-                            {p.status === "pendente" ? "Inicie a OP acima — este item só pede a foto ao terminar" : "Tire a foto do lote para concluir este item"}
-                          </span>
-                          {p.status !== "pendente" && (
-                            <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white font-bold h-8 text-xs gap-1.5 shadow-sm" onClick={() => handleAbrirFinalizarItem(i)}>
-                              <Camera className="w-3.5 h-3.5" /> Tirar Foto — Item {i + 1}
+                          <>
+                            <span className="text-xs text-slate-600 font-medium">
+                              {p.status === "pendente" ? "Ao iniciar, a OP começa junto automaticamente" : "Bobina configurada e pronta para conferir"}
+                            </span>
+                            <Button
+                              size="sm"
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-8 text-xs gap-1.5 shadow-sm"
+                              onClick={() => (p.status === "pendente" ? handleIniciar() : handleIniciarItem(i))}
+                            >
+                              <Play className="w-3.5 h-3.5 fill-white" /> Iniciar Item {i + 1}
                             </Button>
-                          )}
+                          </>
                         </div>
                       )}
                     </div>
