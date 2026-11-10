@@ -628,20 +628,13 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     staleTime: 60000,
   });
 
-  // Bobinas disponíveis para iniciar esta OP: somente as ABERTAS (em uso) da filial, setor Telhas
-  const bobinasAbertas = useMemo(() => (todasBobinas || []).filter(b => {
-    if (!b?.id) return false;
-    const st = String(b.status || "").toLowerCase();
-    if (["arquivada", "arquivado", "zerada", "encerrada", "descartada"].includes(st)) return false;
-    if (b.setor && b.setor !== "telhas") return false;
-    if (filialAtiva && filialAtiva !== "todas" && b.unidade && b.unidade !== filialAtiva) return false;
-    return (Number(b.peso_kg) || 0) > 0;
-  }).sort((a, b) => {
-    const abA = isBobinaAberta(a) ? 0 : 1;
-    const abB = isBobinaAberta(b) ? 0 : 1;
-    if (abA !== abB) return abA - abB;
-    return String(a.codigo || "").localeCompare(String(b.codigo || ""), undefined, { numeric: true });
-  }), [todasBobinas, filialAtiva]);
+  // Somente bobinas ABERTAS da loja do próprio pedido (ex.: pedido da Matriz → bobinas da Matriz), setor Telhas
+  const unidadePedido = p.unidade || filialAtiva;
+  const bobinasAbertas = useMemo(() => (todasBobinas || []).filter(b =>
+    Boolean(b?.id) && isBobinaAberta(b) && (Number(b.peso_kg) || 0) > 0 &&
+    (!b.setor || b.setor === "telhas") &&
+    (!unidadePedido || unidadePedido === "todas" || !b.unidade || b.unidade === unidadePedido)
+  ).sort((a, b) => String(a.codigo || "").localeCompare(String(b.codigo || ""), undefined, { numeric: true })), [todasBobinas, unidadePedido]);
 
   const exigeDuasBobinas = p.produto === "TELHA + EPS + TELHA";
   const precisaEscolherBobina = p.status === "pendente" && p.maquina !== "COLAGEM";
