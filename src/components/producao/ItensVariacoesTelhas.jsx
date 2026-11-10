@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Layers, Lock, CheckCircle2, Camera, Play } from "lucide-react";
+import { Layers, Lock, CheckCircle2, Camera } from "lucide-react";
 import { format } from "date-fns";
 
 /**
@@ -157,18 +157,12 @@ export default function ItensVariacoesTelhas({ pedido, iniciarBloqueado = false,
                 </div>
               ) : (
                 <div className="flex items-center justify-between flex-wrap gap-2">
-                  <span className="text-xs text-slate-600 font-medium">
-                    {pedido?.status === "pendente" ? "Ao iniciar, a OP começa junto automaticamente" : "Bobina configurada e pronta para conferir"}
+                  <span className="text-xs text-slate-600 font-medium flex items-center gap-1.5">
+                    <Lock className="w-3 h-3 text-amber-600" />
+                    {pedido?.status === "pendente"
+                      ? "Use o botão Iniciar da OP — este item inicia junto automaticamente"
+                      : "Aguardando o início deste item na sequência da OP"}
                   </span>
-                  <Button
-                    size="sm"
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-8 text-xs gap-1.5 shadow-sm"
-                    onClick={() => (pedido?.status === "pendente" ? onIniciar() : onIniciarItem(i))}
-                    disabled={pedido?.status === "pendente" && iniciarBloqueado}
-                    title={pedido?.status === "pendente" && iniciarBloqueado ? "Escolha a bobina antes de iniciar" : undefined}
-                  >
-                    <Play className="w-3.5 h-3.5 fill-white" /> Iniciar Item {i + 1}
-                  </Button>
                 </div>
               )}
             </div>

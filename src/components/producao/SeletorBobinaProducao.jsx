@@ -31,7 +31,7 @@ export default function SeletorBobinaProducao({
             Bobinas desta OP
           </p>
           <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-            Escolha a bobina (as abertas aparecem primeiro)
+            Somente bobinas abertas desta loja
           </p>
         </div>
       </div>

@@ -1039,6 +1039,9 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       ...(todosFinalizados ? { data_finalizacao: novoStatusOp === "finalizado" ? hojeStr : undefined, fim_producao_ts: agoraIso, foto_finalizacao_url: fotoUrl || p.foto_finalizacao_url || "",
         ...(precisaColagem ? { maquina: "COLAGEM", maquina_origem: maqOrigem, data_perfilacao: p.data_perfilacao || hojeStr, hora_perfilacao: p.hora_perfilacao || agoraIso, perfilacao_concluida: true } : {})
       } : { maquina_origem: maqOrigem, data_perfilacao: p.data_perfilacao || hojeStr }) });
+    // Encadeamento automático: o próximo item já abre para conferência da bobina
+    const proximo = novos.findIndex((it, i) => i > itemIndex && !it.iniciado && !it.finalizado);
+    if (proximo >= 0) setConferirBobinaModal({ open: true, item: novos[proximo], index: proximo });
     playFinishSound();
     toast.success(`Item ${itemIndex + 1} finalizado com foto e ${metragemReal}m real!`);
   };
