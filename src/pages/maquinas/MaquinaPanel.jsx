@@ -1167,12 +1167,12 @@ export default function MaquinaPanel({ maquina }) {
           </Button>
 
           {!isOperador && DASH_PATHS[maquina] && (
-            <Link to={DASH_PATHS[maquina]}>
-              <Button variant="outline" size="sm" className="gap-2 h-9">
+            <Button asChild variant="outline" size="sm" className="gap-2 h-9">
+              <Link to={DASH_PATHS[maquina]}>
                 <BarChart2 className="w-4 h-4" />
                 Dashboard
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           )}
 
           {!isOperador && (

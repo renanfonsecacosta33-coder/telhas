@@ -318,11 +318,11 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
           <p className="text-sm text-muted-foreground">Agrupamento de cargas e carregamento de caminhões</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Link to="/timeline-carregamento">
-            <Button variant="outline" className="gap-2 border-primary/40 text-primary hover:bg-primary/10">
+          <Button asChild variant="outline" className="gap-2 border-primary/40 text-primary hover:bg-primary/10">
+            <Link to="/timeline-carregamento">
               <Camera className="w-4 h-4" /> Timeline de Carregamento (5 Etapas)
-            </Button>
-          </Link>
+            </Link>
+          </Button>
           {!isDespacho && (
             <Button onClick={() => setDialogCarga(true)} className="gap-2">
               <Plus className="w-4 h-4" /> Nova Carga

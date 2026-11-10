@@ -845,11 +845,11 @@ export default function DashboardCorteDobraCompleto() {
 
               <div className="mt-4 pt-3 border-t border-border flex items-center justify-between">
                 <span className="text-xs text-muted-foreground font-semibold">Gerenciar no Módulo:</span>
-                <Link to="/corte-dobra/bobinas">
-                  <Button size="sm" variant="outline" className="h-8 text-xs font-bold rounded-xl gap-1">
+                <Button asChild size="sm" variant="outline" className="h-8 text-xs font-bold rounded-xl gap-1">
+                  <Link to="/corte-dobra/bobinas">
                     Ver Bobinas →
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
               </div>
             </div>
           </div>

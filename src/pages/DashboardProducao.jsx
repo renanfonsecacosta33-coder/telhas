@@ -172,12 +172,12 @@ export default function DashboardProducao() {
             {format(new Date(), "EEEE, dd 'de' MMMM yyyy", { locale: ptBR })} · Atualiza a cada 15s
           </p>
         </div>
-        <Link to="/producao">
-          <Button variant="outline" size="sm" className="gap-2">
+        <Button asChild variant="outline" size="sm" className="gap-2">
+          <Link to="/producao">
             <Factory className="w-4 h-4" />
             Visão Admin
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       </div>
 
       {/* Alertas */}

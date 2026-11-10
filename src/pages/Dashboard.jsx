@@ -262,18 +262,18 @@ export default function Dashboard() {
           <p className="text-muted-foreground mt-1">Visão geral do estoque AJL Ferro e Aço</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link to="/dashboard-telhas">
-            <Button variant="default" className="gap-2">
+          <Button asChild variant="default" className="gap-2">
+            <Link to="/dashboard-telhas">
               <LayoutDashboard className="w-4 h-4" />
               Dashboard Completo
-            </Button>
-          </Link>
-          <Link to="/dashboard-producao">
-            <Button variant="outline" className="gap-2">
+            </Link>
+          </Button>
+          <Button asChild variant="outline" className="gap-2">
+            <Link to="/dashboard-producao">
               <TrendingUp className="w-4 h-4" />
               Dashboard Produção
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         </div>
       </div>
 
@@ -378,12 +378,12 @@ export default function Dashboard() {
               )}
             </div>
             <div className="px-5 pb-4">
-              <Link to={section.path}>
-                <Button variant="outline" className="w-full gap-2" size="sm">
+              <Button asChild variant="outline" className="w-full gap-2" size="sm">
+                <Link to={section.path}>
                   Ver tudo
                   <ArrowRight className="w-4 h-4" />
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </div>
           </div>
         ))}

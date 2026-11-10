@@ -54,18 +54,18 @@ export default function QRCodeBobinaDialog({ bobina, ordens = [], onClose }) {
 
         <DialogFooter>
           {paginaUrl && (
-            <a href={paginaUrl} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" className="gap-1.5">
+            <Button asChild variant="outline" className="gap-1.5">
+              <a href={paginaUrl} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="w-4 h-4" /> Abrir página
-              </Button>
-            </a>
+              </a>
+            </Button>
           )}
           {qrUrl && (
-            <a href={qrUrl} download={`QR_${bobina.codigo || "bobina"}.png`}>
-              <Button variant="outline" className="gap-1.5">
+            <Button asChild variant="outline" className="gap-1.5">
+              <a href={qrUrl} download={`QR_${bobina.codigo || "bobina"}.png`}>
                 <Download className="w-4 h-4" /> Baixar PNG
-              </Button>
-            </a>
+              </a>
+            </Button>
           )}
           <Button onClick={onClose}>Fechar</Button>
         </DialogFooter>

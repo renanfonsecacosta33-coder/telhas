@@ -557,7 +557,7 @@ export default function OPSemMaterialTab({ maquinaFiltro = null }) {
 
               {liberarMutation.isPending && vinculando?.id === op.id && (
                 <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                  <div className="w-3 h-3 border-2 border-muted border-t-orange-500 rounded-full animate-spin" />
+                  <span className="w-3 h-3 border-2 border-muted border-t-orange-500 rounded-full animate-spin inline-block" />
                   Liberando...
                 </p>
               )}

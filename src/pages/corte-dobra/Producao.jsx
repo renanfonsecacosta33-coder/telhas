@@ -1131,12 +1131,12 @@ export default function ProducaoCD() {
               <Calendar className="w-4 h-4" />
             </div>
             <div>
-              <p className="font-extrabold text-foreground text-sm flex items-center gap-2 flex-wrap">
+              <div className="font-extrabold text-foreground text-sm flex items-center gap-2 flex-wrap">
                 Semana de {format(weekStart, "dd 'de' MMM", { locale: ptBR })} a {format(weekEnd, "dd 'de' MMM yyyy", { locale: ptBR })}
                 <Badge variant="outline" className="text-[10px] py-0 border-orange-500/30 text-orange-600 font-bold">
                   {totalSemanaOrdens} ordens · {totalSemanaPecas} pçs finalizadas
                 </Badge>
-              </p>
+              </div>
             </div>
           </div>
 
@@ -1301,17 +1301,17 @@ export default function ProducaoCD() {
             )}
           </div>
 
-          <Link to="/corte-dobra/estoque-dashboard">
-            <Button variant="outline" size="sm" className="h-8 text-xs gap-1 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-700 hover:bg-teal-50 dark:hover:bg-teal-950/40">
+          <Button asChild variant="outline" size="sm" className="h-8 text-xs gap-1 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-700 hover:bg-teal-50 dark:hover:bg-teal-950/40">
+            <Link to="/corte-dobra/estoque-dashboard">
               <Layers className="w-3.5 h-3.5 text-teal-500" /> Estoque
-            </Button>
-          </Link>
+            </Link>
+          </Button>
 
-          <Link to="/logistica">
-            <Button variant="outline" size="sm" className="h-8 text-xs gap-1 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40">
+          <Button asChild variant="outline" size="sm" className="h-8 text-xs gap-1 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40">
+            <Link to="/logistica">
               <Truck className="w-3.5 h-3.5 text-blue-500" /> Expedição
-            </Button>
-          </Link>
+            </Link>
+          </Button>
 
           {/* Zoom */}
           <div className="flex items-center gap-0.5 bg-muted/40 border border-border rounded-lg p-0.5">

@@ -1720,7 +1720,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                   </span>
                 ) : p.status === "pendente" ? (
                   <span className="text-xs font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                    <Lock className="w-3 h-3 text-amber-700" /> Inicie a OP ou um item — o início é encadeado automaticamente
+                    <Lock className="w-3 h-3 text-amber-700" /> Inicie a OP no botão abaixo — cada item só pede a foto
                   </span>
                 ) : emProducaoCount > 0 ? (
                   <span className="text-xs font-bold text-blue-800 bg-blue-100 border border-blue-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
@@ -1839,18 +1839,14 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                         </div>
                       ) : (
                         <div className="flex items-center justify-between flex-wrap gap-2">
-                          <>
-                            <span className="text-xs text-slate-600 font-medium">
-                              {p.status === "pendente" ? "Ao iniciar, a OP começa junto automaticamente" : "Bobina configurada e pronta para conferir"}
-                            </span>
-                            <Button
-                              size="sm"
-                              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-8 text-xs gap-1.5 shadow-sm"
-                              onClick={() => (p.status === "pendente" ? handleIniciar() : handleIniciarItem(i))}
-                            >
-                              <Play className="w-3.5 h-3.5 fill-white" /> Iniciar Item {i + 1}
+                          <span className="text-xs text-slate-600 font-medium">
+                            {p.status === "pendente" ? "Inicie a OP acima — este item só pede a foto ao terminar" : "Tire a foto do lote para concluir este item"}
+                          </span>
+                          {p.status !== "pendente" && (
+                            <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white font-bold h-8 text-xs gap-1.5 shadow-sm" onClick={() => handleAbrirFinalizarItem(i)}>
+                              <Camera className="w-3.5 h-3.5" /> Tirar Foto — Item {i + 1}
                             </Button>
-                          </>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1864,261 +1860,20 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         {/* Painel da Telha Bandeja na Colagem */}
         {p.maquina === "COLAGEM" && isTelhaBandeja(p) && <BandejaColagemInfoPanel maquinaOrigem={p.maquina_origem} pedido={p} />}
 
-        {/* Bloco de Destaque da Bobina & Procedência do Aço (Nacional vs Importado) — CAMPO ESCRITO EDITÁVEL */}
-        {(p.bobina_superior || p.bobina_superior_id || p.origem_exigida || editandoBobinaSup) && (
-          <div className="w-full bg-slate-50/90 dark:bg-slate-900/80 border-2 border-slate-200 dark:border-slate-700/80 rounded-2xl p-3 sm:p-4 mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
-                <Layers className="w-5 h-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
-                    {p.tipo_componente_bandeja === "telha_superior"
-                      ? `Bobina da Telha Superior (${p.maquina})`
-                      : p.tipo_componente_bandeja === "bandeja_inferior" || (p.maquina === "BANDEJA" && isTelhaBandeja(p))
-                      ? "Bobina da Bandeja Inferior"
-                      : "Bobina de Produção"}
-                  </span>
-                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
-                    (Automática Odoo · Campo Escrito)
-                  </span>
-                </div>
-
-                {editandoBobinaSup ? (
-                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap mt-1">
-                    <Input
-                      value={textoBobinaSup}
-                      onChange={(e) => setTextoBobinaSup(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleSalvarBobinaSup();
-                        if (e.key === "Escape") {
-                          setTextoBobinaSup(p.bobina_superior || "");
-                          setEditandoBobinaSup(false);
-                        }
-                      }}
-                      placeholder="Digite o código ou nome da bobina..."
-                      className="h-9 font-mono text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 border-indigo-400 focus-visible:ring-indigo-400 max-w-md"
-                      autoFocus
-                    />
-                    <Button
-                      size="sm"
-                      onClick={handleSalvarBobinaSup}
-                      disabled={salvandoBobinaSup}
-                      className="h-9 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1 shrink-0"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      Salvar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setTextoBobinaSup(p.bobina_superior || "");
-                        setEditandoBobinaSup(false);
-                      }}
-                      disabled={salvandoBobinaSup}
-                      className="h-9 px-2 text-xs text-muted-foreground hover:text-foreground shrink-0"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      Cancelar
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span
-                      onClick={() => podeGerenciar && setEditandoBobinaSup(true)}
-                      title="Clique para editar ou ajustar o texto da bobina"
-                      className={`font-mono font-black text-sm text-foreground bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 ${podeGerenciar ? "hover:border-indigo-500 cursor-pointer" : ""} transition-colors shadow-2xs flex items-center gap-2 group`}
-                    >
-                      <span>{bobinaSuperiorVisual}</span>
-                      {podeGerenciar && <Pencil className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 transition-colors" />}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => podeGerenciar && setEditandoBobinaSup(true)}
-                      className={`h-7 px-2 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 border-indigo-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 gap-1 shrink-0 ${podeGerenciar ? "" : "hidden"}`}
-                    >
-                      <Pencil className="w-3 h-3" />
-                      Ajustar
-                    </Button>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2 flex-wrap">
-                  {/* Cor / RVM Superior */}
-                  {!editandoCorSup ? (
-                    <span className="inline-flex items-center gap-1.5 bg-background/90 px-2 py-1 rounded-md border border-border hover:border-indigo-400 transition-colors shadow-2xs">
-                      <span className="text-[11px] text-muted-foreground font-medium">Cor / RVM:</span>
-                      <button
-                        type="button"
-                        onClick={() => { if (podeGerenciar) { setEditandoCorSup(true); setEditandoEspSup(false); } }}
-                        className={`inline-flex items-center gap-1 font-bold text-foreground ${podeGerenciar ? "hover:text-indigo-600 cursor-pointer" : "cursor-default"} transition-colors group`}
-                        title="Clique para alterar a Cor / RVM"
-                      >
-                        <span>{overrideCorSup !== null ? overrideCorSup : (p.rvm_superior || "—")}</span>
-                        {podeGerenciar && <Pencil className="w-2.5 h-2.5 text-slate-400 group-hover:text-indigo-600" />}
-                      </button>
-                    </span>
-                  ) : (
-                    <div className="w-full bg-white dark:bg-slate-900 border-2 border-indigo-500 rounded-xl p-2.5 shadow-md flex flex-col gap-2 my-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase">Cor / RVM:</span>
-                        <Input
-                          value={textoCorSup}
-                          onChange={(e) => setTextoCorSup(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleSalvarCorSup();
-                            if (e.key === "Escape") setEditandoCorSup(false);
-                          }}
-                          placeholder="Digite ou escolha abaixo..."
-                          className="h-7 text-xs font-bold w-40 bg-background"
-                          autoFocus
-                        />
-                        <Button
-                          size="sm"
-                          onClick={() => handleSalvarCorSup()}
-                          disabled={salvandoCorSup}
-                          className="h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold gap-1"
-                        >
-                          <Check className="w-3 h-3" /> Salvar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setEditandoCorSup(false)}
-                          className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-                        >
-                          <X className="w-3 h-3" />
-                        </Button>
-                      </div>
-                      <div className="flex items-center gap-1 flex-wrap">
-                        <span className="text-[10px] text-muted-foreground mr-1">Rápido:</span>
-                        {CORES_RAPIDAS.map(cor => (
-                          <button
-                            key={cor}
-                            type="button"
-                            onClick={() => handleSalvarCorSup(cor)}
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all border ${
-                              (textoCorSup || "").toLowerCase() === cor.toLowerCase()
-                                ? "bg-indigo-600 text-white border-indigo-600"
-                                : "bg-muted/60 hover:bg-indigo-50 hover:text-indigo-600 border-border text-foreground"
-                            }`}
-                          >
-                            {cor}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Espessura Superior */}
-                  {!editandoEspSup ? (
-                    <span className="inline-flex items-center gap-1.5 bg-background/90 px-2 py-1 rounded-md border border-border hover:border-indigo-400 transition-colors shadow-2xs">
-                      <span className="text-[11px] text-muted-foreground font-medium">Espessura:</span>
-                      <button
-                        type="button"
-                        onClick={() => { if (podeGerenciar) { setEditandoEspSup(true); setEditandoCorSup(false); } }}
-                        className={`inline-flex items-center gap-1 font-bold text-foreground ${podeGerenciar ? "hover:text-indigo-600 cursor-pointer" : "cursor-default"} transition-colors group`}
-                        title="Clique para alterar a Espessura"
-                      >
-                        <span>{overrideEspSup !== null ? overrideEspSup : (p.espessura_exigida || p.espessura || "0,43")} mm</span>
-                        {podeGerenciar && <Pencil className="w-2.5 h-2.5 text-slate-400 group-hover:text-indigo-600" />}
-                      </button>
-                    </span>
-                  ) : (
-                    <div className="w-full bg-white dark:bg-slate-900 border-2 border-indigo-500 rounded-xl p-2.5 shadow-md flex flex-col gap-2 my-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase">Espessura:</span>
-                        <Input
-                          value={textoEspSup}
-                          onChange={(e) => setTextoEspSup(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleSalvarEspSup();
-                            if (e.key === "Escape") setEditandoEspSup(false);
-                          }}
-                          placeholder="Ex: 0,43"
-                          className="h-7 text-xs font-bold w-24 bg-background"
-                          autoFocus
-                        />
-                        <span className="text-xs text-muted-foreground font-bold">mm</span>
-                        <Button
-                          size="sm"
-                          onClick={() => handleSalvarEspSup()}
-                          disabled={salvandoEspSup}
-                          className="h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold gap-1"
-                        >
-                          <Check className="w-3 h-3" /> Salvar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setEditandoEspSup(false)}
-                          className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-                        >
-                          <X className="w-3 h-3" />
-                        </Button>
-                      </div>
-                      <div className="flex items-center gap-1 flex-wrap">
-                        <span className="text-[10px] text-muted-foreground mr-1">Rápido:</span>
-                        {ESPESSURAS_RAPIDAS.map(esp => (
-                          <button
-                            key={esp}
-                            type="button"
-                            onClick={() => handleSalvarEspSup(esp)}
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all border ${
-                              (textoEspSup || "").replace(".", ",") === esp
-                                ? "bg-indigo-600 text-white border-indigo-600"
-                                : "bg-muted/60 hover:bg-indigo-50 hover:text-indigo-600 border-border text-foreground"
-                            }`}
-                          >
-                            {esp} mm
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Largura de Entrada / Corte da Bobininha (Dinâmico conforme descrição) */}
-                  {isBobininha && (
-                    (() => {
-                      const textoCorte = `${p.corte || ""} ${p.largura_corte || ""} ${p.observacoes || ""} ${p.descricao || ""} ${p.item_produto || ""}`;
-                      const cortes = extrairCortesBobininha(textoCorte);
-
-                      if (cortes.length > 1) {
-                        return (
-                          <div className="flex flex-wrap items-center gap-1.5" title="Cortes especificados na descrição do vendedor">
-                            {cortes.map((c, i) => (
-                              <span
-                                key={i}
-                                className="inline-flex items-center gap-1 bg-purple-50 dark:bg-purple-950/60 text-purple-900 dark:text-purple-200 px-2.5 py-1 rounded-md border border-purple-300 dark:border-purple-700 font-black text-xs shadow-2xs"
-                              >
-                                <Scissors className="w-3.5 h-3.5 text-purple-600" />
-                                <span>Corte {c}</span>
-                              </span>
-                            ))}
-                          </div>
-                        );
-                      }
-
-                      const corteLabel = cortes.length === 1
-                        ? `Corte ${cortes[0]}`
-                        : (p.corte ? `Corte ${p.corte}` : "Largura: 1.200 mm (Corte 1200)");
-
-                      return (
-                        <span className="inline-flex items-center gap-1.5 bg-purple-50 dark:bg-purple-950/60 text-purple-900 dark:text-purple-200 px-2.5 py-1 rounded-md border border-purple-300 dark:border-purple-700 font-bold text-xs shadow-2xs">
-                          <Scissors className="w-3.5 h-3.5 text-purple-600" />
-                          <span>{corteLabel}</span>
-                        </span>
-                      );
-                    })()
-                  )}
-                  {p.kg_superior > 0 && <span>Peso: <strong className="text-foreground">{p.kg_superior} kg</strong></span>}
-                </div>
-              </div>
+        {/* DESCRIÇÃO — texto exato do item (Auto-Roteado PCP) em destaque para o operador */}
+        {p.observacoes && (
+          <div className="w-full bg-white dark:bg-slate-900 border-2 border-indigo-300 dark:border-indigo-700 rounded-2xl p-4 mb-3 flex items-start gap-3 shadow-md">
+            <div className="w-11 h-11 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
+              <FileText className="w-5 h-5" />
             </div>
-
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] uppercase font-black text-indigo-700 dark:text-indigo-300 tracking-widest mb-1">
+                Descrição
+              </p>
+              <p className="text-xl sm:text-2xl font-black leading-tight text-foreground break-words whitespace-pre-line">
+                {p.observacoes}
+              </p>
+            </div>
           </div>
         )}
 
@@ -2389,12 +2144,6 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
             </span>
           )}
         </div>
-
-        {p.observacoes && (
-          <div className="bg-muted/40 border rounded-xl px-3.5 py-2.5 mb-3 shadow-xs">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">📋 DESCRIÇÃO</p><p className="text-sm font-semibold text-foreground break-words whitespace-pre-line">{p.observacoes}</p>
-          </div>
-        )}
 
         {/* Foto da OP física */}
         {p.foto_pedido_url && (
