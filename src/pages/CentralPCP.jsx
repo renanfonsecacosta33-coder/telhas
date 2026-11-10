@@ -50,7 +50,7 @@ import { parseItensPedido } from "@/lib/regrasFabrica";
 import { notificarStatus } from "@/lib/biNotificador";
 import {
   calcularProgressoRealPedido,
-  obterStatusExecucaoPedido, classGrupo
+  obterStatusExecucaoPedido, classGrupo, getItens
 } from "@/lib/pedidoOdooHelper";
 import useDistribuicaoPcp from "@/hooks/useDistribuicaoPcp"; import useProgramacaoPcp from "@/hooks/useProgramacaoPcp";
 import useFilaPaginada from "@/hooks/useFilaPaginada"; import useRealtimeThrottled from "@/hooks/useRealtimeThrottled";
