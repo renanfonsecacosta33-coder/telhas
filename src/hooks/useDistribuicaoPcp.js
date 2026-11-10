@@ -91,7 +91,6 @@ export default function useDistribuicaoPcp({
       queryClient.invalidateQueries({ queryKey: ["bobinas-estoque-pcp"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
       queryClient.invalidateQueries({ queryKey: ["resumo-pcp"] });
-      queryClient.refetchQueries({ queryKey: ["pedidos-odoo-pcp"] });
       setSelecionados(new Set());
       if (sucesso > 0) {
         toast({
