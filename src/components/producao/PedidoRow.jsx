@@ -3,10 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Route, Camera, Scissors, Snowflake, Lock, RotateCcw, ShoppingCart, User, Users, Zap, PackageCheck, Pencil, Check, X, Calendar, Truck } from "lucide-react";
-import ImageLink from "@/components/ui/ImageLink";
+import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Camera, Scissors, Snowflake, Lock, RotateCcw, ShoppingCart, User, Users, PackageCheck, Truck } from "lucide-react";
 import RetrabalhoTelhasDialog from "@/components/producao/RetrabalhoTelhasDialog";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -16,20 +14,23 @@ import ConfirmarInicioDialog from "@/components/producao/ConfirmarInicioDialog";
 import ConferirBobinaItemDialog from "@/components/producao/ConferirBobinaItemDialog";
 import FinalizarItemVariacaoDialog from "@/components/producao/FinalizarItemVariacaoDialog";
 import IniciarOpOperadoresDialog from "@/components/producao/IniciarOpOperadoresDialog";
+import ItensVariacoesTelhas from "@/components/producao/ItensVariacoesTelhas";
+import PainelBobinaInferior from "@/components/producao/PainelBobinaInferior";
+import SeletorBobinaProducao from "@/components/producao/SeletorBobinaProducao";
+import { isBobinaAberta } from "@/lib/bobinaStatusHelper";
 import CumeeiraEstoqueDialog from "@/components/producao/CumeeiraEstoqueDialog";
 import { playFinishSound, speakOpFinalizada, playAlertSound } from "@/lib/sounds";
-import { useFilial } from "@/contexts/FilialContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
 import { PrioridadeBadge, BannerPrioridadeDestaque, isPedidoRetiraAgora, isPedidoRota, getCardPrioridadeClasses } from "@/lib/prioridadeHelper";
 import ProcessoStepperPedido from "@/components/producao/ProcessoStepperPedido";
 import PedidoRowEntrega from "@/components/producao/PedidoRowEntrega";
-import BadgeOrigemAco from "@/components/producao/BadgeOrigemAco"; import AlertaMultiplasOpsMesmoPedido from "@/components/producao/AlertaMultiplasOpsMesmoPedido"; import BandejaColagemInfoPanel from "@/components/producao/BandejaColagemInfoPanel";
+import AlertaMultiplasOpsMesmoPedido from "@/components/producao/AlertaMultiplasOpsMesmoPedido"; import BandejaColagemInfoPanel from "@/components/producao/BandejaColagemInfoPanel";
 import SmartImage from "@/components/ui/SmartImage";
 import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/compressImage";
 import { isTelhaBandeja, verificarStatusComponentesBandeja } from "@/lib/bandejaHelper"; import { descricaoItemOriginal } from "@/lib/descricaoItemOriginal";
 import { useRegrasProducao } from "@/lib/regrasProducao";
-import { detectarTipoProdutoTelha, detectarEPSTelha, detectarMaquinaTelha, extrairCortesBobininha } from "@/lib/pedidoOdooHelper";
+import { detectarTipoProdutoTelha, detectarEPSTelha, detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
 
 
 const PRODUTO_BG = {
@@ -255,6 +256,10 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
 
   const [textoBobinaSup, setTextoBobinaSup] = useState(bobinaSuperiorVisual);
   const [textoBobinaInf, setTextoBobinaInf] = useState(bobinaInferiorVisual);
+  // Seleção das bobinas abertas usadas nesta OP (superior e, no sanduíche, a inferior)
+  const [bobSelSupId, setBobSelSupId] = useState("");
+  const [bobSelInfId, setBobSelInfId] = useState("");
+  const [mesmaBobina, setMesmaBobina] = useState(false);
 
   useEffect(() => {
     if (overrideBobinaSup === null) {
@@ -623,6 +628,39 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     staleTime: 60000,
   });
 
+  // Bobinas disponíveis para iniciar esta OP: somente as ABERTAS (em uso) da filial, setor Telhas
+  const bobinasAbertas = useMemo(() => (todasBobinas || []).filter(b => {
+    if (!b?.id) return false;
+    const st = String(b.status || "").toLowerCase();
+    if (["arquivada", "arquivado", "zerada", "encerrada", "descartada"].includes(st)) return false;
+    if (b.setor && b.setor !== "telhas") return false;
+    if (filialAtiva && filialAtiva !== "todas" && b.unidade && b.unidade !== filialAtiva) return false;
+    if ((Number(b.peso_kg) || 0) <= 0) return false;
+    return isBobinaAberta(b);
+  }).sort((a, b) => String(a.codigo || "").localeCompare(String(b.codigo || ""), undefined, { numeric: true })), [todasBobinas, filialAtiva]);
+
+  const exigeDuasBobinas = p.produto === "TELHA + EPS + TELHA";
+  const precisaEscolherBobina = p.status === "pendente" && p.maquina !== "COLAGEM";
+  const bobinaEscolhida = !precisaEscolherBobina || (Boolean(bobSelSupId) && (!exigeDuasBobinas || Boolean(mesmaBobina ? bobSelSupId : bobSelInfId)));
+
+  const textoBobinaPorId = (id) => {
+    const b = (todasBobinas || []).find(x => x.id === id);
+    return b ? `${b.codigo || ""} ${b.cor || ""} ${b.chapa || b.espessura_real || ""}mm`.replace(/\s+/g, " ").trim() : "";
+  };
+
+  const montarUpdatesBobina = () => {
+    if (!precisaEscolherBobina || !bobSelSupId) return null;
+    const infId = exigeDuasBobinas ? (mesmaBobina ? bobSelSupId : (bobSelInfId || null)) : null;
+    return {
+      bobina_superior_id: bobSelSupId,
+      bobina_superior: textoBobinaPorId(bobSelSupId) || p.bobina_superior || "",
+      ...(exigeDuasBobinas ? {
+        bobina_inferior_id: infId,
+        bobina_inferior: textoBobinaPorId(infId) || p.bobina_inferior || ""
+      } : {})
+    };
+  };
+
   // Bobina principal da OP para extração de detalhes técnicos e origem
   const bobinaPrincipalObj = useMemo(() => {
     if (!todasBobinas || !todasBobinas.length) return null;
@@ -816,6 +854,12 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       return;
     }
     */
+    // Obrigatório escolher a(s) bobina(s) aberta(s) antes de iniciar
+    if (!bobinaEscolhida) {
+      playAlertSound();
+      alert("⚠️ Escolha a bobina que será utilizada nesta OP antes de iniciar.");
+      return;
+    }
     // Se já existe OP rodando nesta máquina, mostra confirmação
     if (opRodando && opRodando.id !== p.id && opRodando.status === "em_producao") {
       setConfirmarInicioOpen(true);
@@ -827,11 +871,12 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       setValidarEpsColagemOpen(true);
       return;
     }
-    setPendingColagemUpdates(null);
+    const updatesBobina = montarUpdatesBobina();
+    setPendingColagemUpdates(updatesBobina);
     if (regras.exigirOperadorInicio) {
       setOperadoresDialogOpen(true);
     } else {
-      handleConfirmarOperadores(null, null);
+      handleConfirmarOperadores(null, updatesBobina);
     }
   };
 
@@ -1657,177 +1702,31 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         <AlertaMultiplasOpsMesmoPedido pedido={p} todosPedidos={todosPedidos} />
 
         {/* Variações de telhas (múltiplas medidas com iniciações independentes e conferência de bobina) */}
-        {(() => {
-          let vars = [];
-          try { vars = JSON.parse(p.variacoes_telhas || "[]"); } catch { vars = []; }
-          if (!Array.isArray(vars) || vars.length === 0) return null;
-
-          const todosFinalizados = vars.every(v => v.finalizado);
-          const finalizadosCount = vars.filter(v => v.finalizado).length;
-          const emProducaoCount = vars.filter(v => v.iniciado && !v.finalizado).length;
-
-          return (
-            <div className="bg-indigo-50/50 border border-indigo-200 rounded-xl p-3 mb-3 space-y-2.5">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-2">
-                  <p className="text-xs font-bold text-indigo-700 uppercase tracking-wide flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-indigo-600" />
-                    Medidas do Pedido ({vars.length})
-                  </p>
-                  <Badge variant="outline" className="text-[11px] font-bold border-indigo-300 text-indigo-800 bg-white">
-                    {finalizadosCount}/{vars.length} concluídos
-                  </Badge>
-                </div>
-
-                {todosFinalizados ? (
-                  <span className="text-xs font-bold text-green-700 bg-green-100 border border-green-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> Todos os itens finalizados!
-                  </span>
-                ) : p.status === "pendente" ? (
-                  <span className="text-xs font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                    <Lock className="w-3 h-3 text-amber-700" /> Inicie a OP ou um item — o início é encadeado automaticamente
-                  </span>
-                ) : emProducaoCount > 0 ? (
-                  <span className="text-xs font-bold text-blue-800 bg-blue-100 border border-blue-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" /> {emProducaoCount} item(ns) em produção
-                  </span>
-                ) : null}
-              </div>
-
-              {vars.map((v, i) => {
-                const q = Number(v.qty) || 0;
-                const mm = Number(v.mm) || 0;
-                const metrosPlan = q > 0 && mm > 0 ? +((q * mm) / 1000).toFixed(2) : 0;
-                const fin = !!v.finalizado;
-                const inic = !!v.iniciado;
-
-                return (
-                  <div
-                    key={i}
-                    className={`rounded-xl border p-3 transition-all ${
-                      fin
-                        ? "bg-green-50/80 border-green-300 shadow-xs"
-                        : inic
-                        ? "bg-blue-50/70 border-blue-400 ring-2 ring-blue-300/50 shadow-sm"
-                        : "bg-white border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    <div className="flex items-start gap-2.5 text-xs">
-                      <span className={`w-5 h-5 rounded-full font-mono font-bold text-xs flex items-center justify-center shrink-0 ${
-                        fin
-                          ? "bg-green-600 text-white"
-                          : inic
-                          ? "bg-blue-600 text-white"
-                          : "bg-indigo-100 text-indigo-700"
-                      }`}>
-                        {i + 1}
-                      </span>
-
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center justify-between flex-wrap gap-1">
-                          <div>
-                            <span className={`font-bold text-sm ${fin ? "text-green-800" : inic ? "text-blue-900" : "text-slate-800"}`}>
-                              {q} pçs × {mm.toLocaleString("pt-BR")}mm
-                            </span>
-                            <span className="text-muted-foreground ml-1 font-medium">
-                              (~{metrosPlan.toFixed(2)}m planejado)
-                            </span>
-                          </div>
-
-                          {fin && (
-                            <Badge className="bg-green-600 text-white text-[11px] font-bold">
-                              ✓ Finalizado · {(v.metragem_real || metrosPlan).toFixed(1)}m real
-                            </Badge>
-                          )}
-                          {!fin && inic && (
-                            <Badge className="bg-blue-600 text-white text-[11px] font-bold animate-pulse">
-                              ⚡ Produzindo agora
-                            </Badge>
-                          )}
-                          {!fin && !inic && (
-                            <Badge variant="outline" className="text-[10px] text-slate-500 border-slate-200">
-                              Aguardando Início
-                            </Badge>
-                          )}
-                        </div>
-
-                        {/* Observações específicas desta medida/peça (se houver) */}
-                        {v.obs && (
-                          <div className="pt-0.5">
-                            <span className="text-muted-foreground text-[11px] italic">
-                              OBS: {v.obs}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Ações por Item: Iniciar com conferência de bobina OU Finalizar com foto e metragem real */}
-                    <div className="mt-2.5 pt-2 border-t border-slate-200/80">
-                      {fin ? (
-                        <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {[["Foto do Lote", v.foto_item_url], ["Telha Superior", v.foto_etapa1_url], ["Bandeja", v.foto_etapa2_url]].filter(([, url]) => url).map(([label, url]) => (
-                              <a key={label} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-green-300 text-green-800 font-bold hover:bg-green-100 transition-all shadow-xs" title={`Ver foto: ${label}`}>
-                                <Camera className="w-3.5 h-3.5 text-green-600" />
-                                <img src={url} alt={label} className="w-4 h-4 rounded object-cover border border-green-400" />
-                                <span>{label}</span>
-                              </a>
-                            ))}
-                            {v.observacao && (
-                              <span className="text-slate-600 bg-white/90 px-2 py-0.5 rounded border border-green-200 text-[11px]">
-                                <strong>Obs:</strong> {v.observacao}
-                              </span>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleReabrirItem(i)}
-                            className="text-[10px] text-muted-foreground hover:text-red-600 underline font-medium ml-auto"
-                          >
-                            Reabrir item
-                          </button>
-                        </div>
-                      ) : inic ? (
-                        <div className="flex items-center justify-between flex-wrap gap-2">
-                          <span className="text-xs text-blue-800 font-semibold flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
-                            Produzindo {v.iniciado_em ? `(desde ${format(new Date(v.iniciado_em), "HH:mm")})` : ""}
-                          </span>
-                          <Button
-                            size="sm"
-                            className="bg-green-600 hover:bg-green-700 text-white font-bold h-8 text-xs gap-1.5 shadow-sm"
-                            onClick={() => handleAbrirFinalizarItem(i)}
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Finalizar Item {i + 1}
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-between flex-wrap gap-2">
-                          <>
-                            <span className="text-xs text-slate-600 font-medium">
-                              {p.status === "pendente" ? "Ao iniciar, a OP começa junto automaticamente" : "Bobina configurada e pronta para conferir"}
-                            </span>
-                            <Button
-                              size="sm"
-                              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-8 text-xs gap-1.5 shadow-sm"
-                              onClick={() => (p.status === "pendente" ? handleIniciar() : handleIniciarItem(i))}
-                            >
-                              <Play className="w-3.5 h-3.5 fill-white" /> Iniciar Item {i + 1}
-                            </Button>
-                          </>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })()}
+        <ItensVariacoesTelhas
+          pedido={p}
+          iniciarBloqueado={!bobinaEscolhida}
+          onIniciar={handleIniciar}
+          onIniciarItem={handleIniciarItem}
+          onFinalizar={handleAbrirFinalizarItem}
+          onReabrir={handleReabrirItem}
+        />
 
         {/* Painel da Telha Bandeja na Colagem */}
         {p.maquina === "COLAGEM" && isTelhaBandeja(p) && <BandejaColagemInfoPanel maquinaOrigem={p.maquina_origem} pedido={p} />}
+
+        {/* Escolha das bobinas abertas antes de iniciar */}
+        {precisaEscolherBobina && (
+          <SeletorBobinaProducao
+            bobinas={bobinasAbertas}
+            superiorId={bobSelSupId}
+            inferiorId={bobSelInfId}
+            onSuperior={(id) => { setBobSelSupId(id); if (mesmaBobina) setBobSelInfId(id); }}
+            onInferior={setBobSelInfId}
+            exigeInferior={exigeDuasBobinas}
+            mesma={mesmaBobina}
+            onToggleMesma={() => { setMesmaBobina(v => !v); setBobSelInfId(mesmaBobina ? "" : bobSelSupId); }}
+          />
+        )}
 
         {/* DESCRIÇÃO — texto exato do item (Auto-Roteado PCP) em destaque para o operador */}
         {p.observacoes && (
@@ -1848,222 +1747,33 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
 
         {/* Se for TELHA + EPS + TELHA, exibe destaque da Bobina Inferior — CAMPO ESCRITO EDITÁVEL */}
         {p.produto === "TELHA + EPS + TELHA" && (
-          <div className="w-full bg-indigo-50/70 dark:bg-indigo-950/40 border-2 border-indigo-200 dark:border-indigo-800 rounded-2xl p-3 sm:p-4 mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-indigo-800 text-white flex items-center justify-center shrink-0 shadow-md">
-                <Layers className="w-5 h-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <span className="text-[10px] uppercase font-bold text-indigo-700 dark:text-indigo-300 tracking-wider">
-                    Bobina da Chapa Inferior (2ª Telha / Sanduíche)
-                  </span>
-                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
-                    (Automática Odoo · Campo Escrito)
-                  </span>
-                </div>
-
-                {editandoBobinaInf ? (
-                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap mt-1">
-                    <Input
-                      value={textoBobinaInf}
-                      onChange={(e) => setTextoBobinaInf(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleSalvarBobinaInf();
-                        if (e.key === "Escape") {
-                          setTextoBobinaInf(p.bobina_inferior || "");
-                          setEditandoBobinaInf(false);
-                        }
-                      }}
-                      placeholder="Digite a bobina da chapa inferior..."
-                      className="h-9 font-mono text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 border-indigo-400 focus-visible:ring-indigo-400 max-w-md"
-                      autoFocus
-                    />
-                    <Button
-                      size="sm"
-                      onClick={handleSalvarBobinaInf}
-                      disabled={salvandoBobinaInf}
-                      className="h-9 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1 shrink-0"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      Salvar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setTextoBobinaInf(p.bobina_inferior || "");
-                        setEditandoBobinaInf(false);
-                      }}
-                      disabled={salvandoBobinaInf}
-                      className="h-9 px-2 text-xs text-muted-foreground hover:text-foreground shrink-0"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      Cancelar
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span
-                      onClick={() => podeGerenciar && setEditandoBobinaInf(true)}
-                      title="Clique para editar ou ajustar o texto da bobina inferior"
-                      className={`font-mono font-black text-sm text-foreground bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-700 ${podeGerenciar ? "hover:border-indigo-500 cursor-pointer" : ""} transition-colors shadow-2xs flex items-center gap-2 group`}
-                    >
-                      <span>{bobinaInferiorVisual}</span>
-                      {podeGerenciar && <Pencil className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 transition-colors" />}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => podeGerenciar && setEditandoBobinaInf(true)}
-                      className={`h-7 px-2 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 border-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 gap-1 shrink-0 ${podeGerenciar ? "" : "hidden"}`}
-                    >
-                      <Pencil className="w-3 h-3" />
-                      Ajustar
-                    </Button>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2 flex-wrap">
-                  {/* Cor / RVM Inferior */}
-                  {!editandoCorInf ? (
-                    <span className="inline-flex items-center gap-1.5 bg-background/90 px-2 py-1 rounded-md border border-border hover:border-indigo-400 transition-colors shadow-2xs">
-                      <span className="text-[11px] text-muted-foreground font-medium">Cor / RVM:</span>
-                      <button
-                        type="button"
-                        onClick={() => { if (podeGerenciar) { setEditandoCorInf(true); setEditandoEspInf(false); } }}
-                        className={`inline-flex items-center gap-1 font-bold text-foreground ${podeGerenciar ? "hover:text-indigo-600 cursor-pointer" : "cursor-default"} transition-colors group`}
-                        title="Clique para alterar a Cor / RVM da chapa inferior"
-                      >
-                        <span>{overrideCorInf !== null ? overrideCorInf : (p.rvm_inferior || "—")}</span>
-                        {podeGerenciar && <Pencil className="w-2.5 h-2.5 text-slate-400 group-hover:text-indigo-600" />}
-                      </button>
-                    </span>
-                  ) : (
-                    <div className="w-full bg-white dark:bg-slate-900 border-2 border-indigo-500 rounded-xl p-2.5 shadow-md flex flex-col gap-2 my-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase">Cor / RVM Inferior:</span>
-                        <Input
-                          value={textoCorInf}
-                          onChange={(e) => setTextoCorInf(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleSalvarCorInf();
-                            if (e.key === "Escape") setEditandoCorInf(false);
-                          }}
-                          placeholder="Digite ou escolha abaixo..."
-                          className="h-7 text-xs font-bold w-40 bg-background"
-                          autoFocus
-                        />
-                        <Button
-                          size="sm"
-                          onClick={() => handleSalvarCorInf()}
-                          disabled={salvandoCorInf}
-                          className="h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold gap-1"
-                        >
-                          <Check className="w-3 h-3" /> Salvar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setEditandoCorInf(false)}
-                          className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-                        >
-                          <X className="w-3 h-3" />
-                        </Button>
-                      </div>
-                      <div className="flex items-center gap-1 flex-wrap">
-                        <span className="text-[10px] text-muted-foreground mr-1">Rápido:</span>
-                        {CORES_RAPIDAS.map(cor => (
-                          <button
-                            key={cor}
-                            type="button"
-                            onClick={() => handleSalvarCorInf(cor)}
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all border ${
-                              (textoCorInf || "").toLowerCase() === cor.toLowerCase()
-                                ? "bg-indigo-600 text-white border-indigo-600"
-                                : "bg-muted/60 hover:bg-indigo-50 hover:text-indigo-600 border-border text-foreground"
-                            }`}
-                          >
-                            {cor}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Espessura Inferior */}
-                  {!editandoEspInf ? (
-                    <span className="inline-flex items-center gap-1.5 bg-background/90 px-2 py-1 rounded-md border border-border hover:border-indigo-400 transition-colors shadow-2xs">
-                      <span className="text-[11px] text-muted-foreground font-medium">Espessura:</span>
-                      <button
-                        type="button"
-                        onClick={() => { if (podeGerenciar) { setEditandoEspInf(true); setEditandoCorInf(false); } }}
-                        className={`inline-flex items-center gap-1 font-bold text-foreground ${podeGerenciar ? "hover:text-indigo-600 cursor-pointer" : "cursor-default"} transition-colors group`}
-                        title="Clique para alterar a Espessura da chapa inferior"
-                      >
-                        <span>{overrideEspInf !== null ? overrideEspInf : (p.espessura_inferior || p.espessura_exigida || p.espessura || "0,43")} mm</span>
-                        {podeGerenciar && <Pencil className="w-2.5 h-2.5 text-slate-400 group-hover:text-indigo-600" />}
-                      </button>
-                    </span>
-                  ) : (
-                    <div className="w-full bg-white dark:bg-slate-900 border-2 border-indigo-500 rounded-xl p-2.5 shadow-md flex flex-col gap-2 my-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase">Espessura Inferior:</span>
-                        <Input
-                          value={textoEspInf}
-                          onChange={(e) => setTextoEspInf(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleSalvarEspInf();
-                            if (e.key === "Escape") setEditandoEspInf(false);
-                          }}
-                          placeholder="Ex: 0,43"
-                          className="h-7 text-xs font-bold w-24 bg-background"
-                          autoFocus
-                        />
-                        <span className="text-xs text-muted-foreground font-bold">mm</span>
-                        <Button
-                          size="sm"
-                          onClick={() => handleSalvarEspInf()}
-                          disabled={salvandoEspInf}
-                          className="h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold gap-1"
-                        >
-                          <Check className="w-3 h-3" /> Salvar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setEditandoEspInf(false)}
-                          className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-                        >
-                          <X className="w-3 h-3" />
-                        </Button>
-                      </div>
-                      <div className="flex items-center gap-1 flex-wrap">
-                        <span className="text-[10px] text-muted-foreground mr-1">Rápido:</span>
-                        {ESPESSURAS_RAPIDAS.map(esp => (
-                          <button
-                            key={esp}
-                            type="button"
-                            onClick={() => handleSalvarEspInf(esp)}
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all border ${
-                              (textoEspInf || "").replace(".", ",") === esp
-                                ? "bg-indigo-600 text-white border-indigo-600"
-                                : "bg-muted/60 hover:bg-indigo-50 hover:text-indigo-600 border-border text-foreground"
-                            }`}
-                          >
-                            {esp} mm
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-            <Badge className="bg-indigo-700 text-white font-bold text-xs gap-1 self-start sm:self-center">
-              <Layers className="w-3 h-3" /> Chapa Inferior
-            </Badge>
-          </div>
+          <PainelBobinaInferior
+            pedido={p}
+            podeGerenciar={podeGerenciar}
+            bobinaInferiorVisual={bobinaInferiorVisual}
+            editandoBobinaInf={editandoBobinaInf}
+            textoBobinaInf={textoBobinaInf}
+            setTextoBobinaInf={setTextoBobinaInf}
+            setEditandoBobinaInf={setEditandoBobinaInf}
+            handleSalvarBobinaInf={handleSalvarBobinaInf}
+            salvandoBobinaInf={salvandoBobinaInf}
+            editandoCorInf={editandoCorInf}
+            setEditandoCorInf={setEditandoCorInf}
+            textoCorInf={textoCorInf}
+            setTextoCorInf={setTextoCorInf}
+            handleSalvarCorInf={handleSalvarCorInf}
+            salvandoCorInf={salvandoCorInf}
+            editandoEspInf={editandoEspInf}
+            setEditandoEspInf={setEditandoEspInf}
+            textoEspInf={textoEspInf}
+            setTextoEspInf={setTextoEspInf}
+            handleSalvarEspInf={handleSalvarEspInf}
+            salvandoEspInf={salvandoEspInf}
+            overrideCorInf={overrideCorInf}
+            overrideEspInf={overrideEspInf}
+            CORES_RAPIDAS={CORES_RAPIDAS}
+            ESPESSURAS_RAPIDAS={ESPESSURAS_RAPIDAS}
+          />
         )}
 
         {/* Detalhes técnicos complementares — ocultos para operador */}
@@ -2233,6 +1943,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                           : "bg-amber-500 hover:bg-amber-600 text-white font-bold shadow-xs"
                       }`}
                       onClick={handleIniciar}
+                      disabled={!bobinaEscolhida}
+                      title={!bobinaEscolhida ? "Escolha a bobina antes de iniciar" : undefined}
                     >
                       <Play className="w-3 h-3 fill-current" /> {p.maquina === "COLAGEM" ? "Iniciar Colagem" : (p.etapa_anterior_concluida || (p.maquina === "BANDEJA" && isTelhaBandeja(p))) ? "Continuar na Bandeja" : "Iniciar"}
                     </Button>
