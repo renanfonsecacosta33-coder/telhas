@@ -1694,10 +1694,12 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
           </div>
         </div>
 
-        {/* Roteiro Completo da Telha na Fábrica (PCP → Bobina → Perfilação → Colagem → Expedição) */}
-        <div className="mb-2.5">
-          <ProcessoStepperPedido pedido={p} setor="telhas" compacto={true} />
-        </div>
+        {/* Roteiro Completo da Telha na Fábrica — oculto para operador */}
+        {!isOperador && (
+          <div className="mb-2.5">
+            <ProcessoStepperPedido pedido={p} setor="telhas" compacto={true} />
+          </div>
+        )}
 
         <AlertaMultiplasOpsMesmoPedido pedido={p} todosPedidos={todosPedidos} />
 
@@ -1745,8 +1747,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
           </div>
         )}
 
-        {/* Se for TELHA + EPS + TELHA, exibe destaque da Bobina Inferior — CAMPO ESCRITO EDITÁVEL */}
-        {p.produto === "TELHA + EPS + TELHA" && (
+        {/* Bobina inferior (2ª telha / sanduíche) — oculto para operador */}
+        {p.produto === "TELHA + EPS + TELHA" && !isOperador && (
           <PainelBobinaInferior
             pedido={p}
             podeGerenciar={podeGerenciar}
