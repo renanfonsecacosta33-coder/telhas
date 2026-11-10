@@ -1655,41 +1655,6 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         </div>
 
         <AlertaMultiplasOpsMesmoPedido pedido={p} todosPedidos={todosPedidos} />
-        {(p.metros > 0 || p.metragem_mm > 0 || temVariacoes) && (
-          <div className="flex items-stretch gap-2 mb-3">
-            <div className="flex-1 bg-muted/50 border rounded-xl px-3 py-2 text-center">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{isBobininha ? "Qtd. Bobininhas" : "Qtd. Telhas"}</p>
-              <p className="text-2xl font-black text-foreground leading-none">
-                {temVariacoes
-                  ? _variacoesTelhas.reduce((s, v) => s + (Number(v.qty) || 0), 0).toLocaleString("pt-BR")
-                  : Number(p.metros || 0).toLocaleString("pt-BR")}
-              </p>
-              <p className="text-xs text-muted-foreground/70 font-medium">{isBobininha ? "bobininhas" : "peças"}</p>
-            </div>
-
-            <div className="flex-1 bg-muted/50 border rounded-xl px-3 py-2 text-center">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                {temVariacoes ? "Medidas" : "Comprimento"}
-              </p>
-              <p className="text-2xl font-black text-foreground leading-none">
-                {temVariacoes
-                  ? `${_variacoesTelhas.length}`
-                  : Number(p.metragem_mm || 0).toLocaleString("pt-BR")}
-              </p>
-              <p className="text-xs text-muted-foreground/70 font-medium">
-                {temVariacoes ? "diferentes" : (isBobininha ? "mm por bobininha" : "mm por peça")}
-              </p>
-            </div>
-
-            <div className="flex-1 bg-muted/50 border rounded-xl px-3 py-2 text-center">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Total</p>
-              <p className="text-2xl font-black text-primary leading-none">
-                {metragemTotalCalculada.toFixed(1)}
-              </p>
-              <p className="text-xs text-muted-foreground/70 font-medium">metros</p>
-            </div>
-          </div>
-        )}
 
         {/* Variações de telhas (múltiplas medidas com iniciações independentes e conferência de bobina) */}
         {(() => {
@@ -2131,22 +2096,6 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
               </div>
             );
           })()}
-          {p.rvm_superior && (
-            <span className={`bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded-full ${isOperador ? "hidden" : ""}`}>
-              {p.rvm_superior}{p.rvm_inferior ? ` / ${p.rvm_inferior}` : ""}
-            </span>
-          )}
-          {temEpsReal && p.eps && (
-            <span className={`bg-emerald-50 text-emerald-700 text-xs px-2 py-0.5 rounded-full ${isOperador ? "hidden" : ""}`}>EPS: {p.eps}</span>
-          )}
-          {p.kg_total > 0 && (
-            <span className={`bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full ${isOperador ? "hidden" : ""}`}>{p.kg_total} kg</span>
-          )}
-          {p.data_prevista && (
-            <span className={`bg-orange-50 text-orange-700 text-xs px-2 py-0.5 rounded-full ${isOperador ? "hidden" : ""}`}>
-              Previsto: {format(new Date(p.data_prevista + "T12:00:00"), "dd/MM")}
-            </span>
-          )}
         </div>
 
         {/* Foto da OP física */}
