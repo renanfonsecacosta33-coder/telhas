@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { base44 } from "@/api/base44Client";
+import { avancarProximaEtapaRoteiroCD } from "@/lib/roteamentoCorteDobraHelper";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -301,6 +302,14 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
       const res = await base44.entities.OrdemDesbobinadeira.update(id, data);
       // Se a ordem foi finalizada, aciona a criação de ChapaCD e o desconto na Bobina em segundo plano (não bloqueia a UI)
       if (data?.status === "finalizado") {
+        avancarProximaEtapaRoteiroCD(res, "OrdemDesbobinadeira").then((avanco) => {
+          if (avanco?.avancou && avanco.proximaMaquina) {
+            toast.success(`OP avançada automaticamente para ${avanco.proximaMaquina}!`);
+            queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
+            queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd-todas"] });
+          }
+        }).catch(e => console.warn("[Desbobinadeira] Falha ao avançar roteiro:", e));
+
         base44.functions.invoke("descontarEstoqueDesbobinadeira", { ordem_id: id })
           .then((funcRes) => {
             if (funcRes?.data?.chapa?.codigo) {

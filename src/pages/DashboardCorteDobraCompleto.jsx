@@ -310,10 +310,7 @@ export default function DashboardCorteDobraCompleto() {
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer ${aba === "estoque" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
             <Package className="w-3.5 h-3.5 inline mr-1.5" />Estoque
           </button>
-          <button onClick={() => setAba("fila_pcp")}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer ${aba === "fila_pcp" ? "bg-white shadow text-orange-600" : "text-muted-foreground hover:text-foreground"}`}>
-            <Inbox className="w-3.5 h-3.5 inline mr-1.5" />Fila PCP
-          </button>
+          {/* Fila PCP substituída pelo roteamento direto às máquinas pelo PCP */}
         </div>
       </div>
 
@@ -653,8 +650,8 @@ export default function DashboardCorteDobraCompleto() {
         </>
       )}
 
-      {/* ══════════════ ABA FILA PCP ══════════════ */}
-      {aba === "fila_pcp" && <FilaPCPCorteDobra />}
+      {/* ══════════════ ABA FILA PCP (DESCONTINUADA - ROTEAMENTO DIRETO) ══════════════ */}
+      {/* {aba === "fila_pcp" && <FilaPCPCorteDobra />} */}
 
       {/* ══════════════ ABA ESTOQUE ══════════════ */}
       {aba === "estoque" && (

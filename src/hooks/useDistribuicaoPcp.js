@@ -21,15 +21,16 @@ export default function useDistribuicaoPcp({
   const [distribuindo, setDistribuindo] = useState(false);
   const envioAtivo = useRef(false);
 
-  const handleDistribuir = async (pedido) => {
+  const handleDistribuir = async (pedido, roteiroCDPorItem = null) => {
     if (envioAtivo.current) return;
     envioAtivo.current = true;
     setDistribuindo(true); iniciarEnvio([pedido.id]);
     try {
-      const { atualizado, telhasAutoRoteadas, bobinasVinculadas } = await distribuirPedidoPCP({
+      const { atualizado, telhasAutoRoteadas, bobinasVinculadas, cdAutoRoteados } = await distribuirPedidoPCP({
         pedido,
         bobinasEstoque,
-        filialAtiva
+        filialAtiva,
+        roteiroCDPorItem
       });
 
       concluirEnvio([pedido.id]);
@@ -38,13 +39,21 @@ export default function useDistribuicaoPcp({
       queryClient.invalidateQueries({ queryKey: ["bobinas-estoque-pcp"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
       queryClient.invalidateQueries({ queryKey: ["resumo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd-todas"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-desb-todas"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
       setPedidoSelecionado({ ...pedido, ...atualizado });
 
-      if (telhasAutoRoteadas > 0) {
+      const partesMsg = [];
+      if (telhasAutoRoteadas > 0) partesMsg.push(`${telhasAutoRoteadas} telha(s) nas perfiladeiras`);
+      if (cdAutoRoteados > 0) partesMsg.push(`${cdAutoRoteados} item(ns) de C&D direto nas máquinas`);
+
+      if (partesMsg.length > 0) {
         toast({
-          title: "⚡ Telhas Roteadas Direto p/ Máquinas!",
-          description: `#${pedido.numero_pedido}: ${telhasAutoRoteadas} telha(s) nas perfiladeiras (${bobinasVinculadas} com bobina vinculada pelo Odoo). C&D na fila normal.`,
-          className: "border-amber-500/40"
+          title: "⚡ Produção Roteada Direto p/ as Máquinas!",
+          description: `#${pedido.numero_pedido}: ${partesMsg.join(" e ")}.`,
+          className: "border-emerald-500/40"
         });
       } else {
         toast({

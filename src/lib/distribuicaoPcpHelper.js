@@ -4,6 +4,7 @@ import { buscarOpsDasOfs } from "@/lib/consultaFilaPcp";
 import { isAutoRoteamentoTelhasAtivo, rotearLoteTelhasAgrupadas, comRetry } from "@/lib/autoBobinaTelhasHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import { carregarOpsDosPedidos, pedidoJaProduzido, fecharPedidosProduzidos } from "@/lib/reconciliacaoProducaoFinalizada";
+import { rotearItensCorteDobraDireto } from "@/lib/roteamentoCorteDobraHelper";
 
 // Pedidos processados simultaneamente na distribuição em lote.
 // (Cada pedido já roda seus grupos de telha em paralelo — 2 pedidos mantêm a
@@ -67,15 +68,15 @@ export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinas
  * "meio distribuído" na fila do PCP.
  * Retorna { atualizado, telhasAutoRoteadas, bobinasVinculadas }.
  */
-export async function distribuirPedidoPCP({ pedido, bobinasEstoque = [], filialAtiva = "todas", opsExistentesPre = null, indicesAlvo = null, itensProgramados = null, forcarRoteamento = false }) {
+export async function distribuirPedidoPCP({ pedido, bobinasEstoque = [], filialAtiva = "todas", opsExistentesPre = null, indicesAlvo = null, itensProgramados = null, forcarRoteamento = false, roteiroCDPorItem = null }) {
   const atual = await base44.entities.PedidoOdoo.get(pedido.id);
-  if (atual.status_pcp === "concluido") return { atualizado: atual, telhasAutoRoteadas: 0, bobinasVinculadas: 0 };
+  if (atual.status_pcp === "concluido") return { atualizado: atual, telhasAutoRoteadas: 0, bobinasVinculadas: 0, cdAutoRoteados: 0 };
   // Trava anti-pedido-zumbi: se as OPs das máquinas já estão finalizadas, o pedido
   // é concluído no PCP em vez de voltar para a fábrica.
   const opsReais = await carregarOpsDosPedidos([atual]);
   if (pedidoJaProduzido(atual, opsReais.opsTelhas, opsReais.opsCD)) {
     await fecharPedidosProduzidos({ pedidos: [atual], ...opsReais });
-    return { atualizado: { ...atual, status_pcp: "concluido", percentual_concluido: 100 }, telhasAutoRoteadas: 0, bobinasVinculadas: 0 };
+    return { atualizado: { ...atual, status_pcp: "concluido", percentual_concluido: 100 }, telhasAutoRoteadas: 0, bobinasVinculadas: 0, cdAutoRoteados: 0 };
   }
   const itens = getItens(atual).map((it, idx) => itensProgramados?.[idx] ? { ...it, maquina: itensProgramados[idx].maquina, data_programada: itensProgramados[idx].data_programada } : it);
   if (!itens.length) throw new Error("Esta OF não possui itens válidos para distribuir.");
@@ -85,6 +86,19 @@ export async function distribuirPedidoPCP({ pedido, bobinasEstoque = [], filialA
   let resultado = { opsCriadas: [], itensAtualizadosMap: {}, erros: [] };
   if (auto && telhas.length) resultado = await rotearLoteTelhasAgrupadas({ pedido: atual, itensTelhas: telhas, todasBobinas: bobinasEstoque, filialAtiva: atual.unidade || filialAtiva, opsExistentesPre });
   if (resultado.erros?.length && !resultado.opsCriadas.length) throw new Error(resultado.erros.map(e => e.message).join("; "));
+
+  // ── Roteamento Direto de Corte & Dobra para Máquinas ──
+  const itensCD = itensPorGrupo(alvo, "cd");
+  let resultadoCD = { opsCriadas: [], itensAtualizadosMap: {}, erros: [] };
+  if (itensCD.length > 0 && roteiroCDPorItem) {
+    resultadoCD = await rotearItensCorteDobraDireto({
+      pedido: atual,
+      itensCD,
+      roteiroFinalPorItem: roteiroCDPorItem,
+      filialAtiva: atual.unidade || filialAtiva
+    });
+  }
+
   const frescos = await base44.entities.PedidoOdoo.get(atual.id);
   if (frescos.retirado_manualmente_ts && frescos.retirado_manualmente_ts !== atual.retirado_manualmente_ts) throw new Error("A OF foi devolvida ao PCP durante o envio. Revise as OPs criadas antes de continuar.");
   const indices = new Set(alvo.map(it => it._idx));
@@ -92,16 +106,19 @@ export async function distribuirPedidoPCP({ pedido, bobinasEstoque = [], filialA
     if (!indices.has(idx) || it.concluido || it.status === "concluido") return it;
     const programacao = itensProgramados?.[idx] ? { maquina: itensProgramados[idx].maquina, data_programada: itensProgramados[idx].data_programada } : {};
     if (auto && classGrupo(it) === "telha") return { ...it, ...programacao, ...(resultado.itensAtualizadosMap[idx] || { distribuido: false, status: "pendente" }) };
+    if (classGrupo(it) === "cd" && resultadoCD.itensAtualizadosMap[idx]) return { ...it, ...programacao, ...resultadoCD.itensAtualizadosMap[idx], distribuido: true, status: "distribuido" };
     return { ...it, ...programacao, distribuido: true, status: it.status === "em_producao" ? "em_producao" : "distribuido" };
   });
   const pendente = finais.some(it => !it.concluido && it.status !== "concluido" && !it.distribuido);
   const concluido = finais.every(it => it.concluido || it.status === "concluido");
-  const status = concluido ? "concluido" : pendente ? "pendente_distribuicao" : resultado.opsCriadas.some(o => ["em_producao", "pausado", "aguardando_colagem"].includes(o.status)) ? "em_producao" : "distribuido";
-  const percentual = calcularProgressoRealPedido({ ...frescos, itens: finais }, resultado.opsCriadas);
-  const log = JSON.parse(frescos.historico_log || "[]");
-  log.push({ data: new Date().toISOString(), usuario: "PCP", acao: pendente ? "distribuicao_parcial" : "distribuicao", detalhes: `${resultado.opsCriadas.length} OP(s) confirmada(s).${resultado.erros?.length ? ` Pendências: ${resultado.erros.map(e => e.message).join("; ")}` : ""}` });
+  const todasOpsCriadas = [...(resultado.opsCriadas || []), ...(resultadoCD.opsCriadas || [])];
+  const status = concluido ? "concluido" : pendente ? "pendente_distribuicao" : todasOpsCriadas.some(o => ["em_producao", "pausado", "aguardando_colagem"].includes(o.status)) ? "em_producao" : "distribuido";
+  const percentual = calcularProgressoRealPedido({ ...frescos, itens: finais }, resultado.opsCriadas, resultadoCD.opsCriadas);
+  let log = [];
+  try { log = JSON.parse(frescos.historico_log || "[]"); } catch { log = []; }
+  log.push({ data: new Date().toISOString(), usuario: "PCP", acao: pendente ? "distribuicao_parcial" : "distribuicao", detalhes: `${todasOpsCriadas.length} OP(s) confirmada(s).${resultado.erros?.length ? ` Pendências: ${resultado.erros.map(e => e.message).join("; ")}` : ""}` });
   const atualizado = await comRetry(() => base44.entities.PedidoOdoo.update(atual.id, { itens_json: buildItensJson(finais), status_pcp: status, percentual_concluido: percentual, retirado_manualmente_ts: "", historico_log: JSON.stringify(log) }));
   notificarStatus(atualizado, "distribuido", { status_novo: status, percentual_concluido: percentual }).catch(() => {});
   if (resultado.erros?.length) throw new Error(`Envio parcial preservado. ${resultado.erros.map(e => e.message).join("; ")}`);
-  return { atualizado, telhasAutoRoteadas: resultado.opsCriadas.length, bobinasVinculadas: resultado.opsCriadas.filter(o => o.bobina_superior_id).length };
+  return { atualizado, telhasAutoRoteadas: resultado.opsCriadas.length, bobinasVinculadas: resultado.opsCriadas.filter(o => o.bobina_superior_id).length, cdAutoRoteados: (resultadoCD.opsCriadas || []).length };
 }

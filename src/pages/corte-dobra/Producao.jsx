@@ -1244,15 +1244,7 @@ export default function ProducaoCD() {
 
           <div className="h-5 w-px bg-border/60 mx-1 hidden sm:block" />
 
-          <Button
-            variant={viewMode === "fila_pcp" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("fila_pcp")}
-            className={`gap-1.5 text-xs font-bold ${viewMode === "fila_pcp" ? "bg-orange-500 hover:bg-orange-600 text-white shadow-xs" : ""}`}
-          >
-            <Inbox className="w-3.5 h-3.5" />
-            <span>Fila PCP</span>
-          </Button>
+          {/* Fila PCP substituída pelo roteamento direto às máquinas pelo PCP */}
 
           <Button
             variant={viewMode === "sem_material" ? "default" : "outline"}

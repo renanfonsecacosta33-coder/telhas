@@ -36,6 +36,7 @@ import {
   getCardPrioridadeClasses
 } from "@/lib/prioridadeHelper";
 import { notificarStatus } from "@/lib/biNotificador";
+import { avancarProximaEtapaRoteiroCD } from "@/lib/roteamentoCorteDobraHelper";
 import { useRegrasProducao } from "@/lib/regrasProducao";
 import CroquiPeca2D from "@/components/corte-dobra/CroquiPeca2D";
 
@@ -370,6 +371,13 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
     if (o.ordem_dobra_maquina && modBlankVal && modDescVal.trim()) {
       toast.success("OBD repassada para a dobra!");
     }
+
+    // ⚡ Avanço Automático do Roteiro de Corte & Dobra definido pelo PCP
+    avancarProximaEtapaRoteiroCD(o, "OrdemMaquinaCD").then((res) => {
+      if (res?.avancou && res.proximaMaquina) {
+        toast.success(`OP encaminhada automaticamente para a próxima máquina: ${res.proximaMaquina}!`);
+      }
+    }).catch(errAvanco => console.warn("[OrdemMaquinaRow] Falha ao avançar roteiro:", errAvanco));
 
     // Notifica Mini BI do Odoo e atualiza status do item no PedidoOdoo
     if (o.numero_pedido) {

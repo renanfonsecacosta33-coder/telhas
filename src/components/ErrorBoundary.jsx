@@ -10,7 +10,7 @@ export class ErrorBoundary extends React.Component {
       hasError: false,
       error: null,
       errorInfo: null,
-      mostrarDetalhes: false,
+      mostrarDetalhes: true,
       copiado: false,
     };
   }

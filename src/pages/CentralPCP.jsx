@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import PedidoOdooCard from "@/components/pcp/PedidoOdooCard";
 import PedidoOdooGrupoCard from "@/components/pcp/PedidoOdooGrupoCard";
 import PedidoOdooDetalheDialog from "@/components/pcp/PedidoOdooDetalheDialog";
+import ModalRoteamentoCD from "@/components/pcp/ModalRoteamentoCD";
 import WebhookSimulatorDialog from "@/components/pcp/WebhookSimulatorDialog";
 import RecuperarPedidoOdooDialog from "@/components/pcp/RecuperarPedidoOdooDialog";
 import AuditarRestaurarOpsDialog from "@/components/pcp/AuditarRestaurarOpsDialog";
@@ -162,6 +163,7 @@ export default function CentralPCP() {
   const [filtroSetor, setFiltroSetor] = useState("todos"); // "todos" | "telhas" | "corte_dobra" | "ambos"
   const [mostrarConcluidosEmTodos, setMostrarConcluidosEmTodos] = useState(false);
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
+  const [modalRoteamentoCD, setModalRoteamentoCD] = useState({ aberto: false, pedido: null, itensCD: [] });
   const [detalheOpen, setDetalheOpen] = useState(false);
   const [webhookOpen, setWebhookOpen] = useState(false);
   const [recuperarModalOpen, setRecuperarModalOpen] = useState(false);
@@ -1215,6 +1217,40 @@ export default function CentralPCP() {
   const { distribuindo, handleDistribuir, handleDistribuirLote } = useDistribuicaoPcp({
     bobinasEstoque, filialAtiva, queryClient, toast, setPedidoSelecionado, setSelecionados
   });
+
+  const iniciarDistribuicaoComRoteamento = (pedido) => {
+    if (!pedido) return;
+    const itens = getItens(pedido);
+    const itensCDPendentes = itens
+      .map((it, idx) => ({ ...it, _idx: idx }))
+      .filter(it => classGrupo(it) === "cd" && !it.concluido && it.status !== "concluido");
+
+    if (itensCDPendentes.length > 0) {
+      setModalRoteamentoCD({
+        aberto: true,
+        pedido,
+        itensCD: itensCDPendentes
+      });
+    } else {
+      handleDistribuir(pedido);
+    }
+  };
+
+  const handleConfirmarRoteamentoCD = async (roteiroPorItem) => {
+    if (!modalRoteamentoCD.pedido) return;
+    const pedidoAlvo = modalRoteamentoCD.pedido;
+    setModalRoteamentoCD({ aberto: false, pedido: null, itensCD: [] });
+    await handleDistribuir(pedidoAlvo, roteiroPorItem);
+  };
+
+  const handleDistribuirGrupoWrapper = (pedidosAlvo) => {
+    const lista = Array.isArray(pedidosAlvo) ? pedidosAlvo : [pedidosAlvo];
+    if (lista.length === 1) {
+      iniciarDistribuicaoComRoteamento(lista[0]);
+    } else {
+      handleDistribuirLote(lista);
+    }
+  };
 
   const handleToggleSelect = (pedido) => {
     setSelecionados(prev => {
@@ -2371,8 +2407,8 @@ export default function CentralPCP() {
                 onToggleSelect={handleToggleSelect}
                 onToggleSelectGrupo={handleToggleSelectGrupo}
                 onOpenDetalhe={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
-                onDistribuir={handleDistribuir}
-                onDistribuirGrupo={handleDistribuirLote}
+                onDistribuir={iniciarDistribuicaoComRoteamento}
+                onDistribuirGrupo={handleDistribuirGrupoWrapper}
                 onFinalizarOP={(p) => handleSolicitarFinalizar100([p])}
                 onFinalizarGrupo100={(lista) => handleSolicitarFinalizar100(lista)}
                 onOpenHistorico={(num) => setPedidoHistoricoNumero(num)}
@@ -2386,8 +2422,8 @@ export default function CentralPCP() {
                 pedidos={filtro === "todos" ? [...pedidosAtivosEmTodos, ...pedidosConcluidosEmTodos] : pedidosFiltrados}
                 gruposPedidos={gruposPedidos}
                 onOpenDetalhe={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
-                onDistribuir={handleDistribuir}
-                onDistribuirGrupo={handleDistribuirLote}
+                onDistribuir={iniciarDistribuicaoComRoteamento}
+                onDistribuirGrupo={handleDistribuirGrupoWrapper}
                 onFinalizarOP={(p) => handleSolicitarFinalizar100([p])}
                 onFinalizarGrupo100={(lista) => handleSolicitarFinalizar100(lista)}
                 onOpenHistorico={(num) => setPedidoHistoricoNumero(num)}
@@ -2407,8 +2443,8 @@ export default function CentralPCP() {
                     selecionados={selecionados}
                     onToggleSelect={handleToggleSelect}
                     onToggleSelectGrupo={handleToggleSelectGrupo}
-                    onDistribuir={handleDistribuir}
-                    onDistribuirGrupo={handleDistribuirLote}
+                    onDistribuir={iniciarDistribuicaoComRoteamento}
+                    onDistribuirGrupo={handleDistribuirGrupoWrapper}
                     onClickPedido={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
                     onDelete={solicitarExclusaoIndividual}
                     onDeleteGrupo={solicitarExclusaoGrupo}
@@ -2435,7 +2471,7 @@ export default function CentralPCP() {
                     ordensCD={ordensCD}
                     selecionado={selecionados.has(p.id)}
                     onToggleSelect={handleToggleSelect}
-                    onDistribuir={handleDistribuir}
+                    onDistribuir={iniciarDistribuicaoComRoteamento}
                     onClick={() => { setPedidoSelecionado(p); setDetalheOpen(true); }}
                     onDelete={solicitarExclusaoIndividual}
                     onRetirarFila={handleRetirarFila}
@@ -2498,8 +2534,8 @@ export default function CentralPCP() {
                           selecionados={selecionados}
                           onToggleSelect={handleToggleSelect}
                           onToggleSelectGrupo={handleToggleSelectGrupo}
-                          onDistribuir={handleDistribuir}
-                          onDistribuirGrupo={handleDistribuirLote}
+                          onDistribuir={iniciarDistribuicaoComRoteamento}
+                          onDistribuirGrupo={handleDistribuirGrupoWrapper}
                           onClickPedido={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
                           onDelete={solicitarExclusaoIndividual}
                           onDeleteGrupo={solicitarExclusaoGrupo}
@@ -2526,7 +2562,7 @@ export default function CentralPCP() {
                           ordensCD={ordensCD}
                           selecionado={selecionados.has(p.id)}
                           onToggleSelect={handleToggleSelect}
-                          onDistribuir={handleDistribuir}
+                          onDistribuir={iniciarDistribuicaoComRoteamento}
                           onClick={() => { setPedidoSelecionado(p); setDetalheOpen(true); }}
                           onDelete={solicitarExclusaoIndividual}
                           onRetirarFila={handleRetirarFila}
@@ -2551,7 +2587,7 @@ export default function CentralPCP() {
         progressoReal={pedidoSelecionado ? calcularProgressoRealPedido(pedidoSelecionado, pedidosProducao, ordensCD) : null}
         open={detalheOpen}
         onOpenChange={setDetalheOpen}
-        onDistribuir={handleDistribuir}
+        onDistribuir={iniciarDistribuicaoComRoteamento}
         distribuindo={distribuindo}
         onExcluirOS={handleExcluirOS}
         onRetirarFila={handleRetirarFila}
@@ -2568,6 +2604,18 @@ export default function CentralPCP() {
           queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
           queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
         }}
+      />
+
+      {/* Modal de Roteamento de Corte & Dobra Direto para as Máquinas */}
+      <ModalRoteamentoCD
+        open={modalRoteamentoCD.aberto}
+        onOpenChange={(aberto) => {
+          if (!aberto) setModalRoteamentoCD({ aberto: false, pedido: null, itensCD: [] });
+        }}
+        pedido={modalRoteamentoCD.pedido}
+        itensCD={modalRoteamentoCD.itensCD}
+        onConfirmar={handleConfirmarRoteamentoCD}
+        distribuindo={distribuindo}
       />
 
       {/* Modal de Histórico de Exclusões PCP */}
