@@ -31,9 +31,9 @@ export default function useFilaPaginada({ entidade, query, prefixo, sort = "data
       salvarCacheLocal(cacheKey, records);
       return records;
     },
-    staleTime: 30000, refetchOnWindowFocus: false, retry: false
+    staleTime: 60000, refetchOnWindowFocus: false, retry: false
   });
-  const total = useQuery({ queryKey: [...queryKey, "total"], queryFn: () => base44.entities[entidade].count(query), staleTime: 30000, retry: false });
+  const total = useQuery({ queryKey: [...queryKey, "total"], queryFn: () => base44.entities[entidade].count(query), staleTime: 60000, retry: false });
   const carregarMais = async () => {
     if (!estado.next || carregandoMais) return;
     setCarregandoMais(true);

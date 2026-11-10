@@ -52,7 +52,7 @@ import {
   obterStatusExecucaoPedido, classGrupo
 } from "@/lib/pedidoOdooHelper";
 import useDistribuicaoPcp from "@/hooks/useDistribuicaoPcp"; import useProgramacaoPcp from "@/hooks/useProgramacaoPcp";
-import useFilaPaginada from "@/hooks/useFilaPaginada";
+import useFilaPaginada from "@/hooks/useFilaPaginada"; import useRealtimeThrottled from "@/hooks/useRealtimeThrottled";
 import FilaPagination from "@/components/pcp/FilaPagination";
 import { montarConsultaPcp, buscarOpsDasOfs } from "@/lib/consultaFilaPcp";
 import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
@@ -480,14 +480,8 @@ export default function CentralPCP() {
     preBaixaOpsMap
   }), [bobinasEstoque, chapasEstoque, preBaixaMap, preBaixaMetrosMap, preBaixaOpsMap]);
 
-  // Subscription: atualiza percentual/status em tempo real quando os galpões concluem itens
-  useEffect(() => {
-    const unsubscribe = base44.entities.PedidoOdoo.subscribe(() => {
-      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
-      queryClient.invalidateQueries({ queryKey: ["resumo-pcp"] });
-    });
-    return unsubscribe;
-  }, [queryClient]);
+  // Tempo real com throttle: rajadas de gravação viram um único refetch da fila
+  useRealtimeThrottled({ entidade: "PedidoOdoo", queryKey: ["pedidos-odoo-pcp"], chaveSecundaria: ["resumo-pcp"] });
 
   // Sincronização 100% Automática em Tempo Real com o Odoo ERP:
   // Detecta alterações no progresso real das máquinas e sincroniza tanto o banco quanto o Odoo

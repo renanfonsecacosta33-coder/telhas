@@ -48,11 +48,12 @@ export default function SupabaseRealtimeSync() {
         queryClient.invalidateQueries({ queryKey: ['chapas-cd'], ...refetchOpt });
       };
 
-      // Throttle de 2.5s se já disparou recentemente, ou debounce de 1000ms
-      if (tempoDecorrido < 2500) {
-        timer = setTimeout(executar, 2500 - tempoDecorrido);
+      // Throttle de 8s: a fábrica grava em rajada e cada disparo refaz várias consultas,
+      // o que estourava o limite de requisições por minuto (429 / rate limit).
+      if (tempoDecorrido < 8000) {
+        timer = setTimeout(executar, 8000 - tempoDecorrido);
       } else {
-        timer = setTimeout(executar, 1000);
+        timer = setTimeout(executar, 1200);
       }
     };
 
