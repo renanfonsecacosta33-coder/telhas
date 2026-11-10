@@ -635,9 +635,13 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     if (["arquivada", "arquivado", "zerada", "encerrada", "descartada"].includes(st)) return false;
     if (b.setor && b.setor !== "telhas") return false;
     if (filialAtiva && filialAtiva !== "todas" && b.unidade && b.unidade !== filialAtiva) return false;
-    if ((Number(b.peso_kg) || 0) <= 0) return false;
-    return isBobinaAberta(b);
-  }).sort((a, b) => String(a.codigo || "").localeCompare(String(b.codigo || ""), undefined, { numeric: true })), [todasBobinas, filialAtiva]);
+    return (Number(b.peso_kg) || 0) > 0;
+  }).sort((a, b) => {
+    const abA = isBobinaAberta(a) ? 0 : 1;
+    const abB = isBobinaAberta(b) ? 0 : 1;
+    if (abA !== abB) return abA - abB;
+    return String(a.codigo || "").localeCompare(String(b.codigo || ""), undefined, { numeric: true });
+  }), [todasBobinas, filialAtiva]);
 
   const exigeDuasBobinas = p.produto === "TELHA + EPS + TELHA";
   const precisaEscolherBobina = p.status === "pendente" && p.maquina !== "COLAGEM";

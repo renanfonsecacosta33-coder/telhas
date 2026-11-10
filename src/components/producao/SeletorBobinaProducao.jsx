@@ -31,7 +31,7 @@ export default function SeletorBobinaProducao({
             Bobinas desta OP
           </p>
           <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-            Escolha entre as bobinas abertas
+            Escolha a bobina (as abertas aparecem primeiro)
           </p>
         </div>
       </div>
@@ -39,7 +39,7 @@ export default function SeletorBobinaProducao({
       {semBobinas ? (
         <div className="flex items-center gap-2 text-xs font-semibold text-amber-800 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-2">
           <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-          Nenhuma bobina aberta encontrada. Abra uma bobina no estoque para iniciar esta OP.
+          Nenhuma bobina disponível nesta filial. Cadastre/abra uma bobina no estoque para iniciar esta OP.
         </div>
       ) : (
         <div className={`grid gap-2 ${exigeInferior ? "sm:grid-cols-2" : "sm:grid-cols-1"}`}>
