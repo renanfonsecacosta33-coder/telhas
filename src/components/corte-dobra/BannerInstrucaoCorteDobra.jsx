@@ -45,12 +45,16 @@ export function classificarItemCorteDobra(ordem, specTecOverride = null) {
     return String(m || "").trim();
   }).filter(Boolean);
 
-  const temDobraRoteiro = maquinas.some(m => String(m).toUpperCase().includes("DOBRA"));
-  const maquinaAtualDobra = String(o.maquina || "").toUpperCase().includes("DOBRA");
+  const maquinaAtualUpper = String(o.maquina || o.maquina_inicial || "").toUpperCase();
+  const isMaquinaDobra = maquinaAtualUpper.includes("DOBRA");
+  const isMaquinaCorteOuDesb = maquinaAtualUpper.includes("DESBOBINADEIRA") || maquinaAtualUpper.includes("CORTE") || maquinaAtualUpper.includes("GUILHOTINA");
+
+  const textoChapa = /(?:chapa|blank)/i.test(textoCompleto);
   const textoTemDobra = /(?:dobr|perfil|cantoneira|calha|cartola|degrau|pingadeira|rufo|\bl\b|\bu\b)/i.test(textoCompleto);
 
-  // É perfil dobrado se passar pela dobradeira ou tiver abas/tipo de dobra
-  const isPerfilDobrado = temDobraRoteiro || maquinaAtualDobra || (textoTemDobra && !/(?:chapa\s*lisa|blank)/i.test(textoCompleto));
+  // 🛡️ Regra aprovada: No Desbobinador e Guilhotina é sempre CHAPA (ex: 10 Chapas).
+  // Só vira BARRA/PERFIL quando a ordem estiver fisicamente na Dobradeira!
+  const isPerfilDobrado = isMaquinaDobra ? true : (isMaquinaCorteOuDesb ? false : (textoTemDobra && !textoChapa));
   const isChapaLisa = !isPerfilDobrado;
 
   const tipoMetrica = isChapaLisa ? "chapa" : "barra";
@@ -146,11 +150,35 @@ export default function BannerInstrucaoCorteDobra({ ordem, specTec = null, class
               </span>
             )}
 
-            {ordem.material_espessura || ordem.espessura_utilizada ? (
-              <span className="font-mono font-black text-xs px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-950/70 text-blue-900 dark:text-blue-200 border border-blue-300 dark:border-blue-700">
-                ⚡ {ordem.material_espessura || ordem.espessura_utilizada} mm
-              </span>
-            ) : null}
+            {/* Espessura da Chapa Exigida pelo Pedido em Destaque Absoluto */}
+            {(() => {
+              const espExigida = ordem.espessura_exigida || ordem.material_espessura || (spec?.espessura_mm ? String(spec.espessura_mm) : null);
+              if (espExigida) {
+                const espFmt = String(espExigida).replace(".", ",");
+                const espBobina = ordem.espessura_utilizada ? String(ordem.espessura_utilizada).replace(".", ",") : null;
+                const isDivergente = espBobina && espBobina !== espFmt;
+                return (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-mono font-black text-xs sm:text-sm px-2.5 py-1 rounded-lg bg-orange-600 text-white shadow-xs border border-orange-700 flex items-center gap-1">
+                      <Layers className="w-3.5 h-3.5" /> CHAPA: {espFmt} mm
+                    </span>
+                    {isDivergente && (
+                      <span className="font-mono font-bold text-[11px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-500/40" title="A bobina física montada possui espessura diferente da chapa exigida pelo pedido">
+                        ⚠️ Bobina: {espBobina} mm
+                      </span>
+                    )}
+                  </div>
+                );
+              }
+              if (ordem.espessura_utilizada) {
+                return (
+                  <span className="font-mono font-black text-xs px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-950/70 text-blue-900 dark:text-blue-200 border border-blue-300 dark:border-blue-700">
+                    ⚡ {String(ordem.espessura_utilizada).replace(".", ",")} mm
+                  </span>
+                );
+              }
+              return null;
+            })()}
           </div>
 
           {/* As Duas Métricas Principais em Super Evidência */}

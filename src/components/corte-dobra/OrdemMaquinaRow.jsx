@@ -563,14 +563,6 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
           />
         )}
 
-        {/* Descrição (finalizado) */}
-        {o.observacoes && (
-          <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl px-3.5 py-2 mb-2 shadow-xs">
-            <p className="text-[10px] font-black text-yellow-600 uppercase tracking-widest mb-0.5">📋 DESCRIÇÃO</p>
-            <p className="text-xs font-semibold text-yellow-900 whitespace-pre-line break-words">{o.observacoes}</p>
-          </div>
-        )}
-
         {/* Dialog Bloqueio — OP em andamento (mantém para consistência) */}
         <Dialog open={bloqueioDialog} onOpenChange={setBloqueioDialog}>
           <DialogContent className="sm:max-w-md">
@@ -734,14 +726,6 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
             labelMaterial={o.foto_etiqueta_chapa_url ? "Etiqueta Chapa" : "Foto do Material"}
             z={zoom}
           />
-        )}
-
-        {/* Descrição */}
-        {o.observacoes && (
-          <div className={`bg-yellow-50 border-2 border-yellow-400 rounded-xl px-3.5 ${z.mb} shadow-xs`}>
-            <p className="text-[10px] font-black text-yellow-600 uppercase tracking-widest mb-0.5">📋 DESCRIÇÃO</p>
-            <p className={`font-semibold text-yellow-900 whitespace-pre-line break-words ${z.obs}`}>{o.observacoes}</p>
-          </div>
         )}
 
         {/* Pausa ativa */}

@@ -2,6 +2,7 @@ import { base44 } from "@/api/base44Client";
 import { format } from "date-fns";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import { normalizarUnidadeMedidaItem } from "@/lib/pedidoOdooHelper";
+import { extrairEspessuraDoTexto } from "@/lib/estoqueMaterialHelper";
 
 /**
  * Roteia diretamente os itens de Corte & Dobra do pedido para o chão de fábrica
@@ -53,11 +54,13 @@ export async function rotearItensCorteDobraDireto({
 
     const maquinas = roteiroCfg.maquinas;
     const maquinaInicial = maquinas[0];
+    const textoCompletoItem = [it.produto, it.descricao, it.observacao, it.name].filter(Boolean).join(" ");
     const descItem = it.descricao || it.produto || "";
     const unid = normalizarUnidadeMedidaItem(it, "cd");
     const isKg = unid === "KG";
     const qtdOdoo = Number(it.quantidade) || 0;
-    const spec = extrairEspecificacao(descItem, it.quantidade, unid) || {};
+    const spec = extrairEspecificacao(textoCompletoItem, it.quantidade, unid) || {};
+    const espDetectada = extrairEspessuraDoTexto(textoCompletoItem);
 
     // 🛡️ Regra Estrita de Unidade de Medida (AJL):
     // Quando vier em KG: a grandeza comercial é peso em KG (ex: 1000 kg).
@@ -91,13 +94,14 @@ export async function rotearItensCorteDobraDireto({
 
     let opCriada = null;
 
+    // Detecta a espessura da chapa do pedido com prioridade máxima
+    const espAlvoStr = String(espDetectada || spec?.espessura_mm || it.espessura || it.chapa || "").replace(",", ".").replace("mm", "").trim();
+    const espAlvo = parseFloat(espAlvoStr);
+
     if (isDesbInicial) {
       // ── 1. Se a 1ª etapa for DESBOBINADEIRA: cria em OrdemDesbobinadeira ──
       // 🛡️ O Base44 exige obrigatoriamente bobina_id: field required.
       // Busca automaticamente a melhor bobina aberta no estoque para a bitola do pedido.
-      const espAlvoStr = String(spec?.espessura_mm || it.espessura || it.chapa || "").replace(",", ".").replace("mm", "").trim();
-      const espAlvo = parseFloat(espAlvoStr);
-
       const bobinasAbertas = (listaBobinas || []).filter(b =>
         !b.arquivada &&
         b.status !== "fechada" &&
@@ -142,6 +146,7 @@ export async function rotearItensCorteDobraDireto({
         bobina_descricao: bobinaDescFinal,
         espessura_utilizada: espUtilizadaFinal,
         espessura_exigida: espAlvoStr || null,
+        material_espessura: espAlvoStr || null,
         origem_exigida: "ambas",
         numero_pedido: String(pedido.numero_pedido || "").replace(/^#/, "").trim(),
         numero_oc: pedido.numero_oc || "",
@@ -195,6 +200,8 @@ export async function rotearItensCorteDobraDireto({
         quantidade: qtdOp,
         quantidade_pecas: qtdPecasOp,
         peso_kg: pesoKgOp,
+        espessura_exigida: espAlvoStr || null,
+        material_espessura: espAlvoStr || null,
         status: "pendente",
         chapa_origem: "chaparia",
         foto_pedido_url: pedido.foto_pedido_url || it.foto_pedido_url || null,
@@ -296,6 +303,8 @@ export async function avancarProximaEtapaRoteiroCD(ordemAtual, entidadeOrigem = 
     quantidade: ordemAtual.quantidade || 1,
     quantidade_pecas: ordemAtual.quantidade_pecas || null,
     peso_kg: ordemAtual.peso_kg || null,
+    espessura_exigida: ordemAtual.espessura_exigida || null,
+    material_espessura: ordemAtual.material_espessura || ordemAtual.espessura_utilizada || null,
     status: "pendente", // ⚡ Entra pronta para ser executada na próxima máquina
     chapa_origem: "chaparia",
     foto_pedido_url: ordemAtual.foto_pedido_url || null,

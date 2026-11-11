@@ -32,6 +32,7 @@ import { getEspessuraNumeroDesb, isAbaixoDoMinimoDesbobinadeira02, ESPESSURA_MIN
 import { useRegrasProducao } from "@/lib/regrasProducao";
 import { formatarQuantidadeComUnidade } from "@/lib/pedidoOdooHelper";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
+import { extrairEspessuraDoTexto } from "@/lib/estoqueMaterialHelper";
 import BannerInstrucaoCorteDobra, { classificarItemCorteDobra } from "@/components/corte-dobra/BannerInstrucaoCorteDobra";
 
 function formatTempo(segundos) {
@@ -132,7 +133,58 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
     return null;
   }, [pedidosOdooMap, o.numero_pedido, o.numero_oc]);
 
-  // Espessura da Bobina / Material com busca profunda e fallback inteligente
+  // 🛡️ 1. Espessura da CHAPA exigida pelo cliente/pedido (Prioridade Absoluta)
+  const espessuraChapaExigida = useMemo(() => {
+    const sanitizarEsp = (val) => {
+      if (!val) return null;
+      const s = String(val).replace("mm", "").replace("#", "").trim();
+      const n = parseFloat(s.replace(",", "."));
+      if (!isNaN(n) && n > 0 && n < 20) return s.replace(".", ",");
+      return null;
+    };
+
+    // A. Campo explícito de espessura exigida / material do pedido
+    const direta = sanitizarEsp(o.espessura_exigida || o.material_espessura || o.espessura_mm || o.espessura);
+    if (direta) return direta;
+
+    // B. Extração direta de texto (tipo_peca, observações, etc.)
+    const textoBusca = [o.tipo_peca, o.observacoes, o.dimensoes_livres, textoPecaCompleto].filter(Boolean).join(" ");
+    const ext = extrairEspessuraDoTexto(textoBusca);
+    if (ext) return sanitizarEsp(ext);
+
+    // C. Pedido Odoo Vinculado (itens_json e tags)
+    if (pedidoOdooVinculado?.itens_json) {
+      try {
+        const itens = typeof pedidoOdooVinculado.itens_json === "string" ? JSON.parse(pedidoOdooVinculado.itens_json) : pedidoOdooVinculado.itens_json;
+        if (Array.isArray(itens)) {
+          for (const it of itens) {
+            const espIt = sanitizarEsp(it.espessura || it.chapa) || extrairEspessuraDoTexto([it.produto, it.descricao].filter(Boolean).join(" "));
+            if (espIt) return sanitizarEsp(espIt);
+          }
+        }
+      } catch {}
+    }
+
+    return null;
+  }, [o, textoPecaCompleto, pedidoOdooVinculado]);
+
+  // 🛡️ 2. Espessura da Bobina montada/vinculada na máquina
+  const espessuraBobinaMontada = useMemo(() => {
+    const sanitizarEsp = (val) => {
+      if (!val) return null;
+      const s = String(val).replace("mm", "").replace("#", "").trim();
+      const n = parseFloat(s.replace(",", "."));
+      if (!isNaN(n) && n > 0 && n < 20) return s.replace(".", ",");
+      return null;
+    };
+    if (bobinaEncontrada) {
+      const e = sanitizarEsp(bobinaEncontrada.espessura_utilizada || bobinaEncontrada.chapa || bobinaEncontrada.espessura_real || bobinaEncontrada.espessura_mm);
+      if (e) return e;
+    }
+    return sanitizarEsp(o.espessura_utilizada);
+  }, [bobinaEncontrada, o.espessura_utilizada]);
+
+  // Espessura final do material com prioridade máxima para a Chapa exigida
   const { espessuraFinal, espessuraOrigem, espessuraDetalhe } = useMemo(() => {
     const sanitizarEsp = (val) => {
       if (!val) return null;
@@ -143,6 +195,14 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
       }
       return null;
     };
+
+    if (espessuraChapaExigida) {
+      return { espessuraFinal: espessuraChapaExigida, espessuraOrigem: "chapa_pedido", espessuraDetalhe: "Chapa Exigida do Pedido" };
+    }
+
+    if (espessuraBobinaMontada) {
+      return { espessuraFinal: espessuraBobinaMontada, espessuraOrigem: "bobina", espessuraDetalhe: `Estoque [${bobinaEncontrada?.codigo || "CD"}]` };
+    }
 
     // 1. Campo explícito na própria ordem
     const espDireta = sanitizarEsp(o.espessura_utilizada || o.espessura_exigida || o.material_espessura || o.espessura_mm || o.espessura);
@@ -175,59 +235,8 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
       }
     }
 
-    // 5. Cruzamento com Pedido Odoo Vinculado (itens e tags)
-    if (pedidoOdooVinculado) {
-      if (pedidoOdooVinculado.itens_json) {
-        try {
-          const itens = typeof pedidoOdooVinculado.itens_json === "string" ? JSON.parse(pedidoOdooVinculado.itens_json) : pedidoOdooVinculado.itens_json;
-          if (Array.isArray(itens) && itens.length > 0) {
-            const matchItem = itens.find(it => {
-              const itEsp = sanitizarEsp(it.espessura || it.chapa);
-              if (!itEsp) return false;
-              if (o.tipo_peca && it.produto && String(it.produto).toLowerCase().includes(String(o.tipo_peca).toLowerCase())) return true;
-              return false;
-            }) || itens.find(it => sanitizarEsp(it.espessura || it.chapa));
-
-            if (matchItem) {
-              const espItem = sanitizarEsp(matchItem.espessura || matchItem.chapa);
-              if (espItem) return { espessuraFinal: espItem, espessuraOrigem: "odoo", espessuraDetalhe: `Item Pedido Odoo #${pedidoOdooVinculado.numero_pedido}` };
-            }
-          }
-        } catch (_) {}
-      }
-
-      if (pedidoOdooVinculado.espessuras_tags) {
-        try {
-          const tags = typeof pedidoOdooVinculado.espessuras_tags === "string" ? JSON.parse(pedidoOdooVinculado.espessuras_tags) : pedidoOdooVinculado.espessuras_tags;
-          if (Array.isArray(tags) && tags.length > 0) {
-            const espTag = sanitizarEsp(tags[0]?.espessura);
-            if (espTag) return { espessuraFinal: espTag, espessuraOrigem: "odoo", espessuraDetalhe: `Tag Pedido Odoo #${pedidoOdooVinculado.numero_pedido}` };
-          }
-        } catch (_) {}
-      }
-
-      const espOdoo = sanitizarEsp(pedidoOdooVinculado.espessura);
-      if (espOdoo) {
-        return { espessuraFinal: espOdoo, espessuraOrigem: "odoo", espessuraDetalhe: `Pedido Odoo #${pedidoOdooVinculado.numero_pedido}` };
-      }
-    }
-
-    // 6. Extrai número decimal da descrição/observação da peça (ex: "CHAPA 1.95", "ESP 1,50MM", "2,00")
-    const mPecaEsp = textoPecaCompleto.match(/(?:esp|espessura|chapa|ch)?\s*[:=]?\s*(\d+[.,]\d+)\s*(?:mm)?/i);
-    if (mPecaEsp) {
-      const espMatch = sanitizarEsp(mPecaEsp[1]);
-      if (espMatch) return { espessuraFinal: espMatch, espessuraOrigem: "pedido", espessuraDetalhe: "Descrição técnica" };
-    }
-
-    // 7. Bitola / Calibre comercial (#14 -> 1,95mm, #16 -> 1,55mm, etc.)
-    const mGauge = textoPecaCompleto.match(/(?:#|msg\s*#?|ch\s*#?|chapa\s*#?|calibre\s*#?)\s*(1[2-9]|2[0-8])\b/i);
-    const GAUGE_MAP = { "12": "2,65", "13": "2,25", "14": "1,95", "16": "1,55", "18": "1,25", "19": "1,11", "20": "0,90", "22": "0,75", "24": "0,65", "26": "0,45", "28": "0,40" };
-    if (mGauge && GAUGE_MAP[mGauge[1]]) {
-      return { espessuraFinal: GAUGE_MAP[mGauge[1]], espessuraOrigem: "pedido", espessuraDetalhe: `Bitola #${mGauge[1]} (${GAUGE_MAP[mGauge[1]]} mm)` };
-    }
-
     return { espessuraFinal: null, espessuraOrigem: null, espessuraDetalhe: null };
-  }, [o, bobinaEncontrada, chapaVinculada, pedidoOdooVinculado, textoPecaCompleto]);
+  }, [o, bobinaEncontrada, chapaVinculada, espessuraChapaExigida, espessuraBobinaMontada]);
 
   // Nome limpo e normalizado do Material / Qualidade
   const materialBobinaNome = useMemo(() => {
@@ -737,12 +746,6 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               <span className="text-green-600 font-semibold">✓ {formatarDataSegura(o.data_finalizacao, "dd/MM")}</span>
             )}
           </div>
-          {o.observacoes && (
-            <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg px-2.5 py-1 mt-1 shadow-xs">
-              <span className="text-[9px] font-black text-yellow-600 uppercase tracking-widest block">📋 DESCRIÇÃO</span>
-              <span className="text-[11px] font-semibold text-yellow-900 whitespace-pre-line break-words block">{o.observacoes}</span>
-            </div>
-          )}
         </div>
 
         {/* Dialog Bloqueio — OP em andamento (mantém para consistência) */}
@@ -842,13 +845,13 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                 {/* Lado Esquerdo: Tag Gigante de Espessura + Dados da Bobina */}
                 <div className="flex items-center gap-3 flex-wrap">
-                  {/* Tag Gigante da Espessura */}
+                  {/* Tag Gigante da Espessura da Chapa do Pedido */}
                   {espessuraFinal ? (
-                    <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-blue-600 text-white font-mono shadow-inner border border-blue-400">
+                    <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-orange-600 text-white font-mono shadow-inner border border-orange-400">
                       <CorChapaDot espessura={espessuraFinal} size="md" />
                       <div className="flex flex-col leading-none">
-                        <span className="text-[9px] font-black uppercase tracking-wider text-blue-100 flex items-center gap-1">
-                          <Layers className="w-3 h-3" /> ESPESSURA BOBINA
+                        <span className="text-[9px] font-black uppercase tracking-wider text-orange-100 flex items-center gap-1">
+                          <Layers className="w-3 h-3" /> ESPESSURA CHAPA
                         </span>
                         <span className="text-xl sm:text-2xl font-black text-white tracking-tight mt-0.5">
                           {espessuraFinal} mm
@@ -884,6 +887,11 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                           Largura: {larguraBobinaMm} mm
                         </span>
                       ) : null}
+                      {espessuraBobinaMontada && espessuraFinal && espessuraBobinaMontada !== espessuraFinal && (
+                        <span className="px-2 py-0.5 rounded text-xs font-black bg-amber-500/30 text-amber-200 border border-amber-400/60 font-mono">
+                          ⚠️ Bobina montada: {espessuraBobinaMontada} mm (Chapa exige {espessuraFinal} mm)
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 mt-1 text-xs text-slate-300 flex-wrap font-medium">
                       {espessuraDetalhe && (
@@ -921,7 +929,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
             </div>
 
             {/* Grade de Produção em Alta Visibilidade para o Desbobinador */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2 my-2.5 p-2.5 rounded-xl bg-orange-50/70 dark:bg-orange-950/20 border-2 border-orange-200/80 dark:border-orange-800/60 shadow-2xs">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 my-2.5 p-2.5 rounded-xl bg-orange-50/70 dark:bg-orange-950/20 border-2 border-orange-200/80 dark:border-orange-800/60 shadow-2xs">
               {/* Comprimento de Corte */}
               <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-orange-300 dark:border-orange-700 shadow-2xs">
                 <span className="text-[10px] font-black uppercase text-orange-600 dark:text-orange-400 tracking-wider">Corte / Avanço</span>
@@ -945,31 +953,20 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               </div>
 
               {/* Desenvolvimento / Largura */}
-              {desenvMm && (
-                <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900 shadow-2xs">
-                  <span className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 tracking-wider">
-                    {classificacao?.isChapaLisa ? "Largura Chapa" : "Largura / Desenv"}
-                  </span>
-                  <span className="text-base sm:text-lg font-black font-mono text-blue-700 dark:text-blue-300 leading-tight">
-                    {desenvMm} mm
-                  </span>
-                  <span className="text-[10px] text-muted-foreground font-semibold truncate" title={abasFmt || "largura"}>
-                    {classificacao?.isChapaLisa ? "largura blank" : (abasFmt ? abasFmt : "corte blank")}
-                  </span>
-                </div>
-              )}
-
-              {/* Metragem Total Bobina */}
-              <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-900 shadow-2xs">
-                <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider">Consumo Bobina</span>
-                <span className="text-base sm:text-lg font-black font-mono text-emerald-700 dark:text-emerald-300 leading-tight">
-                  {metragemTotalM || 0} m
+              <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900 shadow-2xs">
+                <span className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 tracking-wider">
+                  {classificacao?.isChapaLisa ? "Largura Chapa" : "Largura / Desenv"}
                 </span>
-                <span className="text-[10px] text-muted-foreground font-semibold">linear total</span>
+                <span className="text-base sm:text-lg font-black font-mono text-blue-700 dark:text-blue-300 leading-tight">
+                  {desenvMm || 1200} mm
+                </span>
+                <span className="text-[10px] text-muted-foreground font-semibold truncate" title={abasFmt || "largura"}>
+                  {classificacao?.isChapaLisa ? "largura blank" : (abasFmt ? abasFmt : "corte blank")}
+                </span>
               </div>
 
               {/* Peso Teórico Real */}
-              <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs col-span-2 sm:col-span-1">
+              <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
                 <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Peso Teórico</span>
                 <span className="text-base sm:text-lg font-black font-mono text-slate-900 dark:text-slate-100 leading-tight">
                   ≈ {(Number(pesoEstimadoKg) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg
@@ -1053,14 +1050,6 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
             labelMaterial="Etiqueta da Bobina"
             z={zoom}
           />
-        )}
-
-        {/* Descrição */}
-        {o.observacoes && (
-          <div className={`bg-yellow-50 border-2 border-yellow-400 rounded-xl px-3.5 ${z.mb} shadow-xs`}>
-            <p className="text-[10px] font-black text-yellow-600 uppercase tracking-widest mb-0.5">📋 DESCRIÇÃO</p>
-            <p className={`font-semibold text-yellow-900 whitespace-pre-line break-words ${z.obs}`}>{o.observacoes}</p>
-          </div>
         )}
 
         {/* Pausa ativa */}
