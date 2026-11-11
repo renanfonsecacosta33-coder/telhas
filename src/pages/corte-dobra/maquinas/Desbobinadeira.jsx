@@ -390,10 +390,34 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
   });
   const createOrdem = useMutation({
     mutationFn: (data) => base44.entities.OrdemDesbobinadeira.create(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] }); setDialog(false); toast.success("Ordem criada!"); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
+      setDialog(false);
+      toast.success("Ordem criada com sucesso!");
+    },
+    onError: (err) => {
+      console.error("Erro ao criar ordem desbobinadeira:", err);
+      toast.error("Erro ao criar ordem: " + (err?.message || "Verifique os dados preenchidos"));
+    }
   });
 
   const handleSave = async (data) => {
+    // 🛡️ Suporte a criação em lote para Múltiplas Medidas
+    if (Array.isArray(data)) {
+      try {
+        for (const op of data) {
+          await base44.entities.OrdemDesbobinadeira.create(op);
+        }
+        queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
+        setDialog(false);
+        toast.success(`Sucesso! ${data.length} ordens foram criadas para as medidas.`);
+      } catch (errLote) {
+        console.error("Erro ao criar lote de ordens na desbobinadeira:", errLote);
+        toast.error("Falha ao criar ordens em lote: " + (errLote?.message || errLote));
+      }
+      return;
+    }
+
     if (editItem && !editItem._presets && editItem.id) {
       updateOrdem.mutate({ id: editItem.id, data });
       setDialog(false);

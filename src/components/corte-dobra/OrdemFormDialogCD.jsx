@@ -129,7 +129,13 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
 
   const { data: bobinas = [] } = useQuery({
     queryKey: ["bobinas-cd-ativas", filialAtiva],
-    queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false, unidade: filialAtiva }),
+    queryFn: () => {
+      const filtro = { setor: "corte_dobra", arquivada: false };
+      if (filialAtiva && filialAtiva !== "todas") {
+        filtro.unidade = filialAtiva;
+      }
+      return base44.entities.Bobina.filter(filtro);
+    },
     enabled: open && isDesbobinadeiraAtiva,
   });
 
@@ -176,7 +182,13 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
 
   const { data: chapasDisponiveis = [] } = useQuery({
     queryKey: ["chapas-cd-form-dinamico", filialAtiva],
-    queryFn: () => base44.entities.ChapaCD.filter({ unidade: filialAtiva }),
+    queryFn: () => {
+      const filtro = {};
+      if (filialAtiva && filialAtiva !== "todas") {
+        filtro.unidade = filialAtiva;
+      }
+      return base44.entities.ChapaCD.filter(filtro);
+    },
     enabled: open && !isDesbobinadeiraAtiva,
   });
 
@@ -330,6 +342,66 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     }
   }, [open, editItem, defaultDate, defaultMaquina]);
 
+  const [variacoesMedidas, setVariacoesMedidas] = useState(null);
+
+  const initVariacoes = () => {
+    const qAtual = form.quantidade ? Number(form.quantidade) : 10;
+    const compAtual = form.comprimento_mm ? Number(form.comprimento_mm) : 3000;
+    const desenvAtual = form.desenvolvimento_mm || "";
+    setVariacoesMedidas([
+      { id: 1, qtd: qAtual, comp_mm: compAtual, desenv_mm: desenvAtual, obs: "" },
+      { id: 2, qtd: 10, comp_mm: 3000, desenv_mm: desenvAtual, obs: "" }
+    ]);
+  };
+
+  const addVariacao = () => {
+    const desenvPadrao = form.desenvolvimento_mm || "";
+    setVariacoesMedidas(prev => [
+      ...(prev || []),
+      { id: Date.now(), qtd: 10, comp_mm: 3000, desenv_mm: desenvPadrao, obs: "" }
+    ]);
+  };
+
+  const removeVariacao = (idx) => {
+    setVariacoesMedidas(prev => {
+      const nova = prev.filter((_, i) => i !== idx);
+      return nova.length > 0 ? nova : null;
+    });
+  };
+
+  const updateVariacao = (idx, campo, valor) => {
+    setVariacoesMedidas(prev => {
+      const clone = [...(prev || [])];
+      clone[idx] = { ...clone[idx], [campo]: valor };
+      return clone;
+    });
+  };
+
+  const totaisVariacoes = useMemo(() => {
+    if (!variacoesMedidas || variacoesMedidas.length === 0) return null;
+    let totalChapas = 0;
+    let totalMetros = 0;
+    let totalKgEstimado = 0;
+
+    variacoesMedidas.forEach(v => {
+      const q = Number(v.qtd) || 0;
+      const compMm = Number(v.comp_mm) || 0;
+      const m = (q * compMm) / 1000;
+      totalChapas += q;
+      totalMetros += m;
+      if (bobinaObj && compMm > 0 && q > 0) {
+        const kgLinha = calcKgEstimado(bobinaObj, compMm, q) || 0;
+        totalKgEstimado += kgLinha;
+      }
+    });
+
+    return {
+      totalChapas,
+      totalMetros: +totalMetros.toFixed(2),
+      totalKgEstimado: Math.round(totalKgEstimado * 10) / 10
+    };
+  }, [variacoesMedidas, bobinaObj]);
+
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
   const isDesbobinadeira = isDesbobinadeiraAtiva;
   const bobinaObj = bobinas.find(b => b.id === form.bobina_id);
@@ -438,16 +510,20 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     const isMaterialEmFalta = form.material_em_falta;
     const maqFinal = form.maquina_inicial === "DESBOBINADEIRA" ? "DESBOBINADEIRA 01" : form.maquina_inicial;
 
-    const data = {
+    const UNIDADES_VALIDAS = ["Matriz AJL", "Pinhais", "Ivaiporã", "Ponta Grossa"];
+    let filialValida = (filialAtiva && filialAtiva !== "todas") ? filialAtiva : (form.unidade || "Matriz AJL");
+    if (!UNIDADES_VALIDAS.includes(filialValida)) filialValida = "Matriz AJL";
+
+    const bobinaIdSegura = form.bobina_id || (isMaterialEmFalta ? "PENDENTE_MATERIAL" : (bobinaObj?.id || "BOBINA-PADRAO-CD"));
+
+    const baseData = {
       ...form,
+      unidade: filialValida,
       maquina: isDesbobinadeira ? maqFinal : (form.maquina || form.maquina_inicial),
       maquina_inicial: maqFinal,
-      bobina_descricao: isDesbobinadeira ? bobinaSnap : "",
-      espessura_utilizada: bobinaObj?.espessura_utilizada || bobinaObj?.chapa || "",
-      desenvolvimento_mm: Number(form.desenvolvimento_mm) || null,
-      comprimento_mm: Number(form.comprimento_mm) || 0,
-      quantidade: Number(form.quantidade),
-      kg_estimado: kgEstimado ? Math.round(kgEstimado * 100) / 100 : null,
+      bobina_id: bobinaIdSegura,
+      bobina_descricao: isDesbobinadeira ? (bobinaSnap || "Bobina Aço") : "",
+      espessura_utilizada: bobinaObj?.espessura_utilizada || bobinaObj?.chapa || form.material_espessura || "1.95",
       guilhotina: form.guilhotina || null,
       tamanho_corte_guilhotina: form.destino === "pedido_direto" && form.tamanho_corte_guilhotina ? Number(form.tamanho_corte_guilhotina) : form.destino === "estoque" && form.tamanho_blank ? Number(form.tamanho_blank) : null,
       foto_pedido_url: form.foto_pedido_url || null,
@@ -456,17 +532,54 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
       chapa_origem: !isDesbobinadeira ? "chaparia" : form.chapa_origem || undefined,
     };
 
-    // Se material em falta, status = aguardando_material e limpa bobina/chapa vinculada
     if (isMaterialEmFalta) {
-      data.status = "aguardando_material";
-      data.bobina_id = "";
-      data.chapa_cd_id = "";
-      data.bobina_descricao = "";
-      data.chapa_descricao = "";
-      data.kg_estimado = null;
+      baseData.status = "aguardando_material";
+      baseData.bobina_id = "PENDENTE_MATERIAL";
+      baseData.chapa_cd_id = "";
+      baseData.bobina_descricao = "";
+      baseData.chapa_descricao = "";
+      baseData.kg_estimado = null;
     }
 
-    onSave(data);
+    // Se estiver usando Múltiplas Medidas: gera lote de OPs individuais vinculadas
+    if (variacoesMedidas && variacoesMedidas.length > 1) {
+      const loteId = "LOTE_CD_" + Date.now();
+      const listaOps = variacoesMedidas.map((v, idx) => {
+        const compMm = Number(v.comp_mm) || 3000;
+        const qtdPecas = Number(v.qtd) || 1;
+        const desenv = v.desenv_mm ? Number(v.desenv_mm) : (Number(form.desenvolvimento_mm) || null);
+        const kgLinha = bobinaObj ? calcKgEstimado(bobinaObj, compMm, qtdPecas) : null;
+
+        return {
+          ...baseData,
+          comprimento_mm: compMm,
+          quantidade: qtdPecas,
+          desenvolvimento_mm: desenv,
+          kg_estimado: kgLinha ? Math.round(kgLinha * 100) / 100 : null,
+          lote_medidas_id: loteId,
+          lote_medida_item: `Item ${idx + 1}/${variacoesMedidas.length} · ${compMm}mm`,
+          observacoes: [
+            form.observacoes,
+            `Medida ${idx + 1} de ${variacoesMedidas.length}: ${qtdPecas} chapas c/ ${compMm}mm${desenv ? ` (largura ${desenv}mm)` : ""}`,
+            v.obs
+          ].filter(Boolean).join(" | "),
+        };
+      });
+
+      onSave(listaOps);
+      return;
+    }
+
+    // Medida única tradicional
+    const singleData = {
+      ...baseData,
+      desenvolvimento_mm: Number(form.desenvolvimento_mm) || null,
+      comprimento_mm: Number(form.comprimento_mm) || 0,
+      quantidade: Number(form.quantidade),
+      kg_estimado: kgEstimado ? Math.round(kgEstimado * 100) / 100 : null,
+    };
+
+    onSave(singleData);
   };
 
   const handleSave = () => {
@@ -481,7 +594,7 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
     // Se material em falta, pular validação de bobina/chapa
     if (form.material_em_falta) {
       if (!form.material_espessura) { alert("Informe a espessura desejada."); return; }
-      if (!form.quantidade || Number(form.quantidade) <= 0) { alert("Informe a quantidade."); return; }
+      if (!variacoesMedidas && (!form.quantidade || Number(form.quantidade) <= 0)) { alert("Informe a quantidade."); return; }
       doSave();
       return;
     }
@@ -501,31 +614,34 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
       }
       if (!form.tipo_peca) { alert("Informe o tipo de peça."); return; }
     }
-    if (isDesbobinadeira && (!form.comprimento_mm || Number(form.comprimento_mm) <= 0)) { alert("Informe o comprimento de corte em mm."); return; }
-    if (!form.quantidade || Number(form.quantidade) <= 0) { alert("Informe a quantidade de chapas."); return; }
+
+    // Validação de medidas
+    if (variacoesMedidas && variacoesMedidas.length > 0) {
+      for (let i = 0; i < variacoesMedidas.length; i++) {
+        const v = variacoesMedidas[i];
+        if (!v.qtd || Number(v.qtd) <= 0) {
+          alert(`Informe a quantidade de chapas para a Medida ${i + 1}.`);
+          return;
+        }
+        if (isDesbobinadeira && (!v.comp_mm || Number(v.comp_mm) <= 0)) {
+          alert(`Informe o comprimento de corte (mm) para a Medida ${i + 1}.`);
+          return;
+        }
+      }
+    } else {
+      if (isDesbobinadeira && (!form.comprimento_mm || Number(form.comprimento_mm) <= 0)) { alert("Informe o comprimento de corte em mm."); return; }
+      if (!form.quantidade || Number(form.quantidade) <= 0) { alert("Informe a quantidade de chapas."); return; }
+    }
+
     if (form.destino === "pedido_direto" && !form.numero_pedido) { alert("Informe o número do pedido."); return; }
-    if (excedePeso) {
-      alert(`⚠️ Material insuficiente!\n\nBobina: ${bobinaObj?.codigo || '—'}\nPeso atual: ${pesoBobina.toFixed(1)} kg\nPré-baixa (OPs ativas): ${preReservadoKg.toFixed(1)} kg\nDisponível: ${pesoDisponivel.toFixed(1)} kg\nNecessário: ${kgEstimado.toFixed(1)} kg\n\nA OP será criada como "OP sem Material".`);
-      const maqFinal = form.maquina_inicial === "DESBOBINADEIRA" ? "DESBOBINADEIRA 01" : form.maquina_inicial;
-      onSave({
-        ...form,
-        maquina: isDesbobinadeira ? maqFinal : (form.maquina || form.maquina_inicial),
-        maquina_inicial: maqFinal,
-        material_em_falta: true,
-        material_espessura: bobinaObj?.espessura_utilizada || bobinaObj?.chapa || "",
-        material_cor: bobinaObj?.cor || "",
-        bobina_descricao: bobinaObj ? labelBobina(bobinaObj) : "",
-        espessura_utilizada: bobinaObj?.espessura_utilizada || bobinaObj?.chapa || "",
-        comprimento_mm: Number(form.comprimento_mm) || 0,
-        quantidade: Number(form.quantidade),
-        kg_estimado: null,
-        status: "aguardando_material",
-        bobina_id: "",
-        chapa_cd_id: "",
-        chapa_descricao: "",
-        foto_pedido_url: form.foto_pedido_url || null,
-        valor_pago_cliente: form.valor_pago_cliente ? Number(form.valor_pago_cliente) : null,
-      });
+
+    const pesoTotalEstimado = totaisVariacoes ? totaisVariacoes.totalKgEstimado : kgEstimado;
+    const excedePesoReal = pesoTotalEstimado !== null && pesoTotalEstimado > pesoDisponivel;
+
+    if (excedePesoReal) {
+      alert(`⚠️ Material insuficiente!\n\nBobina: ${bobinaObj?.codigo || '—'}\nPeso atual: ${pesoBobina.toFixed(1)} kg\nPré-baixa (OPs ativas): ${preReservadoKg.toFixed(1)} kg\nDisponível: ${pesoDisponivel.toFixed(1)} kg\nNecessário: ${(pesoTotalEstimado || 0).toFixed(1)} kg\n\nA OP será criada como "OP sem Material".`);
+      setForm(f => ({ ...f, material_em_falta: true }));
+      doSave();
       return;
     }
     if (reservadaParaOutro) { setConfirmReserva(true); return; }
@@ -853,36 +969,185 @@ export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, def
             </div>
           )}
 
-          {/* Corte */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Comprimento de Corte (mm) *</Label>
-              <Input
-                type="number"
-                placeholder="Ex: 1200"
-                value={form.comprimento_mm}
-                onChange={e => set("comprimento_mm", e.target.value)}
-              />
-              {bobinaObj && form.comprimento_mm > 0 && metrosRestantes && (
-                <p className="text-xs text-muted-foreground">
-                  = <strong>{(Number(form.comprimento_mm) / 1000).toFixed(3)}m</strong> por chapa
+          {/* Corte e Quantidades — Medida Única ou Múltiplas Medidas */}
+          <div className="border border-border/80 rounded-xl p-3 space-y-3 bg-slate-50/50 dark:bg-slate-900/40">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-bold text-foreground">
+                  {isDesbobinadeira ? "Corte & Chapas" : "Comprimento & Quantidade"}
                 </p>
+                {variacoesMedidas && variacoesMedidas.length > 1 && (
+                  <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-200 font-bold">
+                    {variacoesMedidas.length} medidas no lote
+                  </Badge>
+                )}
+              </div>
+              {variacoesMedidas && (
+                <button
+                  type="button"
+                  onClick={() => setVariacoesMedidas(null)}
+                  className="text-xs text-muted-foreground hover:text-foreground hover:underline cursor-pointer"
+                >
+                  Voltar para Medida Única
+                </button>
               )}
             </div>
-            <div className="space-y-1">
-              <Label>Quantidade de Chapas *</Label>
-              <Input
-                type="number"
-                placeholder="0"
-                value={form.quantidade}
-                onChange={e => set("quantidade", e.target.value)}
-              />
-              {maxChapas !== null && (
-                <p className={`text-xs ${Number(form.quantidade) > maxChapas ? "text-red-500 font-semibold" : "text-muted-foreground"}`}>
-                  Máx. possível: <strong>{maxChapas} chapas</strong>
-                </p>
-              )}
-            </div>
+
+            {!variacoesMedidas ? (
+              /* Modo Medida Única */
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold">Comprimento de Corte (mm) *</Label>
+                    <Input
+                      type="number"
+                      placeholder="Ex: 3000"
+                      value={form.comprimento_mm}
+                      onChange={e => set("comprimento_mm", e.target.value)}
+                      className="font-mono font-bold"
+                    />
+                    {bobinaObj && form.comprimento_mm > 0 && metrosRestantes && (
+                      <p className="text-xs text-muted-foreground">
+                        = <strong>{(Number(form.comprimento_mm) / 1000).toFixed(3)}m</strong> por chapa
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold">
+                      {isDesbobinadeira ? "Quantidade de Chapas *" : "Quantidade de Peças *"}
+                    </Label>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={form.quantidade}
+                      onChange={e => set("quantidade", e.target.value)}
+                      className="font-mono font-bold text-base"
+                    />
+                    {maxChapas !== null && (
+                      <p className={`text-xs ${Number(form.quantidade) > maxChapas ? "text-red-500 font-semibold" : "text-muted-foreground"}`}>
+                        Máx. possível: <strong>{maxChapas} chapas</strong>
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-1.5 border-dashed border-orange-400 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/30 font-semibold cursor-pointer"
+                  onClick={initVariacoes}
+                >
+                  <Plus className="w-3.5 h-3.5" /> Adicionar Múltiplas Medidas
+                </Button>
+              </div>
+            ) : (
+              /* Modo Variações — Múltiplas Medidas em Lote */
+              <div className="space-y-2.5">
+                {variacoesMedidas.map((v, idx) => {
+                  const q = Number(v.qtd) || 0;
+                  const mm = Number(v.comp_mm) || 0;
+                  const subtotalM = (q * mm) / 1000;
+                  return (
+                    <div key={v.id || idx} className="border border-border/80 rounded-lg p-2.5 space-y-2 bg-white dark:bg-slate-900 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-orange-600 dark:text-orange-400 font-mono">
+                          Medida #{idx + 1}
+                        </span>
+                        {variacoesMedidas.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-red-500 hover:bg-red-50 dark:hover:bg-red-950 cursor-pointer"
+                            onClick={() => removeVariacao(idx)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-0.5">
+                          <Label className="text-[11px] text-muted-foreground font-semibold">Qtd. Chapas</Label>
+                          <Input
+                            type="number"
+                            placeholder="0"
+                            value={v.qtd}
+                            onChange={e => updateVariacao(idx, "qtd", e.target.value)}
+                            className="h-9 font-bold font-mono"
+                          />
+                        </div>
+                        <div className="space-y-0.5">
+                          <Label className="text-[11px] text-muted-foreground font-semibold">
+                            Comprimento (mm)
+                            {mm > 0 && <span className="text-muted-foreground ml-1">({(mm / 1000).toFixed(2)}m)</span>}
+                          </Label>
+                          <Input
+                            type="number"
+                            placeholder="Ex: 3000"
+                            value={v.comp_mm}
+                            onChange={e => updateVariacao(idx, "comp_mm", e.target.value)}
+                            className="h-9 font-bold font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-0.5">
+                          <Label className="text-[11px] text-muted-foreground">Largura / Blank (opcional)</Label>
+                          <Input
+                            type="number"
+                            placeholder={form.desenvolvimento_mm ? `Padrão: ${form.desenvolvimento_mm}mm` : "Ex: 1200"}
+                            value={v.desenv_mm || ""}
+                            onChange={e => updateVariacao(idx, "desenv_mm", e.target.value)}
+                            className="h-8 text-xs font-mono"
+                          />
+                        </div>
+                        <div className="space-y-0.5">
+                          <Label className="text-[11px] text-muted-foreground">Obs desta medida</Label>
+                          <Input
+                            placeholder="Opcional..."
+                            value={v.obs || ""}
+                            onChange={e => updateVariacao(idx, "obs", e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      {q > 0 && mm > 0 && (
+                        <p className="text-[11px] text-orange-600 dark:text-orange-400 font-mono font-semibold">
+                          Subtotal: {q} peças × {mm}mm = {subtotalM.toFixed(2)} m linear
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-1 border-dashed border-primary/60 text-primary font-semibold cursor-pointer"
+                  onClick={addVariacao}
+                >
+                  <Plus className="w-3.5 h-3.5" /> Adicionar Outra Medida
+                </Button>
+
+                {/* Totais do Lote */}
+                {totaisVariacoes && (
+                  <div className="p-3 rounded-lg bg-orange-100/60 dark:bg-orange-950/40 border border-orange-300 dark:border-orange-800 flex items-center justify-between flex-wrap gap-2 text-xs font-mono font-bold">
+                    <span>Total: <strong>{totaisVariacoes.totalChapas} chapas</strong></span>
+                    <span>Consumo linear: <strong>{totaisVariacoes.totalMetros} m</strong></span>
+                    {totaisVariacoes.totalKgEstimado > 0 && (
+                      <span className="text-emerald-700 dark:text-emerald-300">
+                        ≈ {totaisVariacoes.totalKgEstimado.toLocaleString("pt-BR")} kg
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* KG Estimado + Pré-baixa */}

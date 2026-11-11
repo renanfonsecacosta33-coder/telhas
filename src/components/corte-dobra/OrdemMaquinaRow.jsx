@@ -304,6 +304,34 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
     // A baixa do estoque agora roda na trigger de backend (descontarEstoqueMaquinaCD)
   };
 
+  // Ordens irmãs do mesmo lote de múltiplas medidas
+  const ordensIrmasLote = useMemo(() => {
+    if (!o.lote_medidas_id || !Array.isArray(ordens)) return [];
+    return ordens.filter(x =>
+      x.id !== o.id &&
+      x.lote_medidas_id === o.lote_medidas_id &&
+      x.status !== "finalizado" &&
+      x.status !== "cancelado"
+    );
+  }, [o.lote_medidas_id, o.id, ordens]);
+
+  const handleFinalizarLoteInteiro = async () => {
+    if (!window.confirm(`Deseja finalizar esta OP e as outras ${ordensIrmasLote.length} medidas irmãs deste lote de uma vez?`)) return;
+    try {
+      handleFinalizar();
+      for (const irma of ordensIrmasLote) {
+        onUpdate(irma.id, {
+          status: "finalizado",
+          data_finalizacao: format(new Date(), "yyyy-MM-dd"),
+          observacoes: [irma.observacoes, "Finalizado junto com o lote inteiro"].filter(Boolean).join(" | ")
+        });
+      }
+      toast.success(`Lote de ${ordensIrmasLote.length + 1} medidas finalizado!`);
+    } catch (errLote) {
+      toast.error("Erro ao finalizar lote: " + errLote.message);
+    }
+  };
+
   const handleFinalizar = async () => {
     setPauseMotivo("");
     setSeguirDobra(false);
@@ -595,6 +623,11 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
                 </Badge>
               )}
               <span className={`font-bold ${z.title}`}>{o.tipo_peca || "—"}</span>
+              {o.lote_medida_item && (
+                <Badge className="bg-orange-500/15 text-orange-800 dark:text-orange-200 border-2 border-orange-400 dark:border-orange-600 text-xs font-mono font-black tracking-tight shadow-xs">
+                  📦 {o.lote_medida_item}
+                </Badge>
+              )}
               <CorChapaDot espessura={extractEspessuraFromDesc(o.chapa_descricao) || extractEspessuraFromDesc(o.bobina_descricao)} size="sm" />
               {o.dimensoes_livres && (
                 <span className={`${z.info} text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded`}>{o.dimensoes_livres}</span>
@@ -794,6 +827,17 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               <Button size="sm" className={`gap-1 ${z.btn} bg-green-600 hover:bg-green-700 text-white border-0`} onClick={handleFinalizar}>
                 <CheckCircle2 className="w-3 h-3" /> Finalizar
               </Button>
+              {o.lote_medidas_id && ordensIrmasLote.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className={`gap-1 ${z.btn} bg-emerald-500/10 border-emerald-500 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-500/20 font-bold`}
+                  onClick={handleFinalizarLoteInteiro}
+                  title={`Finalizar esta e as outras ${ordensIrmasLote.length} medidas irmãs do lote juntas`}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> Finalizar Lote Inteiro ({ordensIrmasLote.length + 1})
+                </Button>
+              )}
             </>
           )}
           {o.status === "pausado" && (

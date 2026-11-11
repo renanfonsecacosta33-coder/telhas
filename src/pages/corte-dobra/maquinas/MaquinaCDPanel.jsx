@@ -411,6 +411,25 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
 
   const handleSave = async (data) => {
     try {
+      // 🛡️ Suporte a criação em lote para Múltiplas Medidas
+      if (Array.isArray(data)) {
+        for (const op of data) {
+          const saved = await createMaq.mutateAsync(op);
+          if (op.ordem_dobra_maquina && op.chapa_cd_id) {
+            try {
+              await base44.entities.OrdemMaquinaCD.create({
+                ...op,
+                maquina: op.ordem_dobra_maquina,
+                ordem_corte_id: saved.id
+              });
+            } catch {}
+          }
+        }
+        toast.success(`Sucesso! ${data.length} ordens foram criadas para as medidas.`);
+        setDialog(false);
+        return;
+      }
+
       if (editItem && !editItem._presets && editItem.id) {
         await updateMaq.mutateAsync({ id: editItem.id, data });
         toast.success("Ordem atualizada!");

@@ -87,6 +87,66 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
   const [modoDigitarVendedor, setModoDigitarVendedor] = useState(false);
   const [autorizaSubstituicaoBitola, setAutorizaSubstituicaoBitola] = useState(false);
 
+  const [variacoesMedidas, setVariacoesMedidas] = useState(null);
+
+  const initVariacoes = () => {
+    const qAtual = form.quantidade ? Number(form.quantidade) : 10;
+    const compAtual = form.comprimento_mm ? Number(form.comprimento_mm) : 6000;
+    const desenvAtual = form.desenvolvimento_mm || "";
+    setVariacoesMedidas([
+      { id: 1, qtd: qAtual, comp_mm: compAtual, desenv_mm: desenvAtual, obs: "" },
+      { id: 2, qtd: 10, comp_mm: compAtual, desenv_mm: desenvAtual, obs: "" }
+    ]);
+  };
+
+  const addVariacao = () => {
+    const compPadrao = form.comprimento_mm ? Number(form.comprimento_mm) : 6000;
+    const desenvPadrao = form.desenvolvimento_mm || "";
+    setVariacoesMedidas(prev => [
+      ...(prev || []),
+      { id: Date.now(), qtd: 10, comp_mm: compPadrao, desenv_mm: desenvPadrao, obs: "" }
+    ]);
+  };
+
+  const removeVariacao = (idx) => {
+    setVariacoesMedidas(prev => {
+      const nova = prev.filter((_, i) => i !== idx);
+      return nova.length > 0 ? nova : null;
+    });
+  };
+
+  const updateVariacao = (idx, campo, valor) => {
+    setVariacoesMedidas(prev => {
+      const clone = [...(prev || [])];
+      clone[idx] = { ...clone[idx], [campo]: valor };
+      return clone;
+    });
+  };
+
+  const totaisVariacoes = useMemo(() => {
+    if (!variacoesMedidas || variacoesMedidas.length === 0) return null;
+    let totalPecas = 0;
+    let totalMetros = 0;
+    let totalKg = 0;
+    const pesoUnitAtual = form.peso_kg && form.quantidade ? (Number(form.peso_kg) / Number(form.quantidade)) : null;
+
+    variacoesMedidas.forEach(v => {
+      const q = Number(v.qtd) || 0;
+      const compMm = Number(v.comp_mm) || 0;
+      totalPecas += q;
+      totalMetros += (q * compMm) / 1000;
+      if (pesoUnitAtual) {
+        totalKg += q * pesoUnitAtual;
+      }
+    });
+
+    return {
+      totalPecas,
+      totalMetros: +totalMetros.toFixed(2),
+      totalKg: Math.round(totalKg * 10) / 10
+    };
+  }, [variacoesMedidas, form.peso_kg, form.quantidade]);
+
   const { filialAtiva } = useFilial();
   // Unidade usada para buscar o estoque: prioriza a unidade do pedido da Fila PCP
   // (a OP pertence à filial do pedido, não à filial ativa no seletor do usuário)
@@ -866,6 +926,35 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
       ordemData.foto_material_url = form.foto_material_url.trim();
     }
 
+    // Se estiver usando Múltiplas Medidas: gera lote de OPs individuais vinculadas
+    if (variacoesMedidas && variacoesMedidas.length > 1) {
+      const loteId = "LOTE_CD_" + Date.now();
+      const listaOps = variacoesMedidas.map((v, idx) => {
+        const compMm = Number(v.comp_mm) || (form.comprimento_mm ? Number(form.comprimento_mm) : 6000);
+        const qtdPecas = Number(v.qtd) || 1;
+        const desenv = v.desenv_mm ? Number(v.desenv_mm) : (Number(form.desenvolvimento_mm) || null);
+        const pesoKgLinha = form.peso_kg && form.quantidade ? Math.round((Number(form.peso_kg) / Number(form.quantidade)) * qtdPecas) : null;
+
+        return {
+          ...ordemData,
+          comprimento_mm: compMm,
+          quantidade: qtdPecas,
+          desenvolvimento_mm: desenv,
+          peso_kg: pesoKgLinha,
+          lote_medidas_id: loteId,
+          lote_medida_item: `Item ${idx + 1}/${variacoesMedidas.length} · ${compMm}mm`,
+          observacoes: [
+            ordemData.observacoes,
+            `Medida ${idx + 1} de ${variacoesMedidas.length}: ${qtdPecas} barras c/ ${compMm}mm${desenv ? ` (desenv ${desenv}mm)` : ""}`,
+            v.obs
+          ].filter(Boolean).join(" | "),
+        };
+      });
+
+      onSave(listaOps);
+      return;
+    }
+
     onSave(ordemData);
   };
 
@@ -1516,6 +1605,147 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
             quantidadePecas={form.quantidade}
             onInverterMedidas={handleInverterMedidas}
           />
+
+          {/* Múltiplas Medidas em Lote (Opcional) */}
+          <div className="border border-border/80 rounded-xl p-3 space-y-3 bg-slate-50/50 dark:bg-slate-900/40">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-bold text-foreground">
+                  Múltiplas Medidas (Lote de Peças)
+                </p>
+                {variacoesMedidas && variacoesMedidas.length > 1 && (
+                  <Badge variant="secondary" className="text-xs bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200 font-bold">
+                    {variacoesMedidas.length} medidas no lote
+                  </Badge>
+                )}
+              </div>
+              {variacoesMedidas && (
+                <button
+                  type="button"
+                  onClick={() => setVariacoesMedidas(null)}
+                  className="text-xs text-muted-foreground hover:text-foreground hover:underline cursor-pointer"
+                >
+                  Voltar para Medida Única
+                </button>
+              )}
+            </div>
+
+            {!variacoesMedidas ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full gap-1.5 border-dashed border-indigo-400 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 font-semibold cursor-pointer"
+                onClick={initVariacoes}
+              >
+                <Plus className="w-3.5 h-3.5" /> Adicionar Múltiplas Medidas de Corte
+              </Button>
+            ) : (
+              <div className="space-y-2.5">
+                {variacoesMedidas.map((v, idx) => {
+                  const q = Number(v.qtd) || 0;
+                  const mm = Number(v.comp_mm) || 0;
+                  const subtotalM = (q * mm) / 1000;
+                  return (
+                    <div key={v.id || idx} className="border border-border/80 rounded-lg p-2.5 space-y-2 bg-white dark:bg-slate-900 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 font-mono">
+                          Medida #{idx + 1}
+                        </span>
+                        {variacoesMedidas.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-red-500 hover:bg-red-50 dark:hover:bg-red-950 cursor-pointer"
+                            onClick={() => removeVariacao(idx)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-0.5">
+                          <Label className="text-[11px] text-muted-foreground font-semibold">Qtd. Peças / Barras</Label>
+                          <Input
+                            type="number"
+                            placeholder="0"
+                            value={v.qtd}
+                            onChange={e => updateVariacao(idx, "qtd", e.target.value)}
+                            className="h-9 font-bold font-mono"
+                          />
+                        </div>
+                        <div className="space-y-0.5">
+                          <Label className="text-[11px] text-muted-foreground font-semibold">
+                            Comprimento (mm)
+                            {mm > 0 && <span className="text-muted-foreground ml-1">({(mm / 1000).toFixed(2)}m)</span>}
+                          </Label>
+                          <Input
+                            type="number"
+                            placeholder="Ex: 6000"
+                            value={v.comp_mm}
+                            onChange={e => updateVariacao(idx, "comp_mm", e.target.value)}
+                            className="h-9 font-bold font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-0.5">
+                          <Label className="text-[11px] text-muted-foreground">Desenv / Aba (opcional)</Label>
+                          <Input
+                            type="number"
+                            placeholder={form.desenvolvimento_mm ? `Padrão: ${form.desenvolvimento_mm}mm` : "Ex: 172"}
+                            value={v.desenv_mm || ""}
+                            onChange={e => updateVariacao(idx, "desenv_mm", e.target.value)}
+                            className="h-8 text-xs font-mono"
+                          />
+                        </div>
+                        <div className="space-y-0.5">
+                          <Label className="text-[11px] text-muted-foreground">Obs da medida</Label>
+                          <Input
+                            placeholder="Opcional..."
+                            value={v.obs || ""}
+                            onChange={e => updateVariacao(idx, "obs", e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      {q > 0 && mm > 0 && (
+                        <p className="text-[11px] text-indigo-600 dark:text-indigo-400 font-mono font-semibold">
+                          Subtotal: {q} peças × {mm}mm = {subtotalM.toFixed(2)} m linear
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-1 border-dashed border-indigo-400 text-indigo-700 dark:text-indigo-300 font-semibold cursor-pointer"
+                  onClick={addVariacao}
+                >
+                  <Plus className="w-3.5 h-3.5" /> Adicionar Outra Medida
+                </Button>
+
+                {totaisVariacoes && (
+                  <div className="p-3 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 flex items-center justify-between flex-wrap gap-2 text-xs font-mono font-bold">
+                    <span>Total: <strong>{totaisVariacoes.totalPecas} peças</strong></span>
+                    <span>Consumo linear: <strong>{totaisVariacoes.totalMetros} m</strong></span>
+                    {totaisVariacoes.totalKg > 0 && (
+                      <span className="text-emerald-700 dark:text-emerald-300">
+                        ≈ {totaisVariacoes.totalKg.toLocaleString("pt-BR")} kg
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           <div className="space-y-1">
             <Label className="text-xs font-medium">Observações / Detalhes Adicionais</Label>
