@@ -95,7 +95,8 @@ export async function distribuirPedidoPCP({ pedido, bobinasEstoque = [], filialA
       pedido: atual,
       itensCD,
       roteiroFinalPorItem: roteiroCDPorItem,
-      filialAtiva: atual.unidade || filialAtiva
+      filialAtiva: atual.unidade || filialAtiva,
+      bobinasEstoque
     });
   }
 

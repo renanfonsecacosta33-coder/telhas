@@ -893,21 +893,21 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-orange-300 dark:border-orange-700 shadow-2xs">
                 <span className="text-[10px] font-black uppercase text-orange-600 dark:text-orange-400 tracking-wider">Corte / Avanço</span>
                 <span className="text-base sm:text-lg font-black font-mono text-slate-900 dark:text-white leading-tight">
-                  {comprimentoCorteMm.toLocaleString("pt-BR")} mm
+                  {(Number(comprimentoCorteMm) || 0).toLocaleString("pt-BR")} mm
                 </span>
-                <span className="text-[10px] text-muted-foreground font-semibold">({(comprimentoCorteMm / 1000).toFixed(2)} metros)</span>
+                <span className="text-[10px] text-muted-foreground font-semibold">({((Number(comprimentoCorteMm) || 0) / 1000).toFixed(2)} metros)</span>
               </div>
 
               {/* Quantidade a Desbobinar */}
               <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
                 <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">
-                  {classificacao.isChapaLisa ? "Chapas a Cortar" : "Barras a Cortar"}
+                  {classificacao?.isChapaLisa ? "Chapas a Cortar" : "Barras a Cortar"}
                 </span>
                 <span className="text-base sm:text-lg font-black font-mono text-foreground leading-tight">
-                  {classificacao.qtdPecas} {classificacao.labelMetrica.toLowerCase()}
+                  {classificacao?.qtdPecas || 1} {(classificacao?.labelMetrica || "peças").toLowerCase()}
                 </span>
                 <span className="text-[10px] text-muted-foreground font-semibold">
-                  {classificacao.pesoKg > 0 ? `peso: ${classificacao.pesoKg.toLocaleString("pt-BR")}kg` : "a produzir"}
+                  {Number(classificacao?.pesoKg) > 0 ? `peso: ${Number(classificacao.pesoKg).toLocaleString("pt-BR")}kg` : "a produzir"}
                 </span>
               </div>
 
@@ -915,13 +915,13 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               {desenvMm && (
                 <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900 shadow-2xs">
                   <span className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 tracking-wider">
-                    {classificacao.isChapaLisa ? "Largura Chapa" : "Largura / Desenv"}
+                    {classificacao?.isChapaLisa ? "Largura Chapa" : "Largura / Desenv"}
                   </span>
                   <span className="text-base sm:text-lg font-black font-mono text-blue-700 dark:text-blue-300 leading-tight">
                     {desenvMm} mm
                   </span>
                   <span className="text-[10px] text-muted-foreground font-semibold truncate" title={abasFmt || "largura"}>
-                    {classificacao.isChapaLisa ? "largura blank" : (abasFmt ? abasFmt : "corte blank")}
+                    {classificacao?.isChapaLisa ? "largura blank" : (abasFmt ? abasFmt : "corte blank")}
                   </span>
                 </div>
               )}
@@ -930,7 +930,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-900 shadow-2xs">
                 <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider">Consumo Bobina</span>
                 <span className="text-base sm:text-lg font-black font-mono text-emerald-700 dark:text-emerald-300 leading-tight">
-                  {metragemTotalM} m
+                  {metragemTotalM || 0} m
                 </span>
                 <span className="text-[10px] text-muted-foreground font-semibold">linear total</span>
               </div>
@@ -939,7 +939,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs col-span-2 sm:col-span-1">
                 <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Peso Teórico</span>
                 <span className="text-base sm:text-lg font-black font-mono text-slate-900 dark:text-slate-100 leading-tight">
-                  ≈ {pesoEstimadoKg.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg
+                  ≈ {(Number(pesoEstimadoKg) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg
                 </span>
                 <span className="text-[10px] text-muted-foreground font-semibold">massa de aço</span>
               </div>
