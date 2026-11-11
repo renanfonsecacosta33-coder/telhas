@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Layers, Lock, CheckCircle2, Camera } from "lucide-react";
+import { Layers, Lock, CheckCircle2, Camera, Play } from "lucide-react";
 import { format } from "date-fns";
 
 /**
@@ -163,6 +163,15 @@ export default function ItensVariacoesTelhas({ pedido, iniciarBloqueado = false,
                       ? "Use o botão Iniciar da OP — este item inicia junto automaticamente"
                       : "Aguardando o início deste item na sequência da OP"}
                   </span>
+                  {pedido?.status !== "pendente" && onIniciarItem && (
+                    <Button
+                      size="sm"
+                      className="gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-8 text-xs shadow-sm"
+                      onClick={() => onIniciarItem(i)}
+                    >
+                      <Play className="w-3.5 h-3.5 fill-current" /> Conferir Bobina e Iniciar Item {i + 1}
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
