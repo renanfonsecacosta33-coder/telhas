@@ -243,9 +243,12 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
 
     const nums = cadeiaNumeros.split(/[xX*]/).map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
     if (nums.length >= 2) {
+      // 🛡️ Se forem 2 números na escala de chapa (ex: 1277x3000, 1200x3000) e não for perfil com comprimento separado,
+      // NUNCA tratar como abas de dobra — delegar para o extrator de Chapa Lisa
+      const isDimensoesChapaLisa = nums.length === 2 && !compSeparado && !["L", "U", "CANTONEIRA"].includes(tipoRaw) && nums[0] >= 300 && nums[1] >= 500;
       const isL = tipoRaw === "L" || /CANTONEIRA/.test(tipoRaw);
       const isU = tipoRaw === "U";
-      const temIndicativoForte = !!tipoRaw || qtdAntes != null || qtdDepois != null || nums.length >= 3 || /(?:dobr|perfil|cantoneira|chapa)/i.test(t);
+      const temIndicativoForte = !isDimensoesChapaLisa && (!!tipoRaw || qtdAntes != null || qtdDepois != null || nums.length >= 3 || /(?:dobr|perfil|cantoneira)/i.test(t));
 
       if (temIndicativoForte) {
         let abas = [];

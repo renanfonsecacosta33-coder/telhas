@@ -32,6 +32,7 @@ import { getEspessuraNumeroDesb, isAbaixoDoMinimoDesbobinadeira02, ESPESSURA_MIN
 import { useRegrasProducao } from "@/lib/regrasProducao";
 import { formatarQuantidadeComUnidade } from "@/lib/pedidoOdooHelper";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
+import BannerInstrucaoCorteDobra, { classificarItemCorteDobra } from "@/components/corte-dobra/BannerInstrucaoCorteDobra";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -91,6 +92,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
   const [novaEspessuraInput, setNovaEspessuraInput] = useState("");
   const [bobinaSelecionadaId, setBobinaSelecionadaId] = useState("");
   const [salvandoBobina, setSalvandoBobina] = useState(false);
+  const [mostrarTodasBobinas, setMostrarTodasBobinas] = useState(false);
 
   // ── RESOLUÇÃO INTELIGENTE DE ESPECIFICAÇÃO TÉCNICA E ESPESSURA ──
   const textoPecaCompleto = [o.observacoes, o.tipo_peca, o.dimensoes_livres, o.especificacoes_tecnicas].filter(Boolean).join(" ");
@@ -250,6 +252,36 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
     return null;
   }, [bobinaEncontrada, o.bobina_descricao]);
 
+  // ── Bobinas do Estoque filtradas para o Desbobinador ──
+  // Apenas bobinas ABERTAS e com bitola/espessura condizente/aproximada da ordem
+  const bobinasFiltradasDesb = useMemo(() => {
+    if (!Array.isArray(bobinas) || bobinas.length === 0) return [];
+
+    const abertas = bobinas.filter(b =>
+      !b.arquivada &&
+      b.status !== "fechada" &&
+      b.status !== "esgotada" &&
+      (b.peso_atual == null || b.peso_atual > 0)
+    );
+
+    if (mostrarTodasBobinas) return abertas;
+
+    const espAlvoStr = String(espessuraFinal || novaEspessuraInput || o.material_espessura || "").replace(",", ".").replace("mm", "").trim();
+    const espAlvo = parseFloat(espAlvoStr);
+
+    if (isNaN(espAlvo) || espAlvo <= 0) return abertas;
+
+    // Tolerância de ±0.25mm para aproximação industrial (ex: pedido 1.95 aceita 1.83 a 2.00, mas nunca 0.80)
+    const compativeis = abertas.filter(b => {
+      const espBobStr = String(b.espessura_utilizada || b.chapa || b.espessura_real || b.espessura_mm || "").replace(",", ".").replace("mm", "").trim();
+      const espBob = parseFloat(espBobStr);
+      if (isNaN(espBob)) return false;
+      return Math.abs(espBob - espAlvo) <= 0.25;
+    });
+
+    return compativeis.length > 0 ? compativeis : abertas;
+  }, [bobinas, espessuraFinal, novaEspessuraInput, o.material_espessura, mostrarTodasBobinas]);
+
   // Limpeza da descrição da bobina (NUNCA exibe "GV mm" quebrado ou espaços em branco)
   const bobinaDescricaoLimpa = useMemo(() => {
     const cod = codigoBobinaExtraido ? `[${codigoBobinaExtraido}]` : "";
@@ -297,26 +329,41 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
     }
   };
 
+  const classificacao = useMemo(() => {
+    return classificarItemCorteDobra(o, specTec);
+  }, [o, specTec]);
+
   // Medidas de Corte e Demanda do Desbobinador
   const { comprimentoCorteMm, desenvMm, abasFmt, metragemTotalM, pesoEstimadoKg } = useMemo(() => {
     let compMm = Number(o.comprimento_mm) || 0;
-    // Se o valor gravado foi muito pequeno (<= 300mm, ex: 25mm capturado de uma aba), corrige pelo comprimento real
-    if (compMm <= 300 && specTec.comprimento_mm && specTec.comprimento_mm > 300) {
-      compMm = specTec.comprimento_mm;
-    } else if (compMm <= 0 && specTec.comprimento_mm) {
-      compMm = specTec.comprimento_mm;
+    if (classificacao.isChapaLisa) {
+      if (specTec?.comprimento_mm && specTec.comprimento_mm > 300) {
+        compMm = specTec.comprimento_mm;
+      }
+    } else {
+      if (compMm <= 300 && specTec?.comprimento_mm && specTec.comprimento_mm > 300) {
+        compMm = specTec.comprimento_mm;
+      } else if (compMm <= 0 && specTec?.comprimento_mm) {
+        compMm = specTec.comprimento_mm;
+      }
     }
     if (compMm <= 0) compMm = 3000; // Padrão industrial
 
-    const desenv = specTec.desenvolvimento_mm || (o.largura_mm ? Number(o.largura_mm) : null);
-    const abasStr = specTec.abas && specTec.abas.length > 0 ? specTec.abas.join("×") + " mm" : null;
+    // Se for chapa lisa, o desenvolvimento é a largura real da chapa (ex: 1277mm), NUNCA abas somadas!
+    const desenv = classificacao.isChapaLisa
+      ? (specTec?.largura_mm || (o.largura_mm ? Number(o.largura_mm) : null) || 1200)
+      : (specTec?.desenvolvimento_mm || (o.largura_mm ? Number(o.largura_mm) : null));
 
-    const qtd = Number(o.quantidade) || 1;
+    const abasStr = !classificacao.isChapaLisa && specTec?.abas && specTec.abas.length > 0 
+      ? specTec.abas.join("×") + " mm" 
+      : null;
+
+    const qtd = Number(classificacao.qtdPecas) || 1;
     const totalM = +((qtd * compMm) / 1000).toFixed(1);
 
     // Cálculo físico do peso
-    let pesoKg = o.kg_estimado && o.kg_estimado > 50 ? o.kg_estimado : null;
-    if (!pesoKg || (Number(o.comprimento_mm) <= 300 && compMm > 300)) {
+    let pesoKg = classificacao.pesoKg;
+    if (!pesoKg || pesoKg <= 0) {
       const largM = desenv ? desenv / 1000 : (o.tamanho_corte_guilhotina ? Number(o.tamanho_corte_guilhotina) / 1000 : 1.2);
       const espFloat = parseFloat(String(espessuraFinal || "1.95").replace(",", ".")) || 1.95;
       pesoKg = Math.round(totalM * largM * espFloat * 7.85);
@@ -329,7 +376,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
       metragemTotalM: totalM,
       pesoEstimadoKg: pesoKg || o.kg_estimado || 0
     };
-  }, [o.comprimento_mm, o.quantidade, o.largura_mm, o.tamanho_corte_guilhotina, o.kg_estimado, specTec, espessuraFinal]);
+  }, [o.comprimento_mm, o.largura_mm, o.tamanho_corte_guilhotina, o.kg_estimado, specTec, espessuraFinal, classificacao]);
 
   // Validação estrita de espessura mínima da Desbobinadeira 02 (mínimo: 0,80mm)
   const espNum = getEspessuraNumeroDesb(o) || (espessuraFinal ? parseFloat(espessuraFinal.replace(",", ".")) : null);
@@ -706,6 +753,9 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
         {/* Banner de Prioridade Destaque Máximo */}
         <BannerPrioridadeDestaque pedido={o} />
 
+        {/* 🌟 Banner Dourado/Âmbar de Instrução e Especificação com Duas Métricas Principais (Chapas/Barras + KG) */}
+        <BannerInstrucaoCorteDobra ordem={o} specTec={specTec} />
+
         {/* Header */}
         <div className={`flex items-start justify-between ${z.gap} ${z.mb}`}>
           <div className="flex-1 min-w-0">
@@ -851,25 +901,27 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               {/* Quantidade a Desbobinar */}
               <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
                 <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">
-                  {["KG", "KGS"].includes(String(o.unidade || "").toUpperCase()) ? "Peso a Desbobinar" : "Quantidade"}
+                  {classificacao.isChapaLisa ? "Chapas a Cortar" : "Barras a Cortar"}
                 </span>
                 <span className="text-base sm:text-lg font-black font-mono text-foreground leading-tight">
-                  {formatarQuantidadeComUnidade(o)}
+                  {classificacao.qtdPecas} {classificacao.labelMetrica.toLowerCase()}
                 </span>
                 <span className="text-[10px] text-muted-foreground font-semibold">
-                  {["KG", "KGS"].includes(String(o.unidade || "").toUpperCase()) ? "peso comercial" : "a cortar"}
+                  {classificacao.pesoKg > 0 ? `peso: ${classificacao.pesoKg.toLocaleString("pt-BR")}kg` : "a produzir"}
                 </span>
               </div>
 
               {/* Desenvolvimento / Largura */}
               {desenvMm && (
                 <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900 shadow-2xs">
-                  <span className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 tracking-wider">Largura / Desenv</span>
+                  <span className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 tracking-wider">
+                    {classificacao.isChapaLisa ? "Largura Chapa" : "Largura / Desenv"}
+                  </span>
                   <span className="text-base sm:text-lg font-black font-mono text-blue-700 dark:text-blue-300 leading-tight">
                     {desenvMm} mm
                   </span>
                   <span className="text-[10px] text-muted-foreground font-semibold truncate" title={abasFmt || "largura"}>
-                    {abasFmt ? abasFmt : "corte blank"}
+                    {classificacao.isChapaLisa ? "largura blank" : (abasFmt ? abasFmt : "corte blank")}
                   </span>
                 </div>
               )}
@@ -1385,11 +1437,20 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               />
             </div>
 
-            {/* Seleção de Bobina do Estoque (opcional) */}
+            {/* Seleção de Bobina do Estoque (apenas abertas e aproximadas) */}
             <div className="space-y-1.5">
-              <Label htmlFor="select-bobina" className="text-xs font-semibold">
-                Vincular Bobina do Estoque:
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="select-bobina" className="text-xs font-semibold">
+                  Bobinas Abertas Compatíveis ({bobinasFiltradasDesb.length}):
+                </Label>
+                <button
+                  type="button"
+                  onClick={() => setMostrarTodasBobinas(prev => !prev)}
+                  className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                >
+                  {mostrarTodasBobinas ? "Mostrar apenas aproximadas" : "Mostrar todas as abertas"}
+                </button>
+              </div>
               <select
                 id="select-bobina"
                 value={bobinaSelecionadaId}
@@ -1407,7 +1468,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                 className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm font-medium focus:outline-hidden focus:ring-2 focus:ring-ring"
               >
                 <option value="">-- Nenhuma bobina vinculada (usar apenas espessura) --</option>
-                {bobinas.map((b) => {
+                {bobinasFiltradasDesb.map((b) => {
                   const espB = b.espessura_utilizada || b.chapa || b.espessura_real || b.espessura_mm || "-";
                   const saldo = b.peso_atual ? `${Math.round(b.peso_atual)}kg` : "";
                   return (

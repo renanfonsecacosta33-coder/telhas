@@ -40,6 +40,7 @@ import { formatarQuantidadeComUnidade } from "@/lib/pedidoOdooHelper";
 import { avancarProximaEtapaRoteiroCD } from "@/lib/roteamentoCorteDobraHelper";
 import { useRegrasProducao } from "@/lib/regrasProducao";
 import CroquiPeca2D from "@/components/corte-dobra/CroquiPeca2D";
+import BannerInstrucaoCorteDobra, { classificarItemCorteDobra } from "@/components/corte-dobra/BannerInstrucaoCorteDobra";
 
 
 function formatTempo(segundos) {
@@ -580,6 +581,9 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
       <div className={`border-l-4 ${cardPrioCls || borderColorRet} ${bgRet} rounded-xl ${z.card} shadow-sm hover:shadow-md transition-all`}>
         {/* Banner de Prioridade Destaque Máximo */}
         <BannerPrioridadeDestaque pedido={o} />
+
+        {/* 🌟 Banner Dourado/Âmbar de Instrução e Especificação com Duas Métricas Principais (Chapas/Barras + KG) */}
+        <BannerInstrucaoCorteDobra ordem={o} />
 
         {/* Header */}
         <div className={`flex items-start justify-between ${z.gap} ${z.mb}`}>
