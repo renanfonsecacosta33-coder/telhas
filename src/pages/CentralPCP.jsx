@@ -55,7 +55,7 @@ import {
 import useDistribuicaoPcp from "@/hooks/useDistribuicaoPcp"; import useProgramacaoPcp from "@/hooks/useProgramacaoPcp";
 import useFilaPaginada from "@/hooks/useFilaPaginada"; import useRealtimeThrottled from "@/hooks/useRealtimeThrottled";
 import FilaPagination from "@/components/pcp/FilaPagination";
-import { montarConsultaPcp, buscarOpsDasOfs } from "@/lib/consultaFilaPcp";
+import { montarConsultaPcp, buscarOpsDasOfs } from "@/lib/consultaFilaPcp"; import useFecharProduzidosPcp from "@/hooks/useFecharProduzidosPcp";
 import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
@@ -418,8 +418,7 @@ export default function CentralPCP() {
     refetchOnWindowFocus: false
   });
 
-  // Abrir a Central é somente leitura: reparos de quantidades não são disparados pelo carregamento.
-
+  useFecharProduzidosPcp({ pedidos, pedidosProducao, ordensCD, queryKey: filaPcp.queryKey });
   // Consultas de Matéria-Prima em Tempo Real para Análise de Disponibilidade no PCP
   const { data: bobinasEstoque = [] } = useQuery({
     queryKey: ["bobinas-estoque-pcp"],
