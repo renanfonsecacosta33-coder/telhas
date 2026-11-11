@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Calendar, User, Tag, Layers, Scissors, Wind, Trash2, Star,
   Undo2, RefreshCw, Zap, CheckCircle2, ChevronDown, ChevronUp, Home,
-  Building2, ArrowRightLeft, Store
+  Building2, ArrowRightLeft, Store, Clock
 } from "lucide-react";
 import {
   formatDataBR,
@@ -95,6 +95,28 @@ export default function PedidoOdooCard({
   const isConcluido = pedido.status_pcp === "concluido" || pct >= 100;
   const [expandidoManual, setExpandidoManual] = useState(defaultMinimizado === false);
   const minimizado = isConcluido && !expandidoManual;
+
+  // Data e hora em que a OF deu entrada / chegou no PCP
+  const dataEntradaPcp = useMemo(() => {
+    const raw = pedido.data_recebimento ||
+      pedido.data_pedido ||
+      pedido.created_date ||
+      pedido.created_at;
+    if (!raw) return null;
+    try {
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return String(raw).slice(0, 10);
+      const diaMes = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+      const horas = String(d.getHours()).padStart(2, "0");
+      const mins = String(d.getMinutes()).padStart(2, "0");
+      if (horas !== "00" || mins !== "00") {
+        return `${diaMes} às ${horas}:${mins}`;
+      }
+      return diaMes;
+    } catch {
+      return String(raw).slice(0, 10);
+    }
+  }, [pedido.data_recebimento, pedido.data_pedido, pedido.created_date, pedido.created_at]);
 
   const statusEstoque = useMemo(() => {
     if (!estoqueContext) return null;
@@ -623,9 +645,17 @@ export default function PedidoOdooCard({
       </div>
 
       <div className="flex items-center justify-between gap-2 flex-wrap text-[11px] text-slate-500 dark:text-slate-400">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <User className="w-3 h-3 shrink-0" />
-          <span className="truncate">{pedido.vendedor_nome || "—"}</span>
+        <div className="flex items-center gap-2 min-w-0 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <User className="w-3 h-3 shrink-0" />
+            <span className="truncate">{pedido.vendedor_nome || "—"}</span>
+          </div>
+          {dataEntradaPcp && (
+            <span className="inline-flex items-center gap-1 text-[10px] text-slate-700 dark:text-slate-300 bg-amber-500/10 dark:bg-amber-950/40 px-2 py-0.5 rounded font-semibold border border-amber-300/60 dark:border-amber-800/60" title="Data e horário em que o pedido chegou na Central PCP">
+              <Clock className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400 shrink-0" />
+              Chegou: <strong className="font-bold text-slate-900 dark:text-slate-100">{dataEntradaPcp}</strong>
+            </span>
+          )}
         </div>
 
         {/* Informações de Loja de Venda e Fábrica de Produção */}

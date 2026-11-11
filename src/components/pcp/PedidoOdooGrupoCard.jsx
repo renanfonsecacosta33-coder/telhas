@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   ChevronDown, ChevronUp, Layers, User, Calendar, Send,
-  CheckCircle2, Trash2,
+  CheckCircle2, Trash2, Clock,
   ArrowRightLeft, RefreshCw, MoreHorizontal
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -95,6 +95,32 @@ export default function PedidoOdooGrupoCard({
 
   // Prioridade / Urgência
   const isPrioritario = grupo.prioridade || ofs.some(p => p.prioridade || p.prioridade_nivel);
+
+  // Data e hora em que o pedido deu entrada / chegou na Central PCP
+  const dataEntradaPcp = useMemo(() => {
+    const raw = grupo.data_recebimento ||
+      grupo.data_pedido ||
+      grupo.created_date ||
+      grupo.created_at ||
+      ofs[0]?.data_recebimento ||
+      ofs[0]?.data_pedido ||
+      ofs[0]?.created_date ||
+      ofs[0]?.created_at;
+    if (!raw) return null;
+    try {
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return String(raw).slice(0, 10);
+      const diaMes = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+      const horas = String(d.getHours()).padStart(2, "0");
+      const mins = String(d.getMinutes()).padStart(2, "0");
+      if (horas !== "00" || mins !== "00") {
+        return `${diaMes} às ${horas}:${mins}`;
+      }
+      return diaMes;
+    } catch {
+      return String(raw).slice(0, 10);
+    }
+  }, [grupo, ofs]);
 
   // Contagem de OFs e somatórios reais por setor no grupo
   const contagemSetores = useMemo(() => {
@@ -319,6 +345,12 @@ export default function PedidoOdooGrupoCard({
                   <span className="flex items-center gap-1 shrink-0">
                     <Calendar className="w-3.5 h-3.5 text-slate-400" />
                     Entrega: <strong className="text-slate-700 dark:text-slate-200">{formatDataBR(grupo.data_entrega)}</strong>
+                  </span>
+                )}
+                {dataEntradaPcp && (
+                  <span className="inline-flex items-center gap-1 shrink-0 text-slate-700 dark:text-slate-300 bg-amber-500/10 dark:bg-amber-950/40 text-[11px] px-2 py-0.5 rounded-md border border-amber-300/60 dark:border-amber-800/60 font-semibold" title="Data e horário em que o pedido deu entrada na Central PCP">
+                    <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                    Chegou no PCP: <strong className="font-bold text-slate-900 dark:text-slate-100">{dataEntradaPcp}</strong>
                   </span>
                 )}
               </div>

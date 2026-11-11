@@ -482,6 +482,9 @@ export function calcularProgressoRealPedido(pedido, pedidosProducao = [], ordens
   const itens = getItens(pedido);
   if (!itens || itens.length === 0) return pedido.percentual_concluido || 0;
 
+  // Se o pedido está explicitamente concluído na Central PCP
+  if (pedido.status_pcp === "concluido") return 100;
+
   const numPed = String(pedido.numero_pedido || "").trim().toUpperCase();
   const ofId = String(pedido.of_odoo_id || pedido.odoo_id || "").trim().toUpperCase();
   const ofNome = String(pedido.of_nome || "").trim().toUpperCase();
@@ -518,24 +521,36 @@ export function calcularProgressoRealPedido(pedido, pedidosProducao = [], ordens
         const isSand = /(eps|manta|sanduiche|sanduíche|isopor|termoacustica|termoacústica|bandeja)/i.test(String(it.produto || it.descricao || ""));
         soma += isSand ? 85 : 100;
       } else if (opReal.status === "em_producao") {
-        soma += 75; // Operador deu Play / máquina rodando!
+        soma += 60; // Operador deu Play / máquina rodando!
       } else if (opReal.status === "pausado") {
-        soma += 60;
+        soma += 40;
       } else if (opReal.status === "pendente") {
-        soma += 50; // OP criada na máquina (ex: TP - 25)!
+        soma += 15; // ⚡ OP criada na máquina na fila do galpão (15% enviado à fábrica)
       } else if (opReal.status === "aguardando_corte" || opReal.status === "aguardando_material") {
-        soma += 25;
+        soma += 10;
       } else {
         soma += 0;
       }
     } else if (it.status === "concluido") {
       soma += 100;
-    } else if (it.status === "em_producao" || it.maquina) {
-      soma += 50;
-    } else if (pedido.status_pcp === "distribuido") {
+    } else if (it.status === "em_producao") {
+      soma += 60;
+    } else if (it.distribuido || pedido.status_pcp === "distribuido") {
       soma += 15; // Distribuído para galpão
     } else {
+      // 🛡️ Se ainda está na mesa do PCP aguardando distribuição, o progresso é rigorosamente 0%
       soma += 0;
+    }
+  }
+
+  // 🛡️ Trava de Segurança: Se o pedido está com status "pendente_distribuicao" e nenhum item foi concluído manualmente,
+  // nem há OP em andamento na máquina, força 0% para eliminar a anomalia dos 50%
+  const todosItensPendentes = itens.every(it => !it.concluido && it.status !== "concluido");
+  if ((!pedido.status_pcp || pedido.status_pcp === "pendente_distribuicao" || pedido.status_pcp === "pendente") && todosItensPendentes) {
+    const temOpRodando = opsTelha.some(o => o.status === "em_producao" || o.status === "finalizado") ||
+                         opsCD.some(o => o.status === "em_producao" || o.status === "finalizado");
+    if (!temOpRodando) {
+      return 0;
     }
   }
 
