@@ -24,10 +24,11 @@ export async function rotearItensCorteDobraDireto({
   const itensAtualizadosMap = {};
   const dataHoje = format(new Date(), "yyyy-MM-dd");
   const unidadeFinal = pedido.unidade || filialAtiva || "Matriz AJL";
+  const mapaRoteiro = roteiroFinalPorItem?.roteiroFinalPorItem || roteiroFinalPorItem || {};
 
   for (const it of itensCD) {
     const itemIdx = it._idx != null ? it._idx : 0;
-    const roteiroCfg = roteiroFinalPorItem[itemIdx];
+    const roteiroCfg = mapaRoteiro[itemIdx];
     if (!roteiroCfg || !roteiroCfg.maquinas || roteiroCfg.maquinas.length === 0) {
       continue;
     }

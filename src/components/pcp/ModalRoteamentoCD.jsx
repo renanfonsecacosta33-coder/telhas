@@ -233,7 +233,7 @@ export default function ModalRoteamentoCD({
       };
     });
 
-    onConfirmar({
+    onConfirmar(roteiroFinalPorItem, {
       pedido,
       roteiroFinalPorItem
     });

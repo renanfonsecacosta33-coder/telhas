@@ -1235,11 +1235,21 @@ export default function CentralPCP() {
     }
   };
 
-  const handleConfirmarRoteamentoCD = async (roteiroPorItem) => {
+  const handleConfirmarRoteamentoCD = async (dadosRoteamento) => {
     if (!modalRoteamentoCD.pedido) return;
     const pedidoAlvo = modalRoteamentoCD.pedido;
     setModalRoteamentoCD({ aberto: false, pedido: null, itensCD: [] });
-    await handleDistribuir(pedidoAlvo, roteiroPorItem);
+    const roteiroLimpo = dadosRoteamento?.roteiroFinalPorItem || dadosRoteamento;
+    try {
+      await handleDistribuir(pedidoAlvo, roteiroLimpo);
+    } catch (err) {
+      console.error("[CentralPCP] Erro ao distribuir Corte & Dobra com roteamento:", err);
+      toast({
+        title: "Erro ao distribuir Corte & Dobra",
+        description: err?.message || "Ocorreu uma falha ao enviar as OPs para as máquinas.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleDistribuirGrupoWrapper = (pedidosAlvo) => {
