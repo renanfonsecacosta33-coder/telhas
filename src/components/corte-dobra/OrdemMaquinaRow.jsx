@@ -36,6 +36,7 @@ import {
   getCardPrioridadeClasses
 } from "@/lib/prioridadeHelper";
 import { notificarStatus } from "@/lib/biNotificador";
+import { formatarQuantidadeComUnidade } from "@/lib/pedidoOdooHelper";
 import { avancarProximaEtapaRoteiroCD } from "@/lib/roteamentoCorteDobraHelper";
 import { useRegrasProducao } from "@/lib/regrasProducao";
 import CroquiPeca2D from "@/components/corte-dobra/CroquiPeca2D";
@@ -451,8 +452,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px]">
                 <CheckCircle2 className="w-3 h-3 mr-0.5" /> Finalizado
               </Badge>
-              {o.quantidade > 0 && <span className="text-xs font-semibold text-foreground">{o.quantidade} pç</span>}
-              {o.peso_kg > 0 && <span className="text-xs font-semibold text-emerald-700">≈ {o.peso_kg.toFixed(1)} kg</span>}
+              {o.quantidade > 0 && <span className="text-xs font-semibold text-foreground">{formatarQuantidadeComUnidade(o)}</span>}
               {o.modificacao_blank && (
                 <Badge className="bg-amber-100 text-amber-700 border-amber-300 text-[10px]">
                   <Edit3 className="w-2.5 h-2.5 mr-0.5" /> Blank modificado
@@ -673,8 +673,10 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
           </div>
 
           <div className="flex flex-col items-end gap-1 shrink-0">
-            <span className={`${z.info} font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded`}>{o.quantidade || 0} pç</span>
-            {o.peso_kg > 0 && <span className={`${z.info} text-muted-foreground`}>{o.peso_kg}kg</span>}
+            <span className={`${z.info} font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded`}>{formatarQuantidadeComUnidade(o)}</span>
+            {o.peso_kg > 0 && !["KG", "KGS"].includes(String(o.unidade || "").toUpperCase()) && (
+              <span className={`${z.info} text-muted-foreground`}>≈ {o.peso_kg}kg</span>
+            )}
             {o.modificacao_blank && (
               <Badge className="bg-amber-100 text-amber-700 border-amber-300 text-[10px]">
                 <Edit3 className="w-2.5 h-2.5 mr-0.5" /> OBD
@@ -1052,7 +1054,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
             <p><strong className="text-foreground">OP:</strong> #{o.numero_pedido || o.id}</p>
             <p><strong className="text-foreground">Cliente:</strong> {o.cliente || "—"}</p>
             <p><strong className="text-foreground">Peça / Chapa:</strong> {o.tipo_peca || o.chapa_descricao || "—"}</p>
-            <p><strong className="text-foreground">Quantidade:</strong> {o.quantidade || 1} pç</p>
+            <p><strong className="text-foreground">Quantidade / Peso:</strong> {formatarQuantidadeComUnidade(o)}</p>
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">

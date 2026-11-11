@@ -34,6 +34,7 @@ import {
   isPedidoRota,
   getCardPrioridadeClasses
 } from "@/lib/prioridadeHelper";
+import { formatarQuantidadeComUnidade } from "@/lib/pedidoOdooHelper";
 import ProcessoStepperPedido from "@/components/producao/ProcessoStepperPedido";
 
 function formatarDiaSeguro(diaStr) {
@@ -190,17 +191,9 @@ export default function OrdemCardCD({
 
             <StatusBadgeCD status={o.status} />
 
-            {o.quantidade > 0 && (
-              <span className="text-sm font-black text-orange-600 dark:text-orange-400">
-                {o.quantidade} pç{o.quantidade > 1 ? "s" : ""}
-              </span>
-            )}
-
-            {peso > 0 && (
-              <span className="text-xs font-semibold text-muted-foreground">
-                ({Number(peso).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg)
-              </span>
-            )}
+            <span className="text-sm font-black text-orange-600 dark:text-orange-400">
+              {formatarQuantidadeComUnidade(o)}
+            </span>
 
             {/* Timer Compacto Inline quando Em Produção ou Pausado */}
             {o.status === "em_producao" && (

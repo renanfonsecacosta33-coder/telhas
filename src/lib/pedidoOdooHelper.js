@@ -299,9 +299,9 @@ export function normalizarUnidadeMedidaItem(item, setorHint = null) {
       return "BR";
     }
 
-    // Se indicar expressamente UN / peça
-    if (["UN", "UND", "UNID", "UNIDADE", "UNIDADES", "PC", "PCS", "PÇ", "PÇS", "PECA", "PECAS"].includes(rawUnidade)) {
-      return "UN";
+    // Se indicar expressamente UN / peça / PC
+    if (["PC", "PCS", "PÇ", "PÇS", "PECA", "PECAS", "UN", "UND", "UNID", "UNIDADE", "UNIDADES"].includes(rawUnidade)) {
+      return "PC";
     }
 
     // Se a unidade informada for KG
@@ -349,6 +349,39 @@ export function normalizarUnidadeMedidaItem(item, setorHint = null) {
   if (["MT", "M", "METRO", "METROS"].includes(rawUnidade)) return "MT";
 
   return rawUnidade || "UN";
+}
+
+/**
+ * Formata a quantidade de uma ordem ou item respeitando a unidade estrita:
+ * - Se vier em KG: exibe em "kg" (ou "X pçs (Y kg)" se houver peças na instrução). Nunca "1000 pç".
+ * - Se vier em PC / UN / Peça: exibe em "pçs" (ou "pç").
+ * - Se vier em BR: exibe em "barras".
+ * - Se vier em MT: exibe em "m".
+ */
+export function formatarQuantidadeComUnidade(itemOuOrdem) {
+  if (!itemOuOrdem) return "0";
+  const unid = String(itemOuOrdem.unidade || itemOuOrdem.uom || itemOuOrdem.product_uom || "").trim().toUpperCase();
+  const qtd = Number(itemOuOrdem.quantidade ?? itemOuOrdem.qtd ?? 0);
+  const pecas = Number(itemOuOrdem.quantidade_pecas ?? itemOuOrdem.pecas ?? 0);
+  const peso = Number(itemOuOrdem.peso_kg ?? itemOuOrdem.kg_estimado ?? 0);
+
+  if (["KG", "KGS", "QUILOS", "QUILO"].includes(unid) || (peso > 0 && qtd === peso && pecas > 0)) {
+    if (pecas > 0) {
+      return `${pecas} pç${pecas > 1 ? "s" : ""} (${(peso || qtd).toLocaleString("pt-BR")} kg)`;
+    }
+    return `${qtd.toLocaleString("pt-BR")} kg`;
+  }
+
+  if (["BR", "BARRA", "BARRAS"].includes(unid)) {
+    return `${qtd} ${qtd === 1 ? "barra" : "barras"}`;
+  }
+
+  if (["MT", "M", "METRO", "METROS"].includes(unid)) {
+    return `${qtd.toLocaleString("pt-BR")} m`;
+  }
+
+  // Padrão PC / Peça:
+  return `${qtd} pç${qtd > 1 ? "s" : ""}`;
 }
 
 export function itensPorGrupo(itens, grupo) {

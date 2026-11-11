@@ -30,6 +30,7 @@ import { comprimirImagemParaUpload } from "@/lib/compressImage";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import { getEspessuraNumeroDesb, isAbaixoDoMinimoDesbobinadeira02, ESPESSURA_MINIMA_DESBOBINADEIRA_02 } from "@/lib/regrasFabrica";
 import { useRegrasProducao } from "@/lib/regrasProducao";
+import { formatarQuantidadeComUnidade } from "@/lib/pedidoOdooHelper";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 
 function formatTempo(segundos) {
@@ -547,7 +548,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px]">
                 <CheckCircle2 className="w-3 h-3 mr-0.5" /> Finalizado
               </Badge>
-              {o.quantidade > 0 && <span className="text-xs font-semibold text-foreground">{o.quantidade} pç</span>}
+              {o.quantidade > 0 && <span className="text-xs font-semibold text-foreground">{formatarQuantidadeComUnidade(o)}</span>}
               {o.comprimento_mm > 0 && <span className="text-xs text-muted-foreground">{o.comprimento_mm}mm</span>}
               {o.kg_estimado > 0 && <span className="text-xs font-semibold text-emerald-700">≈ {o.kg_estimado.toFixed(1)} kg</span>}
               {o.peso_real_balanca_kg > 0 && (
@@ -849,11 +850,15 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
 
               {/* Quantidade a Desbobinar */}
               <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
-                <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Quantidade</span>
-                <span className="text-base sm:text-lg font-black font-mono text-foreground leading-tight">
-                  {o.quantidade} {o.quantidade === 1 ? "chapa" : "chapas"}
+                <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                  {["KG", "KGS"].includes(String(o.unidade || "").toUpperCase()) ? "Peso a Desbobinar" : "Quantidade"}
                 </span>
-                <span className="text-[10px] text-muted-foreground font-semibold">a cortar</span>
+                <span className="text-base sm:text-lg font-black font-mono text-foreground leading-tight">
+                  {formatarQuantidadeComUnidade(o)}
+                </span>
+                <span className="text-[10px] text-muted-foreground font-semibold">
+                  {["KG", "KGS"].includes(String(o.unidade || "").toUpperCase()) ? "peso comercial" : "a cortar"}
+                </span>
               </div>
 
               {/* Desenvolvimento / Largura */}
@@ -1252,7 +1257,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
             <p><strong className="text-foreground">OP:</strong> #{o.numero_pedido || o.id}</p>
             <p><strong className="text-foreground">Cliente:</strong> {o.cliente || "—"}</p>
             <p><strong className="text-foreground">Bobina:</strong> {o.bobina_codigo || "—"}</p>
-            <p><strong className="text-foreground">Quantidade / Peso:</strong> {o.quantidade || 1} pç ({o.kg_estimado || 0} kg)</p>
+            <p><strong className="text-foreground">Quantidade / Peso:</strong> {formatarQuantidadeComUnidade(o)}</p>
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">

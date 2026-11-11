@@ -444,7 +444,8 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
         if (w >= 400 && l >= 800) {
           larguraChapa = w;
           compChapa = l;
-          qtdChapa = Number(qtdOdoo) || 1;
+          const isKgExplicit = String(unidadeOdoo || "").toUpperCase() === "KG";
+          qtdChapa = isKgExplicit ? null : (Number(qtdOdoo) || 1);
         }
       }
     }
@@ -452,7 +453,8 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
 
   // Se detectou medidas de chapa lisa válidas (ex: 1200x3000, 1000x2000, 1250x3000, etc.)
   if (larguraChapa && compChapa && larguraChapa >= 300 && compChapa >= 500) {
-    const q = qtdChapa || Number(qtdOdoo) || 1;
+    const isKgItem = String(unidadeOdoo || "").toUpperCase() === "KG";
+    const q = qtdChapa || (isKgItem ? null : Number(qtdOdoo)) || 1;
     const lM = +(compChapa / 1000).toFixed(3);
     const totalM = +(q * lM).toFixed(2);
 
@@ -462,10 +464,14 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
     out.comprimento_mm = compChapa;
     out.comprimento_m = lM;
     out.quantidade = q;
-    out.pecas = q;
+    out.pecas = qtdChapa || null;
+    out.peso_kg = isKgItem ? (Number(qtdOdoo) || null) : null;
+    out.unidade = isKgItem ? "KG" : (unidadeOdoo || "PC");
     out.metragem_total = totalM;
     out.dimensoes_fmt = `${larguraChapa} × ${compChapa} mm`;
-    out.resumo_formatado = `${q} pçs de ${larguraChapa}×${compChapa}mm (Chapa Lisa)`;
+    out.resumo_formatado = isKgItem
+      ? (qtdChapa ? `${qtdChapa} pçs de ${larguraChapa}×${compChapa}mm (${Number(qtdOdoo).toLocaleString("pt-BR")} kg)` : `${Number(qtdOdoo).toLocaleString("pt-BR")} kg de ${larguraChapa}×${compChapa}mm (Chapa Lisa)`)
+      : `${q} pçs de ${larguraChapa}×${compChapa}mm (Chapa Lisa)`;
     out.tem_especificacao = true;
     out.variacoes.push({
       qty: q,

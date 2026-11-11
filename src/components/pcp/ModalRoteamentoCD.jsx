@@ -312,6 +312,16 @@ export default function ModalRoteamentoCD({
 
                     {/* Especificações detectadas */}
                     <div className="flex items-center gap-2 flex-wrap pt-1 text-[11px]">
+                      {unid === "KG" ? (
+                        <Badge variant="outline" className="bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border-amber-300 font-bold">
+                          ⚖️ Venda em KG ({it.quantidade} kg)
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 border-blue-300 font-bold">
+                          📦 {unid === "BR" ? "Barras (BR)" : "Peças (PC)"}
+                        </Badge>
+                      )}
+
                       {spec?.tipo_label && (
                         <Badge variant="outline" className="bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 font-bold">
                           {spec.tipo_label}
@@ -327,8 +337,10 @@ export default function ModalRoteamentoCD({
                           Comp: {spec.comprimento_mm}mm
                         </span>
                       )}
-                      <span className="font-bold text-orange-600">
-                        Qtd: {spec?.quantidade ? `${spec.quantidade} pçs` : `${it.quantidade || 1}x`}
+                      <span className="font-extrabold text-orange-600 dark:text-orange-400">
+                        {unid === "KG"
+                          ? (spec?.pecas ? `Qtd: ${spec.pecas} pçs (${it.quantidade} kg)` : `Peso: ${it.quantidade} kg`)
+                          : `Qtd: ${it.quantidade || spec?.quantidade || 1} ${unid === "BR" ? "barras" : "pçs"}`}
                       </span>
                     </div>
                   </div>

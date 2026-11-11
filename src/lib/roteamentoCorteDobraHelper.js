@@ -36,9 +36,34 @@ export async function rotearItensCorteDobraDireto({
     const maquinaInicial = maquinas[0];
     const descItem = it.descricao || it.produto || "";
     const unid = normalizarUnidadeMedidaItem(it, "cd");
+    const isKg = unid === "KG";
+    const qtdOdoo = Number(it.quantidade) || 0;
     const spec = extrairEspecificacao(descItem, it.quantidade, unid) || {};
 
-    const qtdPecas = spec?.quantidade || it.quantidade_pecas || it.quantidade || 1;
+    // 🛡️ Regra Estrita de Unidade de Medida (AJL):
+    // Quando vier em KG: a grandeza comercial é peso em KG (ex: 1000 kg).
+    // Se o vendedor indicou peças na descrição (ex: 10 PÇS 1200x3000), quantidade_pecas = 10, peso_kg = 1000 kg.
+    // Se NÃO indicou peças, quantidade = 1000 kg, peso_kg = 1000 kg, unidade = KG.
+    // Quando vier em PC / Peça / Barra:
+    // A grandeza é quantidade de peças mesmo (ex: 32 pçs).
+    let qtdOp = 1;
+    let qtdPecasOp = null;
+    let pesoKgOp = null;
+
+    if (isKg) {
+      pesoKgOp = qtdOdoo > 0 ? qtdOdoo : null;
+      if (spec?.pecas && spec.pecas > 0) {
+        qtdPecasOp = Number(spec.pecas);
+        qtdOp = qtdPecasOp;
+      } else {
+        qtdOp = qtdOdoo > 0 ? qtdOdoo : 1;
+      }
+    } else {
+      qtdOp = Number(spec?.pecas || spec?.quantidade || it.quantidade_pecas || qtdOdoo || 1);
+      qtdPecasOp = qtdOp;
+      pesoKgOp = spec?.peso_kg || (it.peso_kg ? Number(it.peso_kg) : null);
+    }
+
     const compMm = spec?.comprimento_mm || it.comprimento_mm || 3000;
     const desenvMm = spec?.desenvolvimento_mm || it.desenvolvimento_mm || null;
     const dimensoes = spec?.dimensoes_fmt || it.medida || `${compMm}mm`;
@@ -61,12 +86,17 @@ export async function rotearItensCorteDobraDireto({
         tipo_peca: it.produto || "Blank / Chapa Cortada",
         dimensoes_livres: dimensoes,
         comprimento_mm: Number(compMm) || 3000,
-        quantidade: Number(qtdPecas) || 1,
+        quantidade: qtdOp,
+        quantidade_pecas: qtdPecasOp,
+        peso_kg: pesoKgOp,
+        kg_estimado: pesoKgOp,
+        unidade: isKg ? "KG" : (unid === "BR" ? "BR" : "PC"),
         destino: "pedido_direto",
         status: "pendente",
         foto_pedido_url: pedido.foto_pedido_url || it.foto_pedido_url || null,
         observacoes: [
           descItem,
+          `Unidade: ${isKg ? `KG (${pesoKgOp} kg${qtdPecasOp ? ` - ${qtdPecasOp} pçs` : ""})` : `${unid === "BR" ? "BR (Barras)" : "PC (Peças)"}: ${qtdOp}`}`,
           `Roteiro PCP: ${maquinas.join(" ➔ ")}`,
           pedido.observacao_vendedor ? `Instrução: ${pedido.observacao_vendedor}` : ""
         ].filter(Boolean).join(" | "),
@@ -99,12 +129,16 @@ export async function rotearItensCorteDobraDireto({
         dimensoes_livres: dimensoes,
         comprimento_mm: Number(compMm) || 3000,
         desenvolvimento_mm: Number(desenvMm) || null,
-        quantidade: Number(qtdPecas) || 1,
+        quantidade: qtdOp,
+        quantidade_pecas: qtdPecasOp,
+        peso_kg: pesoKgOp,
+        unidade: isKg ? "KG" : (unid === "BR" ? "BR" : "PC"),
         status: "pendente",
         chapa_origem: "chaparia",
         foto_pedido_url: pedido.foto_pedido_url || it.foto_pedido_url || null,
         observacoes: [
           descItem,
+          `Unidade: ${isKg ? `KG (${pesoKgOp} kg${qtdPecasOp ? ` - ${qtdPecasOp} pçs` : ""})` : `${unid === "BR" ? "BR (Barras)" : "PC (Peças)"}: ${qtdOp}`}`,
           `Roteiro PCP: ${maquinas.join(" ➔ ")}`,
           pedido.observacao_vendedor ? `Instrução: ${pedido.observacao_vendedor}` : ""
         ].filter(Boolean).join(" | "),
@@ -192,7 +226,9 @@ export async function avancarProximaEtapaRoteiroCD(ordemAtual, entidadeOrigem = 
     comprimento_mm: ordemAtual.comprimento_mm || 3000,
     desenvolvimento_mm: ordemAtual.desenvolvimento_mm || null,
     quantidade: ordemAtual.quantidade || 1,
+    quantidade_pecas: ordemAtual.quantidade_pecas || null,
     peso_kg: ordemAtual.peso_kg || null,
+    unidade: ordemAtual.unidade || "PC",
     status: "pendente", // ⚡ Entra pronta para ser executada na próxima máquina
     chapa_origem: "chaparia",
     foto_pedido_url: ordemAtual.foto_pedido_url || null,
