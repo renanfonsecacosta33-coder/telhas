@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -8,7 +8,7 @@ import {
   Play, Pause, CheckCircle2, Timer, Coffee, Square, Circle,
   AlertCircle, Clock, Camera, Loader2, Layers, Package, ShoppingCart, Trash2, Image as ImageIcon,
   Edit3, History, Star, User, Users, PackageX, AlertTriangle, Ban, ChevronDown, ChevronUp, Calculator,
-  Truck, Zap
+  Truck, Zap, Sparkles
 } from "lucide-react";
 import { registrarAuditoria } from "@/lib/auditHelper";
 import UploadButton from "@/components/ui/UploadButton";

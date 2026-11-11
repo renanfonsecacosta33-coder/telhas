@@ -393,14 +393,14 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
 
   // Ordens irmãs do mesmo lote de múltiplas medidas
   const ordensIrmasLote = useMemo(() => {
-    if (!o.lote_medidas_id || !Array.isArray(ordensAtivas)) return [];
-    return ordensAtivas.filter(x =>
+    if (!o.lote_medidas_id || !Array.isArray(ordens)) return [];
+    return ordens.filter(x =>
       x.id !== o.id &&
       x.lote_medidas_id === o.lote_medidas_id &&
       x.status !== "finalizado" &&
       x.status !== "cancelado"
     );
-  }, [o.lote_medidas_id, o.id, ordensAtivas]);
+  }, [o.lote_medidas_id, o.id, ordens]);
 
   const handleFinalizarLoteInteiro = async () => {
     if (!window.confirm(`Deseja finalizar esta OP e as outras ${ordensIrmasLote.length} medidas irmãs deste mesmo lote de uma vez?`)) return;

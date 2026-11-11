@@ -11,7 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useFilial } from "@/contexts/FilialContext";
 import { ehIvaipora } from "@/lib/maquinasPorFilial";
-import { Layers, Camera, PackageX, Lock, Flame, Route, User as UserIcon, Zap, ChevronDown, ChevronUp, CheckCircle2, Search, Sparkles, Truck, RotateCcw, Edit2 } from "lucide-react";
+import { Layers, Camera, PackageX, Lock, Flame, Route, User as UserIcon, Zap, ChevronDown, ChevronUp, CheckCircle2, Search, Sparkles, Truck, RotateCcw, Edit2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import UploadButton from "@/components/ui/UploadButton";
 import ChapaEstoqueCombobox from "@/components/corte-dobra/ChapaEstoqueCombobox";
