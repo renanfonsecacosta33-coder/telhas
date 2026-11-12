@@ -17,6 +17,7 @@ export default function useDistribuicaoPcp({
   toast,
   setPedidoSelecionado,
   setSelecionados,
+  usuarioNome = null
 }) {
   const [distribuindo, setDistribuindo] = useState(false);
   const envioAtivo = useRef(false);
@@ -30,7 +31,8 @@ export default function useDistribuicaoPcp({
         pedido,
         bobinasEstoque,
         filialAtiva,
-        roteiroCDPorItem
+        roteiroCDPorItem,
+        usuarioNome
       });
 
       concluirEnvio([pedido.id]);
@@ -86,7 +88,8 @@ export default function useDistribuicaoPcp({
         pedidos: pedidosADistribuir,
         opcoes,
         bobinasEstoque,
-        filialAtiva
+        filialAtiva,
+        usuarioNome
       });
 
       // Selo "Enviado" só para quem realmente foi distribuído; quem falhou volta

@@ -45,6 +45,7 @@ import HistoricoPedidoSidebar from "@/components/corte-dobra/HistoricoPedidoSide
 import { salvarCacheLocal, obterCacheLocal } from "@/lib/offlineStorage";
 import { useFilial } from "@/contexts/FilialContext";
 import { useOffline } from "@/contexts/OfflineContext";
+import { extrairNomeUsuario } from "@/lib/usuarioLogadoHelper";
 import { FILIAIS_PCP } from "@/lib/roteamentoPCP";
 import { calcularDataPrometidaSLA, toISODate, slaDiasPorCategoria, diasUteisRestantes } from "@/lib/sla";
 import { parseItensPedido } from "@/lib/regrasFabrica";
@@ -193,6 +194,7 @@ export default function CentralPCP() {
   const { isOnline } = useOffline();
   const filialAtiva = filialCtx?.filialAtiva || "Matriz AJL";
   const isOperador = filialCtx?.user?.role === "operador";
+  const usuarioLogadoNome = extrairNomeUsuario(filialCtx?.user);
 
   const filiaisPcpExibidas = useMemo(() => {
     if (!filialCtx?.filiaisPermitidas || filialCtx.filiaisPermitidas.length === 0) {
@@ -643,7 +645,7 @@ export default function CentralPCP() {
       const logExistente = (() => { try { return JSON.parse(pedido.historico_log || "[]"); } catch { return []; } })();
       const novoLog = [...logExistente, {
         data: new Date().toISOString(),
-        usuario: "PCP",
+        usuario: usuarioLogadoNome,
         acao: "retirada_fila_galpao",
         detalhes: "Pedido retirado da fila dos galpões e devolvido para a Central PCP."
       }];
@@ -849,7 +851,7 @@ export default function CentralPCP() {
 
     const novoLog = [...logExistente, {
       data: new Date().toISOString(),
-      usuario: "PCP",
+      usuario: usuarioLogadoNome,
       acao: ativa ? (isRetiraAgora ? "prioridade_retira_agora" : isRota ? "prioridade_rota" : `prioridade_p${nivelNumerico}`) : "prioridade_removida",
       detalhes: descr
     }];
@@ -1004,7 +1006,7 @@ export default function CentralPCP() {
           const logExistente = (() => { try { return JSON.parse(p.historico_log || "[]"); } catch { return []; } })();
           const novoLog = [...logExistente, {
             data: new Date().toISOString(),
-            usuario: "PCP",
+            usuario: usuarioLogadoNome,
             acao: ativa
               ? (isRetiraAgora ? "prioridade_grupo_retira_agora" : isRota ? "prioridade_grupo_rota" : `prioridade_grupo_p${nivelNumerico}`)
               : "prioridade_grupo_removida",
@@ -1136,7 +1138,7 @@ export default function CentralPCP() {
           const logExistente = (() => { try { return JSON.parse(p.historico_log || "[]"); } catch { return []; } })();
           const novoLog = [...logExistente, {
             data: new Date().toISOString(),
-            usuario: "PCP",
+            usuario: usuarioLogadoNome,
             acao: ativa
               ? (isRetiraAgora ? "prioridade_lote_retira_agora" : isRota ? "prioridade_lote_rota" : `prioridade_lote_p${nivelNumerico}`)
               : "prioridade_lote_removida",
@@ -1233,7 +1235,8 @@ export default function CentralPCP() {
   };
 
   const { distribuindo, handleDistribuir, handleDistribuirLote } = useDistribuicaoPcp({
-    bobinasEstoque, filialAtiva, queryClient, toast, setPedidoSelecionado, setSelecionados
+    bobinasEstoque, filialAtiva, queryClient, toast, setPedidoSelecionado, setSelecionados,
+    usuarioNome: usuarioLogadoNome
   });
 
   const iniciarDistribuicaoComRoteamento = (pedido) => {

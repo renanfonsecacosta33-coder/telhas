@@ -5,6 +5,7 @@ import { isAutoRoteamentoTelhasAtivo, rotearLoteTelhasAgrupadas, comRetry } from
 import { notificarStatus } from "@/lib/biNotificador";
 import { carregarOpsDosPedidos, pedidoJaProduzido, fecharPedidosProduzidos } from "@/lib/reconciliacaoProducaoFinalizada";
 import { rotearItensCorteDobraDireto } from "@/lib/roteamentoCorteDobraHelper";
+import { obterNomeUsuarioLogado } from "@/lib/usuarioLogadoHelper";
 
 // Pedidos processados simultaneamente na distribuição em lote.
 // (Cada pedido já roda seus grupos de telha em paralelo — 2 pedidos mantêm a
@@ -32,7 +33,7 @@ async function preBuscarOpsExistentes(alvo) {
  * - Notificações de BI disparam em segundo plano sem bloquear
  * Retorna { sucesso, telhasCount, preservadosManual, falhas }
  */
-export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinasEstoque = [], filialAtiva = "todas" }) {
+export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinasEstoque = [], filialAtiva = "todas", usuarioNome = null }) {
   const preSelecionados = pedidos.filter(p => !(opcoes.pularDevolvidosManualmente && p.retirado_manualmente_ts));
   // Pedido cuja produção já foi finalizada nas máquinas é FECHADO, nunca redistribuído.
   const { fechados } = await fecharPedidosProduzidos({ pedidos: preSelecionados }).catch(() => ({ fechados: [] }));
@@ -45,7 +46,7 @@ export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinas
     while (cursor < alvo.length) {
       const pedido = alvo[cursor++];
       try {
-        const resultado = await distribuirPedidoPCP({ pedido, bobinasEstoque, filialAtiva, opsExistentesPre: ops.get(pedido.id) });
+        const resultado = await distribuirPedidoPCP({ pedido, bobinasEstoque, filialAtiva, opsExistentesPre: ops.get(pedido.id), usuarioNome });
         resumo.sucesso++;
         resumo.telhasCount += resultado.telhasAutoRoteadas;
         resumo.idsSucesso.push(pedido.id);
@@ -68,7 +69,8 @@ export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinas
  * "meio distribuído" na fila do PCP.
  * Retorna { atualizado, telhasAutoRoteadas, bobinasVinculadas }.
  */
-export async function distribuirPedidoPCP({ pedido, bobinasEstoque = [], filialAtiva = "todas", opsExistentesPre = null, indicesAlvo = null, itensProgramados = null, forcarRoteamento = false, roteiroCDPorItem = null }) {
+export async function distribuirPedidoPCP({ pedido, bobinasEstoque = [], filialAtiva = "todas", opsExistentesPre = null, indicesAlvo = null, itensProgramados = null, forcarRoteamento = false, roteiroCDPorItem = null, usuarioNome = null }) {
+  const usuarioLogado = await obterNomeUsuarioLogado(usuarioNome);
   const atual = await base44.entities.PedidoOdoo.get(pedido.id);
   if (atual.status_pcp === "concluido") return { atualizado: atual, telhasAutoRoteadas: 0, bobinasVinculadas: 0, cdAutoRoteados: 0 };
   // Trava anti-pedido-zumbi: se as OPs das máquinas já estão finalizadas, o pedido
@@ -117,7 +119,7 @@ export async function distribuirPedidoPCP({ pedido, bobinasEstoque = [], filialA
   const percentual = calcularProgressoRealPedido({ ...frescos, itens: finais }, resultado.opsCriadas, resultadoCD.opsCriadas);
   let log = [];
   try { log = JSON.parse(frescos.historico_log || "[]"); } catch { log = []; }
-  log.push({ data: new Date().toISOString(), usuario: "PCP", acao: pendente ? "distribuicao_parcial" : "distribuicao", detalhes: `${todasOpsCriadas.length} OP(s) confirmada(s).${resultado.erros?.length ? ` Pendências: ${resultado.erros.map(e => e.message).join("; ")}` : ""}` });
+  log.push({ data: new Date().toISOString(), usuario: usuarioLogado, acao: pendente ? "distribuicao_parcial" : "distribuicao", detalhes: `${todasOpsCriadas.length} OP(s) confirmada(s).${resultado.erros?.length ? ` Pendências: ${resultado.erros.map(e => e.message).join("; ")}` : ""}` });
   const atualizado = await comRetry(() => base44.entities.PedidoOdoo.update(atual.id, { itens_json: buildItensJson(finais), status_pcp: status, percentual_concluido: percentual, retirado_manualmente_ts: "", historico_log: JSON.stringify(log) }));
   notificarStatus(atualizado, "distribuido", { status_novo: status, percentual_concluido: percentual }).catch(() => {});
   if (resultado.erros?.length) throw new Error(`Envio parcial preservado. ${resultado.erros.map(e => e.message).join("; ")}`);

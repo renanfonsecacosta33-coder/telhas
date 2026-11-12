@@ -349,7 +349,7 @@ export default function HistoricoMovimentacaoDialog({
 
                         <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 pt-0.5">
                           <User className="w-3 h-3 text-slate-400" />
-                          <span>Responsável: <strong className="text-slate-700 dark:text-slate-300">{ev.usuario}</strong></span>
+                          <span>Responsável: <strong className="text-slate-800 dark:text-slate-200">{ev.usuario === "PCP" ? "Central PCP (Terminal)" : ev.usuario}</strong></span>
                         </div>
                       </div>
                     </div>

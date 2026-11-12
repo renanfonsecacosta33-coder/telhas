@@ -3,6 +3,7 @@ import { cancelarOpsDasOfsExatas, comRetryLimite } from "@/lib/conciliacaoPcpMaq
 import { parseItensPedido } from "@/lib/regrasFabrica";
 import { notificarStatus } from "@/lib/biNotificador";
 import { carregarOpsDosPedidos, pedidoJaProduzido } from "@/lib/reconciliacaoProducaoFinalizada";
+import { obterNomeUsuarioLogado } from "@/lib/usuarioLogadoHelper";
 
 const invalidarQueriesPcp = (queryClient) => {
   queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
@@ -56,6 +57,7 @@ export const devolverPedidosPCPLote = async ({ lista, queryClient, toast }) => {
   try {
     const todayIso = new Date().toISOString().slice(0, 10);
     const agoraIso = new Date().toISOString();
+    const usuarioLogado = await obterNomeUsuarioLogado();
     // 1. Cancela SOMENTE as OPs das OFs selecionadas — uma venda pode ter várias OFs
     //    irmãs no Odoo, e casar apenas pelo numero_pedido cancelaria a produção da
     //    OF irmã. A produção já finalizada permanece intocada.
@@ -74,7 +76,7 @@ export const devolverPedidosPCPLote = async ({ lista, queryClient, toast }) => {
       const logExistente = (() => { try { return JSON.parse(pedido.historico_log || "[]"); } catch { return []; } })();
       const novoLog = [...logExistente, {
         data: agoraIso,
-        usuario: "PCP",
+        usuario: usuarioLogado,
         acao: "devolucao_massa_pcp",
         detalhes: `Pedido devolvido à Central PCP em massa (${qtd} pedidos) — OPs dos galpões canceladas.`
       }];
