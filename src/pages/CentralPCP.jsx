@@ -37,6 +37,7 @@ import AuditarRestaurarOpsDialog from "@/components/pcp/AuditarRestaurarOpsDialo
 import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import TransferirLojaDialog from "@/components/pcp/TransferirLojaDialog";
+import HistoricoMovimentacaoDialog from "@/components/pcp/HistoricoMovimentacaoDialog";
 import ViewModeToggle from "@/components/ui/ViewModeToggle";
 import FilaPCPTabelaView from "@/components/pcp/FilaPCPTabelaView";
 import FilaPCPKanbanView from "@/components/pcp/FilaPCPKanbanView";
@@ -254,6 +255,22 @@ export default function CentralPCP() {
     aberto: false,
     pedidos: []
   });
+
+  // Modal de Linha do Tempo e Histórico Completo de Movimentação do Pedido
+  const [modalHistoricoMov, setModalHistoricoMov] = useState({
+    aberto: false,
+    grupo: null,
+    pedido: null
+  });
+
+  const handleAbrirHistoricoMovimentacao = (pedidoOuGrupo) => {
+    if (!pedidoOuGrupo) return;
+    if (pedidoOuGrupo.ofs && Array.isArray(pedidoOuGrupo.ofs)) {
+      setModalHistoricoMov({ aberto: true, grupo: pedidoOuGrupo, pedido: null });
+    } else {
+      setModalHistoricoMov({ aberto: true, grupo: null, pedido: pedidoOuGrupo });
+    }
+  };
 
   // Filtros de Data
   const [filtroDataPreset, setFiltroDataPreset] = useState("todas"); // "todas" | "hoje" | "amanha" | "semana" | "atrasados" | "personalizada"
@@ -2522,6 +2539,7 @@ export default function CentralPCP() {
                     onTogglePrioridade={handleTogglePrioridade}
                     onSetPrioridade={handleSetPrioridade}
                     onSetPrioridadeGrupo={handleSetPrioridadeGrupo}
+                    onVerHistorico={handleAbrirHistoricoMovimentacao}
                     onTransferir={(p) => setModalTransferir({ aberto: true, pedidos: [p] })}
                     onTransferirGrupo={(g) => setModalTransferir({ aberto: true, pedidos: g.ofs || [] })}
                     onFinalizarGrupo100={(lista) => handleSolicitarFinalizar100(lista)}
@@ -2547,6 +2565,7 @@ export default function CentralPCP() {
                     onRetirarFila={handleRetirarFila}
                     onTogglePrioridade={handleTogglePrioridade}
                     onSetPrioridade={handleSetPrioridade}
+                    onVerHistorico={handleAbrirHistoricoMovimentacao}
                     onTransferir={(ped) => setModalTransferir({ aberto: true, pedidos: [ped] })}
                     onFinalizar100={(ped) => handleSolicitarFinalizar100([ped])}
                     estoqueContext={estoqueContext}
@@ -2613,6 +2632,7 @@ export default function CentralPCP() {
                           onTogglePrioridade={handleTogglePrioridade}
                           onSetPrioridade={handleSetPrioridade}
                           onSetPrioridadeGrupo={handleSetPrioridadeGrupo}
+                          onVerHistorico={handleAbrirHistoricoMovimentacao}
                           onTransferir={(p) => setModalTransferir({ aberto: true, pedidos: [p] })}
                           onTransferirGrupo={(g) => setModalTransferir({ aberto: true, pedidos: g.ofs || [] })}
                           onFinalizarGrupo100={(lista) => handleSolicitarFinalizar100(lista)}
@@ -2638,6 +2658,7 @@ export default function CentralPCP() {
                           onRetirarFila={handleRetirarFila}
                           onTogglePrioridade={handleTogglePrioridade}
                           onSetPrioridade={handleSetPrioridade}
+                          onVerHistorico={handleAbrirHistoricoMovimentacao}
                           onTransferir={(ped) => setModalTransferir({ aberto: true, pedidos: [ped] })}
                           onFinalizar100={(ped) => handleSolicitarFinalizar100([ped])}
                           estoqueContext={estoqueContext}
@@ -2667,6 +2688,7 @@ export default function CentralPCP() {
         onToggleItem={handleToggleItem}
         onProgramarItem={handleProgramarItem}
         onProgramarTodosItens={handleProgramarTodosItens}
+        onVerHistorico={handleAbrirHistoricoMovimentacao}
         onTransferir={(p) => setModalTransferir({ aberto: true, pedidos: [p] })}
         estoqueContext={estoqueContext}
         onAtualizado={() => {
@@ -2895,6 +2917,14 @@ export default function CentralPCP() {
         open={Boolean(pedidoHistoricoNumero)}
         onClose={() => setPedidoHistoricoNumero(null)}
         numeroPedido={pedidoHistoricoNumero}
+      />
+
+      {/* Modal de Linha do Tempo e Histórico de Movimentação do Pedido */}
+      <HistoricoMovimentacaoDialog
+        open={modalHistoricoMov.aberto}
+        onOpenChange={(aberto) => setModalHistoricoMov(prev => ({ ...prev, aberto }))}
+        pedido={modalHistoricoMov.pedido}
+        grupo={modalHistoricoMov.grupo}
       />
 
       {/* Guia Operacional e Fluxograma do PCP */}

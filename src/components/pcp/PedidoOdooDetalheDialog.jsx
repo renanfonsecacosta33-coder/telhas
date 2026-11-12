@@ -7,7 +7,7 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Zap, Factory, Scissors, Wind, Tag, Ruler, Package, CheckCircle2, Trash2, ImageIcon, ExternalLink, Star, ShieldAlert, Undo2, RotateCcw, RefreshCw, Disc, AlertTriangle, Layers, Building2, ArrowRightLeft, Store, CalendarClock } from "lucide-react";
+import { Zap, Factory, Scissors, Wind, Tag, Ruler, Package, CheckCircle2, Trash2, ImageIcon, ExternalLink, Star, ShieldAlert, Undo2, RotateCcw, RefreshCw, Disc, AlertTriangle, Layers, Building2, ArrowRightLeft, Store, CalendarClock, History } from "lucide-react";
 import { formatDataBR, slaDiasPorCategoria } from "@/lib/sla";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
@@ -30,7 +30,7 @@ import EditarItensOdooDialog from "@/components/pcp/EditarItensOdooDialog";
 export default function PedidoOdooDetalheDialog({
   pedido, open, onOpenChange, onDistribuir, distribuindo,
   onExcluirOS, onRetirarFila, onTogglePrioridade, onSetPrioridade, onToggleItem,
-  onDevolverPCP, onTransferir, showTracking = false, progressoReal, onAtualizado,
+  onDevolverPCP, onTransferir, onVerHistorico, showTracking = false, progressoReal, onAtualizado,
   onProgramarItem, onProgramarTodosItens,
   estoqueContext = null
 }) {
@@ -355,17 +355,30 @@ export default function PedidoOdooDetalheDialog({
               )}
             </div>
 
-            {onTransferir && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onTransferir(pedido)}
-                className="gap-1.5 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-xs font-bold shrink-0 ml-auto"
-              >
-                <ArrowRightLeft className="w-3.5 h-3.5 text-indigo-500" />
-                Transferir Fábrica
-              </Button>
-            )}
+            <div className="flex items-center gap-2 ml-auto shrink-0 flex-wrap">
+              {onVerHistorico && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onVerHistorico(pedido)}
+                  className="gap-1.5 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-xs font-bold"
+                >
+                  <History className="w-3.5 h-3.5 text-blue-500" />
+                  Ver Histórico
+                </Button>
+              )}
+              {onTransferir && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onTransferir(pedido)}
+                  className="gap-1.5 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-xs font-bold"
+                >
+                  <ArrowRightLeft className="w-3.5 h-3.5 text-indigo-500" />
+                  Transferir Fábrica
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* SLA Countdown (Regra 6) */}

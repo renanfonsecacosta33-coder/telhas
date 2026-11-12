@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Calendar, User, Tag, Layers, Scissors, Wind, Trash2, Star,
   Undo2, RefreshCw, Zap, CheckCircle2, ChevronDown, ChevronUp, Home,
-  Building2, ArrowRightLeft, Store, Clock
+  Building2, ArrowRightLeft, Store, Clock, History
 } from "lucide-react";
 import {
   formatDataBR,
@@ -85,6 +85,7 @@ export default function PedidoOdooCard({
   pedido, onClick, onDelete, onRetirarFila, onTogglePrioridade, onSetPrioridade,
   progressoReal, pedidosProducao = [], ordensCD = [],
   selecionado = false, onToggleSelect, onDistribuir, onTransferir, onFinalizar100,
+  onVerHistorico,
   defaultMinimizado, compacto = false, dentroDeGrupo = false,
   estoqueContext = null
 }) {
@@ -349,6 +350,16 @@ export default function PedidoOdooCard({
             >
               <RefreshCw className={`w-3 h-3 ${sincronizando ? "animate-spin" : ""}`} />
             </button>
+            {onVerHistorico && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onVerHistorico(pedido); }}
+                title="Histórico e Linha do Tempo de Movimentação"
+                className="p-1 rounded text-blue-500 hover:text-blue-600 hover:bg-blue-500/10 transition-colors"
+              >
+                <History className="w-3 h-3" />
+              </button>
+            )}
             {onTransferir && (
               <button
                 type="button"
@@ -562,6 +573,16 @@ export default function PedidoOdooCard({
             >
               <RefreshCw className={`w-3.5 h-3.5 ${sincronizando ? "animate-spin" : ""}`} />
             </button>
+            {onVerHistorico && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onVerHistorico(pedido); }}
+                title="Histórico e Linha do Tempo de Movimentação"
+                className="p-1 rounded text-blue-500 hover:text-blue-600 hover:bg-blue-500/10 transition-colors"
+              >
+                <History className="w-3 h-3" />
+              </button>
+            )}
             {onTransferir && (
               <button
                 type="button"
@@ -676,9 +697,21 @@ export default function PedidoOdooCard({
             </Badge>
           )}
           {pedido.unidade_transferida_de && (
-            <Badge variant="outline" className="text-[9px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200/80 gap-0.5 py-0" title={`Transferido de ${pedido.unidade_transferida_de}. Motivo: ${pedido.motivo_transferencia || 'Transferência manual'}`}>
-              ↔️ De {pedido.unidade_transferida_de}
-            </Badge>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onVerHistorico?.(pedido);
+              }}
+              title={`Transferido de ${pedido.unidade_transferida_de}${pedido.usuario_transferencia ? ` por ${pedido.usuario_transferencia}` : ""}. Motivo: ${pedido.motivo_transferencia || 'Sem justificativa informada'}. Clique para ver o histórico completo.`}
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors cursor-pointer"
+            >
+              <ArrowRightLeft className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+              <span>↔️ De {pedido.unidade_transferida_de}</span>
+              {pedido.usuario_transferencia && (
+                <span className="opacity-75 font-normal">({pedido.usuario_transferencia})</span>
+              )}
+            </button>
           )}
         </div>
       </div>

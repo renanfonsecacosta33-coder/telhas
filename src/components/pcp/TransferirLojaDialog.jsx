@@ -148,6 +148,8 @@ export default function TransferirLojaDialog({
         await base44.entities.PedidoOdoo.update(p.id, {
           unidade: novaUnidade,
           unidade_transferida_de: deOnde,
+          usuario_transferencia: usuario,
+          data_transferencia: nowIso,
           motivo_transferencia: motivo.trim() || "",
           historico_transferencias: JSON.stringify(novoHistTransferencias),
           historico_log: JSON.stringify(novoHistLog)

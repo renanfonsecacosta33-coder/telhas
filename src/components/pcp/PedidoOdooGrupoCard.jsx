@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   ChevronDown, ChevronUp, Layers, User, Calendar, Send,
   CheckCircle2, Trash2, Clock,
-  ArrowRightLeft, RefreshCw, MoreHorizontal
+  ArrowRightLeft, RefreshCw, MoreHorizontal, History
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { formatDataBR } from "@/lib/sla";
@@ -51,6 +51,7 @@ export default function PedidoOdooGrupoCard({
   onTogglePrioridade,
   onSetPrioridade,
   onSetPrioridadeGrupo,
+  onVerHistorico,
   estoqueContext = null
 }) {
   const [simulacaoGrupoOpen, setSimulacaoGrupoOpen] = useState(false);
@@ -190,6 +191,33 @@ export default function PedidoOdooGrupoCard({
   const lojaVendaDoGrupo = grupo.loja_venda || ofs[0]?.loja_venda || "";
   const unidadeDoGrupo = grupo.unidade || ofs[0]?.unidade || "Matriz AJL";
   const isAlgumaTransferida = ofs.some(p => Boolean(p.unidade_transferida_de));
+
+  // Dados consolidados da transferência para tooltip e destaque imediato
+  const dadosTransferenciaResumo = useMemo(() => {
+    const ofTransferida = ofs.find(p => p.unidade_transferida_de);
+    if (!ofTransferida) return null;
+    let usuario = ofTransferida.usuario_transferencia || "";
+    let data = ofTransferida.data_transferencia || "";
+    let motivo = ofTransferida.motivo_transferencia || "";
+    try {
+      const list = typeof ofTransferida.historico_transferencias === "string"
+        ? JSON.parse(ofTransferida.historico_transferencias || "[]")
+        : (Array.isArray(ofTransferida.historico_transferencias) ? ofTransferida.historico_transferencias : []);
+      if (list.length > 0) {
+        const ult = list[list.length - 1];
+        usuario = ult.usuario || usuario;
+        data = ult.data || data;
+        motivo = ult.motivo || motivo;
+      }
+    } catch {}
+    return {
+      de: ofTransferida.unidade_transferida_de,
+      para: ofTransferida.unidade || unidadeDoGrupo,
+      usuario: usuario || "PCP",
+      data,
+      motivo
+    };
+  }, [ofs, unidadeDoGrupo]);
   const hasEstoquePinhais = useMemo(() => {
     return ofs.some(p =>
       isLocalArmazenagemPinhais(p.local_armazenagem || p.loja_estoque || p.armazem) ||
@@ -380,7 +408,25 @@ export default function PedidoOdooGrupoCard({
                   {lojaVendaDoGrupo && lojaVendaDoGrupo !== unidadeDoGrupo && ` · Venda: ${lojaVendaDoGrupo}`}
                 </span>
                 {isAlgumaTransferida && (
-                  <span className="text-amber-600 dark:text-amber-400 font-semibold">↔ Transferido</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onVerHistorico?.(grupo);
+                    }}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-[11px] bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/40 hover:bg-amber-500/25 transition-all cursor-pointer shadow-xs"
+                    title={
+                      dadosTransferenciaResumo
+                        ? `Transferido de ${dadosTransferenciaResumo.de} por ${dadosTransferenciaResumo.usuario}. Motivo: ${dadosTransferenciaResumo.motivo || "Sem justificativa descrita"}. Clique para ver o histórico completo.`
+                        : "Clique para ver quem transferiu e o histórico completo"
+                    }
+                  >
+                    <ArrowRightLeft className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>↔ De {dadosTransferenciaResumo?.de || "outra central"}</span>
+                    {dadosTransferenciaResumo?.usuario && (
+                      <span className="text-[10px] font-normal opacity-85">({dadosTransferenciaResumo.usuario})</span>
+                    )}
+                  </button>
                 )}
                 {statusEstoqueGrupo && (
                   <button
@@ -488,6 +534,12 @@ export default function PedidoOdooGrupoCard({
                         <DropdownMenuItem onClick={() => onSincronizarGrupoOdoo(ofs)} className="gap-2 cursor-pointer">
                           <RefreshCw className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                           Sincronizar c/ Odoo
+                        </DropdownMenuItem>
+                      )}
+                      {onVerHistorico && (
+                        <DropdownMenuItem onClick={() => onVerHistorico(grupo)} className="gap-2 cursor-pointer font-medium">
+                          <History className="w-3.5 h-3.5 text-blue-500" />
+                          Histórico de Movimentação
                         </DropdownMenuItem>
                       )}
                       {onTransferirGrupo && (
