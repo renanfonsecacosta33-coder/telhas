@@ -159,8 +159,10 @@ export default function CentralPCP() {
     }
   };
   const [filtro, setFiltro] = useState("ativos");
+  const [filtroPrioridade, setFiltroPrioridade] = useState("todos"); // "todos" | "retira_agora" | "rota" | "alta"
+  const [filtroVendedor, setFiltroVendedor] = useState("todos"); // "todos" | string com nome
   const [filtroMaterial, setFiltroMaterial] = useState("todos"); // "todos" | "com_material" | "sem_material"
-  const [filtroSetor, setFiltroSetor] = useState("todos"); // "todos" | "telhas" | "corte_dobra" | "ambos"
+  const [filtroSetor, setFiltroSetor] = useState("todos"); // "todos" | "telhas" | "corte_dobra" | "frisadas" | "ambos"
   const [mostrarConcluidosEmTodos, setMostrarConcluidosEmTodos] = useState(false);
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
   const [modalRoteamentoCD, setModalRoteamentoCD] = useState({ aberto: false, pedido: null, itensCD: [] });
@@ -1381,6 +1383,36 @@ export default function CentralPCP() {
     return { comMaterial, semMaterial };
   }, [pedidosDaLoja, estoqueContext]);
 
+  // Estatísticas de Prioridades e Rotas Logísticas
+  const statsPrioridade = useMemo(() => {
+    let retira = 0;
+    let rota = 0;
+    let alta = 0;
+    pedidosDaLoja.forEach(p => {
+      const isRetira = Boolean(p.cliente_retira_agora || p.cliente_retira || p.prioridade_tipo === "RETIRA_AGORA");
+      const isRota = Boolean(p.carga_rota || p.prioridade_tipo === "ROTA");
+      const isAlta = Boolean(p.prioridade || (p.prioridade_nivel && Number(p.prioridade_nivel) <= 2));
+      if (isRetira) retira++;
+      if (isRota) rota++;
+      if (isAlta) alta++;
+    });
+    return { retira, rota, alta, total: pedidosDaLoja.length };
+  }, [pedidosDaLoja]);
+
+  // Lista consolidada de vendedores com pedidos ativos/totais na filial selecionada
+  const vendedoresDisponiveis = useMemo(() => {
+    const mapa = new Map();
+    pedidosDaLoja.forEach(p => {
+      const v = (p.vendedor_nome || "").trim();
+      if (v) {
+        mapa.set(v, (mapa.get(v) || 0) + 1);
+      }
+    });
+    return Array.from(mapa.entries())
+      .map(([nome, count]) => ({ nome, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [pedidosDaLoja]);
+
   // Mapa de pedidos que contêm ambos os setores (Telhas E Corte & Dobra) no mesmo pedido
   const numerosComAmbosSetores = useMemo(() => {
     const mapa = new Map();
@@ -1403,16 +1435,19 @@ export default function CentralPCP() {
   const statsSetores = useMemo(() => {
     let telhas = 0;
     let cd = 0;
+    let frisadas = 0;
     let ambos = 0;
     pedidosDaLoja.forEach(p => {
       const g = classGrupo(p);
       const temTelha = (p.itens_telha_count || 0) > 0 || g === "telha";
       const temCD = (p.itens_cd_count || 0) > 0 || g === "cd";
+      const temFrisada = (p.itens_frisada_count || 0) > 0 || String(p.itens_json || "").toLowerCase().includes("frisad");
       if (temTelha) telhas++;
       if (temCD) cd++;
+      if (temFrisada) frisadas++;
       if (numerosComAmbosSetores.has(p.numero_pedido || `AVULSO_${p.id}`)) ambos++;
     });
-    return { telhas, cd, ambos, total: pedidosDaLoja.length };
+    return { telhas, cd, frisadas, ambos, total: pedidosDaLoja.length };
   }, [pedidosDaLoja, numerosComAmbosSetores]);
 
   // Estatísticas de Setores por Pedido (Modo Agrupado)
@@ -1426,17 +1461,20 @@ export default function CentralPCP() {
 
     let telhas = 0;
     let cd = 0;
+    let frisadas = 0;
     let ambos = 0;
 
     mapaNums.forEach((ofs, num) => {
       const temTelha = ofs.some(p => (p.itens_telha_count || 0) > 0 || classGrupo(p) === "telha");
       const temCD = ofs.some(p => (p.itens_cd_count || 0) > 0 || classGrupo(p) === "cd");
+      const temFrisada = ofs.some(p => (p.itens_frisada_count || 0) > 0 || String(p.itens_json || "").toLowerCase().includes("frisad"));
       if (temTelha && temCD) ambos++;
       if (temTelha) telhas++;
       if (temCD) cd++;
+      if (temFrisada) frisadas++;
     });
 
-    return { telhas, cd, ambos, total: mapaNums.size };
+    return { telhas, cd, frisadas, ambos, total: mapaNums.size };
   }, [pedidosDaLoja]);
 
   // Filtros + busca
@@ -1462,16 +1500,33 @@ export default function CentralPCP() {
       if (p.status_pcp !== filtro) return false;
     }
 
-    // Filtro por Setor Industrial (Telhas / Corte e Dobra / Ambos)
+    // Filtro por Prioridade e Rota Logística
+    if (filtroPrioridade !== "todos") {
+      const isRetira = Boolean(p.cliente_retira_agora || p.cliente_retira || p.prioridade_tipo === "RETIRA_AGORA");
+      const isRota = Boolean(p.carga_rota || p.prioridade_tipo === "ROTA");
+      const isAlta = Boolean(p.prioridade || (p.prioridade_nivel && Number(p.prioridade_nivel) <= 2));
+      if (filtroPrioridade === "retira_agora" && !isRetira) return false;
+      if (filtroPrioridade === "rota" && !isRota) return false;
+      if (filtroPrioridade === "alta" && !isAlta) return false;
+    }
+
+    // Filtro por Vendedor
+    if (filtroVendedor !== "todos") {
+      if ((p.vendedor_nome || "").trim() !== filtroVendedor) return false;
+    }
+
+    // Filtro por Setor Industrial (Telhas / Corte e Dobra / Frisadas / Ambos)
     if (filtroSetor !== "todos") {
       const g = classGrupo(p);
       const temTelha = (p.itens_telha_count || 0) > 0 || g === "telha";
       const temCD = (p.itens_cd_count || 0) > 0 || g === "cd";
+      const temFrisada = (p.itens_frisada_count || 0) > 0 || String(p.itens_json || "").toLowerCase().includes("frisad");
       const numPed = p.numero_pedido || `AVULSO_${p.id}`;
       const ehMisto = numerosComAmbosSetores.has(numPed);
 
       if (filtroSetor === "telhas" && !temTelha) return false;
       if (filtroSetor === "corte_dobra" && !temCD) return false;
+      if (filtroSetor === "frisadas" && !temFrisada) return false;
       if (filtroSetor === "ambos" && !ehMisto) return false;
     }
 
@@ -1973,6 +2028,12 @@ export default function CentralPCP() {
         filtroSetor={filtroSetor}
         setFiltroSetor={setFiltroSetor}
         countsSetor={modoVisao === "agrupado" ? statsSetoresAgrupados : statsSetores}
+        filtroPrioridade={filtroPrioridade}
+        setFiltroPrioridade={setFiltroPrioridade}
+        statsPrioridade={statsPrioridade}
+        filtroVendedor={filtroVendedor}
+        setFiltroVendedor={setFiltroVendedor}
+        vendedoresDisponiveis={vendedoresDisponiveis}
         filtroMaterial={filtroMaterial}
         setFiltroMaterial={setFiltroMaterial}
         statsMaterial={statsMaterial}
