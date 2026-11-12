@@ -15,9 +15,12 @@ import {
   Calendar,
   Ruler,
   TrendingDown,
-  Building2
+  Building2,
+  History,
+  ArrowLeftRight
 } from "lucide-react";
 import { getAlertaNivel } from "@/components/bobinas/BobinaCardShared";
+import TimelineBobinaModal from "@/components/bobinas/TimelineBobinaModal";
 
 function extrairAlerta(bobina) {
   const nivel = getAlertaNivel(bobina);
@@ -72,6 +75,8 @@ export default function BobinaTabelaView({
       return true;
     }
   });
+
+  const [bobinaTimeline, setBobinaTimeline] = useState(null);
 
   const toggleMostrarCustos = () => {
     setMostrarCustos(prev => {
@@ -362,15 +367,40 @@ export default function BobinaTabelaView({
 
                   {/* 11. Filial / Local */}
                   <td className="py-2.5 px-3 text-center text-muted-foreground">
-                    <span className="inline-flex items-center gap-1">
-                      <Building2 className="w-3 h-3 text-muted-foreground" />
-                      {b.unidade || "Matriz AJL"}
-                    </span>
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="inline-flex items-center gap-1">
+                        <Building2 className="w-3 h-3 text-muted-foreground" />
+                        {b.unidade || "Matriz AJL"}
+                      </span>
+                      {b.unidade_transferida_de && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setBobinaTimeline(b);
+                          }}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors cursor-pointer"
+                          title={`Transferida de ${b.unidade_transferida_de}${b.usuario_transferencia ? ` por ${b.usuario_transferencia}` : ""}. Clique para ver a Linha do Tempo completa.`}
+                        >
+                          <ArrowLeftRight className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                          <span>↔ De {b.unidade_transferida_de}</span>
+                        </button>
+                      )}
+                    </div>
                   </td>
 
                   {/* 12. Ações */}
                   <td className="py-2.5 px-3 text-right">
                     <div className="flex items-center justify-end gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/50 cursor-pointer"
+                        onClick={() => setBobinaTimeline(b)}
+                        title="Linha do Tempo & Histórico Completo da Bobina"
+                      >
+                        <History className="w-3.5 h-3.5" />
+                      </Button>
                       {preKg > 0 && (
                         <Button
                           size="icon"
@@ -477,6 +507,14 @@ export default function BobinaTabelaView({
           </tfoot>
         </table>
       </div>
+
+      {bobinaTimeline && (
+        <TimelineBobinaModal
+          open={!!bobinaTimeline}
+          onClose={() => setBobinaTimeline(null)}
+          bobina={bobinaTimeline}
+        />
+      )}
     </div>
   );
 }

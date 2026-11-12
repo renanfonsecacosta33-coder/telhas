@@ -116,11 +116,25 @@ function ConcluirTransferenciaDialog({ transferencia, onClose }) {
   const concluir = async () => {
     setSaving(true);
     try {
-      // Ao concluir, atualiza o item: muda a unidade para a de destino
+      // Ao concluir, atualiza o item: muda a unidade para a de destino e registra procedência
       const entityName = transferencia.item_tipo === "chapa" ? "ChapaCD" : transferencia.item_tipo === "slitter" ? "Slitter" : "Bobina";
+      const nowIso = new Date().toISOString();
       await base44.entities[entityName].update(transferencia.item_id, {
         unidade: transferencia.unidade_destino,
+        unidade_transferida_de: transferencia.unidade_origem,
+        usuario_transferencia: transferencia.solicitante_nome || transferencia.admin_nome || "PCP",
+        data_transferencia: nowIso,
+        motivo_transferencia: transferencia.motivo || ""
       });
+
+      await base44.entities.AuditLog.create({
+        registro_id: transferencia.item_id,
+        registro_identificador: transferencia.item_descricao || "",
+        acao: "transferencia_filial_concluida",
+        usuario: transferencia.admin_nome || transferencia.solicitante_nome || "PCP",
+        detalhes: `Item transferido de ${transferencia.unidade_origem} para ${transferencia.unidade_destino}. Solicitante: ${transferencia.solicitante_nome || "—"}. Motivo: ${transferencia.motivo || "Sem justificativa informada"}.`,
+        data_hora: nowIso
+      }).catch(() => {});
 
       await base44.entities.Transferencia.update(transferencia.id, {
         status: "concluida",
