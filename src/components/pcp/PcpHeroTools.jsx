@@ -9,7 +9,8 @@ import {
   BookOpen,
   ChevronDown,
   Inbox,
-  Layers
+  Layers,
+  Stethoscope
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -34,6 +35,7 @@ export default function PcpHeroTools({
   conciliando,
   relatorioAuditoria,
   onAbrirSaude,
+  onAbrirDiagnostico,
   onAbrirExclusoes,
   exclusoesCount,
   onAbrirPop
@@ -76,6 +78,15 @@ export default function PcpHeroTools({
             {relatorioAuditoria
               ? `Saúde: ${relatorioAuditoria.scoreSaude}% (${relatorioAuditoria.alertasPendentesCount > 0 ? `${relatorioAuditoria.alertasPendentesCount} pendências` : "Erro 0"})`
               : "Auditoria Diária"}
+          </button>
+          <button
+            type="button"
+            onClick={onAbrirDiagnostico}
+            title="Diagnóstico de Pedidos: Índice de Duplicados e Descompasso de Máquinas/Colagem"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-orange-400/40 bg-orange-500/15 text-orange-200 text-[13px] font-semibold cursor-pointer backdrop-blur-[6px] transition-colors duration-150 hover:bg-orange-500/25 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500"
+          >
+            <Stethoscope className="w-3.5 h-3.5 text-orange-400" />
+            Diagnóstico Operacional
           </button>
           <button
             type="button"

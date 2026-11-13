@@ -11,6 +11,7 @@ import { finalizarOpsDoPedido, cancelarOpsDoPedido, executarVarreduraEConciliaca
 import RelatorioAuditoriaDiariaModal from "@/components/pcp/RelatorioAuditoriaDiariaModal";
 import HistoricoExclusoesModal from "@/components/pcp/HistoricoExclusoesModal";
 import CentralSaudeSistemaModal from "@/components/pcp/CentralSaudeSistemaModal";
+import DiagnosticoOperacionalModal from "@/components/pcp/DiagnosticoOperacionalModal";
 import { registrarHistoricoExclusao, obterHistoricoExclusoes } from "@/lib/historicoExclusoesHelper";
 import { executarAuditoriaDiariaCompleta, obterUltimoRelatorioAuditoria } from "@/lib/auditoriaDiariaHelper";
 import BotaoDevolverLotePCP from "@/components/pcp/BotaoDevolverLotePCP";
@@ -172,6 +173,7 @@ export default function CentralPCP() {
   const [webhookOpen, setWebhookOpen] = useState(false);
   const [recuperarModalOpen, setRecuperarModalOpen] = useState(false);
   const [auditarModalOpen, setAuditarModalOpen] = useState(false);
+  const [modalDiagnosticoOpen, setModalDiagnosticoOpen] = useState(false);
   const [popModalOpen, setPopModalOpen] = useState(false);
   const [popModalKey, setPopModalKey] = useState("PCP_CENTRAL");
   const [selecionados, setSelecionados] = useState(new Set());
@@ -2116,6 +2118,7 @@ export default function CentralPCP() {
         onRecuperarPedido={() => setRecuperarModalOpen(true)}
         onAuditar={() => setAuditarModalOpen(true)}
         onAbrirRelatorio={() => setModalRelatorioAuditoriaOpen(true)}
+        onAbrirDiagnostico={() => setModalDiagnosticoOpen(true)}
         onConciliacaoManual={handleExecutarAuditoriaConciliacaoManual}
         conciliando={conciliandoMaquinas}
         relatorioAuditoria={relatorioAuditoria}
@@ -2722,6 +2725,12 @@ export default function CentralPCP() {
       <CentralSaudeSistemaModal
         open={modalSaudeOpen}
         onOpenChange={setModalSaudeOpen}
+      />
+      {/* Diagnóstico Operacional: Índice de Duplicados e Descompasso de Máquinas/Colagem */}
+      <DiagnosticoOperacionalModal
+        open={modalDiagnosticoOpen}
+        onOpenChange={setModalDiagnosticoOpen}
+        pedidosPcp={pedidosRaw}
       />
       <SenhaGestorDialog
         open={senhaGestorOpen}
