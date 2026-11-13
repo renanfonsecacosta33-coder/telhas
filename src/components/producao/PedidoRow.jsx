@@ -1490,17 +1490,89 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     setMetragemDialog(false);
   };
 
-  const metragemTotalCalculada = useMemo(() => {
-    let variacoesTelhas = [];
-    try { variacoesTelhas = JSON.parse(p.variacoes_telhas || "[]"); } catch { variacoesTelhas = []; }
-    if (variacoesTelhas.length > 0) {
-      return variacoesTelhas.reduce((sum, v) => sum + (Number(v.qty) || 0) * (Number(v.mm) || 0), 0) / 1000;
+  // Metragem Total e Quantidade Total de Telhas sincronizados com a Central PCP
+  const totaisProducaoPCP = useMemo(() => {
+    if (!p) return { metros: 0, pecas: 0 };
+
+    // 1. Tentar pegar diretamente de variacoes_telhas
+    let vars = [];
+    try {
+      vars = JSON.parse(p.variacoes_telhas || "[]");
+    } catch {
+      vars = [];
     }
-    if (p.metragem_mm > 0 && p.metros > 0) {
-      return (Number(p.metros) * Number(p.metragem_mm)) / 1000;
+
+    let metrosVars = 0;
+    let pecasVars = 0;
+    if (Array.isArray(vars) && vars.length > 0) {
+      vars.forEach(v => {
+        const q = Number(v.qty) || 0;
+        const mm = Number(v.mm) || 0;
+        const m = Number(v.m) || (mm > 0 ? mm / 1000 : 0);
+        const totalM = Number(v.total_m) || (q * m);
+        pecasVars += q;
+        metrosVars += totalM;
+      });
     }
-    return Number(p.metros) || 0;
-  }, [p.variacoes_telhas, p.metragem_mm, p.metros]);
+
+    // 2. Extrair do texto da observação/descrição se houver padrão de cortes (ex: "13x3140 13x1300")
+    let metrosTexto = 0;
+    let pecasTexto = 0;
+    const textoCortes = [
+      p.observacoes,
+      p.descricao,
+      p.itens_resumo,
+      p.observacoes_odoo,
+      p.item_produto
+    ].filter(Boolean).join(" ");
+
+    const regexCortes = /\b(\d{1,4})\s*(?:x|\*)\s*(\d{2,5})\b/gi;
+    let match;
+    let cortesEncontrados = 0;
+    while ((match = regexCortes.exec(textoCortes)) !== null) {
+      const qtd = Number(match[1]);
+      const mm = Number(match[2]);
+      if (qtd > 0 && mm >= 100) {
+        cortesEncontrados++;
+        pecasTexto += qtd;
+        metrosTexto += (qtd * mm) / 1000;
+      }
+    }
+
+    // 3. Metragem planejada gravada pelo PCP
+    const metragemPlanejada = Number(p.metragem_planejada || p.metros_planejados || 0);
+
+    // Metragem final:
+    let metrosFinal = 0;
+    if (metragemPlanejada > 0) {
+      metrosFinal = metragemPlanejada;
+    } else if (metrosVars > 0) {
+      metrosFinal = metrosVars;
+    } else if (cortesEncontrados > 0 && metrosTexto > 0) {
+      metrosFinal = metrosTexto;
+    } else if (p.metragem_mm > 0 && p.metros > 0) {
+      metrosFinal = (Number(p.metros) * Number(p.metragem_mm)) / 1000;
+    } else {
+      metrosFinal = Number(p.metros) || 0;
+    }
+
+    // Peças final:
+    let pecasFinal = 0;
+    if (pecasVars > 0) {
+      pecasFinal = pecasVars;
+    } else if (cortesEncontrados > 0 && pecasTexto > 0) {
+      pecasFinal = pecasTexto;
+    } else if (Number(p.quantidade_telhas) > 0 && Number(p.quantidade_telhas) !== metrosFinal) {
+      pecasFinal = Number(p.quantidade_telhas);
+    } else if (Number(p.metros) > 0 && Number(p.metros) !== metrosFinal && Number(p.metros) < 500) {
+      pecasFinal = Number(p.metros);
+    }
+
+    return {
+      metros: Math.round(metrosFinal * 100) / 100,
+      pecas: pecasFinal
+    };
+  }, [p.variacoes_telhas, p.metragem_planejada, p.metros_planejados, p.metragem_mm, p.metros, p.quantidade_telhas, p.observacoes, p.descricao, p.itens_resumo, p.observacoes_odoo, p.item_produto]);
 
 
 
@@ -1687,7 +1759,22 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
               </div>
             )}
           </div>
-          <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
+          <div className="text-right flex-shrink-0 flex items-center gap-3">
+            {totaisProducaoPCP.metros > 0 && (
+              <div className="flex flex-col items-end justify-center">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl sm:text-4xl font-black text-blue-600 dark:text-blue-400 tracking-tight leading-none">
+                    {totaisProducaoPCP.metros.toLocaleString("pt-BR", { minimumFractionDigits: Number.isInteger(totaisProducaoPCP.metros) ? 0 : 2, maximumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-base sm:text-lg font-bold text-slate-500 dark:text-slate-400">m</span>
+                </div>
+                {totaisProducaoPCP.pecas > 0 && (
+                  <span className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-black uppercase tracking-wider bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300 border border-blue-300/50 shadow-2xs">
+                    {totaisProducaoPCP.pecas} {totaisProducaoPCP.pecas === 1 ? "Telha" : "Telhas"}
+                  </span>
+                )}
+              </div>
+            )}
             <ChatPedidoButton canal_id={p.id} canal_label={`PED ${p.numero_pedido || p.id.slice(-6).toUpperCase()}`} currentUser={user} />
           </div>
         </div>
