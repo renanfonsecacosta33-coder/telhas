@@ -1209,10 +1209,12 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   };
 
   const handleFinalizar = () => {
-    // Bloqueia se há variações e nem todos os itens estão finalizados
+    // Se houver variações pendentes, auto-finaliza todas para não bloquear o operador
     if (temVariacoes && !todosItensFinalizados) {
-      alert("Finalize todos os itens das 'Medidas do Pedido' antes de finalizar a OP!");
-      return;
+      try {
+        const varsAuto = _variacoesTelhas.map(v => ({ ...v, iniciado: true, finalizado: true }));
+        onUpdate?.({ ...p, variacoes_telhas: JSON.stringify(varsAuto) });
+      } catch {}
     }
     // TELHA + EPS + TELHA: pede checklist de telhas antes
     if (p.produto === "TELHA + EPS + TELHA" && p.maquina !== "COLAGEM") {
@@ -1686,13 +1688,28 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
             )}
           </div>
           <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
-            <p className="text-3xl font-black text-primary leading-none">
-              {metragemTotalCalculada.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
-              <span className="text-base font-normal text-muted-foreground">m</span>
-            </p>
             <ChatPedidoButton canal_id={p.id} canal_label={`PED ${p.numero_pedido || p.id.slice(-6).toUpperCase()}`} currentUser={user} />
           </div>
         </div>
+
+        {/* DESCRIÇÃO / MEDIDAS REAIS DA PRODUÇÃO EM MÁXIMO DESTAQUE NO TOPO (Substitui as medidas antigas) */}
+        {(p.observacoes || p.descricao || p.itens_resumo) && (
+          <div className="w-full bg-slate-900 border-2 border-indigo-500 rounded-2xl p-4 my-3 flex items-start gap-3.5 shadow-md text-white">
+            <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
+              <FileText className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[11px] uppercase font-black text-indigo-300 tracking-wider bg-indigo-950/80 px-2.5 py-0.5 rounded border border-indigo-500/50">
+                  📋 DESCRIÇÃO / MEDIDAS DA PRODUÇÃO
+                </span>
+              </div>
+              <p className="font-black text-2xl sm:text-3xl text-white leading-tight tracking-wide break-words select-all">
+                {p.observacoes || p.descricao || p.itens_resumo}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Roteiro Completo da Telha na Fábrica — oculto para operador */}
         {!isOperador && (
@@ -1702,16 +1719,6 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         )}
 
         <AlertaMultiplasOpsMesmoPedido pedido={p} todosPedidos={todosPedidos} />
-
-        {/* Variações de telhas (múltiplas medidas com iniciações independentes e conferência de bobina) */}
-        <ItensVariacoesTelhas
-          pedido={p}
-          iniciarBloqueado={!bobinaEscolhida}
-          onIniciar={handleIniciar}
-          onIniciarItem={handleIniciarItem}
-          onFinalizar={handleAbrirFinalizarItem}
-          onReabrir={handleReabrirItem}
-        />
 
         {/* Painel da Telha Bandeja na Colagem */}
         {p.maquina === "COLAGEM" && isTelhaBandeja(p) && <BandejaColagemInfoPanel maquinaOrigem={p.maquina_origem} pedido={p} />}
@@ -1728,23 +1735,6 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
             mesma={mesmaBobina}
             onToggleMesma={() => { setMesmaBobina(v => !v); setBobSelInfId(mesmaBobina ? "" : bobSelSupId); }}
           />
-        )}
-
-        {/* DESCRIÇÃO — texto exato do item (Auto-Roteado PCP) em destaque para o operador */}
-        {p.observacoes && (
-          <div className="w-full bg-white dark:bg-slate-900 border-2 border-indigo-300 dark:border-indigo-700 rounded-2xl p-4 mb-3 flex items-start gap-3 shadow-md">
-            <div className="w-11 h-11 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
-              <FileText className="w-5 h-5" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] uppercase font-black text-indigo-700 dark:text-indigo-300 tracking-widest mb-1">
-                Descrição
-              </p>
-              <p className="text-xl sm:text-2xl font-black leading-tight text-foreground break-words whitespace-pre-line">
-                {p.observacoes}
-              </p>
-            </div>
-          </div>
         )}
 
         {/* Bobina inferior (2ª telha / sanduíche) — oculto para operador */}
@@ -1974,15 +1964,11 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                   </Button>
                   <Button
                     size="sm"
-                    className={`gap-1 border-0 ${temVariacoes && !todosItensFinalizados ? "bg-slate-300 text-slate-500 cursor-not-allowed" : "bg-green-600 hover:bg-green-700 text-white"}`}
+                    className="gap-1 border-0 bg-green-600 hover:bg-green-700 text-white font-bold shadow-xs cursor-pointer"
                     onClick={handleFinalizar}
-                    disabled={temVariacoes && !todosItensFinalizados}
-                    title={temVariacoes && !todosItensFinalizados ? "Finalize todos os itens primeiro" : ""}
                   >
                     <CheckCircle2 className="w-3 h-3" />
-                    {temVariacoes && !todosItensFinalizados
-                      ? `Finalize os itens (${_variacoesTelhas.filter(v => v.finalizado).length}/${_variacoesTelhas.length})`
-                      : isBandejaMultiEtapa && proximaEtapaBandeja === "BANDEJA"
+                    {isBandejaMultiEtapa && proximaEtapaBandeja === "BANDEJA"
                       ? "✓ Finalizar Telha Superior → Enviar para Bandeja"
                       : isBandejaMultiEtapa && proximaEtapaBandeja === "COLAGEM"
                       ? "✓ Finalizar Bandeja Inferior → Enviar para Colagem"
