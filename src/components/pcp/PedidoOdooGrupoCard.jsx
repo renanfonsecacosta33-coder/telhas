@@ -22,6 +22,7 @@ import {
   isPedidoRetiraAgora,
   isPedidoRota
 } from "@/lib/prioridadeHelper";
+import { formatarTempoEntregaRelativo } from "@/lib/relatorioEntregasHelper";
 
 /**
  * Card Consolidado do Pedido de Venda (Acordeon Executivo).
@@ -100,6 +101,11 @@ export default function PedidoOdooGrupoCard({
     grupo.status_pcp === "entregue" ||
     (totalOfs > 0 && ofs.every(p => p.entregue || p.status_pcp === "entregue"))
   );
+  const infoEntregaTempo = useMemo(() => {
+    if (!isPedidoEntregue) return null;
+    const dataRef = grupo.data_entrega_realizada || ofs.find(p => p.data_entrega_realizada)?.data_entrega_realizada || ofs[0]?.updated_date;
+    return formatarTempoEntregaRelativo(dataRef);
+  }, [isPedidoEntregue, grupo.data_entrega_realizada, ofs]);
 
   // Prioridade / Urgência
   const isPrioritario = grupo.prioridade || ofs.some(p => p.prioridade || p.prioridade_nivel);
@@ -239,7 +245,10 @@ export default function PedidoOdooGrupoCard({
   // (Concluído > Atrasado > Vence hoje > Em produção > Fila da máquina > Distribuído > Pendente)
   const statusHero = (() => {
     if (isPedidoEntregue) {
-      return { txt: "🔒 Entregue", cls: "bg-sky-600 text-white border border-sky-700 font-bold" };
+      return {
+        txt: `🔒 ${infoEntregaTempo?.texto || "Entregue"}`,
+        cls: `${infoEntregaTempo?.badgeCls || "bg-sky-600 text-white border-sky-700"} font-bold`
+      };
     }
     if (isPedidoTotalConcluido) {
       return { txt: "✓ Concluído 100%", cls: "bg-emerald-600 text-white border border-emerald-700" };

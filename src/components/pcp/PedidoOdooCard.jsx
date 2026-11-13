@@ -30,6 +30,7 @@ import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMat
 import ProcessoStepperPedido from "@/components/producao/ProcessoStepperPedido";
 import BadgeEnvio from "@/components/pcp/BadgeEnvioDistribuicao";
 import ModalConcluirEtapasRoteiro from "@/components/pcp/ModalConcluirEtapasRoteiro";
+import { formatarTempoEntregaRelativo } from "@/lib/relatorioEntregasHelper";
 
 // Cores estritas do Ecossistema AJL conforme menu do sistema:
 // 🏠 Fábrica de Telhas → AZUL (#2563EB)
@@ -98,6 +99,10 @@ export default function PedidoOdooCard({
   const pct = progressoReal != null ? progressoReal : (pedido.percentual_concluido || 0);
   const isEntregue = Boolean(pedido.entregue || pedido.status_pcp === "entregue");
   const isConcluido = (pedido.status_pcp === "concluido" || pct >= 100) && !isEntregue;
+  const infoEntregaTempo = useMemo(() => {
+    if (!isEntregue) return null;
+    return formatarTempoEntregaRelativo(pedido.data_entrega_realizada || pedido.updated_date);
+  }, [isEntregue, pedido.data_entrega_realizada, pedido.updated_date]);
   const [expandidoManual, setExpandidoManual] = useState(defaultMinimizado === false);
   const minimizado = isConcluido && !expandidoManual;
 
@@ -320,8 +325,8 @@ export default function PedidoOdooCard({
               {statusExecucao.label}
             </Badge>
             {isEntregue && (
-              <Badge className="bg-sky-600 text-white border-sky-700 text-[9px] px-1.5 py-0 font-black gap-0.5 shadow-2xs">
-                🔒 ENTREGUE
+              <Badge className={`text-[9px] px-1.5 py-0 font-black gap-0.5 shadow-2xs ${infoEntregaTempo?.badgeCls || "bg-sky-600 text-white border-sky-700"}`}>
+                🔒 {infoEntregaTempo?.texto || "ENTREGUE"}
               </Badge>
             )}
             {isLocalArmazenagemPinhais(pedido.local_armazenagem) && (
@@ -607,8 +612,8 @@ export default function PedidoOdooCard({
                 <span className="text-[10px] text-slate-400 font-mono">Odoo:{pedido.odoo_id}</span>
               ) : null}
               {isEntregue && (
-                <Badge className="bg-sky-600 text-white border-sky-700 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 shadow-xs">
-                  🔒 ENTREGUE
+                <Badge className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 shadow-xs ${infoEntregaTempo?.badgeCls || "bg-sky-600 text-white border-sky-700"}`}>
+                  🔒 {infoEntregaTempo?.texto || "ENTREGUE"}
                 </Badge>
               )}
             </div>
@@ -910,15 +915,20 @@ export default function PedidoOdooCard({
 
       {isEntregue && (
         <div className="flex items-center justify-between p-2 rounded-lg bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 text-xs">
-          <span className="font-bold text-sky-800 dark:text-sky-300 flex items-center gap-1.5">
-            <Truck className="w-3.5 h-3.5 text-sky-600" />
-            🔒 Pedido Entregue (Travado na Fila de Entregues)
-          </span>
+          <div className="flex flex-col">
+            <span className="font-bold text-sky-900 dark:text-sky-200 flex items-center gap-1.5">
+              <Truck className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+              <span>{infoEntregaTempo?.texto || "Pedido Entregue"}</span>
+            </span>
+            <span className="text-[10px] text-sky-700/80 dark:text-sky-300/80 pl-5">
+              Despachado por: <strong className="text-slate-800 dark:text-slate-200">{pedido.usuario_entrega || "PCP"}</strong>
+            </span>
+          </div>
           {onReverterEntregue && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onReverterEntregue(pedido); }}
-              className="text-[11px] font-bold text-sky-700 dark:text-sky-300 hover:underline flex items-center gap-1 cursor-pointer"
+              className="text-[11px] font-bold text-sky-700 dark:text-sky-300 hover:underline flex items-center gap-1 cursor-pointer ml-2 shrink-0"
               title="Reverter status entregue e devolver aos concluídos (requer PIN do gestor)"
             >
               <Lock className="w-3 h-3 text-sky-600" /> Reverter (Gestor)

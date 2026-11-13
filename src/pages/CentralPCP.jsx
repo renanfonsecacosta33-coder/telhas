@@ -5,7 +5,8 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Clock, Trash2, ArrowRightLeft, User, Briefcase, Hash, Package, Target, Truck, Lock } from "lucide-react";
+import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Clock, Trash2, ArrowRightLeft, User, Briefcase, Hash, Package, Target, Truck, Lock, FileDown } from "lucide-react";
+import { exportarRelatorioEntregasCSV } from "@/lib/relatorioEntregasHelper";
 import { executarExclusaoOsBackground } from "@/lib/excluirOsHelper"; import { sincronizarLoteOdoo } from "@/lib/sincronizarOdooHelper";
 import { finalizarOpsDoPedido, cancelarOpsDoPedido, executarVarreduraEConciliacaoGeral, cancelarOpsDasOfsExatas, comRetryLimite } from "@/lib/conciliacaoPcpMaquinasHelper";
 import RelatorioAuditoriaDiariaModal from "@/components/pcp/RelatorioAuditoriaDiariaModal";
@@ -2509,6 +2510,25 @@ export default function CentralPCP() {
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${sincronizandoOdoo ? "animate-spin" : ""}`} />
                     {sincronizandoOdoo ? "Sincronizando..." : `Sincronizar Odoo (${selecionados.size})`}
+                  </Button>
+                )}
+
+                {/* Exportar Relatório de Entregas para Excel / CSV */}
+                {filtro === "entregue" && pedidosFiltrados.length > 0 && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      exportarRelatorioEntregasCSV(pedidosFiltrados, { filial: lojaSelecionada });
+                      toast({
+                        title: "Planilha de Entregas Baixada!",
+                        description: `Relatório com ${pedidosFiltrados.length} pedido(s) entregue(s) exportado com sucesso.`
+                      });
+                    }}
+                    className="bg-sky-600 hover:bg-sky-700 text-white text-xs h-8 gap-1.5 shadow-sm font-bold"
+                    title="Baixar planilha Excel/CSV com o relatório de todos os pedidos entregues deste período"
+                  >
+                    <FileDown className="w-3.5 h-3.5" />
+                    Exportar Relatório ({pedidosFiltrados.length})
                   </Button>
                 )}
 
