@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   ChevronDown, ChevronUp, Layers, User, Calendar, Send,
-  CheckCircle2, Trash2, Clock,
+  CheckCircle2, Trash2, Clock, Truck, Lock,
   ArrowRightLeft, RefreshCw, MoreHorizontal, History
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -43,6 +43,8 @@ export default function PedidoOdooGrupoCard({
   onTransferir,
   onTransferirGrupo,
   onFinalizarGrupo100,
+  onMarcarGrupoEntregue,
+  onReverterGrupoEntregue,
   onSincronizarGrupoOdoo,
   onClickPedido,
   onDelete,
@@ -93,6 +95,11 @@ export default function PedidoOdooGrupoCard({
   }, 0);
   const progressoConsolidado = totalOfs > 0 ? Math.round(somaProgressos / totalOfs) : 0;
   const isPedidoTotalConcluido = concluidas.length === totalOfs && totalOfs > 0;
+  const isPedidoEntregue = Boolean(
+    grupo.entregue ||
+    grupo.status_pcp === "entregue" ||
+    (totalOfs > 0 && ofs.every(p => p.entregue || p.status_pcp === "entregue"))
+  );
 
   // Prioridade / Urgência
   const isPrioritario = grupo.prioridade || ofs.some(p => p.prioridade || p.prioridade_nivel);
@@ -231,6 +238,9 @@ export default function PedidoOdooGrupoCard({
   // STATUS DOMINANTE: um único selo em máxima evidência, com hierarquia clara
   // (Concluído > Atrasado > Vence hoje > Em produção > Fila da máquina > Distribuído > Pendente)
   const statusHero = (() => {
+    if (isPedidoEntregue) {
+      return { txt: "🔒 Entregue", cls: "bg-sky-600 text-white border border-sky-700 font-bold" };
+    }
     if (isPedidoTotalConcluido) {
       return { txt: "✓ Concluído 100%", cls: "bg-emerald-600 text-white border border-emerald-700" };
     }
@@ -280,7 +290,9 @@ export default function PedidoOdooGrupoCard({
   return (
     <div
       className={`border rounded-2xl transition-all shadow-sm relative overflow-hidden ${
-        cardPrioCls
+        isPedidoEntregue
+          ? "bg-slate-100/90 dark:bg-slate-900/80 border-l-[6px] border-l-sky-600 border-sky-300 dark:border-sky-800 opacity-90 shadow-none"
+          : cardPrioCls
           ? cardPrioCls
           : isPedidoTotalConcluido
           ? "bg-gradient-to-r from-emerald-100/90 via-emerald-50/60 to-white dark:from-emerald-950/60 dark:via-emerald-950/30 dark:to-slate-900 border-l-[6px] border-l-emerald-500 border-emerald-400 dark:border-emerald-800"
@@ -502,7 +514,22 @@ export default function PedidoOdooGrupoCard({
                 </Button>
               )}
 
-              {onFinalizarGrupo100 && !isPedidoTotalConcluido && (
+              {onMarcarGrupoEntregue && isPedidoTotalConcluido && !isPedidoEntregue && (
+                <Button
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMarcarGrupoEntregue(ofs);
+                  }}
+                  className="bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs h-8 gap-1.5 shadow-sm"
+                  title={`Marcar Pedido #${grupo.numero_pedido} como Entregue (trava na fila de entregues)`}
+                >
+                  <Truck className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Marcar</span> Entregue
+                </Button>
+              )}
+
+              {onFinalizarGrupo100 && !isPedidoTotalConcluido && !isPedidoEntregue && (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -517,7 +544,7 @@ export default function PedidoOdooGrupoCard({
                 </button>
               )}
 
-              {(onSincronizarGrupoOdoo || onTransferirGrupo || onDeleteGrupo) && (
+              {(onSincronizarGrupoOdoo || onTransferirGrupo || onDeleteGrupo || isPedidoEntregue) && (
                 <div onClick={(e) => e.stopPropagation()} className="shrink-0">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -542,13 +569,19 @@ export default function PedidoOdooGrupoCard({
                           Histórico de Movimentação
                         </DropdownMenuItem>
                       )}
-                      {onTransferirGrupo && (
+                      {isPedidoEntregue && onReverterGrupoEntregue && (
+                        <DropdownMenuItem onClick={() => onReverterGrupoEntregue(ofs)} className="gap-2 cursor-pointer font-bold text-sky-700 dark:text-sky-400">
+                          <Lock className="w-3.5 h-3.5 text-sky-600" />
+                          Reverter Entrega (PIN Gestor)
+                        </DropdownMenuItem>
+                      )}
+                      {!isPedidoEntregue && onTransferirGrupo && (
                         <DropdownMenuItem onClick={() => onTransferirGrupo(grupo)} className="gap-2 cursor-pointer">
                           <ArrowRightLeft className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                           Transferir p/ outra filial
                         </DropdownMenuItem>
                       )}
-                      {onDeleteGrupo && (
+                      {!isPedidoEntregue && onDeleteGrupo && (
                         <DropdownMenuItem onClick={() => onDeleteGrupo(grupo)} className="gap-2 cursor-pointer text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400">
                           <Trash2 className="w-3.5 h-3.5" />
                           Excluir pedido

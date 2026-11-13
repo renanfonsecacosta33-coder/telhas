@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Calendar, User, Tag, Layers, Scissors, Wind, Trash2, Star,
   Undo2, RefreshCw, Zap, CheckCircle2, ChevronDown, ChevronUp, Home,
-  Building2, ArrowRightLeft, Store, Clock, History
+  Building2, ArrowRightLeft, Store, Clock, History, Truck, Lock
 } from "lucide-react";
 import {
   formatDataBR,
@@ -86,6 +86,7 @@ export default function PedidoOdooCard({
   pedido, onClick, onDelete, onRetirarFila, onTogglePrioridade, onSetPrioridade,
   progressoReal, pedidosProducao = [], ordensCD = [],
   selecionado = false, onToggleSelect, onDistribuir, onTransferir, onFinalizar100,
+  onMarcarEntregue, onReverterEntregue,
   onVerHistorico,
   defaultMinimizado, compacto = false, dentroDeGrupo = false,
   estoqueContext = null
@@ -95,7 +96,8 @@ export default function PedidoOdooCard({
   const [simulacaoModalOpen, setSimulacaoModalOpen] = useState(false);
   const [modalEtapasOpen, setModalEtapasOpen] = useState(false);
   const pct = progressoReal != null ? progressoReal : (pedido.percentual_concluido || 0);
-  const isConcluido = pedido.status_pcp === "concluido" || pct >= 100;
+  const isEntregue = Boolean(pedido.entregue || pedido.status_pcp === "entregue");
+  const isConcluido = (pedido.status_pcp === "concluido" || pct >= 100) && !isEntregue;
   const [expandidoManual, setExpandidoManual] = useState(defaultMinimizado === false);
   const minimizado = isConcluido && !expandidoManual;
 
@@ -317,6 +319,11 @@ export default function PedidoOdooCard({
             <Badge className={`border text-[9px] px-1.5 py-0 leading-tight ${statusExecucao.badgeCls}`}>
               {statusExecucao.label}
             </Badge>
+            {isEntregue && (
+              <Badge className="bg-sky-600 text-white border-sky-700 text-[9px] px-1.5 py-0 font-black gap-0.5 shadow-2xs">
+                🔒 ENTREGUE
+              </Badge>
+            )}
             {isLocalArmazenagemPinhais(pedido.local_armazenagem) && (
               <Badge className="bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/40 text-[9px] px-1.5 py-0 font-bold gap-0.5 shadow-2xs" title="Item destinado ao estoque/armazenagem de Pinhais">
                 📍 Estoque: Pinhais
@@ -487,6 +494,37 @@ export default function PedidoOdooCard({
                 )}
               </div>
             )}
+
+            {isConcluido && !isEntregue && onMarcarEntregue && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onMarcarEntregue(pedido); }}
+                className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-xs transition-colors h-8 cursor-pointer"
+                title="Marcar pedido como Entregue ao cliente"
+              >
+                <Truck className="w-3.5 h-3.5" />
+                <span>Marcar Entregue</span>
+              </button>
+            )}
+
+            {isEntregue && (
+              <div className="flex items-center justify-between px-2 py-1 rounded bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 text-[10.5px]">
+                <span className="font-bold text-sky-800 dark:text-sky-300 flex items-center gap-1">
+                  <Truck className="w-3 h-3 text-sky-600" />
+                  🔒 Entregue
+                </span>
+                {onReverterEntregue && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onReverterEntregue(pedido); }}
+                    className="font-bold text-sky-700 dark:text-sky-300 hover:underline flex items-center gap-0.5 cursor-pointer"
+                    title="Reverter status entregue (requer senha gestor)"
+                  >
+                    <Lock className="w-2.5 h-2.5" /> Reverter
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -568,6 +606,11 @@ export default function PedidoOdooCard({
               ) : pedido.odoo_id ? (
                 <span className="text-[10px] text-slate-400 font-mono">Odoo:{pedido.odoo_id}</span>
               ) : null}
+              {isEntregue && (
+                <Badge className="bg-sky-600 text-white border-sky-700 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 shadow-xs">
+                  🔒 ENTREGUE
+                </Badge>
+              )}
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-400 font-medium truncate mt-0.5">
               {pedido.cliente_nome || "Cliente não informado"}
@@ -842,7 +885,7 @@ export default function PedidoOdooCard({
         </div>
       )}
 
-      {podeRetirarFila && onRetirarFila && (
+      {podeRetirarFila && onRetirarFila && !isEntregue && (
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onRetirarFila(pedido); }}
@@ -851,6 +894,37 @@ export default function PedidoOdooCard({
           <Undo2 className="w-3.5 h-3.5" />
           Retirar da Fila do Galpão
         </button>
+      )}
+
+      {isConcluido && !isEntregue && onMarcarEntregue && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onMarcarEntregue(pedido); }}
+          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-sm transition-all cursor-pointer"
+          title="Marcar pedido como Entregue ao cliente/transportadora (trava na fila de entregues)"
+        >
+          <Truck className="w-3.5 h-3.5" />
+          <span>Marcar como Entregue</span>
+        </button>
+      )}
+
+      {isEntregue && (
+        <div className="flex items-center justify-between p-2 rounded-lg bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 text-xs">
+          <span className="font-bold text-sky-800 dark:text-sky-300 flex items-center gap-1.5">
+            <Truck className="w-3.5 h-3.5 text-sky-600" />
+            🔒 Pedido Entregue (Travado na Fila de Entregues)
+          </span>
+          {onReverterEntregue && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onReverterEntregue(pedido); }}
+              className="text-[11px] font-bold text-sky-700 dark:text-sky-300 hover:underline flex items-center gap-1 cursor-pointer"
+              title="Reverter status entregue e devolver aos concluídos (requer PIN do gestor)"
+            >
+              <Lock className="w-3 h-3 text-sky-600" /> Reverter (Gestor)
+            </button>
+          )}
+        </div>
       )}
 
       {simulacaoModalOpen && (

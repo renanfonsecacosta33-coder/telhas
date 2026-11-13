@@ -138,9 +138,16 @@ export default function HistoricoMovimentacaoDialog({
 
           let tipo = "info";
           let titulo = "Evento do PCP";
-          if (log.acao?.includes("prioridade")) {
+          if (log.acao?.includes("prioridade") || log.acao?.includes("retira") || log.acao?.includes("rota")) {
             tipo = "prioridade";
-            titulo = "Alteração de Prioridade / Rota";
+            titulo = log.acao?.includes("retira")
+              ? "⚡🚨 CLIENTE RETIRA AGORA (Balcão)"
+              : log.acao?.includes("rota")
+              ? "🚚 Carga de Rota de Entrega"
+              : "🔥 Alteração de Prioridade (PCP)";
+          } else if (log.acao?.includes("entregue") || log.acao?.includes("entrega")) {
+            tipo = "entregue";
+            titulo = "🔒📦 Pedido Entregue ao Cliente / Transportadora";
           } else if (log.acao?.includes("distribuicao")) {
             tipo = "distribuicao";
             titulo = "Distribuição para Máquinas";
@@ -150,6 +157,9 @@ export default function HistoricoMovimentacaoDialog({
           } else if (log.acao?.includes("devolucao")) {
             tipo = "devolucao";
             titulo = "Devolução à Mesa do PCP";
+          } else if (log.acao?.includes("etapa")) {
+            tipo = "etapa";
+            titulo = "Conclusão de Etapa de Produção";
           }
 
           eventos.push({
@@ -187,10 +197,78 @@ export default function HistoricoMovimentacaoDialog({
           id: chaveConclusao,
           tipo: "conclusao",
           titulo: "Pedido Concluído 100%",
-          data: ofItem.updated_date || ofItem.created_date,
+          data: ofItem.data_conclusao || ofItem.updated_date || ofItem.created_date,
           usuario: ofItem.finalizado_por || "Fábrica / PCP",
           detalhes: "Todas as etapas industriais foram finalizadas."
         });
+      }
+
+      // 5. Evento de Entrega ao Cliente
+      if (ofItem.entregue || ofItem.status_pcp === "entregue") {
+        const chaveEntrega = `ENTREGUE_${ofItem.id}`;
+        if (!eventos.some((ev) => ev.tipo === "entregue")) {
+          eventos.push({
+            id: chaveEntrega,
+            tipo: "entregue",
+            titulo: "🔒📦 Pedido Entregue ao Cliente / Transportadora",
+            data: ofItem.data_entrega_realizada || ofItem.updated_date,
+            usuario: ofItem.usuario_entrega || "PCP",
+            detalhes: "Pedido conferido, entregue e travado permanentemente no histórico."
+          });
+        }
+      }
+
+      // 6. Síntese de Prioridade Ativa (para pedidos legados sem log)
+      const temPrioridadeAtiva = Boolean(
+        ofItem.cliente_retira_agora ||
+        ofItem.cliente_retira ||
+        ofItem.retira_agora ||
+        ofItem.is_rota ||
+        ofItem.rota ||
+        ofItem.prioridade ||
+        ofItem.prioridade_nivel
+      );
+      if (temPrioridadeAtiva && !eventos.some((ev) => ev.tipo === "prioridade")) {
+        const isRetira = Boolean(ofItem.cliente_retira_agora || ofItem.cliente_retira || ofItem.retira_agora);
+        const isRota = Boolean(ofItem.is_rota || ofItem.rota);
+        eventos.push({
+          id: `PRIORIDADE_SINTETIZADA_${ofItem.id}`,
+          tipo: "prioridade",
+          titulo: isRetira
+            ? "⚡🚨 CLIENTE RETIRA AGORA (Balcão)"
+            : isRota
+            ? "🚚 Carga de Rota de Entrega"
+            : `🔥 Prioridade P${ofItem.prioridade_nivel || 1} Urgente`,
+          data: ofItem.data_prioridade || ofItem.updated_date || ofItem.data_recebimento,
+          usuario: ofItem.usuario_prioridade || "Gestor PCP",
+          detalhes: isRetira
+            ? "Pedido marcado para retirada imediata pelo cliente no balcão da fábrica."
+            : isRota
+            ? "Pedido alocado em carga prioritária de rota logística."
+            : `Classificado como prioridade de produção nível P${ofItem.prioridade_nivel || 1}.`
+        });
+      }
+
+      // 7. Etapas de Produção Concluídas
+      if (ofItem.etapas_concluidas_json) {
+        try {
+          const etapasSalvas = JSON.parse(ofItem.etapas_concluidas_json || "[]");
+          if (Array.isArray(etapasSalvas)) {
+            etapasSalvas.filter(e => e.concluida).forEach((etp, idx) => {
+              const chaveEtp = `ETAPA_${ofItem.id}_${etp.id || idx}`;
+              if (!eventos.some(ev => ev.id === chaveEtp)) {
+                eventos.push({
+                  id: chaveEtp,
+                  tipo: "etapa",
+                  titulo: `Etapa Concluída: ${etp.nome}`,
+                  data: etp.data || ofItem.updated_date,
+                  usuario: etp.operador || "Chão de Fábrica",
+                  detalhes: etp.descricao || `Etapa industrial finalizada na máquina ${etp.maquina || ""}`
+                });
+              }
+            });
+          }
+        } catch {}
       }
     });
 
@@ -209,6 +287,7 @@ export default function HistoricoMovimentacaoDialog({
 
   // Se o pedido teve transferência recente
   const ultimaTransferencia = transferenciasRecentes[transferenciasRecentes.length - 1];
+  const pedidoEntregue = ofs.find(o => o.entregue || o.status_pcp === "entregue");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -224,6 +303,12 @@ export default function HistoricoMovimentacaoDialog({
                 <Badge variant="outline" className="text-xs font-mono font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200">
                   {numeroPedido}
                 </Badge>
+                {pedidoEntregue && (
+                  <Badge className="bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-black uppercase tracking-wider flex items-center gap-1">
+                    <Truck className="w-3 h-3" />
+                    🔒 ENTREGUE
+                  </Badge>
+                )}
               </DialogTitle>
               <DialogDescription className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 Cliente: <span className="font-semibold text-slate-700 dark:text-slate-300">{clienteNome}</span> · Vendedor: <span className="font-semibold text-slate-700 dark:text-slate-300">{vendedorNome}</span> · Filial Atual: <span className="font-bold text-blue-600 dark:text-blue-400">{unidadeAtual}</span>
@@ -234,6 +319,39 @@ export default function HistoricoMovimentacaoDialog({
 
         {/* Corpo com Scroll */}
         <div className="p-5 overflow-y-auto space-y-4 flex-1 text-slate-700 dark:text-slate-200">
+
+          {/* Destaque Superior: Alerta de Pedido Entregue e Travado */}
+          {pedidoEntregue && (
+            <div className="p-4 rounded-xl border border-sky-300 dark:border-sky-800 bg-sky-50/80 dark:bg-sky-950/30 space-y-2">
+              <div className="flex items-center justify-between gap-2 text-sky-900 dark:text-sky-300 font-bold text-sm">
+                <div className="flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
+                  <span>Pedido Entregue — Fila de Entregas Bloqueada</span>
+                </div>
+                <Badge variant="outline" className="bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-900/60 dark:text-sky-200 text-[10px] font-mono font-bold">
+                  TRAVADO PARA EDIÇÃO
+                </Badge>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-lg border border-sky-200/60 dark:border-sky-800/40">
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">Data da Entrega:</span>
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    {formatarDataHoraSegura(pedidoEntregue.data_entrega_realizada || pedidoEntregue.updated_date)}
+                  </span>
+                </div>
+                <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-lg border border-sky-200/60 dark:border-sky-800/40">
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">Entregue por / Despachado:</span>
+                  <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-sky-600" />
+                    {pedidoEntregue.usuario_entrega || "Central PCP / Expedição"}
+                  </span>
+                </div>
+              </div>
+              <p className="text-[11px] text-sky-800/90 dark:text-sky-300/90 italic">
+                Este pedido já foi fisicamente entregue ao cliente/rota de transporte. Suas OPs foram arquivadas e travadas contra movimentações involuntárias.
+              </p>
+            </div>
+          )}
 
           {/* Destaque Superior: Alerta Explicativo de Transferência (caso tenha sido transferido) */}
           {ultimaTransferencia && (
@@ -310,6 +428,12 @@ export default function HistoricoMovimentacaoDialog({
                   } else if (ev.tipo === "conclusao") {
                     badgeColor = "bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-700";
                     IconComponent = CheckCircle2;
+                  } else if (ev.tipo === "entregue") {
+                    badgeColor = "bg-sky-100 text-sky-900 border-sky-300 dark:bg-sky-950 dark:text-sky-200 dark:border-sky-700";
+                    IconComponent = Truck;
+                  } else if (ev.tipo === "etapa") {
+                    badgeColor = "bg-indigo-100 text-indigo-900 border-indigo-300 dark:bg-indigo-950 dark:text-indigo-200 dark:border-indigo-700";
+                    IconComponent = Layers;
                   } else if (ev.tipo === "chegada") {
                     badgeColor = "bg-indigo-100 text-indigo-900 border-indigo-300 dark:bg-indigo-950 dark:text-indigo-200 dark:border-indigo-700";
                     IconComponent = Calendar;
@@ -327,6 +451,10 @@ export default function HistoricoMovimentacaoDialog({
                           ? "border-orange-500 text-orange-500"
                           : ev.tipo === "conclusao"
                           ? "border-emerald-500 text-emerald-500"
+                          : ev.tipo === "entregue"
+                          ? "border-sky-500 text-sky-500"
+                          : ev.tipo === "etapa"
+                          ? "border-indigo-500 text-indigo-500"
                           : "border-slate-400 text-slate-400"
                       }`}>
                         <IconComponent className="w-2.5 h-2.5" />

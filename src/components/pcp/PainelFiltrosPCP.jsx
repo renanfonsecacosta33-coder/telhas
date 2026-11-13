@@ -444,6 +444,17 @@ export default function PainelFiltrosPCP({
         </Opt>
 
         <Opt
+          on={filtro === "entregue"}
+          onClick={() => setFiltro("entregue")}
+          icon={Truck}
+          badge={stats.entregues || 0}
+          badgeColor="bg-sky-500/20 text-sky-300 border border-sky-500/40"
+          title="Pedidos entregues ao cliente/transportadora e travados na fila de entregues"
+        >
+          📦 Entregues
+        </Opt>
+
+        <Opt
           on={filtro === "todos"}
           onClick={() => setFiltro("todos")}
           icon={Layers}

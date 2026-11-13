@@ -5,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Clock, Trash2, ArrowRightLeft, User, Briefcase, Hash, Package, Target } from "lucide-react";
+import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Clock, Trash2, ArrowRightLeft, User, Briefcase, Hash, Package, Target, Truck, Lock } from "lucide-react";
 import { executarExclusaoOsBackground } from "@/lib/excluirOsHelper"; import { sincronizarLoteOdoo } from "@/lib/sincronizarOdooHelper";
 import { finalizarOpsDoPedido, cancelarOpsDoPedido, executarVarreduraEConciliacaoGeral, cancelarOpsDasOfsExatas, comRetryLimite } from "@/lib/conciliacaoPcpMaquinasHelper";
 import RelatorioAuditoriaDiariaModal from "@/components/pcp/RelatorioAuditoriaDiariaModal";
@@ -791,6 +791,112 @@ export default function CentralPCP() {
     }
   };
 
+  // Marcar como Entregue (trava o pedido na fila exclusiva de entregues)
+  const handleMarcarEntregue = async (pedidosLista) => {
+    const lista = (Array.isArray(pedidosLista) ? pedidosLista : [pedidosLista]).filter(Boolean);
+    if (!lista.length) return;
+
+    try {
+      const agora = new Date().toISOString();
+      const usuario = usuarioLogadoNome || "Central PCP";
+
+      await Promise.all(lista.map(async (ped) => {
+        const logExistente = (() => {
+          try { return JSON.parse(ped.historico_log || "[]"); } catch { return []; }
+        })();
+
+        const novoLog = [
+          ...logExistente,
+          {
+            data: agora,
+            usuario,
+            acao: "pedido_entregue",
+            detalhes: "🔒 Pedido entregue ao cliente / transportadora. Travado completamente na fila de entregues."
+          }
+        ];
+
+        return base44.entities.PedidoOdoo.update(ped.id, {
+          entregue: true,
+          status_pcp: "entregue",
+          data_entrega_realizada: agora,
+          usuario_entrega: usuario,
+          historico_log: JSON.stringify(novoLog)
+        });
+      }));
+
+      toast({
+        title: "📦 Pedido marcado como Entregue!",
+        description: `${lista.length} pedido(s) despachado(s) e travado(s) na fila de entregues.`
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+    } catch (err) {
+      toast({
+        title: "Erro ao marcar como entregue",
+        description: err.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Reversão de entrega (requer PIN do Gestor em caso de engano)
+  const [pedidosReverterEntregue, setPedidosReverterEntregue] = useState(null);
+  const [senhaReverterEntregueOpen, setSenhaReverterEntregueOpen] = useState(false);
+
+  const handleSolicitarReverterEntregue = (pedidosLista) => {
+    const lista = (Array.isArray(pedidosLista) ? pedidosLista : [pedidosLista]).filter(Boolean);
+    if (!lista.length) return;
+    setPedidosReverterEntregue(lista);
+    setSenhaReverterEntregueOpen(true);
+  };
+
+  const confirmarReverterEntregue = async () => {
+    if (!pedidosReverterEntregue?.length) return;
+    try {
+      const agora = new Date().toISOString();
+      const usuario = usuarioLogadoNome || "Gestor PCP";
+
+      await Promise.all(pedidosReverterEntregue.map(async (ped) => {
+        const logExistente = (() => {
+          try { return JSON.parse(ped.historico_log || "[]"); } catch { return []; }
+        })();
+
+        const novoLog = [
+          ...logExistente,
+          {
+            data: agora,
+            usuario,
+            acao: "entrega_revertida",
+            detalhes: "🔓 Entrega revertida pelo Gestor via autorização PIN. Retornado para fila de Concluídos."
+          }
+        ];
+
+        return base44.entities.PedidoOdoo.update(ped.id, {
+          entregue: false,
+          status_pcp: "concluido",
+          historico_log: JSON.stringify(novoLog)
+        });
+      }));
+
+      toast({
+        title: "Entrega revertida com sucesso",
+        description: `${pedidosReverterEntregue.length} pedido(s) retornado(s) à fila de Concluídos.`
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+    } catch (err) {
+      toast({
+        title: "Erro ao reverter entrega",
+        description: err.message,
+        variant: "destructive"
+      });
+    } finally {
+      setPedidosReverterEntregue(null);
+    }
+  };
+
   const handleSetPrioridade = (pedido, nivel) => {
     // Se for P1 ou P2 (alta urgência), exige PIN do gestor caso não seja admin
     if (nivel === 1 || nivel === 2 || nivel === "1" || nivel === "2") {
@@ -1308,16 +1414,19 @@ export default function CentralPCP() {
   // Programação por item e em lote usa a mesma confirmação de destino da distribuição.
   const { handleProgramarItem, handleProgramarTodosItens } = useProgramacaoPcp({ bobinasEstoque, filialAtiva, queryClient, toast, setPedidoSelecionado });
 
-  // Identifica se um pedido está 100% concluído
+  // Identifica se um pedido está entregue e travado na fila de entregas
+  const isPedidoEntregue = (p) => Boolean(p?.entregue || p?.status_pcp === "entregue");
+
+  // Identifica se um pedido está 100% concluído (e não entregue)
   // A paginação consulta o status persistido. Progresso calculado não pode esconder uma OF
   // das Ativas antes de ela estar disponível na consulta de Concluídas.
-  const isPedidoConcluido = (p) => p?.status_pcp === "concluido";
+  const isPedidoConcluido = (p) => p?.status_pcp === "concluido" && !isPedidoEntregue(p);
 
   // Contadores de pedidos ativos por Loja / Filial
   const statsLoja = useMemo(() => {
     const counts = { todas: 0, "Matriz AJL": 0, Pinhais: 0, "Ivaiporã": 0, "Ponta Grossa": 0 };
     for (const row of resumoServidor.rows) {
-      if (["concluido", "cancelado"].includes(row.status_pcp)) continue;
+      if (["concluido", "entregue", "cancelado"].includes(row.status_pcp)) continue;
       counts.todas += row.count;
       const unidade = row.unidade || "Matriz AJL";
       counts[unidade] = (counts[unidade] || 0) + row.count;
@@ -1347,13 +1456,17 @@ export default function CentralPCP() {
     let produzindoAgora = 0;
     let aguardandoMaquina = 0;
     let concluidos = 0;
+    let entregues = 0;
     let atrasados = 0;
 
     pedidosDaLoja.forEach(p => {
+      const ent = isPedidoEntregue(p);
       const conc = isPedidoConcluido(p);
       const diag = mapaExecucaoPorId.get(p.id);
 
-      if (conc) {
+      if (ent) {
+        entregues++;
+      } else if (conc) {
         concluidos++;
       } else {
         ativos++;
@@ -1368,14 +1481,17 @@ export default function CentralPCP() {
     const rows = resumoServidor.rows.filter(r => lojaSelecionada === "todas" || (r.unidade || "Matriz AJL") === lojaSelecionada);
     const count = status => rows.filter(r => r.status_pcp === status).reduce((sum, r) => sum + r.count, 0);
     const total = rows.reduce((sum, r) => sum + r.count, 0);
+    const countEntregues = count("entregue") || entregues;
+    const countConcluidos = count("concluido");
     return {
       total,
-      ativos: total - count("concluido") - count("cancelado"),
+      ativos: total - countConcluidos - countEntregues - count("cancelado"),
       pendentes: count("pendente_distribuicao"),
       distribuidos: count("distribuido"),
       produzindo_agora: produzindoAgora,
       aguardando_maquina: aguardandoMaquina,
-      concluidos: count("concluido"),
+      concluidos: countConcluidos,
+      entregues: countEntregues,
       atrasados
     };
   }, [pedidosDaLoja, mapaExecucaoPorId, resumoServidor, lojaSelecionada]);
@@ -1387,6 +1503,7 @@ export default function CentralPCP() {
     { id: "pendente_distribuicao", label: "Pendentes PCP", count: stats.pendentes, icon: AlertTriangle, color: "text-amber-500" },
     { id: "distribuido", label: "Distribuídos", count: stats.distribuidos, icon: Factory, color: "text-indigo-500" },
     { id: "concluido", label: "Concluídos", count: stats.concluidos, icon: CheckCircle2, color: "text-emerald-500" },
+    { id: "entregue", label: "Entregues", count: stats.entregues, icon: Truck, color: "text-sky-500" },
     { id: "todos", label: "Todos", count: stats.total, icon: Layers, color: "text-slate-500" }
   ];
 
@@ -1501,23 +1618,26 @@ export default function CentralPCP() {
 
   // Filtros + busca
   const pedidosFiltrados = pedidosDaLoja.filter(p => {
+    const entregue = isPedidoEntregue(p);
     const concluido = isPedidoConcluido(p);
     const diag = mapaExecucaoPorId.get(p.id);
 
-    if (filtro === "ativos") {
-      if (concluido) return false;
+    if (filtro === "entregue") {
+      if (!entregue) return false;
+    } else if (filtro === "ativos") {
+      if (concluido || entregue) return false;
     } else if (filtro === "concluido") {
-      if (!concluido) return false;
+      if (!concluido || entregue) return false;
     } else if (filtro === "produzindo_agora") {
-      if (concluido || !diag?.produzindoAgora) return false;
+      if (concluido || entregue || !diag?.produzindoAgora) return false;
     } else if (filtro === "aguardando_maquina") {
-      if (concluido || !diag?.aguardandoInicio) return false;
+      if (concluido || entregue || !diag?.aguardandoInicio) return false;
     } else if (filtro === "pendente_distribuicao") {
-      if (concluido || p.status_pcp !== "pendente_distribuicao") return false;
+      if (concluido || entregue || p.status_pcp !== "pendente_distribuicao") return false;
     } else if (filtro === "distribuido") {
-      if (concluido || p.status_pcp !== "distribuido") return false;
+      if (concluido || entregue || p.status_pcp !== "distribuido") return false;
     } else if (filtro === "em_producao") {
-      if (concluido || p.status_pcp !== "em_producao") return false;
+      if (concluido || entregue || p.status_pcp !== "em_producao") return false;
     } else if (filtro !== "todos") {
       if (p.status_pcp !== filtro) return false;
     }
@@ -1636,7 +1756,7 @@ export default function CentralPCP() {
       itensTexto.toLowerCase().includes(q)
     );
   }).sort((a, b) => {
-    if (filtro === "concluido") {
+    if (filtro === "concluido" || filtro === "entregue") {
       return new Date(b.data_recebimento || 0).getTime() - new Date(a.data_recebimento || 0).getTime();
     }
     // 1º: Prioridade 1 a 5 (P1 é a mais urgente absoluta!)
@@ -1649,8 +1769,8 @@ export default function CentralPCP() {
     return da - db;
   });
 
-  const pedidosAtivosEmTodos = filtro === "todos" ? pedidosFiltrados.filter(p => !isPedidoConcluido(p)) : pedidosFiltrados;
-  const pedidosConcluidosEmTodos = filtro === "todos" ? pedidosFiltrados.filter(p => isPedidoConcluido(p)) : [];
+  const pedidosAtivosEmTodos = filtro === "todos" ? pedidosFiltrados.filter(p => !isPedidoConcluido(p) && !isPedidoEntregue(p)) : pedidosFiltrados;
+  const pedidosConcluidosEmTodos = filtro === "todos" ? pedidosFiltrados.filter(p => isPedidoConcluido(p) || isPedidoEntregue(p)) : [];
 
   // Agrupa pedidos por numero_pedido mantendo a ordenação de prioridade/FIFO
   const gruposPedidos = useMemo(() => {
@@ -1834,6 +1954,11 @@ export default function CentralPCP() {
     } else if (criterio === "concluidos") {
       const ids = pedidosFiltrados
         .filter(p => isPedidoConcluido(p))
+        .map(p => p.id);
+      setSelecionados(new Set(ids));
+    } else if (criterio === "entregues") {
+      const ids = pedidosFiltrados
+        .filter(p => isPedidoEntregue(p))
         .map(p => p.id);
       setSelecionados(new Set(ids));
     } else if (criterio === "nenhum") {
@@ -2240,6 +2365,16 @@ export default function CentralPCP() {
                       Concluídas ({stats.concluidos})
                     </button>
                   )}
+                  {stats.entregues > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectByCriteria("entregues")}
+                      className="px-2 py-0.5 rounded bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 hover:bg-sky-100 font-semibold border border-sky-200/60 transition-colors"
+                      title="Selecionar apenas OFs entregues"
+                    >
+                      Entregues ({stats.entregues})
+                    </button>
+                  )}
                 </div>
 
                 {/* Badge de Selecionados com botão de desmarcar */}
@@ -2262,6 +2397,38 @@ export default function CentralPCP() {
 
               {/* Lado Direito: Ações em Lote (Distribuir, Apagar Selecionadas, Apagar Todas) */}
               <div className="flex items-center gap-2 flex-wrap">
+                {/* Marcar Selecionados como Entregues */}
+                {selecionados.size > 0 && filtro !== "entregue" && (
+                  <Button
+                    size="sm"
+                    disabled={distribuindo || excluindo || sincronizandoOdoo}
+                    onClick={() => {
+                      const lista = pedidos.filter(p => selecionados.has(p.id));
+                      handleMarcarEntregue(lista);
+                    }}
+                    className="bg-sky-600 hover:bg-sky-700 text-white text-xs h-8 gap-1.5 shadow-sm font-bold"
+                    title="Marcar todos os pedidos selecionados como Entregues (trava na fila de entregues)"
+                  >
+                    <Truck className="w-3.5 h-3.5" />
+                    Marcar Entregue ({selecionados.size})
+                  </Button>
+                )}
+
+                {/* Reverter Entrega para os Selecionados (quando na fila de Entregues) */}
+                {filtro === "entregue" && selecionados.size > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const lista = pedidos.filter(p => selecionados.has(p.id));
+                      handleSolicitarReverterEntregue(lista);
+                    }}
+                    className="border-sky-400 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/40 text-xs h-8 gap-1.5 font-bold"
+                  >
+                    <Lock className="w-3.5 h-3.5 text-sky-600" />
+                    Reverter Entrega (Gestor)
+                  </Button>
+                )}
                 {/* Distribuir Selecionados */}
                 {selecionados.size > 0 && (
                   <Button size="sm" disabled={distribuindo || excluindo}
@@ -2475,7 +2642,17 @@ export default function CentralPCP() {
                     Ver Concluídos ({stats.concluidos})
                   </button>
                 )}
-                {filtro === "concluido" && (
+                {filtro !== "entregue" && stats.entregues > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setFiltro("entregue")}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold text-sky-700 dark:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 transition-all border border-sky-500/20"
+                  >
+                    <Truck className="w-3.5 h-3.5 text-sky-600" />
+                    Ver Entregues ({stats.entregues})
+                  </button>
+                )}
+                {(filtro === "concluido" || filtro === "entregue") && (
                   <button
                     type="button"
                     onClick={() => setFiltro("ativos")}
@@ -2549,6 +2726,8 @@ export default function CentralPCP() {
                     onTransferir={(p) => setModalTransferir({ aberto: true, pedidos: [p] })}
                     onTransferirGrupo={(g) => setModalTransferir({ aberto: true, pedidos: g.ofs || [] })}
                     onFinalizarGrupo100={(lista) => handleSolicitarFinalizar100(lista)}
+                    onMarcarGrupoEntregue={handleMarcarEntregue}
+                    onReverterGrupoEntregue={handleSolicitarReverterEntregue}
                     onSincronizarGrupoOdoo={(lista) => handleSincronizarLoteOdoo(lista)}
                     estoqueContext={estoqueContext}
                   />
@@ -2574,6 +2753,8 @@ export default function CentralPCP() {
                     onVerHistorico={handleAbrirHistoricoMovimentacao}
                     onTransferir={(ped) => setModalTransferir({ aberto: true, pedidos: [ped] })}
                     onFinalizar100={(ped) => handleSolicitarFinalizar100([ped])}
+                    onMarcarEntregue={(ped) => handleMarcarEntregue([ped])}
+                    onReverterEntregue={(ped) => handleSolicitarReverterEntregue([ped])}
                     estoqueContext={estoqueContext}
                   />
                 ))}
@@ -2642,6 +2823,8 @@ export default function CentralPCP() {
                           onTransferir={(p) => setModalTransferir({ aberto: true, pedidos: [p] })}
                           onTransferirGrupo={(g) => setModalTransferir({ aberto: true, pedidos: g.ofs || [] })}
                           onFinalizarGrupo100={(lista) => handleSolicitarFinalizar100(lista)}
+                          onMarcarGrupoEntregue={handleMarcarEntregue}
+                          onReverterGrupoEntregue={handleSolicitarReverterEntregue}
                           onSincronizarGrupoOdoo={(lista) => handleSincronizarLoteOdoo(lista)}
                           estoqueContext={estoqueContext}
                         />
@@ -2667,6 +2850,8 @@ export default function CentralPCP() {
                           onVerHistorico={handleAbrirHistoricoMovimentacao}
                           onTransferir={(ped) => setModalTransferir({ aberto: true, pedidos: [ped] })}
                           onFinalizar100={(ped) => handleSolicitarFinalizar100([ped])}
+                          onMarcarEntregue={(ped) => handleMarcarEntregue([ped])}
+                          onReverterEntregue={(ped) => handleSolicitarReverterEntregue([ped])}
                           estoqueContext={estoqueContext}
                         />
                       ))}
@@ -2755,6 +2940,14 @@ export default function CentralPCP() {
         descricao="Para marcar este(s) pedido(s) como 100% concluído(s) imediatamente, digite o PIN de liberação do Gestor."
         aviso="Finalizar 100% exige autorização do Gestor."
         onAutorizado={confirmarFinalizar100}
+        />
+        <SenhaGestorDialog
+        open={senhaReverterEntregueOpen}
+        onOpenChange={setSenhaReverterEntregueOpen}
+        titulo="Reverter Entrega do Pedido"
+        descricao="Este pedido está travado como entregue. Para destravá-lo e devolvê-lo à fila de Concluídos, digite o PIN de liberação do Gestor."
+        aviso="A reversão destrava o pedido para novas alterações na Central PCP."
+        onAutorizado={confirmarReverterEntregue}
         />
       <WebhookSimulatorDialog
         open={webhookOpen}
