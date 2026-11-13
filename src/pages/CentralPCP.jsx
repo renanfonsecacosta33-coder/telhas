@@ -815,13 +815,31 @@ export default function CentralPCP() {
           }
         ];
 
-        return base44.entities.PedidoOdoo.update(ped.id, {
+        const atualizado = await base44.entities.PedidoOdoo.update(ped.id, {
           entregue: true,
           status_pcp: "entregue",
           data_entrega_realizada: agora,
           usuario_entrega: usuario,
           historico_log: JSON.stringify(novoLog)
         });
+
+        // Notifica o Odoo ERP em tempo real sobre a entrega ao cliente / rota
+        try {
+          await notificarStatus(
+            { ...ped, ...atualizado, status_pcp: "entregue" },
+            "entregue",
+            {
+              status_novo: "entregue",
+              percentual_concluido: 100,
+              usuario,
+              item_nome: `Pedido #${ped.numero_pedido} (Entregue ao cliente)`
+            }
+          );
+        } catch (notifErr) {
+          console.warn("[CentralPCP] Aviso ao notificar entrega ao Odoo:", notifErr);
+        }
+
+        return atualizado;
       }));
 
       toast({
@@ -872,11 +890,29 @@ export default function CentralPCP() {
           }
         ];
 
-        return base44.entities.PedidoOdoo.update(ped.id, {
+        const atualizado = await base44.entities.PedidoOdoo.update(ped.id, {
           entregue: false,
           status_pcp: "concluido",
           historico_log: JSON.stringify(novoLog)
         });
+
+        // Notifica o Odoo retornando para concluído
+        try {
+          await notificarStatus(
+            { ...ped, ...atualizado, status_pcp: "concluido" },
+            "concluido",
+            {
+              status_novo: "concluido",
+              percentual_concluido: 100,
+              usuario,
+              item_nome: `Pedido #${ped.numero_pedido} (Entrega revertida para Concluído)`
+            }
+          );
+        } catch (notifErr) {
+          console.warn("[CentralPCP] Aviso ao notificar reversão de entrega ao Odoo:", notifErr);
+        }
+
+        return atualizado;
       }));
 
       toast({
