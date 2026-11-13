@@ -14,6 +14,25 @@ function normalizarTexto(txt) {
 }
 
 /**
+ * Formata data/hora para exibição legível
+ */
+export function formatarDataHora(dataIso) {
+  if (!dataIso) return "—";
+  try {
+    const d = new Date(dataIso);
+    if (isNaN(d.getTime())) return String(dataIso).slice(0, 16);
+    const dia = String(d.getDate()).padStart(2, "0");
+    const mes = String(d.getMonth() + 1).padStart(2, "0");
+    const ano = d.getFullYear();
+    const hora = String(d.getHours()).padStart(2, "0");
+    const min = String(d.getMinutes()).padStart(2, "0");
+    return `${dia}/${mes}/${ano} às ${hora}:${min}`;
+  } catch {
+    return String(dataIso).slice(0, 16);
+  }
+}
+
+/**
  * Verifica se um produto é uma Telha Simples pura (não vai para Colagem)
  */
 export function ehTelhaSimplesPura(pedido) {
@@ -27,13 +46,38 @@ export function ehTelhaSimplesPura(pedido) {
   const ehTelha = prod.includes("telha") || textoCompleto.includes("telha");
   const temIsolamento =
     Boolean(pedido.eps) ||
-    /\b(eps|isopor|sanduiche|sanduiche|manta|bandeja|pir|pur|termoacustica|termoacustico|semi[- ]?sanduiche)\b/i.test(textoCompleto);
+    /\b(eps|isopor|sanduiche|sanduíche|manta|bandeja|pir|pur|termoacustica|termoacústica|semi[- ]?sanduiche)\b/i.test(textoCompleto);
 
   return ehTelha && !temIsolamento;
 }
 
 /**
+ * Identifica o setor do pedido (Telha ou Corte e Dobra)
+ */
+export function detectarSetorPedido(p) {
+  if (!p) return "telha";
+  if (p.setor === "corte_dobra" || p.setor === "cd") return "cd";
+  const str = normalizarTexto(`${p.produto || ""} ${p.modelo || ""} ${p.item_produto || ""} ${p.observacoes || ""}`);
+  if (/\b(dobra|dobradeira|guilhotina|desbobinadeira|chapa|perfil dobrado|rufo|calha)\b/i.test(str)) {
+    return "cd";
+  }
+  return "telha";
+}
+
+/**
+ * Gera uma assinatura física estrita da peça para saber se são rigorosamente iguais
+ */
+function extrairAssinaturaPeca(op) {
+  const comp = parseFloat(String(op.comprimento || op.tamanho || op.medida || "0").replace(",", ".")) || 0;
+  const qtd = parseInt(String(op.quantidade || op.pecas || op.qtd || "0"), 10) || 0;
+  const esp = String(op.espessura || op.chapa || "").trim().replace(",", ".");
+  const mod = normalizarTexto(op.modelo || op.produto || op.tipo || "");
+  return `${comp.toFixed(2)}m_${qtd}pcs_${esp}mm_${mod}`;
+}
+
+/**
  * Executa uma análise diagnóstica 360° em tempo real sobre os pedidos do PCP e OPs das máquinas
+ * COM A REGRA ESTRITA DE DUPLICIDADE (ignora itens diferentes de um mesmo pedido).
  */
 export async function rodarDiagnosticoOperacional({ pedidosPcp = [] } = {}) {
   const diagnostico = {
@@ -104,50 +148,55 @@ export async function rodarDiagnosticoOperacional({ pedidosPcp = [] } = {}) {
     });
 
     // ─────────────────────────────────────────────────────────────
-    // TESTE 1: DUPLICIDADES NO PCP (Mesma OF ou mesmo Nº de Pedido duplicado)
+    // TESTE 1: DUPLICIDADES NO PCP (Apenas código individual da OF repetido)
     // ─────────────────────────────────────────────────────────────
-    const mapaPcpPorNumero = new Map();
     const mapaPcpPorOF = new Map();
+    const idsRegistradosDuplicados = new Set();
 
     listaPcp.forEach(p => {
-      const num = normalizarNumeroPedido(p.numero_pedido);
       const of = String(p.of_nome || p.of_odoo_id || "").trim().toUpperCase();
-
-      if (num) {
-        if (!mapaPcpPorNumero.has(num)) mapaPcpPorNumero.set(num, []);
-        mapaPcpPorNumero.get(num).push(p);
-      }
-      if (of && of !== "—" && of !== "SEMOF") {
+      if (of && of !== "—" && of !== "SEMOF" && of !== "UNDEFINED" && of.length > 3) {
         if (!mapaPcpPorOF.has(of)) mapaPcpPorOF.set(of, []);
         mapaPcpPorOF.get(of).push(p);
       }
     });
 
-    const idsRegistradosDuplicados = new Set();
-
-    // Checar duplicidades exatas de OF
+    // Checar duplicidades estritas por código individual de OF
     mapaPcpPorOF.forEach((pedidos, of) => {
-      if (pedidos.length > 1) {
-        // Mesma OF importada mais de uma vez
-        pedidos.slice(1).forEach(p => {
-          if (!idsRegistradosDuplicados.has(p.id)) {
-            idsRegistradosDuplicados.add(p.id);
+      // Filtra apenas registros ativos (não cancelados)
+      const ativos = pedidos.filter(p => String(p.status || "").toLowerCase() !== "cancelado");
+      if (ativos.length > 1) {
+        const original = ativos[0];
+        ativos.slice(1).forEach(duplicado => {
+          if (!idsRegistradosDuplicados.has(duplicado.id)) {
+            idsRegistradosDuplicados.add(duplicado.id);
+            const setor = detectarSetorPedido(duplicado);
+            const loja = duplicado.unidade || duplicado.filial || "Matriz AJL";
+            const dataChegada = formatarDataHora(duplicado.data_recebimento || duplicado.created_date);
+
             diagnostico.listaInconsistencias.push({
-              id: `dup_of_${p.id}`,
-              pedidoId: p.id,
-              numeroPedido: p.numero_pedido,
+              id: `dup_of_${duplicado.id}`,
+              pedidoId: duplicado.id,
+              numeroPedido: duplicado.numero_pedido,
               ofNome: of,
-              cliente: p.cliente_nome || "Cliente",
-              vendedor: p.vendedor_nome || "—",
+              codigoIndividual: of,
+              cliente: duplicado.cliente_nome || "Cliente",
+              vendedor: duplicado.vendedor_nome || "—",
+              setor,
+              loja,
+              dataChegada,
               tipo: "duplicado_pcp",
-              categoria: "Duplicidade de Importação",
+              categoria: "Duplicidade de OF no PCP",
               criticidade: "alta",
-              descricao: `OF ${of} importada ${pedidos.length} vezes no PCP (registro repetido)`,
-              ondeDizEstar: p.status || "Fila PCP",
-              situacaoReal: `Existe outro registro ativo com mesmo código de OF (${pedidos[0].id})`,
-              acaoSugerida: "Remover registro duplicado e manter o original",
+              descricao: `Código individual de OF repetido: ${of}`,
+              motivoExato: `O código individual da OF (${of}) foi importado ${ativos.length} vezes na fila do PCP com o mesmo cliente e produtos.`,
+              ondeDizEstar: duplicado.status || "Fila PCP",
+              situacaoReal: `Existe outro registro ativo idêntico (ID ${original.id}) mantido como original.`,
+              acaoSugerida: "Cancelar esta cópia excedente mantendo o registro original",
               entidade: "PedidoOdoo",
-              dadosOriginal: p
+              ordemOriginal: original,
+              ordemDuplicada: duplicado,
+              dadosOriginal: duplicado
             });
             diagnostico.resumoPorTipo.duplicado_pcp++;
           }
@@ -155,51 +204,12 @@ export async function rodarDiagnosticoOperacional({ pedidosPcp = [] } = {}) {
       }
     });
 
-    // Checar pedidos com mesmo número e produtos/metragens 100% idênticas
-    mapaPcpPorNumero.forEach((pedidos, num) => {
-      if (pedidos.length > 1) {
-        const porAssinatura = new Map();
-        pedidos.forEach(p => {
-          const itens = Array.isArray(p.itens) ? p.itens : [];
-          const sig = `${p.cliente_nome}_${p.largura_mm || p.largura}_${itens.length}_${itens.map(i => `${i.comprimento || i.tamanho}_${i.quantidade}`).join("|")}`;
-          if (!porAssinatura.has(sig)) porAssinatura.set(sig, []);
-          porAssinatura.get(sig).push(p);
-        });
-
-        porAssinatura.forEach((grupo, sig) => {
-          if (grupo.length > 1 && sig.length > 5) {
-            grupo.slice(1).forEach(p => {
-              if (!idsRegistradosDuplicados.has(p.id)) {
-                idsRegistradosDuplicados.add(p.id);
-                diagnostico.listaInconsistencias.push({
-                  id: `dup_num_${p.id}`,
-                  pedidoId: p.id,
-                  numeroPedido: p.numero_pedido,
-                  ofNome: p.of_nome || "—",
-                  cliente: p.cliente_nome || "Cliente",
-                  vendedor: p.vendedor_nome || "—",
-                  tipo: "duplicado_pcp",
-                  categoria: "Duplicidade de Pedido",
-                  criticidade: "alta",
-                  descricao: `Pedido #${p.numero_pedido} com mesmos itens e cliente duplicado na fila`,
-                  ondeDizEstar: p.status || "Fila PCP",
-                  situacaoReal: `Duplicidade detectada com ID ${grupo[0].id}`,
-                  acaoSugerida: "Consolidar ou cancelar a cópia duplicada",
-                  entidade: "PedidoOdoo",
-                  dadosOriginal: p
-                });
-                diagnostico.resumoPorTipo.duplicado_pcp++;
-              }
-            });
-          }
-        });
-      }
-    });
-
     // ─────────────────────────────────────────────────────────────
-    // TESTE 2: DUPLICIDADES NO CHÃO DE FÁBRICA (Mesmo pedido em 2 OPs ativas na mesma máquina)
+    // TESTE 2: DUPLICIDADES NO CHÃO DE FÁBRICA (REGRA ESTRITA)
+    // Mesma máquina com exatamente o mesmo produto, medida e quantidade gerados em dobro!
     // ─────────────────────────────────────────────────────────────
     opsAtivasTelhasPorNum.forEach((ops, num) => {
+      // Agrupa por máquina
       const porMaquina = new Map();
       ops.forEach(op => {
         const m = String(op.maquina || "").trim().toUpperCase();
@@ -209,26 +219,113 @@ export async function rodarDiagnosticoOperacional({ pedidosPcp = [] } = {}) {
       });
 
       porMaquina.forEach((listaOps, maquina) => {
-        // Se tem 2 ou mais OPs não-finalizadas e não-canceladas na mesma máquina para o mesmo número
+        // Apenas ordens ativas
         const ativas = listaOps.filter(o => o.status !== "finalizado" && o.status !== "cancelado");
         if (ativas.length > 1) {
-          ativas.slice(1).forEach(opDuplicada => {
-            diagnostico.listaInconsistencias.push({
-              id: `dup_op_${opDuplicada.id}`,
-              opId: opDuplicada.id,
-              numeroPedido: opDuplicada.numero_pedido,
-              cliente: opDuplicada.cliente || "Cliente",
-              tipo: "duplicado_maquina",
-              categoria: "OP Duplicada no Chão",
-              criticidade: "media",
-              descricao: `Máquina ${maquina} possui ${ativas.length} ordens ativas para o Pedido #${opDuplicada.numero_pedido}`,
-              ondeDizEstar: `Máquina ${maquina}`,
-              situacaoReal: `Ordem duplicada no chão de fábrica gerando risco de corte duplo`,
-              acaoSugerida: "Cancelar OP excedente na máquina",
-              entidade: "Pedido",
-              dadosOriginal: opDuplicada
-            });
-            diagnostico.resumoPorTipo.duplicado_maquina++;
+          // Agrupa por assinatura física estrita da peça: (comprimento + quantidade + espessura + modelo)
+          const porAssinatura = new Map();
+          ativas.forEach(op => {
+            const sig = extrairAssinaturaPeca(op);
+            if (!porAssinatura.has(sig)) porAssinatura.set(sig, []);
+            porAssinatura.get(sig).push(op);
+          });
+
+          // Apenas se tiver mais de uma ordem com A MESMA ASSINATURA FÍSICA E QUANTIDADE!
+          porAssinatura.forEach((grupoIguais, sig) => {
+            if (grupoIguais.length > 1) {
+              const original = grupoIguais[0];
+              grupoIguais.slice(1).forEach(opDuplicada => {
+                const loja = opDuplicada.unidade || opDuplicada.filial || "Matriz AJL";
+                const dataChegada = formatarDataHora(opDuplicada.data || opDuplicada.created_date);
+                const compFormatado = opDuplicada.comprimento ? `${opDuplicada.comprimento}m` : "mesma medida";
+                const qtdFormatada = opDuplicada.quantidade ? `${opDuplicada.quantidade} peças` : "mesma quantidade";
+                const espFormatada = opDuplicada.espessura ? `chapa ${opDuplicada.espessura}mm` : "";
+
+                diagnostico.listaInconsistencias.push({
+                  id: `dup_op_${opDuplicada.id}`,
+                  opId: opDuplicada.id,
+                  numeroPedido: opDuplicada.numero_pedido,
+                  ofNome: opDuplicada.of_nome || "—",
+                  codigoIndividual: opDuplicada.of_nome || `OP #${opDuplicada.id.slice(0, 8)}`,
+                  cliente: opDuplicada.cliente || "Cliente",
+                  vendedor: opDuplicada.vendedor || "—",
+                  setor: "telha",
+                  loja,
+                  dataChegada,
+                  tipo: "duplicado_maquina",
+                  categoria: "OP Duplicada no Chão",
+                  criticidade: "alta",
+                  descricao: `Máquina ${maquina} com 2 ordens idênticas (${compFormatado} · ${qtdFormatada})`,
+                  motivoExato: `A máquina ${maquina} possui ${grupoIguais.length} ordens rigorosamente idênticas para a mesma venda: ${qtdFormatada} c/ ${compFormatado} (${espFormatada}).`,
+                  ondeDizEstar: `Máquina ${maquina}`,
+                  situacaoReal: `Ordem duplicada no chão de fábrica gerando risco de corte duplo (Original OP #${original.id.slice(0, 8)}).`,
+                  acaoSugerida: "Cancelar esta OP duplicada na máquina",
+                  entidade: "Pedido",
+                  ordemOriginal: original,
+                  ordemDuplicada: opDuplicada,
+                  dadosOriginal: opDuplicada
+                });
+                diagnostico.resumoPorTipo.duplicado_maquina++;
+              });
+            }
+          });
+        }
+      });
+    });
+
+    // Mesma checagem estrita para Corte e Dobra
+    opsAtivasCDPorNum.forEach((ops, num) => {
+      const porMaquina = new Map();
+      ops.forEach(op => {
+        const m = String(op.maquina || "").trim().toUpperCase();
+        if (!m) return;
+        if (!porMaquina.has(m)) porMaquina.set(m, []);
+        porMaquina.get(m).push(op);
+      });
+
+      porMaquina.forEach((listaOps, maquina) => {
+        const ativas = listaOps.filter(o => o.status !== "finalizado" && o.status !== "cancelado");
+        if (ativas.length > 1) {
+          const porAssinatura = new Map();
+          ativas.forEach(op => {
+            const sig = extrairAssinaturaPeca(op);
+            if (!porAssinatura.has(sig)) porAssinatura.set(sig, []);
+            porAssinatura.get(sig).push(op);
+          });
+
+          porAssinatura.forEach((grupoIguais, sig) => {
+            if (grupoIguais.length > 1) {
+              const original = grupoIguais[0];
+              grupoIguais.slice(1).forEach(opDuplicada => {
+                const loja = opDuplicada.unidade || opDuplicada.filial || "Matriz AJL";
+                const dataChegada = formatarDataHora(opDuplicada.data || opDuplicada.created_date);
+                diagnostico.listaInconsistencias.push({
+                  id: `dup_op_cd_${opDuplicada.id}`,
+                  opId: opDuplicada.id,
+                  numeroPedido: opDuplicada.numero_pedido,
+                  ofNome: opDuplicada.of_nome || "—",
+                  codigoIndividual: opDuplicada.of_nome || `OP #${opDuplicada.id.slice(0, 8)}`,
+                  cliente: opDuplicada.cliente || "Cliente",
+                  vendedor: opDuplicada.vendedor || "—",
+                  setor: "cd",
+                  loja,
+                  dataChegada,
+                  tipo: "duplicado_maquina",
+                  categoria: "OP Duplicada no Chão",
+                  criticidade: "alta",
+                  descricao: `Máquina ${maquina} com 2 ordens idênticas de corte e dobra`,
+                  motivoExato: `A máquina ${maquina} possui ${grupoIguais.length} ordens de corte e dobra rigorosamente idênticas para a mesma venda.`,
+                  ondeDizEstar: `Máquina ${maquina}`,
+                  situacaoReal: `Risco de corte duplo em C&D (Original mantida OP #${original.id.slice(0, 8)}).`,
+                  acaoSugerida: "Cancelar esta OP duplicada na máquina",
+                  entidade: "OrdemMaquinaCD",
+                  ordemOriginal: original,
+                  ordemDuplicada: opDuplicada,
+                  dadosOriginal: opDuplicada
+                });
+                diagnostico.resumoPorTipo.duplicado_maquina++;
+              });
+            }
           });
         }
       });
@@ -242,57 +339,40 @@ export async function rodarDiagnosticoOperacional({ pedidosPcp = [] } = {}) {
       const statusPcp = String(p.status || "").toLowerCase();
       const ondeEsta = String(p.onde_esta || p.maquina || "").toUpperCase();
 
-      // Caso 3.1: Telha simples pura que foi parar na Colagem
       const ehSimples = ehTelhaSimplesPura(p);
       const estaApontadoColagem =
         statusPcp === "aguardando_colagem" ||
         ondeEsta.includes("COLAGEM") ||
         p.maquina === "COLAGEM";
 
+      const loja = p.unidade || p.filial || "Matriz AJL";
+      const dataChegada = formatarDataHora(p.data_recebimento || p.created_date);
+
       if (ehSimples && estaApontadoColagem) {
         diagnostico.listaInconsistencias.push({
           id: `desc_col_${p.id}`,
           pedidoId: p.id,
           numeroPedido: p.numero_pedido,
+          ofNome: p.of_nome || "—",
+          codigoIndividual: p.of_nome || `OF #${p.id.slice(0, 8)}`,
           cliente: p.cliente_nome || "Cliente",
           vendedor: p.vendedor_nome || "—",
+          setor: "telha",
+          loja,
+          dataChegada,
           tipo: "descompasso_colagem",
           categoria: "Erro na Colagem",
           criticidade: "alta",
           descricao: `Telha simples pura (sem EPS/sanduíche) direcionada à Colagem`,
+          motivoExato: `O pedido contém apenas telha simples trapezoidal ou ondulada sem recheio termoacústico, mas está marcado com status 'aguardando_colagem'.`,
           ondeDizEstar: "Fila da Colagem / Aguardando Colagem",
-          situacaoReal: "Produto simples não requer processo de colagem",
+          situacaoReal: "Produto simples não requer processo de colagem na fábrica.",
           acaoSugerida: "Remover da Colagem e direcionar apenas para a perfiladeira correspondente",
           entidade: "PedidoOdoo",
           dadosOriginal: p
         });
         diagnostico.resumoPorTipo.descompasso_colagem++;
       }
-
-      // Caso 3.2: OP de chão de fábrica marcada na Colagem para telha simples
-      const opsTelhaDeste = opsAtivasTelhasPorNum.get(num) || [];
-      opsTelhaDeste.forEach(op => {
-        if (op.maquina === "COLAGEM" || op.status === "aguardando_colagem") {
-          if (ehSimples) {
-            diagnostico.listaInconsistencias.push({
-              id: `desc_op_col_${op.id}`,
-              opId: op.id,
-              numeroPedido: op.numero_pedido,
-              cliente: op.cliente || p.cliente_nome || "Cliente",
-              tipo: "descompasso_colagem",
-              categoria: "Erro na Colagem",
-              criticidade: "alta",
-              descricao: `OP no chão de fábrica apontada para COLAGEM em telha simples`,
-              ondeDizEstar: "Painel da Colagem",
-              situacaoReal: "Ordem simples aberta na colagem indevidamente",
-              acaoSugerida: "Ajustar máquina para TP-40/TP-25 e liberar colagem",
-              entidade: "Pedido",
-              dadosOriginal: op
-            });
-            diagnostico.resumoPorTipo.descompasso_colagem++;
-          }
-        }
-      });
     });
 
     // ─────────────────────────────────────────────────────────────
@@ -303,7 +383,6 @@ export async function rodarDiagnosticoOperacional({ pedidosPcp = [] } = {}) {
       const statusPcp = String(p.status || "").toLowerCase();
       const ondeEsta = String(p.onde_esta || "").toUpperCase();
 
-      // Se o PCP diz que o pedido está na máquina ou em produção:
       const pcpDizNaMaquina =
         statusPcp === "em_producao" ||
         statusPcp === "distribuido" ||
@@ -316,18 +395,25 @@ export async function rodarDiagnosticoOperacional({ pedidosPcp = [] } = {}) {
         const opsCdDeste = opsAtivasCDPorNum.get(num) || [];
         const totalOpsAtivas = opsTelhasDeste.length + opsCdDeste.length;
 
-        // Se no chão de fábrica não tem NENHUMA OP ativa:
         if (totalOpsAtivas === 0) {
           const todasOps = todasOpsTelhasPorNum.get(num) || [];
           const foiCancelada = todasOps.some(o => o.status === "cancelado");
           const foiFinalizada = todasOps.some(o => o.status === "finalizado");
+          const loja = p.unidade || p.filial || "Matriz AJL";
+          const dataChegada = formatarDataHora(p.data_recebimento || p.created_date);
+          const setor = detectarSetorPedido(p);
 
           diagnostico.listaInconsistencias.push({
             id: `fantasma_${p.id}`,
             pedidoId: p.id,
             numeroPedido: p.numero_pedido,
+            ofNome: p.of_nome || "—",
+            codigoIndividual: p.of_nome || `OF #${p.id.slice(0, 8)}`,
             cliente: p.cliente_nome || "Cliente",
             vendedor: p.vendedor_nome || "—",
+            setor,
+            loja,
+            dataChegada,
             tipo: "op_fantasma",
             categoria: "Máquina Fantasma / Descompasso",
             criticidade: "media",
@@ -336,6 +422,9 @@ export async function rodarDiagnosticoOperacional({ pedidosPcp = [] } = {}) {
               : foiCancelada
               ? `PCP diz 'Na Máquina', mas a OP foi cancelada no chão`
               : `PCP diz 'Na Máquina / Em Produção', mas não há nenhuma OP aberta nas máquinas`,
+            motivoExato: foiFinalizada
+              ? `A fábrica já concluiu a fabricação física desta ordem, mas o PCP não recebeu o encerramento.`
+              : `A ordem foi distribuída no PCP, porém não possui ordem de produção ativa nos painéis das máquinas.`,
             ondeDizEstar: p.onde_esta || "Fila de Produção (Galpão)",
             situacaoReal: foiFinalizada ? "Produção Concluída no Chão" : "Nenhuma OP ativa encontrada",
             acaoSugerida: foiFinalizada
@@ -364,19 +453,19 @@ export async function rodarDiagnosticoOperacional({ pedidosPcp = [] } = {}) {
 
     diagnostico.totalInconsistencias = diagnostico.listaInconsistencias.length;
 
-    // Cálculo percentual com 1 casa decimal
+    // Cálculo percentual com 1 casa decimal (Limitado no máximo a 100%)
     if (diagnostico.totalPedidosAnalisados > 0) {
       diagnostico.indiceDuplicados = Number(
-        ((diagnostico.totalDuplicadosGeral / diagnostico.totalPedidosAnalisados) * 100).toFixed(1)
+        Math.min(100, (diagnostico.totalDuplicadosGeral / diagnostico.totalPedidosAnalisados) * 100).toFixed(1)
       );
       diagnostico.indiceDescompasso = Number(
-        ((diagnostico.totalDescompassoGeral / diagnostico.totalPedidosAnalisados) * 100).toFixed(1)
+        Math.min(100, (diagnostico.totalDescompassoGeral / diagnostico.totalPedidosAnalisados) * 100).toFixed(1)
       );
     }
 
     // Score de Integridade (100% menos penalidades)
-    const penalidadeDuplicados = Math.min(40, diagnostico.totalDuplicadosGeral * 3);
-    const penalidadeDescompasso = Math.min(40, diagnostico.totalDescompassoGeral * 2.5);
+    const penalidadeDuplicados = Math.min(40, diagnostico.totalDuplicadosGeral * 4);
+    const penalidadeDescompasso = Math.min(40, diagnostico.totalDescompassoGeral * 3);
     diagnostico.scoreIntegridade = Math.max(0, 100 - penalidadeDuplicados - penalidadeDescompasso);
 
   } catch (err) {
@@ -395,26 +484,27 @@ export async function corrigirInconsistenciaOperacional({ item, queryClient, usu
   try {
     const todayIso = new Date().toISOString().slice(0, 10);
 
-    // 1. DUPLICADO NO PCP: Remove registro duplicado mantendo histórico
+    // 1. DUPLICADO NO PCP: Cancela a cópia excedente mantendo o registro original
     if (item.tipo === "duplicado_pcp" && item.pedidoId) {
       await base44.entities.PedidoOdoo.update(item.pedidoId, {
         status: "cancelado",
-        motivo_cancelamento: `Cancelado via Diagnóstico Operacional: Pedido Duplicado (#${item.numeroPedido}) por ${usuario}`,
+        motivo_cancelamento: `Cancelado via Diagnóstico Operacional: Cópia Duplicada mantendo original #${item.ordemOriginal?.id || ""} por ${usuario}`,
         data_cancelamento: todayIso
       });
-      toast.success(`Pedido duplicado #${item.numeroPedido} cancelado no PCP com sucesso.`);
+      toast.success(`Cópia duplicada #${item.numeroPedido} cancelada no PCP com sucesso. Ordem original mantida.`);
     }
 
     // 2. DUPLICADO NA MÁQUINA: Cancela OP excedente
     else if (item.tipo === "duplicado_maquina" && item.opId) {
-      await base44.entities.Pedido.update(item.opId, {
+      const entidade = item.entidade || "Pedido";
+      await base44.entities[entidade].update(item.opId, {
         status: "cancelado",
-        observacoes: `OP cancelada via Diagnóstico Operacional: Duplicidade na máquina por ${usuario}`
+        observacoes: `OP cancelada via Diagnóstico Operacional: Duplicidade física na máquina por ${usuario}. Original mantida OP #${item.ordemOriginal?.id || ""}`
       });
       toast.success(`OP duplicada #${item.numeroPedido} cancelada na máquina com sucesso.`);
     }
 
-    // 3. DESCOMPASSO NA COLAGEM: Ajusta telha simples removendo bloqueio de colagem
+    // 3. DESCOMPASSO NA COLAGEM: Remove telha simples da colagem
     else if (item.tipo === "descompasso_colagem") {
       if (item.pedidoId) {
         await base44.entities.PedidoOdoo.update(item.pedidoId, {
@@ -424,20 +514,12 @@ export async function corrigirInconsistenciaOperacional({ item, queryClient, usu
           bloqueado_colagem: false
         });
       }
-      if (item.opId) {
-        await base44.entities.Pedido.update(item.opId, {
-          maquina: "TP - 40",
-          status: "pendente",
-          bloqueado_colagem: false
-        });
-      }
       toast.success(`Pedido #${item.numeroPedido} removido da Colagem e reajustado com sucesso.`);
     }
 
     // 4. OP FANTASMA / STATUS DESCOMPASSADO
     else if (item.tipo === "op_fantasma" && item.pedidoId) {
       if (item.situacaoReal.includes("Concluída")) {
-        // Se já foi finalizada no chão, finaliza no PCP
         await base44.entities.PedidoOdoo.update(item.pedidoId, {
           status: "concluido",
           percentual_concluido: 100,
@@ -446,7 +528,6 @@ export async function corrigirInconsistenciaOperacional({ item, queryClient, usu
         });
         toast.success(`Pedido #${item.numeroPedido} marcado como concluído no PCP.`);
       } else {
-        // Se a OP sumiu ou foi cancelada, devolve para pendente de distribuição
         await base44.entities.PedidoOdoo.update(item.pedidoId, {
           status: "aguardando_distribuicao",
           onde_esta: "Mesa PCP (Pendente)",

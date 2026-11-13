@@ -29,6 +29,7 @@ import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
 import ProcessoStepperPedido from "@/components/producao/ProcessoStepperPedido";
 import BadgeEnvio from "@/components/pcp/BadgeEnvioDistribuicao";
+import ModalConcluirEtapasRoteiro from "@/components/pcp/ModalConcluirEtapasRoteiro";
 
 // Cores estritas do Ecossistema AJL conforme menu do sistema:
 // 🏠 Fábrica de Telhas → AZUL (#2563EB)
@@ -92,6 +93,7 @@ export default function PedidoOdooCard({
   const [hover, setHover] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
   const [simulacaoModalOpen, setSimulacaoModalOpen] = useState(false);
+  const [modalEtapasOpen, setModalEtapasOpen] = useState(false);
   const pct = progressoReal != null ? progressoReal : (pedido.percentual_concluido || 0);
   const isConcluido = pedido.status_pcp === "concluido" || pct >= 100;
   const [expandidoManual, setExpandidoManual] = useState(defaultMinimizado === false);
@@ -464,9 +466,9 @@ export default function PedidoOdooCard({
                 {onFinalizar100 && !isConcluido && (
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); onFinalizar100(pedido); }}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/25 transition-colors h-8"
-                    title="Marcar esta OF como 100% concluída / já enviada"
+                    onClick={(e) => { e.stopPropagation(); setModalEtapasOpen(true); }}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/25 transition-colors h-8 cursor-pointer"
+                    title="Escolher etapas de produção a concluir ou finalizar 100%"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                     <span>Concluir / Já Enviado</span>
@@ -495,6 +497,14 @@ export default function PedidoOdooCard({
             pedido={pedido}
             statusEstoque={statusEstoque}
             estoqueContext={estoqueContext}
+          />
+        )}
+
+        {modalEtapasOpen && (
+          <ModalConcluirEtapasRoteiro
+            open={modalEtapasOpen}
+            onOpenChange={setModalEtapasOpen}
+            pedido={pedido}
           />
         )}
       </div>
@@ -596,9 +606,9 @@ export default function PedidoOdooCard({
             {onFinalizar100 && !isConcluido && (
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); onFinalizar100(pedido); }}
-                title="Finalizar pedido em 100% (exige senha de gestor)"
-                className="p-1 rounded-md text-emerald-500 hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors"
+                onClick={(e) => { e.stopPropagation(); setModalEtapasOpen(true); }}
+                title="Concluir etapas de produção ou finalizar pedido"
+                className="p-1 rounded-md text-emerald-500 hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors cursor-pointer"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
               </button>
@@ -850,6 +860,14 @@ export default function PedidoOdooCard({
           pedido={pedido}
           statusEstoque={statusEstoque}
           estoqueContext={estoqueContext}
+        />
+      )}
+
+      {modalEtapasOpen && (
+        <ModalConcluirEtapasRoteiro
+          open={modalEtapasOpen}
+          onOpenChange={setModalEtapasOpen}
+          pedido={pedido}
         />
       )}
     </div>

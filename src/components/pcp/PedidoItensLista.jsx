@@ -10,6 +10,7 @@ import { enviarAlertaComprasLeonardo } from "@/lib/alertaSuprimentosHelper";
 import ImageLink from "@/components/ui/ImageLink";
 import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
 import AlterarSetorItemButton from "@/components/pcp/AlterarSetorItemButton";
+import ModalConcluirEtapasRoteiro from "@/components/pcp/ModalConcluirEtapasRoteiro";
 
 // Config visual por categoria — cores sincronizadas com o ecossistema AJL:
 // 🏠 Fábrica de Telhas → AZUL (#2563EB)
@@ -68,6 +69,7 @@ function detectarCategoria(item) {
 // Layout de alto contraste: quantidade GIGANTE em badge sólida colorida + barra de progresso individual + processo sanduíche.
 export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = [], ordensCD = [], compacto = false, estoqueContext = null }) {
   const [modalSimulacaoItem, setModalSimulacaoItem] = useState(null);
+  const [itemEtapasModal, setItemEtapasModal] = useState(null);
   const [enviandoAlerta, setEnviandoAlerta] = useState({});
   const [alertasEnviados, setAlertasEnviados] = useState({});
 
@@ -272,6 +274,18 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
                       </span>
                     )}
                     <AlterarSetorItemButton pedido={pedido} item={it} idx={idx} compacto={compacto} />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setItemEtapasModal({ item: it, pedido });
+                      }}
+                      className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/20 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                      title="Escolher quais etapas de produção já foram feitas para este item"
+                    >
+                      <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                      <span>Concluir Etapas</span>
+                    </button>
                     {isSanduiche && (
                       <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30">
                         Termoacústica
@@ -427,7 +441,14 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
 
               {/* Roteamento de Etapas para Telha Sanduíche (Telha + EPS + Manta) */}
               {isSanduiche && (
-                <div className="mt-1 pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1 flex-wrap text-[10px]">
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setItemEtapasModal({ item: it, pedido });
+                  }}
+                  className="mt-1 pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1 flex-wrap text-[10px] cursor-pointer hover:opacity-90 transition-opacity"
+                  title="Clique para escolher quais etapas já foram finalizadas e avançar a ordem"
+                >
                   <span className={`px-2 py-0.5 rounded font-bold flex items-center gap-1 ${
                     etapaAtiva > 1 ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30" :
                     pctItem >= 50 ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40 animate-pulse" :
@@ -495,6 +516,15 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
           onOpenChange={(isOpen) => !isOpen && setModalSimulacaoItem(null)}
           analiseItem={modalSimulacaoItem}
           pedido={pedido}
+        />
+      )}
+
+      {itemEtapasModal && (
+        <ModalConcluirEtapasRoteiro
+          open={!!itemEtapasModal}
+          onOpenChange={(isOpen) => !isOpen && setItemEtapasModal(null)}
+          pedido={itemEtapasModal.pedido}
+          item={itemEtapasModal.item}
         />
       )}
     </div>
