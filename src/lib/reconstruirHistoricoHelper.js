@@ -210,7 +210,7 @@ export async function reconstruirLinhaDoTempoPedido({
       subtitulo: "100% Finalizado na Fábrica",
       data: fimTs || pedFabrica?.data,
       dataFmt: formatDataHoraBR(fimTs || pedFabrica?.data),
-      usuario: pedFabrica?.operador_finalizacao || pedFabrica?.operador || "Operador da Máquina",
+      usuario: pedFabrica?.operador_fim || pedFabrica?.operador_finalizacao || pedFabrica?.operador || "Operador da Máquina",
       status: "concluido",
       cor: "emerald",
       fotos,

@@ -74,7 +74,7 @@ export async function notificarStatus(pedido, evento, extra = {}) {
     itemNomeDefault = itens.find((i) => classGrupo(i) === "cd")?.produto || itens.find((i) => classGrupo(i) === "telha")?.produto || "";
   }
 
-  let usuarioNome = extra.usuario || extra.operador || "";
+  let usuarioNome = extra.operador || extra.usuario || pedido?.operador || pedido?.operador_inicio || "";
   if (!usuarioNome) {
     try {
       const u = await base44.auth.me();
@@ -108,6 +108,9 @@ export async function notificarStatus(pedido, evento, extra = {}) {
       galpao: pedido.galpao_responsavel || pedido.unidade || "",
       maquina_atual: extra.maquina_atual || atual?.nome || "",
       usuario: usuarioNome,
+      operador: usuarioNome,
+      operador_inicio: pedido?.operador_inicio || usuarioNome,
+      operador_fim: pedido?.operador_fim || (isConcluido ? usuarioNome : ""),
       inicio_fmt: extra.inicio_fmt || atual?.inicio_ts || "",
       fim_fmt: extra.fim_fmt || atual?.fim_ts || "",
       duracao_min: extra.duracao_min != null ? extra.duracao_min : null,

@@ -227,6 +227,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const [conferirBobinaModal, setConferirBobinaModal] = useState({ open: false, item: null, index: 0 });
   const [finalizarItemModal, setFinalizarItemModal] = useState({ open: false, item: null, index: 0 });
   const [operadoresDialogOpen, setOperadoresDialogOpen] = useState(false);
+  const [modoOperadorDialog, setModoOperadorDialog] = useState("inicio"); // "inicio" | "troca" | "finalizacao"
+  const [operadorFinalizacao, setOperadorFinalizacao] = useState("");
   const [pendingColagemUpdates, setPendingColagemUpdates] = useState(null);
   const [cumeeiraEstoqueOpen, setCumeeiraEstoqueOpen] = useState(false);
   const intervalRef = useRef(null);
@@ -324,7 +326,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
 
       // 5. Registra no histórico e sincroniza com Pedido Odoo / PCP se aplicável
       if (appendHistoricoFn) {
-        appendHistoricoFn(p, "bobina_ajustada", "Ajustou Bobina de Produção", `Bobina superior alterada para "${novoTexto}"`);
+        appendHistoricoFn(p, "bobina_ajustada", "Ajustou Bobina de Produção", `Bobina superior alterada para "${novoTexto}"`, p.operador || p.operador_inicio);
       }
 
       if (p.numero_pedido) {
@@ -406,7 +408,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
 
       // 5. Registra no histórico e sincroniza com Pedido Odoo / PCP se aplicável
       if (appendHistoricoFn) {
-        appendHistoricoFn(p, "bobina_ajustada", "Ajustou Bobina Inferior", `Bobina inferior alterada para "${novoTexto}"`);
+        appendHistoricoFn(p, "bobina_ajustada", "Ajustou Bobina Inferior", `Bobina inferior alterada para "${novoTexto}"`, p.operador || p.operador_inicio);
       }
 
       if (p.numero_pedido) {
@@ -501,7 +503,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       await base44.entities.Pedido.update(p.id, payload);
       toast.success(`Cor/RVM Superior ajustada para "${valor}"`);
       if (appendHistoricoFn) {
-        appendHistoricoFn(p, "cor_ajustada", "Ajustou Cor/RVM Superior", `Cor superior alterada para "${valor}"`);
+        appendHistoricoFn(p, "cor_ajustada", "Ajustou Cor/RVM Superior", `Cor superior alterada para "${valor}"`, p.operador || p.operador_inicio);
       }
       if (onUpdate) onUpdate(p, p.status, payload);
     } catch (e) {
@@ -532,7 +534,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       await base44.entities.Pedido.update(p.id, payload);
       toast.success(`Espessura Superior ajustada para "${valor} mm"`);
       if (appendHistoricoFn) {
-        appendHistoricoFn(p, "espessura_ajustada", "Ajustou Espessura Superior", `Espessura alterada para "${valor} mm"`);
+        appendHistoricoFn(p, "espessura_ajustada", "Ajustou Espessura Superior", `Espessura alterada para "${valor} mm"`, p.operador || p.operador_inicio);
       }
       if (onUpdate) onUpdate(p, p.status, payload);
     } catch (e) {
@@ -563,7 +565,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       await base44.entities.Pedido.update(p.id, payload);
       toast.success(`Cor/RVM Inferior ajustada para "${valor}"`);
       if (appendHistoricoFn) {
-        appendHistoricoFn(p, "cor_ajustada", "Ajustou Cor/RVM Inferior", `Cor inferior alterada para "${valor}"`);
+        appendHistoricoFn(p, "cor_ajustada", "Ajustou Cor/RVM Inferior", `Cor inferior alterada para "${valor}"`, p.operador || p.operador_inicio);
       }
       if (onUpdate) onUpdate(p, p.status, payload);
     } catch (e) {
@@ -594,7 +596,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       await base44.entities.Pedido.update(p.id, payload);
       toast.success(`Espessura Inferior ajustada para "${valor} mm"`);
       if (appendHistoricoFn) {
-        appendHistoricoFn(p, "espessura_ajustada", "Ajustou Espessura Inferior", `Espessura inferior alterada para "${valor} mm"`);
+        appendHistoricoFn(p, "espessura_ajustada", "Ajustou Espessura Inferior", `Espessura inferior alterada para "${valor} mm"`, p.operador || p.operador_inicio);
       }
       if (onUpdate) onUpdate(p, p.status, payload);
     } catch (e) {
@@ -746,11 +748,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       Object.assign(updates, appendHistoricoFn(p, "inicio_colagem_validado", pularFoto ? "Iniciou colagem (modo direto)" : "Validou EPS e iniciou colagem"));
     }
     setPendingColagemUpdates(updates);
-    if (regras.exigirOperadorInicio) {
-      setOperadoresDialogOpen(true);
-    } else {
-      handleConfirmarOperadores(null, updates);
-    }
+    setModoOperadorDialog("inicio");
+    setOperadoresDialogOpen(true);
   };
 
   // Tick a cada segundo APENAS se o pedido estiver em produção nesta máquina (poupa 95% de renderizações)
@@ -875,27 +874,77 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     }
     const updatesBobina = montarUpdatesBobina();
     setPendingColagemUpdates(updatesBobina);
-    if (regras.exigirOperadorInicio) {
-      setOperadoresDialogOpen(true);
-    } else {
-      handleConfirmarOperadores(null, updatesBobina);
-    }
+    // Identificação Obrigatória de Operador: SEMPRE abre a seleção antes de iniciar
+    setModoOperadorDialog("inicio");
+    setOperadoresDialogOpen(true);
   };
 
   const handleConfirmarOperadores = (operadores, extraUpdates) => {
+    const nomeOperador = (operadores && Array.isArray(operadores) && operadores.length > 0)
+      ? operadores.map(op => op.nome || op).join(", ")
+      : (p.operador || "");
+
+    // Se estiver apenas trocando o operador responsável durante a produção/pausa
+    if (modoOperadorDialog === "troca") {
+      const updatesTroca = {
+        operador: nomeOperador,
+        ...(operadores && Array.isArray(operadores) ? { operadores_json: JSON.stringify(operadores) } : {})
+      };
+      if (appendHistoricoFn) {
+        Object.assign(updatesTroca, appendHistoricoFn(
+          p,
+          "troca_operador",
+          "Troca de Operador",
+          `Operador alterado para "${nomeOperador}" (Anterior: "${p.operador || '—'}")`,
+          nomeOperador
+        ));
+      }
+      onStatusChange(p, p.status, updatesTroca);
+      toast.success(`Operador responsável alterado para: ${nomeOperador}`);
+      setModoOperadorDialog("inicio");
+      return;
+    }
+
+    // Se estiver definindo o operador para a finalização
+    if (modoOperadorDialog === "finalizacao") {
+      setOperadorFinalizacao(nomeOperador);
+      setModoOperadorDialog("inicio");
+      toast.success(`Operador de finalização definido como: ${nomeOperador}`);
+      return;
+    }
+
+    // Fluxo padrão: INÍCIO DA PRODUÇÃO DA OP
     const updates = {
       inicio_producao_ts: new Date().toISOString(),
       ...(extraUpdates !== undefined ? extraUpdates : (pendingColagemUpdates || {})),
+      operador: nomeOperador,
+      operador_inicio: nomeOperador,
+      ...(operadores && Array.isArray(operadores) ? { operadores_json: JSON.stringify(operadores) } : {})
     };
-    if (operadores && Array.isArray(operadores)) {
-      updates.operadores_json = JSON.stringify(operadores);
-      updates.operador = operadores.map(op => op.nome || op).join(", ");
+
+    if (appendHistoricoFn) {
+      Object.assign(updates, appendHistoricoFn(
+        p,
+        "inicio_producao",
+        "Iniciou a produção",
+        opRodando ? `Pausou OP anterior: ${opRodando.numero_pedido || opRodando.produto}` : "",
+        nomeOperador
+      ));
     }
+
     onStatusChange(p, "em_producao", updates);
     setPendingColagemUpdates(null);
+    setModoOperadorDialog("inicio");
+
     const idxItem = temVariacoes && p.maquina !== "COLAGEM" ? _variacoesTelhas.findIndex(v => !v.iniciado && !v.finalizado) : -1;
-    if (idxItem >= 0 && _variacoesTelhas[idxItem]) { setConferirBobinaModal({ open: true, item: _variacoesTelhas[idxItem], index: idxItem }); toast.success(`OP #${p.numero_pedido || p.id} iniciada! Confirme a bobina do Item ${idxItem + 1}.`); }
-    else if (temVariacoes) toast.success("Pedido pré-iniciado! Itens liberados para início e conferência individual.");
+    if (idxItem >= 0 && _variacoesTelhas[idxItem]) {
+      setConferirBobinaModal({ open: true, item: _variacoesTelhas[idxItem], index: idxItem });
+      toast.success(`OP #${p.numero_pedido || p.id} iniciada por ${nomeOperador}! Confirme a bobina do Item ${idxItem + 1}.`);
+    } else if (temVariacoes) {
+      toast.success(`Pedido pré-iniciado por ${nomeOperador}! Itens liberados para início e conferência individual.`);
+    } else {
+      toast.success(`OP #${p.numero_pedido || p.id} iniciada por ${nomeOperador}!`);
+    }
   };
 
   // Reverte um pedido indevidamente atribuído com EPS ou Colagem para Telha Simples na perfiladeira
@@ -1142,12 +1191,22 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       prodSeg += Math.floor((Date.now() - new Date(p.inicio_producao_ts).getTime()) / 1000);
     }
     const motivo = pauseTipo === "setup" ? "setup" : (pauseMotivo.trim() || "pausa");
-    onStatusChange(p, "pausado", {
+    const payloadPausa = {
       tempo_producao_seg: prodSeg,
       inicio_producao_ts: null,
       inicio_pausa_ts: new Date().toISOString(),
       motivo_pausa: motivo,
-    });
+    };
+    if (appendHistoricoFn) {
+      Object.assign(payloadPausa, appendHistoricoFn(
+        p,
+        "pausado",
+        "Pausou a produção",
+        `Motivo: ${motivo}`,
+        p.operador || p.operador_inicio
+      ));
+    }
+    onStatusChange(p, "pausado", payloadPausa);
     setPauseDialog(false);
   };
 
@@ -1170,14 +1229,24 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         ? (setupSeg - (p.tempo_setup_seg || 0))
         : (pausaSeg - (p.tempo_pausa_seg || 0)),
     });
-    onStatusChange(p, "em_producao", {
+    const payloadRetomar = {
       tempo_pausa_seg: pausaSeg,
       tempo_setup_seg: setupSeg,
       inicio_pausa_ts: null,
       motivo_pausa: null,
       historico_pausas: JSON.stringify(historico),
       inicio_producao_ts: new Date().toISOString(),
-    });
+    };
+    if (appendHistoricoFn) {
+      Object.assign(payloadRetomar, appendHistoricoFn(
+        p,
+        "retomado",
+        "Retomou a produção",
+        `Retomou após ${p.motivo_pausa || 'pausa'}`,
+        p.operador || p.operador_inicio
+      ));
+    }
+    onStatusChange(p, "em_producao", payloadRetomar);
   };
 
   const handleConfirmarBaixaEstoqueCumeeira = async ({ quantidade, produtoEstoque, observacao }) => {
@@ -1214,6 +1283,9 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   };
 
   const handleFinalizar = () => {
+    // Inicializa o operador de finalização com o operador ativo na OP
+    setOperadorFinalizacao(p.operador || p.operador_inicio || "");
+
     // Se houver variações pendentes, auto-finaliza todas para não bloquear o operador
     if (temVariacoes && !todosItensFinalizados) {
       try {
@@ -1283,6 +1355,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       } catch {}
     }
 
+    const opFinal = operadorFinalizacao || p.operador || p.operador_inicio || (user?.full_name || "Operador");
+
     // ── COLAGEM: desconta isopor e finaliza (NÃO desconta bobinas aqui) ──
     if (p.maquina === "COLAGEM") {
       let colagSeg = p.tempo_colagem_seg || 0;
@@ -1319,13 +1393,26 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       }
       playFinishSound();
       speakOpFinalizada(p.maquina, p.numero_pedido);
-      onStatusChange(p, "finalizado", {
+
+      const payloadColagem = {
         tempo_colagem_seg: colagSeg,
         metragem_utilizada: metragemRealNum,
         inicio_producao_ts: null,
         data_finalizacao: format(new Date(), "yyyy-MM-dd"),
         foto_finalizacao_url: urlFinalFoto,
-      });
+        operador: opFinal,
+        operador_fim: opFinal,
+      };
+      if (appendHistoricoFn) {
+        Object.assign(payloadColagem, appendHistoricoFn(
+          p,
+          "finalizacao",
+          "Finalizou a colagem",
+          `Metragem colada: ${metragemRealNum}m`,
+          opFinal
+        ));
+      }
+      onStatusChange(p, "finalizado", payloadColagem);
       setMetragemDialog(false);
       return;
     }
@@ -1388,14 +1475,26 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     if (isComponenteParaleloBandeja) {
       playFinishSound();
       speakOpFinalizada(p.maquina, p.numero_pedido);
-      onStatusChange(p, "finalizado", {
+      const payloadComp = {
         tempo_producao_seg: prodSeg,
         metragem_utilizada: metragemRealNum,
         metragem_planejada: metragemRealNum,
         inicio_producao_ts: null,
         data_finalizacao: hojeStr,
         foto_finalizacao_url: urlFinalFoto,
-      });
+        operador: opFinal,
+        operador_fim: opFinal,
+      };
+      if (appendHistoricoFn) {
+        Object.assign(payloadComp, appendHistoricoFn(
+          p,
+          "finalizacao",
+          "Finalizou componente de bandeja",
+          `Metragem: ${metragemRealNum}m`,
+          opFinal
+        ));
+      }
+      onStatusChange(p, "finalizado", payloadComp);
       setMetragemDialog(false);
       return;
     }
@@ -1412,11 +1511,10 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
 
       if (proximaEtapaBandeja === "BANDEJA") {
         // Transição: TP-40/Colonial finalizou Telha Superior → PINGA NA MÁQUINA BANDEJA
-        // A OP entra como pendente na fila da BANDEJA e carrega a bobina da bandeja inferior
         playFinishSound();
         speakOpFinalizada(p.maquina, p.numero_pedido);
 
-        onStatusChange(p, "pendente", {
+        const payloadBandeja = {
           tempo_producao_seg: prodSeg,
           metragem_utilizada: metragemRealNum,
           metragem_planejada: metragemRealNum,
@@ -1428,6 +1526,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
           data_perfilacao_telha: hojeStr,
           data_perfilacao: hojeStr,
           perfilacao_concluida: false,
+          operador: opFinal,
+          operador_fim: opFinal,
           // Alterna a bobina de produção para a bobina da bandeja inferior se configurada
           ...(p.bobina_inferior ? {
             bobina_superior: p.bobina_inferior,
@@ -1441,18 +1541,27 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
           bloqueado_colagem: false,
           foto_finalizacao_url: null,
           foto_etapa1_url: urlFinalFoto || null
-        });
+        };
+        if (appendHistoricoFn) {
+          Object.assign(payloadBandeja, appendHistoricoFn(
+            p,
+            "etapa_concluida",
+            "Finalizou Telha Superior → Enviou para Bandeja",
+            `Metragem: ${metragemRealNum}m`,
+            opFinal
+          ));
+        }
+        onStatusChange(p, "pendente", payloadBandeja);
         setMetragemDialog(false);
         return;
       }
 
       if (proximaEtapaBandeja === "COLAGEM") {
         // Transição: BANDEJA finalizou Bandeja Inferior → PINGA NA MÁQUINA COLAGEM
-        // Agora ambas as partes foram perfiladas e chegam na Colagem
         playFinishSound();
         speakOpFinalizada(p.maquina, p.numero_pedido);
 
-        onStatusChange(p, "aguardando_colagem", {
+        const payloadColagemEtapa = {
           tempo_producao_seg: prodSeg,
           metragem_utilizada: metragemRealNum,
           metragem_planejada: metragemRealNum,
@@ -1464,13 +1573,25 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
           perfilacao_concluida: true,
           data_perfilacao_bandeja: hojeStr,
           data_perfilacao: hojeStr,
+          operador: opFinal,
+          operador_fim: opFinal,
           variacoes_telhas: varsResetadas.length > 0 ? JSON.stringify(varsResetadas) : p.variacoes_telhas,
           tipo_componente_bandeja: null,
           grupo_bandeja_id: null,
           bloqueado_colagem: false,
           foto_finalizacao_url: null,
           foto_etapa2_url: urlFinalFoto || null
-        });
+        };
+        if (appendHistoricoFn) {
+          Object.assign(payloadColagemEtapa, appendHistoricoFn(
+            p,
+            "etapa_concluida",
+            "Finalizou Bandeja Inferior → Enviou para Colagem",
+            `Metragem: ${metragemRealNum}m`,
+            opFinal
+          ));
+        }
+        onStatusChange(p, "aguardando_colagem", payloadColagemEtapa);
         setMetragemDialog(false);
         return;
       }
@@ -1484,13 +1605,16 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       playFinishSound();
       speakOpFinalizada(p.maquina, p.numero_pedido);
     }
-    onStatusChange(p, novoStatus, {
+
+    const payloadFinal = {
       tempo_producao_seg: prodSeg,
       metragem_utilizada: metragemRealNum,
       metragem_planejada: metragemRealNum,
       inicio_producao_ts: null,
       data_finalizacao: novoStatus === "finalizado" ? hojeStr : undefined,
       foto_finalizacao_url: novoStatus === "finalizado" ? urlFinalFoto : null,
+      operador: opFinal,
+      ...(novoStatus === "finalizado" ? { operador_fim: opFinal } : {}),
       ...(precisaColagem ? {
         foto_etapa1_url: urlFinalFoto || p.foto_etapa1_url || null,
         maquina: "COLAGEM",
@@ -1499,7 +1623,19 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         hora_perfilacao: p.hora_perfilacao || agoraIso,
         perfilacao_concluida: true,
       } : {}),
-    });
+    };
+
+    if (appendHistoricoFn) {
+      Object.assign(payloadFinal, appendHistoricoFn(
+        p,
+        novoStatus === "finalizado" ? "finalizacao" : "etapa_concluida",
+        novoStatus === "finalizado" ? "Finalizou a produção" : "Concluiu perfilação → Enviou para Colagem",
+        `Metragem: ${metragemRealNum}m`,
+        opFinal
+      ));
+    }
+
+    onStatusChange(p, novoStatus, payloadFinal);
     setMetragemDialog(false);
   };
 
@@ -2080,6 +2216,24 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
 
               {p.status === "em_producao" && (
                 <>
+                  {/* Identificação do Operador Ativo na OP com botão de troca rápida */}
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold shadow-2xs">
+                    <span className="flex items-center gap-1">
+                      <span className="text-sm">👷</span>
+                      <span className="font-extrabold">{p.operador || p.operador_inicio || "Sem operador"}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModoOperadorDialog("troca");
+                        setOperadoresDialogOpen(true);
+                      }}
+                      className="text-[11px] text-blue-600 dark:text-blue-400 font-extrabold underline hover:text-blue-800 dark:hover:text-blue-300 ml-1 cursor-pointer"
+                      title="Trocar operador desta máquina"
+                    >
+                      (Trocar)
+                    </button>
+                  </div>
                   <Button size="sm" variant="outline" className="gap-1 border-amber-300 text-amber-700 hover:bg-amber-50" onClick={handlePausar}>
                     <Pause className="w-3 h-3" /> Pausar
                   </Button>
@@ -2114,6 +2268,24 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
 
               {statusEfetivo === "pausado" && (
                 <>
+                  {/* Identificação do Operador na Pausa */}
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-purple-900 dark:text-purple-200 text-xs font-semibold shadow-2xs">
+                    <span className="flex items-center gap-1">
+                      <span className="text-sm">👷</span>
+                      <span className="font-extrabold">{p.operador || p.operador_inicio || "Sem operador"}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModoOperadorDialog("troca");
+                        setOperadoresDialogOpen(true);
+                      }}
+                      className="text-[11px] text-purple-700 dark:text-purple-400 font-extrabold underline hover:text-purple-900 ml-1 cursor-pointer"
+                      title="Trocar operador desta máquina"
+                    >
+                      (Trocar)
+                    </button>
+                  </div>
                   <Button size="sm" className="gap-1 bg-primary hover:bg-primary/90 text-white border-0" onClick={handleRetomar}>
                     <Play className="w-3 h-3" /> Retomar
                   </Button>
@@ -2421,6 +2593,35 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                 <p className="text-xs text-muted-foreground">Se for diferente do planejado, o KG será ajustado proporcionalmente</p>
               </div>
 
+              {/* Identificação de quem está finalizando (Operador Responsável) */}
+              <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-xs shrink-0">
+                    👷
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+                      Operador Finalizando Esta OP:
+                    </span>
+                    <span className="font-extrabold text-xs text-foreground truncate block">
+                      {operadorFinalizacao || p.operador || p.operador_inicio || "Definir Operador"}
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setModoOperadorDialog("finalizacao");
+                    setOperadoresDialogOpen(true);
+                  }}
+                  className="h-8 text-xs font-bold text-primary border-primary/40 hover:bg-primary/10 shrink-0 cursor-pointer"
+                >
+                  (Trocar)
+                </Button>
+              </div>
+
               {/* Foto obrigatória do material finalizado */}
               <div className="space-y-2 border-t pt-4">
                 <div className="flex items-center justify-between">
@@ -2576,13 +2777,21 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         </Dialog>
       )}
 
-      {/* Dialog Seleção Multi-Operador para Início da OP */}
+      {/* Dialog Seleção de Operador para Início, Troca ou Finalização da OP */}
       {operadoresDialogOpen && (
         <IniciarOpOperadoresDialog
           open={operadoresDialogOpen}
           onOpenChange={setOperadoresDialogOpen}
           ordem={p}
           maquinaNome={p.maquina || maquina}
+          modoTroca={modoOperadorDialog === "troca" || modoOperadorDialog === "finalizacao"}
+          titulo={
+            modoOperadorDialog === "troca"
+              ? "Trocar Operador Responsável"
+              : modoOperadorDialog === "finalizacao"
+              ? "Quem está finalizando esta OP agora?"
+              : "Quem está operando esta máquina agora?"
+          }
           onConfirm={handleConfirmarOperadores}
         />
       )}

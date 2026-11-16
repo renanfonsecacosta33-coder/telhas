@@ -120,6 +120,17 @@ export default function OfTimelineRow({
     return etapas.map(e => e.label).join(" → ");
   }, [pedido, grupoSetor]);
 
+  // Identificação do operador responsável ativo/concluído
+  const operadorExibicao = useMemo(() => {
+    if (diag.opsVinculadas && diag.opsVinculadas.length > 0) {
+      const opComOp = diag.opsVinculadas.find(o => o.operador || o.operador_inicio || o.operador_fim);
+      if (opComOp) {
+        return opComOp.operador || opComOp.operador_inicio || opComOp.operador_fim;
+      }
+    }
+    return opTelha?.operador || pedido?.operador || pedido?.operador_inicio || "";
+  }, [diag.opsVinculadas, opTelha, pedido]);
+
   const pillCls = isConcluido
     ? PILL.emerald
     : ["distribuido", "produzindo_agora", "aguardando_inicio"].includes(diag.statusChave)
@@ -197,6 +208,11 @@ export default function OfTimelineRow({
         <div className="grid grid-cols-2 gap-3 items-start">
           <div className="text-[11px] leading-[1.4] text-[#53615d] dark:text-slate-400 truncate">
             Onde está: <strong className="font-semibold">{posto}</strong>
+            {operadorExibicao && (
+              <span className="block text-[10.5px] text-blue-700 dark:text-blue-300 font-bold mt-0.5 truncate">
+                👷 Op: {operadorExibicao}
+              </span>
+            )}
           </div>
           <div className="text-[10px] font-bold text-[#327361] dark:text-emerald-400 whitespace-nowrap">
             Progresso {pct}%

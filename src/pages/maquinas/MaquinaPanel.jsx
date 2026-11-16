@@ -142,20 +142,24 @@ export default function MaquinaPanel({ maquina }) {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
-  // Adiciona entrada ao histórico de alterações do pedido
-  const appendHistorico = (pedido, acao, acaoLabel, detalhes = "") => {
-    if (!user) return {};
+  // Adiciona entrada ao histórico de alterações do pedido com identificação do operador real
+  const appendHistorico = (pedido, acao, acaoLabel, detalhes = "", operadorNome = "") => {
     const hist = (() => {
-      try { return JSON.parse(pedido.historico_alteracoes || "[]"); }
+      try { return JSON.parse(pedido?.historico_alteracoes || "[]"); }
       catch { return []; }
     })();
+    const nomeOperadorReal = operadorNome || pedido?.operador || pedido?.operador_inicio || (user ? (user.full_name || user.email) : "Operador");
+    const detalhesFormatados = detalhes
+      ? (detalhes.includes("Operador:") ? detalhes : `${detalhes} (Operador: ${nomeOperadorReal})`)
+      : `(Operador: ${nomeOperadorReal})`;
     hist.push({
       data: new Date().toISOString(),
-      usuario: user.full_name || user.email || "—",
+      usuario: nomeOperadorReal,
+      operador: nomeOperadorReal,
       acao,
       acao_label: acaoLabel,
-      detalhes,
-      maquina: maquina || pedido.maquina || "",
+      detalhes: detalhesFormatados,
+      maquina: maquina || pedido?.maquina || "",
     });
     return { historico_alteracoes: JSON.stringify(hist) };
   };
