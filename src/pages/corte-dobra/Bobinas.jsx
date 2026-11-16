@@ -365,7 +365,7 @@ export default function BobinasCD() {
         } else if (cb !== null) {
           return 1;
         }
-        return (a.codigo || "").localeCompare(b.codigo || "", undefined, { numeric: true });
+        return (b.codigo || "").localeCompare(a.codigo || "", undefined, { numeric: true });
       }
       if (ordenacao === "custo_desc") {
         const ca = getCustoBobina(a);
@@ -377,8 +377,10 @@ export default function BobinasCD() {
         } else if (cb !== null) {
           return 1;
         }
-        return (a.codigo || "").localeCompare(b.codigo || "", undefined, { numeric: true });
+        return (b.codigo || "").localeCompare(a.codigo || "", undefined, { numeric: true });
       }
+      // Padrão em Corte & Dobra: Códigos mais novos primeiro (da mais nova até a mais velha: CD0131 -> CD0130...)
+      return (b.codigo || "").localeCompare(a.codigo || "", undefined, { numeric: true });
     }
     return 0;
   });
@@ -636,11 +638,11 @@ export default function BobinasCD() {
                 </>
               ) : (
                 <>
-                  <SelectItem value="none">Padrão</SelectItem>
+                  <SelectItem value="none">Padrão (Código mais novo)</SelectItem>
+                  <SelectItem value="codigo_desc">Código ↓ (Mais novas primeiro)</SelectItem>
+                  <SelectItem value="codigo_asc">Código ↑ (Mais antigas primeiro)</SelectItem>
                   <SelectItem value="data_recebimento_desc">Data Recebimento (Recentes)</SelectItem>
                   <SelectItem value="data_recebimento_asc">Data Recebimento (Antigas)</SelectItem>
-                  <SelectItem value="codigo_asc">Código ↑</SelectItem>
-                  <SelectItem value="codigo_desc">Código ↓</SelectItem>
                   <SelectItem value="espessura_asc">Espessura ↑</SelectItem>
                   <SelectItem value="espessura_desc">Espessura ↓</SelectItem>
                   <SelectItem value="custo_asc">Menor custo</SelectItem>

@@ -427,8 +427,8 @@ export function compararBobinasTelhas(a, b, statusMap = {}) {
   const compCor = corA.localeCompare(corB);
   if (compCor !== 0) return compCor;
 
-  // Código
-  return String(a.codigo || "").localeCompare(String(b.codigo || ""), undefined, { numeric: true });
+  // Código: mais novas primeiro (decrescente: T00309 antes de T00303)
+  return String(b.codigo || "").localeCompare(String(a.codigo || ""), undefined, { numeric: true });
 }
 
 /**

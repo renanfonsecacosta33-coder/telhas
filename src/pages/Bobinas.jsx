@@ -357,7 +357,7 @@ export default function Bobinas() {
         } else if (cb !== null) {
           return 1;
         }
-        return compararBobinasTelhas(a, b);
+        return (b.codigo || "").localeCompare(a.codigo || "", undefined, { numeric: true });
       } else if (ordenacao === "custo_desc") {
         const ca = getCustoBobina(a);
         const cb = getCustoBobina(b);
@@ -368,10 +368,12 @@ export default function Bobinas() {
         } else if (cb !== null) {
           return 1;
         }
+        return (b.codigo || "").localeCompare(a.codigo || "", undefined, { numeric: true });
+      } else if (ordenacao === "prioridade_status") {
         return compararBobinasTelhas(a, b);
       } else {
-        // Padrão em Telhas: 1º Abertas Naturais -> 2º Abertas Cores -> 3º Fechadas Naturais -> 4º Fechadas Cores
-        return compararBobinasTelhas(a, b);
+        // Padrão em Telhas: Códigos mais novos primeiro (da mais nova até a mais velha: T00309 -> T00308...)
+        return (b.codigo || "").localeCompare(a.codigo || "", undefined, { numeric: true });
       }
     }
     return 0;
@@ -709,15 +711,16 @@ export default function Bobinas() {
                 </>
               ) : (
                 <>
-                  <SelectItem value="none">Padrão</SelectItem>
+                  <SelectItem value="none">Padrão (Código mais novo)</SelectItem>
+                  <SelectItem value="codigo_desc">Código ↓ (Mais novas primeiro)</SelectItem>
+                  <SelectItem value="codigo_asc">Código ↑ (Mais antigas primeiro)</SelectItem>
                   <SelectItem value="data_recebimento_desc">Data Recebimento (Recentes)</SelectItem>
                   <SelectItem value="data_recebimento_asc">Data Recebimento (Antigas)</SelectItem>
-                  <SelectItem value="codigo_asc">Código ↑</SelectItem>
-                  <SelectItem value="codigo_desc">Código ↓</SelectItem>
                   <SelectItem value="espessura_asc">Espessura ↑</SelectItem>
                   <SelectItem value="espessura_desc">Espessura ↓</SelectItem>
                   <SelectItem value="custo_asc">Menor custo</SelectItem>
                   <SelectItem value="custo_desc">Maior custo</SelectItem>
+                  <SelectItem value="prioridade_status">Status Operacional (Abertas primeiro)</SelectItem>
                 </>
               )}
             </SelectContent>
