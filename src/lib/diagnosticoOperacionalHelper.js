@@ -90,6 +90,7 @@ export async function rodarDiagnosticoOperacional({ pedidosPcp = [] } = {}) {
     totalDescompassoColagem: 0,
     totalDescompassoMaquinas: 0,
     totalDescompassoGeral: 0,
+    totalAuditoriaColagem: 0,
     indiceDescompasso: 0, // %
     scoreIntegridade: 100, // %
     totalInconsistencias: 0,
@@ -97,7 +98,9 @@ export async function rodarDiagnosticoOperacional({ pedidosPcp = [] } = {}) {
     resumoPorTipo: {
       duplicado_pcp: 0,
       duplicado_maquina: 0,
+      duplicado_colagem: 0,
       descompasso_colagem: 0,
+      colagem_ja_finalizada_pcp: 0,
       op_fantasma: 0,
       finalizado_preso_pcp: 0
     }
@@ -252,9 +255,10 @@ export async function rodarDiagnosticoOperacional({ pedidosPcp = [] } = {}) {
                   setor: "telha",
                   loja,
                   dataChegada,
-                  tipo: "duplicado_maquina",
-                  categoria: "OP Duplicada no Chão",
+                  tipo: maquina === "COLAGEM" ? "duplicado_colagem" : "duplicado_maquina",
+                  categoria: maquina === "COLAGEM" ? "Auditoria da Colagem (Duplicada)" : "OP Duplicada no Chão",
                   criticidade: "alta",
+                  isColagem: maquina === "COLAGEM",
                   descricao: `Máquina ${maquina} com 2 ordens idênticas (${compFormatado} · ${qtdFormatada})`,
                   motivoExato: `A máquina ${maquina} possui ${grupoIguais.length} ordens rigorosamente idênticas para a mesma venda: ${qtdFormatada} c/ ${compFormatado} (${espFormatada}).`,
                   ondeDizEstar: `Máquina ${maquina}`,
@@ -361,8 +365,9 @@ export async function rodarDiagnosticoOperacional({ pedidosPcp = [] } = {}) {
           loja,
           dataChegada,
           tipo: "descompasso_colagem",
-          categoria: "Erro na Colagem",
+          categoria: "Auditoria da Colagem (Telha Simples)",
           criticidade: "alta",
+          isColagem: true,
           descricao: `Telha simples pura (sem EPS/sanduíche) direcionada à Colagem`,
           motivoExato: `O pedido contém apenas telha simples trapezoidal ou ondulada sem recheio termoacústico, mas está marcado com status 'aguardando_colagem'.`,
           ondeDizEstar: "Fila da Colagem / Aguardando Colagem",
@@ -439,6 +444,74 @@ export async function rodarDiagnosticoOperacional({ pedidosPcp = [] } = {}) {
     });
 
     // ─────────────────────────────────────────────────────────────
+    // TESTE 5: OP NA MÁQUINA DE COLAGEM CUJO PEDIDO JÁ FOI FINALIZADO NO PCP
+    // ─────────────────────────────────────────────────────────────
+    const pedidosPcpPorNum = new Map();
+    listaPcp.forEach(p => {
+      const num = normalizarNumeroPedido(p.numero_pedido);
+      if (num) {
+        if (!pedidosPcpPorNum.has(num)) pedidosPcpPorNum.set(num, []);
+        pedidosPcpPorNum.get(num).push(p);
+      }
+    });
+
+    (opsTelhas || []).forEach(op => {
+      const statusOp = String(op.status || "").toLowerCase();
+      const maquinaOp = String(op.maquina || "").toUpperCase();
+      const ehOpColagem = maquinaOp === "COLAGEM" || statusOp === "aguardando_colagem";
+
+      if (ehOpColagem && statusOp !== "finalizado" && statusOp !== "cancelado") {
+        const num = normalizarNumeroPedido(op.numero_pedido);
+        if (!num) return;
+
+        const pedidosPcp = pedidosPcpPorNum.get(num) || [];
+        const pedidoVinculado = pedidosPcp.find(p => p.id === op.pedido_odoo_id) || pedidosPcp[0];
+
+        if (pedidoVinculado) {
+          const statusPcp = String(pedidoVinculado.status_pcp || pedidoVinculado.status || "").toLowerCase();
+          const percentual = Number(pedidoVinculado.percentual_concluido || 0);
+          const estaFinalizadoPcp = 
+            statusPcp === "concluido" || 
+            statusPcp === "entregue" || 
+            pedidoVinculado.entregue === true || 
+            percentual >= 100;
+
+          if (estaFinalizadoPcp) {
+            const loja = op.unidade || op.filial || pedidoVinculado.unidade || "Matriz AJL";
+            const dataChegada = formatarDataHora(op.data || op.created_date || pedidoVinculado.data_recebimento);
+
+            diagnostico.listaInconsistencias.push({
+              id: `col_finalizada_${op.id}`,
+              opId: op.id,
+              pedidoId: pedidoVinculado.id,
+              numeroPedido: op.numero_pedido,
+              ofNome: op.of_nome || pedidoVinculado.of_nome || "—",
+              codigoIndividual: op.of_nome || `OP #${op.id.slice(0, 8)}`,
+              cliente: op.cliente || pedidoVinculado.cliente_nome || "Cliente",
+              vendedor: op.vendedor || pedidoVinculado.vendedor_nome || "—",
+              setor: "telha",
+              loja,
+              dataChegada,
+              tipo: "colagem_ja_finalizada_pcp",
+              categoria: "Auditoria da Colagem (Finalizado no PCP)",
+              criticidade: "alta",
+              isColagem: true,
+              descricao: "OP aberta na Colagem, mas o Pedido já está 100% finalizado no PCP",
+              motivoExato: "A Central PCP já marcou este pedido como concluído/entregue, porém a OP ainda consta pendente/aberta na Máquina de Colagem gerando fila indevida.",
+              ondeDizEstar: `Máquina de Colagem (Status: ${op.status})`,
+              situacaoReal: `Pedido 100% Finalizado na Central PCP (Status: ${pedidoVinculado.status_pcp || 'concluído'})`,
+              acaoSugerida: "Finalizar automaticamente a OP na Colagem liberando os operadores",
+              entidade: "Pedido",
+              ordemOriginal: op,
+              dadosOriginal: op
+            });
+            diagnostico.resumoPorTipo.colagem_ja_finalizada_pcp = (diagnostico.resumoPorTipo.colagem_ja_finalizada_pcp || 0) + 1;
+          }
+        }
+      }
+    });
+
+    // ─────────────────────────────────────────────────────────────
     // CONSOLIDAÇÃO DOS ÍNDICES
     // ─────────────────────────────────────────────────────────────
     diagnostico.totalDuplicadosPcp = diagnostico.resumoPorTipo.duplicado_pcp;
@@ -447,6 +520,7 @@ export async function rodarDiagnosticoOperacional({ pedidosPcp = [] } = {}) {
       diagnostico.totalDuplicadosPcp + diagnostico.totalDuplicadosChaoFabrica;
 
     diagnostico.totalDescompassoColagem = diagnostico.resumoPorTipo.descompasso_colagem;
+    diagnostico.totalAuditoriaColagem = diagnostico.listaInconsistencias.filter(i => i.isColagem || i.tipo === "descompasso_colagem" || i.tipo === "colagem_ja_finalizada_pcp" || i.tipo === "duplicado_colagem").length;
     diagnostico.totalDescompassoMaquinas = diagnostico.resumoPorTipo.op_fantasma;
     diagnostico.totalDescompassoGeral =
       diagnostico.totalDescompassoColagem + diagnostico.totalDescompassoMaquinas;
@@ -502,6 +576,26 @@ export async function corrigirInconsistenciaOperacional({ item, queryClient, usu
         observacoes: `OP cancelada via Diagnóstico Operacional: Duplicidade física na máquina por ${usuario}. Original mantida OP #${item.ordemOriginal?.id || ""}`
       });
       toast.success(`OP duplicada #${item.numeroPedido} cancelada na máquina com sucesso.`);
+    }
+
+    // 2.1 DUPLICADO NA COLAGEM: Cancela OP excedente
+    else if (item.tipo === "duplicado_colagem" && item.opId) {
+      await base44.entities.Pedido.update(item.opId, {
+        status: "cancelado",
+        observacoes: `OP cancelada na Colagem via Auditoria da Colagem por duplicidade física por ${usuario}. Original mantida OP #${item.ordemOriginal?.id || ""}`
+      });
+      toast.success(`OP duplicada #${item.numeroPedido} cancelada na Colagem com sucesso.`);
+    }
+
+    // 2.2 FINALIZA OP NA COLAGEM CUJO PEDIDO JÁ FOI CONCLUÍDO NO PCP
+    else if (item.tipo === "colagem_ja_finalizada_pcp" && item.opId) {
+      await base44.entities.Pedido.update(item.opId, {
+        status: "finalizado",
+        data_finalizacao: todayIso,
+        fim_producao_ts: new Date().toISOString(),
+        observacoes: (item.dadosOriginal?.observacoes ? `${item.dadosOriginal.observacoes} | ` : "") + `Finalizada por conciliação automática com a Central PCP por ${usuario}`
+      });
+      toast.success(`OP #${item.numeroPedido} na Colagem finalizada com sucesso conforme Central PCP.`);
     }
 
     // 3. DESCOMPASSO NA COLAGEM: Remove telha simples da colagem

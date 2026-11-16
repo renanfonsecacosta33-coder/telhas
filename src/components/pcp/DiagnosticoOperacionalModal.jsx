@@ -86,6 +86,27 @@ export default function DiagnosticoOperacionalModal({ open, onOpenChange, pedido
     }
   };
 
+  const handleCorrigirApenasColagem = async () => {
+    const itensColagem = (diagnostico?.listaInconsistencias || []).filter(
+      item => item.isColagem || item.tipo === "descompasso_colagem" || item.tipo === "colagem_ja_finalizada_pcp" || item.tipo === "duplicado_colagem"
+    );
+    if (!itensColagem.length) return;
+    if (!window.confirm(`Deseja conciliar todas as ${itensColagem.length} inconsistências da Máquina de Colagem (baixar pedidos já finalizados no PCP, cancelar duplicados e remover telhas simples)?`)) {
+      return;
+    }
+    setCorrigindoTudo(true);
+    try {
+      const res = await autoCorrigirTodasInconsistencias({
+        listaInconsistencias: itensColagem,
+        queryClient
+      });
+      toast.success(`Auditoria da Colagem: ${res.sucessos} de ${res.total} pedidos conciliados com sucesso!`);
+      await executarDiagnostico();
+    } finally {
+      setCorrigindoTudo(false);
+    }
+  };
+
   const handleCorrigirTudo = async () => {
     if (!diagnostico?.listaInconsistencias?.length) return;
     const qtd = diagnostico.listaInconsistencias.length;
@@ -112,7 +133,7 @@ export default function DiagnosticoOperacionalModal({ open, onOpenChange, pedido
     return diagnostico.listaInconsistencias.filter(item => {
       // Filtro por aba
       if (abaAtiva === "duplicados" && !item.tipo.startsWith("duplicado")) return false;
-      if (abaAtiva === "colagem" && item.tipo !== "descompasso_colagem") return false;
+      if (abaAtiva === "colagem" && !(item.isColagem || item.tipo === "descompasso_colagem" || item.tipo === "colagem_ja_finalizada_pcp" || item.tipo === "duplicado_colagem")) return false;
       if (abaAtiva === "fantasma" && item.tipo !== "op_fantasma") return false;
 
       // Filtro por busca de texto
@@ -238,7 +259,7 @@ export default function DiagnosticoOperacionalModal({ open, onOpenChange, pedido
                 </Badge>
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2 border-t border-slate-100 dark:border-slate-800/80 pt-2">
-                <strong>{diagnostico?.totalDescompassoColagem ?? 0}</strong> erro Colagem · <strong>{diagnostico?.totalDescompassoMaquinas ?? 0}</strong> OPs fantasmas/presas
+                <strong>{diagnostico?.totalAuditoriaColagem ?? 0}</strong> na Colagem (duplicados / já finalizados PCP) · <strong>{diagnostico?.totalDescompassoMaquinas ?? 0}</strong> OPs fantasmas
               </p>
             </div>
 
@@ -277,7 +298,7 @@ export default function DiagnosticoOperacionalModal({ open, onOpenChange, pedido
               {[
                 { id: "todos", label: "Todos", count: diagnostico?.totalInconsistencias ?? 0 },
                 { id: "duplicados", label: "Duplicados Reais", count: diagnostico?.totalDuplicadosGeral ?? 0 },
-                { id: "colagem", label: "Erro na Colagem", count: diagnostico?.totalDescompassoColagem ?? 0 },
+                { id: "colagem", label: "Auditoria da Colagem", count: diagnostico?.totalAuditoriaColagem ?? (diagnostico?.totalDescompassoColagem ?? 0) },
                 { id: "fantasma", label: "Máquinas Fantasmas", count: diagnostico?.totalDescompassoMaquinas ?? 0 }
               ].map(aba => (
                 <button

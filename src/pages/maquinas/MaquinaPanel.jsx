@@ -247,6 +247,8 @@ export default function MaquinaPanel({ maquina }) {
 
       // Se estamos na tela da COLAGEM:
       if (targetNorm === "COLAGEM") {
+        if (p.status === "cancelado") return false;
+
         // Telha simples pura NUNCA deve ir para a tela de colagem
         const ehSimplesPura = (p.produto === "TELHA") && !p.eps && !/\b(eps|isopor|sanduiche|sanduíche|manta|bandeja|pir|pur)\b/i.test(`${p.item_produto || ""} ${p.modelo || ""} ${p.observacoes_odoo || ""}`);
         if (ehSimplesPura) {
