@@ -602,6 +602,66 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
         {/* Banner de Prioridade Destaque Máximo */}
         <BannerPrioridadeDestaque pedido={o} />
 
+        {/* 🏷️ CABEÇALHO PRINCIPAL DO PEDIDO & CLIENTE (NO TOPO) */}
+        <div className="flex flex-wrap items-center justify-between gap-2 p-2 sm:px-3 sm:py-2 mb-2 rounded-xl bg-gradient-to-r from-blue-50/90 via-slate-50/80 to-blue-50/90 dark:from-blue-950/40 dark:via-slate-900/40 dark:to-blue-950/40 border border-blue-200 dark:border-blue-800/80 shadow-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs sm:text-sm font-black font-mono bg-blue-600 text-white shadow-xs tracking-wider">
+              <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
+              {o.numero_pedido ? `#${o.numero_pedido}` : `OP #${o.id.slice(-6).toUpperCase()}`}
+            </span>
+
+            {o.numero_oc && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-black font-mono bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-300/80 dark:border-indigo-700/80 shadow-xs">
+                ({/^OC[\s:-]?/i.test(o.numero_oc) ? o.numero_oc : `OC: ${o.numero_oc}`})
+              </span>
+            )}
+
+            {pedidoSeq && (
+              <span className="px-1.5 py-0.5 rounded text-xs font-black bg-blue-100 dark:bg-blue-900/80 text-blue-800 dark:text-blue-200 border border-blue-300 dark:border-blue-700 font-mono">
+                {pedidoSeq}
+              </span>
+            )}
+
+            {o.cliente && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs sm:text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                <User className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                <span>CLIENTE: {o.cliente}</span>
+              </div>
+            )}
+
+            {(o.vendedor || o.vendedor_nome) && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs sm:text-sm font-black uppercase tracking-tight bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs">
+                <span className="text-amber-700 dark:text-amber-400">👤 VENDEDOR:</span>
+                <strong className="text-slate-900 dark:text-white font-black">{o.vendedor || o.vendedor_nome}</strong>
+              </div>
+            )}
+
+            {o.lote_medida_item && (
+              <Badge className="bg-orange-500/15 text-orange-800 dark:text-orange-200 border border-orange-400 text-xs font-mono font-black shadow-xs">
+                📦 {o.lote_medida_item}
+              </Badge>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {retrabalho && (
+              <Badge className={`${etpCor?.badge} text-white border-red-600 animate-pulse text-xs`}>
+                <AlertCircle className="w-3 h-3 mr-0.5" /> RETRABALHO{o.retrabalho_etapa > 1 ? ` E${o.retrabalho_etapa}` : ""}
+              </Badge>
+            )}
+            <StatusBadge status={o.status} />
+            <PrioridadeBadge pedido={o} />
+            {ehRota && !ehRetira && (
+              <Badge className="bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-400 text-xs gap-1.5 font-black shadow-xs tracking-wide">
+                <Truck className="w-3.5 h-3.5" /> 🚚 CARGA DE ROTA
+              </Badge>
+            )}
+            {o.data < format(new Date(), "yyyy-MM-dd") && o.status !== "finalizado" && o.status !== "cancelado" && (
+              <Badge className="bg-red-500 text-white border-red-600 animate-pulse text-xs">⚠️ Prioridade (Dia Anterior)</Badge>
+            )}
+          </div>
+        </div>
+
         {/* 🌟 Banner Dourado/Âmbar de Instrução e Especificação com Duas Métricas Principais (Chapas/Barras + KG) */}
         <BannerInstrucaoCorteDobra ordem={o} />
 
@@ -609,27 +669,10 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
         <div className={`flex items-start justify-between ${z.gap} ${z.mb}`}>
           <div className="flex-1 min-w-0">
             <div className={`flex items-center ${z.gap} flex-wrap mb-1`}>
-              {retrabalho && (
-                <Badge className={`${etpCor?.badge} text-white border-red-600 animate-pulse text-xs`}>
-                  <AlertCircle className="w-3 h-3 mr-0.5" /> RETRABALHO{o.retrabalho_etapa > 1 ? ` E${o.retrabalho_etapa}` : ""}
-                </Badge>
-              )}
               <span className={`font-bold ${z.title}`}>{o.tipo_peca || "—"}</span>
-              {o.lote_medida_item && (
-                <Badge className="bg-orange-500/15 text-orange-800 dark:text-orange-200 border-2 border-orange-400 dark:border-orange-600 text-xs font-mono font-black tracking-tight shadow-xs">
-                  📦 {o.lote_medida_item}
-                </Badge>
-              )}
               <CorChapaDot espessura={extractEspessuraFromDesc(o.chapa_descricao) || extractEspessuraFromDesc(o.bobina_descricao)} size="sm" />
               {o.dimensoes_livres && (
                 <span className={`${z.info} text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded`}>{o.dimensoes_livres}</span>
-              )}
-              <StatusBadge status={o.status} />
-              <PrioridadeBadge pedido={o} />
-              {ehRota && !ehRetira && (
-                <Badge className="bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-400 text-xs gap-1.5 font-black shadow-xs tracking-wide">
-                  <Truck className="w-3.5 h-3.5" /> 🚚 CARGA DE ROTA
-                </Badge>
               )}
               {o.operador && (
                 <Badge variant="outline" className="text-xs bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300 flex items-center gap-1 font-medium">
@@ -640,9 +683,6 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
                 <Badge className="bg-amber-500 text-white border-amber-600 animate-pulse text-xs">
                   <Star className="w-3 h-3 mr-0.5 fill-white" /> PRIORIDADE
                 </Badge>
-              )}
-              {o.data < format(new Date(), "yyyy-MM-dd") && o.status !== "finalizado" && o.status !== "cancelado" && (
-                <Badge className="bg-red-500 text-white border-red-600 animate-pulse text-xs">⚠️ Prioridade (Dia Anterior)</Badge>
               )}
             </div>
 
@@ -658,46 +698,6 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
             {/* Desenvolvimento — Painel expansível com Croqui 2D */}
             {o.desenvolvimento_id && o.desenvolvimento_descricao && (
               <DesenvolvimentoCroquiPanel ordem={o} zoom={zoom} />
-            )}
-
-
-            {/* Pedido e Cliente em Alto Destaque */}
-            {(o.numero_pedido || o.cliente) && (
-              <div className="flex flex-wrap items-center gap-2 my-1.5 p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/80 shadow-xs">
-                {o.numero_pedido && (
-                  <div className="inline-flex items-center gap-1.5">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs sm:text-sm font-black font-mono bg-blue-600 dark:bg-blue-600 text-white shadow-xs tracking-wider">
-                      <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
-                      #{o.numero_pedido}
-                    </span>
-                    {o.numero_oc && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs sm:text-sm font-black font-mono bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-300/80 dark:border-indigo-700/80 shadow-xs">
-                        ({/^OC[\s:-]?/i.test(o.numero_oc) ? o.numero_oc : `OC: ${o.numero_oc}`})
-                      </span>
-                    )}
-                    {pedidoSeq && (
-                      <span className="px-1.5 py-0.5 rounded text-xs font-black bg-blue-100 dark:bg-blue-900/80 text-blue-800 dark:text-blue-200 border border-blue-300 dark:border-blue-700 font-mono">
-                        {pedidoSeq}
-                      </span>
-                    )}
-                  </div>
-                )}
-                {o.numero_pedido && o.cliente && (
-                  <span className="text-blue-300 dark:text-blue-700 font-bold hidden sm:inline">•</span>
-                )}
-                {o.cliente && (
-                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs sm:text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 shadow-2xs">
-                    <User className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                    <span>CLIENTE: {o.cliente}</span>
-                  </div>
-                )}
-                {(o.vendedor || o.vendedor_nome) && (
-                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs sm:text-sm font-black uppercase tracking-tight bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs">
-                    <span className="text-amber-700 dark:text-amber-400">👤 VENDEDOR:</span>
-                    <strong className="text-slate-900 dark:text-white font-black">{o.vendedor || o.vendedor_nome}</strong>
-                  </div>
-                )}
-              </div>
             )}
           </div>
 
