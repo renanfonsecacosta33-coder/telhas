@@ -15,7 +15,7 @@ import DiaResumoCard from "@/components/producao/DiaResumoCard";
 import ProducaoDados from "@/pages/ProducaoDados";
 import MetasProducaoDialog from "@/components/producao/MetasProducaoDialog";
 import { useMetasProducao } from "@/hooks/useMetasProducao";
-import AlertasEstoque from "@/components/producao/AlertasEstoque";
+import PainelMaquinasAtivasAdmin from "@/components/producao/PainelMaquinasAtivasAdmin";
 import OPImpressao from "@/components/producao/OPImpressao";
 import { useFilial } from "@/contexts/FilialContext";
 import { ehIvaipora } from "@/lib/maquinasPorFilial";
@@ -101,7 +101,6 @@ export default function ProducaoAdmin() {
   const [activeTab, setActiveTab] = useState("producao"); // "producao" | "dados" | "kanban"
   const [opOpen, setOpOpen] = useState(false);
   const [opPedido, setOpPedido] = useState(null);
-  const [alertasVisivel, setAlertasVisivel] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // pedido a excluir
   const [metasDialogOpen, setMetasDialogOpen] = useState(false);
   const { metaGeral, calcularStatusMeta } = useMetasProducao();
@@ -605,8 +604,15 @@ export default function ProducaoAdmin() {
 
   return (
     <div className="space-y-6">
-      {/* Alertas de Estoque */}
-      {alertasVisivel && <AlertasEstoque onClose={() => setAlertasVisivel(false)} />}
+      {/* Pedidos em Produção nas Máquinas Agora */}
+      <PainelMaquinasAtivasAdmin
+        pedidos={pedidos}
+        onAbrirOp={abrirOP}
+        onFiltrarAguardando={() => {
+          setFiltroUrgencia("nao_distribuidos");
+          setActiveTab("producao");
+        }}
+      />
 
       {/* Header + Abas */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
