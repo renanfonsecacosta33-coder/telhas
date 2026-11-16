@@ -436,7 +436,13 @@ export default function CentralPCP() {
   const { data: ordensCD = [] } = useQuery({
     queryKey: ["ordens-cd-todos", pedidos.map(p => p.id).join(",")],
     enabled: pedidos.length > 0,
-    queryFn: () => buscarOpsDasOfs(base44, "OrdemMaquinaCD", pedidos),
+    queryFn: async () => {
+      const [maquinasCD, desbCD] = await Promise.all([
+        buscarOpsDasOfs(base44, "OrdemMaquinaCD", pedidos).catch(() => []),
+        buscarOpsDasOfs(base44, "OrdemDesbobinadeira", pedidos).catch(() => []),
+      ]);
+      return [...maquinasCD, ...desbCD];
+    },
     staleTime: 30000,
     retry: false,
     refetchOnWindowFocus: false

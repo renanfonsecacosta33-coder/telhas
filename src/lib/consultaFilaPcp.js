@@ -29,9 +29,37 @@ export function montarConsultaPcp({ filtro, lojaSelecionada, busca, tipoBusca, f
 export async function buscarOpsDasOfs(base44, entidade, pedidos) {
   const ids = pedidos.map(p => p.id).filter(Boolean);
   if (!ids.length) return [];
-  const query = entidade === "Pedido"
-    ? { $or: [{ pedido_odoo_id: { $in: ids } }, { of_odoo_id: { $in: pedidos.map(p => p.of_odoo_id).filter(Boolean) } }, { of_nome: { $in: pedidos.map(p => p.of_nome).filter(Boolean) } }], status: { $ne: "cancelado" } }
-    : { numero_pedido: { $in: pedidos.map(p => p.numero_pedido).filter(Boolean) }, status: { $ne: "cancelado" } };
+  const ofOdooIds = pedidos.map(p => p.of_odoo_id).filter(Boolean);
+  const ofNomes = pedidos.map(p => p.of_nome).filter(Boolean);
+  const numerosPedidos = Array.from(new Set(pedidos.flatMap(p => {
+    const raw = String(p.numero_pedido || "").trim();
+    if (!raw) return [];
+    const limpo = raw.replace(/^#/, "");
+    return [raw, limpo, `#${limpo}`];
+  })));
+
+  let query;
+  if (entidade === "Pedido") {
+    query = {
+      $or: [
+        { pedido_odoo_id: { $in: ids } },
+        ...(ofOdooIds.length ? [{ of_odoo_id: { $in: ofOdooIds } }] : []),
+        ...(ofNomes.length ? [{ of_nome: { $in: ofNomes } }] : [])
+      ],
+      status: { $ne: "cancelado" }
+    };
+  } else {
+    // OrdemMaquinaCD ou OrdemDesbobinadeira
+    query = {
+      $or: [
+        { numero_pedido: { $in: numerosPedidos } },
+        { pedido_odoo_id: { $in: ids } },
+        ...(ofOdooIds.length ? [{ of_odoo_id: { $in: ofOdooIds } }] : [])
+      ],
+      status: { $ne: "cancelado" }
+    };
+  }
+
   const records = [];
   let cursor;
   do {

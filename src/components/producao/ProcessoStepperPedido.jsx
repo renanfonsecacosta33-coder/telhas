@@ -17,49 +17,106 @@ export function calcularEtapasProcesso(pedido, setor = "telhas") {
   const isSanduiche = desc.includes("sandu") || desc.includes("termo") || desc.includes("isopor") || desc.includes("eps") || desc.includes("pu") || desc.includes("filme");
 
   if (isCD) {
-    // Roteiro Corte e Dobra: PCP -> Desbobinadeira -> Guilhotina (Corte) -> Dobradeira -> Expedição
-    const hasDesb = Boolean(pedido?.ordem_desbobinadeira_id || pedido?.desbobinadeira_status || pedido?.bobina_id);
+    // Extrai as máquinas reais do roteiro selecionadas pelo PCP
+    let maquinasRoteiro = [];
+    let itens = [];
+    try {
+      itens = pedido?.itens_json
+        ? (typeof pedido.itens_json === "string" ? JSON.parse(pedido.itens_json) : pedido.itens_json)
+        : (pedido?.itens || []);
+    } catch {
+      itens = pedido?.itens || [];
+    }
+
+    if (Array.isArray(itens)) {
+      itens.forEach(it => {
+        if (Array.isArray(it.roteiro_maquinas) && it.roteiro_maquinas.length > 0) {
+          maquinasRoteiro.push(...it.roteiro_maquinas);
+        } else if (typeof it.roteiro_maquinas === "string") {
+          try {
+            const parsed = JSON.parse(it.roteiro_maquinas);
+            if (Array.isArray(parsed)) maquinasRoteiro.push(...parsed);
+          } catch {}
+        } else if (it.maquina) {
+          maquinasRoteiro.push(it.maquina);
+        }
+      });
+    }
+
+    if (maquinasRoteiro.length === 0 && pedido?.roteiro_maquinas) {
+      if (Array.isArray(pedido.roteiro_maquinas)) maquinasRoteiro = pedido.roteiro_maquinas;
+      else {
+        try {
+          const p = JSON.parse(pedido.roteiro_maquinas);
+          if (Array.isArray(p)) maquinasRoteiro = p;
+        } catch {}
+      }
+    }
+
+    // Se temos máquinas específicas no roteiro, montamos as etapas reais
+    const temDesb = maquinasRoteiro.length > 0
+      ? maquinasRoteiro.some(m => /DESBOBINADEIRA/i.test(m))
+      : Boolean(pedido?.ordem_desbobinadeira_id || pedido?.desbobinadeira_status || pedido?.bobina_id);
+    const temCorte = maquinasRoteiro.length > 0
+      ? maquinasRoteiro.some(m => /CORTE|GUILHOTINA/i.test(m))
+      : true;
+    const temDobra = maquinasRoteiro.length > 0
+      ? maquinasRoteiro.some(m => /DOBRA/i.test(m))
+      : true;
+
     const stDesb = (pedido?.desbobinadeira_status || "").toLowerCase();
     const stCorte = (pedido?.corte_status || "").toLowerCase();
     const stDobra = (pedido?.dobra_status || "").toLowerCase();
 
-    return [
+    const etapas = [
       {
         id: "pcp",
         label: "PCP",
         descricao: "Triagem e Programação",
         status: "concluido",
         icon: Factory,
-      },
-      {
+      }
+    ];
+
+    if (temDesb) {
+      etapas.push({
         id: "desbobinadeira",
         label: "Desbobinadeira",
-        descricao: hasDesb ? "Bobina vinculada" : "Aguardando corte de fita",
+        descricao: "Corte e acerto de chapa / fita",
         status: percentual >= 100 || stDesb === "finalizado" ? "concluido" : (stDesb === "em_producao" ? "em_andamento" : "pendente"),
         icon: Package,
-      },
-      {
+      });
+    }
+
+    if (temCorte) {
+      etapas.push({
         id: "corte",
         label: "Corte / Guilhotina",
         descricao: "Corte nas medidas",
         status: percentual >= 100 || stCorte === "finalizado" ? "concluido" : (stCorte === "em_producao" || stGeral === "em_producao" ? "em_andamento" : "pendente"),
         icon: Scissors,
-      },
-      {
+      });
+    }
+
+    if (temDobra) {
+      etapas.push({
         id: "dobra",
         label: "Dobra",
         descricao: "Conformação e dobras",
         status: percentual >= 100 || stDobra === "finalizado" ? "concluido" : (stDobra === "em_producao" ? "em_andamento" : "pendente"),
         icon: Layers,
-      },
-      {
-        id: "expedicao",
-        label: "Expedição",
-        descricao: "Pronto para despacho",
-        status: percentual >= 100 ? "concluido" : "pendente",
-        icon: Truck,
-      },
-    ];
+      });
+    }
+
+    etapas.push({
+      id: "expedicao",
+      label: "Expedição",
+      descricao: "Pronto para despacho",
+      status: percentual >= 100 ? "concluido" : "pendente",
+      icon: Truck,
+    });
+
+    return etapas;
   }
 
   // ── ROTEIRO ESPECIAL: TELHA BANDEJA ──

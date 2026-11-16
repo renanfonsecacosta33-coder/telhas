@@ -34,15 +34,16 @@ const comRetry = async (fn, tentativas = 3) => {
   throw ultimo;
 };
 
-/** Busca em 2 chamadas as OPs (Telhas + Corte&Dobra) de todos os pedidos informados. */
+/** Busca as OPs (Telhas + Corte&Dobra + Desbobinadeira) de todos os pedidos informados. */
 export async function carregarOpsDosPedidos(pedidos = []) {
   const lista = (pedidos || []).filter((p) => p && p.id);
   if (!lista.length) return { opsTelhas: [], opsCD: [] };
-  const [opsTelhas, opsCD] = await Promise.all([
+  const [opsTelhas, opsCDMaq, opsDesb] = await Promise.all([
     buscarOpsDasOfs(base44, "Pedido", lista).catch(() => []),
-    buscarOpsDasOfs(base44, "OrdemMaquinaCD", lista).catch(() => [])
+    buscarOpsDasOfs(base44, "OrdemMaquinaCD", lista).catch(() => []),
+    buscarOpsDasOfs(base44, "OrdemDesbobinadeira", lista).catch(() => [])
   ]);
-  return { opsTelhas, opsCD };
+  return { opsTelhas, opsCD: [...opsCDMaq, ...opsDesb] };
 }
 
 /** true quando a produção real do pedido já chegou a 100% nas máquinas. */

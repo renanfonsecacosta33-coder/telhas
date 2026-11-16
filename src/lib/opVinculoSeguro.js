@@ -13,7 +13,13 @@ export function opDaMesmaOf(op, pedido) {
   if (op.pedido_odoo_id) return norm(op.pedido_odoo_id) === norm(pedido.id);
   if (op.of_odoo_id) return norm(op.of_odoo_id) === norm(pedido.of_odoo_id);
   if (op.of_nome) return norm(op.of_nome) === norm(pedido.of_nome);
-  return false; // Uma venda pode conter várias OFs; vínculo legado exige revisão.
+
+  // Fallback seguro por número do pedido para Corte e Dobra / Desbobinadeira
+  const opNum = norm(op.numero_pedido).replace(/^#/, "");
+  const pedNum = norm(pedido.numero_pedido).replace(/^#/, "");
+  if (opNum && pedNum && opNum === pedNum) return true;
+
+  return false;
 }
 
 export function opCobreIndices(op, indices) {
