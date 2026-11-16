@@ -1790,12 +1790,12 @@ export default function MaquinaPanel({ maquina }) {
                     </button>
                   </div>
                 )}
-                {(p.status === "pendente" || p.status === "aguardando_material") && expandidoMiniId !== p.id ? (
+                {((p.status === "pendente" || p.status === "aguardando_material" || (p.status === "aguardando_colagem" && maquina === "COLAGEM") || (maquina === "COLAGEM" && (p.status === "pausado" || p.status === "aguardando_colagem") && (!p.tempo_colagem_seg || p.tempo_colagem_seg === 0))) && expandidoMiniId !== p.id) ? (
                   <PedidoMiniCard pedido={p} toolbar={toolbarOp} onExpand={() => setExpandidoMiniId(p.id)} />
                 ) : (
                   <>
                     {toolbarOp && <div className="mb-1.5">{toolbarOp}</div>}
-                    {(p.status === "pendente" || p.status === "aguardando_material") && (
+                    {(p.status === "pendente" || p.status === "aguardando_material" || (p.status === "aguardando_colagem" && maquina === "COLAGEM") || (maquina === "COLAGEM" && (p.status === "pausado" || p.status === "aguardando_colagem") && (!p.tempo_colagem_seg || p.tempo_colagem_seg === 0))) && (
                       <button onClick={() => setExpandidoMiniId(null)} className="w-full flex items-center justify-center gap-1 text-[11px] font-bold text-muted-foreground hover:text-foreground py-1 cursor-pointer">
                         <ChevronDown className="w-3.5 h-3.5 rotate-180" /> Recolher para resumo
                       </button>

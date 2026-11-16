@@ -7,6 +7,8 @@ import { descricaoItemOriginal, espessuraOriginalItem } from "@/lib/descricaoIte
 const STATUS_MINI = {
   pendente: { label: "Pendente", cls: "op-status-pendente" },
   aguardando_material: { label: "Sem Material", cls: "op-status-material" },
+  aguardando_colagem: { label: "Aguardando Colagem", cls: "op-status-pendente" },
+  pausado: { label: "Aguardando Início", cls: "op-status-pendente" },
 };
 
 /**
@@ -15,7 +17,10 @@ const STATUS_MINI = {
  * A barra de ações (Rota, Prioridade, Data, Histórico, Editar, Excluir) entra pela prop `toolbar`.
  */
 export default function PedidoMiniCard({ pedido: p, onExpand, toolbar = null }) {
-  const st = STATUS_MINI[p.status] || STATUS_MINI.pendente;
+  const statusEfetivoKey = (p.maquina === "COLAGEM" && (p.status === "pausado" || p.status === "aguardando_colagem"))
+    ? "aguardando_colagem"
+    : p.status;
+  const st = STATUS_MINI[statusEfetivoKey] || STATUS_MINI.pendente;
 
   let variacoes = [];
   try { const v = JSON.parse(p.variacoes_telhas || "[]"); if (Array.isArray(v)) variacoes = v; } catch { variacoes = []; }
@@ -64,8 +69,6 @@ export default function PedidoMiniCard({ pedido: p, onExpand, toolbar = null }) 
             <span className="op-so">{p.numero_pedido || `OP ${String(p.id || "").slice(-6).toUpperCase()}`}</span>
             <span className={`op-status ${st.cls}`}>{st.label}</span>
             <PrioridadeBadge pedido={p} />
-            {ehRota && !ehRetira && <span className="op-tag op-tag-rota">🚚 Rota</span>}
-            {ehRetira && <span className="op-tag op-tag-retira">Retira Agora</span>}
           </div>
 
           <h2 className="op-title">{titulo}</h2>

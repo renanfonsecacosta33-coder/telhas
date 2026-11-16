@@ -792,6 +792,11 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     )
   );
 
+  // Status efetivo na máquina atual: na Colagem, se o tempo de colagem ainda for zero e veio pausado/troca de op herdado, o status real é aguardando_colagem
+  const statusEfetivo = (p.maquina === "COLAGEM" && p.status === "pausado" && (!p.tempo_colagem_seg || p.tempo_colagem_seg === 0))
+    ? "aguardando_colagem"
+    : p.status;
+
   // Calcula tempo ao vivo
   const now = Date.now();
   let tempoProducaoVivo = p.tempo_producao_seg || 0;
@@ -1434,7 +1439,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
           tipo_componente_bandeja: null,
           grupo_bandeja_id: null,
           bloqueado_colagem: false,
-          foto_finalizacao_url: urlFinalFoto || p.foto_finalizacao_url || null,
+          foto_finalizacao_url: null,
           foto_etapa1_url: urlFinalFoto || null
         });
         setMetragemDialog(false);
@@ -1463,7 +1468,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
           tipo_componente_bandeja: null,
           grupo_bandeja_id: null,
           bloqueado_colagem: false,
-          foto_finalizacao_url: urlFinalFoto || p.foto_finalizacao_url || null,
+          foto_finalizacao_url: null,
           foto_etapa2_url: urlFinalFoto || null
         });
         setMetragemDialog(false);
@@ -1485,8 +1490,9 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       metragem_planejada: metragemRealNum,
       inicio_producao_ts: null,
       data_finalizacao: novoStatus === "finalizado" ? hojeStr : undefined,
-      foto_finalizacao_url: urlFinalFoto,
+      foto_finalizacao_url: novoStatus === "finalizado" ? urlFinalFoto : null,
       ...(precisaColagem ? {
+        foto_etapa1_url: urlFinalFoto || p.foto_etapa1_url || null,
         maquina: "COLAGEM",
         maquina_origem: maqOrigem,
         data_perfilacao: p.data_perfilacao || hojeStr,
@@ -1678,11 +1684,6 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                 </>
               )}
               <PrioridadeBadge pedido={p} />
-              {ehRota && !ehRetira && (
-                <Badge className="bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-400 text-xs gap-1.5 font-black shadow-xs tracking-wide">
-                  <Truck className="w-3.5 h-3.5" /> 🚚 CARGA DE ROTA
-                </Badge>
-              )}
               {isPerfiladoNestaMaquina ? (
                 <>
                   <Badge className="bg-emerald-50 text-emerald-700 border-emerald-300 font-bold text-xs gap-1 shadow-xs">
@@ -1702,13 +1703,13 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                 </>
               ) : (
                 <>
-                  <StatusBadge status={p.status} />
+                  <StatusBadge status={statusEfetivo} />
                   {p.atendido_estoque && (
                     <Badge className="bg-teal-50 text-teal-700 border-teal-300 text-xs gap-1 font-bold shadow-xs">
                       <PackageCheck className="w-3 h-3" /> Já em Estoque
                     </Badge>
                   )}
-                  {p.status === "aguardando_colagem" && (
+                  {statusEfetivo === "aguardando_colagem" && (
                     <Badge className="bg-orange-100 text-orange-700 border-orange-300 text-xs">
                       {p.produto === "TELHA BANDEJA" && p.maquina === "BANDEJA" ? "→ Bandeja" :
                        p.produto === "TELHA BANDEJA" && p.maquina === "COLAGEM" ? "→ Colagem" :
@@ -1906,8 +1907,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
           </div>
         )}
 
-        {/* Foto do Material Finalizado / Lote Produzido */}
-        {p.foto_finalizacao_url && (
+        {/* Foto do Material Finalizado / Lote Produzido — exibida APENAS se a OP estiver realmente finalizada */}
+        {p.foto_finalizacao_url && p.status === "finalizado" && (
           <div className="p-3 bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 rounded-xl mb-3 flex items-center gap-3">
             <SmartImage
               src={p.foto_finalizacao_url}
@@ -1933,7 +1934,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         )}
 
         {/* Motivo de pausa ativo */}
-        {p.status === "pausado" && p.motivo_pausa && (
+        {statusEfetivo === "pausado" && p.motivo_pausa && (
           <div className="bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 text-xs text-amber-800 mb-3 flex items-center gap-2">
             <Pause className="w-3 h-3 flex-shrink-0" />
             <span>
@@ -1944,15 +1945,15 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
 
         {/* Cronômetros — separa tempos de máquina vs colagem */}
         {p.maquina === "COLAGEM" ? (
-          // Para colagem: só mostra tempo de colagem
-          (p.status === "em_producao" || p.status === "pausado" || tempoColagemVivo > 0) && (
+          // Para colagem: só mostra tempo de colagem se de fato estiver em produção, pausado com colagem iniciada, ou tiver tempo acumulado
+          (statusEfetivo === "em_producao" || (statusEfetivo === "pausado" && tempoColagemVivo > 0) || tempoColagemVivo > 0) && (
             <div className="grid grid-cols-2 gap-2 mb-3">
-              <div className={`rounded-lg px-3 py-2 text-center ${p.status === "em_producao" ? "bg-red-50 border border-red-200" : "bg-slate-50 border border-border"}`}>
+              <div className={`rounded-lg px-3 py-2 text-center ${statusEfetivo === "em_producao" ? "bg-red-50 border border-red-200" : "bg-slate-50 border border-border"}`}>
                 <div className="flex items-center justify-center gap-1 mb-0.5">
                   <Timer className="w-3 h-3 text-red-600" />
                   <span className="text-xs text-muted-foreground">Colagem</span>
                 </div>
-                <p className={`text-sm font-bold tabular-nums ${p.status === "em_producao" ? "text-red-700" : "text-slate-600"}`}>
+                <p className={`text-sm font-bold tabular-nums ${statusEfetivo === "em_producao" ? "text-red-700" : "text-slate-600"}`}>
                   {formatTempo(tempoColagemVivo)}
                 </p>
               </div>
@@ -2111,7 +2112,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                 </>
               )}
 
-              {p.status === "pausado" && (
+              {statusEfetivo === "pausado" && (
                 <>
                   <Button size="sm" className="gap-1 bg-primary hover:bg-primary/90 text-white border-0" onClick={handleRetomar}>
                     <Play className="w-3 h-3" /> Retomar
@@ -2131,13 +2132,13 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                 </>
               )}
 
-              {p.status === "aguardando_colagem" && p.maquina === "COLAGEM" && (
-                <Button size="sm" className="gap-1 bg-amber-500 hover:bg-amber-600 text-white border-0 font-bold" onClick={handleIniciar}>
-                  <Play className="w-3 h-3" /> Iniciar Colagem
+              {statusEfetivo === "aguardando_colagem" && p.maquina === "COLAGEM" && (
+                <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white border-0 font-bold shadow-xs cursor-pointer" onClick={handleIniciar}>
+                  <Play className="w-3.5 h-3.5 fill-current" /> Iniciar Colagem
                 </Button>
               )}
 
-              {p.status === "aguardando_colagem" && p.maquina !== "COLAGEM" && (
+              {statusEfetivo === "aguardando_colagem" && p.maquina !== "COLAGEM" && (
                 <>
                   <Button
                     size="sm"
