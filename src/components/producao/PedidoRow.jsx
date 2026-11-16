@@ -1223,9 +1223,10 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       setTelhasSandwichDialog(true);
       return;
     }
-    // Abre dialog de confirmação de metragem
-    setMetragemReal(p.metragem_planejada?.toString() || "");
-    setFotoFinalizacaoUrl("");
+    // Abre dialog de confirmação de metragem e foto obrigatória do fardo/telhas produzidas
+    const metrosIniciais = (totaisProducaoPCP.metros > 0 ? totaisProducaoPCP.metros : p.metragem_planejada) || "";
+    setMetragemReal(metrosIniciais.toString());
+    setFotoFinalizacaoUrl(p.foto_finalizacao_url || "");
     setMetragemDialog(true);
   };
 
@@ -1257,7 +1258,9 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
 
   const confirmarTelhasSandwich = () => {
     setTelhasSandwichDialog(false);
-    setMetragemReal(p.metragem_planejada?.toString() || "");
+    const metrosIniciais = (totaisProducaoPCP.metros > 0 ? totaisProducaoPCP.metros : p.metragem_planejada) || "";
+    setMetragemReal(metrosIniciais.toString());
+    setFotoFinalizacaoUrl(p.foto_finalizacao_url || "");
     setMetragemDialog(true);
   };
 
@@ -1430,7 +1433,9 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
           variacoes_telhas: varsResetadas.length > 0 ? JSON.stringify(varsResetadas) : p.variacoes_telhas,
           tipo_componente_bandeja: null,
           grupo_bandeja_id: null,
-          bloqueado_colagem: false
+          bloqueado_colagem: false,
+          foto_finalizacao_url: urlFinalFoto || p.foto_finalizacao_url || null,
+          foto_etapa1_url: urlFinalFoto || null
         });
         setMetragemDialog(false);
         return;
@@ -1457,7 +1462,9 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
           variacoes_telhas: varsResetadas.length > 0 ? JSON.stringify(varsResetadas) : p.variacoes_telhas,
           tipo_componente_bandeja: null,
           grupo_bandeja_id: null,
-          bloqueado_colagem: false
+          bloqueado_colagem: false,
+          foto_finalizacao_url: urlFinalFoto || p.foto_finalizacao_url || null,
+          foto_etapa2_url: urlFinalFoto || null
         });
         setMetragemDialog(false);
         return;
@@ -1896,6 +1903,32 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
               className="w-32 h-32 rounded-lg border-2 border-primary/30"
               clickable={true}
             />
+          </div>
+        )}
+
+        {/* Foto do Material Finalizado / Lote Produzido */}
+        {p.foto_finalizacao_url && (
+          <div className="p-3 bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 rounded-xl mb-3 flex items-center gap-3">
+            <SmartImage
+              src={p.foto_finalizacao_url}
+              alt="Foto do Material Finalizado"
+              className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border-2 border-emerald-500 shadow-sm shrink-0"
+              clickable={true}
+            />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 font-bold text-xs uppercase">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Foto do Material Finalizado</span>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 font-medium">
+                Comprovante do fardo/lote produzido ({p.metragem_utilizada || totaisProducaoPCP.metros}m real)
+              </p>
+              {p.data_finalizacao && (
+                <span className="text-[11px] text-muted-foreground font-mono block mt-0.5">
+                  Finalizado em: {p.data_finalizacao}
+                </span>
+              )}
+            </div>
           </div>
         )}
 
@@ -2348,11 +2381,17 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 space-y-2">
-                <p className="text-xs font-semibold text-blue-900 uppercase">Metragem Total do Pedido</p>
+                <p className="text-xs font-semibold text-blue-900 uppercase">Metragem Total do Pedido (PCP)</p>
                 <p className="text-2xl font-bold text-blue-700">
-                  {((Number(p.metros) || 0) * ((Number(p.metragem_mm) || 0) / 1000)).toFixed(2)}m
+                  {totaisProducaoPCP.metros > 0
+                    ? `${totaisProducaoPCP.metros.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}m`
+                    : `${((Number(p.metros) || 0) * ((Number(p.metragem_mm) || 0) / 1000)).toFixed(2)}m`}
                 </p>
-                <p className="text-xs text-blue-600">({p.metros} telhas × {Number(p.metragem_mm) || 0}mm)</p>
+                {totaisProducaoPCP.pecas > 0 ? (
+                  <p className="text-xs text-blue-600 font-semibold">({totaisProducaoPCP.pecas} {totaisProducaoPCP.pecas === 1 ? "telha" : "telhas"})</p>
+                ) : p.metros ? (
+                  <p className="text-xs text-blue-600">({p.metros} telhas × {Number(p.metragem_mm) || 0}mm)</p>
+                ) : null}
               </div>
 
               {p.kg_superior > 0 && (
@@ -2383,31 +2422,48 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
 
               {/* Foto obrigatória do material finalizado */}
               <div className="space-y-2 border-t pt-4">
-                <Label className="text-sm font-semibold flex items-center gap-1">
-                  <Camera className="w-4 h-4 text-green-600" /> Foto do Material Finalizado *
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-bold flex items-center gap-1.5 text-slate-800 dark:text-slate-100">
+                    <Camera className="w-4 h-4 text-green-600" />
+                    <span>Foto do Material Finalizado *</span>
+                  </Label>
+                  <span className="text-[11px] font-bold text-red-600 uppercase">Obrigatória</span>
+                </div>
                 {fotoFinalizacaoUrl ? (
-                  <div className="relative">
-                    <img src={fotoFinalizacaoUrl} alt="Material finalizado" className="w-full h-36 object-cover rounded-lg border-2 border-green-400" />
+                  <div className="relative rounded-xl overflow-hidden border-2 border-green-500 shadow-md">
+                    <img src={fotoFinalizacaoUrl} alt="Material finalizado" className="w-full h-44 object-cover" />
+                    <div className="absolute bottom-2 left-2 bg-black/70 text-white text-[11px] font-bold px-2 py-0.5 rounded backdrop-blur-xs flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-green-400" /> Foto anexada
+                    </div>
                     <button
+                      type="button"
                       onClick={() => setFotoFinalizacaoUrl("")}
-                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm shadow-lg hover:bg-red-600"
+                      className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm shadow-lg transition-transform active:scale-95"
+                      title="Remover e tirar outra foto"
                     >
                       ✕
                     </button>
                   </div>
                 ) : (
-                  <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-green-300 rounded-lg p-6 cursor-pointer hover:border-green-500 hover:bg-green-50/30 transition-colors">
+                  <label className="flex flex-col items-center justify-center gap-2.5 border-2 border-dashed border-green-400 bg-green-50/40 dark:bg-green-950/20 rounded-xl p-6 cursor-pointer hover:border-green-600 hover:bg-green-50/70 transition-all shadow-2xs">
                     {uploadingFoto ? (
                       <>
-                        <div className="w-8 h-8 border-4 border-slate-200 border-t-green-500 rounded-full animate-spin" />
-                        <span className="text-xs text-muted-foreground">Enviando foto...</span>
+                        <div className="w-9 h-9 border-4 border-slate-200 border-t-green-600 rounded-full animate-spin" />
+                        <span className="text-xs font-bold text-slate-600">Comprimindo e enviando foto...</span>
                       </>
                     ) : (
                       <>
-                        <Camera className="w-10 h-10 text-green-400" />
-                        <span className="text-sm font-medium text-green-600">Tirar foto do material finalizado</span>
-                        <span className="text-xs text-muted-foreground">Obrigatório para finalizar</span>
+                        <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center shadow-xs">
+                          <Camera className="w-6 h-6 text-green-600" />
+                        </div>
+                        <div className="text-center">
+                          <span className="text-sm font-black text-green-700 dark:text-green-300 block">
+                            📸 Tirar foto do fardo / telhas produzidas
+                          </span>
+                          <span className="text-xs text-muted-foreground mt-0.5 block">
+                            Comprovante obrigatório para controle de qualidade e expedição
+                          </span>
+                        </div>
                       </>
                     )}
                     <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleUploadFoto} disabled={uploadingFoto} />
@@ -2419,8 +2475,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
               <Button variant="outline" onClick={() => setMetragemDialog(false)}>Cancelar</Button>
               <Button
                 onClick={confirmarFinalizacao}
-                disabled={!metragemReal || Number(metragemReal) <= 0 || !fotoFinalizacaoUrl}
-                className="gap-1 bg-green-600 hover:bg-green-700"
+                disabled={!metragemReal || Number(metragemReal) <= 0 || !fotoFinalizacaoUrl || uploadingFoto}
+                className="gap-1.5 bg-green-600 hover:bg-green-700 text-white font-bold"
               >
                 <CheckCircle2 className="w-4 h-4" /> Confirmar e Finalizar
               </Button>
