@@ -27,6 +27,7 @@ import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERel
 import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
 import AlertaCancelamentoPcpBanner from "@/components/maquinas/AlertaCancelamentoPcpBanner";
 import StatusRedeBadge from "@/components/common/StatusRedeBadge";
+import { normalizarNumeroPedido } from "@/lib/conciliacaoPcpMaquinasHelper";
 
 export function getMaquinaOrdemDesb(ordem) {
   if (!ordem) return "DESBOBINADEIRA 01";
@@ -184,10 +185,18 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
   const pedidosOdooMap = useMemo(() => {
     const map = {};
     for (const p of pedidosOdoo) {
+      if (p.id) map[p.id] = p;
+      if (p.of_nome) map[String(p.of_nome).trim().toUpperCase()] = p;
+      if (p.of_odoo_id) map[String(p.of_odoo_id).trim().toUpperCase()] = p;
       if (p.numero_pedido) {
         const numLimpo = String(p.numero_pedido).replace(/^#/, "").trim().toUpperCase();
         map[numLimpo] = p;
         map[p.numero_pedido] = p;
+        const numNorm = normalizarNumeroPedido(p.numero_pedido);
+        if (numNorm) {
+          map[numNorm] = p;
+          map[`NUM_${numNorm}`] = p;
+        }
       }
       if (p.numero_oc) {
         const ocLimpa = String(p.numero_oc).replace(/^#/, "").trim().toUpperCase();

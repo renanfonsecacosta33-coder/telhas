@@ -33,6 +33,7 @@ import { useRegrasProducao } from "@/lib/regrasProducao";
 import { formatarQuantidadeComUnidade } from "@/lib/pedidoOdooHelper";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import { extrairEspessuraDoTexto } from "@/lib/estoqueMaterialHelper";
+import { normalizarNumeroPedido } from "@/lib/conciliacaoPcpMaquinasHelper";
 import BannerInstrucaoCorteDobra, { classificarItemCorteDobra } from "@/components/corte-dobra/BannerInstrucaoCorteDobra";
 
 function formatTempo(segundos) {
@@ -126,12 +127,18 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
   // Pedido Odoo correspondente vinculado (se houver)
   const pedidoOdooVinculado = useMemo(() => {
     if (!pedidosOdooMap || Object.keys(pedidosOdooMap).length === 0) return null;
+    if (o.pedido_odoo_id && pedidosOdooMap[o.pedido_odoo_id]) return pedidosOdooMap[o.pedido_odoo_id];
+    if (o.of_nome && pedidosOdooMap[String(o.of_nome).trim().toUpperCase()]) return pedidosOdooMap[String(o.of_nome).trim().toUpperCase()];
+    if (o.of_odoo_id && pedidosOdooMap[String(o.of_odoo_id).trim().toUpperCase()]) return pedidosOdooMap[String(o.of_odoo_id).trim().toUpperCase()];
     const numLimpo = String(o.numero_pedido || "").replace(/^#/, "").trim().toUpperCase();
     if (numLimpo && pedidosOdooMap[numLimpo]) return pedidosOdooMap[numLimpo];
+    const numNorm = normalizarNumeroPedido(o.numero_pedido);
+    if (numNorm && pedidosOdooMap[numNorm]) return pedidosOdooMap[numNorm];
+    if (numNorm && pedidosOdooMap[`NUM_${numNorm}`]) return pedidosOdooMap[`NUM_${numNorm}`];
     const ocLimpa = String(o.numero_oc || "").replace(/^#/, "").trim().toUpperCase();
     if (ocLimpa && pedidosOdooMap[ocLimpa]) return pedidosOdooMap[ocLimpa];
     return null;
-  }, [pedidosOdooMap, o.numero_pedido, o.numero_oc]);
+  }, [pedidosOdooMap, o.pedido_odoo_id, o.of_nome, o.of_odoo_id, o.numero_pedido, o.numero_oc]);
 
   // 🛡️ 1. Espessura da CHAPA exigida pelo cliente/pedido (Prioridade Absoluta)
   const espessuraChapaExigida = useMemo(() => {
@@ -839,7 +846,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
         </div>
 
         {/* 🌟 Banner Dourado/Âmbar de Instrução e Especificação com Duas Métricas Principais (Chapas/Barras + KG) */}
-        <BannerInstrucaoCorteDobra ordem={o} specTec={specTec} />
+        <BannerInstrucaoCorteDobra ordem={o} specTec={specTec} pedidoOdoo={pedidoOdooVinculado} />
 
         {/* Header */}
         <div className={`flex items-start justify-between ${z.gap} ${z.mb}`}>

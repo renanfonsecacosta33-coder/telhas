@@ -27,6 +27,7 @@ import { salvarCacheLocal, obterCacheLocal, enfileirarAcaoOffline } from "@/lib/
 import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERelatorioMaquinaModal";
 import AlertaCancelamentoPcpBanner from "@/components/maquinas/AlertaCancelamentoPcpBanner";
 import StatusRedeBadge from "@/components/common/StatusRedeBadge";
+import { normalizarNumeroPedido } from "@/lib/conciliacaoPcpMaquinasHelper";
 
 export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const { filialAtiva } = useFilial();
@@ -103,6 +104,41 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     placeholderData: (prev) => prev,
     refetchOnWindowFocus: false,
   });
+
+  // Consulta de pedidos Odoo para cruzamento de nomes oficiais de itens e descrições do vendedor
+  const { data: pedidosOdoo = [] } = useQuery({
+    queryKey: ["pedidos-odoo-cd-panel", filialAtiva],
+    queryFn: () => {
+      const filter = (filialAtiva && filialAtiva !== "todas") ? { unidade: filialAtiva } : {};
+      return base44.entities.PedidoOdoo.filter(filter, "-data_recebimento", 300);
+    },
+    refetchInterval: 25000,
+    staleTime: 20000,
+  });
+
+  const pedidosOdooMap = useMemo(() => {
+    const map = {};
+    for (const p of pedidosOdoo) {
+      if (p.id) map[p.id] = p;
+      if (p.of_nome) map[String(p.of_nome).trim().toUpperCase()] = p;
+      if (p.of_odoo_id) map[String(p.of_odoo_id).trim().toUpperCase()] = p;
+      if (p.numero_pedido) {
+        const numLimpo = String(p.numero_pedido).replace(/^#/, "").trim().toUpperCase();
+        map[numLimpo] = p;
+        map[p.numero_pedido] = p;
+        const numNorm = normalizarNumeroPedido(p.numero_pedido);
+        if (numNorm) {
+          map[numNorm] = p;
+          map[`NUM_${numNorm}`] = p;
+        }
+      }
+      if (p.numero_oc) {
+        const ocLimpa = String(p.numero_oc).replace(/^#/, "").trim().toUpperCase();
+        map[ocLimpa] = p;
+      }
+    }
+    return map;
+  }, [pedidosOdoo]);
 
   // Localiza pedido alvo se a navegação veio com parâmetros de foco da busca/rastreamento
   const pedidoAlvoFoco = useMemo(() => {
@@ -645,6 +681,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
           ordens={todasOrdensDaMaquina}
           pedidoSeq={pedidoSeqMap[o.id]}
           user={user}
+          pedidosOdooMap={pedidosOdooMap}
         />
       {isGestor && (
         <div className="flex justify-end mt-1 gap-1">
@@ -1016,6 +1053,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
                     ordens={todasOrdensDaMaquina}
                     pedidoSeq={pedidoSeqMap[o.id]}
                     user={user}
+                    pedidosOdooMap={pedidosOdooMap}
                   />
                 </div>
               ))}
@@ -1083,6 +1121,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
                           ordens={todasOrdensDaMaquina}
                           pedidoSeq={pedidoSeqMap[o.id]}
                           user={user}
+                          pedidosOdooMap={pedidosOdooMap}
                         />
                       </div>
                     ))}

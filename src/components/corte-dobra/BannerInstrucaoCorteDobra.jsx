@@ -5,67 +5,140 @@ import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 
 /**
  * Extrai a instrução real e limpa do vendedor vinda do Odoo/PCP,
- * descartando metadados internos de roteamento ou unidades duplicadas.
+ * preservando todas as linhas de observação e especificações (sem truncar).
  */
-export function extrairInstrucaoLimpaVendedor(ordem) {
-  if (!ordem) return "";
-  const o = ordem;
+export function extrairInstrucaoLimpaVendedor(ordem, pedidoOdoo = null) {
+  if (!ordem && !pedidoOdoo) return "";
+  const o = ordem || {};
 
-  // 1. Campo específico de anotação do vendedor se existir
-  if (o.observacao_vendedor && String(o.observacao_vendedor).trim()) {
-    return String(o.observacao_vendedor).trim();
-  }
-  if (o.instrucao && String(o.instrucao).trim()) {
-    return String(o.instrucao).trim();
-  }
+  const itemOdoo = pedidoOdoo?.itens?.[o.item_idx ?? 0] || pedidoOdoo?.itens?.[0] || null;
 
-  // 2. Extrai de observacoes ou descricao
-  const textoBruto = String(o.observacoes || o.descricao || "").trim();
-  if (!textoBruto) return "";
+  const nomeProd = String(
+    itemOdoo?.produto || o.tipo_peca || o.produto || ""
+  ).trim().toUpperCase();
 
-  // Divide por separadores comuns (| ou quebra de linha)
-  const partes = textoBruto.split(/\s*\|\s*|\r?\n/).map(p => p.trim()).filter(Boolean);
+  const linhasSet = new Set();
+  const linhasColetadas = [];
 
-  // Filtra partes que são metadados internos do sistema
-  const partesUteis = partes.filter(p => {
-    const pUpper = p.toUpperCase();
-    if (pUpper.startsWith("UNIDADE:")) return false;
-    if (pUpper.startsWith("ROTEIRO PCP:")) return false;
-    if (pUpper.startsWith("AUTO-ROTEADO")) return false;
-    if (pUpper.startsWith("FINALIZADO JUNTO")) return false;
-    if (pUpper.startsWith("RETOMADA:")) return false;
-    if (pUpper.startsWith("PAUSA:")) return false;
-    if (pUpper.startsWith("MODO DIRETO")) return false;
-    return true;
-  });
+  const adicionarLinha = (linha) => {
+    if (!linha || typeof linha !== "string") return;
+    let l = linha.replace(/<[^>]*>/g, " ").trim();
+    if (!l) return;
 
-  // Se alguma parte contiver "Instrução: " ou "Anotação: ", extrai o miolo
-  for (const p of partesUteis) {
-    const match = p.match(/(?:instru[çc][aã]o|anota[çc][aã]o)\s*:\s*(.+)/i);
-    if (match && match[1].trim()) {
-      return match[1].trim();
+    // Desempacota prefixos como "Instrução: ..." ou "Anotação: ..." se existirem
+    const matchInst = l.match(/^(?:instru[çc][aã]o|anota[çc][aã]o)\s*:\s*(.+)$/i);
+    if (matchInst && matchInst[1]?.trim()) {
+      l = matchInst[1].trim();
     }
-  }
 
-  // Compara com o nome do produto para não repetir o próprio nome do produto como instrução
-  const nomeProd = String(o.tipo_peca || o.produto || "").trim().toUpperCase();
-  for (const p of partesUteis) {
-    if (p.toUpperCase() !== nomeProd) {
-      return p;
+    // Filtra metadados internos de roteamento do sistema
+    const upper = l.toUpperCase();
+    if (
+      upper.startsWith("UNIDADE:") ||
+      upper.startsWith("ROTEIRO PCP:") ||
+      upper.startsWith("AUTO-ROTEADO") ||
+      upper.startsWith("FINALIZADO JUNTO") ||
+      upper.startsWith("RETOMADA:") ||
+      upper.startsWith("PAUSA:") ||
+      upper.startsWith("MODO DIRETO") ||
+      upper.startsWith("STATUS:") ||
+      upper.startsWith("ENTREGA:")
+    ) {
+      return;
     }
+
+    // Não repete o próprio nome do produto como instrução
+    if (upper === nomeProd) return;
+
+    const chaveNorm = upper.replace(/\s+/g, " ");
+    if (!linhasSet.has(chaveNorm)) {
+      linhasSet.add(chaveNorm);
+      linhasColetadas.push(l);
+    }
+  };
+
+  const processarTextoEmLinhas = (txt) => {
+    if (!txt || typeof txt !== "string") return;
+    // Divide primeiro por pipe "|" (separador de metadados do roteador)
+    const blocos = txt.split(/\s*\|\s*/);
+    for (const bloco of blocos) {
+      const bTrim = bloco.trim();
+      if (!bTrim) continue;
+      // Se o bloco inteiro for metadado do sistema, descarta
+      const bUpper = bTrim.toUpperCase();
+      if (
+        bUpper.startsWith("UNIDADE:") ||
+        bUpper.startsWith("ROTEIRO PCP:") ||
+        bUpper.startsWith("AUTO-ROTEADO") ||
+        bUpper.startsWith("FINALIZADO JUNTO") ||
+        bUpper.startsWith("RETOMADA:") ||
+        bUpper.startsWith("PAUSA:") ||
+        bUpper.startsWith("MODO DIRETO")
+      ) {
+        continue;
+      }
+      // Divide por quebras de linha dentro do bloco mantendo todas as linhas
+      const subLinhas = bTrim.split(/\r?\n/);
+      for (const sl of subLinhas) {
+        adicionarLinha(sl);
+      }
+    }
+  };
+
+  // 1. Textos vindos do Item do Odoo ERP (Fonte mais fiel da especificação técnica do vendedor)
+  if (itemOdoo) {
+    processarTextoEmLinhas(itemOdoo.descricao);
+    processarTextoEmLinhas(itemOdoo.observacao);
   }
 
-  return partesUteis[0] || "";
+  // 2. Anotação expressa do vendedor na venda ou na OP
+  if (o.observacao_vendedor) {
+    processarTextoEmLinhas(o.observacao_vendedor);
+  }
+  if (pedidoOdoo?.observacao_vendedor) {
+    processarTextoEmLinhas(pedidoOdoo.observacao_vendedor);
+  }
+  if (o.instrucao) {
+    processarTextoEmLinhas(o.instrucao);
+  }
+
+  // 3. Textos gravados nas observações ou descrição da OP
+  processarTextoEmLinhas(o.observacoes);
+  processarTextoEmLinhas(o.descricao);
+  if (pedidoOdoo?.observacoes) {
+    processarTextoEmLinhas(pedidoOdoo.observacoes);
+  }
+
+  return linhasColetadas.join("\n").trim();
 }
 
 /**
- * Extrai o Nome Oficial do Produto do Odoo ERP (sem substituir por genéricos como "Chapa Lisa / Blank")
+ * Extrai o Nome Oficial do Produto do Odoo ERP (sem substituir por genéricos como "Chapa Lisa / Blank" ou "Chapa Cortada")
  */
-export function extrairNomeProdutoOficial(ordem, spec = null) {
-  if (!ordem) return "Corte & Dobra";
-  const o = ordem;
+export function extrairNomeProdutoOficial(ordem, spec = null, pedidoOdoo = null) {
+  if (!ordem && !pedidoOdoo) return "Corte & Dobra";
+  const o = ordem || {};
+
+  const NOMES_GENERICOS = new Set([
+    "CHAPA LISA / BLANK",
+    "BLANK / CHAPA CORTADA",
+    "CORTE & DOBRA",
+    "CORTE E DOBRA",
+    "CHAPA",
+    "BLANK",
+    "CHAPA CORTADA",
+    "CHAPA LISA",
+    "—",
+    "-"
+  ]);
+
+  // Se houver pedidoOdoo vinculado, busca o item correspondente à OF
+  const itemOdoo = pedidoOdoo?.itens?.[o.item_idx ?? 0] || pedidoOdoo?.itens?.[0] || null;
 
   const candidatos = [
+    itemOdoo?.produto,
+    itemOdoo?.name,
+    pedidoOdoo?.produto,
     o.item_produto,
     o.produto_nome,
     o.produto,
@@ -78,14 +151,15 @@ export function extrairNomeProdutoOficial(ordem, spec = null) {
     if (!c) continue;
     const str = String(c).trim();
     const upper = str.toUpperCase();
-    // Rejeita nomes excessivamente genéricos quando houver outra descrição
-    if (["CHAPA LISA / BLANK", "BLANK / CHAPA CORTADA", "CORTE & DOBRA", "CHAPA", "BLANK", "—"].includes(upper)) {
+    if (NOMES_GENERICOS.has(upper)) {
       continue;
     }
     return str;
   }
 
-  if (spec?.tipo_label) return spec.tipo_label;
+  if (spec?.tipo_label && !NOMES_GENERICOS.has(String(spec.tipo_label).trim().toUpperCase())) {
+    return spec.tipo_label;
+  }
   return o.tipo_peca || o.produto || "Chapa Cortada";
 }
 
@@ -98,7 +172,7 @@ export function extrairNomeProdutoOficial(ordem, spec = null) {
  * - A quantidade vem da contagem explícita na anotação ou de qtdOdoo (se UN/PC).
  * - Se vendido em KG no Odoo, calcula: KG / peso_unitario_teorico (Largura x Comp x Esp x 7.85).
  */
-export function classificarItemCorteDobra(ordem, specTecOverride = null) {
+export function classificarItemCorteDobra(ordem, specTecOverride = null, pedidoOdoo = null) {
   const o = ordem || {};
   const textoCompleto = [
     o.tipo_peca,
@@ -222,8 +296,8 @@ export function classificarItemCorteDobra(ordem, specTecOverride = null) {
     medidaFmt = `${largMm} × ${compMm} mm`;
   }
 
-  const nomeProduto = extrairNomeProdutoOficial(o, spec);
-  const instrucaoVendedor = extrairInstrucaoLimpaVendedor(o);
+  const nomeProduto = extrairNomeProdutoOficial(o, spec, pedidoOdoo);
+  const instrucaoVendedor = extrairInstrucaoLimpaVendedor(o, pedidoOdoo);
 
   return {
     isChapaLisa,
@@ -244,7 +318,7 @@ export function classificarItemCorteDobra(ordem, specTecOverride = null) {
  * Banner de Instrução e Especificação de Alta Visibilidade para TODAS as máquinas de Corte & Dobra
  * Padrão Telhas: Título Oficial do ERP no topo, Badges de Qtd/Peso no canto direito, e Instrução do Vendedor em destaque.
  */
-export default function BannerInstrucaoCorteDobra({ ordem, specTec = null, className = "" }) {
+export default function BannerInstrucaoCorteDobra({ ordem, specTec = null, pedidoOdoo = null, className = "" }) {
   if (!ordem) return null;
 
   try {
@@ -258,7 +332,7 @@ export default function BannerInstrucaoCorteDobra({ ordem, specTec = null, class
       instrucaoVendedor,
       spec,
       maquinas
-    } = classificarItemCorteDobra(ordem, specTec);
+    } = classificarItemCorteDobra(ordem, specTec, pedidoOdoo);
 
     return (
       <div
