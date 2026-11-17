@@ -1,3 +1,5 @@
+import { detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
+
 /**
  * Helper para gestão e sincronização de fluxo paralelo de Telha Bandeja
  * - Telha Superior perfila na máquina da telha (ex: TP - 40, COLONIAL, TP - 25)
@@ -19,17 +21,24 @@ export function gerarIdentificadorGrupoBandeja(numeroPedido, opId = "") {
 
 /**
  * Monta as 3 ordens necessárias para uma Telha Bandeja:
- * 1. Telha Superior (máquina da telha: TP - 40, etc.)
+ * 1. Telha Superior (máquina da telha: COLONIAL, TP - 25, TP - 40)
  * 2. Bandeja Inferior (máquina BANDEJA)
  * 3. Colagem Final (máquina COLAGEM - bloqueada até as anteriores terminarem)
  */
 export function montarTriadeTelhaBandeja(dataPrincipal) {
   const grupoId = dataPrincipal.grupo_bandeja_id || gerarIdentificadorGrupoBandeja(dataPrincipal.numero_pedido);
+  const maquinaDetectada = detectarMaquinaTelha(dataPrincipal);
   const maquinaTelha = dataPrincipal.maquina && dataPrincipal.maquina !== "BANDEJA" && dataPrincipal.maquina !== "COLAGEM"
     ? dataPrincipal.maquina
-    : "TP - 40";
+    : (dataPrincipal.maquina_origem || (maquinaDetectada && maquinaDetectada !== "BANDEJA" && maquinaDetectada !== "COLAGEM" ? maquinaDetectada : "TP - 40"));
 
-  // 1. Ordem da Telha Superior (perfiladeira normal)
+  const epsTagBandeja = dataPrincipal.eps || (
+    maquinaTelha === "COLONIAL" ? "EPS - COLONIAL BANDEJA" :
+    maquinaTelha === "TP - 25" ? "EPS - TP 25 BANDEJA" :
+    "EPS - TP 40 BANDEJA"
+  );
+
+  // 1. Ordem da Telha Superior (perfiladeira normal da telha)
   const ordemTelha = {
     ...dataPrincipal,
     maquina: maquinaTelha,
@@ -79,7 +88,7 @@ export function montarTriadeTelhaBandeja(dataPrincipal) {
     status: "aguardando_colagem",
     bloqueado_colagem: true,
     grupo_bandeja_id: grupoId,
-    eps: dataPrincipal.eps || "EPS - TP 40 BANDEJA",
+    eps: epsTagBandeja,
   };
 
   return { ordemTelha, ordemBandeja, ordemColagem, grupoId };
@@ -92,7 +101,7 @@ export function proximaMaquinaFluxo(produto, maquinaAtual) {
     if (norm === "BANDEJA") return "COLAGEM";
     // 2. Se já está na COLAGEM, é a etapa final
     if (norm === "COLAGEM") return null;
-    // 3. Qualquer perfiladeira de telha superior (TP-40, Colonial, TP-25, etc.) vai PRIMEIRO para a BANDEJA
+    // 3. Qualquer perfiladeira de telha superior (COLONIAL, TP-25, TP-40, etc.) vai PRIMEIRO para a BANDEJA
     return "BANDEJA";
   }
   return null;
@@ -127,6 +136,8 @@ export function verificarStatusComponentesBandeja(pedido, todosPedidos = []) {
 
   // Se NÃO existem ordens irmãs separadas (fluxo sequencial de OP única):
   if (!opTelha && !opBandeja) {
+    const maqDetectada = detectarMaquinaTelha(pedido);
+    const maquinaTelhaFinal = pedido.maquina_origem || (maqDetectada && maqDetectada !== "BANDEJA" && maqDetectada !== "COLAGEM" ? maqDetectada : "TP - 40");
     return {
       isBandeja: true,
       grupoId: null,
@@ -138,7 +149,7 @@ export function verificarStatusComponentesBandeja(pedido, todosPedidos = []) {
       mensagemBloqueio: "",
       statusTelha: "finalizado",
       statusBandeja: "finalizado",
-      maquinaTelha: pedido.maquina_origem || "TP - 40",
+      maquinaTelha: maquinaTelhaFinal,
     };
   }
 
@@ -157,6 +168,8 @@ export function verificarStatusComponentesBandeja(pedido, todosPedidos = []) {
     mensagemBloqueio = "Aguardando perfilação da Bandeja (Telha Superior já concluída)";
   }
 
+  const maqOpTelha = opTelha?.maquina || detectarMaquinaTelha(pedido) || "TP - 40";
+
   return {
     isBandeja: true,
     grupoId,
@@ -168,6 +181,6 @@ export function verificarStatusComponentesBandeja(pedido, todosPedidos = []) {
     mensagemBloqueio,
     statusTelha: opTelha?.status || "pendente",
     statusBandeja: opBandeja?.status || "pendente",
-    maquinaTelha: opTelha?.maquina || "TP - 40",
+    maquinaTelha: maqOpTelha,
   };
 }

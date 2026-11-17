@@ -28,7 +28,7 @@ import PedidoRowEntrega from "@/components/producao/PedidoRowEntrega";
 import AlertaMultiplasOpsMesmoPedido from "@/components/producao/AlertaMultiplasOpsMesmoPedido"; import BandejaColagemInfoPanel from "@/components/producao/BandejaColagemInfoPanel";
 import SmartImage from "@/components/ui/SmartImage";
 import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/compressImage";
-import { isTelhaBandeja, verificarStatusComponentesBandeja } from "@/lib/bandejaHelper"; import { descricaoItemOriginal } from "@/lib/descricaoItemOriginal";
+import { isTelhaBandeja, verificarStatusComponentesBandeja } from "@/lib/bandejaHelper"; import { descricaoItemOriginal, verificarDivergenciaModeloDescricao } from "@/lib/descricaoItemOriginal";
 import { useRegrasProducao } from "@/lib/regrasProducao";
 import { detectarTipoProdutoTelha, detectarEPSTelha, detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
 
@@ -1820,6 +1820,10 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const ehRetira = isPedidoRetiraAgora(p);
   const ehRota = isPedidoRota(p);
 
+  const divergenciaModelo = useMemo(() => {
+    return verificarDivergenciaModeloDescricao(p);
+  }, [p.item_produto, p.produto, p.observacoes_odoo, p.observacoes, p.descricao]);
+
   return (
     <>
       <div className={`border-l-4 ${cardPrioCls || borderColor} bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-all`}>
@@ -1831,6 +1835,11 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="font-bold text-base">{descricaoItemOriginal(p) || "TELHA / PERFIL METÁLICO"}</span>
+              {divergenciaModelo.temDivergencia && (
+                <Badge className="bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-800 text-xs font-bold gap-1 shadow-2xs">
+                  {divergenciaModelo.mensagemAviso}
+                </Badge>
+              )}
               {p.produto === "TELHA + EPS + TELHA" && (
                 <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-xs gap-1 font-bold shadow-xs">
                   <Layers className="w-3 h-3" /> DUPLA TELHA (SANDUÍCHE)

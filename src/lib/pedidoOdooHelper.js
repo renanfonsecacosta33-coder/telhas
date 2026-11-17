@@ -828,37 +828,63 @@ export function detectarTipoProdutoTelha(produtoTexto = "", descricaoTexto = "")
 }
 
 // Detecta a máquina sugerida para Telhas com suporte abrangente a nomes de produtos e descrições das linhas
-export function detectarMaquinaTelha(produtoTexto = "") {
-  const p = typeof produtoTexto === "object"
-    ? `${produtoTexto?.descricao || ""} ${produtoTexto?.produto || ""} ${produtoTexto?.modelo || ""} ${produtoTexto?.item_produto || ""} ${produtoTexto?.observacoes || ""} ${produtoTexto?.observacao || ""}`.toUpperCase()
-    : String(produtoTexto || "").toUpperCase();
+// REGRA TÉCNICA AJL: A descrição do vendedor é a VERDADE ABSOLUTA se indicar um modelo explicitamente
+export function detectarMaquinaTelha(produtoTexto = "", descricaoTexto = "") {
+  let prod = "";
+  let desc = "";
+
+  if (typeof produtoTexto === "object" && produtoTexto !== null) {
+    prod = String(produtoTexto.produto || produtoTexto.item_produto || produtoTexto.modelo || "").toUpperCase();
+    desc = String(produtoTexto.descricao || produtoTexto.observacao || produtoTexto.observacoes_odoo || produtoTexto.observacoes || "").toUpperCase();
+  } else {
+    prod = String(produtoTexto || "").toUpperCase();
+    desc = String(descricaoTexto || "").toUpperCase();
+  }
 
   // 1. CUMEEIRA sempre é feita na máquina CUMEEIRA (mesmo que seja Cumeeira TR 25, TR 40 ou Colonial)
-  if (p.includes("CUMEEIRA")) return "CUMEEIRA";
+  if (desc.includes("CUMEEIRA") || prod.includes("CUMEEIRA")) return "CUMEEIRA";
 
   // 2. BOBININHA / Fita de aço / Slitter vai 100% para o DESBOBINADOR!
-  if (/(DESBOBINADOR|BOBININHA|BOBININHAS|BOBININA|SLITTER|CORTE\s*LONGITUDINAL|FITA\s*DE\s*A[CÇ]O|FITAS\s*DE\s*A[CÇ]O|DESBOBINAMENTO)/i.test(p)) {
+  if (/(DESBOBINADOR|BOBININHA|BOBININHAS|BOBININA|SLITTER|CORTE\s*LONGITUDINAL|FITA\s*DE\s*A[CÇ]O|FITAS\s*DE\s*A[CÇ]O|DESBOBINAMENTO)/i.test(`${desc} ${prod}`)) {
     return "DESBOBINADOR";
   }
 
-  // 3. TELHA BANDEJA: Primeiro perfila a telha superior na TP - 40 (ou Colonial/TP 25), depois avança para a BANDEJA!
-  if (/TELHA\s*(\+|\/|\s+)?\s*BANDEJA|BANDEJA\s*(\+|\/|\s+)?\s*TELHA/i.test(p) || (p.includes("TELHA") && p.includes("BANDEJA"))) {
-    if (p.includes("COLONIAL")) return "COLONIAL";
-    if (/(TP\s*[-/]?\s*25|TR\s*[-/]?\s*25|TRAP[EÉ]ZIO\s*25)/i.test(p)) return "TP - 25";
+  // REGRA DE OURO DA VERDADE TÉCNICA:
+  // Se a descrição do vendedor indicar explicitamente um modelo de perfiladeira,
+  // ela tem PRIORIDADE ABSOLUTA sobre qualquer nome de produto genérico ou divergente cadastrado no ERP.
+  const modeloNaDescricao = (() => {
+    if (/(TP\s*[-/]?\s*25|TR\s*[-/]?\s*25|TRAP[EÉ]ZIO\s*25|TRAP\.\s*25|PERFIL\s*25|\b25\s*MM\b)/i.test(desc)) return "TP - 25";
+    if (desc.includes("COLONIAL")) return "COLONIAL";
+    if (/(ONDULAD|PERFIL\s*17|\b17\s*MM\b)/i.test(desc)) return "ONDULADA";
+    if (/(TP\s*[-/]?\s*40|TR\s*[-/]?\s*40|TRAP[EÉ]ZIO\s*40|TRAP\.\s*40|PERFIL\s*40|\b40\s*MM\b)/i.test(desc)) return "TP - 40";
+    return null;
+  })();
+
+  if (modeloNaDescricao) {
+    return modeloNaDescricao;
+  }
+
+  // 3. TELHA BANDEJA: Primeiro perfila a telha superior no seu modelo respectivo (Colonial, TP-25, TP-40) e avança para a BANDEJA
+  const ehTelhaBandeja = /TELHA\s*(\+|\/|\s+)?\s*BANDEJA|BANDEJA\s*(\+|\/|\s+)?\s*TELHA/i.test(`${prod} ${desc}`) ||
+    ((prod.includes("TELHA") || desc.includes("TELHA")) && (prod.includes("BANDEJA") || desc.includes("BANDEJA")));
+
+  if (ehTelhaBandeja) {
+    if (prod.includes("COLONIAL") || desc.includes("COLONIAL")) return "COLONIAL";
+    if (/(TP\s*[-/]?\s*25|TR\s*[-/]?\s*25|TRAP[EÉ]ZIO\s*25)/i.test(`${prod} ${desc}`)) return "TP - 25";
     return "TP - 40";
   }
 
-  // 4. Demais perfiladeiras com regex de alta precisão
+  // 4. Demais perfiladeiras com regex de alta precisão pelo nome do produto
   // Nota: TP 25 / TR 25 / Trapézio 25 / Perfil 25
-  if (/(TP\s*[-/]?\s*25|TR\s*[-/]?\s*25|TRAP[EÉ]ZIO\s*25|TRAP\.\s*25|PERFIL\s*25|\b25\s*MM\b)/i.test(p)) return "TP - 25";
+  if (/(TP\s*[-/]?\s*25|TR\s*[-/]?\s*25|TRAP[EÉ]ZIO\s*25|TRAP\.\s*25|PERFIL\s*25|\b25\s*MM\b)/i.test(prod)) return "TP - 25";
   // TP 40 / TR 40 / Trapézio 40 / Perfil 40
-  if (/(TP\s*[-/]?\s*40|TR\s*[-/]?\s*40|TRAP[EÉ]ZIO\s*40|TRAP\.\s*40|PERFIL\s*40|\b40\s*MM\b)/i.test(p)) return "TP - 40";
+  if (/(TP\s*[-/]?\s*40|TR\s*[-/]?\s*40|TRAP[EÉ]ZIO\s*40|TRAP\.\s*40|PERFIL\s*40|\b40\s*MM\b)/i.test(prod)) return "TP - 40";
   // Ondulada / Perfil 17
-  if (/(ONDULAD|PERFIL\s*17|\b17\s*MM\b)/i.test(p)) return "ONDULADA";
-  if (p.includes("COLONIAL")) return "COLONIAL";
+  if (/(ONDULAD|PERFIL\s*17|\b17\s*MM\b)/i.test(prod)) return "ONDULADA";
+  if (prod.includes("COLONIAL")) return "COLONIAL";
 
   // 5. Bandeja avulsa (somente se não for Telha Bandeja)
-  if (p.includes("BANDEJA")) return "BANDEJA";
+  if (prod.includes("BANDEJA")) return "BANDEJA";
 
   // 6. Telha SEM MODELO Especificado -> ⛔ NENHUMA MÁQUINA (PCP Pendente)
   // Regra AJL: NÃO vai automático para TP-40! Cai no PCP como "Modelo Não Especificado - Definir Manualmente"
@@ -920,8 +946,15 @@ export function detectarOrigemAco(produtoTexto = "", descricaoTexto = "") {
 // Detecta o tipo e espessura de EPS a partir do texto do produto, modelo ou da máquina da telha
 // REGRA DE OURO: Telha simples NUNCA tem EPS. Retorna vazio se não houver indício claro de EPS.
 export function detectarEPSTelha(produtoTexto = "", maquina = "") {
-  const p = String(produtoTexto || "").toUpperCase();
-  const m = String(maquina || "").toUpperCase();
+  let p = "";
+  let m = String(maquina || "").toUpperCase();
+
+  if (typeof produtoTexto === "object" && produtoTexto !== null) {
+    p = `${produtoTexto.descricao || ""} ${produtoTexto.produto || ""} ${produtoTexto.item_produto || ""} ${produtoTexto.modelo || ""}`.toUpperCase();
+    if (!m && produtoTexto.maquina) m = String(produtoTexto.maquina).toUpperCase();
+  } else {
+    p = String(produtoTexto || "").toUpperCase();
+  }
 
   // Se nem o texto nem a máquina mencionam EPS/termoacústica/sanduíche/isopor/bandeja, RETORNA VAZIO!
   const temIndicioEps =
@@ -933,24 +966,26 @@ export function detectarEPSTelha(produtoTexto = "", maquina = "") {
     return "";
   }
 
-  const espEps = extrairEspessuraEPS(produtoTexto);
+  const espEps = extrairEspessuraEPS(p);
   const espSufixo = espEps ? ` (${espEps})` : "";
+  const ehBandeja = p.includes("BANDEJA") || m.includes("BANDEJA");
 
-  // 1. Verifica no nome da máquina da telha
-  if (m.includes("COLONIAL") && (m.includes("BANDEJA") || p.includes("BANDEJA"))) return `EPS - COLONIAL BANDEJA${espSufixo}`;
-  if (m.includes("COLONIAL")) return `EPS - COLONIAL${espSufixo}`;
-  if (m.includes("BANDEJA") || p.includes("BANDEJA")) return `EPS - TP 40 BANDEJA${espSufixo}`;
-  if (m.includes("TP 25") || m.includes("TP-25") || m.includes("TP25")) return `EPS - TP 25${espSufixo}`;
-  if (m.includes("TP 40") || m.includes("TP-40") || m.includes("TP40")) return `EPS - TP 40${espSufixo}`;
-  if (m.includes("ONDULAD")) return `EPS - ONDULADO${espSufixo}`;
+  // 1. TELHA BANDEJA: EPS específico do modelo superior (Colonial, TP 25, TP 40)
+  if (ehBandeja) {
+    if (m.includes("COLONIAL") || p.includes("COLONIAL")) {
+      return `EPS - COLONIAL BANDEJA${espSufixo}`;
+    }
+    if (m.includes("TP 25") || m.includes("TP-25") || m.includes("TP25") || /(TP|TR|TRAP[EÉ]ZIO)\s*[-/]?\s*25/i.test(p)) {
+      return `EPS - TP 25 BANDEJA${espSufixo}`;
+    }
+    return `EPS - TP 40 BANDEJA${espSufixo}`;
+  }
 
-  // 2. Verifica no texto do produto / rótulo PCP
-  if (p.includes("COLONIAL") && p.includes("BANDEJA")) return `EPS - COLONIAL BANDEJA${espSufixo}`;
-  if (p.includes("COLONIAL")) return `EPS - COLONIAL${espSufixo}`;
-  if (p.includes("BANDEJA") || p.includes("TP 40 BANDEJA") || p.includes("TP-40 BANDEJA")) return `EPS - TP 40 BANDEJA${espSufixo}`;
-  if (p.includes("TP 25") || p.includes("TP-25") || p.includes("TP25")) return `EPS - TP 25${espSufixo}`;
-  if (p.includes("TP 40") || p.includes("TP-40") || p.includes("TP40")) return `EPS - TP 40${espSufixo}`;
-  if (p.includes("ONDULAD")) return `EPS - ONDULADO${espSufixo}`;
+  // 2. Telhas convencionais (sem bandeja)
+  if (m.includes("COLONIAL") || p.includes("COLONIAL")) return `EPS - COLONIAL${espSufixo}`;
+  if (m.includes("TP 25") || m.includes("TP-25") || m.includes("TP25") || /(TP|TR|TRAP[EÉ]ZIO)\s*[-/]?\s*25/i.test(p)) return `EPS - TP 25${espSufixo}`;
+  if (m.includes("TP 40") || m.includes("TP-40") || m.includes("TP40") || /(TP|TR|TRAP[EÉ]ZIO)\s*[-/]?\s*40/i.test(p)) return `EPS - TP 40${espSufixo}`;
+  if (m.includes("ONDULAD") || p.includes("ONDULAD")) return `EPS - ONDULADO${espSufixo}`;
 
   return espEps ? `EPS ${espEps}` : "EPS";
 }
@@ -966,7 +1001,8 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
   const produtoNome = item?.produto || item?.descricao || "";
   const textoCompleto = `${produtoNome} ${descTexto}`.trim();
   const prodTipo = detectarTipoProdutoTelha(produtoNome, descTexto);
-  const maqDetectada = detectarMaquinaTelha(textoCompleto);
+  // Prioriza a verdade técnica da descrição do vendedor sobre o produto
+  const maqDetectada = detectarMaquinaTelha(produtoNome, descTexto);
   const maq = (prodTipo === "BOBININHA" || maqDetectada === "DESBOBINADOR")
     ? "DESBOBINADOR"
     : ((item?.maquina && item.maquina !== "COLAGEM") ? item.maquina : maqDetectada);

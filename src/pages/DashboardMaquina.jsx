@@ -135,14 +135,14 @@ export default function DashboardMaquina({ maquina }) {
         )
       );
       if (ehTelhaOuPerfil && (mNorm === "DESBOBINADOR" || mOrigemNorm === "DESBOBINADOR")) {
-        const maqDetectada = maquinaNorm(detectarMaquinaTelha(p.modelo || p.item_produto || p.produto || "") || "TP - 40");
+        const maqDetectada = maquinaNorm(detectarMaquinaTelha(p) || "TP - 40");
         if (maqDetectada === targetNorm) return true;
       }
 
       if (mNorm === targetNorm || String(p.maquina || "").toUpperCase().includes(targetNorm)) return true;
       if (mOrigemNorm === targetNorm || String(p.maquina_origem || "").toUpperCase().includes(targetNorm)) return true;
       if (mNorm === "COLAGEM" || p.status === "aguardando_colagem") {
-        if (maquinaNorm(detectarMaquinaTelha(p.produto || p.modelo || "")) === targetNorm) return true;
+        if (maquinaNorm(detectarMaquinaTelha(p)) === targetNorm) return true;
       }
       return false;
     });

@@ -1,5 +1,6 @@
 import { base44 } from "@/api/base44Client";
 import { isTelhaBandeja } from "@/lib/bandejaHelper";
+import { detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
 import { normalizarNumeroPedido } from "@/lib/conciliacaoPcpMaquinasHelper";
 import { toast } from "sonner";
 
@@ -36,12 +37,13 @@ export function identificarRoteiroDoPedido(pedido, item = null) {
   }
 
   const etapas = [];
+  const maquinaDetectada = detectarMaquinaTelha(item || pedido);
   const maquinaBaseTelha = pedido.maquina && pedido.maquina !== "BANDEJA" && pedido.maquina !== "COLAGEM"
     ? pedido.maquina
-    : "TP - 40";
+    : (pedido.maquina_origem || (maquinaDetectada && maquinaDetectada !== "BANDEJA" && maquinaDetectada !== "COLAGEM" ? maquinaDetectada : "TP - 40"));
 
   // ─────────────────────────────────────────────────────────────
-  // 1. CASO: TELHA BANDEJA (TP-40 / Colonial ➔ BANDEJA ➔ COLAGEM)
+  // 1. CASO: TELHA BANDEJA (Colonial / TP-25 / TP-40 ➔ BANDEJA ➔ COLAGEM)
   // ─────────────────────────────────────────────────────────────
   if (isTelhaBandeja(pedido) || isTelhaBandeja(item) || textoCompleto.includes("bandeja")) {
     etapas.push({
@@ -50,7 +52,7 @@ export function identificarRoteiroDoPedido(pedido, item = null) {
       nome: `1. Perfiladeira Telha (${maquinaBaseTelha})`,
       maquina: maquinaBaseTelha,
       setor: "telha",
-      descricao: "Perfilação da chapa superior da telha",
+      descricao: `Perfilação da telha superior na ${maquinaBaseTelha}`,
       concluida: Boolean(pedido.perfilacao_concluida || pedido.status === "aguardando_colagem" || pedido.maquina === "BANDEJA" || pedido.maquina === "COLAGEM")
     });
 

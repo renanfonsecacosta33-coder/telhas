@@ -353,7 +353,7 @@ export default function MaquinaPanel({ maquina }) {
       );
 
       if (ehTelhaOuPerfil && (mNorm === "DESBOBINADOR" || mOrigemNorm === "DESBOBINADOR")) {
-        const maqDetectada = maquinaNorm(detectarMaquinaTelha(p.modelo || p.item_produto || p.produto || "") || "TP - 40");
+        const maqDetectada = maquinaNorm(detectarMaquinaTelha(p) || "TP - 40");
         if (maqDetectada === targetNorm) {
           return true;
         }
@@ -372,7 +372,7 @@ export default function MaquinaPanel({ maquina }) {
       // 3. Retrocompatibilidade: Se o pedido está em COLAGEM ou aguardando_colagem,
       // mas não tem maquina_origem explicitamente salvo ainda:
       if (mNorm === "COLAGEM" || p.status === "aguardando_colagem") {
-        const maqDetectada = maquinaNorm(detectarMaquinaTelha(p.produto || p.modelo || ""));
+        const maqDetectada = maquinaNorm(detectarMaquinaTelha(p));
         if (maqDetectada === targetNorm) {
           return true;
         }
