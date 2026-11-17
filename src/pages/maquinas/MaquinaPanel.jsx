@@ -26,7 +26,8 @@ import {
   SeletorPrioridadeDropdown,
   getPesoOrdenacaoPrioridade,
   compararPrioridadeEData,
-  getDataEntregaParaOrdenacao
+  getDataEntregaParaOrdenacao,
+  formatarDataProgramadaAmigavel
 } from "@/lib/prioridadeHelper";
 import AlterarDataPedidoMaquinaModal from "@/components/maquinas/AlterarDataPedidoMaquinaModal";
 import { normalizarTextoBusca, calcularFiltrosTipoECor, pedidoAtendeFiltroTipoECor } from "@/lib/bobinaStatusHelper";
@@ -981,17 +982,24 @@ export default function MaquinaPanel({ maquina }) {
     toast.success(`${removidos} OP(s) duplicada(s) removida(s) com sucesso!`);
   };
 
-  const handleSetPrioridade = (pedido, nivel) => {
+  const handleSetPrioridade = (pedido, nivel, dataProgramada = null) => {
     const ehRetiraAgora = nivel === "RETIRA_AGORA";
     const ehRota = nivel === "ROTA";
-    const nivelNum = !ehRetiraAgora && !ehRota && nivel ? Number(nivel) : null;
+    const ehPrioridade = nivel === "PRIORIDADE" || nivel === 1 || nivel === 2;
+    const ativa = Boolean(ehRetiraAgora || ehRota || ehPrioridade);
+    const nivelSalvar = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : ehPrioridade ? "PRIORIDADE" : null;
+    const hojeIso = new Date().toISOString().slice(0, 10);
+    const dataDefinida = (ehRota || ehPrioridade) ? (dataProgramada || pedido.data_programada_pcp || pedido.data_entrega || hojeIso) : null;
+    const dataFmt = dataDefinida ? formatarDataProgramadaAmigavel(dataDefinida) : "";
+
     const labelAcao = ehRetiraAgora
-      ? "Marcou como CLIENTE RETIRA AGORA (Balcão)"
+      ? "Marcou como ⚡ CLIENTE RETIRA AGORA (Balcão)"
       : ehRota
-      ? "Marcou como Carga de Rota"
-      : nivelNum
-      ? `Definiu Prioridade P${nivelNum}`
-      : "Removeu Prioridade";
+      ? `Marcou como 🚚 Carga de Rota (${dataFmt || dataDefinida})`
+      : ehPrioridade
+      ? `Definiu ⭐ Prioridade (${dataFmt || dataDefinida})`
+      : "Removeu Prioridade (Fila Normal)";
+
     const histData = appendHistorico(
       pedido,
       "prioridade",
@@ -999,19 +1007,25 @@ export default function MaquinaPanel({ maquina }) {
       ehRetiraAgora
         ? "Cliente aguardando retirada imediata na fábrica"
         : ehRota
-        ? "Pedido de rota de entrega expedida"
-        : `Prioridade nível ${nivelNum || "nenhum"}`
+        ? `Carga de rota agendada para ${dataFmt || dataDefinida}`
+        : ehPrioridade
+        ? `Prontidão agendada para ${dataFmt || dataDefinida}`
+        : "Fila normal"
     );
+
     updateMutation.mutate({
       id: pedido.id,
       data: {
-        prioridade: Boolean(ehRetiraAgora || ehRota || (nivelNum && nivelNum >= 1 && nivelNum <= 3)),
-        prioridade_nivel: nivelNum,
+        prioridade: ativa,
+        prioridade_nivel: nivelSalvar,
+        tipo_prioridade: nivelSalvar,
         cliente_retira_agora: ehRetiraAgora,
         cliente_retira: ehRetiraAgora,
         retira_agora: ehRetiraAgora,
         rota: ehRota,
         is_rota: ehRota,
+        data_programada_pcp: dataDefinida,
+        ...(dataDefinida ? { data_entrega: dataDefinida, data_prevista: dataDefinida } : {}),
         ...(ehRota ? { rota_ts: new Date().toISOString() } : {}),
         ...histData
       }
@@ -1701,7 +1715,7 @@ export default function MaquinaPanel({ maquina }) {
                     </button>
                     <SeletorPrioridadeDropdown
                       pedido={p}
-                      onSelectPrioridade={(nivel) => handleSetPrioridade(p, nivel)}
+                      onSelectPrioridade={(nivel, data) => handleSetPrioridade(p, nivel, data)}
                       className="!h-9 !px-3 !text-[13px] !rounded-[9px] !font-semibold border border-[#e3e6ec] bg-[#f5f6f8] hover:bg-[#e9edfa]"
                     />
                   </>

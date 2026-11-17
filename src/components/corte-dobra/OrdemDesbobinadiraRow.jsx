@@ -834,11 +834,6 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
             )}
             <StatusBadge status={o.status} />
             <PrioridadeBadge pedido={o} />
-            {ehRota && !ehRetira && (
-              <Badge className="bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-400 text-xs gap-1.5 font-black shadow-xs tracking-wide">
-                <Truck className="w-3.5 h-3.5" /> 🚚 CARGA DE ROTA
-              </Badge>
-            )}
             {o.data < format(new Date(), "yyyy-MM-dd") && o.status !== "finalizado" && o.status !== "cancelado" && (
               <Badge className="bg-red-500 text-white border-red-600 animate-pulse text-xs">⚠️ Prioridade (Dia Anterior)</Badge>
             )}

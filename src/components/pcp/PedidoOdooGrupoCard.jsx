@@ -500,9 +500,9 @@ export default function PedidoOdooGrupoCard({
                 <div onClick={(e) => e.stopPropagation()} title="Definir prioridade ou rota para todo o pedido">
                   <SeletorPrioridadeDropdown
                     pedido={grupo}
-                    onSelectPrioridade={(nivel) => {
-                      if (onSetPrioridadeGrupo) onSetPrioridadeGrupo(grupo, nivel);
-                      else if (onSetPrioridade) onSetPrioridade(grupo, nivel);
+                    onSelectPrioridade={(nivel, data) => {
+                      if (onSetPrioridadeGrupo) onSetPrioridadeGrupo(grupo, nivel, data);
+                      else if (onSetPrioridade) onSetPrioridade(grupo, nivel, data);
                     }}
                     size="sm"
                     variant="outline"

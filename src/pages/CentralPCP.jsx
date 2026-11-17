@@ -60,7 +60,7 @@ import useDistribuicaoPcp from "@/hooks/useDistribuicaoPcp"; import useProgramac
 import useFilaPaginada from "@/hooks/useFilaPaginada"; import useRealtimeThrottled from "@/hooks/useRealtimeThrottled";
 import FilaPagination from "@/components/pcp/FilaPagination";
 import { montarConsultaPcp, buscarOpsDasOfs } from "@/lib/consultaFilaPcp"; import useFecharProduzidosPcp from "@/hooks/useFecharProduzidosPcp";
-import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
+import { getPesoOrdenacaoPrioridade, formatarDataProgramadaAmigavel } from "@/lib/prioridadeHelper";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 
@@ -940,21 +940,15 @@ export default function CentralPCP() {
     }
   };
 
-  const handleSetPrioridade = (pedido, nivel) => {
-    // Se for P1 ou P2 (alta urgência), exige PIN do gestor caso não seja admin
-    if (nivel === 1 || nivel === 2 || nivel === "1" || nivel === "2") {
-      setPedidoPrioridadePendente({ pedido, nivel: Number(nivel), isGrupo: false });
-      setSenhaGestorOpen(true);
-    } else {
-      confirmarPrioridade(pedido, nivel);
-    }
+  const handleSetPrioridade = (pedido, nivel, dataProgramada = null) => {
+    confirmarPrioridade(pedido, nivel, dataProgramada);
   };
 
   const handleTogglePrioridade = (pedido) => {
     if (!pedido.prioridade) {
-      handleSetPrioridade(pedido, 1);
+      confirmarPrioridade(pedido, "RETIRA_AGORA", null);
     } else {
-      confirmarPrioridade(pedido, null);
+      confirmarPrioridade(pedido, null, null);
     }
   };
 
@@ -986,24 +980,34 @@ export default function CentralPCP() {
     throw ultimoErro;
   };
 
-  const confirmarPrioridade = async (pedido, nivel) => {
+  const confirmarPrioridade = async (pedido, nivel, dataProgramada = null) => {
     const isRetiraAgora = nivel === "RETIRA_AGORA";
     const isRota = nivel === "ROTA";
-    const nivelNumerico = (!isRetiraAgora && !isRota && nivel) ? Number(nivel) : null;
-    const ativa = Boolean(isRetiraAgora || isRota || nivelNumerico);
+    const isPrioridade = nivel === "PRIORIDADE" || nivel === 1 || nivel === 2;
+    const ativa = Boolean(isRetiraAgora || isRota || isPrioridade);
+    const nivelSalvar = isRetiraAgora ? "RETIRA_AGORA" : isRota ? "ROTA" : isPrioridade ? "PRIORIDADE" : null;
+
+    const hojeIso = new Date().toISOString().slice(0, 10);
+    const dataDefinida = (isRota || isPrioridade)
+      ? (dataProgramada || pedido.data_programada_pcp || pedido.data_entrega || hojeIso)
+      : null;
+    const dataFmtAmigavel = dataDefinida ? formatarDataProgramadaAmigavel(dataDefinida) : "";
+
     const logExistente = (() => { try { return JSON.parse(pedido.historico_log || "[]"); } catch { return []; } })();
     const descr = isRetiraAgora
-      ? "OF marcada como ⚡🚨 CLIENTE RETIRA AGORA (Balcão)."
+      ? "OF marcada como ⚡ CLIENTE RETIRA AGORA (Balcão)."
       : isRota
-      ? "OF marcada como 🚚 Pedido de Rota."
-      : ativa
-      ? `OF marcada como Prioridade P${nivelNumerico} (1 a 5 - sendo 1 mais urgente).`
-      : "Prioridade removida.";
+      ? `OF marcada como 🚚 Pedido de Rota (Carregamento: ${dataFmtAmigavel || dataDefinida}).`
+      : isPrioridade
+      ? `OF marcada como ⭐ Prioridade (Prontidão: ${dataFmtAmigavel || dataDefinida}).`
+      : "Prioridade removida (Fila Normal).";
 
     const novoLog = [...logExistente, {
       data: new Date().toISOString(),
       usuario: usuarioLogadoNome,
-      acao: ativa ? (isRetiraAgora ? "prioridade_retira_agora" : isRota ? "prioridade_rota" : `prioridade_p${nivelNumerico}`) : "prioridade_removida",
+      acao: ativa
+        ? (isRetiraAgora ? "prioridade_retira_agora" : isRota ? "prioridade_rota" : "prioridade_fabril")
+        : "prioridade_removida",
       detalhes: descr
     }];
 
@@ -1015,12 +1019,17 @@ export default function CentralPCP() {
           return {
             ...p,
             prioridade: ativa,
-            prioridade_nivel: nivelNumerico,
+            prioridade_nivel: nivelSalvar,
+            tipo_prioridade: nivelSalvar,
             cliente_retira_agora: isRetiraAgora,
             cliente_retira: isRetiraAgora,
             retira_agora: isRetiraAgora,
             is_rota: isRota,
             rota: isRota,
+            data_programada_pcp: dataDefinida,
+            data_carregamento_rota: isRota ? dataDefinida : null,
+            data_prontidao: isPrioridade ? dataDefinida : null,
+            ...(dataDefinida ? { data_entrega: dataDefinida, data_previsao_fabrica: dataDefinida } : {}),
             historico_log: JSON.stringify(novoLog)
           };
         }
@@ -1031,12 +1040,17 @@ export default function CentralPCP() {
     try {
       const payloadOf = {
         prioridade: ativa,
-        prioridade_nivel: nivelNumerico,
+        prioridade_nivel: nivelSalvar,
+        tipo_prioridade: nivelSalvar,
         cliente_retira_agora: isRetiraAgora,
         cliente_retira: isRetiraAgora,
         retira_agora: isRetiraAgora,
         is_rota: isRota,
         rota: isRota,
+        data_programada_pcp: dataDefinida,
+        data_carregamento_rota: isRota ? dataDefinida : null,
+        data_prontidao: isPrioridade ? dataDefinida : null,
+        ...(dataDefinida ? { data_entrega: dataDefinida, data_previsao_fabrica: dataDefinida } : {}),
         ...(isRota ? { rota_ts: new Date().toISOString() } : {}),
         historico_log: JSON.stringify(novoLog)
       };
@@ -1056,12 +1070,15 @@ export default function CentralPCP() {
               { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
               { $set: {
                 prioridade: ativa,
-                prioridade_nivel: nivelNumerico,
+                prioridade_nivel: nivelSalvar,
+                tipo_prioridade: nivelSalvar,
                 cliente_retira_agora: isRetiraAgora,
                 cliente_retira: isRetiraAgora,
                 retira_agora: isRetiraAgora,
                 is_rota: isRota,
                 rota: isRota,
+                data_programada_pcp: dataDefinida,
+                ...(dataDefinida ? { data_entrega: dataDefinida, data_prevista: dataDefinida } : {}),
                 ...(isRota ? { rota_ts: new Date().toISOString() } : {})
               } }
             )
@@ -1076,12 +1093,15 @@ export default function CentralPCP() {
               { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
               { $set: {
                 prioridade: ativa,
-                prioridade_nivel: nivelNumerico,
+                prioridade_nivel: nivelSalvar,
+                tipo_prioridade: nivelSalvar,
                 cliente_retira_agora: isRetiraAgora,
                 cliente_retira: isRetiraAgora,
                 retira_agora: isRetiraAgora,
                 is_rota: isRota,
                 rota: isRota,
+                data_programada_pcp: dataDefinida,
+                ...(dataDefinida ? { data: dataDefinida } : {}),
                 ...(isRota ? { rota_ts: new Date().toISOString() } : {})
               } }
             )
@@ -1091,26 +1111,26 @@ export default function CentralPCP() {
 
       toast({
         title: isRetiraAgora
-          ? "⚡🚨 Cliente Retira Agora Definido"
+          ? "⚡ Cliente Retira Agora Definido"
           : isRota
-          ? "🚚 Pedido de Rota Definido"
-          : ativa
-          ? `Prioridade P${nivelNumerico} Definida`
+          ? "🚚 Rota Agendada com Sucesso"
+          : isPrioridade
+          ? "⭐ Prioridade com Data Agendada"
           : "Prioridade Removida",
         description: `#${pedido.numero_pedido} ${
           isRetiraAgora
-            ? "marcado como prioridade máxima no balcão"
+            ? "marcado como prioridade máxima imediata no balcão"
             : isRota
-            ? "marcado como rota de entrega"
-            : ativa
-            ? `marcado com Prioridade P${nivelNumerico}`
-            : "voltou para fila normal"
+            ? `carregamento agendado para ${dataFmtAmigavel || dataDefinida}`
+            : isPrioridade
+            ? `prontidão prometida para ${dataFmtAmigavel || dataDefinida}`
+            : "voltou para a fila normal"
         }.`,
         className: isRetiraAgora
           ? "border-red-500/80 bg-red-50 dark:bg-red-950/50"
           : isRota
           ? "border-indigo-500/40"
-          : ativa
+          : isPrioridade
           ? "border-amber-500/40"
           : "border-slate-400/40"
       });
@@ -1124,27 +1144,30 @@ export default function CentralPCP() {
   };
 
   // DEFINIR PRIORIDADE PARA O PEDIDO TODO (Propaga para todas as OFs do grupo)
-  const handleSetPrioridadeGrupo = (grupo, nivel) => {
-    if (nivel === 1 || nivel === 2 || nivel === "1" || nivel === "2") {
-      setPedidoPrioridadePendente({ grupo, nivel: Number(nivel), isGrupo: true });
-      setSenhaGestorOpen(true);
-    } else {
-      confirmarPrioridadeGrupo(grupo, nivel);
-    }
+  const handleSetPrioridadeGrupo = (grupo, nivel, dataProgramada = null) => {
+    confirmarPrioridadeGrupo(grupo, nivel, dataProgramada);
   };
 
-  const confirmarPrioridadeGrupo = async (grupo, nivel) => {
+  const confirmarPrioridadeGrupo = async (grupo, nivel, dataProgramada = null) => {
     const ofs = grupo.ofs || [];
     const isRetiraAgora = nivel === "RETIRA_AGORA";
     const isRota = nivel === "ROTA";
-    const nivelNumerico = (!isRetiraAgora && !isRota && nivel) ? Number(nivel) : null;
-    const ativa = Boolean(isRetiraAgora || isRota || nivelNumerico);
+    const isPrioridade = nivel === "PRIORIDADE" || nivel === 1 || nivel === 2;
+    const ativa = Boolean(isRetiraAgora || isRota || isPrioridade);
+    const nivelSalvar = isRetiraAgora ? "RETIRA_AGORA" : isRota ? "ROTA" : isPrioridade ? "PRIORIDADE" : null;
+
+    const hojeIso = new Date().toISOString().slice(0, 10);
+    const dataDefinida = (isRota || isPrioridade)
+      ? (dataProgramada || grupo.data_programada_pcp || grupo.data_entrega || hojeIso)
+      : null;
+    const dataFmtAmigavel = dataDefinida ? formatarDataProgramadaAmigavel(dataDefinida) : "";
+
     const descr = isRetiraAgora
-      ? `Todo o Pedido #${grupo.numero_pedido} marcado como ⚡🚨 CLIENTE RETIRA AGORA (Balcão).`
+      ? `Todo o Pedido #${grupo.numero_pedido} marcado como ⚡ CLIENTE RETIRA AGORA (Balcão).`
       : isRota
-      ? `Todo o Pedido #${grupo.numero_pedido} marcado como 🚚 Pedido de Rota.`
-      : ativa
-      ? `Todo o Pedido #${grupo.numero_pedido} marcado como Prioridade P${nivelNumerico}.`
+      ? `Todo o Pedido #${grupo.numero_pedido} marcado como 🚚 Rota (Carregamento: ${dataFmtAmigavel || dataDefinida}).`
+      : isPrioridade
+      ? `Todo o Pedido #${grupo.numero_pedido} marcado como ⭐ Prioridade (Prontidão: ${dataFmtAmigavel || dataDefinida}).`
       : `Prioridade removida de todo o Pedido #${grupo.numero_pedido}.`;
 
     const ofIdsSet = new Set(ofs.map((o) => o.id));
@@ -1159,19 +1182,24 @@ export default function CentralPCP() {
             data: new Date().toISOString(),
             usuario: usuarioLogadoNome,
             acao: ativa
-              ? (isRetiraAgora ? "prioridade_grupo_retira_agora" : isRota ? "prioridade_grupo_rota" : `prioridade_grupo_p${nivelNumerico}`)
+              ? (isRetiraAgora ? "prioridade_grupo_retira_agora" : isRota ? "prioridade_grupo_rota" : "prioridade_grupo_fabril")
               : "prioridade_grupo_removida",
             detalhes: descr
           }];
           return {
             ...p,
             prioridade: ativa,
-            prioridade_nivel: nivelNumerico,
+            prioridade_nivel: nivelSalvar,
+            tipo_prioridade: nivelSalvar,
             cliente_retira_agora: isRetiraAgora,
             cliente_retira: isRetiraAgora,
             retira_agora: isRetiraAgora,
             is_rota: isRota,
             rota: isRota,
+            data_programada_pcp: dataDefinida,
+            data_carregamento_rota: isRota ? dataDefinida : null,
+            data_prontidao: isPrioridade ? dataDefinida : null,
+            ...(dataDefinida ? { data_entrega: dataDefinida, data_previsao_fabrica: dataDefinida } : {}),
             historico_log: JSON.stringify(novoLog)
           };
         }
@@ -1182,12 +1210,17 @@ export default function CentralPCP() {
     try {
       const payloadUpdate = {
         prioridade: ativa,
-        prioridade_nivel: nivelNumerico,
+        prioridade_nivel: nivelSalvar,
+        tipo_prioridade: nivelSalvar,
         cliente_retira_agora: isRetiraAgora,
         cliente_retira: isRetiraAgora,
         retira_agora: isRetiraAgora,
         is_rota: isRota,
         rota: isRota,
+        data_programada_pcp: dataDefinida,
+        data_carregamento_rota: isRota ? dataDefinida : null,
+        data_prontidao: isPrioridade ? dataDefinida : null,
+        ...(dataDefinida ? { data_entrega: dataDefinida, data_previsao_fabrica: dataDefinida } : {}),
         ...(isRota ? { rota_ts: new Date().toISOString() } : {})
       };
 
@@ -1219,7 +1252,10 @@ export default function CentralPCP() {
           await executarComRetryRateLimit(() =>
             base44.entities.Pedido.updateMany(
               { numero_pedido: grupo.numero_pedido, status: { $ne: "cancelado" } },
-              { $set: payloadUpdate }
+              { $set: {
+                ...payloadUpdate,
+                ...(dataDefinida ? { data_prevista: dataDefinida } : {})
+              } }
             )
           ).catch((e) => console.warn("Falha ao sincronizar grupo com Pedido:", e));
         } catch (_) {}
@@ -1230,7 +1266,10 @@ export default function CentralPCP() {
           await executarComRetryRateLimit(() =>
             base44.entities.OrdemMaquinaCD.updateMany(
               { numero_pedido: grupo.numero_pedido, status: { $ne: "cancelado" } },
-              { $set: payloadUpdate }
+              { $set: {
+                ...payloadUpdate,
+                ...(dataDefinida ? { data: dataDefinida } : {})
+              } }
             )
           ).catch((e) => console.warn("Falha ao sincronizar grupo com OrdemMaquinaCD:", e));
         } catch (_) {}
@@ -1238,27 +1277,20 @@ export default function CentralPCP() {
 
       toast({
         title: isRetiraAgora
-          ? "⚡🚨 Cliente Retira Agora Definido"
+          ? "⚡ Pedido Todo Marcado: Cliente Retira Agora"
           : isRota
-          ? "🚚 Pedido de Rota Definido"
-          : ativa
-          ? `Prioridade P${nivelNumerico} no Pedido Todo`
-          : "Prioridade Removida",
-        description: `Todas as ${ofs.length} OFs do Pedido #${grupo.numero_pedido} foram atualizadas com sucesso!`,
-        className: isRetiraAgora
-          ? "border-red-500/80 bg-red-50 dark:bg-red-950/50"
-          : isRota
-          ? "border-indigo-500/40"
-          : ativa
-          ? "border-amber-500/40"
-          : "border-slate-400/40"
+          ? "🚚 Pedido Todo Agendado para Rota"
+          : isPrioridade
+          ? "⭐ Pedido Todo Definido como Prioridade"
+          : "Prioridade do Pedido Removida",
+        description: `Todas as OFs de #${grupo.numero_pedido} foram atualizadas com sucesso.`,
+        className: isRetiraAgora ? "border-red-500/80 bg-red-50 dark:bg-red-950/50" : "border-indigo-500/40"
       });
     } catch (e) {
-      // Reverte cache se deu erro após todas as tentativas
       if (snapshotAnterior) {
         queryClient.setQueryData(filaPcp.queryKey, snapshotAnterior);
       }
-      toast({ title: "Erro ao alterar prioridade do pedido", description: e.message, variant: "destructive" });
+      toast({ title: "Erro ao alterar prioridade do grupo", description: e.message, variant: "destructive" });
     }
   };
 
@@ -1267,17 +1299,19 @@ export default function CentralPCP() {
     const lista = (pedidos || []).filter(p => selecionados.has(p.id));
     if (lista.length === 0) return;
 
-    const ativa = Boolean(nivel);
     const isRetiraAgora = nivel === "RETIRA_AGORA";
     const isRota = nivel === "ROTA";
-    const nivelNumerico = (!isRetiraAgora && !isRota && nivel) ? Number(nivel) : null;
+    const isPrioridade = nivel === "PRIORIDADE" || nivel === 1 || nivel === 2;
+    const nivelNumerico = isRetiraAgora ? "RETIRA_AGORA" : isRota ? "ROTA" : isPrioridade ? "PRIORIDADE" : null;
+    const ativa = Boolean(isRetiraAgora || isRota || isPrioridade);
+    const hojeIso = new Date().toISOString().slice(0, 10);
     const descr = isRetiraAgora
-      ? "Marcado como ⚡🚨 Cliente Retira Agora em lote."
+      ? "Marcado como ⚡ CLIENTE RETIRA AGORA em lote."
       : isRota
       ? "Marcado como 🚚 Pedido de Rota em lote."
-      : ativa
-      ? `Marcado como Prioridade P${nivelNumerico} em lote.`
-      : "Prioridade removida em lote.";
+      : isPrioridade
+      ? "Marcado como ⭐ Prioridade em lote."
+      : "Prioridade removida em lote (Fila Normal).";
 
     const ofIdsSet = new Set(lista.map(o => o.id));
 
@@ -1291,7 +1325,7 @@ export default function CentralPCP() {
             data: new Date().toISOString(),
             usuario: usuarioLogadoNome,
             acao: ativa
-              ? (isRetiraAgora ? "prioridade_lote_retira_agora" : isRota ? "prioridade_lote_rota" : `prioridade_lote_p${nivelNumerico}`)
+              ? (isRetiraAgora ? "prioridade_lote_retira_agora" : isRota ? "prioridade_lote_rota" : "prioridade_lote_fabril")
               : "prioridade_lote_removida",
             detalhes: descr
           }];
@@ -1299,6 +1333,7 @@ export default function CentralPCP() {
             ...p,
             prioridade: ativa,
             prioridade_nivel: nivelNumerico,
+            tipo_prioridade: nivelNumerico,
             cliente_retira_agora: isRetiraAgora,
             cliente_retira: isRetiraAgora,
             retira_agora: isRetiraAgora,
@@ -1311,12 +1346,13 @@ export default function CentralPCP() {
       });
     });
 
-    toast({ title: `Atualizando prioridade de ${lista.length} ordem(ns)...` });
+    toast({ title: `Atualizando status de ${lista.length} ordem(ns)...` });
 
     try {
       const payloadLote = {
         prioridade: ativa,
         prioridade_nivel: nivelNumerico,
+        tipo_prioridade: nivelNumerico,
         cliente_retira_agora: isRetiraAgora,
         cliente_retira: isRetiraAgora,
         retira_agora: isRetiraAgora,
@@ -3256,44 +3292,35 @@ export default function CentralPCP() {
               size="sm"
               variant="outline"
               onClick={() => handleDefinirPrioridadeLote("RETIRA_AGORA")}
-              className="bg-red-600/30 hover:bg-red-600/50 text-red-200 border-red-500/60 text-xs h-7 px-2 font-bold animate-pulse"
+              className="bg-red-600/30 hover:bg-red-600/50 text-red-200 border-red-500/60 text-xs h-7 px-2.5 font-bold animate-pulse"
               title="Definir CLIENTE RETIRA AGORA para as selecionadas"
             >
-              ⚡🚨 RETIRA
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleDefinirPrioridadeLote(1)}
-              className="bg-red-500/20 hover:bg-red-500/30 text-red-300 border-red-500/40 text-xs h-7 px-2 font-bold"
-              title="Definir Prioridade P1 (Máxima) para as selecionadas"
-            >
-              🔥 P1
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleDefinirPrioridadeLote(2)}
-              className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40 text-xs h-7 px-2 font-bold"
-              title="Definir Prioridade P2 para as selecionadas"
-            >
-              ⚡ P2
+              ⚡ Retira Agora
             </Button>
             <Button
               size="sm"
               variant="outline"
               onClick={() => handleDefinirPrioridadeLote("ROTA")}
-              className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border-blue-500/40 text-xs h-7 px-2 font-bold"
+              className="bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border-indigo-500/40 text-xs h-7 px-2.5 font-bold"
               title="Definir ROTA para as selecionadas"
             >
-              🚚 ROTA
+              🚚 Rota
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleDefinirPrioridadeLote("PRIORIDADE")}
+              className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40 text-xs h-7 px-2.5 font-bold"
+              title="Definir PRIORIDADE para as selecionadas"
+            >
+              ⭐ Prioridade
             </Button>
             <Button
               size="sm"
               variant="outline"
               onClick={() => handleDefinirPrioridadeLote(null)}
               className="bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700 text-xs h-7 px-2 font-bold"
-              title="Remover prioridade (Normal)"
+              title="Remover prioridade (Fila Normal)"
             >
               Normal
             </Button>

@@ -19,7 +19,7 @@ import { calcularFiltrosTipoECor, pedidoAtendeFiltroTipoECor } from "@/lib/bobin
 import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
 import TimerProducao from "@/components/producao/TimerProducao";
-import { getPesoOrdenacaoPrioridade, SeletorPrioridadeDropdown } from "@/lib/prioridadeHelper";
+import { getPesoOrdenacaoPrioridade, SeletorPrioridadeDropdown, compararPrioridadeEData } from "@/lib/prioridadeHelper";
 import { isOperadorDestaMaquina } from "@/lib/somPermissaoHelper";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
@@ -267,24 +267,22 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
     const hoje = format(new Date(), "yyyy-MM-dd");
     const isHoje = selectedDay === hoje;
     const doDia = ordens.filter(o => o.data === selectedDay && o.status !== "aguardando_material" && o.status !== "cancelado");
-    const priComp = (a, b) => getPesoOrdenacaoPrioridade(a) - getPesoOrdenacaoPrioridade(b);
+    const ordAtivo = { em_producao: 0, pausado: 1, pendente: 2, finalizado: 3, cancelado: 4 };
+
     if (!isHoje) {
       return doDia.sort((a, b) => {
-        const p = priComp(a, b);
-        if (p !== 0) return p;
-        const ord = { em_producao: 0, pausado: 1, pendente: 2, finalizado: 3, cancelado: 4 };
-        return (ord[a.status] ?? 2) - (ord[b.status] ?? 2);
+        const sA = ordAtivo[a.status] ?? 2;
+        const sB = ordAtivo[b.status] ?? 2;
+        if (sA !== sB && (sA <= 1 || sB <= 1)) return sA - sB;
+        return compararPrioridadeEData(a, b);
       });
     }
     const atrasadas = ordens.filter(o => o.data < hoje && o.status !== "finalizado" && o.status !== "cancelado" && o.status !== "aguardando_material");
     return [...atrasadas, ...doDia].sort((a, b) => {
-      const p = priComp(a, b);
-      if (p !== 0) return p;
-      const aAtrasada = a.data < hoje ? 0 : 1;
-      const bAtrasada = b.data < hoje ? 0 : 1;
-      if (aAtrasada !== bAtrasada) return aAtrasada - bAtrasada;
-      const ord = { em_producao: 0, pausado: 1, pendente: 2, finalizado: 3, cancelado: 4 };
-      return (ord[a.status] ?? 2) - (ord[b.status] ?? 2);
+      const sA = ordAtivo[a.status] ?? 2;
+      const sB = ordAtivo[b.status] ?? 2;
+      if (sA !== sB && (sA <= 1 || sB <= 1)) return sA - sB;
+      return compararPrioridadeEData(a, b);
     });
   }, [ordens, selectedDay, buscaPedido]);
 
@@ -920,20 +918,27 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
                             {o.status !== "finalizado" && o.status !== "cancelado" && (
                               <SeletorPrioridadeDropdown
                                 pedido={o}
-                                onSelectPrioridade={(nivel) => {
+                                onSelectPrioridade={(nivel, dataProgramada) => {
                                   const ehRetiraAgora = nivel === "RETIRA_AGORA";
                                   const ehRota = nivel === "ROTA";
-                                  const nivelVal = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : (nivel ? Number(nivel) : null);
+                                  const ehPrioridade = nivel === "PRIORIDADE" || nivel === 1 || nivel === 2;
+                                  const nivelVal = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : ehPrioridade ? "PRIORIDADE" : null;
+                                  const hojeIso = format(new Date(), "yyyy-MM-dd");
+                                  const dataDefinida = (ehRota || ehPrioridade) ? (dataProgramada || o.data_programada_pcp || o.data || hojeIso) : null;
                                   updateOrdem.mutate({
                                     id: o.id,
                                     data: {
                                       prioridade: Boolean(nivel),
                                       prioridade_nivel: nivelVal,
+                                      tipo_prioridade: nivelVal,
                                       cliente_retira_agora: ehRetiraAgora,
                                       cliente_retira: ehRetiraAgora,
                                       retira_agora: ehRetiraAgora,
                                       is_rota: ehRota,
-                                      rota: ehRota
+                                      rota: ehRota,
+                                      data_programada_pcp: dataDefinida,
+                                      ...(dataDefinida ? { data: dataDefinida } : {}),
+                                      ...(ehRota ? { rota_ts: new Date().toISOString() } : {})
                                     }
                                   });
                                 }}
@@ -1006,20 +1011,27 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
                       {o.status !== "finalizado" && o.status !== "cancelado" && (
                         <SeletorPrioridadeDropdown
                           pedido={o}
-                          onSelectPrioridade={(nivel) => {
+                          onSelectPrioridade={(nivel, dataProgramada) => {
                             const ehRetiraAgora = nivel === "RETIRA_AGORA";
                             const ehRota = nivel === "ROTA";
-                            const nivelVal = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : (nivel ? Number(nivel) : null);
+                            const ehPrioridade = nivel === "PRIORIDADE" || nivel === 1 || nivel === 2;
+                            const nivelVal = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : ehPrioridade ? "PRIORIDADE" : null;
+                            const hojeIso = format(new Date(), "yyyy-MM-dd");
+                            const dataDefinida = (ehRota || ehPrioridade) ? (dataProgramada || o.data_programada_pcp || o.data || hojeIso) : null;
                             updateOrdem.mutate({
                               id: o.id,
                               data: {
                                 prioridade: Boolean(nivel),
                                 prioridade_nivel: nivelVal,
+                                tipo_prioridade: nivelVal,
                                 cliente_retira_agora: ehRetiraAgora,
                                 cliente_retira: ehRetiraAgora,
                                 retira_agora: ehRetiraAgora,
                                 is_rota: ehRota,
-                                rota: ehRota
+                                rota: ehRota,
+                                data_programada_pcp: dataDefinida,
+                                ...(dataDefinida ? { data: dataDefinida } : {}),
+                                ...(ehRota ? { rota_ts: new Date().toISOString() } : {})
                               }
                             });
                           }}

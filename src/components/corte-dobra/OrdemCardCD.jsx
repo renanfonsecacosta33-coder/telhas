@@ -324,7 +324,7 @@ export default function OrdemCardCD({
           {onSelectPrioridade && o.status !== "finalizado" && o.status !== "cancelado" && (
             <SeletorPrioridadeDropdown
               pedido={o}
-              onSelectPrioridade={(nivel) => onSelectPrioridade(o, nivel)}
+              onSelectPrioridade={(nivel, data) => onSelectPrioridade(o, nivel, data)}
               disabled={false}
               size="sm"
             />

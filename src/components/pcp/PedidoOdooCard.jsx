@@ -398,8 +398,8 @@ export default function PedidoOdooCard({
               <div onClick={(e) => e.stopPropagation()}>
                 <SeletorPrioridadeDropdown
                   pedido={pedido}
-                  onSelectPrioridade={(nivel) => {
-                    if (onSetPrioridade) onSetPrioridade(pedido, nivel);
+                  onSelectPrioridade={(nivel, data) => {
+                    if (onSetPrioridade) onSetPrioridade(pedido, nivel, data);
                     else onTogglePrioridade(pedido);
                   }}
                   size="sm"
@@ -665,8 +665,8 @@ export default function PedidoOdooCard({
               <div onClick={(e) => e.stopPropagation()}>
                 <SeletorPrioridadeDropdown
                   pedido={pedido}
-                  onSelectPrioridade={(nivel) => {
-                    if (onSetPrioridade) onSetPrioridade(pedido, nivel);
+                  onSelectPrioridade={(nivel, data) => {
+                    if (onSetPrioridade) onSetPrioridade(pedido, nivel, data);
                     else onTogglePrioridade(pedido);
                   }}
                   size="sm"

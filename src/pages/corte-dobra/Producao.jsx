@@ -47,7 +47,7 @@ import ExpedicaoTab from "@/components/logistica/ExpedicaoTab";
 import FilaPCPCorteDobra from "@/components/pcp/FilaPCPCorteDobra";
 import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, saoPedidosIguais } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
-import { getPesoOrdenacaoPrioridade } from "@/lib/prioridadeHelper";
+import { getPesoOrdenacaoPrioridade, compararPrioridadeEData } from "@/lib/prioridadeHelper";
 import { ehIvaipora } from "@/lib/maquinasPorFilial";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import KanbanBoard from "@/components/producao/KanbanBoard";
@@ -303,15 +303,38 @@ export default function ProducaoCD() {
   });
 
   // Handlers Prioridade / Rota / Status (Desbobinadeira)
-  const handleSelectPrioridadeDesb = (ordem, nivel) => {
+  const handleSelectPrioridadeDesb = (ordem, nivel, dataProgramada = null) => {
+    const ehRetiraAgora = nivel === "RETIRA_AGORA";
+    const ehRota = nivel === "ROTA";
+    const ehPrioridade = nivel === "PRIORIDADE" || nivel === 1 || nivel === 2;
+    const nivelVal = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : ehPrioridade ? "PRIORIDADE" : null;
+    const hojeIso = format(new Date(), "yyyy-MM-dd");
+    const dataDefinida = (ehRota || ehPrioridade) ? (dataProgramada || ordem.data_programada_pcp || ordem.data || hojeIso) : null;
     updateDesb.mutate({
       id: ordem.id,
       data: {
-        prioridade_nivel: nivel,
         prioridade: Boolean(nivel),
+        prioridade_nivel: nivelVal,
+        tipo_prioridade: nivelVal,
+        cliente_retira_agora: ehRetiraAgora,
+        cliente_retira: ehRetiraAgora,
+        retira_agora: ehRetiraAgora,
+        is_rota: ehRota,
+        rota: ehRota,
+        data_programada_pcp: dataDefinida,
+        ...(dataDefinida ? { data: dataDefinida } : {}),
+        ...(ehRota ? { rota_ts: new Date().toISOString() } : {})
       },
     });
-    toast.success(nivel ? `Marcado como Prioridade P${nivel}!` : "Prioridade removida.");
+    toast.success(
+      ehRetiraAgora
+        ? "⚡ Cliente Retira Agora definido!"
+        : ehRota
+        ? "🚚 Carga de Rota agendada!"
+        : ehPrioridade
+        ? "⭐ Prioridade com data agendada!"
+        : "Prioridade removida."
+    );
   };
 
   const handleToggleRotaDesb = (ordem) => {
@@ -320,6 +343,7 @@ export default function ProducaoCD() {
       id: ordem.id,
       data: {
         rota: novaRota,
+        is_rota: novaRota,
         rota_ts: novaRota ? new Date().toISOString() : null,
       },
     });
@@ -339,15 +363,38 @@ export default function ProducaoCD() {
   };
 
   // Handlers Prioridade / Rota / Status (Outras Máquinas)
-  const handleSelectPrioridadeMaq = (ordem, nivel) => {
+  const handleSelectPrioridadeMaq = (ordem, nivel, dataProgramada = null) => {
+    const ehRetiraAgora = nivel === "RETIRA_AGORA";
+    const ehRota = nivel === "ROTA";
+    const ehPrioridade = nivel === "PRIORIDADE" || nivel === 1 || nivel === 2;
+    const nivelVal = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : ehPrioridade ? "PRIORIDADE" : null;
+    const hojeIso = format(new Date(), "yyyy-MM-dd");
+    const dataDefinida = (ehRota || ehPrioridade) ? (dataProgramada || ordem.data_programada_pcp || ordem.data || hojeIso) : null;
     updateMaq.mutate({
       id: ordem.id,
       data: {
-        prioridade_nivel: nivel,
         prioridade: Boolean(nivel),
+        prioridade_nivel: nivelVal,
+        tipo_prioridade: nivelVal,
+        cliente_retira_agora: ehRetiraAgora,
+        cliente_retira: ehRetiraAgora,
+        retira_agora: ehRetiraAgora,
+        is_rota: ehRota,
+        rota: ehRota,
+        data_programada_pcp: dataDefinida,
+        ...(dataDefinida ? { data: dataDefinida } : {}),
+        ...(ehRota ? { rota_ts: new Date().toISOString() } : {})
       },
     });
-    toast.success(nivel ? `Marcado como Prioridade P${nivel}!` : "Prioridade removida.");
+    toast.success(
+      ehRetiraAgora
+        ? "⚡ Cliente Retira Agora definido!"
+        : ehRota
+        ? "🚚 Carga de Rota agendada!"
+        : ehPrioridade
+        ? "⭐ Prioridade com data agendada!"
+        : "Prioridade removida."
+    );
   };
 
   const handleToggleRotaMaq = (ordem) => {
@@ -853,14 +900,8 @@ export default function ProducaoCD() {
         return aScore - bScore;
       }
 
-      // 4. Peso de Prioridade / Rota (P1 = 0, Rota = 0.5, P2 = 1, P3 = 2, P4 = 3, P5 = 4, sem = 10)
-      const aPeso = getPesoOrdenacaoPrioridade(a);
-      const bPeso = getPesoOrdenacaoPrioridade(b);
-      if (aPeso !== bPeso) return aPeso - bPeso;
-
-      if (aScore !== bScore) return aScore - bScore;
-
-      return (a.created_at || "").localeCompare(b.created_at || "");
+      // 4. Hierarquia Oficial AJL: 1º Retira Agora | 2º Rota e Prioridade por Data | 3º Normais
+      return compararPrioridadeEData(a, b);
     });
   };
 

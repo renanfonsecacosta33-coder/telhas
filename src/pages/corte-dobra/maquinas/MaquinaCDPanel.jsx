@@ -412,36 +412,39 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     },
   });
 
-  // Prioridade RETIRA_AGORA, ROTA ou 1 a 5: P1 e P2 exigem autorização do gestor
-  const handleSetPrioridade = (o, nivel) => {
+  // Prioridade logística do PCP: RETIRA_AGORA, ROTA ou PRIORIDADE com data
+  const handleSetPrioridade = (o, nivel, dataProgramada = null) => {
     const ehRetiraAgora = nivel === "RETIRA_AGORA";
     const ehRota = nivel === "ROTA";
-    const nivelNum = !ehRetiraAgora && !ehRota && nivel ? Number(nivel) : null;
-    if (nivelNum === 1 || nivelNum === 2) {
-      setPrioridadePendente({ ordem: o, nivel: nivelNum });
-      setSenhaGestorOpen(true);
-    } else {
-      updateMaq.mutate({
-        id: o.id,
-        data: {
-          prioridade: Boolean(ehRetiraAgora || ehRota || nivelNum),
-          prioridade_nivel: nivelNum,
-          cliente_retira_agora: ehRetiraAgora,
-          cliente_retira: ehRetiraAgora,
-          retira_agora: ehRetiraAgora,
-          is_rota: ehRota,
-          rota: ehRota,
-          ...(ehRota ? { rota_ts: new Date().toISOString() } : {})
-        }
-      });
-    }
+    const ehPrioridade = nivel === "PRIORIDADE" || nivel === 1 || nivel === 2;
+    const nivelSalvar = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : ehPrioridade ? "PRIORIDADE" : null;
+    const ativa = Boolean(ehRetiraAgora || ehRota || ehPrioridade);
+    const hojeIso = format(new Date(), "yyyy-MM-dd");
+    const dataDefinida = (ehRota || ehPrioridade) ? (dataProgramada || o.data_programada_pcp || o.data || hojeIso) : null;
+
+    updateMaq.mutate({
+      id: o.id,
+      data: {
+        prioridade: ativa,
+        prioridade_nivel: nivelSalvar,
+        tipo_prioridade: nivelSalvar,
+        cliente_retira_agora: ehRetiraAgora,
+        cliente_retira: ehRetiraAgora,
+        retira_agora: ehRetiraAgora,
+        is_rota: ehRota,
+        rota: ehRota,
+        data_programada_pcp: dataDefinida,
+        ...(dataDefinida ? { data: dataDefinida } : {}),
+        ...(ehRota ? { rota_ts: new Date().toISOString() } : {})
+      }
+    });
   };
 
   const handleTogglePrioridade = (o) => {
     if (!o.prioridade) {
-      handleSetPrioridade(o, 1);
+      handleSetPrioridade(o, "RETIRA_AGORA", null);
     } else {
-      handleSetPrioridade(o, null);
+      handleSetPrioridade(o, null, null);
     }
   };
 
@@ -688,7 +691,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
           {o.status !== "finalizado" && o.status !== "cancelado" && (
             <SeletorPrioridadeDropdown
               pedido={o}
-              onSelectPrioridade={(nivel) => handleSetPrioridade(o, nivel)}
+              onSelectPrioridade={(nivel, data) => handleSetPrioridade(o, nivel, data)}
             />
           )}
           {o.status === "pendente" && (

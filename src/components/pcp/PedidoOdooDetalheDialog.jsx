@@ -399,8 +399,8 @@ export default function PedidoOdooDetalheDialog({
               {(onSetPrioridade || onTogglePrioridade) && (
                 <SeletorPrioridadeDropdown
                   pedido={pedido}
-                  onSelectPrioridade={(nivel) => {
-                    if (onSetPrioridade) onSetPrioridade(pedido, nivel);
+                  onSelectPrioridade={(nivel, data) => {
+                    if (onSetPrioridade) onSetPrioridade(pedido, nivel, data);
                     else onTogglePrioridade(pedido);
                   }}
                   size="sm"
