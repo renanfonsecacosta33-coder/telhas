@@ -665,15 +665,11 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
         {/* 🌟 Banner Dourado/Âmbar de Instrução e Especificação com Duas Métricas Principais (Chapas/Barras + KG) */}
         <BannerInstrucaoCorteDobra ordem={o} />
 
-        {/* Header */}
+        {/* Detalhes do Material e Operação */}
         <div className={`flex items-start justify-between ${z.gap} ${z.mb}`}>
           <div className="flex-1 min-w-0">
             <div className={`flex items-center ${z.gap} flex-wrap mb-1`}>
-              <span className={`font-bold ${z.title}`}>{o.tipo_peca || "—"}</span>
               <CorChapaDot espessura={extractEspessuraFromDesc(o.chapa_descricao) || extractEspessuraFromDesc(o.bobina_descricao)} size="sm" />
-              {o.dimensoes_livres && (
-                <span className={`${z.info} text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded`}>{o.dimensoes_livres}</span>
-              )}
               {o.operador && (
                 <Badge variant="outline" className="text-xs bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300 flex items-center gap-1 font-medium">
                   <Users className="w-3 h-3 text-indigo-500" /> {o.operador}
@@ -702,10 +698,6 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
           </div>
 
           <div className="flex flex-col items-end gap-1 shrink-0">
-            <span className={`${z.info} font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded`}>{formatarQuantidadeComUnidade(o)}</span>
-            {o.peso_kg > 0 && !["KG", "KGS"].includes(String(o.unidade || "").toUpperCase()) && (
-              <span className={`${z.info} text-muted-foreground`}>≈ {o.peso_kg}kg</span>
-            )}
             {o.modificacao_blank && (
               <Badge className="bg-amber-100 text-amber-700 border-amber-300 text-[10px]">
                 <Edit3 className="w-2.5 h-2.5 mr-0.5" /> OBD

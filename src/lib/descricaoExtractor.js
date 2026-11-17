@@ -225,6 +225,81 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // A000. PADRÃO INDUSTRIAL AJL: CHAPA LISA / BLANK COM ESPESSURA E MEDIDAS
+  // Ex: "1250 - CHAPA GALVANIZADA 0,65 X 1277 X 3000"
+  // Ex: "CHAPA LISA 0.65 X 1200 X 3000"
+  // Ex: "Cortar bobina em chapa 1277x3000"
+  // 🛡️ Regra AJL: Em chapas, 1277x3000 é estritamente LARGURA x COMPRIMENTO, NUNCA quantidade de peças!
+  // ═══════════════════════════════════════════════════════════════════════════
+  const regexChapaEspLargComp = /(?:chapa|blank)?\s*(?:galvanizada|galvalume|preta|lisa|xadrez)?\s*(\d+[.,]\d+)\s*[xX*]\s*(\d{3,4})\s*[xX*]\s*(\d{3,4})(?:\s*mm)?\b/i;
+  const matchChapa3D = t.match(regexChapaEspLargComp);
+
+  if (matchChapa3D) {
+    const espDec = parseFloat(matchChapa3D[1].replace(",", "."));
+    const largMm = parseInt(matchChapa3D[2], 10);
+    const compMm = parseInt(matchChapa3D[3], 10);
+
+    if (largMm >= 300 && compMm >= 500 && espDec > 0 && espDec <= 16) {
+      const isKgItem = String(unidadeOdoo || "").toUpperCase() === "KG";
+      const lM = +(compMm / 1000).toFixed(3);
+      const wM = +(largMm / 1000).toFixed(3);
+      const pesoUnit = +(wM * lM * espDec * 7.85).toFixed(2);
+
+      // Quantidade de peças:
+      // 1. Procura número explícito de peças no texto (ex: "10 peças", "5 chapas")
+      const matchPecasTexto = t.match(/\b(\d+)\s*(?:p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|chapas?|unidades?|un\.?|pc\.?)\b/i);
+      let q = matchPecasTexto ? parseInt(matchPecasTexto[1], 10) : null;
+
+      // 2. Se for em KG no Odoo, calcula chapas = peso / peso_unitario
+      let pesoTotalKg = null;
+      if (isKgItem && Number(qtdOdoo) > 0) {
+        pesoTotalKg = Number(qtdOdoo);
+        if (!q && pesoUnit > 0) {
+          const chapasCalc = Math.max(1, Math.round(pesoTotalKg / pesoUnit));
+          q = chapasCalc <= 500 ? chapasCalc : 1;
+        }
+      } else if (!q) {
+        const rawQtd = Number(qtdOdoo) || 1;
+        // Anti-confusão: se a quantidade for igual à largura (ex: 1277) ou >= 300, não é peças!
+        q = (rawQtd === largMm || rawQtd >= 300) ? 1 : rawQtd;
+        pesoTotalKg = Math.round(q * pesoUnit);
+      }
+
+      if (!q || q <= 0 || q === largMm || q > 500) q = 1;
+      if (!pesoTotalKg || pesoTotalKg <= 0) pesoTotalKg = Math.round(q * pesoUnit);
+
+      const totalM = +(q * lM).toFixed(2);
+      const labelChapa = q === 1 ? "chapa" : "chapas";
+
+      out.tipo_conformacao = "chapa_lisa";
+      out.tipo_label = "Chapa Lisa / Blank";
+      out.largura_mm = largMm;
+      out.comprimento_mm = compMm;
+      out.comprimento_m = lM;
+      out.espessura_mm = espDec;
+      out.quantidade = q;
+      out.pecas = q;
+      out.peso_kg = pesoTotalKg;
+      out.unidade = isKgItem ? "KG" : (unidadeOdoo || "PC");
+      out.metragem_total = totalM;
+      out.dimensoes_fmt = `${largMm} × ${compMm} mm`;
+      out.resumo_formatado = isKgItem
+        ? `${q} ${labelChapa} de ${largMm}×${compMm}mm (${pesoTotalKg.toLocaleString("pt-BR")} kg)`
+        : `${q} ${labelChapa} de ${largMm}×${compMm}mm (Chapa Lisa)`;
+      out.tem_especificacao = true;
+      out.variacoes.push({
+        qty: q,
+        mm: compMm,
+        m: lM,
+        total_m: totalM,
+        largura_mm: largMm,
+        tipo: "chapa_lisa"
+      });
+      return extrairCorEEspessura(t, out);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // A00. PADRÃO INDUSTRIAL AJL: PERFIS DOBRADOS / CANTONEIRAS COM ABAS E COMPRIMENTO
   // Ex: "32 pcs L 100x100x2000" -> Qtd: 32 pcs, Tipo: Cantoneira L, Abas: 100x100 (Desenv: 200mm), Comp: 2000mm (2m)
   // Ex: "32 pçs L 100x100x2000", "L 100X100X2000 32 PCS", "CANTONEIRA 100X100X2000 - 32 PÇS"
@@ -457,9 +532,31 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
   // Se detectou medidas de chapa lisa válidas (ex: 1200x3000, 1000x2000, 1250x3000, etc.)
   if (larguraChapa && compChapa && larguraChapa >= 300 && compChapa >= 500) {
     const isKgItem = String(unidadeOdoo || "").toUpperCase() === "KG";
-    const q = qtdChapa || (isKgItem ? null : Number(qtdOdoo)) || 1;
     const lM = +(compChapa / 1000).toFixed(3);
+    const wM = +(larguraChapa / 1000).toFixed(3);
+    const espPadrao = out.espessura_mm || 0.65;
+    const pesoUnitario = +(wM * lM * espPadrao * 7.85).toFixed(2);
+
+    let q = qtdChapa;
+    let pesoTotalKg = null;
+
+    if (isKgItem && Number(qtdOdoo) > 0) {
+      pesoTotalKg = Number(qtdOdoo);
+      if (!q && pesoUnitario > 0) {
+        const chapasCalc = Math.max(1, Math.round(pesoTotalKg / pesoUnitario));
+        q = chapasCalc <= 500 ? chapasCalc : 1;
+      }
+    } else if (!q) {
+      const rawQtd = Number(qtdOdoo) || 1;
+      // 🛡️ Anti-confusão: se a quantidade for idêntica à largura (ex: 1277) ou >= 300, não é peças!
+      q = (rawQtd === larguraChapa || rawQtd >= 300) ? 1 : rawQtd;
+      pesoTotalKg = Math.round(q * pesoUnitario);
+    }
+
+    if (!q || q <= 0 || q === larguraChapa || q > 500) q = 1;
+    if (!pesoTotalKg || pesoTotalKg <= 0) pesoTotalKg = Math.round(q * pesoUnitario);
     const totalM = +(q * lM).toFixed(2);
+    const labelChapa = q === 1 ? "chapa" : "chapas";
 
     out.tipo_conformacao = "chapa_lisa";
     out.tipo_label = "Chapa Lisa / Blank";
@@ -467,14 +564,14 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
     out.comprimento_mm = compChapa;
     out.comprimento_m = lM;
     out.quantidade = q;
-    out.pecas = qtdChapa || null;
-    out.peso_kg = isKgItem ? (Number(qtdOdoo) || null) : null;
+    out.pecas = q;
+    out.peso_kg = pesoTotalKg;
     out.unidade = isKgItem ? "KG" : (unidadeOdoo || "PC");
     out.metragem_total = totalM;
     out.dimensoes_fmt = `${larguraChapa} × ${compChapa} mm`;
     out.resumo_formatado = isKgItem
-      ? (qtdChapa ? `${qtdChapa} pçs de ${larguraChapa}×${compChapa}mm (${Number(qtdOdoo).toLocaleString("pt-BR")} kg)` : `${Number(qtdOdoo).toLocaleString("pt-BR")} kg de ${larguraChapa}×${compChapa}mm (Chapa Lisa)`)
-      : `${q} pçs de ${larguraChapa}×${compChapa}mm (Chapa Lisa)`;
+      ? `${q} ${labelChapa} de ${larguraChapa}×${compChapa}mm (${pesoTotalKg.toLocaleString("pt-BR")} kg)`
+      : `${q} ${labelChapa} de ${larguraChapa}×${compChapa}mm (Chapa Lisa)`;
     out.tem_especificacao = true;
     out.variacoes.push({
       qty: q,
@@ -707,6 +804,10 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
     }
 
     const { mm, m } = parseComprimento(compRaw);
+    // 🛡️ Regra Anti-Confusão Medida x Quantidade (AJL):
+    // Se q >= 300 e mm >= 500, trata-se de dimensões de chapa (ex: 1277x3000), NUNCA de quantidade de peças!
+    if (q >= 300 && mm && mm >= 500) continue;
+
     if (q > 0 && mm) {
       out.variacoes.push({
         qty: q,
@@ -724,6 +825,9 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
       const q = parseInt(match[1], 10);
       const compRaw = match[2];
       const { mm, m } = parseComprimento(compRaw);
+      // 🛡️ Regra Anti-Confusão: não capturar 1277x3000 como quantidade!
+      if (q >= 300 && mm && mm >= 500) continue;
+
       if (q > 0 && mm && mm >= 500) {
         out.variacoes.push({
           qty: q,

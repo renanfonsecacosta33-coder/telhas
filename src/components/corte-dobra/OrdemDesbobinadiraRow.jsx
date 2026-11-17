@@ -98,8 +98,8 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
   // ── RESOLUÇÃO INTELIGENTE DE ESPECIFICAÇÃO TÉCNICA E ESPESSURA ──
   const textoPecaCompleto = [o.observacoes, o.tipo_peca, o.dimensoes_livres, o.especificacoes_tecnicas].filter(Boolean).join(" ");
   const specTec = useMemo(() => {
-    return extrairEspecificacao(textoPecaCompleto, o.quantidade);
-  }, [textoPecaCompleto, o.quantidade]);
+    return extrairEspecificacao(textoPecaCompleto, o.quantidade, o.unidade);
+  }, [textoPecaCompleto, o.quantidade, o.unidade]);
 
   // Código da Bobina extraído de snapshot ou gravado na ordem
   const codigoBobinaExtraido = useMemo(() => {
@@ -946,67 +946,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
               </div>
             </div>
 
-            {/* Grade de Produção em Alta Visibilidade para o Desbobinador */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 my-2.5 p-2.5 rounded-xl bg-orange-50/70 dark:bg-orange-950/20 border-2 border-orange-200/80 dark:border-orange-800/60 shadow-2xs">
-              {/* Comprimento de Corte */}
-              <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-orange-300 dark:border-orange-700 shadow-2xs">
-                <span className="text-[10px] font-black uppercase text-orange-600 dark:text-orange-400 tracking-wider">Corte / Avanço</span>
-                <span className="text-base sm:text-lg font-black font-mono text-slate-900 dark:text-white leading-tight">
-                  {(Number(comprimentoCorteMm) || 0).toLocaleString("pt-BR")} mm
-                </span>
-                <span className="text-[10px] text-muted-foreground font-semibold">({((Number(comprimentoCorteMm) || 0) / 1000).toFixed(2)} metros)</span>
-              </div>
-
-              {/* Quantidade a Desbobinar */}
-              <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
-                <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">
-                  {classificacao?.isChapaLisa ? "Chapas a Cortar" : "Barras a Cortar"}
-                </span>
-                <span className="text-base sm:text-lg font-black font-mono text-foreground leading-tight">
-                  {classificacao?.qtdPecas || 1} {(classificacao?.labelMetrica || "peças").toLowerCase()}
-                </span>
-                <span className="text-[10px] text-muted-foreground font-semibold">
-                  {Number(classificacao?.pesoKg) > 0 ? `peso: ${Number(classificacao.pesoKg).toLocaleString("pt-BR")}kg` : "a produzir"}
-                </span>
-              </div>
-
-              {/* Desenvolvimento / Largura */}
-              <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900 shadow-2xs">
-                <span className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 tracking-wider">
-                  {classificacao?.isChapaLisa ? "Largura Chapa" : "Largura / Desenv"}
-                </span>
-                <span className="text-base sm:text-lg font-black font-mono text-blue-700 dark:text-blue-300 leading-tight">
-                  {desenvMm || 1200} mm
-                </span>
-                <span className="text-[10px] text-muted-foreground font-semibold truncate" title={abasFmt || "largura"}>
-                  {classificacao?.isChapaLisa ? "largura blank" : (abasFmt ? abasFmt : "corte blank")}
-                </span>
-              </div>
-
-              {/* Peso Teórico Real */}
-              <div className="flex flex-col justify-center p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
-                <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Peso Teórico</span>
-                <span className="text-base sm:text-lg font-black font-mono text-slate-900 dark:text-slate-100 leading-tight">
-                  ≈ {(Number(pesoEstimadoKg) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg
-                </span>
-                <span className="text-[10px] text-muted-foreground font-semibold">massa de aço</span>
-              </div>
-            </div>
-
-            {/* Etiqueta Técnica do Produto / Perfil se detectada */}
-            {specTec?.tipo_label && (
-              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-black bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-300 dark:border-blue-700 font-mono">
-                  📦 {specTec.tipo_label}
-                </span>
-                {specTec.resumo_formatado && (
-                  <span className="text-xs text-muted-foreground font-semibold">
-                    {specTec.resumo_formatado}
-                  </span>
-                )}
-              </div>
-            )}
-            <div className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 ${z.info} text-muted-foreground mt-1`}>
+            <div className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 ${z.info} text-muted-foreground mt-2`}>
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${
                 o.destino === "pedido_direto"
                   ? "bg-blue-50 text-blue-700 border-blue-200"
