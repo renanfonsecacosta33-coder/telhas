@@ -191,6 +191,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       origem_exigida: pOriginal.origem_exigida || presets.origem_exigida || "",
       observacoes_odoo: pOriginal.observacoes_odoo || presets.observacoes_odoo || "",
       foto_pedido_url: pOriginal.foto_pedido_url || presets.foto_pedido_url || "",
+      operador: overrideOperador !== null ? overrideOperador : (pOriginal.operador || presets.operador || ""),
+      operador_inicio: pOriginal.operador_inicio || presets.operador_inicio || (overrideOperador !== null ? overrideOperador : ""),
       bobina_superior: pOriginal.bobina_superior || presets.bobina_superior || "",
       bobina_superior_id: pOriginal.bobina_superior_id || presets.bobina_superior_id || "",
       bobina_inferior: pOriginal.bobina_inferior || presets.bobina_inferior || "",
@@ -243,6 +245,14 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const [editandoBobinaInf, setEditandoBobinaInf] = useState(false);
   const [overrideBobinaInf, setOverrideBobinaInf] = useState(null);
   const [salvandoBobinaInf, setSalvandoBobinaInf] = useState(false);
+
+  // Estado Local Instantâneo do Operador (Fixação definitiva e imediata na UI sem looping/reversão)
+  const [overrideOperador, setOverrideOperador] = useState(null);
+  useEffect(() => {
+    if (pOriginal?.operador && pOriginal.operador === overrideOperador) {
+      setOverrideOperador(null);
+    }
+  }, [pOriginal?.operador, overrideOperador]);
 
   // Rótulo visual simplificado instantâneo (limpa strings longas de estoque antigo como "CD0247 0,43 (GV)...")
   // FIDELIDADE PCP: exibe exatamente o texto enviado pela Central PCP, sem reescrita/derivação
@@ -884,10 +894,19 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       ? operadores.map(op => op.nome || op).join(", ")
       : (p.operador || "");
 
+    if (!nomeOperador) {
+      toast.warning("Nome do operador não informado.");
+      return;
+    }
+
+    // Fixação instantânea na memória local da tela (0ms) - NUNCA reverte na UI
+    setOverrideOperador(nomeOperador);
+
     // Se estiver apenas trocando o operador responsável durante a produção/pausa
     if (modoOperadorDialog === "troca") {
       const updatesTroca = {
         operador: nomeOperador,
+        ...(p.operador_inicio ? {} : { operador_inicio: nomeOperador }),
         ...(operadores && Array.isArray(operadores) ? { operadores_json: JSON.stringify(operadores) } : {})
       };
       if (appendHistoricoFn) {
@@ -899,8 +918,28 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
           nomeOperador
         ));
       }
-      onStatusChange(p, p.status, updatesTroca);
-      toast.success(`Operador responsável alterado para: ${nomeOperador}`);
+
+      // 1. Atualiza imediatamente o cache do React Query em todas as listas de pedidos
+      queryClient.setQueriesData({ queryKey: ["pedidos"] }, (antigos) => {
+        if (!antigos || !Array.isArray(antigos)) return antigos;
+        return antigos.map(item => item.id === p.id ? { ...item, ...updatesTroca } : item);
+      });
+
+      // 2. Persistência direta e blindada no banco de dados
+      base44.entities.Pedido.update(p.id, updatesTroca).then((res) => {
+        if (res?.operador) setOverrideOperador(res.operador);
+      }).catch((err) => {
+        console.error("[PedidoRow] Erro ao persistir troca de operador:", err);
+      });
+
+      // 3. Notifica callback de status/update para manter os pais sincronizados
+      if (onUpdate) {
+        onUpdate(p, p.status, updatesTroca);
+      } else if (onStatusChange) {
+        onStatusChange(p, p.status, updatesTroca);
+      }
+
+      toast.success(`Operador responsável fixado: ${nomeOperador}`);
       setModoOperadorDialog("inicio");
       return;
     }
@@ -918,7 +957,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       inicio_producao_ts: new Date().toISOString(),
       ...(extraUpdates !== undefined ? extraUpdates : (pendingColagemUpdates || {})),
       operador: nomeOperador,
-      operador_inicio: nomeOperador,
+      operador_inicio: p.operador_inicio || nomeOperador,
       ...(operadores && Array.isArray(operadores) ? { operadores_json: JSON.stringify(operadores) } : {})
     };
 
@@ -931,6 +970,17 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         nomeOperador
       ));
     }
+
+    // 1. Atualiza imediatamente cache do React Query
+    queryClient.setQueriesData({ queryKey: ["pedidos"] }, (antigos) => {
+      if (!antigos || !Array.isArray(antigos)) return antigos;
+      return antigos.map(item => item.id === p.id ? { ...item, ...updates, status: "em_producao" } : item);
+    });
+
+    // 2. Gravação direta garantida
+    base44.entities.Pedido.update(p.id, { ...updates, status: "em_producao" }).catch(err => {
+      console.error("[PedidoRow] Erro ao salvar início com operador:", err);
+    });
 
     onStatusChange(p, "em_producao", updates);
     setPendingColagemUpdates(null);

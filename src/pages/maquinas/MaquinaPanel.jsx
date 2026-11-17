@@ -425,9 +425,8 @@ export default function MaquinaPanel({ maquina }) {
       }
       if (data.status) {
         const atual = await base44.entities.Pedido.get(id);
-        if (maquinaNorm(atual.maquina) !== targetNorm) throw new Error(`Esta OP está na ${atual.maquina}, não na ${maquina}. Atualize a fila antes de continuar.`);
         // FINALIZADO É TERMINAL: OP concluída não retorna para a fila da máquina
-        if (atual.status === "finalizado" && ["pendente", "em_producao", "pausado"].includes(data.status)) {
+        if (atual?.status === "finalizado" && ["pendente", "em_producao", "pausado"].includes(data.status)) {
           throw new Error(`A OP #${atual.numero_pedido || ""} já foi finalizada e não volta para a máquina. Reabra somente pelo PCP, se necessário.`);
         }
       }
@@ -536,7 +535,9 @@ export default function MaquinaPanel({ maquina }) {
         : novoStatus === "finalizado" && extraData.metragem_utilizada
           ? `Metragem: ${extraData.metragem_utilizada}m`
           : "";
-    const histData = appendHistorico(pedido, acao, label, detalhes);
+    const histData = extraData?.historico_alteracoes
+      ? {}
+      : appendHistorico(pedido, acao, label, detalhes, extraData?.operador || pedido?.operador);
     const hojeStr = format(new Date(), "yyyy-MM-dd");
     const agoraIso = new Date().toISOString();
     const isPainelColagem = maquina === "COLAGEM";
@@ -550,7 +551,7 @@ export default function MaquinaPanel({ maquina }) {
       perfilacao_concluida: true,
     } : {};
 
-    const data = { status: novoStatus, ...colagemUpdates, ...extraData, ...histData };
+    const data = { status: novoStatus, ...colagemUpdates, ...histData, ...extraData };
     if (novoStatus === "finalizado") {
       playFinishSound();
       speakOpFinalizada(pedido.maquina, pedido.numero_pedido);
