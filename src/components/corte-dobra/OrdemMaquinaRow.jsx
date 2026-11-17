@@ -40,7 +40,7 @@ import { formatarQuantidadeComUnidade } from "@/lib/pedidoOdooHelper";
 import { avancarProximaEtapaRoteiroCD } from "@/lib/roteamentoCorteDobraHelper";
 import { useRegrasProducao } from "@/lib/regrasProducao";
 import CroquiPeca2D from "@/components/corte-dobra/CroquiPeca2D";
-import { normalizarNumeroPedido } from "@/lib/conciliacaoPcpMaquinasHelper";
+import { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
 import BannerInstrucaoCorteDobra, { classificarItemCorteDobra } from "@/components/corte-dobra/BannerInstrucaoCorteDobra";
 
 

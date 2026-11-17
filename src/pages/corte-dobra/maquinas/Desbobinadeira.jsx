@@ -27,7 +27,7 @@ import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERel
 import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
 import AlertaCancelamentoPcpBanner from "@/components/maquinas/AlertaCancelamentoPcpBanner";
 import StatusRedeBadge from "@/components/common/StatusRedeBadge";
-import { normalizarNumeroPedido } from "@/lib/conciliacaoPcpMaquinasHelper";
+import { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
 
 export function getMaquinaOrdemDesb(ordem) {
   if (!ordem) return "DESBOBINADEIRA 01";

@@ -1,7 +1,7 @@
 import { base44 } from "@/api/base44Client";
 import { isTelhaBandeja } from "@/lib/bandejaHelper";
 import { detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
-import { normalizarNumeroPedido } from "@/lib/conciliacaoPcpMaquinasHelper";
+import { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
 import { toast } from "sonner";
 
 /**

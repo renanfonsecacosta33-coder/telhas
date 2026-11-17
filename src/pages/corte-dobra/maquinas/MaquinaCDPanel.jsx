@@ -27,7 +27,7 @@ import { salvarCacheLocal, obterCacheLocal, enfileirarAcaoOffline } from "@/lib/
 import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERelatorioMaquinaModal";
 import AlertaCancelamentoPcpBanner from "@/components/maquinas/AlertaCancelamentoPcpBanner";
 import StatusRedeBadge from "@/components/common/StatusRedeBadge";
-import { normalizarNumeroPedido } from "@/lib/conciliacaoPcpMaquinasHelper";
+import { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
 
 export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const { filialAtiva } = useFilial();

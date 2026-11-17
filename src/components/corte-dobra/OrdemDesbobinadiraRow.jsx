@@ -33,7 +33,7 @@ import { useRegrasProducao } from "@/lib/regrasProducao";
 import { formatarQuantidadeComUnidade } from "@/lib/pedidoOdooHelper";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import { extrairEspessuraDoTexto } from "@/lib/estoqueMaterialHelper";
-import { normalizarNumeroPedido } from "@/lib/conciliacaoPcpMaquinasHelper";
+import { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
 import BannerInstrucaoCorteDobra, { classificarItemCorteDobra } from "@/components/corte-dobra/BannerInstrucaoCorteDobra";
 
 function formatTempo(segundos) {

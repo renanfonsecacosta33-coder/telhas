@@ -1,5 +1,5 @@
 import { base44 } from "@/api/base44Client";
-import { normalizarNumeroPedido } from "@/lib/conciliacaoPcpMaquinasHelper";
+import { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
 import { toast } from "sonner";
 
 /**

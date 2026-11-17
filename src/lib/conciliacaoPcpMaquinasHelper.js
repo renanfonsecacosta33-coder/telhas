@@ -2,20 +2,9 @@ import { base44 } from "@/api/base44Client";
 import { isLocalArmazenagemPinhais } from "@/lib/roteamentoPCP";
 import { getItens, classGrupo } from "@/lib/pedidoOdooHelper";
 import { fecharPedidosProduzidos } from "@/lib/reconciliacaoProducaoFinalizada";
+import { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
 
-/**
- * Normaliza o número de pedido para comparação resiliente:
- * Remove prefixos como '#', 'SO-', 'S0', 'S', zeros à esquerda e caracteres não numéricos.
- * Exemplo: '#S01493' -> '1493', 'SO-283427' -> '283427', '1493' -> '1493'
- */
-export function normalizarNumeroPedido(num) {
-  if (!num) return "";
-  const s = String(num).trim().toUpperCase();
-  const semPrefixo = s.replace(/^(SO[-_\s]*|S0*|#)/i, "");
-  const semZeros = semPrefixo.replace(/^0+/, "");
-  const digitos = semZeros.replace(/\D/g, "");
-  return digitos || semZeros || s;
-}
+export { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
 
 // Um vínculo explícito com uma OF nunca pode cair no status de outra OF da mesma venda.
 export function encontrarPedidoVinculado(op, mapa) {

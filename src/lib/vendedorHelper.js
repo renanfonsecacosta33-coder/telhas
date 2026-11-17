@@ -1,7 +1,7 @@
 import { normalizarImagemBase64 } from "@/lib/imagemBase64";
 import { extrairAnexosLista } from "@/lib/croquiExtractor";
 import { getItens, classGrupo } from "@/lib/pedidoOdooHelper";
-import { normalizarNumeroPedido } from "@/lib/conciliacaoPcpMaquinasHelper";
+import { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
 
 /**
  * Normaliza nomes para correspondência sem case-sensitive, sem acentos,
