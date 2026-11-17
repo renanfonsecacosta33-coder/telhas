@@ -78,6 +78,14 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const isOperador = userRole === "operador";
   const podeGerenciar = !isOperador;
 
+  // Estado Local Instantâneo do Operador (Fixação definitiva e imediata na UI sem looping/reversão)
+  const [overrideOperador, setOverrideOperador] = useState(null);
+  useEffect(() => {
+    if (pOriginal?.operador && pOriginal.operador === overrideOperador) {
+      setOverrideOperador(null);
+    }
+  }, [pOriginal?.operador, overrideOperador]);
+
   // Detecção inteligente e dinâmica do produto real (corrige OPs que foram salvas como TELHA + EPS mas têm TELHA + EPS + TELHA, ou OPs salvas como TELHA + EPS que na verdade são TELHAS SIMPLES)
   const produtoDetectado = useMemo(() => {
     if (!pOriginal) return "TELHA";
@@ -199,7 +207,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       bobina_inferior_id: pOriginal.bobina_inferior_id || presets.bobina_inferior_id || "",
       rvm_inferior: pOriginal.rvm_inferior || presets.rvm_inferior || "",
     };
-  }, [pOriginal, maquina, produtoDetectado, epsDetectado]);
+  }, [pOriginal, maquina, produtoDetectado, epsDetectado, overrideOperador]);
 
   // Detecta se a OP é de Bobininha (desbobinador)
   const isBobininha = useMemo(() => {
@@ -245,14 +253,6 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const [editandoBobinaInf, setEditandoBobinaInf] = useState(false);
   const [overrideBobinaInf, setOverrideBobinaInf] = useState(null);
   const [salvandoBobinaInf, setSalvandoBobinaInf] = useState(false);
-
-  // Estado Local Instantâneo do Operador (Fixação definitiva e imediata na UI sem looping/reversão)
-  const [overrideOperador, setOverrideOperador] = useState(null);
-  useEffect(() => {
-    if (pOriginal?.operador && pOriginal.operador === overrideOperador) {
-      setOverrideOperador(null);
-    }
-  }, [pOriginal?.operador, overrideOperador]);
 
   // Rótulo visual simplificado instantâneo (limpa strings longas de estoque antigo como "CD0247 0,43 (GV)...")
   // FIDELIDADE PCP: exibe exatamente o texto enviado pela Central PCP, sem reescrita/derivação
