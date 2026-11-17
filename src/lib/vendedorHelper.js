@@ -1,6 +1,7 @@
 import { normalizarImagemBase64 } from "@/lib/imagemBase64";
 import { extrairAnexosLista } from "@/lib/croquiExtractor";
 import { getItens, classGrupo } from "@/lib/pedidoOdooHelper";
+import { normalizarNumeroPedido } from "@/lib/conciliacaoPcpMaquinasHelper";
 
 /**
  * Normaliza nomes para correspondência sem case-sensitive, sem acentos,
@@ -72,17 +73,38 @@ export function consolidarPedidoParaVendedor(pedidoOdoo, ordensTelhas = [], opsD
   if (!pedidoOdoo) return null;
 
   const numPed = String(pedidoOdoo.numero_pedido || "").trim();
+  const numPedNorm = normalizarNumeroPedido(numPed);
   const idOdoo = String(pedidoOdoo.id || "").trim();
+  const odooId = String(pedidoOdoo.odoo_id || "").trim();
+  const ofIdOdoo = String(pedidoOdoo.of_odoo_id || "").trim().toUpperCase();
+  const ofNomeOdoo = String(pedidoOdoo.of_nome || "").trim().toUpperCase();
+
+  // Função resiliente de correspondência entre Odoo ERP e ordens de fábrica
+  const matchPedido = (o) => {
+    if (!o) return false;
+    const opPedId = String(o.pedido_odoo_id || o.pedido_id || "").trim();
+    if (idOdoo && opPedId && (opPedId === idOdoo || (odooId && opPedId === odooId))) return true;
+
+    const opOfId = String(o.of_odoo_id || "").trim().toUpperCase();
+    if (ofIdOdoo && opOfId && opOfId === ofIdOdoo) return true;
+
+    const opOfNome = String(o.of_nome || "").trim().toUpperCase();
+    if (ofNomeOdoo && opOfNome && opOfNome === ofNomeOdoo) return true;
+
+    const opNum = String(o.numero_pedido || "").trim();
+    if (numPed && opNum && opNum.toUpperCase() === numPed.toUpperCase()) return true;
+
+    const opNumNorm = normalizarNumeroPedido(opNum);
+    if (numPedNorm && opNumNorm && opNumNorm === numPedNorm) return true;
+
+    return false;
+  };
 
   // 1. Ordens de fábrica relacionadas a este pedido
-  const ordensTelhasDoPedido = ordensTelhas.filter(o =>
-    (numPed && String(o.numero_pedido || "").trim() === numPed) ||
-    (idOdoo && String(o.pedido_odoo_id || "").trim() === idOdoo)
-  );
-
+  const ordensTelhasDoPedido = ordensTelhas.filter(matchPedido);
   const opsCDDoPedido = [
-    ...opsDesbob.filter(o => numPed && String(o.numero_pedido || "").trim() === numPed),
-    ...opsMaquinaCD.filter(o => numPed && String(o.numero_pedido || "").trim() === numPed)
+    ...opsDesbob.filter(matchPedido),
+    ...opsMaquinaCD.filter(matchPedido)
   ];
 
   const itens = getItens(pedidoOdoo);
@@ -101,7 +123,7 @@ export function consolidarPedidoParaVendedor(pedidoOdoo, ordensTelhas = [], opsD
   const allOrdens = [...ordensTelhasDoPedido, ...opsCDDoPedido];
 
   // Verifica se já foi expedido / carregado
-  const temCarregamento = allOrdens.some(o => o.status_expedicao === "expedido" || o.foto_carregamento_url);
+  const temCarregamento = allOrdens.some(o => o.status_expedicao === "expedido" || o.foto_carregamento_url) || Boolean(pedidoOdoo.foto_carregamento_url);
   const allFinalizado = allOrdens.length > 0 && allOrdens.every(o => o.status === "finalizado" || o.status === "cancelado");
   const anyProduzindoAgora = allOrdens.find(o => o.produzindo_agora || o.status === "em_producao");
   const anyColagem = ordensTelhasDoPedido.find(o => o.status === "aguardando_colagem" || o.maquina === "COLAGEM");
@@ -159,7 +181,7 @@ export function consolidarPedidoParaVendedor(pedidoOdoo, ordensTelhas = [], opsD
     };
   }
 
-  // 3. Galeria de Fotos Organizada por Etapa
+  // 3. Galeria de Fotos Organizada por Etapa (Consolidação Rigorosa e Auditável)
   const croquisOdoo = extrairAnexosLista(pedidoOdoo).map((a, idx) => ({
     url: a.src,
     titulo: a.label || `Croqui ${idx + 1}`,
@@ -167,57 +189,247 @@ export function consolidarPedidoParaVendedor(pedidoOdoo, ordensTelhas = [], opsD
     origem: "Odoo ERP"
   }));
 
+  const urlsAdicionadas = new Set();
+  croquisOdoo.forEach(c => {
+    if (c.url) urlsAdicionadas.add(String(c.url).trim());
+  });
+
   const fotosEtiqueta = [];
   const fotosProducao = [];
   const fotosColagem = [];
   const fotosCarregamento = [];
 
+  const registrarFoto = (lista, { url, titulo, etapa, origem }) => {
+    if (!url || typeof url !== "string") return;
+    const cleanUrl = url.trim();
+    if (!cleanUrl || cleanUrl === "null" || cleanUrl === "undefined" || urlsAdicionadas.has(cleanUrl)) return;
+    urlsAdicionadas.add(cleanUrl);
+    lista.push({
+      url: cleanUrl,
+      titulo: titulo || "Registro Fotográfico",
+      etapa: etapa || "producao",
+      origem: origem || "Fábrica"
+    });
+  };
+
   allOrdens.forEach(o => {
-    // Foto de Etiqueta
+    const maq = o.maquina || o.maquina_inicial || "Máquina";
+    const opNome = o.operador || o.operador_nome || o.operadores_nomes || null;
+    const origemOp = opNome ? `Op: ${opNome}` : "Fábrica";
+
+    // 3.1. Fotos de Etiqueta (Bobina / Pacote de Chapas)
     if (o.foto_etiqueta_url) {
-      fotosEtiqueta.push({
+      registrarFoto(fotosEtiqueta, {
         url: o.foto_etiqueta_url,
-        titulo: `Etiqueta · ${o.maquina || "Máquina"}`,
+        titulo: `Etiqueta · ${maq}`,
         etapa: "etiqueta",
-        origem: o.operador ? `Op: ${o.operador}` : "Fábrica"
+        origem: origemOp
       });
     }
-    // Foto de Produção / Finalização
-    if (o.foto_finalizacao_url) {
-      fotosProducao.push({
-        url: o.foto_finalizacao_url,
-        titulo: `Perfilação · ${o.maquina || "Máquina"}`,
-        etapa: "producao",
-        origem: o.operador ? `Op: ${o.operador}` : "Fábrica"
+    if (o.foto_etiqueta_bobina_url) {
+      registrarFoto(fotosEtiqueta, {
+        url: o.foto_etiqueta_bobina_url,
+        titulo: `Etiqueta Bobina · ${maq}`,
+        etapa: "etiqueta",
+        origem: origemOp
       });
     }
-    if (o.foto_pedido_url && !fotosProducao.some(f => f.url === o.foto_pedido_url)) {
-      fotosProducao.push({
-        url: o.foto_pedido_url,
-        titulo: `Registro da Peça · ${o.maquina || "Fábrica"}`,
-        etapa: "producao",
-        origem: "Fábrica"
+    if (o.foto_etiqueta_chapa_url) {
+      registrarFoto(fotosEtiqueta, {
+        url: o.foto_etiqueta_chapa_url,
+        titulo: `Etiqueta Chapa · ${maq}`,
+        etapa: "etiqueta",
+        origem: origemOp
       });
     }
-    // Foto de Colagem EPS
+
+    // 3.2. Fotos de Colagem EPS & Termoacústica
     if (o.foto_colagem_eps_url) {
-      fotosColagem.push({
+      registrarFoto(fotosColagem, {
         url: o.foto_colagem_eps_url,
         titulo: "Colagem EPS / Termoacústica",
         etapa: "colagem",
-        origem: o.operador ? `Op: ${o.operador}` : "Setor de Colagem"
+        origem: origemOp
       });
     }
-    // Foto de Carregamento / Expedição
+    if (o.foto_eps_url) {
+      registrarFoto(fotosColagem, {
+        url: o.foto_eps_url,
+        titulo: "Corte / Bloco EPS",
+        etapa: "colagem",
+        origem: "Setor de EPS"
+      });
+    }
+
+    // 3.3. Fotos de Carregamento & Expedição
     if (o.foto_carregamento_url) {
-      fotosCarregamento.push({
+      registrarFoto(fotosCarregamento, {
         url: o.foto_carregamento_url,
         titulo: "Carregamento no Caminhão",
         etapa: "carregamento",
         origem: "Expedição"
       });
     }
+
+    // 3.4. Fotos de Produção, Perfilação e Conclusão das Peças
+    if (o.foto_finalizacao_url) {
+      registrarFoto(fotosProducao, {
+        url: o.foto_finalizacao_url,
+        titulo: `Perfilação Final · ${maq}`,
+        etapa: "producao",
+        origem: origemOp
+      });
+    }
+    if (o.foto_etapa1_url) {
+      registrarFoto(fotosProducao, {
+        url: o.foto_etapa1_url,
+        titulo: `Telha Superior / Perfilação · ${maq}`,
+        etapa: "producao",
+        origem: origemOp
+      });
+    }
+    if (o.foto_etapa2_url) {
+      registrarFoto(fotosProducao, {
+        url: o.foto_etapa2_url,
+        titulo: `Bandeja Inferior · ${maq}`,
+        etapa: "producao",
+        origem: origemOp
+      });
+    }
+    if (o.foto_pedido_url) {
+      registrarFoto(fotosProducao, {
+        url: o.foto_pedido_url,
+        titulo: `Registro da Peça · ${maq}`,
+        etapa: "producao",
+        origem: origemOp
+      });
+    }
+    if (o.foto_material_url) {
+      registrarFoto(fotosProducao, {
+        url: o.foto_material_url,
+        titulo: `Material / Chapa · ${maq}`,
+        etapa: "producao",
+        origem: origemOp
+      });
+    }
+    if (o.retrabalho_foto_1_url) {
+      registrarFoto(fotosProducao, {
+        url: o.retrabalho_foto_1_url,
+        titulo: `Inspeção Técnica / Ajuste 1 · ${maq}`,
+        etapa: "producao",
+        origem: "Controle de Qualidade"
+      });
+    }
+    if (o.retrabalho_foto_2_url) {
+      registrarFoto(fotosProducao, {
+        url: o.retrabalho_foto_2_url,
+        titulo: `Inspeção Técnica / Ajuste 2 · ${maq}`,
+        etapa: "producao",
+        origem: "Controle de Qualidade"
+      });
+    }
+
+    // 3.5. Variações de itens dentro da OP (fotos individuais de cada variação/lote)
+    try {
+      const vars = typeof o.variacoes_telhas === "string" ? JSON.parse(o.variacoes_telhas) : o.variacoes_telhas;
+      if (Array.isArray(vars)) {
+        vars.forEach((v, idx) => {
+          const descItem = v.comprimento ? `${v.comprimento}mm` : (v.label || `Item ${idx + 1}`);
+          if (v.foto_item_url) {
+            registrarFoto(fotosProducao, {
+              url: v.foto_item_url,
+              titulo: `Peça ${descItem} · ${maq}`,
+              etapa: "producao",
+              origem: origemOp
+            });
+          }
+          if (v.foto_etapa1_url) {
+            registrarFoto(fotosProducao, {
+              url: v.foto_etapa1_url,
+              titulo: `Telha Sup. ${descItem} · ${maq}`,
+              etapa: "producao",
+              origem: origemOp
+            });
+          }
+          if (v.foto_etapa2_url) {
+            registrarFoto(fotosProducao, {
+              url: v.foto_etapa2_url,
+              titulo: `Bandeja ${descItem} · ${maq}`,
+              etapa: "producao",
+              origem: origemOp
+            });
+          }
+        });
+      }
+    } catch {}
+
+    // 3.6. Histórico de alterações com fotos anexadas
+    try {
+      const hist = typeof o.historico_alteracoes === "string" ? JSON.parse(o.historico_alteracoes) : o.historico_alteracoes;
+      if (Array.isArray(hist)) {
+        hist.forEach((h) => {
+          const fotoH = h.foto_url || h.foto || h.imagem_url;
+          if (fotoH) {
+            registrarFoto(fotosProducao, {
+              url: fotoH,
+              titulo: `Apontamento: ${h.acao || h.descricao || "Produção"}`,
+              etapa: "producao",
+              origem: h.operador || origemOp
+            });
+          }
+        });
+      }
+    } catch {}
   });
+
+  // 3.7. Fotos registradas diretamente no Pedido Odoo
+  if (pedidoOdoo.foto_carregamento_url) {
+    registrarFoto(fotosCarregamento, {
+      url: pedidoOdoo.foto_carregamento_url,
+      titulo: "Carregamento no Caminhão",
+      etapa: "carregamento",
+      origem: "Expedição"
+    });
+  }
+  if (pedidoOdoo.foto_colagem_eps_url) {
+    registrarFoto(fotosColagem, {
+      url: pedidoOdoo.foto_colagem_eps_url,
+      titulo: "Colagem EPS / Termoacústica",
+      etapa: "colagem",
+      origem: "Setor de Colagem"
+    });
+  }
+  if (pedidoOdoo.foto_finalizacao_url) {
+    registrarFoto(fotosProducao, {
+      url: pedidoOdoo.foto_finalizacao_url,
+      titulo: "Produção Concluída",
+      etapa: "producao",
+      origem: "Fábrica"
+    });
+  }
+  if (pedidoOdoo.foto_pedido_url) {
+    registrarFoto(fotosProducao, {
+      url: pedidoOdoo.foto_pedido_url,
+      titulo: "Registro do Pedido",
+      etapa: "producao",
+      origem: "Fábrica"
+    });
+  }
+
+  // 3.8. Itens do Pedido Odoo com foto
+  if (Array.isArray(itens)) {
+    itens.forEach((it, idx) => {
+      const fotoItem = it.foto_url || it.foto_finalizacao_url || it.foto;
+      if (fotoItem) {
+        registrarFoto(fotosProducao, {
+          url: fotoItem,
+          titulo: `Item: ${it.produto || `Peça #${idx + 1}`}`,
+          etapa: "producao",
+          origem: "Fábrica"
+        });
+      }
+    });
+  }
 
   // 4. Bobinas Utilizadas (SIGILO TOTAL: NENHUMA INFORMAÇÃO DE NF OU CUSTO)
   const bobinasIdsEncontrados = new Set();

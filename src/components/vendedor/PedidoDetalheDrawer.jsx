@@ -212,6 +212,11 @@ export default function PedidoDetalheDrawer({ card, open, onOpenChange }) {
                               <span className="text-[10px] font-bold text-white block truncate">
                                 {f.titulo}
                               </span>
+                              {f.origem && (
+                                <span className="text-[9px] text-slate-300 block truncate">
+                                  {f.origem}
+                                </span>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -273,6 +278,11 @@ export default function PedidoDetalheDrawer({ card, open, onOpenChange }) {
                               <span className="text-[10px] font-bold text-white block truncate">
                                 {f.titulo}
                               </span>
+                              {f.origem && (
+                                <span className="text-[9px] text-slate-300 block truncate">
+                                  {f.origem}
+                                </span>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -302,6 +312,11 @@ export default function PedidoDetalheDrawer({ card, open, onOpenChange }) {
                               <span className="text-[10px] font-bold text-white block truncate">
                                 {f.titulo}
                               </span>
+                              {f.origem && (
+                                <span className="text-[9px] text-slate-300 block truncate">
+                                  {f.origem}
+                                </span>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -331,6 +346,11 @@ export default function PedidoDetalheDrawer({ card, open, onOpenChange }) {
                               <span className="text-[10px] font-bold text-white block truncate">
                                 {f.titulo}
                               </span>
+                              {f.origem && (
+                                <span className="text-[9px] text-slate-300 block truncate">
+                                  {f.origem}
+                                </span>
+                              )}
                             </div>
                           </div>
                         ))}
