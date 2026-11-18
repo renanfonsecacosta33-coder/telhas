@@ -220,7 +220,23 @@
     },
     "metragem_utilizada": {
       "type": "number",
-      "description": "Metragem real utilizada pelo operador na produ\u00e7\u00e3o"
+      "description": "Metragem real utilizada pelo operador na produção"
+    },
+    "operador": {
+      "type": "string",
+      "description": "Nome do operador responsável por produzir este pedido"
+    },
+    "operador_inicio": {
+      "type": "string",
+      "description": "Nome do operador que iniciou este pedido"
+    },
+    "operador_fim": {
+      "type": "string",
+      "description": "Nome do operador que finalizou este pedido"
+    },
+    "operadores_json": {
+      "type": "string",
+      "description": "JSON com lista de operadores responsáveis pelo pedido"
     },
     "status": {
       "type": "string",

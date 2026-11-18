@@ -489,7 +489,7 @@ export default function MaquinaPanel({ maquina }) {
       if (resultadoServidor?.id) {
         queryClient.setQueriesData({ queryKey: ["pedidos"] }, (antigos) => {
           if (!antigos || !Array.isArray(antigos)) return antigos;
-          return antigos.map(p => p.id === resultadoServidor.id ? { ...p, ...resultadoServidor } : p);
+          return antigos.map(p => p.id === resultadoServidor.id ? { ...p, ...variables?.data, ...resultadoServidor } : p);
         });
       }
     },

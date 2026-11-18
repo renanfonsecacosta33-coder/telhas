@@ -80,16 +80,21 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const podeGerenciar = !isOperador;
   const isAdminOuGestor = ["admin", "super_admin", "gestor"].includes(userRole || user?.role);
 
-  // Estado Local Instantâneo do Operador (Fixação definitiva e imediata na UI pontual por pedido)
-  const [overrideOperador, setOverrideOperador] = useState(null);
-  useEffect(() => {
-    if (pOriginal?.operador && pOriginal.operador === overrideOperador) {
-      setOverrideOperador(null);
-    }
-  }, [pOriginal?.operador, overrideOperador]);
+  // Estado Local Instantâneo do Operador (Fixação definitiva e imediata na UI pontual por pedido com blindagem em localStorage)
+  const opSalvoLocal = typeof window !== "undefined" && pOriginal?.id ? localStorage.getItem(`operador_pedido_${pOriginal.id}`) : null;
+  const [overrideOperador, setOverrideOperador] = useState(() => pOriginal?.operador || pOriginal?.operador_inicio || opSalvoLocal || null);
 
-  // Operador exibido é estritamente pontual por pedido
-  const operadorAtivoExibicao = overrideOperador || pOriginal?.operador || pOriginal?.operador_inicio || "";
+  useEffect(() => {
+    if (pOriginal?.operador) {
+      setOverrideOperador(pOriginal.operador);
+      if (pOriginal.id) {
+        try { localStorage.setItem(`operador_pedido_${pOriginal.id}`, pOriginal.operador); } catch {}
+      }
+    }
+  }, [pOriginal?.operador, pOriginal?.id]);
+
+  // Operador exibido é estritamente pontual por pedido e NUNCA reverte sozinho
+  const operadorAtivoExibicao = overrideOperador || pOriginal?.operador || pOriginal?.operador_inicio || opSalvoLocal || "";
 
   // Detecção inteligente e dinâmica do produto real (corrige OPs que foram salvas como TELHA + EPS mas têm TELHA + EPS + TELHA, ou OPs salvas como TELHA + EPS que na verdade são TELHAS SIMPLES)
   const produtoDetectado = useMemo(() => {
@@ -204,8 +209,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       origem_exigida: pOriginal.origem_exigida || presets.origem_exigida || "",
       observacoes_odoo: pOriginal.observacoes_odoo || presets.observacoes_odoo || "",
       foto_pedido_url: pOriginal.foto_pedido_url || presets.foto_pedido_url || "",
-      operador: overrideOperador !== null ? overrideOperador : (pOriginal.operador || presets.operador || ""),
-      operador_inicio: pOriginal.operador_inicio || presets.operador_inicio || (overrideOperador !== null ? overrideOperador : ""),
+      operador: overrideOperador || pOriginal.operador || presets.operador || opSalvoLocal || "",
+      operador_inicio: pOriginal.operador_inicio || presets.operador_inicio || overrideOperador || opSalvoLocal || "",
       bobina_superior: pOriginal.bobina_superior || presets.bobina_superior || "",
       bobina_superior_id: pOriginal.bobina_superior_id || presets.bobina_superior_id || "",
       bobina_inferior: pOriginal.bobina_inferior || presets.bobina_inferior || "",
@@ -912,6 +917,9 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
 
     // Vincula pontualmente a este pedido
     setOverrideOperador(nomeOperador);
+    if (p?.id) {
+      try { localStorage.setItem(`operador_pedido_${p.id}`, nomeOperador); } catch {}
+    }
 
     // Se estiver apenas trocando o operador responsável durante a produção/pausa
     if (modoOperadorDialog === "troca") {
