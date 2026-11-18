@@ -179,6 +179,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     // Se é cumeeira, a máquina SEMPRE é CUMEEIRA
     // Se é telha simples, NUNCA permite ficar em colagem ou com status de colagem
     // Se ela já foi perfilada ou estava em aguardando_colagem, para telha simples ela está FINALIZADA!
+    const isColagemAtiva = maquina === "COLAGEM" || pOriginal.maquina === "COLAGEM" || pOriginal.status === "aguardando_colagem";
     const jaPerfilada = Boolean(pOriginal.perfilacao_concluida || pOriginal.data_perfilacao || pOriginal.status === "aguardando_colagem");
     const statusAjustado = (!ehComEps && (pOriginal.status === "aguardando_colagem" || pOriginal.maquina === "COLAGEM"))
       ? (jaPerfilada ? "finalizado" : "pendente")
@@ -188,6 +189,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       ? "CUMEEIRA"
       : (!ehComEps && pOriginal.maquina === "COLAGEM")
       ? maqPerfil
+      : (ehComEps && isColagemAtiva)
+      ? "COLAGEM"
       : (pOriginal.maquina || presets.maquina || maquina || "");
 
     return {
@@ -252,6 +255,17 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const [pendingColagemUpdates, setPendingColagemUpdates] = useState(null);
   const [cumeeiraEstoqueOpen, setCumeeiraEstoqueOpen] = useState(false);
   const intervalRef = useRef(null);
+  const cameraFinalizacaoInputRef = useRef(null);
+
+  // Aciona a câmera traseira do tablet automaticamente ao abrir a tela de finalização de metragem
+  useEffect(() => {
+    if (metragemDialog && !fotoFinalizacaoUrl) {
+      const timer = setTimeout(() => {
+        cameraFinalizacaoInputRef.current?.click();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [metragemDialog, fotoFinalizacaoUrl]);
 
   const queryClient = useQueryClient();
 
@@ -789,11 +803,12 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       `${p.produto || ""} ${p.modelo || ""} ${p.item_produto || ""} ${p.observacoes || ""} ${p.observacoes_odoo || ""}`
     )
   );
-  const precisaColagem = temEpsReal;
   const maquinaNorm = (m) => String(m || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
   const mAtualNorm = maquinaNorm(p.maquina);
   const mPainelNorm = maquinaNorm(maquina);
   const mOrigemNorm = maquinaNorm(p.maquina_origem);
+  const isPainelColagem = mPainelNorm === "COLAGEM" || mAtualNorm === "COLAGEM" || p.status === "aguardando_colagem";
+  const precisaColagem = temEpsReal && !isPainelColagem;
   // TELHA BANDEJA: fluxo multi-etapa sequencial estrito (TP-40/Colonial → BANDEJA → COLAGEM)
   const isBandejaMultiEtapa = isTelhaBandeja(p);
   const proximaEtapaBandeja = isBandejaMultiEtapa ? proximaMaquinaFluxo("TELHA BANDEJA", p.maquina) : null;
@@ -1360,15 +1375,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     // Inicializa o operador de finalização com o operador ativo na OP
     setOperadorFinalizacao(p.operador || p.operador_inicio || "");
 
-    // Se houver variações pendentes, auto-finaliza todas para não bloquear o operador
-    if (temVariacoes && !todosItensFinalizados) {
-      try {
-        const varsAuto = _variacoesTelhas.map(v => ({ ...v, iniciado: true, finalizado: true }));
-        onUpdate?.({ ...p, variacoes_telhas: JSON.stringify(varsAuto) });
-      } catch {}
-    }
-    // TELHA + EPS + TELHA: pede checklist de telhas antes
-    if (p.produto === "TELHA + EPS + TELHA" && p.maquina !== "COLAGEM") {
+    // TELHA + EPS + TELHA: pede checklist de telhas somente na perfiladeira inicial (nunca na colagem)
+    if (p.produto === "TELHA + EPS + TELHA" && !isPainelColagem && p.maquina !== "COLAGEM") {
       setTelhaSupOk(false);
       setTelhaInfOk(false);
       setTelhasSandwichDialog(true);
@@ -1446,8 +1454,16 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
 
     const opFinal = operadorFinalizacao || p.operador || p.operador_inicio || (user?.full_name || "Operador");
 
+    // Prepara auto-finalização de variações/itens da OP para garantir conclusão 100%
+    let varsFinalizadas = p.variacoes_telhas;
+    if (temVariacoes) {
+      try {
+        varsFinalizadas = JSON.stringify(_variacoesTelhas.map(v => ({ ...v, iniciado: true, finalizado: true })));
+      } catch {}
+    }
+
     // ── COLAGEM: desconta isopor e finaliza (NÃO desconta bobinas aqui) ──
-    if (p.maquina === "COLAGEM") {
+    if (p.maquina === "COLAGEM" || isPainelColagem) {
       let colagSeg = p.tempo_colagem_seg || 0;
       if (p.inicio_producao_ts) {
         colagSeg += Math.floor((Date.now() - new Date(p.inicio_producao_ts).getTime()) / 1000);
@@ -1481,7 +1497,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         }
       }
       playFinishSound();
-      speakOpFinalizada(p.maquina, p.numero_pedido);
+      speakOpFinalizada("COLAGEM", p.numero_pedido);
 
       const payloadColagem = {
         tempo_colagem_seg: colagSeg,
@@ -1491,6 +1507,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         foto_finalizacao_url: urlFinalFoto,
         operador: opFinal,
         operador_fim: opFinal,
+        ...(varsFinalizadas ? { variacoes_telhas: varsFinalizadas } : {}),
       };
       if (appendHistoricoFn) {
         Object.assign(payloadColagem, appendHistoricoFn(
@@ -1703,6 +1720,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       data_finalizacao: novoStatus === "finalizado" ? hojeStr : undefined,
       foto_finalizacao_url: novoStatus === "finalizado" ? urlFinalFoto : null,
       operador: opFinal,
+      ...(varsFinalizadas ? { variacoes_telhas: varsFinalizadas } : {}),
       ...(novoStatus === "finalizado" ? { operador_fim: opFinal } : {}),
       ...(precisaColagem ? {
         foto_etapa1_url: urlFinalFoto || p.foto_etapa1_url || null,
@@ -2368,7 +2386,9 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                     onClick={handleFinalizar}
                   >
                     <CheckCircle2 className="w-3 h-3" />
-                    {isBandejaMultiEtapa && proximaEtapaBandeja === "BANDEJA"
+                    {isPainelColagem || p.maquina === "COLAGEM"
+                      ? "✓ Finalizar Colagem"
+                      : isBandejaMultiEtapa && proximaEtapaBandeja === "BANDEJA"
                       ? "✓ Finalizar Telha Superior → Enviar para Bandeja"
                       : isBandejaMultiEtapa && proximaEtapaBandeja === "COLAGEM"
                       ? "✓ Finalizar Bandeja Inferior → Enviar para Colagem"
@@ -2798,8 +2818,20 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                         </div>
                       </>
                     )}
-                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleUploadFoto} disabled={uploadingFoto} />
+                    <input ref={cameraFinalizacaoInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleUploadFoto} disabled={uploadingFoto} />
                   </label>
+                )}
+                {!fotoFinalizacaoUrl && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => cameraFinalizacaoInputRef.current?.click()}
+                    disabled={uploadingFoto}
+                    className="w-full gap-2 border-green-500/50 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-950/30 font-bold py-2 shadow-2xs"
+                  >
+                    <Camera className="w-4 h-4 text-green-600" />
+                    Abrir Câmera do Tablet
+                  </Button>
                 )}
               </div>
             </div>

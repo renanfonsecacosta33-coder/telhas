@@ -516,10 +516,27 @@ export default function MaquinaPanel({ maquina }) {
     },
   });
 
+  const handleUpdatePedido = (pedidoOuUpdates, possivelUpdates) => {
+    if (!pedidoOuUpdates) return;
+    if (possivelUpdates && typeof possivelUpdates === "object") {
+      updateMutation.mutate({ id: pedidoOuUpdates.id, data: possivelUpdates });
+    } else if (pedidoOuUpdates.id) {
+      const { id, ...resto } = pedidoOuUpdates;
+      updateMutation.mutate({ id, data: resto });
+    }
+  };
+
   const handleStatusChange = (pedido, novoStatus, extraData = {}) => {
     // Chamado sem pedido (ex: refresh após salvar o texto da bobina) = apenas recarrega a lista
     if (!pedido) {
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      return;
+    }
+    // Se chamado sem novoStatus definido, delega com segurança para update sem alterar status
+    if (!novoStatus) {
+      if (extraData && Object.keys(extraData).length > 0) {
+        updateMutation.mutate({ id: pedido.id, data: extraData });
+      }
       return;
     }
     const acaoMap = {
@@ -1825,7 +1842,7 @@ export default function MaquinaPanel({ maquina }) {
                         <ChevronDown className="w-3.5 h-3.5 rotate-180" /> Recolher para resumo
                       </button>
                     )}
-                    <PedidoRow pedido={p} onStatusChange={handleStatusChange} onUpdate={handleStatusChange} userRole={user?.role} opRodando={opRodando} maquina={maquina} user={user} filialAtiva={filialAtiva} appendHistoricoFn={(pedido, acao, label, detalhes) => appendHistorico(pedido, acao, label, detalhes)} todosPedidos={todosPedidos} />
+                    <PedidoRow pedido={p} onStatusChange={handleStatusChange} onUpdate={handleUpdatePedido} userRole={user?.role} opRodando={opRodando} maquina={maquina} user={user} filialAtiva={filialAtiva} appendHistoricoFn={(pedido, acao, label, detalhes) => appendHistorico(pedido, acao, label, detalhes)} todosPedidos={todosPedidos} />
                   </>
                 )}
               </div>
