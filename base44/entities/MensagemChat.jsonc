@@ -35,6 +35,41 @@
       "type": "string",
       "description": "Texto da mensagem"
     },
+    "tipo_mensagem": {
+      "type": "string",
+      "enum": [
+        "texto",
+        "audio",
+        "foto",
+        "sistema"
+      ],
+      "default": "texto",
+      "description": "Tipo de mensagem: texto, audio, foto ou sistema"
+    },
+    "foto_url": {
+      "type": "string",
+      "description": "URL da foto enviada no chat"
+    },
+    "audio_url": {
+      "type": "string",
+      "description": "URL do arquivo de audio gravado"
+    },
+    "audio_duracao": {
+      "type": "number",
+      "description": "Duracao do audio em segundos"
+    },
+    "pedido_id": {
+      "type": "string",
+      "description": "ID do pedido/OP vinculado a mensagem"
+    },
+    "numero_pedido": {
+      "type": "string",
+      "description": "Numero do pedido vinculado (ex: #S05843)"
+    },
+    "pedido_resumo": {
+      "type": "string",
+      "description": "Resumo do pedido vinculado (ex: Telha TP 40 - Joao Silva)"
+    },
     "lido": {
       "type": "boolean",
       "default": false,
@@ -49,7 +84,6 @@
     "canal_tipo",
     "canal_id",
     "remetente_nome",
-    "conteudo",
     "data_hora"
   ],
   "rls": {

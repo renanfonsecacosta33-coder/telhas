@@ -22,14 +22,20 @@ export default function ChatFloatingButton({ canal_id, canal_label, currentUser 
         )}
       </button>
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
+        <SheetContent side="right" className="w-full sm:max-w-lg md:max-w-xl p-0 flex flex-col">
           <SheetHeader className="px-4 py-3 border-b border-border">
             <SheetTitle className="flex items-center gap-2">
               <MessageCircle className="w-5 h-5 text-orange-500" /> Chat — {canal_label}
             </SheetTitle>
           </SheetHeader>
           <div className="flex-1 overflow-hidden">
-            <ChatPanel canal_tipo="maquina" canal_id={canal_id} canal_label={canal_label} currentUser={currentUser} heightClass="h-[calc(100vh-120px)]" />
+            <ChatPanel
+              canal_tipo="maquina"
+              canal_id={canal_id}
+              canal_label={canal_label}
+              currentUser={currentUser}
+              heightClass="h-[calc(100vh-140px)]"
+            />
           </div>
         </SheetContent>
       </Sheet>
