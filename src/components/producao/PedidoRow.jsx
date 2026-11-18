@@ -31,6 +31,7 @@ import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/c
 import { isTelhaBandeja, verificarStatusComponentesBandeja } from "@/lib/bandejaHelper"; import { descricaoItemOriginal, verificarDivergenciaModeloDescricao } from "@/lib/descricaoItemOriginal";
 import { useRegrasProducao } from "@/lib/regrasProducao";
 import { detectarTipoProdutoTelha, detectarEPSTelha, detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
+import { obterOperadorFixoMaquina, salvarOperadorFixoMaquina } from "@/lib/operadorStorageHelper";
 
 
 const PRODUTO_BG = {
@@ -78,6 +79,20 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const isOperador = userRole === "operador";
   const podeGerenciar = !isOperador;
 
+  const maquinaPainel = pOriginal?.maquina || maquina || "";
+  const [operadorFixoMaquina, setOperadorFixoMaquina] = useState(() => obterOperadorFixoMaquina(maquinaPainel));
+
+  useEffect(() => {
+    setOperadorFixoMaquina(obterOperadorFixoMaquina(maquinaPainel));
+    const onOperadorAlterado = (e) => {
+      if (!e.detail?.maquina || String(e.detail.maquina).toUpperCase() === String(maquinaPainel).toUpperCase()) {
+        setOperadorFixoMaquina(e.detail?.nome || "");
+      }
+    };
+    window.addEventListener("operador_fixo_alterado", onOperadorAlterado);
+    return () => window.removeEventListener("operador_fixo_alterado", onOperadorAlterado);
+  }, [maquinaPainel]);
+
   // Estado Local Instantâneo do Operador (Fixação definitiva e imediata na UI sem looping/reversão)
   const [overrideOperador, setOverrideOperador] = useState(null);
   useEffect(() => {
@@ -85,6 +100,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       setOverrideOperador(null);
     }
   }, [pOriginal?.operador, overrideOperador]);
+
+  const operadorAtivoExibicao = overrideOperador || pOriginal?.operador || pOriginal?.operador_inicio || operadorFixoMaquina || "";
 
   // Detecção inteligente e dinâmica do produto real (corrige OPs que foram salvas como TELHA + EPS mas têm TELHA + EPS + TELHA, ou OPs salvas como TELHA + EPS que na verdade são TELHAS SIMPLES)
   const produtoDetectado = useMemo(() => {
@@ -199,15 +216,15 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       origem_exigida: pOriginal.origem_exigida || presets.origem_exigida || "",
       observacoes_odoo: pOriginal.observacoes_odoo || presets.observacoes_odoo || "",
       foto_pedido_url: pOriginal.foto_pedido_url || presets.foto_pedido_url || "",
-      operador: overrideOperador !== null ? overrideOperador : (pOriginal.operador || presets.operador || ""),
-      operador_inicio: pOriginal.operador_inicio || presets.operador_inicio || (overrideOperador !== null ? overrideOperador : ""),
+      operador: overrideOperador !== null ? overrideOperador : (pOriginal.operador || presets.operador || operadorFixoMaquina || ""),
+      operador_inicio: pOriginal.operador_inicio || presets.operador_inicio || (overrideOperador !== null ? overrideOperador : (operadorFixoMaquina || "")),
       bobina_superior: pOriginal.bobina_superior || presets.bobina_superior || "",
       bobina_superior_id: pOriginal.bobina_superior_id || presets.bobina_superior_id || "",
       bobina_inferior: pOriginal.bobina_inferior || presets.bobina_inferior || "",
       bobina_inferior_id: pOriginal.bobina_inferior_id || presets.bobina_inferior_id || "",
       rvm_inferior: pOriginal.rvm_inferior || presets.rvm_inferior || "",
     };
-  }, [pOriginal, maquina, produtoDetectado, epsDetectado, overrideOperador]);
+  }, [pOriginal, maquina, produtoDetectado, epsDetectado, overrideOperador, operadorFixoMaquina]);
 
   // Detecta se a OP é de Bobininha (desbobinador)
   const isBobininha = useMemo(() => {
@@ -884,9 +901,15 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     }
     const updatesBobina = montarUpdatesBobina();
     setPendingColagemUpdates(updatesBobina);
-    // Identificação Obrigatória de Operador: SEMPRE abre a seleção antes de iniciar
-    setModoOperadorDialog("inicio");
-    setOperadoresDialogOpen(true);
+
+    // Identificação de Operador: Se já temos um operador fixo/ativo, inicia DIRETO sem modal redundante!
+    const opEfetivo = operadorAtivoExibicao;
+    if (opEfetivo && opEfetivo !== "Sem operador") {
+      handleConfirmarOperadores([{ id: `op_${Date.now()}`, nome: opEfetivo, role: "operador" }], updatesBobina);
+    } else {
+      setModoOperadorDialog("inicio");
+      setOperadoresDialogOpen(true);
+    }
   };
 
   const handleConfirmarOperadores = (operadores, extraUpdates) => {
@@ -898,6 +921,9 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       toast.warning("Nome do operador não informado.");
       return;
     }
+
+    // Salva na máquina para ficar fixo para esta e para todas as próximas OPs
+    salvarOperadorFixoMaquina(p.maquina || maquina, nomeOperador);
 
     // Fixação instantânea na memória local da tela (0ms) - NUNCA reverte na UI
     setOverrideOperador(nomeOperador);
@@ -2240,7 +2266,29 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                     <Lock className="w-3.5 h-3.5 text-amber-600" /> Aguardando Componentes
                   </Button>
                 ) : (
-                  <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Crachá do Operador Fixo/Ativo (visível no card antes de Iniciar) */}
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold shadow-2xs">
+                      <span className="flex items-center gap-1">
+                        <span className="text-sm">👷</span>
+                        <span className="text-[11px] text-slate-500 font-medium">Operador:</span>
+                        <span className="font-extrabold text-slate-900 dark:text-slate-100">
+                          {operadorAtivoExibicao || "Sem operador"}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setModoOperadorDialog("troca");
+                          setOperadoresDialogOpen(true);
+                        }}
+                        className="text-[11px] text-blue-600 dark:text-blue-400 font-extrabold underline hover:text-blue-800 dark:hover:text-blue-300 ml-1 cursor-pointer"
+                        title="Trocar ou definir operador desta máquina"
+                      >
+                        ({operadorAtivoExibicao ? "Trocar" : "Definir"})
+                      </button>
+                    </div>
+
                     <Button
                       size="sm"
                       className={`gap-1 border-0 ${
@@ -2279,7 +2327,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                   <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold shadow-2xs">
                     <span className="flex items-center gap-1">
                       <span className="text-sm">👷</span>
-                      <span className="font-extrabold">{p.operador || p.operador_inicio || "Sem operador"}</span>
+                      <span className="text-[11px] text-slate-500 font-medium">Operador:</span>
+                      <span className="font-extrabold text-slate-900 dark:text-slate-100">{operadorAtivoExibicao || "Sem operador"}</span>
                     </span>
                     <button
                       type="button"
@@ -2331,7 +2380,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                   <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-purple-900 dark:text-purple-200 text-xs font-semibold shadow-2xs">
                     <span className="flex items-center gap-1">
                       <span className="text-sm">👷</span>
-                      <span className="font-extrabold">{p.operador || p.operador_inicio || "Sem operador"}</span>
+                      <span className="text-[11px] text-purple-600 font-medium">Operador:</span>
+                      <span className="font-extrabold">{operadorAtivoExibicao || "Sem operador"}</span>
                     </span>
                     <button
                       type="button"
