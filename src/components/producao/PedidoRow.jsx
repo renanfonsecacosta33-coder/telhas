@@ -2520,7 +2520,14 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                 </>
               )}
 
-              {podeGerenciar && !isTelhaBandeja(p) && (maquina === "COLAGEM" || p.maquina === "COLAGEM" || p.status === "aguardando_colagem") && (
+              {["finalizado", "expedido", "entregue", "carregado"].includes(p.status) && (
+                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Produção Concluída {p.status === "expedido" ? "• Expedido na Logística" : ""}</span>
+                </div>
+              )}
+
+              {podeGerenciar && !isTelhaBandeja(p) && !["finalizado", "expedido", "entregue", "carregado", "cancelado"].includes(p.status) && (maquina === "COLAGEM" || p.maquina === "COLAGEM" || p.status === "aguardando_colagem") && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -2990,6 +2997,10 @@ function StatusBadge({ status }) {
     pausado:             { label: "Pausado",            Icon: Pause,        color: "bg-purple-100 text-purple-700 border-purple-200" },
     aguardando_colagem:  { label: "Aguard. Colagem",   Icon: CheckCircle2, color: "bg-orange-100 text-orange-700 border-orange-200" },
     finalizado:          { label: "Finalizado",         Icon: CheckCircle2, color: "bg-green-100 text-green-700 border-green-200" },
+    expedido:            { label: "Expedido",           Icon: Truck,        color: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+    carregado:           { label: "Carregado",          Icon: Truck,        color: "bg-teal-100 text-teal-800 border-teal-300" },
+    em_transito:         { label: "Em Trânsito",        Icon: Truck,        color: "bg-blue-100 text-blue-800 border-blue-300" },
+    entregue:            { label: "Entregue",           Icon: CheckCircle2, color: "bg-green-100 text-green-800 border-green-300" },
     cancelado:           { label: "Cancelado",          Icon: AlertCircle,  color: "bg-red-100 text-red-700 border-red-200" },
   }[status] || { label: status, Icon: Circle, color: "bg-slate-100 text-slate-600" };
   return (

@@ -53,21 +53,39 @@ const STATUS_LABELS_TELHAS = {
   cancelado: "Cancelado",
 };
 
+export const STATUS_CONCLUIDOS_INDUSTRIA = [
+  "finalizado",
+  "concluido",
+  "expedido",
+  "entregue",
+  "carregado",
+  "em_transito",
+  "cancelado",
+];
+
+export function isPedidoTotalmenteConcluido(p) {
+  if (!p) return false;
+  if (STATUS_CONCLUIDOS_INDUSTRIA.includes(p.status)) return true;
+  if (STATUS_CONCLUIDOS_INDUSTRIA.includes(p.status_pcp)) return true;
+  if (["expedido", "entregue", "carregado", "em_transito"].includes(p.status_expedicao)) return true;
+  if (p.percentual_concluido != null && p.percentual_concluido >= 100) return true;
+  return false;
+}
+
 /**
  * Identifica se um pedido já foi concluído / finalizado no contexto específico desta máquina.
- * - Na Colagem: apenas status 'finalizado' ou 'cancelado' é considerado concluído.
- * - Em perfiladeiras (TP-25, TP-40, Bandeja, etc.): status 'finalizado', 'cancelado' ou se as peças
+ * - Na Colagem: status 'finalizado', 'cancelado', 'expedido' ou 'entregue' é considerado concluído.
+ * - Em perfiladeiras (TP-25, TP-40, Bandeja, etc.): status concluído, ou se as peças
  *   já foram perfiladas/tiradas nesta máquina e encaminhadas para a colagem/etapa seguinte.
  */
 export function isPedidoConcluidoNaMaquina(p, maquina) {
   if (!p) return false;
-  if (p.status === "finalizado" || p.status === "cancelado") return true;
-  if (p.status_pcp === "concluido" || p.status_pcp === "cancelado" || (p.percentual_concluido != null && p.percentual_concluido >= 100)) return true;
+  if (isPedidoTotalmenteConcluido(p)) return true;
 
   const norm = (m) => String(m || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
   const mPainelNorm = norm(maquina);
   if (!mPainelNorm || mPainelNorm === "COLAGEM") {
-    return p.status === "finalizado" || p.status === "cancelado";
+    return isPedidoTotalmenteConcluido(p);
   }
 
   const mAtualNorm = norm(p.maquina);
@@ -177,7 +195,7 @@ export default function MaquinaPanel({ maquina }) {
     status: { $ne: "cancelado" },
     $and: [
       { $or: [{ maquina }, { maquina_origem: maquina }] },
-      { $or: [{ status: { $nin: ["finalizado", "cancelado"] } }, { data: selectedDay }, { data_perfilacao: selectedDay }, { data_finalizacao: selectedDay }] }
+      { $or: [{ status: { $nin: ["finalizado", "cancelado", "expedido", "entregue"] } }, { data: selectedDay }, { data_perfilacao: selectedDay }, { data_finalizacao: selectedDay }] }
     ]
   };
   const filaMaquina = useFilaPaginada({ entidade: "Pedido", query: consultaMaquina, prefixo: "pedidos", sort: "data", limit: 250 });
@@ -603,7 +621,10 @@ export default function MaquinaPanel({ maquina }) {
         if (p.data_finalizacao === selectedDay || (isHoje && p.data_finalizacao && p.data_finalizacao.startsWith(hoje))) {
           return true;
         }
-        if (p.data === selectedDay || p.data_perfilacao === selectedDay) {
+        if (!isPedidoTotalmenteConcluido(p) && (p.data === selectedDay || p.data_perfilacao === selectedDay)) {
+          return true;
+        }
+        if (isPedidoTotalmenteConcluido(p) && (p.data === selectedDay || p.data_perfilacao === selectedDay || p.data_finalizacao === selectedDay)) {
           return true;
         }
         return false;
@@ -619,8 +640,8 @@ export default function MaquinaPanel({ maquina }) {
       // 4. Status ativo hoje
       if (p.status === "pausado" || p.status === "em_producao") return true;
 
-      // 5. Se hoje: pedidos pendentes ou atrasados
-      if (isHoje && p.data && p.data < hoje && p.status !== "finalizado" && p.status !== "cancelado") {
+      // 5. Se hoje: pedidos pendentes ou atrasados (somente se ainda NÃO foram concluídos/expedidos)
+      if (isHoje && p.data && p.data < hoje && !isPedidoTotalmenteConcluido(p)) {
         return true;
       }
 
