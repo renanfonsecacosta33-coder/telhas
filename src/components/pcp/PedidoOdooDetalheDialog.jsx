@@ -7,11 +7,37 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Zap, Factory, Scissors, Wind, Tag, Ruler, Package, CheckCircle2, Trash2, ImageIcon, ExternalLink, Star, ShieldAlert, Undo2, RotateCcw, RefreshCw, Disc, AlertTriangle, Layers, Building2, ArrowRightLeft, Store, CalendarClock, History } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Zap,
+  Factory,
+  Scissors,
+  Wind,
+  Package,
+  CheckCircle2,
+  Trash2,
+  ImageIcon,
+  Star,
+  Undo2,
+  RotateCcw,
+  RefreshCw,
+  ArrowRightLeft,
+  CalendarClock,
+  History,
+  ChevronDown,
+  Building2,
+  Store,
+  Calendar
+} from "lucide-react";
 import { formatDataBR, slaDiasPorCategoria } from "@/lib/sla";
+import { hojeLocalISO } from "@/lib/dataLocal";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
-import InstrucaoVendedorCard from "@/components/pcp/InstrucaoVendedorCard";
-import SlaCountdownBadge from "@/components/pcp/SlaCountdownBadge";
 import PedidoItensLista from "@/components/pcp/PedidoItensLista";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
 import { extrairAnexosLista } from "@/lib/croquiExtractor";
@@ -19,9 +45,8 @@ import MaquinaSequenceCD from "@/components/pcp/MaquinaSequenceCD";
 import EtapasTelhaSequence from "@/components/pcp/EtapasTelhaSequence";
 import { parseItensPedido, progressoChecklist } from "@/lib/regrasFabrica";
 import { getItens, classGrupo } from "@/lib/pedidoOdooHelper";
-import { isLocalArmazenagemPinhais } from "@/lib/roteamentoPCP";
+import { isLocalArmazenagemPinhais, sugerirMaquinaPadraoItem } from "@/lib/roteamentoPCP";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
-import ProgramadorItensSection from "./ProgramadorItensSection";
 import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelper";
 import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
 import AlterarPrazoFabrilDialog from "@/components/pcp/AlterarPrazoFabrilDialog";
@@ -44,6 +69,86 @@ export default function PedidoOdooDetalheDialog({
   const [sincronizando, setSincronizando] = useState(false);
   const [alterarPrazoOpen, setAlterarPrazoOpen] = useState(false);
   const [editarItensOpen, setEditarItensOpen] = useState(false);
+  const [salvandoProgramacao, setSalvandoProgramacao] = useState(false);
+  const [itensLocais, setItensLocais] = useState([]);
+  const [resetando, setResetando] = useState(false);
+
+  // Inicializa programação local de itens quando o pedido muda
+  useEffect(() => {
+    if (!pedido) {
+      setItensLocais([]);
+      return;
+    }
+    const lista = parseItensPedido(pedido.itens_json);
+    const hojeIso = hojeLocalISO();
+    const dataPadrao = pedido.data_previsao_fabrica || pedido.data_entrega || hojeIso;
+
+    const inicializados = lista.map((it, idx) => ({
+      ...it,
+      _idx: idx,
+      maquina: it.maquina || sugerirMaquinaPadraoItem(it, pedido.unidade),
+      data_programada: it.data_programada || dataPadrao,
+      status: it.status || (pedido.status_pcp === "distribuido" ? "distribuido" : "pendente"),
+      distribuido: Boolean(it.distribuido || pedido.status_pcp === "distribuido")
+    }));
+    setItensLocais(inicializados);
+  }, [pedido]);
+
+  const atualizarItemLocal = (idx, campo, valor) => {
+    setItensLocais(prev => {
+      const cp = [...prev];
+      if (cp[idx]) {
+        cp[idx] = { ...cp[idx], [campo]: valor };
+      }
+      return cp;
+    });
+  };
+
+  const handleDistribuirItemIndividual = async (idx) => {
+    const item = itensLocais[idx];
+    if (!item || !onProgramarItem) return;
+    await onProgramarItem(pedido, idx, {
+      maquina: item.maquina,
+      data_programada: item.data_programada,
+      distribuir: true
+    });
+    atualizarItemLocal(idx, "distribuido", true);
+    atualizarItemLocal(idx, "status", "distribuido");
+  };
+
+  const jaDistribuido = pedido?.status_pcp !== "pendente_distribuicao";
+
+  const handleAcaoPrincipal = async () => {
+    if (!pedido) return;
+    setSalvandoProgramacao(true);
+    try {
+      if (!jaDistribuido) {
+        // Pedido pendente: Salva e distribui todos os itens
+        if (onProgramarTodosItens) {
+          const formatados = itensLocais.map(it => ({
+            ...it,
+            status: "distribuido",
+            distribuido: true
+          }));
+          await onProgramarTodosItens(pedido, formatados, true);
+        } else if (onDistribuir) {
+          await onDistribuir(pedido);
+        }
+      } else {
+        // Pedido já distribuído: Salva alterações de máquinas e datas
+        if (onProgramarTodosItens) {
+          await onProgramarTodosItens(pedido, itensLocais, false);
+          toast.success("Alterações na programação salvas com sucesso!");
+        } else if (onDistribuir) {
+          await onDistribuir(pedido);
+        }
+      }
+    } catch (err) {
+      toast.error("Erro ao salvar programação: " + (err.message || String(err)));
+    } finally {
+      setSalvandoProgramacao(false);
+    }
+  };
 
   const handleSincronizarOdoo = async () => {
     if (!pedido) return;
@@ -54,7 +159,6 @@ export default function PedidoOdooDetalheDialog({
 
       let pedidoParaEnviar = pedido;
       if (isConcluido) {
-        // Assegura que todos os itens estejam salvos como concluídos
         const itensAtuais = getItens(pedido);
         const itensAtualizados = itensAtuais.map(i => ({
           ...i,
@@ -77,7 +181,7 @@ export default function PedidoOdooDetalheDialog({
       });
 
       if (notifRes && !notifRes.ok) {
-        toast.error(`Aviso: O webhook do Odoo retornou erro 500 no processamento. Verifique o log do script do Odoo com o suporte/Gui.`, { duration: 8000 });
+        toast.error(`Aviso: O webhook do Odoo retornou erro 500 no processamento.`, { duration: 8000 });
       } else {
         toast.success(isConcluido
           ? `OF #${pedido.numero_pedido} marcada como 100% CONCLUÍDA no Odoo ERP!`
@@ -91,8 +195,6 @@ export default function PedidoOdooDetalheDialog({
     }
   };
 
-  const [resetando, setResetando] = useState(false);
-
   const handleResetarPedido = async () => {
     if (!pedido) return;
     if (!window.confirm(
@@ -102,7 +204,6 @@ export default function PedidoOdooDetalheDialog({
     setResetando(true);
     try {
       const todayIso = new Date().toISOString().slice(0, 10);
-      // 1. Cancela OPs vinculadas na fábrica
       await base44.entities.OrdemMaquinaCD.updateMany(
         { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
         { $set: { status: "cancelado", data_finalizacao: todayIso } }
@@ -116,7 +217,6 @@ export default function PedidoOdooDetalheDialog({
         { $set: { status: "cancelado", data_finalizacao: todayIso } }
       ).catch(() => {});
 
-      // 2. Limpa itens para status inicial
       const itensAtuais = getItens(pedido);
       const itensZerados = itensAtuais.map(i => ({
         ...i,
@@ -126,7 +226,6 @@ export default function PedidoOdooDetalheDialog({
         maquina: ""
       }));
 
-      // 3. Atualiza PedidoOdoo
       const atualizado = await base44.entities.PedidoOdoo.update(pedido.id, {
         status_pcp: "pendente_distribuicao",
         percentual_concluido: 0,
@@ -135,7 +234,6 @@ export default function PedidoOdooDetalheDialog({
         itens_json: JSON.stringify(itensZerados)
       });
 
-      // 4. Notifica Odoo do Reset em segundo plano (sem travar a interface)
       notificarStatus(atualizado, "reset", {
         percentual_concluido: 0,
         status_novo: "Aguardando Início",
@@ -152,7 +250,6 @@ export default function PedidoOdooDetalheDialog({
     }
   };
 
-  // Rastreamento (Mini BI) só na visão do operador (galpão). Busca o nome do operador logado.
   useEffect(() => {
     if (!showTracking) return;
     base44.auth.me()
@@ -168,31 +265,10 @@ export default function PedidoOdooDetalheDialog({
   if (!pedido) return null;
 
   const itens = parseItensPedido(pedido.itens_json);
-  const espessuras = (() => {
-    try { return JSON.parse(pedido.espessuras_tags || "[]"); } catch { return []; }
-  })();
-  const sla = slaDiasPorCategoria(pedido);
   const chk = progressoChecklist(pedido.itens_json);
   const isPrioritario = !!pedido.prioridade;
-
-  const grupoIcon = {
-    telha: <Factory className="w-3.5 h-3.5" />,
-    cd: <Scissors className="w-3.5 h-3.5" />,
-    frisada: <Wind className="w-3.5 h-3.5" />
-  };
-  const grupoColor = {
-    telha: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30",
-    cd: "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/30",
-    frisada: "bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/30"
-  };
-
-  const jaDistribuido = pedido.status_pcp !== "pendente_distribuicao";
-
-  const handleToggleItemLocal = (idx) => {
-    if (onToggleItem) {
-      onToggleItem(pedido, idx);
-    }
-  };
+  const pct = progressoReal != null ? progressoReal : (pedido.percentual_concluido || 0);
+  const anexos = extrairAnexosLista(pedido);
 
   const confirmarExclusao = async () => {
     setExcluindo(true);
@@ -212,217 +288,184 @@ export default function PedidoOdooDetalheDialog({
           onPointerDownOutside={(e) => e.preventDefault()}
           onInteractOutside={(e) => e.preventDefault()}
           onEscapeKeyDown={(e) => {
-            // Se houver submodal aberto, impede fechar o modal pai
             if (confirmaExcluir || senhaDevolverOpen || simulacaoOpen || alterarPrazoOpen || editarItensOpen) {
               e.preventDefault();
             }
           }}
-          className="w-[96vw] max-w-5xl max-h-[92vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6"
+          className="w-[96vw] max-w-5xl max-h-[92vh] overflow-y-auto overflow-x-hidden p-4 sm:p-5 space-y-3.5"
         >
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 flex-wrap">
-              {isPrioritario && (
-                <Badge className="bg-amber-500 text-white border-amber-600 animate-pulse gap-0.5 shrink-0">
-                  <Star className="w-3 h-3 fill-white" /> URGENTE
-                </Badge>
-              )}
-              <span>Pedido #{pedido.numero_pedido}</span>
-              {pedido.numero_oc && (
-                <span className="text-xs sm:text-sm font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded border border-indigo-200/60 dark:border-indigo-800/60 shrink-0">
-                  ({/^OC[\s:-]?/i.test(pedido.numero_oc) ? pedido.numero_oc : `OC: ${pedido.numero_oc}`})
-                </span>
-              )}
-              {pedido.of_nome ? (
-                <Badge variant="outline" className="text-xs font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200/80 shrink-0">
-                  OF: {pedido.of_nome}
-                </Badge>
-              ) : pedido.of_odoo_id ? (
-                <Badge variant="outline" className="text-xs font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200/80 shrink-0">
-                  OF: {pedido.of_odoo_id}
-                </Badge>
-              ) : pedido.odoo_id ? (
-                <span className="text-xs font-mono text-slate-400 shrink-0">Odoo:{pedido.odoo_id}</span>
-              ) : null}
-              {statusEstoque && (
-                <Badge
-                  onClick={() => {
-                    setItemSimulacaoSelecionado(null);
-                    setSimulacaoOpen(true);
-                  }}
-                  className={`text-xs font-bold px-2 py-0.5 border cursor-pointer hover:scale-105 hover:shadow-xs transition-all ${
-                    statusEstoque.statusGeral === "disponivel" || statusEstoque.statusGeral === "ok"
-                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/25"
-                      : statusEstoque.statusGeral === "desbobinar" || statusEstoque.statusGeral === "parcial"
-                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 hover:bg-amber-500/25"
-                      : "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40 hover:bg-red-500/25"
-                  }`}
-                  title="Clique para ver a simulação completa de bobinas e consumo"
-                >
-                  {statusEstoque.badgeGeral}
-                </Badge>
-              )}
-            </DialogTitle>
-            <DialogDescription>
-              Detalhamento técnico e distribuição para os galpões
-            </DialogDescription>
+          {/* Dialog Header acessível para leitores de tela */}
+          <DialogHeader className="sr-only">
+            <DialogTitle>Detalhes do Pedido #{pedido.numero_pedido}</DialogTitle>
+            <DialogDescription>Detalhamento e programação industrial do pedido</DialogDescription>
           </DialogHeader>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-            <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 min-w-0">
-              <p className="text-[10px] text-slate-400 uppercase font-semibold">Cliente</p>
-              <p className="font-medium text-slate-800 dark:text-slate-100 truncate" title={pedido.cliente_nome}>{pedido.cliente_nome || "—"}</p>
+          {/* 3. CABEÇALHO COMPACTO E HIERARQUIA VISUAL EM 1 LINHA */}
+          <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 sm:p-3.5 space-y-2.5">
+            {/* Linha 1: Identificação Oficial + Ações Rápidas em Ícones/Botões Discretos */}
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge className="bg-blue-600 hover:bg-blue-700 text-white font-mono font-black text-sm px-2.5 py-0.5 shadow-xs tracking-wide">
+                  #{pedido.numero_pedido}
+                </Badge>
+                {pedido.numero_oc && (
+                  <Badge variant="outline" className="text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 border-indigo-200">
+                    {/^OC[\s:-]?/i.test(pedido.numero_oc) ? pedido.numero_oc : `OC: ${pedido.numero_oc}`}
+                  </Badge>
+                )}
+                {pedido.of_nome ? (
+                  <Badge variant="outline" className="text-xs font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200/80">
+                    OF: {pedido.of_nome}
+                  </Badge>
+                ) : pedido.of_odoo_id ? (
+                  <Badge variant="outline" className="text-xs font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200/80">
+                    OF: {pedido.of_odoo_id}
+                  </Badge>
+                ) : null}
+                <PrioridadeBadge pedido={pedido} />
+                {isPrioritario && !pedido.prioridade_logistica && (
+                  <Badge className="bg-amber-500 text-white border-amber-600 animate-pulse gap-0.5 text-xs font-bold">
+                    <Star className="w-3 h-3 fill-white" /> Urgente
+                  </Badge>
+                )}
+              </div>
+
+              {/* Ações Rápidas no Canto Superior Direito */}
+              <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleSincronizarOdoo}
+                  disabled={sincronizando}
+                  className="h-7 px-2.5 text-xs gap-1.5 border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 font-semibold"
+                  title="Sincronizar dados em tempo real com o Odoo ERP"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${sincronizando ? "animate-spin text-blue-600" : "text-blue-500"}`} />
+                  <span className="hidden sm:inline">{sincronizando ? "Sincronizando..." : "Sincronizar"}</span>
+                </Button>
+
+                {onVerHistorico && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onVerHistorico(pedido)}
+                    className="h-7 px-2.5 text-xs gap-1.5 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold"
+                    title="Ver histórico de movimentações e logs"
+                  >
+                    <History className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="hidden sm:inline">Histórico</span>
+                  </Button>
+                )}
+
+                {onTransferir && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onTransferir(pedido)}
+                    className="h-7 px-2.5 text-xs gap-1.5 border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 font-semibold"
+                    title="Transferir fabricação para outra filial"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5 text-purple-500" />
+                    <span className="hidden sm:inline">Transferir</span>
+                  </Button>
+                )}
+
+                {(onSetPrioridade || onTogglePrioridade) && (
+                  <SeletorPrioridadeDropdown
+                    pedido={pedido}
+                    onSelectPrioridade={(nivel, data) => {
+                      if (onSetPrioridade) onSetPrioridade(pedido, nivel, data);
+                      else onTogglePrioridade(pedido);
+                    }}
+                    size="sm"
+                    variant="outline"
+                  />
+                )}
+              </div>
             </div>
-            <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 min-w-0">
-              <p className="text-[10px] text-slate-400 uppercase font-semibold">Vendedor</p>
-              <p className="font-medium text-slate-800 dark:text-slate-100 truncate" title={pedido.vendedor_nome}>{pedido.vendedor_nome || "—"}</p>
-            </div>
-            <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 min-w-0">
-              <p className="text-[10px] text-slate-400 uppercase font-semibold">Data Prometida (Cliente)</p>
-              <p className="font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">{formatDataBR(pedido.data_entrega)}</p>
-            </div>
-            <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 min-w-0 border border-transparent hover:border-orange-300 dark:hover:border-orange-800 transition-colors">
-              <div className="flex items-center justify-between gap-1 mb-0.5">
-                <p className="text-[10px] text-slate-400 uppercase font-semibold">SLA Fábrica</p>
+
+            {/* Linha 2: Metadados Essenciais Fluidos e Compactos */}
+            <div className="flex items-center gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-300 flex-wrap pt-1.5 border-t border-slate-200/60 dark:border-slate-800">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-slate-400 font-bold uppercase text-[10px]">Cliente:</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100 truncate max-w-[200px] sm:max-w-[280px]" title={pedido.cliente_nome}>
+                  {pedido.cliente_nome || "—"}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-slate-400 font-bold uppercase text-[10px]">Vendedor:</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100 truncate max-w-[150px]" title={pedido.vendedor_nome}>
+                  {pedido.vendedor_nome || "—"}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-slate-400 font-bold uppercase text-[10px]">Prazo / Carregamento:</span>
+                <span className="font-black text-orange-600 dark:text-orange-400 whitespace-nowrap">
+                  {formatDataBR(pedido.data_previsao_fabrica || pedido.data_entrega)}
+                </span>
                 <Button
                   size="sm"
                   variant="ghost"
                   onClick={() => setAlterarPrazoOpen(true)}
-                  className="h-5 px-1.5 text-[10px] text-orange-600 hover:text-orange-700 hover:bg-orange-100 dark:hover:bg-orange-950 font-bold gap-1"
-                  title="Alterar prazo interno da fábrica e notificar vendedor"
+                  className="h-5 px-1 text-[10px] text-orange-600 hover:text-orange-700 hover:bg-orange-100 dark:hover:bg-orange-950 font-bold"
+                  title="Alterar prazo interno da fábrica"
                 >
-                  <CalendarClock className="w-3 h-3" /> Alterar
+                  <CalendarClock className="w-3 h-3" />
                 </Button>
               </div>
-              <div className="flex items-baseline gap-1.5 flex-wrap">
-                <p className="font-bold text-orange-600 dark:text-orange-400 whitespace-nowrap text-sm">
-                  {pedido.data_previsao_fabrica ? formatDataBR(pedido.data_previsao_fabrica) : `${sla} dias úteis`}
-                </p>
-                {pedido.data_previsao_fabrica && (
-                  <Badge variant="outline" className="text-[9px] px-1 py-0 border-orange-400 text-orange-700 bg-orange-50 dark:bg-orange-950/40 font-semibold">
-                    Ajustado PCP
+
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-slate-400 font-bold uppercase text-[10px]">Fábrica:</span>
+                <Badge className="text-[10px] h-5 font-bold bg-orange-500 text-white">
+                  {pedido.unidade || "Matriz AJL"}
+                </Badge>
+                {pedido.loja_venda && pedido.unidade && pedido.loja_venda !== pedido.unidade && (
+                  <Badge variant="outline" className="text-[9px] h-5 font-semibold text-purple-700 bg-purple-50 border-purple-200">
+                    de {pedido.loja_venda}
+                  </Badge>
+                )}
+                {isLocalArmazenagemPinhais(pedido.local_armazenagem || pedido.loja_estoque) && (
+                  <Badge variant="outline" className="text-[9px] h-5 font-bold bg-emerald-50 text-emerald-700 border-emerald-300">
+                    Estoque: Pinhais
                   </Badge>
                 )}
               </div>
-              {pedido.data_previsao_fabrica && pedido.motivo_alteracao_prazo && (
-                <p className="text-[10px] text-slate-500 truncate mt-0.5" title={pedido.motivo_alteracao_prazo}>
-                  Motivo: {pedido.motivo_alteracao_prazo}
-                </p>
-              )}
             </div>
-          </div>
 
-          {/* Localização Comercial e Unidade Fabril de Produção */}
-          <div className="flex items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex-wrap">
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-1.5 text-xs">
-                <Store className="w-4 h-4 text-slate-400 shrink-0" />
-                <span className="text-slate-500">Loja de Venda:</span>
-                <Badge variant="outline" className="font-bold text-xs bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100">
-                  {pedido.loja_venda || "Matriz AJL"}
-                </Badge>
-                {pedido.empresa_venda && pedido.empresa_venda !== pedido.loja_venda && (
-                  <span className="text-[10px] text-slate-400 hidden md:inline truncate max-w-[180px]" title={pedido.empresa_venda}>
-                    ({pedido.empresa_venda})
-                  </span>
-                )}
+            {/* Linha 3: Barra de Progresso Fina e Elegante */}
+            <div className="pt-1">
+              <div className="flex items-center justify-between text-[11px] mb-1">
+                <span className="text-slate-500 font-medium">Progresso Geral da Produção</span>
+                <span className={`font-black ${pct >= 100 ? "text-emerald-600" : "text-orange-600"}`}>
+                  {pct}%
+                </span>
               </div>
-
-              <div className="flex items-center gap-1.5 text-xs">
-                <Building2 className="w-4 h-4 text-orange-500 shrink-0" />
-                <span className="text-slate-500">Fábrica (PCP):</span>
-                <Badge className="font-bold text-xs bg-orange-500 text-white">
-                  {pedido.unidade || "Matriz AJL"}
-                </Badge>
-              </div>
-
-              {pedido.loja_venda && pedido.unidade && pedido.loja_venda !== pedido.unidade && (
-                <Badge variant="outline" className="text-[10px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200">
-                  🔄 Roteado de {pedido.loja_venda}
-                </Badge>
-              )}
-
-              {pedido.unidade_transferida_de && (
-                <Badge variant="outline" className="text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200" title={pedido.motivo_transferencia}>
-                  ↔️ De {pedido.unidade_transferida_de}
-                </Badge>
-              )}
-
-              {(isLocalArmazenagemPinhais(pedido.local_armazenagem || pedido.loja_estoque || pedido.armazem) ||
-                itens.some(it => isLocalArmazenagemPinhais(it.local_armazenagem || it.loja_estoque || it.armazem || it.warehouse_id || it.location_id))) && (
-                <Badge variant="outline" className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800" title="Itens com local de armazenagem em Pinhais">
-                  📍 Estoque: Pinhais
-                </Badge>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 ml-auto shrink-0 flex-wrap">
-              {onVerHistorico && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onVerHistorico(pedido)}
-                  className="gap-1.5 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-xs font-bold"
-                >
-                  <History className="w-3.5 h-3.5 text-blue-500" />
-                  Ver Histórico
-                </Button>
-              )}
-              {onTransferir && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onTransferir(pedido)}
-                  className="gap-1.5 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-xs font-bold"
-                >
-                  <ArrowRightLeft className="w-3.5 h-3.5 text-indigo-500" />
-                  Transferir Fábrica
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* SLA Countdown (Regra 6) */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <SlaCountdownBadge dataPrometida={pedido.data_entrega} dataPrevisaoFabrica={pedido.data_previsao_fabrica} />
-            <div className="ml-auto flex items-center gap-2 flex-wrap">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleSincronizarOdoo}
-                disabled={sincronizando}
-                className="gap-1.5 border-blue-400 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 whitespace-nowrap"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${sincronizando ? "animate-spin" : ""}`} />
-                {sincronizando ? "Sincronizando..." : "Sincronizar com Odoo"}
-              </Button>
-              <PrioridadeBadge pedido={pedido} />
-              {(onSetPrioridade || onTogglePrioridade) && (
-                <SeletorPrioridadeDropdown
-                  pedido={pedido}
-                  onSelectPrioridade={(nivel, data) => {
-                    if (onSetPrioridade) onSetPrioridade(pedido, nivel, data);
-                    else onTogglePrioridade(pedido);
-                  }}
-                  size="sm"
-                  variant="outline"
+              <div className="h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    pct >= 100 ? "bg-emerald-500" : "bg-gradient-to-r from-orange-500 to-amber-500"
+                  }`}
+                  style={{ width: `${pct}%` }}
                 />
-              )}
+              </div>
             </div>
           </div>
 
-          {/* Fotos e Croquis do Pedido (Odoo) — Todos os anexos em grade completa com visualizador */}
-          {extrairAnexosLista(pedido).length > 0 && (
-            <div className="rounded-xl border-2 border-blue-300 dark:border-blue-800 overflow-hidden">
-              <div className="bg-blue-50 dark:bg-blue-950/40 px-3 py-2 flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2 min-w-0">
-                  <ImageIcon className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                  <span className="text-xs font-bold text-blue-700 dark:text-blue-300 truncate">
-                    Fotos e Croquis do Pedido ({extrairAnexosLista(pedido).length})
+          {/* Fotos e Croquis do Pedido (se houver) */}
+          {anexos.length > 0 && (
+            <div className="rounded-xl border border-blue-200 dark:border-blue-900/60 overflow-hidden bg-white dark:bg-slate-900">
+              <div className="bg-blue-50/70 dark:bg-blue-950/40 px-3 py-1.5 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                  <span className="text-xs font-bold text-blue-800 dark:text-blue-200">
+                    Croquis e Fotos ({anexos.length})
                   </span>
                 </div>
-                <span className="text-[11px] font-medium text-blue-500 dark:text-blue-400 shrink-0">Clique na imagem para expandir</span>
+                <span className="text-[10px] text-blue-500">Toque na imagem para ampliar</span>
               </div>
-              <div className="bg-white dark:bg-slate-900 p-3">
+              <div className="p-2.5">
                 <CroquiThumb
                   pedido={pedido}
                   alt={`Croqui do pedido #${pedido.numero_pedido}`}
@@ -432,204 +475,11 @@ export default function PedidoOdooDetalheDialog({
             </div>
           )}
 
-          {/* Barra de progresso geral */}
-          <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3">
-            {(() => {
-              const pct = progressoReal != null ? progressoReal : (pedido.percentual_concluido || 0);
-              return (
-                <>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">Progresso Geral da Produção</span>
-                    <span className={`text-sm font-bold ${pct >= 100 ? "text-emerald-600" : "text-orange-600"}`}>
-                      {pct}%
-                    </span>
-                  </div>
-                  <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-emerald-500" : "bg-gradient-to-r from-orange-500 to-amber-500"}`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  {pct >= 100 && (
-                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1.5 flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" /> 100% concluído — pronto para enviar evento de conclusão ao Odoo ERP.
-                    </p>
-                  )}
-                </>
-              );
-            })()}
-          </div>
-
-          {espessuras.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <Tag className="w-4 h-4 text-slate-400" />
-              <span className="text-xs text-slate-500 font-semibold">Espessuras de chapa:</span>
-              {espessuras.map((e, i) => (
-                <span key={i} className="text-xs font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
-                  {e.espessura}mm
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* Conferência de Matéria-Prima em Tempo Real (Estoque) */}
-          {statusEstoque && (
-            <div className={`rounded-xl border p-3.5 space-y-3 ${
-              statusEstoque.statusGeral === "disponivel" || statusEstoque.statusGeral === "ok"
-                ? "bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800"
-                : statusEstoque.statusGeral === "desbobinar" || statusEstoque.statusGeral === "parcial"
-                ? "bg-amber-50/40 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800"
-                : "bg-red-50/40 dark:bg-red-950/20 border-red-300 dark:border-red-800"
-            }`}>
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <Disc className={`w-4 h-4 ${
-                    statusEstoque.statusGeral === "disponivel" || statusEstoque.statusGeral === "ok"
-                      ? "text-emerald-600 dark:text-emerald-400"
-                      : statusEstoque.statusGeral === "desbobinar" || statusEstoque.statusGeral === "parcial"
-                      ? "text-amber-600 dark:text-amber-400"
-                      : "text-red-600 dark:text-red-400"
-                  }`} />
-                  <div>
-                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block">
-                      Conferência de Matéria-Prima em Tempo Real (Estoque)
-                    </span>
-                    <span className="text-[11px] text-slate-500 font-medium">
-                      Peso Total a Usar: <strong>{statusEstoque.pesoTotalKg?.toLocaleString("pt-BR")} kg</strong>
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => {
-                      setItemSimulacaoSelecionado(null);
-                      setSimulacaoOpen(true);
-                    }}
-                    className="h-7 text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white shadow-xs"
-                  >
-                    🔍 Simulação de Bobinas & Saldo
-                  </Button>
-                  <Badge className={`text-xs font-bold ${
-                    statusEstoque.statusGeral === "disponivel" || statusEstoque.statusGeral === "ok"
-                      ? "bg-emerald-600 text-white"
-                      : statusEstoque.statusGeral === "desbobinar" || statusEstoque.statusGeral === "parcial"
-                      ? "bg-amber-600 text-white"
-                      : "bg-red-600 text-white"
-                  }`}>
-                    {statusEstoque.badgeGeral}
-                  </Badge>
-                </div>
-              </div>
-
-              {/* Mensagem OPA em destaque */}
-              <div className="p-2.5 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-xs">
-                <p className="font-semibold text-slate-800 dark:text-slate-100">
-                  {statusEstoque.opaMensagemGeral}
-                </p>
-              </div>
-
-              {/* Resumo dos Itens e Simulação Individual */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs">
-                {statusEstoque.analises.map((a, idx) => {
-                  const bPrincipal = a.bobinasSimuladas?.[0];
-                  const chPrincipal = a.chapasSimuladas?.[0];
-
-                  return (
-                    <div
-                      key={idx}
-                      className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-2 shadow-2xs"
-                    >
-                      <div>
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="font-bold text-slate-800 dark:text-slate-200 line-clamp-1">
-                            {a.produto || a.descricao || `Item #${idx + 1}`}
-                          </span>
-                          <Badge className={`text-[10px] shrink-0 font-bold ${
-                            a.status === "disponivel"
-                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300"
-                              : a.status === "parcial"
-                              ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300"
-                              : "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 border-red-300"
-                          }`}>
-                            {a.shortBadge}
-                          </Badge>
-                        </div>
-
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                          Consumo estimado: <strong>{a.calculoPeso?.pesoKg?.toLocaleString("pt-BR") || 0} kg</strong>
-                          {a.espessura && ` • Espessura ${a.espessura}mm`}
-                          {a.cor && ` • Cor ${a.cor}`}
-                        </p>
-
-                        {/* Comparativo Antes vs Depois da Bobina Principal */}
-                        {bPrincipal && (
-                          <div className="mt-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-800 text-[11px] space-y-1">
-                            <div className="flex items-center justify-between text-slate-500">
-                              <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
-                                Bobina {bPrincipal.codigo}
-                              </span>
-                              <span className={bPrincipal.daParaFazer ? "text-emerald-600 font-bold" : "text-amber-600 font-bold"}>
-                                {bPrincipal.daParaFazer ? "✅ 100% OK" : "⚠️ Parcial"}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between font-mono text-[10px]">
-                              <span>Agora: <strong>{bPrincipal.pesoAtualKg?.toLocaleString("pt-BR")}kg</strong></span>
-                              <span className="text-orange-600 font-bold">- {bPrincipal.pesoConsumoKg?.toLocaleString("pt-BR")}kg</span>
-                              <span className="text-emerald-600 font-bold">DEPOIS: {bPrincipal.pesoAposUsoKg?.toLocaleString("pt-BR")}kg</span>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Comparativo de Chapas Cortadas */}
-                        {chPrincipal && (
-                          <div className="mt-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-800 text-[11px] space-y-1">
-                            <div className="flex items-center justify-between text-slate-500">
-                              <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
-                                Chapa {chPrincipal.codigo}
-                              </span>
-                              <span className={chPrincipal.daParaFazer ? "text-emerald-600 font-bold" : "text-amber-600 font-bold"}>
-                                {chPrincipal.daParaFazer ? "✅ Chapas OK" : "⚠️ Faltam"}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between font-mono text-[10px]">
-                              <span>Agora: <strong>{chPrincipal.pecasAtual} un</strong></span>
-                              <span className="text-orange-600 font-bold">- {chPrincipal.pecasConsumo} un</span>
-                              <span className="text-emerald-600 font-bold">DEPOIS: {chPrincipal.pecasAposUso} un</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                        <span className="text-[10px] text-slate-400">
-                          {a.bobinasSimuladas?.length || a.chapasSimuladas?.length || 0} lote(s) disponível(is)
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setItemSimulacaoSelecionado(a);
-                            setSimulacaoOpen(true);
-                          }}
-                          className="text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1"
-                        >
-                          🔍 Ver Simulação
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Checklist de Itens Agrupados (Regra 4) + Roteamento (Regra 3) */}
-          <div>
-            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                <Package className="w-4 h-4" /> Itens Agrupados ({itens.length})
+          {/* 1. FIM DA DUPLICAÇÃO DE ITENS (Lista Única Definitiva com Controles Integrados) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                <Package className="w-4 h-4 text-orange-500" /> Itens do Pedido ({itens.length})
               </h4>
               <div className="flex items-center gap-2">
                 <Button
@@ -649,27 +499,23 @@ export default function PedidoOdooDetalheDialog({
                 )}
               </div>
             </div>
+
             {itens.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">Nenhum item detalhado.</p>
+              <p className="text-xs text-slate-400 italic py-4 text-center">Nenhum item detalhado neste pedido.</p>
             ) : (
-              <div className="flex flex-col gap-3">
-                {onProgramarItem && onProgramarTodosItens && (
-                  <ProgramadorItensSection
-                    pedido={pedido}
-                    onProgramarItem={onProgramarItem}
-                    onProgramarTodosItens={onProgramarTodosItens}
-                  />
-                )}
-                <PedidoItensLista
-                  pedido={pedido}
-                  itensJson={pedido.itens_json}
-                  estoqueContext={estoqueContext}
-                />
-              </div>
+              <PedidoItensLista
+                pedido={pedido}
+                itensLocais={itensLocais}
+                podeProgramar={Boolean(onProgramarItem || onProgramarTodosItens)}
+                onAtualizarItemLocal={atualizarItemLocal}
+                onDistribuirItem={onProgramarItem ? handleDistribuirItemIndividual : null}
+                unidadePedido={pedido.unidade}
+                estoqueContext={estoqueContext}
+              />
             )}
           </div>
 
-          {/* Rastreamento por máquina (Mini BI) — APENAS na visão do galpão (operador), após aceitar o pedido */}
+          {/* Rastreamento por máquina (Mini BI) — na visão do galpão após aceitar o pedido */}
           {showTracking && (pedido.status_pcp === "distribuido" || pedido.status_pcp === "em_producao") && (
             <div className="space-y-3 rounded-xl border-2 border-orange-200 dark:border-orange-900/50 bg-orange-50/40 dark:bg-orange-950/10 p-3">
               <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
@@ -681,58 +527,79 @@ export default function PedidoOdooDetalheDialog({
               {pedido.itens_telha_count > 0 && (
                 <EtapasTelhaSequence pedido={pedido} operadorNome={operadorNome} onAtualizado={onAtualizado} />
               )}
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">
-                Cada ação dispara automaticamente o webhook do Mini BI para o Odoo.
-              </p>
             </div>
           )}
 
-          <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+          {/* 4. RODAPÉ LIMPO COM 1 AÇÃO PRINCIPAL EM EVIDÊNCIA + MENU "MAIS AÇÕES ▾" */}
+          <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800 flex-wrap">
+            {/* Ação Principal em Destaque */}
             <Button
-              onClick={() => onDistribuir(pedido)}
-              disabled={distribuindo || jaDistribuido}
-              className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white flex-1"
+              onClick={handleAcaoPrincipal}
+              disabled={salvandoProgramacao || distribuindo}
+              className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold h-10 px-6 gap-2 shadow-sm flex-1 sm:flex-initial min-w-[220px]"
             >
               <Zap className="w-4 h-4" />
-              {jaDistribuido ? "Já Distribuído" : distribuindo ? "Distribuindo..." : "Distribuir para os Galpões"}
+              <span>
+                {distribuindo || salvandoProgramacao
+                  ? "Processando..."
+                  : !jaDistribuido
+                  ? "⚡ Distribuir para Produção"
+                  : "💾 Salvar Programação dos Itens"}
+              </span>
             </Button>
-            {jaDistribuido && onRetirarFila && (
-              <Button
-                variant="outline"
-                onClick={() => onRetirarFila(pedido)}
-                className="sm:w-auto border-amber-400 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30"
-              >
-                <Undo2 className="w-4 h-4" /> Retirar da Fila
-              </Button>
-            )}
-            {onDevolverPCP && (pedido.status_pcp === "distribuido" || pedido.status_pcp === "em_producao") && (
-              <Button
-                variant="outline"
-                onClick={() => setSenhaDevolverOpen(true)}
-                className="sm:w-auto border-amber-400 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30"
-              >
-                <RotateCcw className="w-4 h-4" /> Devolver ao PCP
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              disabled={resetando}
-              onClick={handleResetarPedido}
-              className="sm:w-auto border-sky-500 text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/30 font-semibold"
-              title="Zerar progresso para 0% e resetar a OS para o início"
-            >
-              <RotateCcw className={`w-4 h-4 mr-1.5 ${resetando ? "animate-spin" : ""}`} />
-              {resetando ? "Zerando..." : "Zerar OS (0%)"}
-            </Button>
-            {onExcluirOS && (
-              <Button
-                variant="destructive"
-                onClick={() => setConfirmaExcluir(true)}
-                className="sm:w-auto"
-              >
-                <Trash2 className="w-4 h-4" /> Excluir OS
-              </Button>
-            )}
+
+            {/* Menu Dropdown "Mais Ações ▾" */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="h-10 px-3.5 gap-1.5 font-bold border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200">
+                  <span>Mais Ações</span>
+                  <ChevronDown className="w-4 h-4 text-slate-500" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 p-1">
+                {onDevolverPCP && (pedido.status_pcp === "distribuido" || pedido.status_pcp === "em_producao") && (
+                  <DropdownMenuItem
+                    onClick={() => setSenhaDevolverOpen(true)}
+                    className="gap-2 cursor-pointer font-medium text-amber-700 dark:text-amber-400 focus:text-amber-700 focus:bg-amber-50 dark:focus:bg-amber-950/40"
+                  >
+                    <RotateCcw className="w-4 h-4 text-amber-600" />
+                    <span>Devolver ao PCP</span>
+                  </DropdownMenuItem>
+                )}
+
+                {jaDistribuido && onRetirarFila && (
+                  <DropdownMenuItem
+                    onClick={() => onRetirarFila(pedido)}
+                    className="gap-2 cursor-pointer font-medium text-amber-700 dark:text-amber-400 focus:text-amber-700 focus:bg-amber-50 dark:focus:bg-amber-950/40"
+                  >
+                    <Undo2 className="w-4 h-4 text-amber-600" />
+                    <span>Retirar da Fila</span>
+                  </DropdownMenuItem>
+                )}
+
+                <DropdownMenuItem
+                  onClick={handleResetarPedido}
+                  disabled={resetando}
+                  className="gap-2 cursor-pointer font-medium text-sky-700 dark:text-sky-400 focus:text-sky-700 focus:bg-sky-50 dark:focus:bg-sky-950/40"
+                >
+                  <RotateCcw className={`w-4 h-4 text-sky-600 ${resetando ? "animate-spin" : ""}`} />
+                  <span>Zerar Progresso (0%)</span>
+                </DropdownMenuItem>
+
+                {onExcluirOS && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => setConfirmaExcluir(true)}
+                      className="gap-2 cursor-pointer font-semibold text-red-600 dark:text-red-400 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/40"
+                    >
+                      <Trash2 className="w-4 h-4 text-red-600" />
+                      <span>Excluir Pedido / OS</span>
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </DialogContent>
       </Dialog>

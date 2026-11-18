@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Scissors, Wind, Layers, Ruler, ClipboardList, Sparkles, Home, CheckCircle2, AlertTriangle, Clock, Bell, Loader2, Check } from "lucide-react";
+import { Scissors, Wind, Layers, Ruler, ClipboardList, Sparkles, Home, CheckCircle2, AlertTriangle, Clock, Bell, Loader2, Check, Zap, Calendar, Factory } from "lucide-react";
 import { toast } from "sonner";
 import { stripHtml } from "@/lib/stripHtml";
 import { obterStatusDescritivoItem, extrairAnotacaoItem, localizarOpDoItem, classGrupo, normalizarUnidadeMedidaItem } from "@/lib/pedidoOdooHelper";
@@ -7,6 +7,11 @@ import { extrairCroquiItem, extrairCroquiPedido } from "@/lib/croquiExtractor";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import { verificarEstoqueItem, extrairDemandaItem } from "@/lib/estoqueMaterialHelper";
 import { enviarAlertaComprasLeonardo } from "@/lib/alertaSuprimentosHelper";
+import { obterMaquinasDoGrupo } from "@/lib/roteamentoPCP";
+import { useFilial } from "@/contexts/FilialContext";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import ImageLink from "@/components/ui/ImageLink";
 import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
 import AlterarSetorItemButton from "@/components/pcp/AlterarSetorItemButton";
@@ -67,7 +72,22 @@ function detectarCategoria(item) {
 
 // Lista cada item do pedido com cor distinta por categoria.
 // Layout de alto contraste: quantidade GIGANTE em badge sólida colorida + barra de progresso individual + processo sanduíche.
-export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = [], ordensCD = [], compacto = false, estoqueContext = null }) {
+export default function PedidoItensLista({
+  itensJson,
+  itensLocais = null,
+  pedido,
+  pedidosProducao = [],
+  ordensCD = [],
+  compacto = false,
+  estoqueContext = null,
+  podeProgramar = false,
+  onAtualizarItemLocal = null,
+  onDistribuirItem = null,
+  unidadePedido = null
+}) {
+  const { filialAtiva } = useFilial();
+  const filialEfetiva = unidadePedido || pedido?.unidade || filialAtiva;
+
   const [modalSimulacaoItem, setModalSimulacaoItem] = useState(null);
   const [itemEtapasModal, setItemEtapasModal] = useState(null);
   const [enviandoAlerta, setEnviandoAlerta] = useState({});
@@ -103,11 +123,15 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
   };
 
   let itens = [];
-  try {
-    const arr = JSON.parse(itensJson || "[]");
-    itens = Array.isArray(arr) ? arr : [];
-  } catch {
-    itens = [];
+  if (Array.isArray(itensLocais) && itensLocais.length > 0) {
+    itens = itensLocais;
+  } else {
+    try {
+      const arr = JSON.parse(itensJson || "[]");
+      itens = Array.isArray(arr) ? arr : [];
+    } catch {
+      itens = [];
+    }
   }
   if (itens.length === 0) return null;
 
@@ -505,6 +529,78 @@ export default function PedidoItensLista({ itensJson, pedido, pedidosProducao = 
                   />
                 </div>
               </div>
+
+              {/* Controles de Distribuição Integrados (Máquina + Data de Produção) */}
+              {podeProgramar && !compacto && (
+                <div className="mt-2 pt-2 border-t border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 flex-wrap bg-slate-50/70 dark:bg-slate-800/40 p-2.5 rounded-lg">
+                  <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap flex-1">
+                    {/* Seletor de Máquina */}
+                    <div className="w-44 min-w-[140px]">
+                      <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase flex items-center gap-1 mb-1">
+                        <Factory className="w-3 h-3 text-orange-500" /> Máquina
+                      </label>
+                      <Select
+                        value={it.maquina || ""}
+                        onValueChange={(val) => onAtualizarItemLocal?.(idx, "maquina", val)}
+                      >
+                        <SelectTrigger className="h-8 text-xs bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-medium">
+                          <SelectValue placeholder="Selecione Máquina" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {obterMaquinasDoGrupo(g, filialEfetiva).map((m) => (
+                            <SelectItem key={m} value={m} className="text-xs font-medium">
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Seletor de Data de Produção */}
+                    <div className="w-40 min-w-[130px]">
+                      <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase flex items-center gap-1 mb-1">
+                        <Calendar className="w-3 h-3 text-orange-500" /> Data Produção
+                      </label>
+                      <Input
+                        type="date"
+                        value={it.data_programada || ""}
+                        onChange={(e) => onAtualizarItemLocal?.(idx, "data_programada", e.target.value)}
+                        className="h-8 text-xs px-2.5 py-0 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-medium"
+                        title="Data de Produção Programada"
+                      />
+                    </div>
+
+                    {/* Status de Distribuição */}
+                    {(it.distribuido || it.status === "distribuido" || it.status === "concluido") && (
+                      <div className="flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-bold sm:mt-5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <span>Distribuído</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Botão Individual de Distribuição */}
+                  {onDistribuirItem && (
+                    <div className="sm:mt-4">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={it.distribuido ? "outline" : "default"}
+                        onClick={() => onDistribuirItem(idx)}
+                        className={`h-8 px-3 text-xs gap-1 font-bold whitespace-nowrap shadow-xs ${
+                          it.distribuido
+                            ? "text-blue-600 border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                            : "bg-orange-500 hover:bg-orange-600 text-white"
+                        }`}
+                        title={it.distribuido ? "Redistribuir / Atualizar este item na máquina" : "Distribuir apenas este item agora"}
+                      >
+                        <Zap className="w-3 h-3 shrink-0" />
+                        <span>{it.distribuido ? "Redistribuir" : "Distribuir Item"}</span>
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

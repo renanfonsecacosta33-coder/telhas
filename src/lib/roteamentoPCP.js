@@ -1,4 +1,5 @@
-import { classGrupo } from "@/lib/pedidoOdooHelper";
+import { classGrupo, detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
+import { maquinasTelhaPorFilial, maquinasCDPorFilial } from "@/lib/maquinasPorFilial";
 
 // Regras de Roteamento Industrial e Normalização de Lojas da Central PCP - AJL Ferro & Aço
 // Lojas e Filiais Suportadas:
@@ -252,3 +253,47 @@ export function rotearUnidadeProducao({
     roteadoDeOutraLoja: lojaNormalizada !== "Matriz AJL"
   };
 }
+
+/**
+ * Retorna as máquinas operacionais disponíveis para o grupo e filial
+ */
+export function obterMaquinasDoGrupo(grupo, filial) {
+  if (grupo === "cd") return maquinasCDPorFilial(filial);
+  if (grupo === "telha") return maquinasTelhaPorFilial(filial);
+  if (grupo === "frisada") return ["Frisada", "Expedição"];
+  return [...maquinasTelhaPorFilial(filial), ...maquinasCDPorFilial(filial)];
+}
+
+/**
+ * Sugere a máquina padrão de fabricação respeitando a descrição do vendedor e filial
+ */
+export function sugerirMaquinaPadraoItem(item, filial) {
+  const grupo = classGrupo(item);
+  const disponiveis = obterMaquinasDoGrupo(grupo, filial);
+  const valida = (maq) => (disponiveis.includes(maq) ? maq : disponiveis[0] || "");
+
+  if (item?.maquina && disponiveis.includes(item.maquina)) return item.maquina;
+
+  if (grupo === "telha") {
+    const maquinaDetectada = detectarMaquinaTelha(item?.produto, item?.descricao || item?.observacao);
+    if (maquinaDetectada && disponiveis.includes(maquinaDetectada)) return maquinaDetectada;
+    return valida("TP - 25");
+  }
+
+  if (grupo === "cd") {
+    const texto = `${item?.produto || ""} ${item?.descricao || ""}`.toUpperCase();
+    if (texto.includes("PERFILADEIRA")) return valida("PERFILADEIRA");
+    if (texto.includes("DESBOBINAD")) return valida("DESBOBINADEIRA 01");
+    if (texto.includes("CORTE") || texto.includes("GUILHOTINA") || texto.includes("CHAPA")) {
+      return valida("CORTE 3M");
+    }
+    if (texto.includes("DOBRA") || texto.includes("PERFIL")) {
+      return valida("DOBRA FUNDO 6M");
+    }
+    return valida(disponiveis[0] || "CORTE 3M");
+  }
+
+  if (grupo === "frisada") return "Frisada";
+  return disponiveis[0] || "";
+}
+
