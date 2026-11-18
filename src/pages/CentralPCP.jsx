@@ -60,7 +60,8 @@ import useDistribuicaoPcp from "@/hooks/useDistribuicaoPcp"; import useProgramac
 import useFilaPaginada from "@/hooks/useFilaPaginada"; import useRealtimeThrottled from "@/hooks/useRealtimeThrottled";
 import FilaPagination from "@/components/pcp/FilaPagination";
 import { montarConsultaPcp, buscarOpsDasOfs } from "@/lib/consultaFilaPcp"; import useFecharProduzidosPcp from "@/hooks/useFecharProduzidosPcp";
-import { getPesoOrdenacaoPrioridade, formatarDataProgramadaAmigavel } from "@/lib/prioridadeHelper";
+import { getPesoOrdenacaoPrioridade, formatarDataProgramadaAmigavel, hasPrioridadeDefinida, montarUpdatesPrioridade } from "@/lib/prioridadeHelper";
+import ModalPrioridadeObrigatoria from "@/components/pcp/ModalPrioridadeObrigatoria";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 
@@ -1021,6 +1022,9 @@ export default function CentralPCP() {
             prioridade: ativa,
             prioridade_nivel: nivelSalvar,
             tipo_prioridade: nivelSalvar,
+            prioridade_logistica: nivelSalvar,
+            prioridade_selecionada: true,
+            prioridade_logistica_definida: true,
             cliente_retira_agora: isRetiraAgora,
             cliente_retira: isRetiraAgora,
             retira_agora: isRetiraAgora,
@@ -1042,6 +1046,9 @@ export default function CentralPCP() {
         prioridade: ativa,
         prioridade_nivel: nivelSalvar,
         tipo_prioridade: nivelSalvar,
+        prioridade_logistica: nivelSalvar,
+        prioridade_selecionada: true,
+        prioridade_logistica_definida: true,
         cliente_retira_agora: isRetiraAgora,
         cliente_retira: isRetiraAgora,
         retira_agora: isRetiraAgora,
@@ -1054,6 +1061,10 @@ export default function CentralPCP() {
         ...(isRota ? { rota_ts: new Date().toISOString() } : {}),
         historico_log: JSON.stringify(novoLog)
       };
+
+      if (pedidoSelecionado && pedidoSelecionado.id === pedido.id) {
+        setPedidoSelecionado(prev => ({ ...prev, ...payloadOf }));
+      }
 
       // 2. Persiste a alteração no PedidoOdoo com proteção contra Rate Limit
       await executarComRetryRateLimit(() =>
@@ -1191,6 +1202,9 @@ export default function CentralPCP() {
             prioridade: ativa,
             prioridade_nivel: nivelSalvar,
             tipo_prioridade: nivelSalvar,
+            prioridade_logistica: nivelSalvar,
+            prioridade_selecionada: true,
+            prioridade_logistica_definida: true,
             cliente_retira_agora: isRetiraAgora,
             cliente_retira: isRetiraAgora,
             retira_agora: isRetiraAgora,
@@ -1212,6 +1226,9 @@ export default function CentralPCP() {
         prioridade: ativa,
         prioridade_nivel: nivelSalvar,
         tipo_prioridade: nivelSalvar,
+        prioridade_logistica: nivelSalvar,
+        prioridade_selecionada: true,
+        prioridade_logistica_definida: true,
         cliente_retira_agora: isRetiraAgora,
         cliente_retira: isRetiraAgora,
         retira_agora: isRetiraAgora,
@@ -1426,8 +1443,74 @@ export default function CentralPCP() {
     usuarioNome: usuarioLogadoNome
   });
 
+  const [modalPrioridadeObrigatoria, setModalPrioridadeObrigatoria] = useState({
+    aberto: false,
+    pedidos: [],
+    aposConfirmar: null
+  });
+  const [salvandoPrioridadeObrigatoria, setSalvandoPrioridadeObrigatoria] = useState(false);
+
+  const handleConfirmarPrioridadeObrigatoria = async (tipo, dataProgramada) => {
+    const alvos = modalPrioridadeObrigatoria.pedidos;
+    if (!alvos || !alvos.length) return;
+    setSalvandoPrioridadeObrigatoria(true);
+
+    try {
+      const updates = montarUpdatesPrioridade(tipo, dataProgramada);
+      const atualizados = [];
+
+      for (let i = 0; i < alvos.length; i++) {
+        const p = alvos[i];
+        if (i > 0) await new Promise((r) => setTimeout(r, 200));
+        await base44.entities.PedidoOdoo.update(p.id, updates);
+        atualizados.push({ ...p, ...updates });
+      }
+
+      queryClient.invalidateQueries({ queryKey: filaPcp.queryKey });
+
+      toast({
+        title: "Prioridade Definida",
+        description: alvos.length === 1
+          ? `OF #${alvos[0].numero_pedido}: prioridade definida com sucesso.`
+          : `${alvos.length} pedidos atualizados com prioridade.`
+      });
+
+      const callback = modalPrioridadeObrigatoria.aposConfirmar;
+      setModalPrioridadeObrigatoria({ aberto: false, pedidos: [], aposConfirmar: null });
+
+      if (callback) {
+        if (alvos.length === 1) {
+          callback(atualizados[0]);
+        } else {
+          callback(atualizados);
+        }
+      }
+    } catch (err) {
+      toast({
+        title: "Erro ao salvar prioridade",
+        description: err.message || String(err),
+        variant: "destructive"
+      });
+    } finally {
+      setSalvandoPrioridadeObrigatoria(false);
+    }
+  };
+
   const iniciarDistribuicaoComRoteamento = (pedido) => {
     if (!pedido) return;
+
+    // 🔒 NOVA REGRA PCP: Nenhum pedido vai para as máquinas sem prioridade definida
+    if (!hasPrioridadeDefinida(pedido)) {
+      setModalPrioridadeObrigatoria({
+        aberto: true,
+        pedidos: [pedido],
+        aposConfirmar: (pedidoComPrioridade) => {
+          iniciarDistribuicaoComRoteamento(pedidoComPrioridade);
+        }
+      });
+      return;
+    }
+
     const itens = getItens(pedido);
     const itensCDPendentes = itens
       .map((it, idx) => ({ ...it, _idx: idx }))
@@ -1461,12 +1544,34 @@ export default function CentralPCP() {
     }
   };
 
+  const handleDistribuirLoteComPrioridade = (pedidosAlvo) => {
+    const lista = Array.isArray(pedidosAlvo) ? pedidosAlvo : [pedidosAlvo];
+    if (!lista.length) return;
+
+    // 🔒 NOVA REGRA PCP: Se houver pedidos no lote sem prioridade, abre modal para definir
+    const semPrioridade = lista.filter(p => !hasPrioridadeDefinida(p));
+    if (semPrioridade.length > 0) {
+      setModalPrioridadeObrigatoria({
+        aberto: true,
+        pedidos: semPrioridade,
+        aposConfirmar: (pedidosAtualizados) => {
+          const mapaAtualizados = new Map(pedidosAtualizados.map(p => [p.id, p]));
+          const listaFinal = lista.map(p => mapaAtualizados.get(p.id) || p);
+          handleDistribuirLote(listaFinal);
+        }
+      });
+      return;
+    }
+
+    handleDistribuirLote(lista);
+  };
+
   const handleDistribuirGrupoWrapper = (pedidosAlvo) => {
     const lista = Array.isArray(pedidosAlvo) ? pedidosAlvo : [pedidosAlvo];
     if (lista.length === 1) {
       iniciarDistribuicaoComRoteamento(lista[0]);
     } else {
-      handleDistribuirLote(lista);
+      handleDistribuirLoteComPrioridade(lista);
     }
   };
 
@@ -2511,7 +2616,7 @@ export default function CentralPCP() {
                 {/* Distribuir Selecionados */}
                 {selecionados.size > 0 && (
                   <Button size="sm" disabled={distribuindo || excluindo}
-                    onClick={() => handleDistribuirLote(pedidos.filter(p => selecionados.has(p.id)))}
+                    onClick={() => handleDistribuirLoteComPrioridade(pedidos.filter(p => selecionados.has(p.id)))}
                     className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-xs h-8 gap-1.5 shadow-sm font-bold">
                     <Zap className="w-3.5 h-3.5" />
                     {distribuindo ? "Distribuindo..." : `Distribuir Selecionadas (${selecionados.size})`}
@@ -2591,7 +2696,7 @@ export default function CentralPCP() {
                 {/* Distribuir TODOS os Pendentes da fila */}
                 {selecionados.size === 0 && pedidosFiltrados.filter(p => !p.status_pcp || ["pendente_distribuicao", "pendente"].includes(p.status_pcp)).length > 0 && (
                   <Button size="sm" variant="outline" disabled={distribuindo || excluindo}
-                    onClick={() => handleDistribuirLote(pedidosFiltrados.filter(p => !p.status_pcp || ["pendente_distribuicao", "pendente"].includes(p.status_pcp)))}
+                    onClick={() => handleDistribuirLoteComPrioridade(pedidosFiltrados.filter(p => !p.status_pcp || ["pendente_distribuicao", "pendente"].includes(p.status_pcp)))}
                     className="border-orange-400 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/30 text-xs h-8 gap-1.5 font-bold">
                     <Send className="w-3.5 h-3.5" />
                     {distribuindo ? "Distribuindo..." : `Distribuir Todos os Pendentes (${pedidosFiltrados.filter(p => !p.status_pcp || ["pendente_distribuicao", "pendente"].includes(p.status_pcp)).length})`}
@@ -3278,7 +3383,7 @@ export default function CentralPCP() {
                   toast({ title: "Nenhuma das ordens selecionadas está pendente de distribuição." });
                   return;
                 }
-                handleDistribuirLote(lista);
+                handleDistribuirLoteComPrioridade(lista);
               }}
               className="bg-orange-500 hover:bg-orange-600 text-white text-xs h-7 px-2.5 font-bold gap-1"
               title="Distribuir ordens pendentes selecionadas para produção"
@@ -3365,6 +3470,17 @@ export default function CentralPCP() {
           </div>
         </div>
       )}
+
+      {/* 🔒 Modal Obrigatório de Definição de Prioridade antes da Distribuição */}
+      <ModalPrioridadeObrigatoria
+        open={modalPrioridadeObrigatoria.aberto}
+        onOpenChange={(aberto) => {
+          if (!aberto) setModalPrioridadeObrigatoria({ aberto: false, pedidos: [], aposConfirmar: null });
+        }}
+        pedidos={modalPrioridadeObrigatoria.pedidos}
+        onConfirmarPrioridadeEDistribuir={handleConfirmarPrioridadeObrigatoria}
+        salvando={salvandoPrioridadeObrigatoria}
+      />
     </div>
   );
 }

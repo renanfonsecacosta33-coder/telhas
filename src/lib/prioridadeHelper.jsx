@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Zap, Star, Ban, ChevronDown, Truck, Calendar, Clock } from "lucide-react";
+import { Zap, Star, Ban, ChevronDown, Truck, Calendar, Clock, AlertTriangle } from "lucide-react";
 import { format, addDays, isToday, isTomorrow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -125,6 +125,83 @@ export function getPrioridadeConfig(pedido) {
   const nivel = getPrioridadeNivel(pedido);
   if (!nivel) return null;
   return NIVEIS_PRIORIDADE.find(p => p.nivel === nivel) || null;
+}
+
+/**
+ * 🔒 NOVA REGRA PCP:
+ * Verifica se o pedido já teve sua prioridade classificada conscientemente pelo programador do PCP.
+ * Nenhuma OP é distribuída para as máquinas sem prioridade definida (Retira Agora, Rota, Prioridade ou Normal).
+ */
+export function hasPrioridadeDefinida(pedido) {
+  if (!pedido) return false;
+  if (pedido.prioridade_selecionada === true || pedido.prioridade_logistica_definida === true) return true;
+  const nivel = pedido.prioridade_nivel || pedido.tipo_prioridade || pedido.prioridade_logistica;
+  if (nivel === "RETIRA_AGORA" || nivel === "ROTA" || nivel === "PRIORIDADE" || nivel === "NORMAL" || nivel === "normal") return true;
+  if (isPedidoRetiraAgora(pedido) || isPedidoRota(pedido) || isPedidoPrioridadeComData(pedido)) return true;
+  return false;
+}
+
+/**
+ * Monta o payload padronizado de campos para salvar a prioridade no Pedido/OP.
+ */
+export function montarUpdatesPrioridade(tipo, dataProgramada) {
+  if (tipo === "RETIRA_AGORA") {
+    return {
+      prioridade_nivel: "RETIRA_AGORA",
+      tipo_prioridade: "RETIRA_AGORA",
+      prioridade_logistica: "RETIRA_AGORA",
+      prioridade_selecionada: true,
+      prioridade_logistica_definida: true,
+      cliente_retira_agora: true,
+      is_rota: false,
+      rota: false,
+      prioridade: true,
+      data_programada_pcp: null
+    };
+  }
+  if (tipo === "ROTA") {
+    return {
+      prioridade_nivel: "ROTA",
+      tipo_prioridade: "ROTA",
+      prioridade_logistica: "ROTA",
+      prioridade_selecionada: true,
+      prioridade_logistica_definida: true,
+      is_rota: true,
+      rota: true,
+      cliente_retira_agora: false,
+      prioridade: false,
+      data_programada_pcp: dataProgramada || null,
+      data_carregamento_rota: dataProgramada || null
+    };
+  }
+  if (tipo === "PRIORIDADE") {
+    return {
+      prioridade_nivel: "PRIORIDADE",
+      tipo_prioridade: "PRIORIDADE",
+      prioridade_logistica: "PRIORIDADE",
+      prioridade_selecionada: true,
+      prioridade_logistica_definida: true,
+      prioridade: true,
+      is_rota: false,
+      rota: false,
+      cliente_retira_agora: false,
+      data_programada_pcp: dataProgramada || null,
+      data_prontidao: dataProgramada || null
+    };
+  }
+  // NORMAL (Fila Padrão consciente)
+  return {
+    prioridade_nivel: "NORMAL",
+    tipo_prioridade: "NORMAL",
+    prioridade_logistica: "NORMAL",
+    prioridade_selecionada: true,
+    prioridade_logistica_definida: true,
+    prioridade: false,
+    cliente_retira_agora: false,
+    is_rota: false,
+    rota: false,
+    data_programada_pcp: null
+  };
 }
 
 /**
@@ -332,6 +409,25 @@ export function PrioridadeBadge({ pedido, prioridade, dataProgramada, className 
     );
   }
 
+  // Normal selecionado conscientemente
+  if (p?.prioridade_selecionada && (p?.prioridade_nivel === "NORMAL" || p?.prioridade_logistica === "NORMAL")) {
+    return (
+      <Badge variant="outline" className={`gap-1 select-none font-bold text-xs text-slate-600 dark:text-slate-300 border-slate-300 bg-slate-50 dark:bg-slate-900 ${className}`}>
+        <span>⚪ Normal (Padrão)</span>
+      </Badge>
+    );
+  }
+
+  // Sem prioridade definida
+  if (!hasPrioridadeDefinida(p)) {
+    return (
+      <Badge className={`gap-1 select-none font-black text-xs text-amber-900 dark:text-amber-200 bg-amber-100 dark:bg-amber-950/70 border border-amber-400 animate-pulse ${className}`}>
+        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+        <span>⚠️ Sem Prioridade</span>
+      </Badge>
+    );
+  }
+
   return null;
 }
 
@@ -489,11 +585,15 @@ export function SeletorPrioridadeDropdown({
 
   const atalhosData = gerarAtalhosDeDatas();
 
+  const isDefinida = hasPrioridadeDefinida(pedido);
+  const isNormalDefinido = isDefinida && (pedido?.prioridade_nivel === "NORMAL" || pedido?.prioridade_logistica === "NORMAL");
+
   const getLabelTrigger = () => {
     if (nivelAtual === "RETIRA_AGORA") return "⚡ Retira Agora";
     if (nivelAtual === "ROTA") return `🚚 Rota${dataFmtCurta ? ` • ${dataFmtCurta}` : ""}`;
     if (nivelAtual === "PRIORIDADE") return `⭐ Prioridade${dataFmtCurta ? ` • ${dataFmtCurta}` : ""}`;
-    return "Prioridade";
+    if (isNormalDefinido) return "⚪ Normal (Padrão)";
+    return "⚠️ Definir Prioridade";
   };
 
   const abrirSeletorCustom = (tipo) => {
@@ -524,9 +624,11 @@ export function SeletorPrioridadeDropdown({
                 ? "bg-indigo-600 text-white border border-indigo-400 hover:bg-indigo-700 shadow-sm font-bold"
                 : nivelAtual === "PRIORIDADE"
                 ? "bg-amber-500 text-white border border-amber-300 hover:bg-amber-600 shadow-sm font-bold"
-                : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                : isNormalDefinido
+                ? "border border-slate-300 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100"
+                : "border-2 border-dashed border-amber-500 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/60 font-black animate-pulse"
             } ${className}`}
-            title="Definir status logístico (Cliente Retira, Rota com Data ou Prioridade com Data)"
+            title={!isDefinida ? "⚠️ Prioridade obrigatória antes de distribuir para as máquinas" : "Definir status logístico (Cliente Retira, Rota com Data ou Prioridade com Data)"}
           >
             {nivelAtual === "RETIRA_AGORA" ? (
               <Zap className="w-3.5 h-3.5 fill-current" />
@@ -534,8 +636,10 @@ export function SeletorPrioridadeDropdown({
               <Truck className="w-3.5 h-3.5" />
             ) : nivelAtual === "PRIORIDADE" ? (
               <Star className="w-3.5 h-3.5 fill-current" />
+            ) : !isDefinida ? (
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
             ) : (
-              <Star className="w-3.5 h-3.5 text-slate-400" />
+              <span className="w-2 h-2 rounded-full bg-slate-400" />
             )}
             <span>{getLabelTrigger()}</span>
             <ChevronDown className="w-3 h-3 opacity-60" />
@@ -669,22 +773,29 @@ export function SeletorPrioridadeDropdown({
             </DropdownMenuSubContent>
           </DropdownMenuSub>
 
-          {/* 4. Remover / Fila Normal */}
-          {nivelAtual && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSelectPrioridade(null, null);
-                }}
-                className="text-xs py-2 px-2.5 text-slate-500 hover:text-red-600 cursor-pointer flex items-center gap-2"
-              >
-                <Ban className="w-3.5 h-3.5" />
-                Remover Prioridade (Fila Normal)
-              </DropdownMenuItem>
-            </>
-          )}
+          <DropdownMenuSeparator />
+
+          {/* 4. ⚪ Fila Normal (Padrão / FIFO) */}
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelectPrioridade("NORMAL", null);
+            }}
+            className={`flex items-center justify-between gap-2 text-xs py-2 px-2.5 cursor-pointer rounded-md text-slate-700 dark:text-slate-300 font-semibold focus:bg-slate-100 dark:focus:bg-slate-800 ${
+              isNormalDefinido ? "bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 font-bold" : ""
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-400 flex items-center justify-center">
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+              </div>
+              <div className="text-left">
+                <div className="font-bold leading-tight">⚪ Fila Normal (Padrão)</div>
+                <div className="text-[10px] text-slate-400 font-normal">Sem prioridade forçada (ordem FIFO)</div>
+              </div>
+            </div>
+            {isNormalDefinido && <span className="text-xs font-black">✓</span>}
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 

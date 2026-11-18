@@ -6,6 +6,7 @@ import { notificarStatus } from "@/lib/biNotificador";
 import { carregarOpsDosPedidos, pedidoJaProduzido, fecharPedidosProduzidos } from "@/lib/reconciliacaoProducaoFinalizada";
 import { rotearItensCorteDobraDireto } from "@/lib/roteamentoCorteDobraHelper";
 import { obterNomeUsuarioLogado } from "@/lib/usuarioLogadoHelper";
+import { hasPrioridadeDefinida } from "@/lib/prioridadeHelper";
 
 // Pedidos processados simultaneamente na distribuição em lote.
 // (Cada pedido já roda seus grupos de telha em paralelo — 2 pedidos mantêm a
@@ -35,6 +36,11 @@ async function preBuscarOpsExistentes(alvo) {
  */
 export async function distribuirLotePedidos({ pedidos = [], opcoes = {}, bobinasEstoque = [], filialAtiva = "todas", usuarioNome = null }) {
   const preSelecionados = pedidos.filter(p => !(opcoes.pularDevolvidosManualmente && p.retirado_manualmente_ts));
+  // Trava Obrigatória: Valida se há pedidos sem prioridade definida no lote
+  const semPrioridade = preSelecionados.filter(p => !hasPrioridadeDefinida(p));
+  if (semPrioridade.length > 0 && !opcoes.ignorarValidacaoPrioridade) {
+    throw new Error(`Existem ${semPrioridade.length} pedido(s) sem prioridade definida no lote. Defina a prioridade de todos antes de distribuir para as máquinas.`);
+  }
   // Pedido cuja produção já foi finalizada nas máquinas é FECHADO, nunca redistribuído.
   const { fechados } = await fecharPedidosProduzidos({ pedidos: preSelecionados }).catch(() => ({ fechados: [] }));
   const idsFechados = new Set((fechados || []).map(p => p.id));
@@ -73,6 +79,11 @@ export async function distribuirPedidoPCP({ pedido, bobinasEstoque = [], filialA
   const usuarioLogado = await obterNomeUsuarioLogado(usuarioNome);
   const atual = await base44.entities.PedidoOdoo.get(pedido.id);
   if (atual.status_pcp === "concluido") return { atualizado: atual, telhasAutoRoteadas: 0, bobinasVinculadas: 0, cdAutoRoteados: 0 };
+  
+  // Trava Obrigatória: Nenhum pedido vai para as máquinas sem prioridade definida
+  if (!hasPrioridadeDefinida(atual)) {
+    throw new Error(`O pedido #${atual.numero_pedido} não possui prioridade definida. Selecione uma prioridade (Cliente Retira, Rota, Prioridade ou Normal) antes de distribuir para as máquinas.`);
+  }
   // Trava anti-pedido-zumbi: se as OPs das máquinas já estão finalizadas, o pedido
   // é concluído no PCP em vez de voltar para a fábrica.
   const opsReais = await carregarOpsDosPedidos([atual]);

@@ -33,7 +33,9 @@ import {
   ChevronDown,
   Building2,
   Store,
-  Calendar
+  Calendar,
+  Lock,
+  AlertTriangle
 } from "lucide-react";
 import { formatDataBR, slaDiasPorCategoria } from "@/lib/sla";
 import { hojeLocalISO } from "@/lib/dataLocal";
@@ -47,7 +49,7 @@ import { parseItensPedido, progressoChecklist } from "@/lib/regrasFabrica";
 import { getItens, classGrupo } from "@/lib/pedidoOdooHelper";
 import { isLocalArmazenagemPinhais, sugerirMaquinaPadraoItem } from "@/lib/roteamentoPCP";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
-import { SeletorPrioridadeDropdown, PrioridadeBadge } from "@/lib/prioridadeHelper";
+import { SeletorPrioridadeDropdown, PrioridadeBadge, hasPrioridadeDefinida, montarUpdatesPrioridade } from "@/lib/prioridadeHelper";
 import SimulacaoEstoqueMaterialDialog from "@/components/pcp/SimulacaoEstoqueMaterialDialog";
 import AlterarPrazoFabrilDialog from "@/components/pcp/AlterarPrazoFabrilDialog";
 import EditarItensOdooDialog from "@/components/pcp/EditarItensOdooDialog";
@@ -72,6 +74,41 @@ export default function PedidoOdooDetalheDialog({
   const [salvandoProgramacao, setSalvandoProgramacao] = useState(false);
   const [itensLocais, setItensLocais] = useState([]);
   const [resetando, setResetando] = useState(false);
+  const [pedidoLocal, setPedidoLocal] = useState(pedido);
+
+  // Sincroniza pedidoLocal sempre que o pedido recebido mudar
+  useEffect(() => {
+    setPedidoLocal(pedido);
+  }, [pedido]);
+
+  const prioridadeDefinida = hasPrioridadeDefinida(pedidoLocal || pedido);
+
+  const handleDefinirPrioridade = async (tipo, dataProgramada) => {
+    const alvo = pedidoLocal || pedido;
+    if (!alvo) return;
+    const updates = montarUpdatesPrioridade(tipo, dataProgramada);
+    setPedidoLocal(prev => ({ ...(prev || alvo), ...updates }));
+
+    try {
+      if (onSetPrioridade) {
+        await onSetPrioridade(alvo, tipo, dataProgramada);
+      } else {
+        await base44.entities.PedidoOdoo.update(alvo.id, updates);
+        onAtualizado?.();
+      }
+      toast.success(
+        tipo === "RETIRA_AGORA"
+          ? "Prioridade definida: ⚡ Cliente Retira Agora"
+          : tipo === "ROTA"
+          ? `Prioridade definida: 🚚 Rota (${dataProgramada})`
+          : tipo === "PRIORIDADE"
+          ? `Prioridade definida: ⭐ Prioridade (${dataProgramada})`
+          : "Prioridade definida: ⚪ Fila Normal (Padrão)"
+      );
+    } catch (err) {
+      toast.error("Erro ao definir prioridade: " + (err.message || String(err)));
+    }
+  };
 
   // Inicializa programação local de itens quando o pedido muda
   useEffect(() => {
@@ -116,10 +153,19 @@ export default function PedidoOdooDetalheDialog({
     atualizarItemLocal(idx, "status", "distribuido");
   };
 
-  const jaDistribuido = pedido?.status_pcp !== "pendente_distribuicao";
+  const jaDistribuido = (pedidoLocal || pedido)?.status_pcp !== "pendente_distribuicao";
 
   const handleAcaoPrincipal = async () => {
-    if (!pedido) return;
+    const alvo = pedidoLocal || pedido;
+    if (!alvo) return;
+
+    if (!jaDistribuido && !prioridadeDefinida) {
+      toast.warning("Selecione a prioridade do pedido antes de distribuir para as máquinas!", {
+        description: "Escolha entre Cliente Retira Agora, Rota, Prioridade ou Fila Normal."
+      });
+      return;
+    }
+
     setSalvandoProgramacao(true);
     try {
       if (!jaDistribuido) {
@@ -130,17 +176,17 @@ export default function PedidoOdooDetalheDialog({
             status: "distribuido",
             distribuido: true
           }));
-          await onProgramarTodosItens(pedido, formatados, true);
+          await onProgramarTodosItens(alvo, formatados, true);
         } else if (onDistribuir) {
-          await onDistribuir(pedido);
+          await onDistribuir(alvo);
         }
       } else {
         // Pedido já distribuído: Salva alterações de máquinas e datas
         if (onProgramarTodosItens) {
-          await onProgramarTodosItens(pedido, itensLocais, false);
+          await onProgramarTodosItens(alvo, itensLocais, false);
           toast.success("Alterações na programação salvas com sucesso!");
         } else if (onDistribuir) {
-          await onDistribuir(pedido);
+          await onDistribuir(alvo);
         }
       }
     } catch (err) {
@@ -322,7 +368,7 @@ export default function PedidoOdooDetalheDialog({
                     OF: {pedido.of_odoo_id}
                   </Badge>
                 ) : null}
-                <PrioridadeBadge pedido={pedido} />
+                <PrioridadeBadge pedido={pedidoLocal || pedido} />
                 {isPrioritario && !pedido.prioridade_logistica && (
                   <Badge className="bg-amber-500 text-white border-amber-600 animate-pulse gap-0.5 text-xs font-bold">
                     <Star className="w-3 h-3 fill-white" /> Urgente
@@ -370,17 +416,12 @@ export default function PedidoOdooDetalheDialog({
                   </Button>
                 )}
 
-                {(onSetPrioridade || onTogglePrioridade) && (
-                  <SeletorPrioridadeDropdown
-                    pedido={pedido}
-                    onSelectPrioridade={(nivel, data) => {
-                      if (onSetPrioridade) onSetPrioridade(pedido, nivel, data);
-                      else onTogglePrioridade(pedido);
-                    }}
-                    size="sm"
-                    variant="outline"
-                  />
-                )}
+                <SeletorPrioridadeDropdown
+                  pedido={pedidoLocal || pedido}
+                  onSelectPrioridade={handleDefinirPrioridade}
+                  size="sm"
+                  variant="outline"
+                />
               </div>
             </div>
 
@@ -532,21 +573,57 @@ export default function PedidoOdooDetalheDialog({
 
           {/* 4. RODAPÉ LIMPO COM 1 AÇÃO PRINCIPAL EM EVIDÊNCIA + MENU "MAIS AÇÕES ▾" */}
           <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800 flex-wrap">
-            {/* Ação Principal em Destaque */}
-            <Button
-              onClick={handleAcaoPrincipal}
-              disabled={salvandoProgramacao || distribuindo}
-              className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold h-10 px-6 gap-2 shadow-sm flex-1 sm:flex-initial min-w-[220px]"
-            >
-              <Zap className="w-4 h-4" />
-              <span>
-                {distribuindo || salvandoProgramacao
-                  ? "Processando..."
-                  : !jaDistribuido
-                  ? "⚡ Distribuir para Produção"
-                  : "💾 Salvar Programação dos Itens"}
-              </span>
-            </Button>
+            {/* Bloco de Distribuição / Trava de Prioridade Obrigatória */}
+            <div className="flex items-center gap-2.5 flex-1 sm:flex-initial flex-wrap">
+              {!jaDistribuido && !prioridadeDefinida ? (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <SeletorPrioridadeDropdown
+                    pedido={pedidoLocal || pedido}
+                    onSelectPrioridade={handleDefinirPrioridade}
+                    size="default"
+                    variant="outline"
+                    className="h-10 px-4 bg-amber-500 hover:bg-amber-600 text-white font-black animate-pulse border-amber-600 shadow-md gap-2"
+                  />
+                  <Button
+                    disabled={true}
+                    className="bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 font-bold h-10 px-4 gap-2 cursor-not-allowed border border-slate-300 dark:border-slate-700"
+                    title="Selecione primeiro uma prioridade para liberar a distribuição às máquinas"
+                  >
+                    <Lock className="w-4 h-4 text-slate-400" />
+                    <span>Bloqueado: Escolha a Prioridade</span>
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    onClick={handleAcaoPrincipal}
+                    disabled={salvandoProgramacao || distribuindo}
+                    className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold h-10 px-6 gap-2 shadow-sm min-w-[220px]"
+                  >
+                    <Zap className="w-4 h-4" />
+                    <span>
+                      {distribuindo || salvandoProgramacao
+                        ? "Processando..."
+                        : !jaDistribuido
+                        ? "⚡ Distribuir para Produção"
+                        : "💾 Salvar Programação dos Itens"}
+                    </span>
+                  </Button>
+
+                  <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <span className="text-[11px] text-slate-400 font-bold uppercase">Prioridade:</span>
+                    <PrioridadeBadge pedido={pedidoLocal || pedido} />
+                    <SeletorPrioridadeDropdown
+                      pedido={pedidoLocal || pedido}
+                      onSelectPrioridade={handleDefinirPrioridade}
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-1.5 text-[11px] text-blue-600 hover:text-blue-700"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Menu Dropdown "Mais Ações ▾" */}
             <DropdownMenu>
