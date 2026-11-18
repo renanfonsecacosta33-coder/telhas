@@ -21,11 +21,23 @@ export async function sincronizarStatusOpPcp(op, usuario = "Operador") {
   if (!indices.length && itens.length === 1) indices = [0];
   if (!indices.length || indices.some(idx => !itens[idx])) throw new Error("OP salva, mas sem índices de item válidos para sincronizar com o PCP.");
   const status = op.status === "finalizado" ? "concluido" : op.status === "pendente" ? "distribuido" : op.status;
-  for (const idx of indices) {
+  let varsOp = [];
+  try { varsOp = JSON.parse(op.variacoes_telhas || "[]"); } catch { varsOp = []; }
+
+  for (let i = 0; i < indices.length; i++) {
+    const idx = indices[i];
     if (itens[idx].concluido && status !== "concluido") continue;
-    itens[idx] = { ...itens[idx], status, concluido: status === "concluido", distribuido: true, maquina: op.maquina,
+    const fotoVar = varsOp[i]?.foto_item_url || varsOp[i]?.foto_etapa1_url;
+    const fotoFinal = fotoVar || op.foto_finalizacao_url || op.foto_etapa1_url || itens[idx].foto_url;
+    itens[idx] = {
+      ...itens[idx],
+      status,
+      concluido: status === "concluido",
+      distribuido: true,
+      maquina: op.maquina,
       iniciada: ["em_producao", "pausado"].includes(status),
-      ...(op.foto_finalizacao_url ? { foto_url: op.foto_finalizacao_url } : {}) };
+      ...(fotoFinal ? { foto_url: fotoFinal } : {})
+    };
   }
   const fontes = [];
   let cursor;
@@ -39,7 +51,13 @@ export async function sincronizarStatusOpPcp(op, usuario = "Operador") {
   const atualizadoPedido = { ...pedido, itens_json: buildItensJson(itens) };
   const percentual = calcularProgressoRealPedido(atualizadoPedido, valido);
   const statusPcp = percentual >= 100 ? "concluido" : valido.some(o => ["em_producao", "pausado", "aguardando_colagem"].includes(o.status)) ? "em_producao" : "distribuido";
-  const atualizado = await base44.entities.PedidoOdoo.update(pedido.id, { itens_json: buildItensJson(itens), percentual_concluido: percentual, status_pcp: statusPcp });
+  const fotoGeralOp = op.foto_finalizacao_url || op.foto_etapa1_url || (Array.isArray(varsOp) ? varsOp.find(v => v.foto_item_url)?.foto_item_url : null);
+  const atualizado = await base44.entities.PedidoOdoo.update(pedido.id, {
+    itens_json: buildItensJson(itens),
+    percentual_concluido: percentual,
+    status_pcp: statusPcp,
+    ...(fotoGeralOp ? { foto_finalizacao_url: fotoGeralOp } : {})
+  });
   await notificarStatus(atualizado, statusPcp === "concluido" ? "concluido" : op.status === "em_producao" ? "maquina_inicio" : "etapa_concluida", {
     maquina_atual: op.maquina, item_nome: op.item_produto || op.produto, usuario, status_novo: statusPcp, percentual_concluido: percentual
   });

@@ -41,6 +41,16 @@ export default function FinalizarItemVariacaoDialog({
       setFotoUrl(item.foto_item_url || "");
       setObservacao(item.observacao || "");
       setUploading(false);
+
+      // Disparo direto da câmera no tablet se ainda não houver foto
+      if (!item.foto_item_url) {
+        const timer = setTimeout(() => {
+          if (fileInputRef.current) {
+            fileInputRef.current.click();
+          }
+        }, 120);
+        return () => clearTimeout(timer);
+      }
     }
   }, [open, item, metrosPlanejados]);
 
@@ -58,13 +68,19 @@ export default function FinalizarItemVariacaoDialog({
     uploadPromiseRef.current = (async () => {
       try {
         const fileOtimizado = await comprimirImagemParaUpload(file);
-        const { file_url } = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
-        setFotoUrl(file_url);
-        toast.success("Foto do item anexada com sucesso!");
-        return file_url;
+        const res = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
+        const linkFinal = res?.file_url;
+        if (!linkFinal) {
+          throw new Error("Servidor não retornou link permanente.");
+        }
+        setFotoUrl(linkFinal);
+        toast.success("Foto do item salva com sucesso!");
+        return linkFinal;
       } catch (err) {
+        console.error("Erro no upload da foto do item:", err);
         toast.error("Erro ao enviar foto: " + (err.message || "tente novamente"));
-        return previewUrl;
+        setFotoUrl(""); // Remove preview temporário para nunca salvar blob
+        return null;
       } finally {
         setUploading(false);
       }
@@ -73,23 +89,29 @@ export default function FinalizarItemVariacaoDialog({
 
   const mRealNum = Number(metragemReal) || 0;
   const diffMetros = mRealNum > 0 ? +(mRealNum - metrosPlanejados).toFixed(2) : 0;
-  const podeFinalizar = mRealNum > 0 && !!fotoUrl;
+  const podeFinalizar = mRealNum > 0 && !!fotoUrl && !uploading && !fotoUrl.startsWith("blob:");
 
   const handleConfirmar = async () => {
     if (!mRealNum || mRealNum <= 0) {
       toast.error("Informe a metragem real produzida.");
       return;
     }
-    if (!fotoUrl) {
-      toast.error("Tire ou anexe a foto do item produzido para continuar.");
+    if (uploading) {
+      toast.info("Aguarde a foto terminar de salvar na nuvem...");
       return;
     }
 
     let urlFinal = fotoUrl;
     if (uploadPromiseRef.current) {
       try {
-        urlFinal = await uploadPromiseRef.current;
+        const urlPromise = await uploadPromiseRef.current;
+        if (urlPromise) urlFinal = urlPromise;
       } catch {}
+    }
+
+    if (!urlFinal || urlFinal.startsWith("blob:")) {
+      toast.error("A foto do item precisa ser enviada com sucesso para salvar. Tire a foto novamente.");
+      return;
     }
 
     onConfirmarFinalizacao({
@@ -274,12 +296,20 @@ export default function FinalizarItemVariacaoDialog({
             disabled={!podeFinalizar}
             className={`font-bold gap-1.5 ${
               podeFinalizar
-                ? "bg-green-600 hover:bg-green-700 text-white"
+                ? "bg-green-600 hover:bg-green-700 text-white shadow-sm cursor-pointer"
                 : "bg-slate-200 text-slate-400 cursor-not-allowed"
             }`}
             onClick={handleConfirmar}
           >
-            <CheckCircle2 className="w-3.5 h-3.5" /> Confirmar e Finalizar Item {itemIndex + 1}
+            {uploading ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Salvando foto na nuvem...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5" /> Confirmar e Finalizar Item {itemIndex + 1}
+              </>
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -42,8 +42,7 @@ import { sincronizarStatusOpPcp } from "@/lib/sincronizarOpPcpSeguro";
 import { isTelhaBandeja } from "@/lib/bandejaHelper";
 import PedidoMiniCard from "@/components/producao/PedidoMiniCard";
 import MaquinaSwitcherAdmin from "@/components/maquinas/MaquinaSwitcherAdmin";
-import IniciarOpOperadoresDialog from "@/components/producao/IniciarOpOperadoresDialog";
-import { obterOperadorFixoMaquina, salvarOperadorFixoMaquina } from "@/lib/operadorStorageHelper";
+
 
 const STATUS_LABELS_TELHAS = {
   pendente: "Pendente",
@@ -120,21 +119,11 @@ export default function MaquinaPanel({ maquina }) {
   const [modalHistoricoOpen, setModalHistoricoOpen] = useState(false);
   const [modalHistoricoTab, setModalHistoricoTab] = useState("relatorio");
   const [guiaModalOpen, setGuiaModalOpen] = useState(false);
-  const [operadorFixo, setOperadorFixo] = useState(() => obterOperadorFixoMaquina(maquina));
-  const [modalOperadorMaquinaOpen, setModalOperadorMaquinaOpen] = useState(false);
+
   const queryClient = useQueryClient();
   const { filialAtiva } = useFilial();
 
-  useEffect(() => {
-    setOperadorFixo(obterOperadorFixoMaquina(maquina));
-    const onOperadorAlterado = (e) => {
-      if (!e.detail?.maquina || String(e.detail.maquina).toUpperCase() === String(maquina).toUpperCase()) {
-        setOperadorFixo(e.detail?.nome || "");
-      }
-    };
-    window.addEventListener("operador_fixo_alterado", onOperadorAlterado);
-    return () => window.removeEventListener("operador_fixo_alterado", onOperadorAlterado);
-  }, [maquina]);
+
 
   const [searchParams] = useSearchParams();
   const focarId = searchParams.get("focarId");
@@ -1245,24 +1234,7 @@ export default function MaquinaPanel({ maquina }) {
             </div>
           )}
 
-          {/* Crachá do Operador Fixo desta Máquina */}
-          <div className="ml-auto flex items-center gap-2 bg-white/20 border border-white/30 rounded-lg px-3 py-1.5 text-sm shadow-xs backdrop-blur-xs">
-            <span className="font-semibold text-white/90 flex items-center gap-1">
-              <span>👷</span> Operador da Máquina:
-            </span>
-            <span className="font-black text-white">
-              {operadorFixo || "Nenhum definido"}
-            </span>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={() => setModalOperadorMaquinaOpen(true)}
-              className="h-6 px-2 text-xs font-bold text-slate-900 bg-white hover:bg-white/90 shadow-xs cursor-pointer ml-1"
-            >
-              {operadorFixo ? "Trocar" : "Definir"}
-            </Button>
-          </div>
+
         </div>
       </div>
 
@@ -1903,23 +1875,6 @@ export default function MaquinaPanel({ maquina }) {
         onClose={() => setGuiaModalOpen(false)}
         maquinaNome={maquina}
       />
-
-      {/* Modal de Definição/Troca do Operador Fixo da Máquina */}
-      {modalOperadorMaquinaOpen && (
-        <IniciarOpOperadoresDialog
-          open={modalOperadorMaquinaOpen}
-          onOpenChange={setModalOperadorMaquinaOpen}
-          maquinaNome={maquina}
-          modoTroca={true}
-          titulo="Definir Operador desta Máquina"
-          descricao={`Informe o nome do operador para ficar fixado nas ordens da ${maquina}.`}
-          onConfirm={(operadores) => {
-            const nome = operadores?.[0]?.nome || "";
-            setOperadorFixo(nome);
-            toast.success(`Operador fixado na máquina ${maquina}: ${nome}`);
-          }}
-        />
-      )}
     </div>
   );
 }

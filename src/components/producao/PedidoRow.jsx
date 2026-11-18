@@ -31,7 +31,7 @@ import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/c
 import { isTelhaBandeja, verificarStatusComponentesBandeja } from "@/lib/bandejaHelper"; import { descricaoItemOriginal, verificarDivergenciaModeloDescricao } from "@/lib/descricaoItemOriginal";
 import { useRegrasProducao } from "@/lib/regrasProducao";
 import { detectarTipoProdutoTelha, detectarEPSTelha, detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
-import { obterOperadorFixoMaquina, salvarOperadorFixoMaquina } from "@/lib/operadorStorageHelper";
+
 
 
 const PRODUTO_BG = {
@@ -78,22 +78,9 @@ function formatTempo(segundos) {
 export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate, userRole, opRodando, maquina, user, filialAtiva, appendHistoricoFn, todosPedidos = [] }) {
   const isOperador = userRole === "operador";
   const podeGerenciar = !isOperador;
+  const isAdminOuGestor = ["admin", "super_admin", "gestor"].includes(userRole || user?.role);
 
-  const maquinaPainel = pOriginal?.maquina || maquina || "";
-  const [operadorFixoMaquina, setOperadorFixoMaquina] = useState(() => obterOperadorFixoMaquina(maquinaPainel));
-
-  useEffect(() => {
-    setOperadorFixoMaquina(obterOperadorFixoMaquina(maquinaPainel));
-    const onOperadorAlterado = (e) => {
-      if (!e.detail?.maquina || String(e.detail.maquina).toUpperCase() === String(maquinaPainel).toUpperCase()) {
-        setOperadorFixoMaquina(e.detail?.nome || "");
-      }
-    };
-    window.addEventListener("operador_fixo_alterado", onOperadorAlterado);
-    return () => window.removeEventListener("operador_fixo_alterado", onOperadorAlterado);
-  }, [maquinaPainel]);
-
-  // Estado Local Instantâneo do Operador (Fixação definitiva e imediata na UI sem looping/reversão)
+  // Estado Local Instantâneo do Operador (Fixação definitiva e imediata na UI pontual por pedido)
   const [overrideOperador, setOverrideOperador] = useState(null);
   useEffect(() => {
     if (pOriginal?.operador && pOriginal.operador === overrideOperador) {
@@ -101,7 +88,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     }
   }, [pOriginal?.operador, overrideOperador]);
 
-  const operadorAtivoExibicao = overrideOperador || pOriginal?.operador || pOriginal?.operador_inicio || operadorFixoMaquina || "";
+  // Operador exibido é estritamente pontual por pedido
+  const operadorAtivoExibicao = overrideOperador || pOriginal?.operador || pOriginal?.operador_inicio || "";
 
   // Detecção inteligente e dinâmica do produto real (corrige OPs que foram salvas como TELHA + EPS mas têm TELHA + EPS + TELHA, ou OPs salvas como TELHA + EPS que na verdade são TELHAS SIMPLES)
   const produtoDetectado = useMemo(() => {
@@ -902,8 +890,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     const updatesBobina = montarUpdatesBobina();
     setPendingColagemUpdates(updatesBobina);
 
-    // Identificação de Operador: Se já temos um operador fixo/ativo, inicia DIRETO sem modal redundante!
-    const opEfetivo = operadorAtivoExibicao;
+    // Identificação de Operador: Pontual por pedido!
+    const opEfetivo = p.operador || p.operador_inicio || overrideOperador;
     if (opEfetivo && opEfetivo !== "Sem operador") {
       handleConfirmarOperadores([{ id: `op_${Date.now()}`, nome: opEfetivo, role: "operador" }], updatesBobina);
     } else {
@@ -922,10 +910,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       return;
     }
 
-    // Salva na máquina para ficar fixo para esta e para todas as próximas OPs
-    salvarOperadorFixoMaquina(p.maquina || maquina, nomeOperador);
-
-    // Fixação instantânea na memória local da tela (0ms) - NUNCA reverte na UI
+    // Vincula pontualmente a este pedido
     setOverrideOperador(nomeOperador);
 
     // Se estiver apenas trocando o operador responsável durante a produção/pausa
@@ -1158,10 +1143,15 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       return;
     }
     const novoStatusOp = todosFinalizados ? (precisaColagem ? "aguardando_colagem" : "finalizado") : "em_producao";
-    onStatusChange(p, novoStatusOp, { variacoes_telhas: JSON.stringify(novos),
-      ...(todosFinalizados ? { data_finalizacao: novoStatusOp === "finalizado" ? hojeStr : undefined, fim_producao_ts: agoraIso, foto_finalizacao_url: fotoUrl || p.foto_finalizacao_url || "",
+    onStatusChange(p, novoStatusOp, {
+      variacoes_telhas: JSON.stringify(novos),
+      foto_finalizacao_url: fotoUrl || p.foto_finalizacao_url || "",
+      ...(todosFinalizados ? {
+        data_finalizacao: novoStatusOp === "finalizado" ? hojeStr : undefined,
+        fim_producao_ts: agoraIso,
         ...(precisaColagem ? { maquina: "COLAGEM", maquina_origem: maqOrigem, data_perfilacao: p.data_perfilacao || hojeStr, hora_perfilacao: p.hora_perfilacao || agoraIso, perfilacao_concluida: true } : {})
-      } : { maquina_origem: maqOrigem, data_perfilacao: p.data_perfilacao || hojeStr }) });
+      } : { maquina_origem: maqOrigem, data_perfilacao: p.data_perfilacao || hojeStr })
+    });
     // Encadeamento automático: o próximo item já abre para conferência da bobina
     const proximo = novos.findIndex((it, i) => i > itemIndex && !it.iniciado && !it.finalizado);
     if (proximo >= 0) setConferirBobinaModal({ open: true, item: novos[proximo], index: proximo });
@@ -1397,12 +1387,17 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     uploadFotoFinalizacaoPromiseRef.current = (async () => {
       try {
         const fileOtimizado = await comprimirImagemParaUpload(file);
-        const { file_url } = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
-        setFotoFinalizacaoUrl(file_url);
-        return file_url;
+        const res = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
+        const linkFinal = res?.file_url;
+        if (!linkFinal) throw new Error("Servidor não retornou link permanente.");
+        setFotoFinalizacaoUrl(linkFinal);
+        toast.success("Foto do material salva com sucesso!");
+        return linkFinal;
       } catch (err) {
         console.warn("Aviso upload de foto de finalizacao:", err);
-        return previewUrl;
+        toast.error("Erro ao enviar foto: " + (err.message || "tente novamente"));
+        setFotoFinalizacaoUrl(""); // Remove blob temporário
+        return null;
       } finally {
         setUploadingFoto(false);
       }
@@ -1423,12 +1418,22 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       alert("Informe a metragem real (maior que 0)");
       return;
     }
+    if (uploadingFoto) {
+      toast.info("Aguarde a foto terminar de salvar na nuvem...");
+      return;
+    }
 
     let urlFinalFoto = fotoFinalizacaoUrl;
     if (uploadFotoFinalizacaoPromiseRef.current) {
       try {
-        urlFinalFoto = await uploadFotoFinalizacaoPromiseRef.current;
+        const urlP = await uploadFotoFinalizacaoPromiseRef.current;
+        if (urlP) urlFinalFoto = urlP;
       } catch {}
+    }
+
+    if (!urlFinalFoto || urlFinalFoto.startsWith("blob:")) {
+      toast.error("A foto é obrigatória para finalizar. Tire ou anexe a foto novamente.");
+      return;
     }
 
     const opFinal = operadorFinalizacao || p.operador || p.operador_inicio || (user?.full_name || "Operador");
@@ -2276,17 +2281,19 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                           {operadorAtivoExibicao || "Sem operador"}
                         </span>
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setModoOperadorDialog("troca");
-                          setOperadoresDialogOpen(true);
-                        }}
-                        className="text-[11px] text-blue-600 dark:text-blue-400 font-extrabold underline hover:text-blue-800 dark:hover:text-blue-300 ml-1 cursor-pointer"
-                        title="Trocar ou definir operador desta máquina"
-                      >
-                        ({operadorAtivoExibicao ? "Trocar" : "Definir"})
-                      </button>
+                      {isAdminOuGestor && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setModoOperadorDialog("troca");
+                            setOperadoresDialogOpen(true);
+                          }}
+                          className="text-[11px] text-blue-600 dark:text-blue-400 font-extrabold underline hover:text-blue-800 dark:hover:text-blue-300 ml-1 cursor-pointer"
+                          title="Trocar operador deste pedido (Apenas Administrador)"
+                        >
+                          ({operadorAtivoExibicao ? "Trocar" : "Definir"})
+                        </button>
+                      )}
                     </div>
 
                     <Button
@@ -2330,17 +2337,19 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                       <span className="text-[11px] text-slate-500 font-medium">Operador:</span>
                       <span className="font-extrabold text-slate-900 dark:text-slate-100">{operadorAtivoExibicao || "Sem operador"}</span>
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setModoOperadorDialog("troca");
-                        setOperadoresDialogOpen(true);
-                      }}
-                      className="text-[11px] text-blue-600 dark:text-blue-400 font-extrabold underline hover:text-blue-800 dark:hover:text-blue-300 ml-1 cursor-pointer"
-                      title="Trocar operador desta máquina"
-                    >
-                      (Trocar)
-                    </button>
+                    {isAdminOuGestor && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setModoOperadorDialog("troca");
+                          setOperadoresDialogOpen(true);
+                        }}
+                        className="text-[11px] text-blue-600 dark:text-blue-400 font-extrabold underline hover:text-blue-800 dark:hover:text-blue-300 ml-1 cursor-pointer"
+                        title="Trocar operador deste pedido (Apenas Administrador)"
+                      >
+                        (Trocar)
+                      </button>
+                    )}
                   </div>
                   <Button size="sm" variant="outline" className="gap-1 border-amber-300 text-amber-700 hover:bg-amber-50" onClick={handlePausar}>
                     <Pause className="w-3 h-3" /> Pausar
@@ -2383,17 +2392,19 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                       <span className="text-[11px] text-purple-600 font-medium">Operador:</span>
                       <span className="font-extrabold">{operadorAtivoExibicao || "Sem operador"}</span>
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setModoOperadorDialog("troca");
-                        setOperadoresDialogOpen(true);
-                      }}
-                      className="text-[11px] text-purple-700 dark:text-purple-400 font-extrabold underline hover:text-purple-900 ml-1 cursor-pointer"
-                      title="Trocar operador desta máquina"
-                    >
-                      (Trocar)
-                    </button>
+                    {isAdminOuGestor && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setModoOperadorDialog("troca");
+                          setOperadoresDialogOpen(true);
+                        }}
+                        className="text-[11px] text-purple-700 dark:text-purple-400 font-extrabold underline hover:text-purple-900 ml-1 cursor-pointer"
+                        title="Trocar operador deste pedido (Apenas Administrador)"
+                      >
+                        (Trocar)
+                      </button>
+                    )}
                   </div>
                   <Button size="sm" className="gap-1 bg-primary hover:bg-primary/90 text-white border-0" onClick={handleRetomar}>
                     <Play className="w-3 h-3" /> Retomar
@@ -2717,18 +2728,20 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                     </span>
                   </div>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setModoOperadorDialog("finalizacao");
-                    setOperadoresDialogOpen(true);
-                  }}
-                  className="h-8 text-xs font-bold text-primary border-primary/40 hover:bg-primary/10 shrink-0 cursor-pointer"
-                >
-                  (Trocar)
-                </Button>
+                {isAdminOuGestor && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setModoOperadorDialog("finalizacao");
+                      setOperadoresDialogOpen(true);
+                    }}
+                    className="h-8 text-xs font-bold text-primary border-primary/40 hover:bg-primary/10 shrink-0 cursor-pointer"
+                  >
+                    (Trocar)
+                  </Button>
+                )}
               </div>
 
               {/* Foto obrigatória do material finalizado */}
@@ -2786,10 +2799,22 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
               <Button variant="outline" onClick={() => setMetragemDialog(false)}>Cancelar</Button>
               <Button
                 onClick={confirmarFinalizacao}
-                disabled={!metragemReal || Number(metragemReal) <= 0 || !fotoFinalizacaoUrl || uploadingFoto}
-                className="gap-1.5 bg-green-600 hover:bg-green-700 text-white font-bold"
+                disabled={!metragemReal || Number(metragemReal) <= 0 || !fotoFinalizacaoUrl || uploadingFoto || fotoFinalizacaoUrl.startsWith("blob:")}
+                className={`gap-1.5 font-bold ${
+                  !metragemReal || Number(metragemReal) <= 0 || !fotoFinalizacaoUrl || uploadingFoto || fotoFinalizacaoUrl.startsWith("blob:")
+                    ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                    : "bg-green-600 hover:bg-green-700 text-white shadow-sm cursor-pointer"
+                }`}
               >
-                <CheckCircle2 className="w-4 h-4" /> Confirmar e Finalizar
+                {uploadingFoto ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Salvando foto na nuvem...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" /> Confirmar e Finalizar
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>

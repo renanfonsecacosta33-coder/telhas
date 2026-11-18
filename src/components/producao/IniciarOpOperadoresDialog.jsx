@@ -10,7 +10,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { UserCheck, Check, User } from "lucide-react";
-import { obterOperadorFixoMaquina, salvarOperadorFixoMaquina } from "@/lib/operadorStorageHelper";
 
 export default function IniciarOpOperadoresDialog({
   open,
@@ -29,8 +28,8 @@ export default function IniciarOpOperadoresDialog({
 
   useEffect(() => {
     if (open) {
-      // Pega o operador da ordem ou o operador fixo da máquina
-      const opAtual = ordem?.operador || ordem?.operador_inicio || obterOperadorFixoMaquina(maquinaAlvo) || "";
+      // Pega o operador atribuído especificamente a esta ordem
+      const opAtual = ordem?.operador || ordem?.operador_inicio || "";
       setNomeOperador(opAtual);
 
       setTimeout(() => {
@@ -46,9 +45,6 @@ export default function IniciarOpOperadoresDialog({
     if (e) e.preventDefault();
     const nomeLimpo = nomeOperador.trim();
     if (!nomeLimpo) return;
-
-    // Salva de forma permanente como operador fixo desta máquina
-    salvarOperadorFixoMaquina(maquinaAlvo, nomeLimpo);
 
     const lista = [{
       id: `op_${Date.now()}`,
@@ -68,12 +64,12 @@ export default function IniciarOpOperadoresDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base sm:text-lg font-bold text-foreground">
             <UserCheck className="w-5 h-5 text-primary" />
-            {titulo || (modoTroca ? "Trocar Operador Responsável" : "Identificar Operador da Máquina")}
+            {titulo || (modoTroca ? "Trocar Operador do Pedido" : "Identificar Operador")}
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
             {descricao || (
               <>
-                Digite o nome do operador para ficar fixo na máquina <strong>{maquinaAlvo || "Máquina"}</strong>{numeroPedidoLabel ? ` (Ordem ${numeroPedidoLabel})` : ""}.
+                Informe quem é o operador responsável por produzir o pedido <strong>{numeroPedidoLabel || "atual"}</strong> na <strong>{maquinaAlvo || "Máquina"}</strong>.
               </>
             )}
           </DialogDescription>
@@ -89,13 +85,13 @@ export default function IniciarOpOperadoresDialog({
               ref={inputRef}
               type="text"
               autoFocus
-              placeholder="Ex: Raul, Carlos, Lucas..."
+              placeholder="Digite o nome do operador (Ex: Raul, Lucas)..."
               value={nomeOperador}
               onChange={(e) => setNomeOperador(e.target.value)}
               className="h-12 text-base font-bold px-3.5 rounded-xl border-2 focus-visible:ring-primary shadow-xs"
             />
             <p className="text-[11px] text-muted-foreground">
-              O nome digitado ficará <strong>fixado nesta máquina</strong> para todas as próximas ordens de produção. Pressione <strong>Enter</strong> para confirmar.
+              O operador será vinculado <strong>pontualmente a este pedido</strong>. Pressione <strong>Enter</strong> para confirmar.
             </p>
           </div>
 
@@ -112,10 +108,10 @@ export default function IniciarOpOperadoresDialog({
             <Button
               type="submit"
               disabled={!nomeOperador.trim()}
-              className="h-11 px-5 font-bold text-xs sm:text-sm gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm cursor-pointer"
+              className="h-11 px-5 font-bold text-xs sm:text-sm gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm cursor-pointer"
             >
               <Check className="w-4 h-4 stroke-[3]" />
-              Fixar Operador
+              {modoTroca ? "Salvar Operador" : "Confirmar e Iniciar"}
             </Button>
           </DialogFooter>
         </form>
