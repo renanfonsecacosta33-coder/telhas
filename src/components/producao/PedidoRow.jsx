@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Camera, Scissors, Snowflake, Lock, RotateCcw, ShoppingCart, User, Users, PackageCheck, Truck } from "lucide-react";
+import { CheckCircle2, Clock, Circle, AlertCircle, Layers, Play, Pause, Square, Timer, Coffee, AlertTriangle, FileText, Camera, Scissors, Snowflake, Lock, RotateCcw, ShoppingCart, User, Users, PackageCheck, Truck, Loader2 } from "lucide-react";
 import RetrabalhoTelhasDialog from "@/components/producao/RetrabalhoTelhasDialog";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -204,15 +204,15 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       origem_exigida: pOriginal.origem_exigida || presets.origem_exigida || "",
       observacoes_odoo: pOriginal.observacoes_odoo || presets.observacoes_odoo || "",
       foto_pedido_url: pOriginal.foto_pedido_url || presets.foto_pedido_url || "",
-      operador: overrideOperador !== null ? overrideOperador : (pOriginal.operador || presets.operador || operadorFixoMaquina || ""),
-      operador_inicio: pOriginal.operador_inicio || presets.operador_inicio || (overrideOperador !== null ? overrideOperador : (operadorFixoMaquina || "")),
+      operador: overrideOperador !== null ? overrideOperador : (pOriginal.operador || presets.operador || ""),
+      operador_inicio: pOriginal.operador_inicio || presets.operador_inicio || (overrideOperador !== null ? overrideOperador : ""),
       bobina_superior: pOriginal.bobina_superior || presets.bobina_superior || "",
       bobina_superior_id: pOriginal.bobina_superior_id || presets.bobina_superior_id || "",
       bobina_inferior: pOriginal.bobina_inferior || presets.bobina_inferior || "",
       bobina_inferior_id: pOriginal.bobina_inferior_id || presets.bobina_inferior_id || "",
       rvm_inferior: pOriginal.rvm_inferior || presets.rvm_inferior || "",
     };
-  }, [pOriginal, maquina, produtoDetectado, epsDetectado, overrideOperador, operadorFixoMaquina]);
+  }, [pOriginal, maquina, produtoDetectado, epsDetectado, overrideOperador]);
 
   // Detecta se a OP é de Bobininha (desbobinador)
   const isBobininha = useMemo(() => {
