@@ -1122,6 +1122,7 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
       const { totalTelhas, totalMetros } = calcTotaisVariacoes(variacoes);
       data.metros = totalMetros;
       data.quantidade_telhas = totalTelhas;
+      data.metragem_planejada = totalMetros;
     }
 
     // Validação de pré-baixa: verifica se cada bobina tem peso suficiente

@@ -1750,7 +1750,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const totaisProducaoPCP = useMemo(() => {
     if (!p) return { metros: 0, pecas: 0 };
 
-    // 1. Tentar pegar diretamente de variacoes_telhas
+    // 1. Prioridade Máxima: Variações Reais cadastradas no pedido (variacoes_telhas)
     let vars = [];
     try {
       vars = JSON.parse(p.variacoes_telhas || "[]");
@@ -1771,41 +1771,59 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       });
     }
 
-    // 2. Extrair do texto da observação/descrição se houver padrão de cortes (ex: "13x3140 13x1300")
+    // 2. Extrair cortes do texto com DEDUPLICAÇÃO ESTRITA:
+    // Analisa os campos individualmente (não concatena tudo) e pega do primeiro campo relevante
     let metrosTexto = 0;
     let pecasTexto = 0;
-    const textoCortes = [
-      p.observacoes,
+    let cortesEncontrados = 0;
+    const regexCortes = /\b(\d{1,4})\s*(?:x|\*)\s*(\d{2,5})\b/gi;
+
+    const camposParaCortes = [
       p.descricao,
+      p.observacoes,
       p.itens_resumo,
       p.observacoes_odoo,
       p.item_produto
-    ].filter(Boolean).join(" ");
+    ].filter(Boolean);
 
-    const regexCortes = /\b(\d{1,4})\s*(?:x|\*)\s*(\d{2,5})\b/gi;
-    let match;
-    let cortesEncontrados = 0;
-    while ((match = regexCortes.exec(textoCortes)) !== null) {
-      const qtd = Number(match[1]);
-      const mm = Number(match[2]);
-      if (qtd > 0 && mm >= 100) {
-        cortesEncontrados++;
-        pecasTexto += qtd;
-        metrosTexto += (qtd * mm) / 1000;
+    for (const texto of camposParaCortes) {
+      let mCorte;
+      let mTot = 0;
+      let pTot = 0;
+      let cFound = 0;
+      const regexLocal = new RegExp(regexCortes.source, "gi");
+      while ((mCorte = regexLocal.exec(texto)) !== null) {
+        const qtd = Number(mCorte[1]);
+        const mm = Number(mCorte[2]);
+        if (qtd > 0 && mm >= 100) {
+          cFound++;
+          pTot += qtd;
+          mTot += (qtd * mm) / 1000;
+        }
+      }
+      if (cFound > 0 && mTot > 0) {
+        cortesEncontrados = cFound;
+        metrosTexto = mTot;
+        pecasTexto = pTot;
+        break; // Usa o conjunto de cortes do campo prioritário, sem multiplicar por repetição em múltiplos campos!
       }
     }
 
-    // 3. Metragem planejada gravada pelo PCP
     const metragemPlanejada = Number(p.metragem_planejada || p.metros_planejados || 0);
 
-    // Metragem final:
+    // Metragem final com hierarquia correta:
+    // 1º: Variações cadastradas (especificação real de cortes)
+    // 2º: Cortes extraídos do texto (se não houver variações)
+    // 3º: Metragem planejada gravada (se consistente)
+    // 4º: Metragem linear por mm * peças
+    // 5º: Metragem simples
     let metrosFinal = 0;
-    if (metragemPlanejada > 0) {
-      metrosFinal = metragemPlanejada;
-    } else if (metrosVars > 0) {
+    if (metrosVars > 0) {
       metrosFinal = metrosVars;
     } else if (cortesEncontrados > 0 && metrosTexto > 0) {
       metrosFinal = metrosTexto;
+    } else if (metragemPlanejada > 0) {
+      metrosFinal = metragemPlanejada;
     } else if (p.metragem_mm > 0 && p.metros > 0) {
       metrosFinal = (Number(p.metros) * Number(p.metragem_mm)) / 1000;
     } else {
@@ -1829,6 +1847,30 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       pecas: pecasFinal
     };
   }, [p.variacoes_telhas, p.metragem_planejada, p.metros_planejados, p.metragem_mm, p.metros, p.quantidade_telhas, p.observacoes, p.descricao, p.itens_resumo, p.observacoes_odoo, p.item_produto]);
+
+  // 🛡️ Auto-reparo persistente no banco para OPs com metragem inflada por concatenação de texto
+  useEffect(() => {
+    if (!p.id || !totaisProducaoPCP.metros || totaisProducaoPCP.metros <= 0) return;
+    const metrosReal = totaisProducaoPCP.metros;
+    const pecasReal = totaisProducaoPCP.pecas || p.quantidade_telhas;
+    const planejadoAtual = Number(p.metragem_planejada || 0);
+
+    const isMetragemInflada = planejadoAtual > 0 && planejadoAtual > (metrosReal * 1.3);
+    const precisaSincronizar = isMetragemInflada || (!planejadoAtual && metrosReal > 0);
+
+    if (precisaSincronizar) {
+      const updates = {
+        metragem_planejada: metrosReal,
+        ...(pecasReal > 0 ? { quantidade_telhas: pecasReal } : {})
+      };
+      base44.entities.Pedido.update(p.id, updates).then(() => {
+        queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+        console.log(`[PedidoRow] Auto-reparo de metragem para OP #${p.numero_pedido || p.id}: ${planejadoAtual}m -> ${metrosReal}m (${pecasReal} telhas)`);
+      }).catch(err => {
+        console.warn("[PedidoRow] Erro auto-reparo de metragem:", err);
+      });
+    }
+  }, [p.id, totaisProducaoPCP.metros, totaisProducaoPCP.pecas, p.metragem_planejada, p.quantidade_telhas]);
 
 
 
