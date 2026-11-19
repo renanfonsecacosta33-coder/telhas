@@ -142,17 +142,48 @@ export function hasPrioridadeDefinida(pedido) {
 }
 
 /**
+ * Normaliza qualquer valor de prioridade_nivel para o tipo aceito pelo banco Base44 (NUMBER 1..5 ou null).
+ * Evita o erro fatal: "Error in field prioridade_nivel: Input should be a valid number, unable to parse string as a number".
+ */
+export function normalizarPrioridadeNivelNumerico(valor, fallbackTipo = null) {
+  if (typeof valor === "number" && !isNaN(valor)) {
+    return Math.max(1, Math.min(5, Math.round(valor)));
+  }
+  if (typeof valor === "string") {
+    const num = parseInt(valor, 10);
+    if (!isNaN(num) && num >= 1 && num <= 5) return num;
+    const vUpper = valor.toUpperCase();
+    if (vUpper === "RETIRA_AGORA") return 1;
+    if (vUpper === "ROTA") return 2;
+    if (vUpper === "PRIORIDADE") return 2;
+    if (vUpper === "NORMAL") return null;
+  }
+  if (fallbackTipo) {
+    const tUpper = String(fallbackTipo).toUpperCase();
+    if (tUpper === "RETIRA_AGORA") return 1;
+    if (tUpper === "ROTA") return 2;
+    if (tUpper === "PRIORIDADE") return 2;
+  }
+  return null;
+}
+
+/**
  * Monta o payload padronizado de campos para salvar a prioridade no Pedido/OP.
+ * 🛡️ REGRA CRÍTICA DO SCHEMA BASE44:
+ * `prioridade_nivel` DEVE ser NUMBER (1..5) ou null. NUNCA passar string neste campo!
+ * O rótulo em texto fica em `prioridade_logistica` e `tipo_prioridade`.
  */
 export function montarUpdatesPrioridade(tipo, dataProgramada) {
   if (tipo === "RETIRA_AGORA") {
     return {
-      prioridade_nivel: "RETIRA_AGORA",
+      prioridade_nivel: 1,
       tipo_prioridade: "RETIRA_AGORA",
       prioridade_logistica: "RETIRA_AGORA",
       prioridade_selecionada: true,
       prioridade_logistica_definida: true,
       cliente_retira_agora: true,
+      cliente_retira: true,
+      retira_agora: true,
       is_rota: false,
       rota: false,
       prioridade: true,
@@ -161,7 +192,7 @@ export function montarUpdatesPrioridade(tipo, dataProgramada) {
   }
   if (tipo === "ROTA") {
     return {
-      prioridade_nivel: "ROTA",
+      prioridade_nivel: 2,
       tipo_prioridade: "ROTA",
       prioridade_logistica: "ROTA",
       prioridade_selecionada: true,
@@ -169,6 +200,8 @@ export function montarUpdatesPrioridade(tipo, dataProgramada) {
       is_rota: true,
       rota: true,
       cliente_retira_agora: false,
+      cliente_retira: false,
+      retira_agora: false,
       prioridade: false,
       data_programada_pcp: dataProgramada || null,
       data_carregamento_rota: dataProgramada || null
@@ -176,7 +209,7 @@ export function montarUpdatesPrioridade(tipo, dataProgramada) {
   }
   if (tipo === "PRIORIDADE") {
     return {
-      prioridade_nivel: "PRIORIDADE",
+      prioridade_nivel: 2,
       tipo_prioridade: "PRIORIDADE",
       prioridade_logistica: "PRIORIDADE",
       prioridade_selecionada: true,
@@ -185,19 +218,23 @@ export function montarUpdatesPrioridade(tipo, dataProgramada) {
       is_rota: false,
       rota: false,
       cliente_retira_agora: false,
+      cliente_retira: false,
+      retira_agora: false,
       data_programada_pcp: dataProgramada || null,
       data_prontidao: dataProgramada || null
     };
   }
   // NORMAL (Fila Padrão consciente)
   return {
-    prioridade_nivel: "NORMAL",
+    prioridade_nivel: null,
     tipo_prioridade: "NORMAL",
     prioridade_logistica: "NORMAL",
     prioridade_selecionada: true,
     prioridade_logistica_definida: true,
     prioridade: false,
     cliente_retira_agora: false,
+    cliente_retira: false,
+    retira_agora: false,
     is_rota: false,
     rota: false,
     data_programada_pcp: null

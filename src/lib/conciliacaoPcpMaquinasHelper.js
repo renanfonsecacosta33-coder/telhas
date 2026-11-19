@@ -3,6 +3,7 @@ import { isLocalArmazenagemPinhais } from "@/lib/roteamentoPCP";
 import { getItens, classGrupo } from "@/lib/pedidoOdooHelper";
 import { fecharPedidosProduzidos } from "@/lib/reconciliacaoProducaoFinalizada";
 import { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
+import { normalizarPrioridadeNivelNumerico } from "@/lib/prioridadeHelper";
 
 export { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
 
@@ -171,7 +172,11 @@ export async function finalizarOpsDoPedido({ pedido, todayIso = new Date().toISO
         await base44.entities.Pedido.update(op.id, {
           status: "finalizado",
           data_finalizacao: todayIso,
-          historico_alteracoes: JSON.stringify(hist)
+          historico_alteracoes: JSON.stringify(hist),
+          prioridade_nivel: normalizarPrioridadeNivelNumerico(
+            op.prioridade_nivel,
+            op.tipo_prioridade || (op.is_rota ? "ROTA" : op.cliente_retira_agora ? "RETIRA_AGORA" : null)
+          )
         });
         countTelhas++;
       } catch (err) {
@@ -187,7 +192,11 @@ export async function finalizarOpsDoPedido({ pedido, todayIso = new Date().toISO
       try {
         await base44.entities.OrdemMaquinaCD.update(op.id, {
           status: "finalizado",
-          data_finalizacao: todayIso
+          data_finalizacao: todayIso,
+          prioridade_nivel: normalizarPrioridadeNivelNumerico(
+            op.prioridade_nivel,
+            op.tipo_prioridade || (op.is_rota ? "ROTA" : op.cliente_retira_agora ? "RETIRA_AGORA" : null)
+          )
         });
         countCD++;
       } catch (err) {
@@ -202,7 +211,11 @@ export async function finalizarOpsDoPedido({ pedido, todayIso = new Date().toISO
       for (const op of desbDoPedido) {
         await base44.entities.OrdemDesbobinadeira.update(op.id, {
           status: "finalizado",
-          data_finalizacao: todayIso
+          data_finalizacao: todayIso,
+          prioridade_nivel: normalizarPrioridadeNivelNumerico(
+            op.prioridade_nivel,
+            op.tipo_prioridade || (op.is_rota ? "ROTA" : op.cliente_retira_agora ? "RETIRA_AGORA" : null)
+          )
         }).catch(() => {});
       }
     }

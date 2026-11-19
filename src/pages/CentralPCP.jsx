@@ -60,7 +60,7 @@ import useDistribuicaoPcp from "@/hooks/useDistribuicaoPcp"; import useProgramac
 import useFilaPaginada from "@/hooks/useFilaPaginada"; import useRealtimeThrottled from "@/hooks/useRealtimeThrottled";
 import FilaPagination from "@/components/pcp/FilaPagination";
 import { montarConsultaPcp, buscarOpsDasOfs } from "@/lib/consultaFilaPcp"; import useFecharProduzidosPcp from "@/hooks/useFecharProduzidosPcp";
-import { getPesoOrdenacaoPrioridade, formatarDataProgramadaAmigavel, hasPrioridadeDefinida, montarUpdatesPrioridade } from "@/lib/prioridadeHelper";
+import { getPesoOrdenacaoPrioridade, formatarDataProgramadaAmigavel, hasPrioridadeDefinida, montarUpdatesPrioridade, normalizarPrioridadeNivelNumerico } from "@/lib/prioridadeHelper";
 import ModalPrioridadeObrigatoria from "@/components/pcp/ModalPrioridadeObrigatoria";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
@@ -236,6 +236,10 @@ export default function CentralPCP() {
       const atualizado = await base44.entities.PedidoOdoo.update(pedido.id, {
         itens_json: JSON.stringify(itens),
         percentual_concluido: percentual,
+        prioridade_nivel: normalizarPrioridadeNivelNumerico(
+          pedido.prioridade_nivel,
+          pedido.tipo_prioridade || (pedido.is_rota ? "ROTA" : pedido.cliente_retira_agora ? "RETIRA_AGORA" : null)
+        )
       });
       if (percentual === 100) {
         finalizarOpsDoPedido({ pedido, usuario: "Central PCP" }).then(() => {
@@ -746,10 +750,16 @@ export default function CentralPCP() {
           status_detalhado: "Concluído"
         }));
 
+        const nivelNum = normalizarPrioridadeNivelNumerico(
+          pedido.prioridade_nivel,
+          pedido.tipo_prioridade || (pedido.is_rota ? "ROTA" : pedido.cliente_retira_agora ? "RETIRA_AGORA" : null)
+        );
+
         const atualizado = await base44.entities.PedidoOdoo.update(pedido.id, {
           ...(itens.length ? { itens_json: JSON.stringify(itens) } : {}),
           percentual_concluido: 100,
-          status_pcp: "concluido"
+          status_pcp: "concluido",
+          prioridade_nivel: nivelNum
         });
 
         // 1. Notifica o Odoo ERP imediatamente como CONCLUÍDO (100%)
@@ -828,7 +838,11 @@ export default function CentralPCP() {
           status_pcp: "entregue",
           data_entrega_realizada: agora,
           usuario_entrega: usuario,
-          historico_log: JSON.stringify(novoLog)
+          historico_log: JSON.stringify(novoLog),
+          prioridade_nivel: normalizarPrioridadeNivelNumerico(
+            ped.prioridade_nivel,
+            ped.tipo_prioridade || (ped.is_rota ? "ROTA" : ped.cliente_retira_agora ? "RETIRA_AGORA" : null)
+          )
         });
 
         // Notifica o Odoo ERP em tempo real sobre a entrega ao cliente / rota
@@ -901,7 +915,11 @@ export default function CentralPCP() {
         const atualizado = await base44.entities.PedidoOdoo.update(ped.id, {
           entregue: false,
           status_pcp: "concluido",
-          historico_log: JSON.stringify(novoLog)
+          historico_log: JSON.stringify(novoLog),
+          prioridade_nivel: normalizarPrioridadeNivelNumerico(
+            ped.prioridade_nivel,
+            ped.tipo_prioridade || (ped.is_rota ? "ROTA" : ped.cliente_retira_agora ? "RETIRA_AGORA" : null)
+          )
         });
 
         // Notifica o Odoo retornando para concluído
@@ -986,7 +1004,8 @@ export default function CentralPCP() {
     const isRota = nivel === "ROTA";
     const isPrioridade = nivel === "PRIORIDADE" || nivel === 1 || nivel === 2;
     const ativa = Boolean(isRetiraAgora || isRota || isPrioridade);
-    const nivelSalvar = isRetiraAgora ? "RETIRA_AGORA" : isRota ? "ROTA" : isPrioridade ? "PRIORIDADE" : null;
+    const nivelSalvarStr = isRetiraAgora ? "RETIRA_AGORA" : isRota ? "ROTA" : isPrioridade ? "PRIORIDADE" : "NORMAL";
+    const nivelSalvarNumero = isRetiraAgora ? 1 : (isRota || isPrioridade) ? 2 : null;
 
     const hojeIso = new Date().toISOString().slice(0, 10);
     const dataDefinida = (isRota || isPrioridade)
@@ -1020,9 +1039,9 @@ export default function CentralPCP() {
           return {
             ...p,
             prioridade: ativa,
-            prioridade_nivel: nivelSalvar,
-            tipo_prioridade: nivelSalvar,
-            prioridade_logistica: nivelSalvar,
+            prioridade_nivel: nivelSalvarNumero,
+            tipo_prioridade: nivelSalvarStr,
+            prioridade_logistica: nivelSalvarStr,
             prioridade_selecionada: true,
             prioridade_logistica_definida: true,
             cliente_retira_agora: isRetiraAgora,
@@ -1044,9 +1063,9 @@ export default function CentralPCP() {
     try {
       const payloadOf = {
         prioridade: ativa,
-        prioridade_nivel: nivelSalvar,
-        tipo_prioridade: nivelSalvar,
-        prioridade_logistica: nivelSalvar,
+        prioridade_nivel: nivelSalvarNumero,
+        tipo_prioridade: nivelSalvarStr,
+        prioridade_logistica: nivelSalvarStr,
         prioridade_selecionada: true,
         prioridade_logistica_definida: true,
         cliente_retira_agora: isRetiraAgora,
@@ -1081,8 +1100,9 @@ export default function CentralPCP() {
               { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
               { $set: {
                 prioridade: ativa,
-                prioridade_nivel: nivelSalvar,
-                tipo_prioridade: nivelSalvar,
+                prioridade_nivel: nivelSalvarNumero,
+                tipo_prioridade: nivelSalvarStr,
+                prioridade_logistica: nivelSalvarStr,
                 cliente_retira_agora: isRetiraAgora,
                 cliente_retira: isRetiraAgora,
                 retira_agora: isRetiraAgora,
@@ -1104,8 +1124,9 @@ export default function CentralPCP() {
               { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
               { $set: {
                 prioridade: ativa,
-                prioridade_nivel: nivelSalvar,
-                tipo_prioridade: nivelSalvar,
+                prioridade_nivel: nivelSalvarNumero,
+                tipo_prioridade: nivelSalvarStr,
+                prioridade_logistica: nivelSalvarStr,
                 cliente_retira_agora: isRetiraAgora,
                 cliente_retira: isRetiraAgora,
                 retira_agora: isRetiraAgora,
@@ -1165,7 +1186,8 @@ export default function CentralPCP() {
     const isRota = nivel === "ROTA";
     const isPrioridade = nivel === "PRIORIDADE" || nivel === 1 || nivel === 2;
     const ativa = Boolean(isRetiraAgora || isRota || isPrioridade);
-    const nivelSalvar = isRetiraAgora ? "RETIRA_AGORA" : isRota ? "ROTA" : isPrioridade ? "PRIORIDADE" : null;
+    const nivelSalvarStr = isRetiraAgora ? "RETIRA_AGORA" : isRota ? "ROTA" : isPrioridade ? "PRIORIDADE" : "NORMAL";
+    const nivelSalvarNumero = isRetiraAgora ? 1 : (isRota || isPrioridade) ? 2 : null;
 
     const hojeIso = new Date().toISOString().slice(0, 10);
     const dataDefinida = (isRota || isPrioridade)
@@ -1200,9 +1222,9 @@ export default function CentralPCP() {
           return {
             ...p,
             prioridade: ativa,
-            prioridade_nivel: nivelSalvar,
-            tipo_prioridade: nivelSalvar,
-            prioridade_logistica: nivelSalvar,
+            prioridade_nivel: nivelSalvarNumero,
+            tipo_prioridade: nivelSalvarStr,
+            prioridade_logistica: nivelSalvarStr,
             prioridade_selecionada: true,
             prioridade_logistica_definida: true,
             cliente_retira_agora: isRetiraAgora,
@@ -1224,9 +1246,9 @@ export default function CentralPCP() {
     try {
       const payloadUpdate = {
         prioridade: ativa,
-        prioridade_nivel: nivelSalvar,
-        tipo_prioridade: nivelSalvar,
-        prioridade_logistica: nivelSalvar,
+        prioridade_nivel: nivelSalvarNumero,
+        tipo_prioridade: nivelSalvarStr,
+        prioridade_logistica: nivelSalvarStr,
         prioridade_selecionada: true,
         prioridade_logistica_definida: true,
         cliente_retira_agora: isRetiraAgora,
@@ -1319,7 +1341,8 @@ export default function CentralPCP() {
     const isRetiraAgora = nivel === "RETIRA_AGORA";
     const isRota = nivel === "ROTA";
     const isPrioridade = nivel === "PRIORIDADE" || nivel === 1 || nivel === 2;
-    const nivelNumerico = isRetiraAgora ? "RETIRA_AGORA" : isRota ? "ROTA" : isPrioridade ? "PRIORIDADE" : null;
+    const nivelStr = isRetiraAgora ? "RETIRA_AGORA" : isRota ? "ROTA" : isPrioridade ? "PRIORIDADE" : "NORMAL";
+    const nivelNumerico = isRetiraAgora ? 1 : (isRota || isPrioridade) ? 2 : null;
     const ativa = Boolean(isRetiraAgora || isRota || isPrioridade);
     const hojeIso = new Date().toISOString().slice(0, 10);
     const descr = isRetiraAgora
@@ -1350,7 +1373,10 @@ export default function CentralPCP() {
             ...p,
             prioridade: ativa,
             prioridade_nivel: nivelNumerico,
-            tipo_prioridade: nivelNumerico,
+            tipo_prioridade: nivelStr,
+            prioridade_logistica: nivelStr,
+            prioridade_selecionada: true,
+            prioridade_logistica_definida: true,
             cliente_retira_agora: isRetiraAgora,
             cliente_retira: isRetiraAgora,
             retira_agora: isRetiraAgora,
@@ -1369,7 +1395,10 @@ export default function CentralPCP() {
       const payloadLote = {
         prioridade: ativa,
         prioridade_nivel: nivelNumerico,
-        tipo_prioridade: nivelNumerico,
+        tipo_prioridade: nivelStr,
+        prioridade_logistica: nivelStr,
+        prioridade_selecionada: true,
+        prioridade_logistica_definida: true,
         cliente_retira_agora: isRetiraAgora,
         cliente_retira: isRetiraAgora,
         retira_agora: isRetiraAgora,

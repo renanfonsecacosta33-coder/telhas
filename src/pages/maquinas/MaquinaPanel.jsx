@@ -27,7 +27,8 @@ import {
   getPesoOrdenacaoPrioridade,
   compararPrioridadeEData,
   getDataEntregaParaOrdenacao,
-  formatarDataProgramadaAmigavel
+  formatarDataProgramadaAmigavel,
+  normalizarPrioridadeNivelNumerico
 } from "@/lib/prioridadeHelper";
 import AlterarDataPedidoMaquinaModal from "@/components/maquinas/AlterarDataPedidoMaquinaModal";
 import { normalizarTextoBusca, calcularFiltrosTipoECor, pedidoAtendeFiltroTipoECor } from "@/lib/bobinaStatusHelper";
@@ -446,14 +447,32 @@ export default function MaquinaPanel({ maquina }) {
       if (typeof navigator !== "undefined" && !navigator.onLine) {
         throw new Error("OFFLINE_TRIGGERED");
       }
-      if (data.status) {
-        const atual = await base44.entities.Pedido.get(id);
+      const payloadLimpo = { ...data };
+      const atual = await base44.entities.Pedido.get(id).catch(() => null);
+
+      if (payloadLimpo.status && atual) {
         // FINALIZADO É TERMINAL: OP concluída não retorna para a fila da máquina
-        if (atual?.status === "finalizado" && ["pendente", "em_producao", "pausado"].includes(data.status)) {
+        if (atual?.status === "finalizado" && ["pendente", "em_producao", "pausado"].includes(payloadLimpo.status)) {
           throw new Error(`A OP #${atual.numero_pedido || ""} já foi finalizada e não volta para a máquina. Reabra somente pelo PCP, se necessário.`);
         }
       }
-      return await base44.entities.Pedido.update(id, data);
+
+      // 🛡️ AUTO-CURA & SANITIZAÇÃO DE prioridade_nivel:
+      // O schema do Base44 para Pedido exige number (1..5) ou null. Se o banco tiver string (ex: "ROTA")
+      // ou se o payload enviar string, a validação do Base44 rejeita o update.
+      // Forçamos a sanitização para número/null em todas as gravações:
+      if (
+        typeof payloadLimpo.prioridade_nivel === "string" ||
+        typeof atual?.prioridade_nivel === "string" ||
+        payloadLimpo.prioridade_nivel === undefined
+      ) {
+        payloadLimpo.prioridade_nivel = normalizarPrioridadeNivelNumerico(
+          payloadLimpo.prioridade_nivel !== undefined ? payloadLimpo.prioridade_nivel : atual?.prioridade_nivel,
+          payloadLimpo.tipo_prioridade || atual?.tipo_prioridade || (atual?.is_rota ? "ROTA" : atual?.cliente_retira_agora ? "RETIRA_AGORA" : null)
+        );
+      }
+
+      return await base44.entities.Pedido.update(id, payloadLimpo);
     },
     onMutate: async ({ id, data }) => {
       // Cancela refetchs concorrentes para evitar sobrescrever a UI
@@ -1029,7 +1048,8 @@ export default function MaquinaPanel({ maquina }) {
     const ehRota = nivel === "ROTA";
     const ehPrioridade = nivel === "PRIORIDADE" || nivel === 1 || nivel === 2;
     const ativa = Boolean(ehRetiraAgora || ehRota || ehPrioridade);
-    const nivelSalvar = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : ehPrioridade ? "PRIORIDADE" : null;
+    const nivelSalvarStr = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : ehPrioridade ? "PRIORIDADE" : "NORMAL";
+    const nivelSalvarNum = ehRetiraAgora ? 1 : (ehRota || ehPrioridade) ? 2 : null;
     const hojeIso = new Date().toISOString().slice(0, 10);
     const dataDefinida = (ehRota || ehPrioridade) ? (dataProgramada || pedido.data_programada_pcp || pedido.data_entrega || hojeIso) : null;
     const dataFmt = dataDefinida ? formatarDataProgramadaAmigavel(dataDefinida) : "";
@@ -1059,8 +1079,11 @@ export default function MaquinaPanel({ maquina }) {
       id: pedido.id,
       data: {
         prioridade: ativa,
-        prioridade_nivel: nivelSalvar,
-        tipo_prioridade: nivelSalvar,
+        prioridade_nivel: nivelSalvarNum,
+        tipo_prioridade: nivelSalvarStr,
+        prioridade_logistica: nivelSalvarStr,
+        prioridade_selecionada: true,
+        prioridade_logistica_definida: true,
         cliente_retira_agora: ehRetiraAgora,
         cliente_retira: ehRetiraAgora,
         retira_agora: ehRetiraAgora,
@@ -1086,7 +1109,11 @@ export default function MaquinaPanel({ maquina }) {
       data: {
         rota: novaRota,
         is_rota: novaRota,
-        prioridade_nivel: novaRota ? null : (typeof pedido.prioridade_nivel === "number" ? pedido.prioridade_nivel : null),
+        prioridade_nivel: novaRota ? 2 : null,
+        tipo_prioridade: novaRota ? "ROTA" : null,
+        prioridade_logistica: novaRota ? "ROTA" : null,
+        prioridade_selecionada: true,
+        prioridade_logistica_definida: true,
         cliente_retira_agora: novaRota ? false : pedido.cliente_retira_agora,
         cliente_retira: novaRota ? false : pedido.cliente_retira,
         retira_agora: novaRota ? false : pedido.retira_agora,

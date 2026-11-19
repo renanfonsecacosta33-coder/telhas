@@ -2,6 +2,7 @@ import { base44 } from "@/api/base44Client";
 import { getItens, buildItensJson, calcularProgressoRealPedido } from "@/lib/pedidoOdooHelper";
 import { indicesDaOp, opDaMesmaOf } from "@/lib/opVinculoSeguro";
 import { notificarStatus } from "@/lib/biNotificador";
+import { normalizarPrioridadeNivelNumerico } from "@/lib/prioridadeHelper";
 
 export async function localizarOfDaOp(op) {
   if (op.pedido_odoo_id) return base44.entities.PedidoOdoo.get(op.pedido_odoo_id);
@@ -52,10 +53,16 @@ export async function sincronizarStatusOpPcp(op, usuario = "Operador") {
   const percentual = calcularProgressoRealPedido(atualizadoPedido, valido);
   const statusPcp = percentual >= 100 ? "concluido" : valido.some(o => ["em_producao", "pausado", "aguardando_colagem"].includes(o.status)) ? "em_producao" : "distribuido";
   const fotoGeralOp = op.foto_finalizacao_url || op.foto_etapa1_url || (Array.isArray(varsOp) ? varsOp.find(v => v.foto_item_url)?.foto_item_url : null);
+  const nivelPrioridadeNumerico = normalizarPrioridadeNivelNumerico(
+    pedido.prioridade_nivel,
+    pedido.tipo_prioridade || (pedido.is_rota ? "ROTA" : pedido.cliente_retira_agora ? "RETIRA_AGORA" : null)
+  );
+
   const atualizado = await base44.entities.PedidoOdoo.update(pedido.id, {
     itens_json: buildItensJson(itens),
     percentual_concluido: percentual,
     status_pcp: statusPcp,
+    prioridade_nivel: nivelPrioridadeNumerico,
     ...(fotoGeralOp ? { foto_finalizacao_url: fotoGeralOp } : {})
   });
   await notificarStatus(atualizado, statusPcp === "concluido" ? "concluido" : op.status === "em_producao" ? "maquina_inicio" : "etapa_concluida", {

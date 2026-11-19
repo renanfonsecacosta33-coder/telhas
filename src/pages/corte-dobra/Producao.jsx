@@ -47,7 +47,7 @@ import ExpedicaoTab from "@/components/logistica/ExpedicaoTab";
 import FilaPCPCorteDobra from "@/components/pcp/FilaPCPCorteDobra";
 import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, saoPedidosIguais } from "@/lib/pedidoOdooHelper";
 import { notificarStatus } from "@/lib/biNotificador";
-import { getPesoOrdenacaoPrioridade, compararPrioridadeEData } from "@/lib/prioridadeHelper";
+import { getPesoOrdenacaoPrioridade, compararPrioridadeEData, normalizarPrioridadeNivelNumerico } from "@/lib/prioridadeHelper";
 import { ehIvaipora } from "@/lib/maquinasPorFilial";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import KanbanBoard from "@/components/producao/KanbanBoard";
@@ -307,15 +307,19 @@ export default function ProducaoCD() {
     const ehRetiraAgora = nivel === "RETIRA_AGORA";
     const ehRota = nivel === "ROTA";
     const ehPrioridade = nivel === "PRIORIDADE" || nivel === 1 || nivel === 2;
-    const nivelVal = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : ehPrioridade ? "PRIORIDADE" : null;
+    const nivelValStr = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : ehPrioridade ? "PRIORIDADE" : "NORMAL";
+    const nivelValNum = ehRetiraAgora ? 1 : (ehRota || ehPrioridade) ? 2 : null;
     const hojeIso = format(new Date(), "yyyy-MM-dd");
     const dataDefinida = (ehRota || ehPrioridade) ? (dataProgramada || ordem.data_programada_pcp || ordem.data || hojeIso) : null;
     updateDesb.mutate({
       id: ordem.id,
       data: {
         prioridade: Boolean(nivel),
-        prioridade_nivel: nivelVal,
-        tipo_prioridade: nivelVal,
+        prioridade_nivel: nivelValNum,
+        tipo_prioridade: nivelValStr,
+        prioridade_logistica: nivelValStr,
+        prioridade_selecionada: true,
+        prioridade_logistica_definida: true,
         cliente_retira_agora: ehRetiraAgora,
         cliente_retira: ehRetiraAgora,
         retira_agora: ehRetiraAgora,
@@ -367,15 +371,19 @@ export default function ProducaoCD() {
     const ehRetiraAgora = nivel === "RETIRA_AGORA";
     const ehRota = nivel === "ROTA";
     const ehPrioridade = nivel === "PRIORIDADE" || nivel === 1 || nivel === 2;
-    const nivelVal = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : ehPrioridade ? "PRIORIDADE" : null;
+    const nivelValStr = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : ehPrioridade ? "PRIORIDADE" : "NORMAL";
+    const nivelValNum = ehRetiraAgora ? 1 : (ehRota || ehPrioridade) ? 2 : null;
     const hojeIso = format(new Date(), "yyyy-MM-dd");
     const dataDefinida = (ehRota || ehPrioridade) ? (dataProgramada || ordem.data_programada_pcp || ordem.data || hojeIso) : null;
     updateMaq.mutate({
       id: ordem.id,
       data: {
         prioridade: Boolean(nivel),
-        prioridade_nivel: nivelVal,
-        tipo_prioridade: nivelVal,
+        prioridade_nivel: nivelValNum,
+        tipo_prioridade: nivelValStr,
+        prioridade_logistica: nivelValStr,
+        prioridade_selecionada: true,
+        prioridade_logistica_definida: true,
         cliente_retira_agora: ehRetiraAgora,
         cliente_retira: ehRetiraAgora,
         retira_agora: ehRetiraAgora,

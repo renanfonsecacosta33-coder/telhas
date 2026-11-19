@@ -19,7 +19,7 @@ import { calcularFiltrosTipoECor, pedidoAtendeFiltroTipoECor } from "@/lib/bobin
 import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
 import TimerProducao from "@/components/producao/TimerProducao";
-import { getPesoOrdenacaoPrioridade, SeletorPrioridadeDropdown, compararPrioridadeEData } from "@/lib/prioridadeHelper";
+import { getPesoOrdenacaoPrioridade, SeletorPrioridadeDropdown, compararPrioridadeEData, normalizarPrioridadeNivelNumerico } from "@/lib/prioridadeHelper";
 import { isOperadorDestaMaquina } from "@/lib/somPermissaoHelper";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
@@ -306,7 +306,11 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
 
   const updateOrdem = useMutation({
     mutationFn: async ({ id, data }) => {
-      const res = await base44.entities.OrdemDesbobinadeira.update(id, data);
+      const payloadLimpo = { ...data };
+      if (typeof payloadLimpo.prioridade_nivel === "string") {
+        payloadLimpo.prioridade_nivel = normalizarPrioridadeNivelNumerico(payloadLimpo.prioridade_nivel, payloadLimpo.tipo_prioridade);
+      }
+      const res = await base44.entities.OrdemDesbobinadeira.update(id, payloadLimpo);
       // Se a ordem foi finalizada, aciona a criação de ChapaCD e o desconto na Bobina em segundo plano (não bloqueia a UI)
       if (data?.status === "finalizado") {
         avancarProximaEtapaRoteiroCD(res, "OrdemDesbobinadeira").then((avanco) => {
@@ -922,15 +926,19 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
                                   const ehRetiraAgora = nivel === "RETIRA_AGORA";
                                   const ehRota = nivel === "ROTA";
                                   const ehPrioridade = nivel === "PRIORIDADE" || nivel === 1 || nivel === 2;
-                                  const nivelVal = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : ehPrioridade ? "PRIORIDADE" : null;
+                                  const nivelValStr = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : ehPrioridade ? "PRIORIDADE" : "NORMAL";
+                                  const nivelValNum = ehRetiraAgora ? 1 : (ehRota || ehPrioridade) ? 2 : null;
                                   const hojeIso = format(new Date(), "yyyy-MM-dd");
                                   const dataDefinida = (ehRota || ehPrioridade) ? (dataProgramada || o.data_programada_pcp || o.data || hojeIso) : null;
                                   updateOrdem.mutate({
                                     id: o.id,
                                     data: {
                                       prioridade: Boolean(nivel),
-                                      prioridade_nivel: nivelVal,
-                                      tipo_prioridade: nivelVal,
+                                      prioridade_nivel: nivelValNum,
+                                      tipo_prioridade: nivelValStr,
+                                      prioridade_logistica: nivelValStr,
+                                      prioridade_selecionada: true,
+                                      prioridade_logistica_definida: true,
                                       cliente_retira_agora: ehRetiraAgora,
                                       cliente_retira: ehRetiraAgora,
                                       retira_agora: ehRetiraAgora,
@@ -1015,15 +1023,19 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
                             const ehRetiraAgora = nivel === "RETIRA_AGORA";
                             const ehRota = nivel === "ROTA";
                             const ehPrioridade = nivel === "PRIORIDADE" || nivel === 1 || nivel === 2;
-                            const nivelVal = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : ehPrioridade ? "PRIORIDADE" : null;
+                            const nivelValStr = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : ehPrioridade ? "PRIORIDADE" : "NORMAL";
+                            const nivelValNum = ehRetiraAgora ? 1 : (ehRota || ehPrioridade) ? 2 : null;
                             const hojeIso = format(new Date(), "yyyy-MM-dd");
                             const dataDefinida = (ehRota || ehPrioridade) ? (dataProgramada || o.data_programada_pcp || o.data || hojeIso) : null;
                             updateOrdem.mutate({
                               id: o.id,
                               data: {
                                 prioridade: Boolean(nivel),
-                                prioridade_nivel: nivelVal,
-                                tipo_prioridade: nivelVal,
+                                prioridade_nivel: nivelValNum,
+                                tipo_prioridade: nivelValStr,
+                                prioridade_logistica: nivelValStr,
+                                prioridade_selecionada: true,
+                                prioridade_logistica_definida: true,
                                 cliente_retira_agora: ehRetiraAgora,
                                 cliente_retira: ehRetiraAgora,
                                 retira_agora: ehRetiraAgora,

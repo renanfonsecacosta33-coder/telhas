@@ -20,7 +20,7 @@ import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
-import { getPesoOrdenacaoPrioridade, SeletorPrioridadeDropdown, compararPrioridadeEData } from "@/lib/prioridadeHelper";
+import { getPesoOrdenacaoPrioridade, SeletorPrioridadeDropdown, compararPrioridadeEData, normalizarPrioridadeNivelNumerico } from "@/lib/prioridadeHelper";
 import TimerProducao from "@/components/producao/TimerProducao";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
 import { salvarCacheLocal, obterCacheLocal, enfileirarAcaoOffline } from "@/lib/offlineStorage";
@@ -327,7 +327,11 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
       if (typeof navigator !== "undefined" && !navigator.onLine) {
         throw new Error("OFFLINE_TRIGGERED");
       }
-      return await base44.entities.OrdemMaquinaCD.update(id, data);
+      const payloadLimpo = { ...data };
+      if (typeof payloadLimpo.prioridade_nivel === "string") {
+        payloadLimpo.prioridade_nivel = normalizarPrioridadeNivelNumerico(payloadLimpo.prioridade_nivel, payloadLimpo.tipo_prioridade);
+      }
+      return await base44.entities.OrdemMaquinaCD.update(id, payloadLimpo);
     },
     onMutate: async ({ id, data }) => {
       // 0ms resposta instantânea na memória para a UI
@@ -417,7 +421,8 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     const ehRetiraAgora = nivel === "RETIRA_AGORA";
     const ehRota = nivel === "ROTA";
     const ehPrioridade = nivel === "PRIORIDADE" || nivel === 1 || nivel === 2;
-    const nivelSalvar = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : ehPrioridade ? "PRIORIDADE" : null;
+    const nivelSalvarStr = ehRetiraAgora ? "RETIRA_AGORA" : ehRota ? "ROTA" : ehPrioridade ? "PRIORIDADE" : "NORMAL";
+    const nivelSalvarNum = ehRetiraAgora ? 1 : (ehRota || ehPrioridade) ? 2 : null;
     const ativa = Boolean(ehRetiraAgora || ehRota || ehPrioridade);
     const hojeIso = format(new Date(), "yyyy-MM-dd");
     const dataDefinida = (ehRota || ehPrioridade) ? (dataProgramada || o.data_programada_pcp || o.data || hojeIso) : null;
@@ -426,8 +431,11 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
       id: o.id,
       data: {
         prioridade: ativa,
-        prioridade_nivel: nivelSalvar,
-        tipo_prioridade: nivelSalvar,
+        prioridade_nivel: nivelSalvarNum,
+        tipo_prioridade: nivelSalvarStr,
+        prioridade_logistica: nivelSalvarStr,
+        prioridade_selecionada: true,
+        prioridade_logistica_definida: true,
         cliente_retira_agora: ehRetiraAgora,
         cliente_retira: ehRetiraAgora,
         retira_agora: ehRetiraAgora,

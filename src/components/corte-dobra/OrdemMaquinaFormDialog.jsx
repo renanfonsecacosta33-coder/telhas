@@ -881,13 +881,17 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
     // Prioridade nível: RETIRA_AGORA, ROTA ou 1 a 5
     if (form.prioridade_nivel) {
       if (form.prioridade_nivel === "RETIRA_AGORA") {
-        ordemData.prioridade_nivel = "RETIRA_AGORA";
+        ordemData.prioridade_nivel = 1;
+        ordemData.tipo_prioridade = "RETIRA_AGORA";
+        ordemData.prioridade_logistica = "RETIRA_AGORA";
         ordemData.cliente_retira_agora = true;
         ordemData.cliente_retira = true;
         ordemData.retira_agora = true;
         ordemData.prioridade = true;
       } else if (form.prioridade_nivel === "ROTA") {
-        ordemData.prioridade_nivel = "ROTA";
+        ordemData.prioridade_nivel = 2;
+        ordemData.tipo_prioridade = "ROTA";
+        ordemData.prioridade_logistica = "ROTA";
         ordemData.rota = true;
         ordemData.is_rota = true;
         ordemData.prioridade = true;
@@ -895,6 +899,8 @@ export default function OrdemMaquinaFormDialog({ open, onClose, onSave, editItem
         const pn = Number(form.prioridade_nivel);
         if (!isNaN(pn) && pn >= 1 && pn <= 5) {
           ordemData.prioridade_nivel = pn;
+          ordemData.tipo_prioridade = "PRIORIDADE";
+          ordemData.prioridade_logistica = "PRIORIDADE";
           ordemData.prioridade = true;
         }
       }
