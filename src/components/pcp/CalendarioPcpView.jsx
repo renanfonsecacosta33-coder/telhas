@@ -261,7 +261,7 @@ export default function CalendarioPcpView({
                 📦 Pedidos aguardando definição de data pelo PCP:
               </span>
               <span className="text-[11px] text-amber-700 dark:text-amber-400">
-                Clique em Reagendar para posicionar no calendário
+                Pedidos aguardando agendamento
               </span>
             </div>
 
@@ -468,18 +468,6 @@ export default function CalendarioPcpView({
                               >
                                 Detalhes
                               </button>
-                              {!readOnly && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    abrirDia(dataIso, diaInfo);
-                                  }}
-                                  className="text-[10px] font-bold text-orange-600 hover:text-orange-800 dark:text-orange-400 p-1 rounded hover:bg-orange-50 dark:hover:bg-orange-950/40 transition-colors"
-                                >
-                                  Reagendar
-                                </button>
-                              )}
                             </div>
                           </div>
                         );

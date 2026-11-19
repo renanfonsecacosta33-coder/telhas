@@ -26,11 +26,6 @@ export default function PainelDiaPcpDrawer({
   ordensCD = []
 }) {
   const [abaAtiva, setAbaAtiva] = useState("todas");
-  const [modalReagendarOpen, setModalReagendarOpen] = useState(false);
-  const [pedidoParaReagendar, setPedidoParaReagendar] = useState(null);
-  const [novaData, setNovaData] = useState("");
-  const [novoTipo, setNovoTipo] = useState("MANTER"); // MANTER | ROTA | PRIORIDADE
-  const [salvandoReagendamento, setSalvandoReagendamento] = useState(false);
 
   // Controle de expansão de OFs inline no card
   const [ofsExpandidas, setOfsExpandidas] = useState(new Set());
@@ -86,50 +81,6 @@ export default function PainelDiaPcpDrawer({
     if (abaAtiva === "atrasados") return atrasados;
     return todos;
   })();
-
-  const abrirModalReagendamento = (pedido) => {
-    setPedidoParaReagendar(pedido);
-    setNovaData(pedido._metricas?.dataAlvo || dataIso || format(new Date(), "yyyy-MM-dd"));
-    setNovoTipo(pedido._metricas?.isRota ? "ROTA" : pedido._metricas?.isRetiraAgora ? "RETIRA_AGORA" : "PRIORIDADE");
-    setModalReagendarOpen(true);
-  };
-
-  const handleConfirmarReagendamento = async () => {
-    if (!novaData) {
-      toast.warning("Selecione uma data válida.");
-      return;
-    }
-    if (!pedidoParaReagendar) return;
-
-    setSalvandoReagendamento(true);
-    try {
-      await onReagendarPedido?.({
-        pedido: pedidoParaReagendar,
-        novaData,
-        tipo: novoTipo
-      });
-      toast.success(`Pedido #${pedidoParaReagendar.numero_pedido} reagendado para ${novaData}!`);
-      setModalReagendarOpen(false);
-      setPedidoParaReagendar(null);
-    } catch (err) {
-      toast.error("Erro ao reagendar: " + (err.message || "Tente novamente"));
-    } finally {
-      setSalvandoReagendamento(false);
-    }
-  };
-
-  const aplicarAtalhoData = (diasAdicionar) => {
-    const hoje = new Date();
-    if (diasAdicionar === 0) {
-      setNovaData(format(hoje, "yyyy-MM-dd"));
-    } else if (diasAdicionar === 1) {
-      setNovaData(format(addDays(hoje, 1), "yyyy-MM-dd"));
-    } else if (diasAdicionar === 2) {
-      setNovaData(format(addDays(hoje, 2), "yyyy-MM-dd"));
-    } else if (diasAdicionar === "segunda") {
-      setNovaData(format(nextMonday(hoje), "yyyy-MM-dd"));
-    }
-  };
 
   return (
     <>
@@ -547,16 +498,6 @@ export default function PainelDiaPcpDrawer({
                         <CheckCircle2 className="w-3 h-3" /> Finalizar Etapas
                       </Button>
                     )}
-
-                    {!readOnly && (
-                      <Button
-                        size="sm"
-                        onClick={() => abrirModalReagendamento(p)}
-                        className="h-7 text-xs font-bold gap-1 bg-orange-600 hover:bg-orange-700 text-white cursor-pointer shadow-2xs"
-                      >
-                        <Calendar className="w-3 h-3" /> Reagendar
-                      </Button>
-                    )}
                   </div>
                 </div>
               );
@@ -574,152 +515,6 @@ export default function PainelDiaPcpDrawer({
         pedidosProducao={pedidosProducao}
         ordensCD={ordensCD}
       />
-
-      {/* Modal de Reagendamento Rápido */}
-      {modalReagendarOpen && pedidoParaReagendar && (
-        <Dialog open={modalReagendarOpen} onOpenChange={setModalReagendarOpen}>
-          <DialogContent className="sm:max-w-md bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-base font-black text-slate-900 dark:text-slate-100">
-                <Calendar className="w-5 h-5 text-orange-600" />
-                Reagendar Pedido #{pedidoParaReagendar.numero_pedido || pedidoParaReagendar.id}
-              </DialogTitle>
-            </DialogHeader>
-
-            <div className="space-y-4 py-2">
-              <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                <div className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
-                  Cliente: {pedidoParaReagendar.cliente_nome || pedidoParaReagendar.cliente}
-                </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">
-                  Metragem: {pedidoParaReagendar._metricas?.metrosTotal || 0}m • Peso: {pedidoParaReagendar._metricas?.pesoKgTotal || 0} kg
-                </div>
-              </div>
-
-              {/* Atalhos Rápidos de Data */}
-              <div>
-                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Atalhos de Reagendamento Rápido:
-                </Label>
-                <div className="grid grid-cols-4 gap-1.5 mt-1.5">
-                  <button
-                    type="button"
-                    onClick={() => aplicarAtalhoData(0)}
-                    className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-center"
-                  >
-                    Hoje
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => aplicarAtalhoData(1)}
-                    className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-center"
-                  >
-                    Amanhã
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => aplicarAtalhoData(2)}
-                    className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-center"
-                  >
-                    +2 Dias
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => aplicarAtalhoData("segunda")}
-                    className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-center"
-                  >
-                    Segunda
-                  </button>
-                </div>
-              </div>
-
-              {/* Seletor de Data */}
-              <div>
-                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Data de Carregamento / Prontidão:
-                </Label>
-                <Input
-                  type="date"
-                  value={novaData}
-                  onChange={(e) => setNovaData(e.target.value)}
-                  className="mt-1 font-bold"
-                />
-              </div>
-
-              {/* Seletor de Tipo */}
-              <div>
-                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Modalidade do Pedido:
-                </Label>
-                <div className="grid grid-cols-3 gap-2 mt-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setNovoTipo("ROTA")}
-                    className={`p-2 rounded-xl border text-xs font-bold flex flex-col items-center justify-center transition-all cursor-pointer ${
-                      novoTipo === "ROTA"
-                        ? "bg-indigo-50 border-indigo-500 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300"
-                        : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50"
-                    }`}
-                  >
-                    <Truck className="w-4 h-4 mb-1" />
-                    Carga de Rota
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setNovoTipo("PRIORIDADE")}
-                    className={`p-2 rounded-xl border text-xs font-bold flex flex-col items-center justify-center transition-all cursor-pointer ${
-                      novoTipo === "PRIORIDADE"
-                        ? "bg-amber-50 border-amber-500 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
-                        : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50"
-                    }`}
-                  >
-                    <Star className="w-4 h-4 mb-1" />
-                    Prioridade
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setNovoTipo("RETIRA_AGORA")}
-                    className={`p-2 rounded-xl border text-xs font-bold flex flex-col items-center justify-center transition-all cursor-pointer ${
-                      novoTipo === "RETIRA_AGORA"
-                        ? "bg-red-50 border-red-500 text-red-700 dark:bg-red-950/60 dark:text-red-300"
-                        : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50"
-                    }`}
-                  >
-                    <span className="text-base leading-none mb-1">⚡</span>
-                    Retira Agora
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <DialogFooter className="gap-2 sm:gap-0 mt-2">
-              <Button
-                variant="outline"
-                onClick={() => setModalReagendarOpen(false)}
-                disabled={salvandoReagendamento}
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={handleConfirmarReagendamento}
-                disabled={salvandoReagendamento}
-                className="bg-orange-600 hover:bg-orange-700 text-white font-bold"
-              >
-                {salvandoReagendamento ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" />
-                    Salvando...
-                  </>
-                ) : (
-                  "Confirmar Reagendamento"
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
     </>
   );
 }

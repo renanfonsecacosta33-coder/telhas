@@ -2100,6 +2100,93 @@ export default function CentralPCP() {
     return Array.from(map.values());
   }, [pedidosConcluidosEmTodos, filtro]);
 
+  // Grupos completos para o Calendário Operacional (inclui Ativos + Finalizados/Concluídos de toda a loja)
+  const gruposPedidosCalendario = useMemo(() => {
+    const map = new Map();
+    // Filtra pedidos da loja mantendo filtros de busca, prioridade, vendedor e setor, mas incluindo TODOS os status (ativos e finalizados)
+    const lista = (pedidosDaLoja || []).filter(p => {
+      // Prioridade
+      if (filtroPrioridade !== "todos") {
+        const isRetira = Boolean(p.cliente_retira_agora || p.cliente_retira || p.prioridade_tipo === "RETIRA_AGORA");
+        const isRota = Boolean(p.carga_rota || p.prioridade_tipo === "ROTA");
+        const isAlta = Boolean(p.prioridade || (p.prioridade_nivel && Number(p.prioridade_nivel) <= 2));
+        if (filtroPrioridade === "retira_agora" && !isRetira) return false;
+        if (filtroPrioridade === "rota" && !isRota) return false;
+        if (filtroPrioridade === "alta" && !isAlta) return false;
+      }
+      // Vendedor
+      if (filtroVendedor !== "todos") {
+        if ((p.vendedor_nome || "").trim() !== filtroVendedor) return false;
+      }
+      // Setor
+      if (filtroSetor !== "todos") {
+        const g = classGrupo(p);
+        const temTelha = (p.itens_telha_count || 0) > 0 || g === "telha";
+        const temCD = (p.itens_cd_count || 0) > 0 || g === "cd";
+        const temFrisada = (p.itens_frisada_count || 0) > 0 || String(p.itens_json || "").toLowerCase().includes("frisad");
+        const numPed = p.numero_pedido || `AVULSO_${p.id}`;
+        const ehMisto = numerosComAmbosSetores?.has?.(numPed);
+
+        if (filtroSetor === "telhas" && !temTelha) return false;
+        if (filtroSetor === "corte_dobra" && !temCD) return false;
+        if (filtroSetor === "frisadas" && !temFrisada) return false;
+        if (filtroSetor === "ambos" && !ehMisto) return false;
+      }
+      // Busca
+      if (buscaDebounced && buscaDebounced.trim()) {
+        const q = buscaDebounced.toLowerCase().trim();
+        const numMatch = String(p.numero_pedido || "").toLowerCase().includes(q) ||
+          String(p.numero_oc || "").toLowerCase().includes(q) ||
+          String(p.of_nome || "").toLowerCase().includes(q);
+        const cliMatch = String(p.cliente_nome || "").toLowerCase().includes(q);
+        const venMatch = String(p.vendedor_nome || "").toLowerCase().includes(q);
+        if (!numMatch && !cliMatch && !venMatch) return false;
+      }
+      return true;
+    });
+
+    lista.forEach(p => {
+      const num = p.numero_pedido || `AVULSO_${p.id}`;
+      if (!map.has(num)) {
+        map.set(num, {
+          numero_pedido: p.numero_pedido || "Sem Número",
+          numero_oc: p.numero_oc || "",
+          cliente_nome: p.cliente_nome || "—",
+          vendedor_nome: p.vendedor_nome || "—",
+          data_entrega: p.data_entrega,
+          data_programada_pcp: p.data_programada_pcp,
+          data_carregamento_rota: p.data_carregamento_rota,
+          data_prontidao: p.data_prontidao,
+          data_finalizacao: p.data_finalizacao,
+          data_conclusao: p.data_conclusao,
+          status_pcp: p.status_pcp,
+          percentual_concluido: p.percentual_concluido,
+          unidade: p.unidade,
+          prioridade: !!p.prioridade,
+          prioridade_nivel: p.prioridade_nivel,
+          ofs: []
+        });
+      }
+      const g = map.get(num);
+      const ofKey = p.of_nome || p.of_odoo_id || p.id;
+      if (!g.ofs.some(o => (o.of_nome || o.of_odoo_id || o.id) === ofKey)) {
+        g.ofs.push(p);
+      }
+      if (p.prioridade) g.prioridade = true;
+      if (p.is_rota) g.is_rota = true;
+      if (p.data_programada_pcp && !g.data_programada_pcp) g.data_programada_pcp = p.data_programada_pcp;
+      if (p.data_carregamento_rota && !g.data_carregamento_rota) g.data_carregamento_rota = p.data_carregamento_rota;
+      if (p.data_prontidao && !g.data_prontidao) g.data_prontidao = p.data_prontidao;
+      if (p.data_finalizacao && !g.data_finalizacao) g.data_finalizacao = p.data_finalizacao;
+      if (p.data_conclusao && !g.data_conclusao) g.data_conclusao = p.data_conclusao;
+      if (!g.cliente_nome || g.cliente_nome === "—") g.cliente_nome = p.cliente_nome;
+      if (!g.vendedor_nome || g.vendedor_nome === "—") g.vendedor_nome = p.vendedor_nome;
+      if (!g.data_entrega && p.data_entrega) g.data_entrega = p.data_entrega;
+    });
+
+    return Array.from(map.values());
+  }, [pedidosDaLoja, filtroPrioridade, filtroVendedor, filtroSetor, buscaDebounced, numerosComAmbosSetores]);
+
   // Auto-expande resultados quando o usuário digita um novo termo de busca (sem sobrescrever cliques manuais)
   const ultimaBuscaExpandidaRef = useRef("");
   useEffect(() => {
@@ -2944,11 +3031,10 @@ export default function CentralPCP() {
               />
             ) : viewMode === "calendario" ? (
               <CalendarioPcpView
-                gruposPedidos={gruposPedidos}
-                pedidosFiltrados={filtro === "todos" ? [...pedidosAtivosEmTodos, ...pedidosConcluidosEmTodos] : pedidosFiltrados}
+                gruposPedidos={gruposPedidosCalendario}
+                pedidosFiltrados={gruposPedidosCalendario}
                 pedidosProducao={pedidosProducao}
                 ordensCD={ordensCD}
-                onReagendarPedido={handleReagendarPedidoCalendario}
                 onOpenDetalhe={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
               />
             ) : modoVisao === "agrupado" ? (

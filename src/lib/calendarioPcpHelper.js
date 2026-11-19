@@ -51,13 +51,25 @@ export function formatarDataCurtaBR(raw) {
  */
 export function extrairDataCalendario(pedido) {
   if (!pedido) return null;
+  const ofs = Array.isArray(pedido.ofs) ? pedido.ofs : [];
   const raw =
     pedido.data_programada_pcp ||
     pedido.data_carregamento_rota ||
     pedido.data_prontidao ||
     pedido.data_entrega ||
+    pedido.data_finalizacao ||
+    pedido.data_conclusao ||
+    pedido.data_entrega_realizada ||
     pedido.data_previsao_fabrica ||
-    pedido.data;
+    pedido.data ||
+    ofs.find(o => o.data_programada_pcp)?.data_programada_pcp ||
+    ofs.find(o => o.data_carregamento_rota)?.data_carregamento_rota ||
+    ofs.find(o => o.data_prontidao)?.data_prontidao ||
+    ofs.find(o => o.data_entrega)?.data_entrega ||
+    ofs.find(o => o.data_finalizacao)?.data_finalizacao ||
+    ofs.find(o => o.data_conclusao)?.data_conclusao ||
+    ofs.find(o => o.data_entrega_realizada)?.data_entrega_realizada ||
+    ofs.find(o => o.data)?.data;
 
   return normalizarDataIso(raw);
 }
