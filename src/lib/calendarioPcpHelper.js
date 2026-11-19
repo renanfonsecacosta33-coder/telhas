@@ -12,14 +12,18 @@ export const LIMITE_CAPACIDADE_METROS_PADRAO = 3500;
 
 /**
  * Normaliza qualquer formato de data para ISO yyyy-MM-dd.
+ * Suporta formatos BR (dd/MM/yyyy com ou sem horário), ISO (yyyy-MM-dd), ISO completo com timestamp, etc.
  */
 export function normalizarDataIso(raw) {
   if (!raw) return null;
   const str = String(raw).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
-  if (str.includes("T")) return str.slice(0, 10);
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
-    const [d, m, y] = str.split("/");
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
+  const matchBR = str.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (matchBR) {
+    const d = matchBR[1].padStart(2, "0");
+    const m = matchBR[2].padStart(2, "0");
+    const y = matchBR[3];
     return `${y}-${m}-${d}`;
   }
   try {
@@ -48,6 +52,8 @@ export function formatarDataCurtaBR(raw) {
  * 2. data_carregamento_rota
  * 3. data_prontidao
  * 4. data_entrega (SLA Odoo)
+ * 5. data_prevista / data_prometida / data_conclusao / data_finalizacao
+ * 6. data_recebimento / data_pedido / created_date
  */
 export function extrairDataCalendario(pedido) {
   if (!pedido) return null;
@@ -61,7 +67,12 @@ export function extrairDataCalendario(pedido) {
     pedido.data_conclusao ||
     pedido.data_entrega_realizada ||
     pedido.data_previsao_fabrica ||
+    pedido.data_prevista ||
+    pedido.data_prometida ||
     pedido.data ||
+    pedido.data_recebimento ||
+    pedido.data_pedido ||
+    pedido.created_date ||
     ofs.find(o => o.data_programada_pcp)?.data_programada_pcp ||
     ofs.find(o => o.data_carregamento_rota)?.data_carregamento_rota ||
     ofs.find(o => o.data_prontidao)?.data_prontidao ||
@@ -69,7 +80,13 @@ export function extrairDataCalendario(pedido) {
     ofs.find(o => o.data_finalizacao)?.data_finalizacao ||
     ofs.find(o => o.data_conclusao)?.data_conclusao ||
     ofs.find(o => o.data_entrega_realizada)?.data_entrega_realizada ||
-    ofs.find(o => o.data)?.data;
+    ofs.find(o => o.data_previsao_fabrica)?.data_previsao_fabrica ||
+    ofs.find(o => o.data_prevista)?.data_prevista ||
+    ofs.find(o => o.data_prometida)?.data_prometida ||
+    ofs.find(o => o.data)?.data ||
+    ofs.find(o => o.data_recebimento)?.data_recebimento ||
+    ofs.find(o => o.data_pedido)?.data_pedido ||
+    ofs.find(o => o.created_date)?.created_date;
 
   return normalizarDataIso(raw);
 }

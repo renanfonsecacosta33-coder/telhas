@@ -62,7 +62,7 @@ export async function sincronizarStatusOpPcp(op, usuario = "Operador") {
     itens_json: buildItensJson(itens),
     percentual_concluido: percentual,
     status_pcp: statusPcp,
-    prioridade_nivel: nivelPrioridadeNumerico,
+    ...(typeof nivelPrioridadeNumerico === "number" && !isNaN(nivelPrioridadeNumerico) ? { prioridade_nivel: nivelPrioridadeNumerico } : {}),
     ...(fotoGeralOp ? { foto_finalizacao_url: fotoGeralOp } : {})
   });
   await notificarStatus(atualizado, statusPcp === "concluido" ? "concluido" : op.status === "em_producao" ? "maquina_inicio" : "etapa_concluida", {

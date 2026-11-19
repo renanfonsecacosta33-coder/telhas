@@ -4,8 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   ChevronDown, ChevronUp, Layers, User, Calendar, Send,
   CheckCircle2, Trash2, Clock, Truck, Lock,
-  ArrowRightLeft, RefreshCw, MoreHorizontal, History
+  ArrowRightLeft, RefreshCw, MoreHorizontal, History, FileText
 } from "lucide-react";
+import VisualizadorPdfModal from "@/components/pcp/VisualizadorPdfModal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { formatDataBR } from "@/lib/sla";
 import { urgenciaPrazo } from "@/lib/prazoUrgencia";
@@ -58,8 +59,24 @@ export default function PedidoOdooGrupoCard({
   estoqueContext = null
 }) {
   const [simulacaoGrupoOpen, setSimulacaoGrupoOpen] = useState(false);
+  const [modalPdfAberto, setModalPdfAberto] = useState(false);
   const ofs = grupo.ofs || [];
   const totalOfs = ofs.length;
+
+  const pdfUrlGrupo = useMemo(() => {
+    if (grupo?.pdf_pedido_url) return grupo.pdf_pedido_url;
+    if (grupo?.pdf_url) return grupo.pdf_url;
+    const ofComPdf = ofs.find(o => o?.pdf_pedido_url || o?.pdf_url);
+    if (ofComPdf?.pdf_pedido_url) return ofComPdf.pdf_pedido_url;
+    if (ofComPdf?.pdf_url) return ofComPdf.pdf_url;
+    for (let i = 1; i <= 10; i++) {
+      const anexo = grupo?.[`anexo_${i}_url`];
+      if (typeof anexo === "string" && (anexo.toLowerCase().includes(".pdf") || anexo.toLowerCase().startsWith("data:application/pdf"))) {
+        return anexo;
+      }
+    }
+    return "";
+  }, [grupo, ofs]);
   const idsDoGrupo = ofs.map(p => p.id);
   const totalSelecionadosNoGrupo = idsDoGrupo.filter(id => selecionados.has(id)).length;
   const todosSelecionadosNoGrupo = totalOfs > 0 && totalSelecionadosNoGrupo === totalOfs;
@@ -366,6 +383,20 @@ export default function PedidoOdooGrupoCard({
                     {/^OC[\s:-]?/i.test(grupo.numero_oc) ? grupo.numero_oc : `OC ${grupo.numero_oc}`}
                   </span>
                 )}
+                {pdfUrlGrupo && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setModalPdfAberto(true);
+                    }}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 transition-colors shadow-xs cursor-pointer"
+                    title="Visualizar PDF do Pedido enviado pelo Odoo"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                    <span>PDF</span>
+                  </button>
+                )}
                 <span
                   className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-black uppercase tracking-wide shadow-sm ${statusHero.cls}`}
                 >
@@ -553,25 +584,36 @@ export default function PedidoOdooGrupoCard({
                 </button>
               )}
 
-              {(onSincronizarGrupoOdoo || onTransferirGrupo || onDeleteGrupo || isPedidoEntregue) && (
-                <div onClick={(e) => e.stopPropagation()} className="shrink-0">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        className="h-8 w-8 p-0 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"
-                        title={`Mais ações do Pedido #${grupo.numero_pedido}`}
-                      >
-                        <MoreHorizontal className="w-4 h-4" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
-                      {onSincronizarGrupoOdoo && (
-                        <DropdownMenuItem onClick={() => onSincronizarGrupoOdoo(ofs)} className="gap-2 cursor-pointer">
-                          <RefreshCw className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                          Sincronizar c/ Odoo
-                        </DropdownMenuItem>
+              <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="h-8 w-8 p-0 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center cursor-pointer"
+                      title={`Mais ações do Pedido #${grupo.numero_pedido}`}
+                    >
+                      <MoreHorizontal className="w-4 h-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem
+                      onClick={() => setModalPdfAberto(true)}
+                      className="gap-2 cursor-pointer font-medium text-slate-700 dark:text-slate-200"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                      <span>Ver PDF do Pedido</span>
+                      {pdfUrlGrupo && (
+                        <span className="ml-auto text-[9px] bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 font-extrabold px-1.5 py-0.5 rounded">
+                          PDF
+                        </span>
                       )}
+                    </DropdownMenuItem>
+                    {onSincronizarGrupoOdoo && (
+                      <DropdownMenuItem onClick={() => onSincronizarGrupoOdoo(ofs)} className="gap-2 cursor-pointer">
+                        <RefreshCw className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                        Sincronizar c/ Odoo
+                      </DropdownMenuItem>
+                    )}
                       {onVerHistorico && (
                         <DropdownMenuItem onClick={() => onVerHistorico(grupo)} className="gap-2 cursor-pointer font-medium">
                           <History className="w-3.5 h-3.5 text-blue-500" />
@@ -599,7 +641,6 @@ export default function PedidoOdooGrupoCard({
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-              )}
 
               <Button
                 variant="outline"

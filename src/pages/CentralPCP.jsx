@@ -783,7 +783,7 @@ export default function CentralPCP() {
           ...(itens.length ? { itens_json: JSON.stringify(itens) } : {}),
           percentual_concluido: 100,
           status_pcp: "concluido",
-          prioridade_nivel: nivelNum
+          ...(typeof nivelNum === "number" && !isNaN(nivelNum) ? { prioridade_nivel: nivelNum } : {})
         });
 
         // 1. Notifica o Odoo ERP imediatamente como CONCLUÍDO (100%)
@@ -2172,6 +2172,7 @@ export default function CentralPCP() {
       const num = p.numero_pedido || `AVULSO_${p.id}`;
       if (!map.has(num)) {
         map.set(num, {
+          ...p,
           numero_pedido: p.numero_pedido || "Sem Número",
           numero_oc: p.numero_oc || "",
           cliente_nome: p.cliente_nome || "—",
@@ -2182,6 +2183,9 @@ export default function CentralPCP() {
           data_prontidao: p.data_prontidao,
           data_finalizacao: p.data_finalizacao,
           data_conclusao: p.data_conclusao,
+          data_recebimento: p.data_recebimento,
+          data_pedido: p.data_pedido,
+          created_date: p.created_date,
           status_pcp: p.status_pcp,
           percentual_concluido: p.percentual_concluido,
           unidade: p.unidade,
@@ -2202,9 +2206,15 @@ export default function CentralPCP() {
       if (p.data_prontidao && !g.data_prontidao) g.data_prontidao = p.data_prontidao;
       if (p.data_finalizacao && !g.data_finalizacao) g.data_finalizacao = p.data_finalizacao;
       if (p.data_conclusao && !g.data_conclusao) g.data_conclusao = p.data_conclusao;
+      if (p.data_entrega && !g.data_entrega) g.data_entrega = p.data_entrega;
+      if (p.data_prevista && !g.data_prevista) g.data_prevista = p.data_prevista;
+      if (p.data_prometida && !g.data_prometida) g.data_prometida = p.data_prometida;
+      if (p.data_recebimento && !g.data_recebimento) g.data_recebimento = p.data_recebimento;
+      if (p.data_pedido && !g.data_pedido) g.data_pedido = p.data_pedido;
+      if (p.created_date && !g.created_date) g.created_date = p.created_date;
+      if (p.data && !g.data) g.data = p.data;
       if (!g.cliente_nome || g.cliente_nome === "—") g.cliente_nome = p.cliente_nome;
       if (!g.vendedor_nome || g.vendedor_nome === "—") g.vendedor_nome = p.vendedor_nome;
-      if (!g.data_entrega && p.data_entrega) g.data_entrega = p.data_entrega;
     });
 
     return Array.from(map.values());

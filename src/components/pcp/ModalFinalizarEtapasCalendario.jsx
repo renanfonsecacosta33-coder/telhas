@@ -184,7 +184,7 @@ export default function ModalFinalizarEtapasCalendario({
               percentual_concluido: 100,
               onde_esta: "Expedição / Concluído",
               data_conclusao: todayIso,
-              prioridade_nivel: nivelNum,
+              ...(typeof nivelNum === "number" && !isNaN(nivelNum) ? { prioridade_nivel: nivelNum } : {}),
               etapas_concluidas_json: JSON.stringify(etapas),
               ...(itens.length ? { itens_json: JSON.stringify(itens) } : {})
             });

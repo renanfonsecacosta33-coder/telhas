@@ -169,14 +169,16 @@ export async function finalizarOpsDoPedido({ pedido, todayIso = new Date().toISO
           detalhes: `Baixa automática disparada pela conclusão do Pedido #${pedido.numero_pedido || pedido.id} no PCP.`
         });
 
+        const nivelNorm = normalizarPrioridadeNivelNumerico(
+          op.prioridade_nivel,
+          op.tipo_prioridade || (op.is_rota ? "ROTA" : op.cliente_retira_agora ? "RETIRA_AGORA" : null)
+        );
+
         await base44.entities.Pedido.update(op.id, {
           status: "finalizado",
           data_finalizacao: todayIso,
           historico_alteracoes: JSON.stringify(hist),
-          prioridade_nivel: normalizarPrioridadeNivelNumerico(
-            op.prioridade_nivel,
-            op.tipo_prioridade || (op.is_rota ? "ROTA" : op.cliente_retira_agora ? "RETIRA_AGORA" : null)
-          )
+          ...(typeof nivelNorm === "number" && !isNaN(nivelNorm) ? { prioridade_nivel: nivelNorm } : {})
         });
         countTelhas++;
       } catch (err) {
@@ -190,13 +192,14 @@ export async function finalizarOpsDoPedido({ pedido, todayIso = new Date().toISO
 
     for (const op of cdDoPedido) {
       try {
+        const nivelNormCD = normalizarPrioridadeNivelNumerico(
+          op.prioridade_nivel,
+          op.tipo_prioridade || (op.is_rota ? "ROTA" : op.cliente_retira_agora ? "RETIRA_AGORA" : null)
+        );
         await base44.entities.OrdemMaquinaCD.update(op.id, {
           status: "finalizado",
           data_finalizacao: todayIso,
-          prioridade_nivel: normalizarPrioridadeNivelNumerico(
-            op.prioridade_nivel,
-            op.tipo_prioridade || (op.is_rota ? "ROTA" : op.cliente_retira_agora ? "RETIRA_AGORA" : null)
-          )
+          ...(typeof nivelNormCD === "number" && !isNaN(nivelNormCD) ? { prioridade_nivel: nivelNormCD } : {})
         });
         countCD++;
       } catch (err) {
@@ -209,13 +212,14 @@ export async function finalizarOpsDoPedido({ pedido, todayIso = new Date().toISO
       const todasDesb = await base44.entities.OrdemDesbobinadeira.filter({ status: { $ne: "finalizado" } }, "-data", 500).catch(() => []);
       const desbDoPedido = todasDesb.filter(op => op.status !== "cancelado" && opPertenceAoPedido(op, pedido));
       for (const op of desbDoPedido) {
+        const nivelNormDesb = normalizarPrioridadeNivelNumerico(
+          op.prioridade_nivel,
+          op.tipo_prioridade || (op.is_rota ? "ROTA" : op.cliente_retira_agora ? "RETIRA_AGORA" : null)
+        );
         await base44.entities.OrdemDesbobinadeira.update(op.id, {
           status: "finalizado",
           data_finalizacao: todayIso,
-          prioridade_nivel: normalizarPrioridadeNivelNumerico(
-            op.prioridade_nivel,
-            op.tipo_prioridade || (op.is_rota ? "ROTA" : op.cliente_retira_agora ? "RETIRA_AGORA" : null)
-          )
+          ...(typeof nivelNormDesb === "number" && !isNaN(nivelNormDesb) ? { prioridade_nivel: nivelNormDesb } : {})
         }).catch(() => {});
       }
     }

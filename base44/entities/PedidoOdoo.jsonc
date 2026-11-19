@@ -34,6 +34,14 @@
       "type": "string",
       "description": "URL da foto/croqui do pedido enviado pelo Odoo (anexo_1_url) \u2014 v\u00ednculo autom\u00e1tico com a 'Foto do Pedido (Encarregado)' nos galp\u00f5es"
     },
+    "pdf_pedido_url": {
+      "type": "string",
+      "description": "URL do PDF do pedido de venda gerado no Odoo"
+    },
+    "pdf_pedido_nome": {
+      "type": "string",
+      "description": "Nome original do arquivo PDF do pedido enviado pelo Odoo (ex: Pedido_SO001.pdf)"
+    },
     "anexo_1_url": {
       "type": "string",
       "description": "Anexo 1 do pedido Odoo (URL ou Base64 do croqui/desenho t\u00e9cnico)"

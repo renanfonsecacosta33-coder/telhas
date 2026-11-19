@@ -458,18 +458,16 @@ export default function MaquinaPanel({ maquina }) {
       }
 
       // 🛡️ AUTO-CURA & SANITIZAÇÃO DE prioridade_nivel:
-      // O schema do Base44 para Pedido exige number (1..5) ou null. Se o banco tiver string (ex: "ROTA")
-      // ou se o payload enviar string, a validação do Base44 rejeita o update.
-      // Forçamos a sanitização para número/null em todas as gravações:
-      if (
-        typeof payloadLimpo.prioridade_nivel === "string" ||
-        typeof atual?.prioridade_nivel === "string" ||
-        payloadLimpo.prioridade_nivel === undefined
-      ) {
-        payloadLimpo.prioridade_nivel = normalizarPrioridadeNivelNumerico(
-          payloadLimpo.prioridade_nivel !== undefined ? payloadLimpo.prioridade_nivel : atual?.prioridade_nivel,
-          payloadLimpo.tipo_prioridade || atual?.tipo_prioridade || (atual?.is_rota ? "ROTA" : atual?.cliente_retira_agora ? "RETIRA_AGORA" : null)
-        );
+      // O schema do Base44 para Pedido exige number (1..5). Se o payload ou banco tiver string (ex: "ROTA")
+      // ou valor nulo/inválido, sanitizamos para número (1..5) ou removemos do payload para não violar validação.
+      const nivelNorm = normalizarPrioridadeNivelNumerico(
+        payloadLimpo.prioridade_nivel !== undefined ? payloadLimpo.prioridade_nivel : atual?.prioridade_nivel,
+        payloadLimpo.tipo_prioridade || atual?.tipo_prioridade || (atual?.is_rota ? "ROTA" : atual?.cliente_retira_agora ? "RETIRA_AGORA" : null)
+      );
+      if (typeof nivelNorm === "number" && !isNaN(nivelNorm)) {
+        payloadLimpo.prioridade_nivel = nivelNorm;
+      } else {
+        delete payloadLimpo.prioridade_nivel;
       }
 
       return await base44.entities.Pedido.update(id, payloadLimpo);

@@ -386,14 +386,38 @@ function rotearUnidadeProducao(params: {
  */
 export async function processarOdooWebhookCore(req: Request, unidadeForcada?: string): Promise<Response> {
   try {
-    // ── 1. Ler corpo da requisição (POST direto do Odoo) ──
+    // ── 1. Ler corpo da requisição (JSON direto ou Multipart/form-data com PDF) ──
     let body: any = {};
     let rawBody = "";
-    try {
-      rawBody = await req.text();
-      if (rawBody) body = JSON.parse(rawBody);
-    } catch {
-      // corpo não-JSON
+    let pdfFile: File | null = null;
+    let pdfNomeOriginal = "";
+    const contentType = req.headers.get("content-type") || "";
+
+    if (contentType.includes("multipart/form-data") || contentType.includes("multipart/")) {
+      try {
+        const formData = await req.formData();
+        const payloadRaw = formData.get("payload");
+        if (typeof payloadRaw === "string") {
+          body = JSON.parse(payloadRaw);
+        } else if (payloadRaw && typeof (payloadRaw as any).text === "function") {
+          body = JSON.parse(await (payloadRaw as any).text());
+        }
+
+        const fileCandidate = formData.get("pdf_pedido") || formData.get("pdf") || formData.get("arquivo_pdf") || formData.get("file");
+        if (fileCandidate && typeof fileCandidate === "object" && "name" in fileCandidate && ((fileCandidate as any).size > 0 || (fileCandidate as any).type)) {
+          pdfFile = fileCandidate as File;
+          pdfNomeOriginal = (fileCandidate as any).name || "Pedido.pdf";
+        }
+      } catch (err) {
+        console.warn("[odooWebhook] Falha ao processar multipart/form-data:", err);
+      }
+    } else {
+      try {
+        rawBody = await req.text();
+        if (rawBody) body = JSON.parse(rawBody);
+      } catch {
+        // corpo não-JSON
+      }
     }
 
     // ── 2. Validar payload mínimo ──
@@ -693,6 +717,53 @@ export async function processarOdooWebhookCore(req: Request, unidadeForcada?: st
     const rawFoto = body?.foto_pedido_url || newItems[0]?.foto_url || newItems[0]?.imagem_url || anexo1Url || "";
     const fotoUrl = rawFoto.startsWith("data:") ? rawFoto : normalizarUrlOdoo(rawFoto);
 
+    // ── 8.1 PDF do Pedido de Venda (Recebido via Multipart ou JSON) ──
+    let pdfPedidoUrl = existingRec?.pdf_pedido_url || body?.pdf_pedido_url || body?.pdf_url || "";
+    let pdfPedidoNome = existingRec?.pdf_pedido_nome || body?.pdf_pedido_nome || pdfNomeOriginal || "";
+
+    // 1) Se outro registro irmão com o mesmo numero_pedido já possui PDF salvo no banco, reutilizamos a URL
+    if (!pdfPedidoUrl && numeroPedido) {
+      try {
+        const pedidosIrmaos = await db.entities.PedidoOdoo.filter({ numero_pedido: numeroPedido });
+        const irmaoComPdf = pedidosIrmaos?.find((p: any) => p.pdf_pedido_url);
+        if (irmaoComPdf) {
+          pdfPedidoUrl = irmaoComPdf.pdf_pedido_url;
+          if (!pdfPedidoNome) pdfPedidoNome = irmaoComPdf.pdf_pedido_nome || "";
+        }
+      } catch (e) {
+        console.warn("[odooWebhook] Falha ao verificar PDF em pedidos irmãos:", e);
+      }
+    }
+
+    // 2) Se recebemos o arquivo binário via multipart e ainda não temos URL salva:
+    if (!pdfPedidoUrl && pdfFile) {
+      try {
+        const nomeArquivoLimpo = (pdfNomeOriginal || `Pedido_${numeroPedido}.pdf`).replace(/[^a-zA-Z0-9._-]/g, "_");
+        const resUpload = await db.integrations.Core.UploadFile({ file: pdfFile as any });
+        if (resUpload?.file_url) {
+          pdfPedidoUrl = resUpload.file_url;
+          pdfPedidoNome = nomeArquivoLimpo;
+        }
+      } catch (err: any) {
+        console.error("[odooWebhook] Erro no upload do PDF do pedido (multipart):", err?.message || err);
+      }
+    } else if (!pdfPedidoUrl && (body?.pdf_base64 || body?.pdf_pedido_base64)) {
+      // 3) Se recebemos em Base64 via JSON:
+      try {
+        const rawB64 = body.pdf_base64 || body.pdf_pedido_base64;
+        const blob = base64ToBlob(rawB64);
+        const nomeArquivoLimpo = `Pedido_${numeroPedido}_${Date.now()}.pdf`;
+        const fileObj = new File([blob], nomeArquivoLimpo, { type: "application/pdf" });
+        const resUpload = await db.integrations.Core.UploadFile({ file: fileObj as any });
+        if (resUpload?.file_url) {
+          pdfPedidoUrl = resUpload.file_url;
+          pdfPedidoNome = nomeArquivoLimpo;
+        }
+      } catch (err: any) {
+        console.error("[odooWebhook] Erro no upload do PDF base64:", err?.message || err);
+      }
+    }
+
     const nowIso = new Date().toISOString();
     const progressoInicial = body?.progresso_inicial != null ? Number(body.progresso_inicial) : 0;
 
@@ -786,6 +857,8 @@ export async function processarOdooWebhookCore(req: Request, unidadeForcada?: st
       cliente_nome: body?.cliente_nome ?? existingRec?.cliente_nome ?? "",
       vendedor_nome: body?.vendedor_nome ?? existingRec?.vendedor_nome ?? "",
       foto_pedido_url: (fotoUrl || existingRec?.foto_pedido_url) ?? "",
+      pdf_pedido_url: (pdfPedidoUrl || existingRec?.pdf_pedido_url) ?? "",
+      pdf_pedido_nome: (pdfPedidoNome || existingRec?.pdf_pedido_nome) ?? "",
       anexo_1_url: (anexo1Url || existingRec?.anexo_1_url) ?? "",
       anexo_2_url: (anexo2Url || existingRec?.anexo_2_url) ?? "",
       anexo_3_url: (anexo3Url || existingRec?.anexo_3_url) ?? "",
@@ -861,6 +934,25 @@ export async function processarOdooWebhookCore(req: Request, unidadeForcada?: st
       })().catch(() => {});
     }
 
+    // Se o PDF foi enviado agora, propaga para todas as OFs irmãs deste mesmo pedido que ainda estejam sem PDF
+    if (pdfPedidoUrl && numeroPedido) {
+      (async () => {
+        try {
+          const semPdf = await db.entities.PedidoOdoo.filter({ numero_pedido: numeroPedido });
+          for (const itemSemPdf of semPdf) {
+            if (itemSemPdf.id !== (result?.id || existingRec?.id) && !itemSemPdf.pdf_pedido_url) {
+              await db.entities.PedidoOdoo.update(itemSemPdf.id, {
+                pdf_pedido_url: pdfPedidoUrl,
+                pdf_pedido_nome: pdfPedidoNome
+              });
+            }
+          }
+        } catch (err: any) {
+          console.warn("[odooWebhook] Falha ao propagar PDF para OFs irmãs:", err?.message);
+        }
+      })().catch(() => {});
+    }
+
     return Response.json({
       status: "success",
       action: existingRec ? "updated" : "created",
@@ -868,6 +960,7 @@ export async function processarOdooWebhookCore(req: Request, unidadeForcada?: st
       of_odoo_id: ofId,
       of_nome: ofNome,
       unidade: unidadeCalculada,
+      pdf_pedido_url: pdfPedidoUrl || undefined,
       id: result?.id || existingRec?.id,
     }, { status: 201 });
   } catch (error: any) {
