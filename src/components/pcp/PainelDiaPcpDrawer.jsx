@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import {
   X, Calendar, Truck, Star, CheckCircle2, AlertTriangle,
   ArrowRight, Clock, User, Layers, RefreshCw, ChevronRight,
-  Maximize2, Sparkles, Scale, Ruler
+  Maximize2, Sparkles, Scale, Ruler, ChevronDown, ChevronUp
 } from "lucide-react";
 import { format, parseISO, addDays, nextMonday } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import ModalFinalizarEtapasCalendario from "@/components/pcp/ModalFinalizarEtapasCalendario";
 
 export default function PainelDiaPcpDrawer({
   aberto,
@@ -20,7 +21,9 @@ export default function PainelDiaPcpDrawer({
   onReagendarPedido,
   onOpenDetalhes,
   limiteTon = 15,
-  readOnly = false
+  readOnly = false,
+  pedidosProducao = [],
+  ordensCD = []
 }) {
   const [abaAtiva, setAbaAtiva] = useState("todas");
   const [modalReagendarOpen, setModalReagendarOpen] = useState(false);
@@ -28,6 +31,28 @@ export default function PainelDiaPcpDrawer({
   const [novaData, setNovaData] = useState("");
   const [novoTipo, setNovoTipo] = useState("MANTER"); // MANTER | ROTA | PRIORIDADE
   const [salvandoReagendamento, setSalvandoReagendamento] = useState(false);
+
+  // Controle de expansão de OFs inline no card
+  const [ofsExpandidas, setOfsExpandidas] = useState(new Set());
+  const toggleExpandirOfs = (pedId) => {
+    setOfsExpandidas((prev) => {
+      const next = new Set(prev);
+      if (next.has(pedId)) next.delete(pedId);
+      else next.add(pedId);
+      return next;
+    });
+  };
+
+  // Controle de finalização de etapas por modal
+  const [modalEtapasOpen, setModalEtapasOpen] = useState(false);
+  const [pedidoEtapasAlvo, setPedidoEtapasAlvo] = useState(null);
+  const [ofEtapasAlvo, setOfEtapasAlvo] = useState(null);
+
+  const abrirFinalizarEtapas = (ped, of = null) => {
+    setPedidoEtapasAlvo(ped);
+    setOfEtapasAlvo(of);
+    setModalEtapasOpen(true);
+  };
 
   if (!aberto || !diaData) return null;
 
@@ -327,12 +352,29 @@ export default function PainelDiaPcpDrawer({
                         {cliente}
                       </div>
 
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-2">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap">
                         <span>👤 {vendedor}</span>
                         <span>•</span>
                         <span>🏢 {unidade}</span>
                         <span>•</span>
-                        <span>📦 {ofs.length} OF(s)</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleExpandirOfs(p.id || numPed)}
+                          className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-md border text-[11px] transition-all cursor-pointer ${
+                            ofsExpandidas.has(p.id || numPed)
+                              ? "bg-orange-600 text-white border-orange-600 shadow-2xs"
+                              : "bg-orange-50 text-orange-700 dark:bg-orange-950/60 dark:text-orange-300 border-orange-200 dark:border-orange-800 hover:bg-orange-100"
+                          }`}
+                          title="Clique para ver ou recolher as Ordens de Fabricação deste pedido"
+                        >
+                          <Layers className="w-3 h-3" />
+                          <span>{ofsExpandidas.has(p.id || numPed) ? "Recolher OFs" : `Ver ${ofs.length} OF(s)`}</span>
+                          {ofsExpandidas.has(p.id || numPed) ? (
+                            <ChevronUp className="w-3 h-3" />
+                          ) : (
+                            <ChevronDown className="w-3 h-3" />
+                          )}
+                        </button>
                       </div>
                     </div>
 
@@ -414,8 +456,78 @@ export default function PainelDiaPcpDrawer({
                     </div>
                   )}
 
+                  {/* Grade de OFs Expandida Inline */}
+                  {ofsExpandidas.has(p.id || numPed) && (
+                    <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 space-y-2 animate-in fade-in-50 duration-150">
+                      <div className="flex items-center justify-between text-xs font-black text-slate-700 dark:text-slate-300">
+                        <span className="flex items-center gap-1.5 uppercase tracking-wide">
+                          <Layers className="w-3.5 h-3.5 text-orange-500" /> Ordens de Fabricação ({ofs.length})
+                        </span>
+                        {!readOnly && !met.isConcluido && (
+                          <button
+                            type="button"
+                            onClick={() => abrirFinalizarEtapas(p, null)}
+                            className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            <CheckCircle2 className="w-3 h-3" /> Finalizar Pedido (100%)
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {ofs.map((pOf, idxOf) => {
+                          const ofNome = pOf.of_nome || pOf.of_odoo_id || `OF #${idxOf + 1}`;
+                          const prodOf = pOf.produto || pOf.descricao || pOf.item_produto || "Telhas";
+                          const maqOf = pOf.maquina || pOf.onde_esta || "Mesa PCP";
+                          const pctOf = pOf.percentual_concluido != null ? pOf.percentual_concluido : met.progresso;
+                          const isOfDone = pctOf >= 100 || pOf.status_pcp === "concluido" || pOf.status === "finalizado";
+
+                          return (
+                            <div
+                              key={pOf.id || idxOf}
+                              className="bg-slate-50 dark:bg-slate-900/60 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                            >
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-mono font-black text-slate-900 dark:text-slate-100 text-[11px]">
+                                    {ofNome}
+                                  </span>
+                                  <Badge variant="outline" className="text-[9px] py-0 font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                    {maqOf}
+                                  </Badge>
+                                  {isOfDone ? (
+                                    <span className="text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+                                      <CheckCircle2 className="w-2.5 h-2.5" /> Concluída
+                                    </span>
+                                  ) : (
+                                    <span className="text-[9px] font-semibold text-orange-600 dark:text-orange-400">
+                                      {pctOf}% concluído
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-slate-600 dark:text-slate-300 font-medium truncate mt-0.5" title={prodOf}>
+                                  {prodOf}
+                                </div>
+                              </div>
+
+                              {!readOnly && !isOfDone && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => abrirFinalizarEtapas(p, pOf)}
+                                  className="h-6 text-[10px] font-bold px-2.5 bg-orange-600 hover:bg-orange-700 text-white shrink-0 cursor-pointer shadow-2xs gap-1"
+                                >
+                                  <Sparkles className="w-2.5 h-2.5" /> Finalizar Etapa
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Botões de Ação do Card */}
-                  <div className="flex items-center justify-end gap-2 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-700/60">
+                  <div className="flex items-center justify-end gap-2 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-700/60 flex-wrap">
                     <Button
                       size="sm"
                       variant="outline"
@@ -424,6 +536,17 @@ export default function PainelDiaPcpDrawer({
                     >
                       <Maximize2 className="w-3 h-3" /> Detalhes
                     </Button>
+
+                    {!readOnly && !met.isConcluido && (
+                      <Button
+                        size="sm"
+                        onClick={() => abrirFinalizarEtapas(p, null)}
+                        className="h-7 text-xs font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-2xs"
+                        title="Finalizar etapas ou concluir 100% deste pedido"
+                      >
+                        <CheckCircle2 className="w-3 h-3" /> Finalizar Etapas
+                      </Button>
+                    )}
 
                     {!readOnly && (
                       <Button
@@ -441,6 +564,16 @@ export default function PainelDiaPcpDrawer({
           )}
         </div>
       </div>
+
+      {/* Modal de Finalização de Etapas Individual / Grupo */}
+      <ModalFinalizarEtapasCalendario
+        open={modalEtapasOpen}
+        onOpenChange={setModalEtapasOpen}
+        pedido={pedidoEtapasAlvo}
+        ofAlvo={ofEtapasAlvo}
+        pedidosProducao={pedidosProducao}
+        ordensCD={ordensCD}
+      />
 
       {/* Modal de Reagendamento Rápido */}
       {modalReagendarOpen && pedidoParaReagendar && (

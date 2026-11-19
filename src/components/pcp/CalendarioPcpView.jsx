@@ -672,6 +672,8 @@ export default function CalendarioPcpView({
         onOpenDetalhes={onOpenDetalhe}
         limiteTon={limiteTon}
         readOnly={readOnly}
+        pedidosProducao={pedidosProducao}
+        ordensCD={ordensCD}
       />
     </div>
   );
