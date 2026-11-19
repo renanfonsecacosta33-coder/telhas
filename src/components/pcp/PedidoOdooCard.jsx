@@ -3,8 +3,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   Calendar, User, Tag, Layers, Scissors, Wind, Trash2, Star,
   Undo2, RefreshCw, Zap, CheckCircle2, ChevronDown, ChevronUp, Home,
-  Building2, ArrowRightLeft, Store, Clock, History, Truck, Lock
+  Building2, ArrowRightLeft, Store, Clock, History, Truck, Lock, FileText
 } from "lucide-react";
+import VisualizadorPdfModal from "@/components/pcp/VisualizadorPdfModal";
 import {
   formatDataBR,
   slaDiasPorCategoria
@@ -96,6 +97,7 @@ export default function PedidoOdooCard({
   const [sincronizando, setSincronizando] = useState(false);
   const [simulacaoModalOpen, setSimulacaoModalOpen] = useState(false);
   const [modalEtapasOpen, setModalEtapasOpen] = useState(false);
+  const [modalPdfAberto, setModalPdfAberto] = useState(false);
   const pct = progressoReal != null ? progressoReal : (pedido.percentual_concluido || 0);
   const isEntregue = Boolean(pedido.entregue || pedido.status_pcp === "entregue");
   const isConcluido = (pedido.status_pcp === "concluido" || pct >= 100) && !isEntregue;
@@ -355,6 +357,14 @@ export default function PedidoOdooCard({
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setModalPdfAberto(true); }}
+              title="Visualizar PDF do Pedido"
+              className="p-1 rounded text-red-500 hover:text-red-600 hover:bg-red-500/10 transition-colors cursor-pointer"
+            >
+              <FileText className="w-3 h-3" />
+            </button>
             <button
               type="button"
               onClick={handleSincronizarOdoo}
@@ -951,6 +961,14 @@ export default function PedidoOdooCard({
         <ModalConcluirEtapasRoteiro
           open={modalEtapasOpen}
           onOpenChange={setModalEtapasOpen}
+          pedido={pedido}
+        />
+      )}
+
+      {modalPdfAberto && (
+        <VisualizadorPdfModal
+          open={modalPdfAberto}
+          onOpenChange={setModalPdfAberto}
           pedido={pedido}
         />
       )}

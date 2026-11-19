@@ -709,6 +709,15 @@ export default function PedidoOdooGrupoCard({
           estoqueContext={estoqueContext}
         />
       )}
+
+      {modalPdfAberto && (
+        <VisualizadorPdfModal
+          open={modalPdfAberto}
+          onOpenChange={setModalPdfAberto}
+          pedido={grupo}
+          pdfUrl={pdfUrlGrupo}
+        />
+      )}
     </div>
   );
 }

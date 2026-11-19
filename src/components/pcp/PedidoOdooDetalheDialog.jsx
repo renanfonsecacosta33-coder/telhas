@@ -35,8 +35,10 @@ import {
   Store,
   Calendar,
   Lock,
-  AlertTriangle
+  AlertTriangle,
+  FileText
 } from "lucide-react";
+import VisualizadorPdfModal from "@/components/pcp/VisualizadorPdfModal";
 import { formatDataBR, slaDiasPorCategoria } from "@/lib/sla";
 import { hojeLocalISO } from "@/lib/dataLocal";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
@@ -75,6 +77,7 @@ export default function PedidoOdooDetalheDialog({
   const [itensLocais, setItensLocais] = useState([]);
   const [resetando, setResetando] = useState(false);
   const [pedidoLocal, setPedidoLocal] = useState(pedido);
+  const [modalPdfAberto, setModalPdfAberto] = useState(false);
 
   // Sincroniza pedidoLocal sempre que o pedido recebido mudar
   useEffect(() => {
@@ -378,6 +381,17 @@ export default function PedidoOdooDetalheDialog({
 
               {/* Ações Rápidas no Canto Superior Direito */}
               <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setModalPdfAberto(true)}
+                  className="h-7 px-2.5 text-xs gap-1.5 border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40 font-semibold"
+                  title="Visualizar PDF oficial do pedido enviado pelo Odoo"
+                >
+                  <FileText className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                  <span className="hidden sm:inline">PDF</span>
+                </Button>
+
                 <Button
                   size="sm"
                   variant="outline"
@@ -797,6 +811,14 @@ export default function PedidoOdooDetalheDialog({
           onSalvo={() => {
             onAtualizado?.();
           }}
+        />
+      )}
+
+      {modalPdfAberto && (pedidoLocal || pedido) && (
+        <VisualizadorPdfModal
+          open={modalPdfAberto}
+          onOpenChange={setModalPdfAberto}
+          pedido={pedidoLocal || pedido}
         />
       )}
     </>
