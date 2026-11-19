@@ -545,11 +545,11 @@ export default function PedidoOdooGrupoCard({
                     e.stopPropagation();
                     onFinalizarGrupo100(ofs);
                   }}
-                  className="h-8 px-2.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"
-                  title={`Finalizar Pedido #${grupo.numero_pedido} em 100% (exige senha de gestor)`}
+                  className="h-8 px-2.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors cursor-pointer"
+                  title={`Finalizar etapas ou marcar Pedido #${grupo.numero_pedido} em 100%`}
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  Finalizar 100%
+                  Finalizar Etapas / 100%
                 </button>
               )}
 

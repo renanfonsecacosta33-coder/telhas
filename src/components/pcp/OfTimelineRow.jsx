@@ -258,9 +258,9 @@ export default function OfTimelineRow({
             type="button"
             onClick={() => onFinalizar100(pedido)}
             className={`${BTN_BASE} ${BTN_SEC}`}
-            title="Marcar esta OF como 100% concluída (exige senha de gestor)"
+            title="Finalizar etapas de produção ou concluir 100% desta OF"
           >
-            Concluir / Já Enviado
+            Finalizar Etapas
           </button>
         )}
         {podeRetirar && (

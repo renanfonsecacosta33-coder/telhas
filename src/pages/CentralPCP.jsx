@@ -44,6 +44,7 @@ import ViewModeToggle from "@/components/ui/ViewModeToggle";
 import FilaPCPTabelaView from "@/components/pcp/FilaPCPTabelaView";
 import FilaPCPKanbanView from "@/components/pcp/FilaPCPKanbanView";
 import CalendarioPcpView from "@/components/pcp/CalendarioPcpView";
+import ModalFinalizarEtapasCalendario from "@/components/pcp/ModalFinalizarEtapasCalendario";
 import HistoricoPedidoSidebar from "@/components/corte-dobra/HistoricoPedidoSidebar";
 import { salvarCacheLocal, obterCacheLocal } from "@/lib/offlineStorage";
 import { useFilial } from "@/contexts/FilialContext";
@@ -729,11 +730,33 @@ export default function CentralPCP() {
     executarExclusaoOsBackground({ pedido, pedidoId, numPedido, motivo, queryClient, toast });
   };
 
+  // Modal de Finalização de Etapas Individual / Grupo
+  const [modalEtapasPcpOpen, setModalEtapasPcpOpen] = useState(false);
+  const [pedidoEtapasPcpAlvo, setPedidoEtapasPcpAlvo] = useState(null);
+  const [ofEtapasPcpAlvo, setOfEtapasPcpAlvo] = useState(null);
+
+  const handleAbrirFinalizarEtapas = (alvo) => {
+    if (!alvo) return;
+    const lista = Array.isArray(alvo) ? alvo : [alvo];
+    const primeiro = lista[0];
+    if (!primeiro) return;
+
+    const numPed = primeiro.numero_pedido;
+    const grupo = gruposPedidos.find(g => g.numero_pedido === numPed) || primeiro;
+
+    if (lista.length > 1 || primeiro.ofs) {
+      setPedidoEtapasPcpAlvo(grupo);
+      setOfEtapasPcpAlvo(null);
+    } else {
+      setPedidoEtapasPcpAlvo(grupo);
+      setOfEtapasPcpAlvo(primeiro);
+    }
+
+    setModalEtapasPcpOpen(true);
+  };
+
   const handleSolicitarFinalizar100 = (pedidosLista) => {
-    const lista = (pedidosLista || []).filter(Boolean);
-    if (!lista.length) return;
-    setFinalizarPendentes(lista);
-    setSenhaFinalizarOpen(true);
+    handleAbrirFinalizarEtapas(pedidosLista);
   };
 
   const [sincronizandoOdoo, setSincronizandoOdoo] = useState(false);
@@ -3253,6 +3276,16 @@ export default function CentralPCP() {
         open={modalDiagnosticoOpen}
         onOpenChange={setModalDiagnosticoOpen}
         pedidosPcp={pedidosRaw}
+      />
+      {/* Modal de Finalização de Etapas Individual / Grupo na Central PCP */}
+      <ModalFinalizarEtapasCalendario
+        open={modalEtapasPcpOpen}
+        onOpenChange={setModalEtapasPcpOpen}
+        pedido={pedidoEtapasPcpAlvo}
+        ofAlvo={ofEtapasPcpAlvo}
+        pedidosProducao={pedidosProducao}
+        ordensCD={ordensCD}
+        usuario="Central PCP"
       />
       <SenhaGestorDialog
         open={senhaGestorOpen}
