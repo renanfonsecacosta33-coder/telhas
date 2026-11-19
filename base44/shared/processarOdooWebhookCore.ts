@@ -391,7 +391,7 @@ export async function processarOdooWebhookCore(req: Request, unidadeForcada?: st
     let rawBody = "";
     let pdfFile: File | null = null;
     let pdfNomeOriginal = "";
-    const contentType = req.headers.get("content-type") || "";
+    const contentType = (req.headers.get("content-type") || "").toLowerCase();
 
     if (contentType.includes("multipart/form-data") || contentType.includes("multipart/")) {
       try {
@@ -401,6 +401,23 @@ export async function processarOdooWebhookCore(req: Request, unidadeForcada?: st
           body = JSON.parse(payloadRaw);
         } else if (payloadRaw && typeof (payloadRaw as any).text === "function") {
           body = JSON.parse(await (payloadRaw as any).text());
+        }
+
+        // Fallback: se por acaso os campos foram enviados diretamente no formData
+        if (!body || Object.keys(body).length === 0 || !body.numero_pedido) {
+          const directObj: Record<string, any> = {};
+          for (const [k, v] of (formData as any).entries()) {
+            if (k !== "pdf_pedido" && typeof v === "string") {
+              try {
+                directObj[k] = JSON.parse(v);
+              } catch {
+                directObj[k] = v;
+              }
+            }
+          }
+          if (directObj.numero_pedido) {
+            body = { ...directObj, ...body };
+          }
         }
 
         const fileCandidate = formData.get("pdf_pedido") || formData.get("pdf") || formData.get("arquivo_pdf") || formData.get("file");
