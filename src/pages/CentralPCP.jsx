@@ -43,6 +43,7 @@ import HistoricoMovimentacaoDialog from "@/components/pcp/HistoricoMovimentacaoD
 import ViewModeToggle from "@/components/ui/ViewModeToggle";
 import FilaPCPTabelaView from "@/components/pcp/FilaPCPTabelaView";
 import FilaPCPKanbanView from "@/components/pcp/FilaPCPKanbanView";
+import CalendarioPcpView from "@/components/pcp/CalendarioPcpView";
 import HistoricoPedidoSidebar from "@/components/corte-dobra/HistoricoPedidoSidebar";
 import { salvarCacheLocal, obterCacheLocal } from "@/lib/offlineStorage";
 import { useFilial } from "@/contexts/FilialContext";
@@ -1331,6 +1332,14 @@ export default function CentralPCP() {
       }
       toast({ title: "Erro ao alterar prioridade do grupo", description: e.message, variant: "destructive" });
     }
+  };
+
+  const handleReagendarPedidoCalendario = async ({ pedido, novaData, tipo }) => {
+    const grupo = pedido.ofs
+      ? pedido
+      : gruposPedidos.find(g => g.numero_pedido && g.numero_pedido === pedido.numero_pedido) || { ...pedido, ofs: [pedido] };
+    const nivelFinal = tipo === "ROTA" ? "ROTA" : tipo === "RETIRA_AGORA" ? "RETIRA_AGORA" : "PRIORIDADE";
+    return await confirmarPrioridadeGrupo(grupo, nivelFinal, novaData);
   };
 
   const handleDefinirPrioridadeLote = async (nivel) => {
@@ -2805,11 +2814,12 @@ export default function CentralPCP() {
                   {otimizarPorBobina ? "Sequência Otimizada" : "Otimizar p/ Bobina"}
                 </button>
 
-                {/* Seletor Triplo: Cards | Tabela | Kanban */}
+                {/* Seletor Quádruplo: Cards | Tabela | Kanban | Calendário */}
                 <ViewModeToggle
                   value={viewMode}
                   onChange={setViewMode}
                   storageKey="pcp_fila"
+                  allowedModes={["cards", "tabela", "kanban", "calendario"]}
                 />
 
                 {/* Expansão Rápida quando em modo Cards Agrupado */}
@@ -2931,6 +2941,15 @@ export default function CentralPCP() {
                 onOpenHistorico={(num) => setPedidoHistoricoNumero(num)}
                 selecionados={selecionados}
                 onToggleSelectGrupo={handleToggleSelectGrupo}
+              />
+            ) : viewMode === "calendario" ? (
+              <CalendarioPcpView
+                gruposPedidos={gruposPedidos}
+                pedidosFiltrados={filtro === "todos" ? [...pedidosAtivosEmTodos, ...pedidosConcluidosEmTodos] : pedidosFiltrados}
+                pedidosProducao={pedidosProducao}
+                ordensCD={ordensCD}
+                onReagendarPedido={handleReagendarPedidoCalendario}
+                onOpenDetalhe={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
               />
             ) : modoVisao === "agrupado" ? (
               <div className="space-y-3">

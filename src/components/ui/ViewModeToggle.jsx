@@ -1,8 +1,8 @@
 import React, { useEffect } from "react";
-import { LayoutList, Table, Columns3 } from "lucide-react";
+import { LayoutList, Table, Columns3, Calendar } from "lucide-react";
 
 /**
- * Componente unificado de seleção de visualização (Cards | Tabela | Kanban)
+ * Componente unificado de seleção de visualização (Cards | Tabela | Kanban | Calendário)
  * Suporta persistência automática no localStorage por tela/módulo.
  */
 export default function ViewModeToggle({
@@ -10,8 +10,8 @@ export default function ViewModeToggle({
   onChange,
   storageKey,
   className = "",
-  labels = { cards: "Cards", tabela: "Tabela", kanban: "Kanban" },
-  allowedModes = ["cards", "tabela", "kanban"],
+  labels = { cards: "Cards", tabela: "Tabela", kanban: "Kanban", calendario: "Calendário" },
+  allowedModes = ["cards", "tabela", "kanban", "calendario"],
 }) {
   // Ao montar, recupera a preferência salva no localStorage se existir
   useEffect(() => {
@@ -86,6 +86,22 @@ export default function ViewModeToggle({
         >
           <Columns3 className="w-3.5 h-3.5" />
           <span>{labels.kanban}</span>
+        </button>
+      )}
+
+      {allowedModes.includes("calendario") && (
+        <button
+          type="button"
+          onClick={() => handleSelect("calendario")}
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+            value === "calendario"
+              ? "bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-2xs"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+          }`}
+          title="Visão em Calendário Operacional (Prontidão, Cargas e Carga Fabril)"
+        >
+          <Calendar className="w-3.5 h-3.5" />
+          <span>{labels.calendario || "Calendário"}</span>
         </button>
       )}
     </div>
