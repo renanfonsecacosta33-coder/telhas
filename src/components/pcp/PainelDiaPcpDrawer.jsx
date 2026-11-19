@@ -19,7 +19,8 @@ export default function PainelDiaPcpDrawer({
   diaData,
   onReagendarPedido,
   onOpenDetalhes,
-  limiteTon = 15
+  limiteTon = 15,
+  readOnly = false
 }) {
   const [abaAtiva, setAbaAtiva] = useState("todas");
   const [modalReagendarOpen, setModalReagendarOpen] = useState(false);
@@ -367,6 +368,38 @@ export default function PainelDiaPcpDrawer({
                     </div>
                   </div>
 
+                  {/* Comparativo de Datas: Prometido (SLA Odoo) vs Programado (PCP) */}
+                  <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-dashed border-slate-200 dark:border-slate-700/80 text-[11px] flex-wrap">
+                    <div className="flex items-center gap-1 font-semibold text-slate-600 dark:text-slate-400">
+                      <Clock className="w-3.5 h-3.5 text-blue-500" />
+                      <span>Prometido (SLA):</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">
+                        {met.dataPrometidaFormatada || "—"}
+                      </span>
+                    </div>
+
+                    {met.dataProgramadaFormatada && (
+                      <>
+                        <span className="text-slate-300 dark:text-slate-600">•</span>
+                        <div className="flex items-center gap-1 font-semibold text-slate-600 dark:text-slate-400">
+                          <Calendar className="w-3.5 h-3.5 text-orange-500" />
+                          <span>Programado:</span>
+                          <span className={`font-bold ${
+                            met.reagendadoAposPrometido ? "text-amber-600 dark:text-amber-400 font-black" : "text-slate-800 dark:text-slate-200"
+                          }`}>
+                            {met.dataProgramadaFormatada}
+                          </span>
+                        </div>
+                      </>
+                    )}
+
+                    {met.reagendadoAposPrometido && (
+                      <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 ml-auto">
+                        Adiado pós-promessa
+                      </span>
+                    )}
+                  </div>
+
                   {/* Pílulas de Máquinas Envolvidas */}
                   {met.maquinas && met.maquinas.length > 0 && (
                     <div className="flex items-center gap-1 flex-wrap mt-2.5">
@@ -392,13 +425,15 @@ export default function PainelDiaPcpDrawer({
                       <Maximize2 className="w-3 h-3" /> Detalhes
                     </Button>
 
-                    <Button
-                      size="sm"
-                      onClick={() => abrirModalReagendamento(p)}
-                      className="h-7 text-xs font-bold gap-1 bg-orange-600 hover:bg-orange-700 text-white cursor-pointer shadow-2xs"
-                    >
-                      <Calendar className="w-3 h-3" /> Reagendar
-                    </Button>
+                    {!readOnly && (
+                      <Button
+                        size="sm"
+                        onClick={() => abrirModalReagendamento(p)}
+                        className="h-7 text-xs font-bold gap-1 bg-orange-600 hover:bg-orange-700 text-white cursor-pointer shadow-2xs"
+                      >
+                        <Calendar className="w-3 h-3" /> Reagendar
+                      </Button>
+                    )}
                   </div>
                 </div>
               );

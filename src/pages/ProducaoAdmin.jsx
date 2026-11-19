@@ -34,6 +34,7 @@ import { calcularMetrosPedido } from "@/lib/metrosHelper";
 import { isTelhaBandeja } from "@/lib/bandejaHelper";
 import { calcularAtrasoPedido, estaAberto } from "@/lib/atrasoPedidosHelper";
 import PainelAtrasoProducao from "@/components/producao/PainelAtrasoProducao";
+import CalendarioPcpView from "@/components/pcp/CalendarioPcpView";
 
 const MAQUINAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 
@@ -891,7 +892,7 @@ export default function ProducaoAdmin() {
       />
 
       {/* Banner: Semana fora da atual */}
-      {!isSemanaAtual && (
+      {!isSemanaAtual && viewEstilo !== "calendario" && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-medium">
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
@@ -915,13 +916,15 @@ export default function ProducaoAdmin() {
       )}
 
       {/* Painel: Análise de Pedidos em Atraso */}
-      <PainelAtrasoProducao
-        analise={analiseAtraso}
-        onVerAtrasados={() => { setFiltroUrgencia("mais_atrasados"); setViewMode("dia"); }}
-        onVerCriticos={() => { setFiltroUrgencia("atraso_critico"); setViewMode("dia"); }}
-        onVerSemAgendamento={() => { setFiltroUrgencia("sem_agendamento"); setViewMode("dia"); }}
-        onVerKanban={() => { setViewMode("kanban"); setEscopoKanban("todos"); }}
-      />
+      {viewEstilo !== "calendario" && (
+        <PainelAtrasoProducao
+          analise={analiseAtraso}
+          onVerAtrasados={() => { setFiltroUrgencia("mais_atrasados"); setViewMode("dia"); }}
+          onVerCriticos={() => { setFiltroUrgencia("atraso_critico"); setViewMode("dia"); }}
+          onVerSemAgendamento={() => { setFiltroUrgencia("sem_agendamento"); setViewMode("dia"); }}
+          onVerKanban={() => { setViewMode("kanban"); setEscopoKanban("todos"); }}
+        />
+      )}
 
       {/* Faixa de navegação de semana/dia — completa na Visão Semana, compacta na Visão Dia */}
       {(viewEstilo === "cards" || viewEstilo === "kanban") && (
@@ -951,6 +954,13 @@ export default function ProducaoAdmin() {
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
         </div>
+      ) : viewEstilo === "calendario" ? (
+        <CalendarioPcpView
+          gruposPedidos={pedidosFiltradosGlobal}
+          pedidosFiltrados={pedidosFiltradosGlobal}
+          pedidosProducao={pedidos}
+          readOnly={true}
+        />
       ) : viewEstilo === "kanban" || viewMode === "kanban" ? (
         <div className="space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2 bg-card border border-border p-2.5 rounded-xl shadow-xs">

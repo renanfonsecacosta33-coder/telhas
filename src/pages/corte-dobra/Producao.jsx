@@ -57,6 +57,7 @@ import { extrairCroquiPedido } from "@/lib/croquiExtractor";
 import ViewModeToggle from "@/components/ui/ViewModeToggle";
 import PedidoCDTabelaView from "@/components/corte-dobra/PedidoCDTabelaView";
 import HistoricoPedidoSidebar from "@/components/corte-dobra/HistoricoPedidoSidebar";
+import CalendarioPcpView from "@/components/pcp/CalendarioPcpView";
 
 const MAQUINAS_OUTRAS = [
   { id: "CORTE 3M",       label: "Guilhotina 3m",       cor: "bg-purple-100 text-purple-800 border-purple-200" },
@@ -1173,120 +1174,123 @@ export default function ProducaoCD() {
       )}
 
       {/* Navegador de Semana e Dias por Pílula */}
-      <div className="bg-card border border-border rounded-2xl p-3 shadow-xs space-y-2.5">
-        <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-orange-500/10 text-orange-600 flex items-center justify-center font-bold">
-              <Calendar className="w-4 h-4" />
+      {viewMode !== "calendario" && (
+        <div className="bg-card border border-border rounded-2xl p-3 shadow-xs space-y-2.5">
+          <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-orange-500/10 text-orange-600 flex items-center justify-center font-bold">
+                <Calendar className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="font-extrabold text-foreground text-sm flex items-center gap-2 flex-wrap">
+                  Semana de {format(weekStart, "dd 'de' MMM", { locale: ptBR })} a {format(weekEnd, "dd 'de' MMM yyyy", { locale: ptBR })}
+                  <Badge variant="outline" className="text-[10px] py-0 border-orange-500/30 text-orange-600 font-bold">
+                    {totalSemanaOrdens} ordens · {totalSemanaPecas} pçs finalizadas
+                  </Badge>
+                </div>
+              </div>
             </div>
-            <div>
-              <div className="font-extrabold text-foreground text-sm flex items-center gap-2 flex-wrap">
-                Semana de {format(weekStart, "dd 'de' MMM", { locale: ptBR })} a {format(weekEnd, "dd 'de' MMM yyyy", { locale: ptBR })}
-                <Badge variant="outline" className="text-[10px] py-0 border-orange-500/30 text-orange-600 font-bold">
-                  {totalSemanaOrdens} ordens · {totalSemanaPecas} pçs finalizadas
-                </Badge>
+
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const hojeStr = format(new Date(), "yyyy-MM-dd");
+                  setSelectedDay(hojeStr);
+                  setCurrentWeek(new Date());
+                }}
+                className="h-8 text-xs font-bold gap-1 px-3"
+                title="Ir para o dia de hoje"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <span>Hoje</span>
+              </Button>
+
+              <div className="flex items-center gap-0.5 border border-border rounded-lg p-0.5 bg-muted/40">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setCurrentWeek(w => subWeeks(w, 1))}
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  title="Semana anterior"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setCurrentWeek(w => addWeeks(w, 1))}
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  title="Próxima semana"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                const hojeStr = format(new Date(), "yyyy-MM-dd");
-                setSelectedDay(hojeStr);
-                setCurrentWeek(new Date());
-              }}
-              className="h-8 text-xs font-bold gap-1 px-3"
-              title="Ir para o dia de hoje"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Hoje</span>
-            </Button>
+          {/* Pílulas de Dias */}
+          <div className="grid grid-cols-7 gap-1.5 overflow-x-auto pb-0.5">
+            {diasDaSemana.map((dia) => {
+              const diaStr = format(dia, "yyyy-MM-dd");
+              const ordensDoDia = ordensSemana.filter(o => o.data === diaStr);
+              const ordensMaqDoDia = ordensMaq.filter(o => o.data === diaStr);
+              const totalOrdens = ordensDoDia.length + ordensMaqDoDia.length;
+              const pecasDia = [...ordensDoDia, ...ordensMaqDoDia].filter(o => o.status === "finalizado").reduce((s, o) => s + (Number(o.quantidade) || 0), 0);
+              const isSelected = selectedDay === diaStr;
+              const isHoje = isToday(dia);
 
-            <div className="flex items-center gap-0.5 border border-border rounded-lg p-0.5 bg-muted/40">
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => setCurrentWeek(w => subWeeks(w, 1))}
-                className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                title="Semana anterior"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => setCurrentWeek(w => addWeeks(w, 1))}
-                className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                title="Próxima semana"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
+              return (
+                <button
+                  key={diaStr}
+                  onClick={() => setSelectedDay(diaStr)}
+                  className={`rounded-xl p-2 text-center transition-all cursor-pointer border flex flex-col items-center justify-between ${
+                    isSelected
+                      ? "bg-orange-500 text-white border-orange-500 shadow-sm scale-101 ring-2 ring-orange-500/30"
+                      : isHoje
+                      ? "border-orange-400/60 bg-orange-500/10 text-foreground font-bold hover:bg-orange-500/15"
+                      : "border-border/80 bg-card hover:bg-muted/50 text-foreground"
+                  }`}
+                >
+                  {isHoje && (
+                    <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 rounded-full mb-0.5 ${isSelected ? "bg-white text-orange-600" : "bg-orange-500 text-white"}`}>
+                      Hoje
+                    </span>
+                  )}
+                  <span className={`text-[10px] uppercase font-extrabold ${isSelected ? "text-white/90" : "text-muted-foreground"}`}>
+                    {format(dia, "EEE", { locale: ptBR })}
+                  </span>
+                  <span className={`text-base font-black ${isSelected ? "text-white" : "text-foreground"}`}>
+                    {format(dia, "dd")}
+                  </span>
+                  <div className="mt-1">
+                    {totalOrdens > 0 ? (
+                      <Badge variant="outline" className={`text-[10px] py-0 px-1.5 font-bold ${isSelected ? "bg-white/20 text-white border-white/30" : "bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30"}`}>
+                        {totalOrdens} op{pecasDia > 0 ? ` · ${pecasDia}p` : ""}
+                      </Badge>
+                    ) : (
+                      <span className={`text-[10px] opacity-40 ${isSelected ? "text-white" : ""}`}>—</span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
-
-        {/* Pílulas de Dias */}
-        <div className="grid grid-cols-7 gap-1.5 overflow-x-auto pb-0.5">
-          {diasDaSemana.map((dia) => {
-            const diaStr = format(dia, "yyyy-MM-dd");
-            const ordensDoDia = ordensSemana.filter(o => o.data === diaStr);
-            const ordensMaqDoDia = ordensMaq.filter(o => o.data === diaStr);
-            const totalOrdens = ordensDoDia.length + ordensMaqDoDia.length;
-            const pecasDia = [...ordensDoDia, ...ordensMaqDoDia].filter(o => o.status === "finalizado").reduce((s, o) => s + (Number(o.quantidade) || 0), 0);
-            const isSelected = selectedDay === diaStr;
-            const isHoje = isToday(dia);
-
-            return (
-              <button
-                key={diaStr}
-                onClick={() => setSelectedDay(diaStr)}
-                className={`rounded-xl p-2 text-center transition-all cursor-pointer border flex flex-col items-center justify-between ${
-                  isSelected
-                    ? "bg-orange-500 text-white border-orange-500 shadow-sm scale-101 ring-2 ring-orange-500/30"
-                    : isHoje
-                    ? "border-orange-400/60 bg-orange-500/10 text-foreground font-bold hover:bg-orange-500/15"
-                    : "border-border/80 bg-card hover:bg-muted/50 text-foreground"
-                }`}
-              >
-                {isHoje && (
-                  <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 rounded-full mb-0.5 ${isSelected ? "bg-white text-orange-600" : "bg-orange-500 text-white"}`}>
-                    Hoje
-                  </span>
-                )}
-                <span className={`text-[10px] uppercase font-extrabold ${isSelected ? "text-white/90" : "text-muted-foreground"}`}>
-                  {format(dia, "EEE", { locale: ptBR })}
-                </span>
-                <span className={`text-base font-black ${isSelected ? "text-white" : "text-foreground"}`}>
-                  {format(dia, "dd")}
-                </span>
-                <div className="mt-1">
-                  {totalOrdens > 0 ? (
-                    <Badge variant="outline" className={`text-[10px] py-0 px-1.5 font-bold ${isSelected ? "bg-white/20 text-white border-white/30" : "bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30"}`}>
-                      {totalOrdens} op{pecasDia > 0 ? ` · ${pecasDia}p` : ""}
-                    </Badge>
-                  ) : (
-                    <span className={`text-[10px] opacity-40 ${isSelected ? "text-white" : ""}`}>—</span>
-                  )}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      )}
 
       {/* Abas Principais + Busca + Zoom */}
       <div className="flex items-center justify-between gap-3 flex-wrap border-b border-border pb-3">
         {/* Seletor Global de Visão + Abas Extras */}
         <div className="flex items-center gap-2 flex-wrap">
           <ViewModeToggle
-            value={["maquinas", "cards", "lista"].includes(viewMode) ? "cards" : viewMode === "tabela" ? "tabela" : viewMode === "kanban" ? "kanban" : ""}
+            value={["maquinas", "cards", "lista"].includes(viewMode) ? "cards" : viewMode === "tabela" ? "tabela" : viewMode === "kanban" ? "kanban" : viewMode === "calendario" ? "calendario" : ""}
             onChange={(m) => {
               if (m === "cards") setViewMode("maquinas");
               else if (m === "tabela") setViewMode("tabela");
               else if (m === "kanban") setViewMode("kanban");
+              else if (m === "calendario") setViewMode("calendario");
             }}
             storageKey="corte_dobra"
           />
@@ -1389,6 +1393,13 @@ export default function ProducaoCD() {
 
       {isLoading ? (
         <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-muted border-t-orange-500 rounded-full animate-spin" /></div>
+      ) : viewMode === "calendario" ? (
+        <CalendarioPcpView
+          gruposPedidos={[...ordens, ...ordensMaq]}
+          pedidosFiltrados={[...ordens, ...ordensMaq]}
+          ordensCD={[...ordens, ...ordensMaq]}
+          readOnly={true}
+        />
       ) : viewMode === "historico" ? (
         <HistoricoGeralCD />
       ) : viewMode === "sem_material" ? (

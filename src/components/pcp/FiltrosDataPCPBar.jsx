@@ -122,6 +122,19 @@ export default function FiltrosDataPCPBar({
                 <Columns3 className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Kanban</span>
               </button>
+              <button
+                type="button"
+                onClick={() => onViewModeChange("calendario")}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold transition-all ${
+                  viewMode === "calendario"
+                    ? "bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-2xs"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                }`}
+                title="Visão em Calendário Operacional (Somente Leitura)"
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Calendário</span>
+              </button>
             </div>
           )}
 

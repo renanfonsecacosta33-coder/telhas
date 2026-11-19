@@ -11,6 +11,37 @@ export const LIMITE_CAPACIDADE_TON_PADRAO = 15;
 export const LIMITE_CAPACIDADE_METROS_PADRAO = 3500;
 
 /**
+ * Normaliza qualquer formato de data para ISO yyyy-MM-dd.
+ */
+export function normalizarDataIso(raw) {
+  if (!raw) return null;
+  const str = String(raw).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  if (str.includes("T")) return str.slice(0, 10);
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
+    const [d, m, y] = str.split("/");
+    return `${y}-${m}-${d}`;
+  }
+  try {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      return format(d, "yyyy-MM-dd");
+    }
+  } catch {}
+  return null;
+}
+
+/**
+ * Formata data ISO para dd/MM amigável
+ */
+export function formatarDataCurtaBR(raw) {
+  const iso = normalizarDataIso(raw);
+  if (!iso) return "—";
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}`;
+}
+
+/**
  * Extrai a data ISO (yyyy-MM-dd) que posiciona o pedido no Calendário.
  * Prioridade:
  * 1. data_programada_pcp
@@ -25,26 +56,10 @@ export function extrairDataCalendario(pedido) {
     pedido.data_carregamento_rota ||
     pedido.data_prontidao ||
     pedido.data_entrega ||
-    pedido.data_previsao_fabrica;
+    pedido.data_previsao_fabrica ||
+    pedido.data;
 
-  if (!raw) return null;
-  const str = String(raw).trim();
-  // Se já for yyyy-MM-dd
-  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
-  // Se for ISO com T
-  if (str.includes("T")) return str.slice(0, 10);
-  // Se for dd/MM/yyyy
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
-    const [d, m, y] = str.split("/");
-    return `${y}-${m}-${d}`;
-  }
-  try {
-    const d = new Date(str);
-    if (!isNaN(d.getTime())) {
-      return format(d, "yyyy-MM-dd");
-    }
-  } catch {}
-  return null;
+  return normalizarDataIso(raw);
 }
 
 /**
@@ -95,33 +110,58 @@ export function calcularMetricasDoPedidoGrupo(grupoOuPedido, { pedidosProducao =
   });
 
   // Metragem e peso do grupo direto (se existir)
-  if (metrosTotal === 0 && Number(grupoOuPedido.metragem_total)) {
-    metrosTotal = Number(grupoOuPedido.metragem_total);
+  if (metrosTotal === 0) {
+    metrosTotal = Number(grupoOuPedido.metragem_total) || Number(grupoOuPedido.metros) || Number(grupoOuPedido.comprimento_total_metros) || Number(grupoOuPedido.quantidade) || 0;
   }
-  if (pesoKgTotal === 0 && Number(grupoOuPedido.peso_total_kg)) {
-    pesoKgTotal = Number(grupoOuPedido.peso_total_kg);
+  if (pesoKgTotal === 0) {
+    pesoKgTotal = Number(grupoOuPedido.peso_total_kg) || Number(grupoOuPedido.peso_kg) || Number(grupoOuPedido.kg_estimado) || Number(grupoOuPedido.peso) || 0;
   }
 
   // Progresso real do chão de fábrica
-  const somaProgressos = ofs.reduce((acc, p) => {
-    return acc + calcularProgressoRealPedido(p, pedidosProducao, ordensCD);
-  }, 0);
-  const progresso = ofs.length > 0 ? Math.round(somaProgressos / ofs.length) : (grupoOuPedido.percentual_concluido || 0);
+  let progresso = 0;
+  if (grupoOuPedido.status === "finalizado" || grupoOuPedido.status === "concluido") {
+    progresso = 100;
+  } else {
+    const somaProgressos = ofs.reduce((acc, p) => {
+      return acc + calcularProgressoRealPedido(p, pedidosProducao, ordensCD);
+    }, 0);
+    progresso = ofs.length > 0 ? Math.round(somaProgressos / ofs.length) : (grupoOuPedido.percentual_concluido || 0);
+  }
 
   // Status de conclusão
   const isConcluido =
     progresso >= 100 ||
+    grupoOuPedido.status === "finalizado" ||
+    grupoOuPedido.status === "concluido" ||
     grupoOuPedido.status_pcp === "concluido" ||
     grupoOuPedido.status_pcp === "entregue" ||
-    (ofs.length > 0 && ofs.every(p => p.status_pcp === "concluido" || p.status_pcp === "entregue"));
+    (ofs.length > 0 && ofs.every(p => p.status === "finalizado" || p.status === "concluido" || p.status_pcp === "concluido" || p.status_pcp === "entregue"));
 
   // Tipo de prioridade / categoria
   const isRota = isPedidoRota(grupoOuPedido) || ofs.some(p => isPedidoRota(p));
   const isRetiraAgora = isPedidoRetiraAgora(grupoOuPedido) || ofs.some(p => isPedidoRetiraAgora(p));
   const isPrioridade = Boolean(grupoOuPedido.prioridade || ofs.some(p => p.prioridade || p.prioridade_nivel));
 
-  // Atraso
-  const dataAlvoStr = extrairDataCalendario(grupoOuPedido);
+  // Data Prometida Original (SLA Odoo) vs Data Programada (PCP)
+  const dataPrometidaIso = normalizarDataIso(
+    grupoOuPedido.data_entrega ||
+    grupoOuPedido.data ||
+    ofs.find(p => p.data_entrega)?.data_entrega
+  );
+  const dataProgramadaIso = normalizarDataIso(
+    grupoOuPedido.data_programada_pcp ||
+    grupoOuPedido.data_carregamento_rota ||
+    grupoOuPedido.data_prontidao ||
+    grupoOuPedido.data ||
+    ofs.find(p => p.data_programada_pcp)?.data_programada_pcp
+  );
+  const dataAlvoStr = dataProgramadaIso || dataPrometidaIso || extrairDataCalendario(grupoOuPedido);
+
+  // Atraso ou adiamento em relação à promessa original do Odoo
+  const reagendadoAposPrometido = Boolean(
+    dataPrometidaIso && dataProgramadaIso && dataProgramadaIso > dataPrometidaIso
+  );
+
   let isAtrasado = false;
   if (dataAlvoStr && !isConcluido) {
     try {
@@ -144,6 +184,11 @@ export function calcularMetricasDoPedidoGrupo(grupoOuPedido, { pedidosProducao =
     isRetiraAgora,
     isPrioridade,
     isAtrasado,
+    dataPrometidaIso,
+    dataPrometidaFormatada: formatarDataCurtaBR(dataPrometidaIso),
+    dataProgramadaIso,
+    dataProgramadaFormatada: formatarDataCurtaBR(dataProgramadaIso),
+    reagendadoAposPrometido,
     maquinas: Array.from(maquinasSet),
     dataAlvo: dataAlvoStr
   };
@@ -184,6 +229,7 @@ export function agruparPedidosPorCalendario(gruposOuPedidos, {
         prontidoes: [],
         concluidos: [],
         atrasados: [],
+        reagendados: [],
         metrosTotal: 0,
         pesoKgTotal: 0,
         toneladasTotal: 0,
@@ -195,6 +241,10 @@ export function agruparPedidosPorCalendario(gruposOuPedidos, {
     diaInfo.todos.push(itemComMetricas);
     diaInfo.metrosTotal += metricas.metrosTotal;
     diaInfo.pesoKgTotal += metricas.pesoKgTotal;
+
+    if (metricas.reagendadoAposPrometido) {
+      diaInfo.reagendados.push(itemComMetricas);
+    }
 
     if (metricas.isConcluido) {
       diaInfo.concluidos.push(itemComMetricas);

@@ -32,7 +32,8 @@ export default function CalendarioPcpView({
   onReagendarPedido,
   onOpenDetalhe,
   limiteTon = LIMITE_CAPACIDADE_TON_PADRAO,
-  limiteMetros = LIMITE_CAPACIDADE_METROS_PADRAO
+  limiteMetros = LIMITE_CAPACIDADE_METROS_PADRAO,
+  readOnly = false
 }) {
   const [dataAtual, setDataAtual] = useState(new Date());
   const [modoVisualizacao, setModoVisualizacao] = useState("mes"); // "mes" | "semana"
@@ -292,6 +293,7 @@ export default function CalendarioPcpView({
                         prontidoes: [p],
                         concluidos: [],
                         atrasados: [],
+                        reagendados: [],
                         metrosTotal: p._metricas?.metrosTotal || 0,
                         pesoKgTotal: p._metricas?.pesoKgTotal || 0,
                         toneladasTotal: p._metricas?.toneladasTotal || 0,
@@ -301,7 +303,7 @@ export default function CalendarioPcpView({
                     }}
                     className="h-7 text-xs font-bold px-2.5 bg-orange-600 hover:bg-orange-700 text-white cursor-pointer shrink-0"
                   >
-                    Agendar
+                    {readOnly ? "Ver" : "Agendar"}
                   </Button>
                 </div>
               ))}
@@ -310,87 +312,267 @@ export default function CalendarioPcpView({
         )}
       </div>
 
-      {/* Grade de Dias do Calendário */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
-        
-        {/* Cabeçalho dos Dias da Semana */}
-        <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 text-center">
-          {DIAS_DA_SEMANA_CURTO.map((dia, idx) => (
-            <div
-              key={dia}
-              className={`py-2 text-xs font-black uppercase tracking-wider ${
-                idx >= 5 ? "text-slate-400 dark:text-slate-500" : "text-slate-700 dark:text-slate-300"
-              }`}
-            >
-              <span className="hidden sm:inline">{DIAS_DA_SEMANA[idx]}</span>
-              <span className="sm:hidden">{dia}</span>
-            </div>
-          ))}
-        </div>
+      {/* Visão Semanal: Colunas Expandidas com Cards Diretos */}
+      {modoVisualizacao === "semana" ? (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+          <div className="grid grid-cols-1 md:grid-cols-7 divide-y md:divide-y-0 md:divide-x divide-slate-200 dark:divide-slate-800 bg-slate-100 dark:bg-slate-800/40">
+            {diasDaGrade.map((dia, idx) => {
+              const dataIso = format(dia, "yyyy-MM-dd");
+              const diaInfo = mapaDias.get(dataIso) || null;
+              const ehHoje = isToday(dia);
+              const isFimDeSemana = dia.getDay() === 0 || dia.getDay() === 6;
+              const metros = diaInfo?.metrosTotal || 0;
+              const toneladas = diaInfo?.toneladasTotal || 0;
+              const sobrecarga = diaInfo?.sobrecarregado || false;
+              const pctCarga = Math.min(100, Math.round((toneladas / limiteTon) * 100));
+              const pedidosDia = diaInfo?.todos || [];
 
-        {/* Matriz dos Dias */}
-        <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-slate-100 dark:divide-slate-800/80 bg-slate-100 dark:bg-slate-800/40">
-          {diasDaGrade.map(dia => {
-            const dataIso = format(dia, "yyyy-MM-dd");
-            const diaInfo = mapaDias.get(dataIso) || null;
-            const ehMesmoMes = isSameMonth(dia, dataAtual);
-            const ehHoje = isToday(dia);
-            const ehPassado = isBefore(startOfDay(dia), startOfDay(new Date()));
-            const isFimDeSemana = dia.getDay() === 0 || dia.getDay() === 6;
-
-            const temPedidos = diaInfo && diaInfo.todos.length > 0;
-            const metros = diaInfo?.metrosTotal || 0;
-            const toneladas = diaInfo?.toneladasTotal || 0;
-            const sobrecarga = diaInfo?.sobrecarregado || false;
-
-            // Se busca ativa, verifica se este dia contém algum resultado
-            const temMatchBusca = pedidosFiltradosPorBusca
-              ? diaInfo?.todos.some(p => pedidosFiltradosPorBusca.has(p.id || p.numero_pedido))
-              : false;
-
-            // Percentual de carga para mini barra
-            const pctCarga = Math.min(100, Math.round((toneladas / limiteTon) * 100));
-
-            return (
-              <div
-                key={dataIso}
-                onClick={() => abrirDia(dataIso, diaInfo)}
-                className={`min-h-[110px] sm:min-h-[135px] p-1.5 sm:p-2 flex flex-col justify-between transition-all cursor-pointer select-none group ${
-                  !ehMesmoMes
-                    ? "bg-slate-50/50 dark:bg-slate-900/30 opacity-45"
-                    : isFimDeSemana
-                    ? "bg-slate-50/70 dark:bg-slate-900/50"
-                    : "bg-white dark:bg-slate-900"
-                } ${
-                  ehHoje ? "ring-2 ring-orange-500 ring-inset bg-orange-50/20 dark:bg-orange-950/10" : ""
-                } ${
-                  temMatchBusca ? "ring-2 ring-blue-500 bg-blue-50/30" : ""
-                } hover:bg-slate-50 dark:hover:bg-slate-800/60`}
-              >
-                {/* Topo do Dia */}
-                <div className="flex items-center justify-between">
-                  <span
-                    className={`inline-flex items-center justify-center w-6 h-6 text-xs font-black rounded-full transition-colors ${
-                      ehHoje
-                        ? "bg-orange-600 text-white shadow-xs"
-                        : ehPassado && !ehHoje
-                        ? "text-slate-400 dark:text-slate-500"
-                        : "text-slate-800 dark:text-slate-200"
-                    }`}
+              return (
+                <div
+                  key={dataIso}
+                  className={`flex flex-col min-h-[550px] ${
+                    isFimDeSemana
+                      ? "bg-slate-50/70 dark:bg-slate-900/60"
+                      : "bg-white dark:bg-slate-900"
+                  } ${ehHoje ? "ring-2 ring-orange-500 ring-inset bg-orange-50/20" : ""}`}
+                >
+                  {/* Cabeçalho da Coluna do Dia */}
+                  <div
+                    onClick={() => abrirDia(dataIso, diaInfo)}
+                    className="p-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 cursor-pointer hover:bg-slate-100/80 transition-colors"
                   >
-                    {format(dia, "d")}
-                  </span>
-
-                  {/* Badges de Carga Fabril (Metros e Toneladas) */}
-                  {temPedidos && (
-                    <div className="flex items-center gap-1">
-                      <span className="text-[10px] font-black text-slate-700 dark:text-slate-300">
-                        {metros >= 1000 ? `${(metros / 1000).toFixed(1)}k` : `${Math.round(metros)}`}m
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black uppercase text-slate-700 dark:text-slate-300">
+                        {DIAS_DA_SEMANA[idx]}
                       </span>
                       <span
-                        className={`text-[10px] font-black px-1.5 py-0.2 rounded-md ${
+                        className={`inline-flex items-center justify-center w-6 h-6 text-xs font-black rounded-full ${
+                          ehHoje
+                            ? "bg-orange-600 text-white shadow-xs"
+                            : "text-slate-800 dark:text-slate-200"
+                        }`}
+                      >
+                        {format(dia, "d")}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between mt-2 text-[11px] font-bold">
+                      <span className="text-slate-600 dark:text-slate-400">
+                        {metros.toLocaleString("pt-BR")}m
+                      </span>
+                      <span
+                        className={`px-1.5 py-0.2 rounded-md ${
                           sobrecarga
-                            ? "bg-red-600 text-white font-extrabold animate-pulse"
+                            ? "bg-red-600 text-white animate-pulse"
+                            : "bg-slate-200/80 dark:bg-slate-800 text-slate-800 dark:text-slate-200"
+                        }`}
+                      >
+                        {toneladas.toFixed(1)} Ton
+                      </span>
+                    </div>
+
+                    {/* Mini barra de carga */}
+                    <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1.5">
+                      <div
+                        className={`h-full ${
+                          sobrecarga ? "bg-red-500" : pctCarga >= 70 ? "bg-amber-500" : "bg-emerald-500"
+                        }`}
+                        style={{ width: `${pctCarga}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Lista de Cards daquele Dia */}
+                  <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[620px]">
+                    {pedidosDia.length === 0 ? (
+                      <div className="h-32 flex flex-col items-center justify-center text-center p-3 text-slate-400 text-xs font-medium">
+                        <span>Sem pedidos</span>
+                      </div>
+                    ) : (
+                      pedidosDia.map(p => {
+                        const met = p._metricas || {};
+                        const numPed = p.numero_pedido || p.id;
+                        const cliente = p.cliente_nome || p.cliente || "Cliente s/ nome";
+
+                        return (
+                          <div
+                            key={p.id || numPed}
+                            className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700/80 p-2.5 shadow-2xs hover:border-orange-400 transition-all text-left"
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="font-black text-xs text-slate-900 dark:text-slate-100">
+                                #{numPed}
+                              </span>
+
+                              {met.isRota && (
+                                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+                                  Rota
+                                </span>
+                              )}
+                              {met.isRetiraAgora && (
+                                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded-md bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 animate-pulse">
+                                  Retira
+                                </span>
+                              )}
+                              {!met.isRota && !met.isRetiraAgora && met.isPrioridade && (
+                                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded-md bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                                  Prioritário
+                                </span>
+                              )}
+                              {met.isConcluido && (
+                                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                                  100%
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200 mt-1 truncate" title={cliente}>
+                              {cliente}
+                            </div>
+
+                            <div className="text-[10px] text-slate-500 flex items-center justify-between mt-1">
+                              <span>{met.metrosTotal || 0}m</span>
+                              <span>{met.pesoKgTotal || 0}kg</span>
+                            </div>
+
+                            {/* Data Prometida (SLA Odoo) */}
+                            <div className="mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[10px]">
+                              <span className="text-slate-500 font-medium">
+                                Prometido: <strong className="text-slate-700 dark:text-slate-300">{met.dataPrometidaFormatada}</strong>
+                              </span>
+                              {met.reagendadoAposPrometido && (
+                                <span className="text-[8px] font-black uppercase text-amber-600 bg-amber-50 px-1 rounded-sm">
+                                  Adiado
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Progresso */}
+                            <div className="mt-1.5">
+                              <div className="h-1 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full ${met.progresso >= 100 ? "bg-emerald-500" : "bg-orange-500"}`}
+                                  style={{ width: `${met.progresso}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-1 mt-2">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenDetalhe?.(p);
+                                }}
+                                className="text-[10px] font-bold text-blue-600 hover:text-blue-800 dark:text-blue-400 p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
+                              >
+                                Detalhes
+                              </button>
+                              {!readOnly && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    abrirDia(dataIso, diaInfo);
+                                  }}
+                                  className="text-[10px] font-bold text-orange-600 hover:text-orange-800 dark:text-orange-400 p-1 rounded hover:bg-orange-50 dark:hover:bg-orange-950/40 transition-colors"
+                                >
+                                  Reagendar
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        /* Grade Mensal */
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+          
+          {/* Cabeçalho dos Dias da Semana */}
+          <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 text-center">
+            {DIAS_DA_SEMANA_CURTO.map((dia, idx) => (
+              <div
+                key={dia}
+                className={`py-2 text-xs font-black uppercase tracking-wider ${
+                  idx >= 5 ? "text-slate-400 dark:text-slate-500" : "text-slate-700 dark:text-slate-300"
+                }`}
+              >
+                <span className="hidden sm:inline">{DIAS_DA_SEMANA[idx]}</span>
+                <span className="sm:hidden">{dia}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Matriz dos Dias */}
+          <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-slate-100 dark:divide-slate-800/80 bg-slate-100 dark:bg-slate-800/40">
+            {diasDaGrade.map(dia => {
+              const dataIso = format(dia, "yyyy-MM-dd");
+              const diaInfo = mapaDias.get(dataIso) || null;
+              const ehMesmoMes = isSameMonth(dia, dataAtual);
+              const ehHoje = isToday(dia);
+              const ehPassado = isBefore(startOfDay(dia), startOfDay(new Date()));
+              const isFimDeSemana = dia.getDay() === 0 || dia.getDay() === 6;
+
+              const temPedidos = diaInfo && diaInfo.todos.length > 0;
+              const metros = diaInfo?.metrosTotal || 0;
+              const toneladas = diaInfo?.toneladasTotal || 0;
+              const sobrecarga = diaInfo?.sobrecarregado || false;
+
+              // Se busca ativa, verifica se este dia contém algum resultado
+              const temMatchBusca = pedidosFiltradosPorBusca
+                ? diaInfo?.todos.some(p => pedidosFiltradosPorBusca.has(p.id || p.numero_pedido))
+                : false;
+
+              // Percentual de carga para mini barra
+              const pctCarga = Math.min(100, Math.round((toneladas / limiteTon) * 100));
+
+              return (
+                <div
+                  key={dataIso}
+                  onClick={() => abrirDia(dataIso, diaInfo)}
+                  className={`min-h-[110px] sm:min-h-[135px] p-1.5 sm:p-2 flex flex-col justify-between transition-all cursor-pointer select-none group ${
+                    !ehMesmoMes
+                      ? "bg-slate-50/50 dark:bg-slate-900/30 opacity-45"
+                      : isFimDeSemana
+                      ? "bg-slate-50/70 dark:bg-slate-900/50"
+                      : "bg-white dark:bg-slate-900"
+                  } ${
+                    ehHoje ? "ring-2 ring-orange-500 ring-inset bg-orange-50/20 dark:bg-orange-950/10" : ""
+                  } ${
+                    temMatchBusca ? "ring-2 ring-blue-500 bg-blue-50/30" : ""
+                  } hover:bg-slate-50 dark:hover:bg-slate-800/60`}
+                >
+                  {/* Topo do Dia */}
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={`inline-flex items-center justify-center w-6 h-6 text-xs font-black rounded-full transition-colors ${
+                        ehHoje
+                          ? "bg-orange-600 text-white shadow-xs"
+                          : ehPassado && !ehHoje
+                          ? "text-slate-400 dark:text-slate-500"
+                          : "text-slate-800 dark:text-slate-200"
+                      }`}
+                    >
+                      {format(dia, "d")}
+                    </span>
+
+                    {/* Badges de Carga Fabril (Metros e Toneladas) */}
+                    {temPedidos && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] font-black text-slate-700 dark:text-slate-300">
+                          {metros >= 1000 ? `${(metros / 1000).toFixed(1)}k` : `${Math.round(metros)}`}m
+                        </span>
+                        <span
+                          className={`text-[10px] font-black px-1.5 py-0.2 rounded-md ${
+                            sobrecarga
+                              ? "bg-red-600 text-white font-extrabold animate-pulse"
                             : toneladas >= limiteTon * 0.7
                             ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
                             : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
@@ -461,6 +643,13 @@ export default function CalendarioPcpView({
                     </div>
                   )}
 
+                  {diaInfo?.reagendados && diaInfo.reagendados.length > 0 && (
+                    <div className="flex items-center justify-between text-[9px] font-black px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700/80 truncate" title={`${diaInfo.reagendados.length} pedidos agendados para data posterior à promessa original (Odoo)`}>
+                      <span className="truncate">Adiados (pós-SLA)</span>
+                      <span className="font-black shrink-0">{diaInfo.reagendados.length}</span>
+                    </div>
+                  )}
+
                   {!temPedidos && (
                     <div className="h-4 sm:h-6 flex items-center justify-center opacity-0 group-hover:opacity-60 transition-opacity">
                       <span className="text-[10px] text-slate-400 font-semibold">+ Ver</span>
@@ -472,6 +661,7 @@ export default function CalendarioPcpView({
           })}
         </div>
       </div>
+      )}
 
       {/* Drawer Lateral do Dia */}
       <PainelDiaPcpDrawer
@@ -481,6 +671,7 @@ export default function CalendarioPcpView({
         onReagendarPedido={onReagendarPedido}
         onOpenDetalhes={onOpenDetalhe}
         limiteTon={limiteTon}
+        readOnly={readOnly}
       />
     </div>
   );
