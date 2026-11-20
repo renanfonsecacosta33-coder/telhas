@@ -95,6 +95,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
   const [bobinaSelecionadaId, setBobinaSelecionadaId] = useState("");
   const [salvandoBobina, setSalvandoBobina] = useState(false);
   const [mostrarTodasBobinas, setMostrarTodasBobinas] = useState(false);
+  const [modalDetalhesOpen, setModalDetalhesOpen] = useState(false);
 
   // ── RESOLUÇÃO INTELIGENTE DE ESPECIFICAÇÃO TÉCNICA E ESPESSURA ──
   const textoPecaCompleto = [o.observacoes, o.tipo_peca, o.dimensoes_livres, o.especificacoes_tecnicas].filter(Boolean).join(" ");
@@ -617,143 +618,254 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
 
   if (isFinalizado) {
     const etpCorFin = o.is_retrabalho ? getEtapaColor(o.retrabalho_etapa) : null;
+    const nomeProdCurto = o.tipo_peca || o.produto || "Corte & Dobra";
+    const qtdFormatada = formatarQuantidadeComUnidade(o);
+
     return (
       <>
-        <div className={`border-l-4 ${etpCorFin ? etpCorFin.border : "border-l-green-400"} ${etpCorFin ? etpCorFin.bg : "bg-green-50/60"} rounded-lg p-2.5 shadow-sm hover:shadow-md transition-all`}>
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2 flex-wrap min-w-0">
-              {o.is_retrabalho && (
-                <Badge className={`${etpCorFin?.badge} text-white border-red-600 text-[10px]`}>
-                  <AlertCircle className="w-3 h-3 mr-0.5" /> RETRABALHO{o.retrabalho_etapa > 1 ? ` E${o.retrabalho_etapa}` : ""}
-                </Badge>
-              )}
-              <span className={`font-bold text-sm font-mono ${etpCorFin ? etpCorFin.text : "text-green-700"}`}>
-                {codigoBobinaExtraido ? `[${codigoBobinaExtraido}] ` : ""}{bobinaDescricaoLimpa}
+        {/* 🌟 LINHA SLIM ULTRA-MINIMIZADA DE 1 LINHA PARA ITEM FINALIZADO */}
+        <div
+          onClick={() => setModalDetalhesOpen(true)}
+          className={`border-l-4 ${etpCorFin ? etpCorFin.border : "border-l-emerald-500"} bg-emerald-50/50 hover:bg-emerald-100/70 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/40 rounded-lg px-3 py-1.5 shadow-xs transition-all cursor-pointer flex items-center justify-between gap-2.5 group`}
+          title="Clique para abrir detalhes, fotos e ações desta ordem finalizada"
+        >
+          {/* Lado Esquerdo: #Pedido + Cliente + Produto / Qtd */}
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            {o.numero_pedido ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-black font-mono bg-blue-600 text-white shadow-xs shrink-0">
+                <ShoppingCart className="w-3 h-3 shrink-0" />
+                #{o.numero_pedido}
+                {pedidoSeq && <span className="ml-1 text-[10px] opacity-90">({pedidoSeq})</span>}
               </span>
-              {espessuraFinal && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                  <CorChapaDot espessura={espessuraFinal} size="xs" />
-                  <Layers className="w-2.5 h-2.5" /> {espessuraFinal} mm
-                </span>
-              )}
-              <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px]">
-                <CheckCircle2 className="w-3 h-3 mr-0.5" /> Finalizado
-              </Badge>
-              {o.quantidade > 0 && <span className="text-xs font-semibold text-foreground">{formatarQuantidadeComUnidade(o)}</span>}
-              {o.comprimento_mm > 0 && <span className="text-xs text-muted-foreground">{o.comprimento_mm}mm</span>}
-              {o.kg_estimado > 0 && <span className="text-xs font-semibold text-emerald-700">≈ {o.kg_estimado.toFixed(1)} kg</span>}
-              {o.peso_real_balanca_kg > 0 && (
-                <span className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
-                  ⚖️ Balança: {o.peso_real_balanca_kg.toLocaleString("pt-BR")} kg
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {o.foto_pedido_url && (
-                <SmartImage
-                  src={o.foto_pedido_url}
-                  alt="Foto do pedido"
-                  className="w-10 h-10 border-2 border-blue-400 shrink-0"
-                  showBadge
-                  badgeText="PED"
-                  badgeColor="bg-blue-600"
-                />
-              )}
-              {o.foto_finalizacao_url && (
-                <SmartImage
-                  src={o.foto_finalizacao_url}
-                  alt="Finalização"
-                  className="w-10 h-10 border-2 border-green-400 shrink-0"
-                  showBadge
-                  badgeText="FIN"
-                  badgeColor="bg-green-600"
-                />
-              )}
-              {o.foto_etiqueta_bobina_url && (
-                <SmartImage
-                  src={o.foto_etiqueta_bobina_url}
-                  alt="Etiqueta da bobina"
-                  className="w-10 h-10 border-2 border-orange-400 shrink-0"
-                  showBadge
-                  badgeText="ETIQ"
-                  badgeColor="bg-orange-600"
-                />
-              )}
-              {o.numero_pedido && <HistoricoPedidoButton numeroPedido={o.numero_pedido} size="sm" />}
-              <ApontamentoOpButton ordem={o} ordem_tipo="desbobinadeira" label="Assinar" className="h-6 px-2 text-[10px] gap-1 text-orange-600 border-orange-300 hover:bg-orange-50" />
-              <ChatPedidoButton canal_id={o.id} canal_label={`OP DESB ${o.numero_pedido || o.id.slice(-6).toUpperCase()}`} currentUser={user} />
-              {isGestor && (
-                <div className="flex gap-1">
-                  <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] gap-1 text-amber-600 border-amber-300 hover:bg-amber-50"
-                    onClick={() => onUpdate(o.id, { status: "pendente", inicio_producao_ts: null, foto_finalizacao_url: null, data_finalizacao: null })}>
-                    ↩ Reabrir
-                  </Button>
-                  <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] gap-1 text-red-600 border-red-300 hover:bg-red-50"
-                    onClick={() => { if (window.confirm("Excluir esta ordem? Esta ação não pode ser desfeita.")) onDelete(o.id); }}>
-                    <Trash2 className="w-2.5 h-2.5" /> Excluir
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground mt-1">
-            {(o.numero_pedido || o.cliente) && (
-              <div className="inline-flex flex-wrap items-center gap-2 px-2.5 py-1 rounded-md bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/60 my-0.5">
-                {o.numero_pedido && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black font-mono bg-blue-600 text-white shadow-xs">
-                    <ShoppingCart className="w-3 h-3 shrink-0" />
-                    #{o.numero_pedido}
-                    {pedidoSeq && <span className="ml-1 text-[10px] opacity-90">({pedidoSeq})</span>}
-                  </span>
-                )}
-                {o.cliente && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black text-foreground uppercase tracking-tight bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700">
-                    <User className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-                    CLIENTE: {o.cliente}
-                  </span>
-                )}
-                {(o.vendedor || o.vendedor_nome) && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase tracking-tight bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
-                    👤 VENDEDOR: {o.vendedor || o.vendedor_nome}
-                  </span>
-                )}
-              </div>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-black font-mono bg-slate-600 text-white shadow-xs shrink-0">
+                OP #{o.id.slice(-6).toUpperCase()}
+              </span>
             )}
-            <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${
-              o.destino === "pedido_direto"
-                ? "bg-blue-50 text-blue-700 border-blue-200"
-                : "bg-green-50 text-green-700 border-green-200"
-            }`}>
-              {o.destino === "pedido_direto" ? "📦 Pedido direto" : "🏭 Estoque"}
+
+            {o.cliente && (
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate max-w-[200px] sm:max-w-[300px]">
+                {o.cliente}
+              </span>
+            )}
+
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[200px] sm:max-w-[320px]">
+              • {nomeProdCurto} {qtdFormatada ? `(${qtdFormatada})` : ""}
             </span>
-            {o.destino === "estoque" && (
-              chapaVinculada ? (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 font-mono">
-                  📦 {chapaVinculada.codigo} no Estoque
-                </span>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  type="button"
-                  onClick={() => onGerarChapa?.(o.id)}
-                  className="h-5 px-2 text-[10px] gap-1 bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-400 hover:bg-amber-500/20 font-bold"
-                  title="A chapa ainda não foi registrada na Chaparia. Clique para gerar agora."
-                >
-                  ⚠️ Gerar Chapa no Estoque
-                </Button>
-              )
-            )}
-            {o.guilhotina && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border bg-orange-50 text-orange-700 border-orange-200">
-                🔪 {o.guilhotina}{o.tamanho_corte_guilhotina ? ` — ${o.tamanho_corte_guilhotina}mm` : ""}
-              </span>
-            )}
-            {o.data_finalizacao && (
-              <span className="text-green-600 font-semibold">✓ {formatarDataSegura(o.data_finalizacao, "dd/MM")}</span>
-            )}
+          </div>
+
+          {/* Lado Direito: ✓ Finalizada + Data + Link de Pop-up */}
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              Finalizada {o.data_finalizacao ? `• ${formatarDataSegura(o.data_finalizacao, "dd/MM")}` : ""}
+            </span>
+
+            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 group-hover:underline flex items-center gap-0.5">
+              Ver Detalhes →
+            </span>
           </div>
         </div>
+
+        {/* 🌟 MODAL POP-UP COMPLETO COM TODOS OS DETALHES, FOTOS E AÇÕES */}
+        <Dialog open={modalDetalhesOpen} onOpenChange={setModalDetalhesOpen}>
+          <DialogContent className="sm:max-w-2xl max-w-[95vw] rounded-2xl p-5 border-emerald-200 dark:border-emerald-800 shadow-2xl">
+            <DialogHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 space-y-1.5 text-left">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-sm font-black font-mono bg-blue-600 text-white shadow-xs">
+                  <ShoppingCart className="w-3.5 h-3.5" />
+                  {o.numero_pedido ? `#${o.numero_pedido}` : `OP #${o.id.slice(-6).toUpperCase()}`}
+                  {pedidoSeq && <span className="ml-1 text-xs opacity-90">({pedidoSeq})</span>}
+                </span>
+
+                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 font-bold text-xs">
+                  <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                  Finalizado {o.data_finalizacao ? `em ${formatarDataSegura(o.data_finalizacao, "dd/MM/yyyy")}` : ""}
+                </Badge>
+              </div>
+
+              <DialogTitle className="text-base font-extrabold text-slate-900 dark:text-slate-100">
+                {o.cliente ? `Cliente: ${o.cliente}` : "Ordem Finalizada"}
+              </DialogTitle>
+
+              {(o.vendedor || o.vendedor_nome) && (
+                <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
+                  Vendedor: <strong className="text-slate-700 dark:text-slate-300">{o.vendedor || o.vendedor_nome}</strong>
+                </DialogDescription>
+              )}
+            </DialogHeader>
+
+            {/* Conteúdo Técnico */}
+            <div className="py-3 space-y-3 max-h-[65vh] overflow-y-auto">
+              {/* Banner de Especificação Técnica do Produto */}
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="font-extrabold text-sm text-slate-900 dark:text-slate-100">
+                    {o.tipo_peca || o.produto || "Corte & Dobra"}
+                  </span>
+                  {o.quantidade > 0 && (
+                    <span className="font-mono font-black text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200 border border-blue-300">
+                      {formatarQuantidadeComUnidade(o)}
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                  <div>
+                    <span className="text-slate-400 text-[10px] block font-bold">BOBINA UTILIZADA</span>
+                    <strong className="font-mono text-slate-800 dark:text-slate-200">
+                      {codigoBobinaExtraido ? `[${codigoBobinaExtraido}] ` : ""}{bobinaDescricaoLimpa || "—"}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 text-[10px] block font-bold">ESPESSURA</span>
+                    <strong className="text-slate-800 dark:text-slate-200">
+                      {espessuraFinal ? `${espessuraFinal} mm` : "—"}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 text-[10px] block font-bold">COMPRIMENTO</span>
+                    <strong className="text-slate-800 dark:text-slate-200">
+                      {o.comprimento_mm ? `${o.comprimento_mm} mm` : "—"}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 text-[10px] block font-bold">PESO ESTIMADO</span>
+                    <strong className="text-emerald-700 dark:text-emerald-400">
+                      {o.kg_estimado > 0 ? `≈ ${o.kg_estimado.toFixed(1)} kg` : "—"}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 text-[10px] block font-bold">PESO BALANÇA</span>
+                    <strong className="text-blue-700 dark:text-blue-400">
+                      {o.peso_real_balanca_kg > 0 ? `${o.peso_real_balanca_kg.toLocaleString("pt-BR")} kg` : "Não pesado"}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 text-[10px] block font-bold">DESTINO</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      {o.destino === "pedido_direto" ? "📦 Pedido Direto" : "🏭 Estoque"}
+                    </span>
+                  </div>
+                </div>
+
+                {o.instrucao && (
+                  <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 text-xs">
+                    <span className="text-slate-400 text-[10px] block font-bold">INSTRUÇÃO / ESPECIFICAÇÃO:</span>
+                    <p className="italic text-slate-700 dark:text-slate-300">{o.instrucao}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Galeria de Fotos */}
+              {(o.foto_pedido_url || o.foto_finalizacao_url || o.foto_etiqueta_bobina_url) && (
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
+                  <span className="text-xs font-black uppercase text-slate-500 block">Fotos do Registro:</span>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {o.foto_pedido_url && (
+                      <SmartImage
+                        src={o.foto_pedido_url}
+                        alt="Foto do pedido"
+                        className="w-20 h-20 border-2 border-blue-400 rounded-lg shrink-0 object-cover"
+                        showBadge
+                        badgeText="PEDIDO"
+                        badgeColor="bg-blue-600"
+                      />
+                    )}
+                    {o.foto_finalizacao_url && (
+                      <SmartImage
+                        src={o.foto_finalizacao_url}
+                        alt="Foto de finalização"
+                        className="w-20 h-20 border-2 border-green-400 rounded-lg shrink-0 object-cover"
+                        showBadge
+                        badgeText="FINALIZADA"
+                        badgeColor="bg-green-600"
+                      />
+                    )}
+                    {o.foto_etiqueta_bobina_url && (
+                      <SmartImage
+                        src={o.foto_etiqueta_bobina_url}
+                        alt="Etiqueta da bobina"
+                        className="w-20 h-20 border-2 border-orange-400 rounded-lg shrink-0 object-cover"
+                        showBadge
+                        badgeText="ETIQUETA"
+                        badgeColor="bg-orange-600"
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Botões de Ações Operacionais */}
+              <div className="flex items-center justify-between gap-2 flex-wrap pt-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {o.numero_pedido && <HistoricoPedidoButton numeroPedido={o.numero_pedido} size="sm" />}
+                  <ApontamentoOpButton ordem={o} ordem_tipo="desbobinadeira" label="Assinar / Apontar" className="h-8 px-2.5 text-xs text-orange-600 border-orange-300 hover:bg-orange-50" />
+                  <ChatPedidoButton canal_id={o.id} canal_label={`OP DESB ${o.numero_pedido || o.id.slice(-6).toUpperCase()}`} currentUser={user} />
+                </div>
+
+                {o.destino === "estoque" && !chapaVinculada && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    type="button"
+                    onClick={() => onGerarChapa?.(o.id)}
+                    className="h-8 px-2.5 text-xs gap-1 bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-400 hover:bg-amber-500/20 font-bold"
+                  >
+                    ⚠️ Gerar Chapa no Estoque
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <DialogFooter className="flex items-center justify-between gap-2 flex-wrap pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                {isGestor && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-2.5 text-xs gap-1 text-amber-600 border-amber-300 hover:bg-amber-50"
+                      onClick={() => {
+                        onUpdate(o.id, { status: "pendente", inicio_producao_ts: null, foto_finalizacao_url: null, data_finalizacao: null });
+                        setModalDetalhesOpen(false);
+                      }}
+                    >
+                      ↩ Reabrir Ordem
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-2.5 text-xs gap-1 text-red-600 border-red-300 hover:bg-red-50"
+                      onClick={() => {
+                        if (window.confirm("Excluir esta ordem? Esta ação não pode ser desfeita.")) {
+                          onDelete(o.id);
+                          setModalDetalhesOpen(false);
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Excluir
+                    </Button>
+                  </>
+                )}
+              </div>
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setModalDetalhesOpen(false)}
+                className="h-8 px-4 text-xs font-bold"
+              >
+                Fechar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Dialog Bloqueio — OP em andamento (mantém para consistência) */}
         <Dialog open={bloqueioDialog} onOpenChange={setBloqueioDialog}>

@@ -123,6 +123,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
   const [pendingFotoUrl, setPendingFotoUrl] = useState(null);
   const [pendingProdSeg, setPendingProdSeg] = useState(0);
   const [aproveitamentoDialog, setAproveitamentoDialog] = useState(false);
+  const [modalDetalhesOpen, setModalDetalhesOpen] = useState(false);
   const fotoInputRef = useRef();
   const fotoScanRef = useRef();
 
@@ -480,123 +481,209 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
 
   if (isFinalizado) {
     const etpCorFin = o.is_retrabalho ? getEtapaColor(o.retrabalho_etapa) : null;
+    const nomeProdCurto = o.tipo_peca || o.produto || "Corte & Dobra";
+    const qtdFormatada = formatarQuantidadeComUnidade(o);
+
     return (
       <>
-        <div className={`border-l-4 ${etpCorFin ? etpCorFin.border : "border-l-green-400"} ${etpCorFin ? etpCorFin.bg : "bg-green-50/60"} rounded-lg p-2.5 shadow-sm hover:shadow-md transition-all`}>
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2 flex-wrap min-w-0">
-              {o.is_retrabalho && (
-                <Badge className={`${etpCorFin?.badge} text-white border-red-600 text-[10px]`}>
-                  <AlertCircle className="w-3 h-3 mr-0.5" /> RETRABALHO{o.retrabalho_etapa > 1 ? ` E${o.retrabalho_etapa}` : ""}
-                </Badge>
-              )}
-              <span className="font-bold text-sm">{o.tipo_peca || "—"}</span>
-              <CorChapaDot espessura={extractEspessuraFromDesc(o.chapa_descricao) || extractEspessuraFromDesc(o.bobina_descricao)} size="sm" />
-              {o.dimensoes_livres && (
-                <span className="text-[11px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">{o.dimensoes_livres}</span>
-              )}
-              <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px]">
-                <CheckCircle2 className="w-3 h-3 mr-0.5" /> Finalizado
-              </Badge>
-              {o.quantidade > 0 && <span className="text-xs font-semibold text-foreground">{formatarQuantidadeComUnidade(o)}</span>}
-              {o.modificacao_blank && (
-                <Badge className="bg-amber-100 text-amber-700 border-amber-300 text-[10px]">
-                  <Edit3 className="w-2.5 h-2.5 mr-0.5" /> Blank modificado
-                </Badge>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {o.numero_pedido && <HistoricoPedidoButton numeroPedido={o.numero_pedido} size="sm" />}
-              <ApontamentoOpButton ordem={o} ordem_tipo="maquina_cd" label="Assinar" className="h-6 px-2 text-[10px] gap-1 text-orange-600 border-orange-300 hover:bg-orange-50" />
-              {isGestor && (
-                <div className="flex gap-1">
-                  <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] gap-1 text-amber-600 border-amber-300 hover:bg-amber-50"
-                    onClick={() => onUpdate(o.id, { status: "pendente", inicio_producao_ts: null, foto_finalizacao_url: null, data_finalizacao: null })}>
-                    ↩ Reabrir
-                  </Button>
-                  <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] gap-1 text-red-600 border-red-300 hover:bg-red-50"
-                    onClick={() => { if (window.confirm("Excluir esta ordem? Esta ação não pode ser desfeita.")) onDelete(o.id); }}>
-                    <Trash2 className="w-2.5 h-2.5" /> Excluir
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground mt-1">
-            <span className="inline-flex items-center gap-0.5">
-              {o.status === "aguardando_material" || o.material_em_falta ? (
-                <span className="inline-flex items-center gap-1 font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-700 px-2 py-0.5 rounded text-[11px]">
-                  <PackageX className="w-3 h-3 text-amber-600" />
-                  Aguardando Chapa {o.material_espessura ? `(${o.material_espessura}mm)` : ""}{o.material_cor ? ` · ${o.material_cor}` : ""}
-                </span>
-              ) : (
-                <>
-                  {o.chapa_origem === "chaparia" ? <Layers className="w-2.5 h-2.5 text-orange-500" /> : <Package className="w-2.5 h-2.5 text-blue-500" />}
-                  <span className="font-mono">{o.chapa_origem === "chaparia" ? (o.chapa_descricao || "Chapa") : (o.bobina_descricao || o.chapa_descricao || "Bobina")}</span>
-                </>
-              )}
+        {/* 🌟 LINHA SLIM ULTRA-MINIMIZADA DE 1 LINHA PARA ITEM FINALIZADO */}
+        <div
+          onClick={() => setModalDetalhesOpen(true)}
+          className={`border-l-4 ${etpCorFin ? etpCorFin.border : "border-l-emerald-500"} bg-emerald-50/50 hover:bg-emerald-100/70 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/40 rounded-lg px-3 py-1.5 shadow-xs transition-all cursor-pointer flex items-center justify-between gap-2.5 group`}
+          title="Clique para abrir detalhes, fotos e ações desta ordem finalizada"
+        >
+          {/* Lado Esquerdo: #Pedido + Cliente + Produto / Qtd */}
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            {o.numero_pedido ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-black font-mono bg-blue-600 text-white shadow-xs shrink-0">
+                <ShoppingCart className="w-3 h-3 shrink-0" />
+                #{o.numero_pedido}
+                {pedidoSeq && <span className="ml-1 text-[10px] opacity-90">({pedidoSeq})</span>}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-black font-mono bg-slate-600 text-white shadow-xs shrink-0">
+                OP #{o.id.slice(-6).toUpperCase()}
+              </span>
+            )}
+
+            {o.cliente && (
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate max-w-[200px] sm:max-w-[300px]">
+                {o.cliente}
+              </span>
+            )}
+
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[200px] sm:max-w-[320px]">
+              • {nomeProdCurto} {qtdFormatada ? `(${qtdFormatada})` : ""}
             </span>
-            {(o.numero_pedido || o.cliente) && (
-              <div className="inline-flex flex-wrap items-center gap-2 px-2.5 py-1 rounded-md bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/60 my-0.5">
-                {o.numero_pedido && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black font-mono bg-blue-600 text-white shadow-xs">
-                    <ShoppingCart className="w-3 h-3 shrink-0" />
-                    #{o.numero_pedido}
-                    {pedidoSeq && <span className="ml-1 text-[10px] opacity-90">({pedidoSeq})</span>}
-                  </span>
-                )}
-                {o.numero_oc && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-black font-mono bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-300/80 dark:border-indigo-700/80 shadow-xs">
-                    ({/^OC[\s:-]?/i.test(o.numero_oc) ? o.numero_oc : `OC: ${o.numero_oc}`})
-                  </span>
-                )}
-                {o.cliente && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black text-foreground uppercase tracking-tight bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700">
-                    <User className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-                    CLIENTE: {o.cliente}
-                  </span>
-                )}
-                {(o.vendedor || o.vendedor_nome) && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase tracking-tight bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
-                    👤 VENDEDOR: {o.vendedor || o.vendedor_nome}
-                  </span>
-                )}
-              </div>
-            )}
-            {o.data_finalizacao && (
-              <span className="text-green-600 font-semibold">✓ {formatarDataSegura(o.data_finalizacao, "dd/MM")}</span>
-            )}
+          </div>
+
+          {/* Lado Direito: ✓ Finalizada + Data + Link de Pop-up */}
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              Finalizada {o.data_finalizacao ? `• ${formatarDataSegura(o.data_finalizacao, "dd/MM")}` : ""}
+            </span>
+
+            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 group-hover:underline flex items-center gap-0.5">
+              Ver Detalhes →
+            </span>
           </div>
         </div>
 
-        {/* Fotos: Pedido (encarregado) + Material/Etiqueta (chapa) + Finalização (operador) */}
-        {(o.foto_pedido_url || o.foto_material_url || o.foto_etiqueta_chapa_url || o.foto_finalizacao_url) && (
-          <DualPhotoGallery
-            fotoPedidoUrl={o.foto_pedido_url}
-            fotoMaterialUrl={o.foto_etiqueta_chapa_url || o.foto_material_url}
-            fotoFinalizacaoUrl={o.foto_finalizacao_url}
-            labelMaterial={o.foto_etiqueta_chapa_url ? "Etiqueta Chapa" : "Foto do Material"}
-            z={zoom}
-          />
-        )}
+        {/* 🌟 MODAL POP-UP COMPLETO COM TODOS OS DETALHES, FOTOS E AÇÕES */}
+        <Dialog open={modalDetalhesOpen} onOpenChange={setModalDetalhesOpen}>
+          <DialogContent className="sm:max-w-2xl max-w-[95vw] rounded-2xl p-5 border-emerald-200 dark:border-emerald-800 shadow-2xl">
+            <DialogHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 space-y-1.5 text-left">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-sm font-black font-mono bg-blue-600 text-white shadow-xs">
+                  <ShoppingCart className="w-3.5 h-3.5" />
+                  {o.numero_pedido ? `#${o.numero_pedido}` : `OP #${o.id.slice(-6).toUpperCase()}`}
+                  {pedidoSeq && <span className="ml-1 text-xs opacity-90">({pedidoSeq})</span>}
+                </span>
 
-        {/* Dialog Bloqueio — OP em andamento (mantém para consistência) */}
-        <Dialog open={bloqueioDialog} onOpenChange={setBloqueioDialog}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader><DialogTitle>⚠️ OP em Andamento</DialogTitle></DialogHeader>
-            <div className="space-y-3 py-2">
-              <p className="text-sm text-muted-foreground">Já existe uma OP em andamento nesta máquina:</p>
-              <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
-                <p className="font-semibold text-amber-900">{ordemBloqueante?.tipo_peca || ordemBloqueante?.chapa_descricao || "OP"}</p>
-                {ordemBloqueante?.numero_pedido && <p className="text-xs text-amber-700">Pedido: {ordemBloqueante.numero_pedido}</p>}
-                {ordemBloqueante?.cliente && <p className="text-xs text-amber-700">Cliente: {ordemBloqueante.cliente}</p>}
-                <p className="text-xs text-amber-700 mt-1">Status: {ordemBloqueante?.status === "em_producao" ? "Em produção" : "Pausado"}</p>
+                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 font-bold text-xs">
+                  <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                  Finalizado {o.data_finalizacao ? `em ${formatarDataSegura(o.data_finalizacao, "dd/MM/yyyy")}` : ""}
+                </Badge>
               </div>
-              <p className="text-xs text-muted-foreground">Iniciar outra OP simultaneamente pode causar problemas de controle. Deseja continuar mesmo assim?</p>
+
+              <DialogTitle className="text-base font-extrabold text-slate-900 dark:text-slate-100">
+                {o.cliente ? `Cliente: ${o.cliente}` : "Ordem Finalizada"}
+              </DialogTitle>
+
+              {(o.vendedor || o.vendedor_nome) && (
+                <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
+                  Vendedor: <strong className="text-slate-700 dark:text-slate-300">{o.vendedor || o.vendedor_nome}</strong>
+                </DialogDescription>
+              )}
+            </DialogHeader>
+
+            {/* Conteúdo Técnico */}
+            <div className="py-3 space-y-3 max-h-[65vh] overflow-y-auto">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="font-extrabold text-sm text-slate-900 dark:text-slate-100">
+                    {o.tipo_peca || o.produto || "Corte & Dobra"}
+                  </span>
+                  {o.quantidade > 0 && (
+                    <span className="font-mono font-black text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200 border border-blue-300">
+                      {formatarQuantidadeComUnidade(o)}
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                  <div>
+                    <span className="text-slate-400 text-[10px] block font-bold">MÁQUINA</span>
+                    <strong className="text-slate-800 dark:text-slate-200">{o.maquina || "—"}</strong>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 text-[10px] block font-bold">MATERIAL / ESPESSURA</span>
+                    <strong className="text-slate-800 dark:text-slate-200">
+                      {o.material_espessura ? `${o.material_espessura} mm` : o.espessura_exigida ? `${o.espessura_exigida} mm` : "—"}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 text-[10px] block font-bold">DIMENSÕES</span>
+                    <strong className="font-mono text-slate-800 dark:text-slate-200">
+                      {o.dimensoes_livres || (o.comprimento_mm ? `${o.comprimento_mm} mm` : "—")}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 text-[10px] block font-bold">PESO REGISTRADO</span>
+                    <strong className="text-emerald-700 dark:text-emerald-400">
+                      {o.peso_kg > 0 ? `${Number(o.peso_kg).toLocaleString("pt-BR")} kg` : "—"}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 text-[10px] block font-bold">ORIGEM CHAPA</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      {o.chapa_origem === "chaparia" ? "Chaparia" : (o.bobina_descricao || o.chapa_descricao || "Bobina")}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 text-[10px] block font-bold">UNIDADE</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">{o.unidade || "Matriz AJL"}</span>
+                  </div>
+                </div>
+
+                {o.instrucao && (
+                  <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 text-xs">
+                    <span className="text-slate-400 text-[10px] block font-bold">INSTRUÇÃO / ESPECIFICAÇÃO:</span>
+                    <p className="italic text-slate-700 dark:text-slate-300">{o.instrucao}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Foto de Finalização */}
+              {o.foto_finalizacao_url && (
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
+                  <span className="text-xs font-black uppercase text-slate-500 block">Foto de Finalização:</span>
+                  <SmartImage
+                    src={o.foto_finalizacao_url}
+                    alt="Foto de finalização"
+                    className="w-24 h-24 border-2 border-green-400 rounded-lg shrink-0 object-cover"
+                    showBadge
+                    badgeText="FINALIZADA"
+                    badgeColor="bg-green-600"
+                  />
+                </div>
+              )}
+
+              {/* Botões de Ações Operacionais */}
+              <div className="flex items-center justify-between gap-2 flex-wrap pt-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {o.numero_pedido && <HistoricoPedidoButton numeroPedido={o.numero_pedido} size="sm" />}
+                  <ApontamentoOpButton ordem={o} ordem_tipo="maquina_cd" label="Assinar / Apontar" className="h-8 px-2.5 text-xs text-orange-600 border-orange-300 hover:bg-orange-50" />
+                </div>
+              </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => { setBloqueioDialog(false); setAcaoPendente(null); setOrdemBloqueante(null); }}>Cancelar</Button>
-              <Button className="bg-amber-500 hover:bg-amber-600" onClick={confirmarBloqueio}>Iniciar mesmo assim</Button>
+
+            <DialogFooter className="flex items-center justify-between gap-2 flex-wrap pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                {isGestor && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-2.5 text-xs gap-1 text-amber-600 border-amber-300 hover:bg-amber-50"
+                      onClick={() => {
+                        onUpdate(o.id, { status: "pendente", inicio_producao_ts: null, foto_finalizacao_url: null, data_finalizacao: null });
+                        setModalDetalhesOpen(false);
+                      }}
+                    >
+                      ↩ Reabrir Ordem
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-2.5 text-xs gap-1 text-red-600 border-red-300 hover:bg-red-50"
+                      onClick={() => {
+                        if (window.confirm("Excluir esta ordem? Esta ação não pode ser desfeita.")) {
+                          onDelete(o.id);
+                          setModalDetalhesOpen(false);
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Excluir
+                    </Button>
+                  </>
+                )}
+              </div>
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setModalDetalhesOpen(false)}
+                className="h-8 px-4 text-xs font-bold"
+              >
+                Fechar
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
