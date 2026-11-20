@@ -71,23 +71,37 @@ export default function ModalFinalizarEtapasCalendario({
     if (!open || !pedido || listaOfs.length === 0) return;
 
     const mapa = {};
+    const todasOps = [...(pedidosProducao || []), ...(ordensCD || [])];
+
     listaOfs.forEach((ofItem) => {
       const ofKey = ofItem.id || ofItem.of_nome || ofItem.numero_pedido || "unica";
-      const etapasDetectadas = identificarRoteiroDoPedido(pedido, ofItem, pedidosProducao);
+      const etapasDetectadas = identificarRoteiroDoPedido(pedido, ofItem, todasOps);
 
       const base = ofItem || pedido;
-      const opVinculada = (pedidosProducao || []).find((op) => opDaMesmaOf(op, ofItem));
+      const opVinculada = todasOps.find((op) => opDaMesmaOf(op, ofItem));
       const opMaq = String(opVinculada?.maquina || opVinculada?.maquina_nome || "").toUpperCase();
+      const itensBase = getItens(base);
+      const itensPed = getItens(pedido);
+      const ondeEstaTexto = String(base.onde_esta || pedido.onde_esta || "").toUpperCase();
+
+      const maquinaAtual = (
+        opMaq ||
+        base.maquina ||
+        itensBase[0]?.maquina ||
+        pedido.maquina ||
+        itensPed[0]?.maquina ||
+        (ondeEstaTexto.match(/FILA DA M[ÁA]QUINA:\s*([^\n\r]+)/i)?.[1] || "")
+      ).toUpperCase();
 
       const jaNaColagem = Boolean(
         opMaq === "COLAGEM" ||
+        maquinaAtual.includes("COLAGEM") ||
         base.status === "aguardando_colagem" ||
         base.maquina === "COLAGEM" ||
         pedido.maquina === "COLAGEM" ||
         base.perfilacao_concluida ||
         pedido.perfilacao_concluida ||
-        String(base.onde_esta || "").toUpperCase().includes("COLAGEM") ||
-        String(pedido.onde_esta || "").toUpperCase().includes("COLAGEM")
+        ondeEstaTexto.includes("COLAGEM")
       );
 
       const inicializadas = etapasDetectadas.map((etp) => {
@@ -98,14 +112,32 @@ export default function ModalFinalizarEtapasCalendario({
           (Number(base.percentual_concluido) || 0) >= 100
         ) {
           isConcluida = true;
-        } else if (
-          etp.id === "telha_superior" ||
-          etp.id === "telha_inferior" ||
-          etp.id === "bandeja_inferior" ||
-          etp.id === "perfilacao_telha" ||
-          etp.id === "perfilacao_telha_simples"
-        ) {
-          if (jaNaColagem) {
+        } else {
+          // Telhas na Colagem
+          if (
+            jaNaColagem &&
+            (etp.id === "telha_superior" ||
+              etp.id === "telha_inferior" ||
+              etp.id === "bandeja_inferior" ||
+              etp.id === "perfilacao_telha" ||
+              etp.id === "perfilacao_telha_simples")
+          ) {
+            isConcluida = true;
+          }
+
+          // Corte & Dobra na Guilhotina ou Corte: Desbobinadeira concluída
+          if (
+            (maquinaAtual.includes("GUILHOTINA") || maquinaAtual.includes("CORTE") || ondeEstaTexto.includes("GUILHOTINA") || ondeEstaTexto.includes("CORTE")) &&
+            etp.id?.includes("desbobinadeira")
+          ) {
+            isConcluida = true;
+          }
+
+          // Corte & Dobra na Dobradeira: Desbobinadeira E Guilhotina concluídas
+          if (
+            (maquinaAtual.includes("DOBRA") || ondeEstaTexto.includes("DOBRA")) &&
+            (etp.id?.includes("desbobinadeira") || etp.id?.includes("guilhotina") || etp.id?.includes("corte"))
+          ) {
             isConcluida = true;
           }
         }
@@ -121,7 +153,7 @@ export default function ModalFinalizarEtapasCalendario({
 
     setEtapasPorOf(mapa);
     setOfAtivaId(listaOfs[0]?.id || listaOfs[0]?.of_nome || "unica");
-  }, [open, pedido, ofAlvo, listaOfs]);
+  }, [open, pedido, ofAlvo, listaOfs, pedidosProducao, ordensCD]);
 
   // Identificador da OF atualmente selecionada
   const ofAtiva = useMemo(() => {
@@ -323,6 +355,42 @@ export default function ModalFinalizarEtapasCalendario({
                 etapas_concluidas_json: JSON.stringify(etapasOf),
                 itens_json: JSON.stringify(itensAtualizados)
               });
+
+              // Sincronização imediata nos objetos em memória para reabertura sem delay
+              targetPed.maquina = maquinaDestino;
+              targetPed.onde_esta = ondeEstaNovo;
+              targetPed.status_pcp = "em_producao";
+              targetPed.status = statusOpNovo;
+              targetPed.percentual_concluido = novoPercentual;
+              targetPed.etapas_concluidas_json = JSON.stringify(etapasOf);
+              targetPed.itens_json = JSON.stringify(itensAtualizados);
+
+              if (ofItem) {
+                ofItem.maquina = maquinaDestino;
+                ofItem.onde_esta = ondeEstaNovo;
+                ofItem.status_pcp = "em_producao";
+                ofItem.status = statusOpNovo;
+                ofItem.percentual_concluido = novoPercentual;
+                ofItem.etapas_concluidas_json = JSON.stringify(etapasOf);
+                ofItem.itens_json = JSON.stringify(itensAtualizados);
+              }
+
+              if (pedido) {
+                pedido.maquina = maquinaDestino;
+                pedido.onde_esta = ondeEstaNovo;
+                if (Array.isArray(pedido.ofs)) {
+                  const matchOf = pedido.ofs.find(o => (o.id || o.of_nome || o.numero_pedido) === ofKey);
+                  if (matchOf) {
+                    matchOf.maquina = maquinaDestino;
+                    matchOf.onde_esta = ondeEstaNovo;
+                    matchOf.status_pcp = "em_producao";
+                    matchOf.status = statusOpNovo;
+                    matchOf.percentual_concluido = novoPercentual;
+                    matchOf.etapas_concluidas_json = JSON.stringify(etapasOf);
+                    matchOf.itens_json = JSON.stringify(itensAtualizados);
+                  }
+                }
+              }
             }
 
             // 2. Encaminha máquina local no chão de fábrica:

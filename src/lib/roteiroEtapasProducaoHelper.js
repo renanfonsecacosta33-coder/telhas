@@ -73,17 +73,33 @@ export function identificarRoteiroDoPedido(pedido, item = null, opsProducao = []
   const alvoAtual = item || pedido;
   const opVinculada = (opsProducao || []).find((op) => opDaMesmaOf(op, alvoAtual));
   const maqChaoFabrica = String(opVinculada?.maquina || opVinculada?.maquina_nome || "").toUpperCase();
+  const maqAlvo = String(alvoAtual.maquina || "").toUpperCase();
+  const maqPedido = String(pedido.maquina || "").toUpperCase();
+  const itensAlvo = getItens(alvoAtual);
+  const maqItens = String(itensAlvo[0]?.maquina || "").toUpperCase();
+  const itensPed = getItens(pedido);
+  const maqPedItens = String(itensPed[0]?.maquina || "").toUpperCase();
+  const ondeEstaTexto = String(alvoAtual.onde_esta || pedido.onde_esta || "").toUpperCase();
+
+  const maquinaAtivaReal = (
+    maqChaoFabrica ||
+    maqAlvo ||
+    maqItens ||
+    maqPedido ||
+    maqPedItens ||
+    (ondeEstaTexto.match(/FILA DA M[ÁA]QUINA:\s*([^\n\r]+)/i)?.[1] || "")
+  ).toUpperCase();
 
   const jaEstaNaColagem = Boolean(
     maqChaoFabrica === "COLAGEM" ||
+    maquinaAtivaReal.includes("COLAGEM") ||
     alvoAtual.maquina === "COLAGEM" ||
     pedido.maquina === "COLAGEM" ||
     alvoAtual.status === "aguardando_colagem" ||
     pedido.status === "aguardando_colagem" ||
     alvoAtual.perfilacao_concluida ||
     pedido.perfilacao_concluida ||
-    String(alvoAtual.onde_esta || "").toUpperCase().includes("COLAGEM") ||
-    String(pedido.onde_esta || "").toUpperCase().includes("COLAGEM")
+    ondeEstaTexto.includes("COLAGEM")
   );
 
   const jaTotalmenteConcluido = Boolean(
@@ -306,6 +322,20 @@ export function identificarRoteiroDoPedido(pedido, item = null, opsProducao = []
     const temCorteOficial = maquinasRoteiroOficiais.length > 0 ? maquinasRoteiroOficiais.some((m) => /CORTE|GUILHOTINA/i.test(m)) : true;
     const temDobraOficial = maquinasRoteiroOficiais.length > 0 ? maquinasRoteiroOficiais.some((m) => /DOBRA/i.test(m)) : Boolean(precisaDobra);
 
+    const desbJaFeita =
+      jaTotalmenteConcluido ||
+      maquinaAtivaReal.includes("GUILHOTINA") ||
+      maquinaAtivaReal.includes("CORTE") ||
+      maquinaAtivaReal.includes("DOBRA") ||
+      ondeEstaTexto.includes("GUILHOTINA") ||
+      ondeEstaTexto.includes("CORTE") ||
+      ondeEstaTexto.includes("DOBRA");
+
+    const guilhotinaJaFeita =
+      jaTotalmenteConcluido ||
+      maquinaAtivaReal.includes("DOBRA") ||
+      ondeEstaTexto.includes("DOBRA");
+
     etapas.push({
       id: "cd_desbobinadeira",
       ordem: 1,
@@ -315,7 +345,7 @@ export function identificarRoteiroDoPedido(pedido, item = null, opsProducao = []
       setor: "cd",
       descricao: "Avanço e corte inicial da chapa na bobina",
       ativo: temDesbOficial,
-      concluida: false
+      concluida: Boolean(desbJaFeita)
     });
 
     etapas.push({
@@ -327,7 +357,7 @@ export function identificarRoteiroDoPedido(pedido, item = null, opsProducao = []
       setor: "cd",
       descricao: "Corte das peças no esquadro conforme croqui",
       ativo: temCorteOficial,
-      concluida: false
+      concluida: Boolean(guilhotinaJaFeita)
     });
 
     etapas.push({
@@ -339,7 +369,7 @@ export function identificarRoteiroDoPedido(pedido, item = null, opsProducao = []
       setor: "cd",
       descricao: "Dobra dos perfis conforme ângulos do croqui",
       ativo: temDobraOficial,
-      concluida: false
+      concluida: Boolean(jaTotalmenteConcluido)
     });
 
     // Se já havia etapas salvas no pedido/item, recupera ativo e concluida
@@ -350,14 +380,16 @@ export function identificarRoteiroDoPedido(pedido, item = null, opsProducao = []
         if (Array.isArray(salvas) && salvas.length > 0) {
           return etapas.map((etp) => {
             const salva = salvas.find((s) => s.id === etp.id);
-            if (salva) {
-              return {
-                ...etp,
-                ativo: salva.ativo !== undefined ? salva.ativo : etp.ativo,
-                concluida: Boolean(salva.concluida)
-              };
-            }
-            return etp;
+            let isConc = salva ? Boolean(salva.concluida) : Boolean(etp.concluida);
+            if (etp.id === "cd_desbobinadeira" && desbJaFeita) isConc = true;
+            if (etp.id === "cd_guilhotina" && guilhotinaJaFeita) isConc = true;
+            if (jaTotalmenteConcluido) isConc = true;
+
+            return {
+              ...etp,
+              ativo: salva?.ativo !== undefined ? salva.ativo : etp.ativo,
+              concluida: isConc
+            };
           });
         }
       } catch {}
