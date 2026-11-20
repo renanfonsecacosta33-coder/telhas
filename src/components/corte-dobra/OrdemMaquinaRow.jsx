@@ -42,6 +42,7 @@ import { useRegrasProducao } from "@/lib/regrasProducao";
 import CroquiPeca2D from "@/components/corte-dobra/CroquiPeca2D";
 import { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
 import BannerInstrucaoCorteDobra, { classificarItemCorteDobra } from "@/components/corte-dobra/BannerInstrucaoCorteDobra";
+import BadgeDataEntregaEChegada from "@/components/corte-dobra/BadgeDataEntregaEChegada";
 
 
 function formatTempo(segundos) {
@@ -563,6 +564,11 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
                   Vendedor: <strong className="text-slate-700 dark:text-slate-300">{o.vendedor || o.vendedor_nome}</strong>
                 </DialogDescription>
               )}
+
+              {/* 📅 Datas Críticas: Chegada na Máquina e Entrega Prometida */}
+              <div className="pt-1">
+                <BadgeDataEntregaEChegada ordem={o} pedidoOdoo={pedidoOdooVinculado} />
+              </div>
             </DialogHeader>
 
             {/* Conteúdo Técnico */}
@@ -752,6 +758,9 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
                 📦 {o.lote_medida_item}
               </Badge>
             )}
+
+            {/* 📅 Datas Críticas: Chegada na Máquina e Entrega Prometida */}
+            <BadgeDataEntregaEChegada ordem={o} pedidoOdoo={pedidoOdooVinculado} />
           </div>
 
           <div className="flex items-center gap-1.5 flex-wrap">

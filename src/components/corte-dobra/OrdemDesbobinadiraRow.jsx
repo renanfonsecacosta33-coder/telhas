@@ -35,6 +35,7 @@ import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import { extrairEspessuraDoTexto } from "@/lib/estoqueMaterialHelper";
 import { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
 import BannerInstrucaoCorteDobra, { classificarItemCorteDobra } from "@/components/corte-dobra/BannerInstrucaoCorteDobra";
+import BadgeDataEntregaEChegada from "@/components/corte-dobra/BadgeDataEntregaEChegada";
 
 function formatTempo(segundos) {
   const s = Math.floor(segundos || 0);
@@ -695,6 +696,10 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                   Vendedor: <strong className="text-slate-700 dark:text-slate-300">{o.vendedor || o.vendedor_nome}</strong>
                 </DialogDescription>
               )}
+              {/* Badges de Data de Entrega e Chegada da OP */}
+              <div className="pt-1">
+                <BadgeDataEntregaEChegada ordem={o} pedidoOdoo={pedidoOdooVinculado} />
+              </div>
             </DialogHeader>
 
             {/* Conteúdo Técnico */}
@@ -940,6 +945,9 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                 📦 {o.lote_medida_item}
               </Badge>
             )}
+
+            {/* 📅 Datas Críticas: Chegada na Máquina e Entrega Prometida */}
+            <BadgeDataEntregaEChegada ordem={o} pedidoOdoo={pedidoOdooVinculado} />
           </div>
 
           <div className="flex items-center gap-1.5 flex-wrap">
