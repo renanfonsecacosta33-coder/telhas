@@ -1,6 +1,7 @@
 import { base44 } from "@/api/base44Client";
 import { isTelhaBandeja } from "@/lib/bandejaHelper";
 import { detectarMaquinaTelha, getItens } from "@/lib/pedidoOdooHelper";
+import { opDaMesmaOf } from "@/lib/opVinculoSeguro";
 import { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
 import { toast } from "sonner";
 
@@ -18,7 +19,7 @@ function normalizarTexto(txt) {
 /**
  * Monta o roteiro inteligente padrão de etapas para um pedido ou item específico
  */
-export function identificarRoteiroDoPedido(pedido, item = null) {
+export function identificarRoteiroDoPedido(pedido, item = null, opsProducao = []) {
   if (!pedido) return [];
 
   // Coleta texto completo de todos os campos possíveis do item e do pedido
@@ -69,46 +70,12 @@ export function identificarRoteiroDoPedido(pedido, item = null) {
 
   const textoCompleto = partesTexto.filter(Boolean).map(normalizarTexto).join(" ");
 
-  // Se já tiver etapas salvas anteriormente no pedido ou no item:
-  const rawSalvasGeral = item?.etapas_concluidas_json || pedido.etapas_concluidas_json;
-  if (rawSalvasGeral) {
-    try {
-      const salvas = typeof rawSalvasGeral === "string" ? JSON.parse(rawSalvasGeral) : rawSalvasGeral;
-      if (Array.isArray(salvas) && salvas.length > 0) {
-        return salvas.map((s) => ({
-          ...s,
-          ativo: s.ativo !== false,
-          tag:
-            s.tag ||
-            (s.id?.includes("desbobinadeira")
-              ? "Desbobinadeira"
-              : s.id?.includes("guilhotina") || s.id?.includes("corte")
-              ? "Guilhotina"
-              : s.id?.includes("dobradeira")
-              ? "Dobradeira"
-              : s.id?.includes("telha_superior")
-              ? "Telha Superior"
-              : s.id?.includes("telha_inferior")
-              ? "Telha Inferior"
-              : s.id?.includes("bandeja")
-              ? "Bandeja Inferior"
-              : s.id?.includes("colagem")
-              ? "Colagem"
-              : s.nome?.split(" ")[1] || "Etapa"),
-          concluida: Boolean(s.concluida)
-        }));
-      }
-    } catch {}
-  }
-
-  const etapas = [];
-  const maquinaDetectada = detectarMaquinaTelha(item || pedido);
-  const maquinaBaseTelha = pedido.maquina && pedido.maquina !== "BANDEJA" && pedido.maquina !== "COLAGEM"
-    ? pedido.maquina
-    : (pedido.maquina_origem || (maquinaDetectada && maquinaDetectada !== "BANDEJA" && maquinaDetectada !== "COLAGEM" ? maquinaDetectada : "TP - 40"));
-
   const alvoAtual = item || pedido;
+  const opVinculada = (opsProducao || []).find((op) => opDaMesmaOf(op, alvoAtual));
+  const maqChaoFabrica = String(opVinculada?.maquina || opVinculada?.maquina_nome || "").toUpperCase();
+
   const jaEstaNaColagem = Boolean(
+    maqChaoFabrica === "COLAGEM" ||
     alvoAtual.maquina === "COLAGEM" ||
     pedido.maquina === "COLAGEM" ||
     alvoAtual.status === "aguardando_colagem" ||
@@ -127,6 +94,54 @@ export function identificarRoteiroDoPedido(pedido, item = null) {
     (Number(alvoAtual.percentual_concluido) || 0) >= 100 ||
     (Number(pedido.percentual_concluido) || 0) >= 100
   );
+
+  // Se já tiver etapas salvas anteriormente no pedido ou no item:
+  const rawSalvasGeral = item?.etapas_concluidas_json || pedido.etapas_concluidas_json;
+  if (rawSalvasGeral) {
+    try {
+      const salvas = typeof rawSalvasGeral === "string" ? JSON.parse(rawSalvasGeral) : rawSalvasGeral;
+      if (Array.isArray(salvas) && salvas.length > 0) {
+        // 🛡️ Se o item é de colagem/sanduíche ou tem superior/inferior, mas as etapas salvas
+        // possuem apenas telha simples (perfilacao_telha_simples ou sem colagem), essas etapas
+        // salvas são obsoletas e devem ser descartadas para gerar as 3 etapas reais.
+        const temColagemNasSalvas = salvas.some((s) => s.id?.includes("colagem"));
+        const ehObsoletoTelhaSimples =
+          (jaEstaNaColagem || textoCompleto.includes("eps") || (textoCompleto.includes("superior") && textoCompleto.includes("inferior"))) &&
+          !temColagemNasSalvas;
+
+        if (!ehObsoletoTelhaSimples) {
+          return salvas.map((s) => ({
+            ...s,
+            ativo: s.ativo !== false,
+            tag:
+              s.tag ||
+              (s.id?.includes("desbobinadeira")
+                ? "Desbobinadeira"
+                : s.id?.includes("guilhotina") || s.id?.includes("corte")
+                ? "Guilhotina"
+                : s.id?.includes("dobradeira")
+                ? "Dobradeira"
+                : s.id?.includes("telha_superior")
+                ? "Telha Superior"
+                : s.id?.includes("telha_inferior")
+                ? "Telha Inferior"
+                : s.id?.includes("bandeja")
+                ? "Bandeja Inferior"
+                : s.id?.includes("colagem")
+                ? "Colagem"
+                : s.nome?.split(" ")[1] || "Etapa"),
+            concluida: Boolean(s.concluida)
+          }));
+        }
+      }
+    } catch {}
+  }
+
+  const etapas = [];
+  const maquinaDetectada = detectarMaquinaTelha(item || pedido);
+  const maquinaBaseTelha = pedido.maquina && pedido.maquina !== "BANDEJA" && pedido.maquina !== "COLAGEM"
+    ? pedido.maquina
+    : (pedido.maquina_origem || (maquinaDetectada && maquinaDetectada !== "BANDEJA" && maquinaDetectada !== "COLAGEM" ? maquinaDetectada : "TP - 40"));
 
   // ─────────────────────────────────────────────────────────────
   // 1. CASO: TELHA BANDEJA (Colonial / TP-25 / TP-40 ➔ BANDEJA ➔ COLAGEM)
@@ -177,14 +192,19 @@ export function identificarRoteiroDoPedido(pedido, item = null) {
   const temEpsOuColagem =
     Boolean(pedido.eps || item?.eps) ||
     jaEstaNaColagem ||
-    /\b(eps|isopor|sanduiche|sanduíche|manta|filme|termoacustica|termoacústica|semi[- ]?sanduiche)\b/i.test(textoCompleto);
+    /\b(eps|isopor|sanduiche|sanduíche|manta|filme|termoacustica|termoacústica|semi[- ]?sanduiche)\b/i.test(textoCompleto) ||
+    textoCompleto.includes("eps") ||
+    textoCompleto.includes("isopor") ||
+    textoCompleto.includes("sandu") ||
+    (textoCompleto.includes("superior") && textoCompleto.includes("inferior"));
 
   if (temEpsOuColagem) {
     // Verifica se é SANDUÍCHE DUPLO (Telha + EPS + Telha, ou tem chapa superior e inferior, ou está na colagem sem ser filme/manta)
     const isSanduicheDuplo =
       /\b(telha\s*\+\s*eps\w*\s*\+\s*telha|telha\s*\+\s*isopor\s*\+\s*telha|sandu[ií]che\s*dupl[oa]|duplo|dupla)\b/i.test(textoCompleto) ||
-      (/\bsuperior\b/i.test(textoCompleto) && /\binferior\b/i.test(textoCompleto)) ||
-      (jaEstaNaColagem && !textoCompleto.includes("manta") && !textoCompleto.includes("filme") && !textoCompleto.includes("semi"));
+      textoCompleto.includes("telha+eps") ||
+      (textoCompleto.includes("superior") && textoCompleto.includes("inferior")) ||
+      (jaEstaNaColagem && !textoCompleto.includes("bandeja") && !textoCompleto.includes("manta") && !textoCompleto.includes("filme") && !textoCompleto.includes("semi"));
 
     if (isSanduicheDuplo) {
       // 3 Processos: Telha Superior + Telha Inferior + Colagem

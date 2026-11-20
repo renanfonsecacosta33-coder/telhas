@@ -280,7 +280,9 @@ export default function PedidoOdooGrupoCard({
       return { txt: `⚡ Em produção (${produzindoAgora.length})`, cls: "bg-blue-600 text-white border border-blue-700" };
     }
     if (aguardandoInicio.length > 0) {
-      return { txt: `⏳ Fila da máquina (${aguardandoInicio.length})`, cls: "bg-amber-500 text-white border border-amber-600" };
+      const maqsAguardando = Array.from(new Set(aguardandoInicio.flatMap(s => s.diag.maquinas || []))).filter(Boolean);
+      const maqsStr = maqsAguardando.length > 0 ? `: ${maqsAguardando.join(" + ")}` : ` (${aguardandoInicio.length})`;
+      return { txt: `⏳ Na Fila${maqsStr}`, cls: "bg-amber-500 text-white border border-amber-600" };
     }
     if (distribuidos.length > 0) {
       return { txt: `📦 Distribuído (${distribuidos.length})`, cls: "bg-indigo-600 text-white border border-indigo-700" };

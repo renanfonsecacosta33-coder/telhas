@@ -1403,7 +1403,41 @@ export function obterStatusExecucaoPedido(pedido, pedidosProducao = [], ordensCD
     };
   }
 
-  if (pedido.status_pcp === "distribuido") {
+  if (pedido.status_pcp === "distribuido" || pedido.status_pcp === "em_producao") {
+    // Busca se há máquinas gravadas diretamente no pedido ou nos seus itens roteados
+    const maqsItens = [];
+    if (pedido.maquina && pedido.maquina !== "Mesa PCP" && pedido.maquina !== "Galpão") {
+      maqsItens.push(pedido.maquina);
+    }
+    const its = getItens(pedido);
+    its.forEach(it => {
+      if (it.maquina && it.maquina !== "Mesa PCP" && it.maquina !== "Galpão") {
+        maqsItens.push(it.maquina);
+      } else if (Array.isArray(it.roteiro_maquinas) && it.roteiro_maquinas[0]) {
+        maqsItens.push(it.roteiro_maquinas[0]);
+      } else if (typeof it.roteiro_maquinas === "string") {
+        try {
+          const parsed = JSON.parse(it.roteiro_maquinas);
+          if (Array.isArray(parsed) && parsed[0]) maqsItens.push(parsed[0]);
+        } catch {}
+      }
+    });
+
+    const maqsFinais = Array.from(new Set(maqsItens)).filter(Boolean);
+    if (maqsFinais.length > 0) {
+      const maqsStr = ` (${maqsFinais.join(", ")})`;
+      return {
+        statusChave: "aguardando_inicio",
+        label: `⏳ Na Fila da Máquina${maqsStr}`,
+        badgeCls: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 font-bold",
+        produzindoAgora: false,
+        aguardandoInicio: true,
+        isConcluido: false,
+        maquinas: maqsFinais,
+        opsVinculadas
+      };
+    }
+
     return {
       statusChave: "distribuido",
       label: "📦 Distribuído",

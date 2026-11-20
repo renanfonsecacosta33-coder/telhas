@@ -45,6 +45,7 @@ export default function useDistribuicaoPcp({
       queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd-todas"] });
       queryClient.invalidateQueries({ queryKey: ["ordens-desb-todas"] });
       queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-cd-todos"] });
       setPedidoSelecionado({ ...pedido, ...atualizado });
 
       const partesMsg = [];

@@ -757,12 +757,23 @@ export default function CentralPCP() {
         .map((it, idx) => ({ ...it, _idx: idx }))
         .filter(it => classGrupo(it) === "cd" && !it.concluido && it.status !== "concluido");
 
-      const jaPossuiRoteiro = itensCD.length > 0 && itensCD.every(it => {
+      const jaDistribuido = Boolean(
+        primeiro.status_pcp === "distribuido" ||
+        primeiro.status_pcp === "em_producao" ||
+        primeiro.distribuido ||
+        itensCD.some(it => it.distribuido || it.status === "distribuido" || it.status === "em_producao")
+      );
+
+      const itensJaComRoteiro = itensCD.length > 0 && itensCD.every(it => {
         if (Array.isArray(it.roteiro_maquinas) && it.roteiro_maquinas.length > 0) return true;
         if (typeof it.roteiro_maquinas === "string" && it.roteiro_maquinas.length > 2) return true;
         if (it.maquina && it.maquina !== "Mesa PCP" && it.maquina !== "Galpão") return true;
         return false;
-      }) && Boolean(primeiro.roteiro_maquinas || primeiro.etapas_concluidas_json);
+      });
+
+      const temRoteiroNaRaiz = Boolean(primeiro.roteiro_maquinas || primeiro.etapas_concluidas_json || primeiro.maquina);
+
+      const jaPossuiRoteiro = jaDistribuido || itensJaComRoteiro || temRoteiroNaRaiz;
 
       if (itensCD.length > 0 && !jaPossuiRoteiro) {
         toast({ title: "Defina o roteiro", description: "Selecione o roteiro de máquinas antes de finalizar a peça de Corte e Dobra." });

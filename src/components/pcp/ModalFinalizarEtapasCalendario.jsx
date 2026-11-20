@@ -34,6 +34,7 @@ import { finalizarOpsDoPedido } from "@/lib/conciliacaoPcpMaquinasHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 import { normalizarPrioridadeNivelNumerico } from "@/lib/prioridadeHelper";
 import { getItens } from "@/lib/pedidoOdooHelper";
+import { opDaMesmaOf } from "@/lib/opVinculoSeguro";
 
 /**
  * Dialog interativo para seleção dinâmica e finalização individual de etapas de produção
@@ -72,10 +73,14 @@ export default function ModalFinalizarEtapasCalendario({
     const mapa = {};
     listaOfs.forEach((ofItem) => {
       const ofKey = ofItem.id || ofItem.of_nome || ofItem.numero_pedido || "unica";
-      const etapasDetectadas = identificarRoteiroDoPedido(pedido, ofItem);
+      const etapasDetectadas = identificarRoteiroDoPedido(pedido, ofItem, pedidosProducao);
 
       const base = ofItem || pedido;
+      const opVinculada = (pedidosProducao || []).find((op) => opDaMesmaOf(op, ofItem));
+      const opMaq = String(opVinculada?.maquina || opVinculada?.maquina_nome || "").toUpperCase();
+
       const jaNaColagem = Boolean(
+        opMaq === "COLAGEM" ||
         base.status === "aguardando_colagem" ||
         base.maquina === "COLAGEM" ||
         pedido.maquina === "COLAGEM" ||
