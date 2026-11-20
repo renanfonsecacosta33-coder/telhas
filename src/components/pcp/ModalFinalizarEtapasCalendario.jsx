@@ -298,8 +298,18 @@ export default function ModalFinalizarEtapasCalendario({
               10,
               Math.min(95, Math.round((concluidas.length / (ativas.length || 1)) * 100))
             );
-            const statusOpNovo = maquinaDestino === "COLAGEM" ? "aguardando_colagem" : "pendente";
-            const ondeEstaNovo = `Fila da ${maquinaDestino} (Galpão)`;
+            const isDestinoColagem = maquinaDestino === "COLAGEM";
+            const statusOpNovo = isDestinoColagem ? "aguardando_colagem" : "pendente";
+            const ondeEstaNovo = `Fila da Máquina: ${maquinaDestino}`;
+
+            // 1. Atualiza itens_json do PedidoOdoo com a nova máquina
+            const itensAtuais = getItens(targetPed);
+            const itensAtualizados = itensAtuais.map((it) => ({
+              ...it,
+              maquina: maquinaDestino,
+              status: statusOpNovo,
+              status_detalhado: `Fila da ${maquinaDestino}`
+            }));
 
             if (targetId) {
               await base44.entities.PedidoOdoo.update(targetId, {
@@ -308,42 +318,69 @@ export default function ModalFinalizarEtapasCalendario({
                 status: statusOpNovo,
                 onde_esta: ondeEstaNovo,
                 percentual_concluido: novoPercentual,
-                perfilacao_concluida: true,
+                perfilacao_concluida: isDestinoColagem || ativas.some(e => (e.id === "telha_superior" || e.id === "telha_inferior") && e.concluida),
                 bloqueado_colagem: false,
-                etapas_concluidas_json: JSON.stringify(etapasOf)
+                etapas_concluidas_json: JSON.stringify(etapasOf),
+                itens_json: JSON.stringify(itensAtualizados)
               });
             }
 
-            // Encaminha máquina local no chão de fábrica:
+            // 2. Encaminha máquina local no chão de fábrica:
             if (prox.setor === "cd") {
+              const numPedAlvo = targetPed.numero_pedido || pedido.numero_pedido;
+
+              // A. Se a etapa de Desbobinadeira foi CONCLUÍDA, finaliza a OrdemDesbobinadeira
+              const desbConcluida = ativas.some(e => e.id?.includes("desbobinadeira") && e.concluida);
+              if (desbConcluida) {
+                const opsDesb = await base44.entities.OrdemDesbobinadeira.filter({
+                  numero_pedido: numPedAlvo,
+                  status: { $ne: "finalizado" }
+                }).catch(() => []);
+                for (const opD of opsDesb) {
+                  await base44.entities.OrdemDesbobinadeira.update(opD.id, {
+                    status: "finalizado",
+                    data_fim: todayIso,
+                    concluido: true
+                  }).catch(() => {});
+                }
+              }
+
+              // B. Atualiza ou cria a OP na máquina destino (OrdemMaquinaCD)
               const opsCD = await base44.entities.OrdemMaquinaCD.filter({
-                numero_pedido: targetPed.numero_pedido || pedido.numero_pedido
+                numero_pedido: numPedAlvo
               }).catch(() => []);
 
-              if (opsCD && opsCD.length > 0) {
-                for (const op of opsCD) {
-                  await base44.entities.OrdemMaquinaCD.update(op.id, {
-                    maquina: maquinaDestino,
-                    status: "pendente"
-                  });
-                }
+              const opViva = opsCD.find(o => o.status !== "finalizado" && o.status !== "cancelado");
+              if (opViva) {
+                await base44.entities.OrdemMaquinaCD.update(opViva.id, {
+                  maquina: maquinaDestino,
+                  status: "pendente",
+                  data_programada_pcp: todayIso
+                }).catch(() => {});
               } else {
+                const primeiroIt = itensAtuais[0] || {};
                 await base44.entities.OrdemMaquinaCD.create({
-                  numero_pedido: targetPed.numero_pedido || pedido.numero_pedido,
+                  numero_pedido: String(numPedAlvo).replace(/^#/, "").trim(),
                   cliente: targetPed.cliente_nome || targetPed.cliente || "Cliente",
                   vendedor: targetPed.vendedor_nome || "—",
-                  produto: targetPed.produto || "Corte e Dobra",
+                  tipo_peca: primeiroIt.produto || targetPed.produto || "Corte e Dobra",
+                  dimensoes_livres: primeiroIt.descricao || targetPed.descricao || "",
+                  quantidade: Number(primeiroIt.quantidade) || 1,
                   maquina: maquinaDestino,
                   status: "pendente",
                   data: todayIso,
                   data_entrega: targetPed.data_entrega || todayIso,
-                  unidade: targetPed.unidade || "Matriz AJL"
+                  unidade: targetPed.unidade || "Matriz AJL",
+                  pedido_odoo_id: targetPed.id,
+                  of_odoo_id: targetPed.of_odoo_id || null,
+                  of_nome: targetPed.of_nome || null
                 }).catch(() => {});
               }
             } else {
-              // Telhas
+              // 3. Telhas
+              const numPedAlvo = targetPed.numero_pedido || pedido.numero_pedido;
               const opsTelhas = await base44.entities.Pedido.filter({
-                numero_pedido: targetPed.numero_pedido || pedido.numero_pedido
+                numero_pedido: numPedAlvo
               }).catch(() => []);
 
               if (opsTelhas && opsTelhas.length > 0) {
@@ -407,6 +444,10 @@ export default function ModalFinalizarEtapasCalendario({
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
       queryClient.invalidateQueries({ queryKey: ["ordens-cd-todos"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-desb-todas"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd-todas"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos-maquina"] });
 
