@@ -414,13 +414,10 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
     setPauseMotivo("");
     setSeguirDobra(false);
     if (isGuilhotina) {
-      // Guilhotina: abre dialog de aproveitamento (sem foto)
+      // 🚀 Guilhotina: finalização direta em 1 clique sem nenhum modal ou popup intermediário,
+      // enviando a OP imediatamente para a próxima máquina pré-selecionada no Roteiro do PCP.
       const prodSeg = calcularProdSeg();
-      setPendingProdSeg(prodSeg);
-      setPendingFotoUrl(null);
-      setModBlank(false);
-      setModDescricao("");
-      setAproveitamentoDialog(true);
+      await finalizarOrdem(null, prodSeg, false, "");
       return;
     }
     setFotoDialog(true);
@@ -490,7 +487,7 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
       queryClient.invalidateQueries({ queryKey: ["ordens-cd-todos"] });
-      queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
       queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd-todas"] });
     }).catch(errAvanco => console.warn("[OrdemMaquinaRow] Falha ao avançar roteiro:", errAvanco));
 
