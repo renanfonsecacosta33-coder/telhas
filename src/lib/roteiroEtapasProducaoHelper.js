@@ -1,6 +1,6 @@
 import { base44 } from "@/api/base44Client";
 import { isTelhaBandeja } from "@/lib/bandejaHelper";
-import { detectarMaquinaTelha, getItens } from "@/lib/pedidoOdooHelper";
+import { detectarMaquinaTelha, getItens, classGrupo } from "@/lib/pedidoOdooHelper";
 import { opDaMesmaOf } from "@/lib/opVinculoSeguro";
 import { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
 import { toast } from "sonner";
@@ -90,16 +90,38 @@ export function identificarRoteiroDoPedido(pedido, item = null, opsProducao = []
     (ondeEstaTexto.match(/FILA DA M[ÁA]QUINA:\s*([^\n\r]+)/i)?.[1] || "")
   ).toUpperCase();
 
+  // 🛡️ Identificação Robusta e À Prova de Falhas de Corte & Dobra
+  const maquinaIndicaCD = /(CORTE|GUILHOTINA|DOBRA|DOBRADEIRA|DESBOBINAD|LASER|PLASMA)/i.test(maquinaAtivaReal) ||
+    /(CORTE|GUILHOTINA|DOBRA|DOBRADEIRA|DESBOBINAD|LASER|PLASMA)/i.test(maqChaoFabrica) ||
+    /(CORTE|GUILHOTINA|DOBRA|DOBRADEIRA|DESBOBINAD|LASER|PLASMA)/i.test(ondeEstaTexto) ||
+    /(CORTE|GUILHOTINA|DOBRA|DOBRADEIRA|DESBOBINAD|LASER|PLASMA)/i.test(maqAlvo) ||
+    /(CORTE|GUILHOTINA|DOBRA|DOBRADEIRA|DESBOBINAD|LASER|PLASMA)/i.test(maqPedido);
+
+  const setorIndicaCD =
+    pedido.setor === "corte_dobra" ||
+    pedido.setor === "cd" ||
+    item?.setor === "corte_dobra" ||
+    item?.setor === "cd" ||
+    classGrupo(item || pedido) === "cd";
+
+  const textoIndicaCD =
+    /\b(dobra|dobradeira|guilhotina|desbobinadeira|chapa|perfil|caixa|trilho|batente|rufo|calha|cartola|cantoneira|u enrijecido|degrau|blank|lambril)\b/i.test(textoCompleto) ||
+    /\bch\s*\d+[.,]?\d*/i.test(textoCompleto);
+
+  const isCD = setorIndicaCD || maquinaIndicaCD || textoIndicaCD;
+
   const jaEstaNaColagem = Boolean(
-    maqChaoFabrica === "COLAGEM" ||
-    maquinaAtivaReal.includes("COLAGEM") ||
-    alvoAtual.maquina === "COLAGEM" ||
-    pedido.maquina === "COLAGEM" ||
-    alvoAtual.status === "aguardando_colagem" ||
-    pedido.status === "aguardando_colagem" ||
-    alvoAtual.perfilacao_concluida ||
-    pedido.perfilacao_concluida ||
-    ondeEstaTexto.includes("COLAGEM")
+    !isCD && (
+      maqChaoFabrica === "COLAGEM" ||
+      maquinaAtivaReal.includes("COLAGEM") ||
+      alvoAtual.maquina === "COLAGEM" ||
+      pedido.maquina === "COLAGEM" ||
+      alvoAtual.status === "aguardando_colagem" ||
+      pedido.status === "aguardando_colagem" ||
+      alvoAtual.perfilacao_concluida ||
+      pedido.perfilacao_concluida ||
+      ondeEstaTexto.includes("COLAGEM")
+    )
   );
 
   const jaTotalmenteConcluido = Boolean(
@@ -117,15 +139,17 @@ export function identificarRoteiroDoPedido(pedido, item = null, opsProducao = []
     try {
       const salvas = typeof rawSalvasGeral === "string" ? JSON.parse(rawSalvasGeral) : rawSalvasGeral;
       if (Array.isArray(salvas) && salvas.length > 0) {
-        // 🛡️ Se o item é de colagem/sanduíche ou tem superior/inferior, mas as etapas salvas
-        // possuem apenas telha simples (perfilacao_telha_simples ou sem colagem), essas etapas
-        // salvas são obsoletas e devem ser descartadas para gerar as 3 etapas reais.
+        // Se o item é Corte & Dobra, mas as etapas salvas no pedido eram de telha simples:
+        // descartamos para montar o roteiro real de Corte & Dobra.
+        const ehObsoletoTelhaEmCD = isCD && salvas.some((s) => s.id?.includes("telha") || s.id === "perfilacao_telha_simples");
+
         const temColagemNasSalvas = salvas.some((s) => s.id?.includes("colagem"));
         const ehObsoletoTelhaSimples =
+          !isCD &&
           (jaEstaNaColagem || textoCompleto.includes("eps") || (textoCompleto.includes("superior") && textoCompleto.includes("inferior"))) &&
           !temColagemNasSalvas;
 
-        if (!ehObsoletoTelhaSimples) {
+        if (!ehObsoletoTelhaEmCD && !ehObsoletoTelhaSimples) {
           return salvas.map((s) => ({
             ...s,
             ativo: s.ativo !== false,
@@ -154,6 +178,110 @@ export function identificarRoteiroDoPedido(pedido, item = null, opsProducao = []
   }
 
   const etapas = [];
+
+  // ─────────────────────────────────────────────────────────────
+  // 1. CASO: CORTE E DOBRA (Desbobinadeira ➔ Guilhotina/Corte ➔ Dobradeira)
+  // ─────────────────────────────────────────────────────────────
+  if (isCD) {
+    const precisaDobra = /\b(dobra|dobradeira|perfil dobrado|rufo|calha|pingadeira|cantoneira|u enrijecido|cartola)\b/i.test(textoCompleto);
+
+    // Se o pedido/item já possui roteiro oficial de máquinas configurado pelo PCP:
+    let maquinasRoteiroOficiais = [];
+    if (Array.isArray(item?.roteiro_maquinas)) maquinasRoteiroOficiais = item.roteiro_maquinas;
+    else if (typeof item?.roteiro_maquinas === "string") {
+      try { maquinasRoteiroOficiais = JSON.parse(item.roteiro_maquinas); } catch {}
+    } else if (Array.isArray(pedido?.roteiro_maquinas)) maquinasRoteiroOficiais = pedido.roteiro_maquinas;
+    else if (typeof pedido?.roteiro_maquinas === "string") {
+      try { maquinasRoteiroOficiais = JSON.parse(pedido.roteiro_maquinas); } catch {}
+    }
+
+    const maqDesb = maquinasRoteiroOficiais.find((m) => /DESBOBINADEIRA/i.test(m)) ||
+      (maquinaAtivaReal.includes("DESBOBINADEIRA") ? maquinaAtivaReal : "DESBOBINADEIRA 01");
+    const maqCorte = maquinasRoteiroOficiais.find((m) => /CORTE|GUILHOTINA/i.test(m)) ||
+      (maquinaAtivaReal.includes("CORTE") || maquinaAtivaReal.includes("GUILHOTINA") ? maquinaAtivaReal : "GUILHOTINA 3M");
+    const maqDobra = maquinasRoteiroOficiais.find((m) => /DOBRA/i.test(m)) ||
+      (maquinaAtivaReal.includes("DOBRA") ? maquinaAtivaReal : "DOBRADEIRA 3M");
+
+    const temDesbOficial = maquinasRoteiroOficiais.length > 0 ? maquinasRoteiroOficiais.some((m) => /DESBOBINADEIRA/i.test(m)) : true;
+    const temCorteOficial = maquinasRoteiroOficiais.length > 0 ? maquinasRoteiroOficiais.some((m) => /CORTE|GUILHOTINA/i.test(m)) : true;
+    const temDobraOficial = maquinasRoteiroOficiais.length > 0 ? maquinasRoteiroOficiais.some((m) => /DOBRA/i.test(m)) : Boolean(precisaDobra);
+
+    const desbJaFeita =
+      jaTotalmenteConcluido ||
+      maquinaAtivaReal.includes("GUILHOTINA") ||
+      maquinaAtivaReal.includes("CORTE") ||
+      maquinaAtivaReal.includes("DOBRA") ||
+      ondeEstaTexto.includes("GUILHOTINA") ||
+      ondeEstaTexto.includes("CORTE") ||
+      ondeEstaTexto.includes("DOBRA");
+
+    const guilhotinaJaFeita =
+      jaTotalmenteConcluido ||
+      maquinaAtivaReal.includes("DOBRA") ||
+      ondeEstaTexto.includes("DOBRA");
+
+    etapas.push({
+      id: "cd_desbobinadeira",
+      ordem: 1,
+      tag: "Desbobinadeira",
+      nome: `1. Desbobinadeira (${maqDesb})`,
+      maquina: maqDesb,
+      setor: "cd",
+      descricao: "Avanço e corte inicial da chapa na bobina",
+      ativo: temDesbOficial,
+      concluida: Boolean(desbJaFeita)
+    });
+
+    etapas.push({
+      id: "cd_guilhotina",
+      ordem: 2,
+      tag: "Guilhotina",
+      nome: `2. Corte na Guilhotina (${maqCorte})`,
+      maquina: maqCorte,
+      setor: "cd",
+      descricao: "Corte das peças no esquadro conforme croqui",
+      ativo: temCorteOficial,
+      concluida: Boolean(guilhotinaJaFeita)
+    });
+
+    etapas.push({
+      id: "cd_dobradeira",
+      ordem: 3,
+      tag: "Dobradeira",
+      nome: `3. Conformação na Dobradeira (${maqDobra})`,
+      maquina: maqDobra,
+      setor: "cd",
+      descricao: "Dobra dos perfis conforme ângulos do croqui",
+      ativo: temDobraOficial,
+      concluida: Boolean(jaTotalmenteConcluido)
+    });
+
+    // Se já havia etapas salvas no pedido/item, recupera ativo e concluida
+    const rawSalvas = item?.etapas_concluidas_json || pedido.etapas_concluidas_json;
+    if (rawSalvas) {
+      try {
+        const salvas = typeof rawSalvas === "string" ? JSON.parse(rawSalvas) : rawSalvas;
+        if (Array.isArray(salvas) && salvas.length > 0) {
+          return etapas.map((etp) => {
+            const salva = salvas.find((s) => s.id === etp.id);
+            let isConc = salva ? Boolean(salva.concluida) : Boolean(etp.concluida);
+            if (etp.id === "cd_desbobinadeira" && desbJaFeita) isConc = true;
+            if (etp.id === "cd_guilhotina" && guilhotinaJaFeita) isConc = true;
+            if (jaTotalmenteConcluido) isConc = true;
+
+            return {
+              ...etp,
+              ativo: salva?.ativo !== undefined ? salva.ativo : etp.ativo,
+              concluida: isConc
+            };
+          });
+        }
+      } catch {}
+    }
+
+    return etapas;
+  }
+
   const maquinaDetectada = detectarMaquinaTelha(item || pedido);
   const maquinaBaseTelha = pedido.maquina && pedido.maquina !== "BANDEJA" && pedido.maquina !== "COLAGEM"
     ? pedido.maquina
@@ -292,114 +420,7 @@ export function identificarRoteiroDoPedido(pedido, item = null, opsProducao = []
   }
 
   // ─────────────────────────────────────────────────────────────
-  // 3. CASO: CORTE E DOBRA (Desbobinadeira ➔ Guilhotina ➔ Dobradeira)
-  // ─────────────────────────────────────────────────────────────
-  const isCD =
-    pedido.setor === "corte_dobra" ||
-    pedido.setor === "cd" ||
-    item?.setor === "corte_dobra" ||
-    item?.setor === "cd" ||
-    /\b(dobra|dobradeira|guilhotina|desbobinadeira|chapa|perfil dobrado|rufo|calha|cartola|cantoneira|u enrijecido)\b/i.test(textoCompleto);
-
-  if (isCD) {
-    const precisaDobra = /\b(dobra|dobradeira|perfil dobrado|rufo|calha|pingadeira|cantoneira|u enrijecido|cartola)\b/i.test(textoCompleto);
-
-    // Se o pedido/item já possui roteiro oficial de máquinas configurado pelo PCP:
-    let maquinasRoteiroOficiais = [];
-    if (Array.isArray(item?.roteiro_maquinas)) maquinasRoteiroOficiais = item.roteiro_maquinas;
-    else if (typeof item?.roteiro_maquinas === "string") {
-      try { maquinasRoteiroOficiais = JSON.parse(item.roteiro_maquinas); } catch {}
-    } else if (Array.isArray(pedido?.roteiro_maquinas)) maquinasRoteiroOficiais = pedido.roteiro_maquinas;
-    else if (typeof pedido?.roteiro_maquinas === "string") {
-      try { maquinasRoteiroOficiais = JSON.parse(pedido.roteiro_maquinas); } catch {}
-    }
-
-    const maqDesb = maquinasRoteiroOficiais.find((m) => /DESBOBINADEIRA/i.test(m)) || "DESBOBINADEIRA 01";
-    const maqCorte = maquinasRoteiroOficiais.find((m) => /CORTE|GUILHOTINA/i.test(m)) || "GUILHOTINA 3M";
-    const maqDobra = maquinasRoteiroOficiais.find((m) => /DOBRA/i.test(m)) || "DOBRADEIRA 3M";
-
-    const temDesbOficial = maquinasRoteiroOficiais.length > 0 ? maquinasRoteiroOficiais.some((m) => /DESBOBINADEIRA/i.test(m)) : true;
-    const temCorteOficial = maquinasRoteiroOficiais.length > 0 ? maquinasRoteiroOficiais.some((m) => /CORTE|GUILHOTINA/i.test(m)) : true;
-    const temDobraOficial = maquinasRoteiroOficiais.length > 0 ? maquinasRoteiroOficiais.some((m) => /DOBRA/i.test(m)) : Boolean(precisaDobra);
-
-    const desbJaFeita =
-      jaTotalmenteConcluido ||
-      maquinaAtivaReal.includes("GUILHOTINA") ||
-      maquinaAtivaReal.includes("CORTE") ||
-      maquinaAtivaReal.includes("DOBRA") ||
-      ondeEstaTexto.includes("GUILHOTINA") ||
-      ondeEstaTexto.includes("CORTE") ||
-      ondeEstaTexto.includes("DOBRA");
-
-    const guilhotinaJaFeita =
-      jaTotalmenteConcluido ||
-      maquinaAtivaReal.includes("DOBRA") ||
-      ondeEstaTexto.includes("DOBRA");
-
-    etapas.push({
-      id: "cd_desbobinadeira",
-      ordem: 1,
-      tag: "Desbobinadeira",
-      nome: `1. Desbobinadeira (${maqDesb})`,
-      maquina: maqDesb,
-      setor: "cd",
-      descricao: "Avanço e corte inicial da chapa na bobina",
-      ativo: temDesbOficial,
-      concluida: Boolean(desbJaFeita)
-    });
-
-    etapas.push({
-      id: "cd_guilhotina",
-      ordem: 2,
-      tag: "Guilhotina",
-      nome: `2. Corte na Guilhotina (${maqCorte})`,
-      maquina: maqCorte,
-      setor: "cd",
-      descricao: "Corte das peças no esquadro conforme croqui",
-      ativo: temCorteOficial,
-      concluida: Boolean(guilhotinaJaFeita)
-    });
-
-    etapas.push({
-      id: "cd_dobradeira",
-      ordem: 3,
-      tag: "Dobradeira",
-      nome: `3. Conformação na Dobradeira (${maqDobra})`,
-      maquina: maqDobra,
-      setor: "cd",
-      descricao: "Dobra dos perfis conforme ângulos do croqui",
-      ativo: temDobraOficial,
-      concluida: Boolean(jaTotalmenteConcluido)
-    });
-
-    // Se já havia etapas salvas no pedido/item, recupera ativo e concluida
-    const rawSalvas = item?.etapas_concluidas_json || pedido.etapas_concluidas_json;
-    if (rawSalvas) {
-      try {
-        const salvas = typeof rawSalvas === "string" ? JSON.parse(rawSalvas) : rawSalvas;
-        if (Array.isArray(salvas) && salvas.length > 0) {
-          return etapas.map((etp) => {
-            const salva = salvas.find((s) => s.id === etp.id);
-            let isConc = salva ? Boolean(salva.concluida) : Boolean(etp.concluida);
-            if (etp.id === "cd_desbobinadeira" && desbJaFeita) isConc = true;
-            if (etp.id === "cd_guilhotina" && guilhotinaJaFeita) isConc = true;
-            if (jaTotalmenteConcluido) isConc = true;
-
-            return {
-              ...etp,
-              ativo: salva?.ativo !== undefined ? salva.ativo : etp.ativo,
-              concluida: isConc
-            };
-          });
-        }
-      } catch {}
-    }
-
-    return etapas;
-  }
-
-  // ─────────────────────────────────────────────────────────────
-  // 4. CASO: TELHA SIMPLES PURA (Apenas 1 etapa na Perfiladeira)
+  // 3. CASO: TELHA SIMPLES PURA (Apenas 1 etapa na Perfiladeira)
   // ─────────────────────────────────────────────────────────────
   etapas.push({
     id: "perfilacao_telha_simples",

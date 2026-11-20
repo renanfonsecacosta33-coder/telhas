@@ -86,17 +86,22 @@ export default function ModalRoteamentoCD({
 }) {
   // roteiroPorItem: { [itemIdx]: { desbobinador: string|null, corte: string|null, dobra: string|null, perfiladeira: string|null } }
   const [roteiroPorItem, setRoteiroPorItem] = useState({});
+  // Seleção individual de quais itens serão enviados para a máquina agora
+  const [itensSelecionados, setItensSelecionados] = useState(new Set());
 
   // Inicializa o roteiro quando abre com um novo pedido
   useEffect(() => {
     if (!open || !itensCD || itensCD.length === 0) {
       setRoteiroPorItem({});
+      setItensSelecionados(new Set());
       return;
     }
 
     const inicial = {};
+    const inicialSelecionados = new Set();
     itensCD.forEach((it, idx) => {
       const itemKey = it._idx != null ? it._idx : idx;
+      inicialSelecionados.add(itemKey);
       // Heurística de sugestão inteligente baseada nas medidas extraídas
       const descItem = it.descricao || it.produto || "";
       const unid = normalizarUnidadeMedidaItem(it, "cd");
@@ -148,7 +153,25 @@ export default function ModalRoteamentoCD({
     });
 
     setRoteiroPorItem(inicial);
+    setItensSelecionados(inicialSelecionados);
   }, [open, itensCD]);
+
+  const handleToggleSelecionarItem = (itemKey) => {
+    setItensSelecionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemKey)) next.delete(itemKey);
+      else next.add(itemKey);
+      return next;
+    });
+  };
+
+  const handleMarcarTodos = () => {
+    setItensSelecionados(new Set(itensCD.map((it, idx) => (it._idx != null ? it._idx : idx))));
+  };
+
+  const handleDesmarcarTodos = () => {
+    setItensSelecionados(new Set());
+  };
 
   // Alterna a seleção de uma máquina para um item específico
   const handleToggleMaquina = (itemKey, grupoId, maquinaId) => {
@@ -199,29 +222,35 @@ export default function ModalRoteamentoCD({
     return seq;
   };
 
-  // Validação: todos os materiais de C&D devem ter pelo menos 1 máquina escolhida
+  // Validação: todos os materiais de C&D selecionados devem ter pelo menos 1 máquina escolhida
   const itensValidados = useMemo(() => {
     return itensCD.map((it, idx) => {
       const itemKey = it._idx != null ? it._idx : idx;
       const cfg = roteiroPorItem[itemKey];
       const roteiro = obterRoteiroOrdenado(cfg);
+      const isSelecionado = itensSelecionados.has(itemKey);
       return {
         item: it,
         itemKey,
+        isSelecionado,
         valido: roteiro.length > 0,
         roteiro
       };
     });
-  }, [itensCD, roteiroPorItem]);
+  }, [itensCD, roteiroPorItem, itensSelecionados]);
 
-  const todosValidos = itensValidados.length > 0 && itensValidados.every(v => v.valido);
+  const itensParaEnviar = itensValidados.filter((v) => v.isSelecionado);
+  const temItensSelecionados = itensParaEnviar.length > 0;
+  const todosSelecionadosValidos = temItensSelecionados && itensParaEnviar.every((v) => v.valido);
 
   const handleConfirmarEnvio = () => {
-    if (!todosValidos) return;
+    if (!todosSelecionadosValidos) return;
 
-    // Constrói o mapa de roteamento consolidado
+    // Constrói o mapa de roteamento consolidado APENAS dos itens selecionados
     const roteiroFinalPorItem = {};
-    itensValidados.forEach(v => {
+    const indicesAlvo = [];
+    itensParaEnviar.forEach((v) => {
+      indicesAlvo.push(v.itemKey);
       roteiroFinalPorItem[v.itemKey] = {
         maquinas: v.roteiro,
         maquinaInicial: v.roteiro[0],
@@ -235,7 +264,8 @@ export default function ModalRoteamentoCD({
 
     onConfirmar(roteiroFinalPorItem, {
       pedido,
-      roteiroFinalPorItem
+      roteiroFinalPorItem,
+      indicesAlvo
     });
   };
 
@@ -273,13 +303,53 @@ export default function ModalRoteamentoCD({
           )}
         </DialogHeader>
 
+        {/* 🌟 Barra de Seleção de Materiais para Distribuição Pontual */}
+        <div className="flex items-center justify-between gap-3 px-5 py-2.5 bg-slate-100 dark:bg-slate-900 border-b border-border flex-wrap shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              Materiais a enviar agora:
+            </span>
+            <Badge className="bg-orange-500 text-white font-extrabold text-xs">
+              {itensSelecionados.size} de {itensCD.length} selecionado{itensCD.length > 1 ? "s" : ""}
+            </Badge>
+            {itensSelecionados.size < itensCD.length && (
+              <span className="text-[11px] text-muted-foreground italic">
+                (os {itensCD.length - itensSelecionados.size} desmarcados continuarão pendentes no PCP)
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleMarcarTodos}
+              className="h-7 text-xs font-bold gap-1 cursor-pointer"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              Marcar Todos
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleDesmarcarTodos}
+              className="h-7 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              Desmarcar Todos
+            </Button>
+          </div>
+        </div>
+
         {/* Lista de Materiais de Corte & Dobra */}
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
           {itensCD.map((it, idx) => {
             const itemKey = it._idx != null ? it._idx : idx;
+            const isSelecionado = itensSelecionados.has(itemKey);
             const cfg = roteiroPorItem[itemKey] || {};
             const roteiroAtual = obterRoteiroOrdenado(cfg);
-            const isValido = roteiroAtual.length > 0;
+            const isValido = !isSelecionado || roteiroAtual.length > 0;
 
             const descItem = it.descricao || it.produto || "Material C&D";
             const unid = normalizarUnidadeMedidaItem(it, "cd");
@@ -289,21 +359,48 @@ export default function ModalRoteamentoCD({
               <div
                 key={itemKey}
                 className={`rounded-2xl border-2 transition-all p-4 space-y-4 ${
-                  isValido
+                  !isSelecionado
+                    ? "border-slate-300 dark:border-slate-800 bg-muted/20 opacity-60 border-dashed"
+                    : isValido
                     ? "border-border bg-card shadow-xs"
                     : "border-red-400 bg-red-500/5 shadow-sm"
                 }`}
               >
-                {/* Cabeçalho do Material */}
+                {/* Cabeçalho do Material com Checkbox de Envio */}
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="space-y-1 min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-black px-2 py-0.5 rounded bg-orange-500/10 text-orange-700 dark:text-orange-300 border border-orange-500/30">
-                        Material #{idx + 1}
-                      </span>
-                      <h4 className="font-bold text-sm text-foreground truncate">
-                        {it.produto || descItem}
-                      </h4>
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <input
+                        type="checkbox"
+                        id={`check-item-envio-${itemKey}`}
+                        checked={isSelecionado}
+                        onChange={() => handleToggleSelecionarItem(itemKey)}
+                        className="w-4 h-4 text-orange-600 rounded border-slate-300 focus:ring-orange-500 cursor-pointer"
+                      />
+                      <label
+                        htmlFor={`check-item-envio-${itemKey}`}
+                        className="cursor-pointer flex items-center gap-2 flex-wrap"
+                      >
+                        <span className={`text-xs font-black px-2 py-0.5 rounded border ${
+                          isSelecionado
+                            ? "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/30"
+                            : "bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300"
+                        }`}>
+                          Material #{idx + 1}
+                        </span>
+                        <h4 className={`font-bold text-sm truncate ${isSelecionado ? "text-foreground" : "text-muted-foreground line-through"}`}>
+                          {it.produto || descItem}
+                        </h4>
+                      </label>
+                      {isSelecionado ? (
+                        <Badge className="bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border border-emerald-400 text-[10px] font-bold">
+                          ✓ Enviar para produção
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-slate-500 border-slate-300 text-[10px]">
+                          ⏸ Fica pendente no PCP
+                        </Badge>
+                      )}
                     </div>
 
                     <p className="text-xs text-muted-foreground">
@@ -511,15 +608,20 @@ export default function ModalRoteamentoCD({
         {/* Rodapé com validação */}
         <DialogFooter className="p-4 border-t border-border bg-card/60 flex items-center justify-between gap-3">
           <div className="text-xs text-muted-foreground">
-            {!todosValidos ? (
+            {!temItensSelecionados ? (
+              <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+                <AlertCircle className="w-4 h-4" />
+                Selecione pelo menos 1 material acima para enviar às máquinas.
+              </span>
+            ) : !todosSelecionadosValidos ? (
               <span className="text-red-600 font-semibold flex items-center gap-1">
                 <AlertCircle className="w-4 h-4" />
-                Preencha pelo menos 1 etapa em cada material acima para liberar o envio.
+                Preencha pelo menos 1 máquina para cada material selecionado acima.
               </span>
             ) : (
               <span className="text-emerald-600 font-semibold flex items-center gap-1">
                 <CheckCircle2 className="w-4 h-4" />
-                Todos os materiais roteados com sucesso! Pronto para distribuir às máquinas.
+                {itensParaEnviar.length} material(is) pronto(s) para distribuição! (Os demais ficarão pendentes no PCP)
               </span>
             )}
           </div>
@@ -537,7 +639,7 @@ export default function ModalRoteamentoCD({
             <Button
               type="button"
               onClick={handleConfirmarEnvio}
-              disabled={!todosValidos || distribuindo}
+              disabled={!todosSelecionadosValidos || distribuindo}
               className="bg-orange-500 hover:bg-orange-600 text-white font-bold gap-2 px-5 shadow-sm cursor-pointer"
             >
               {distribuindo ? (
@@ -545,7 +647,7 @@ export default function ModalRoteamentoCD({
               ) : (
                 <>
                   <Factory className="w-4 h-4" />
-                  Confirmar e Distribuir Direto
+                  Confirmar e Distribuir ({itensParaEnviar.length})
                 </>
               )}
             </Button>

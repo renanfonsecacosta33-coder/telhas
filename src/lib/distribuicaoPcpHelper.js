@@ -119,9 +119,16 @@ export async function distribuirPedidoPCP({ pedido, bobinasEstoque = [], filialA
   const finais = getItens(frescos).map((it, idx) => {
     if (!indices.has(idx) || it.concluido || it.status === "concluido") return it;
     const programacao = itensProgramados?.[idx] ? { maquina: itensProgramados[idx].maquina, data_programada: itensProgramados[idx].data_programada } : {};
-    if (auto && classGrupo(it) === "telha") return { ...it, ...programacao, ...(resultado.itensAtualizadosMap[idx] || { distribuido: false, status: "pendente" }) };
-    if (classGrupo(it) === "cd" && resultadoCD.itensAtualizadosMap[idx]) return { ...it, ...programacao, ...resultadoCD.itensAtualizadosMap[idx], distribuido: true, status: "distribuido" };
-    return { ...it, ...programacao, distribuido: true, status: it.status === "em_producao" ? "em_producao" : "distribuido" };
+    if (auto && classGrupo(it) === "telha") {
+      return { ...it, ...programacao, ...(resultado.itensAtualizadosMap[idx] || { distribuido: false, status: "pendente" }) };
+    }
+    if (classGrupo(it) === "cd") {
+      if (resultadoCD.itensAtualizadosMap[idx]) {
+        return { ...it, ...programacao, ...resultadoCD.itensAtualizadosMap[idx], distribuido: true, status: "distribuido" };
+      }
+      return { ...it, ...programacao, distribuido: false, status: "pendente" };
+    }
+    return { ...it, ...programacao, distribuido: false, status: "pendente" };
   });
   const pendente = finais.some(it => !it.concluido && it.status !== "concluido" && !it.distribuido);
   const concluido = finais.every(it => it.concluido || it.status === "concluido");

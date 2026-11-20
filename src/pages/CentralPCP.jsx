@@ -1640,14 +1640,15 @@ export default function CentralPCP() {
     }
   };
 
-  const handleConfirmarRoteamentoCD = async (dadosRoteamento) => {
+  const handleConfirmarRoteamentoCD = async (dadosRoteamento, meta = null) => {
     if (!modalRoteamentoCD.pedido) return;
     const pedidoAlvo = modalRoteamentoCD.pedido;
     const callbackApos = modalRoteamentoCD.callbackAposRoteamento;
     setModalRoteamentoCD({ aberto: false, pedido: null, itensCD: [], callbackAposRoteamento: null });
     const roteiroLimpo = dadosRoteamento?.roteiroFinalPorItem || dadosRoteamento;
+    const indicesAlvo = meta?.indicesAlvo || dadosRoteamento?.indicesAlvo || null;
     try {
-      await handleDistribuir(pedidoAlvo, roteiroLimpo);
+      await handleDistribuir(pedidoAlvo, roteiroLimpo, indicesAlvo);
       if (typeof callbackApos === "function") {
         setTimeout(() => callbackApos(roteiroLimpo), 200);
       }

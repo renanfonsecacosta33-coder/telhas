@@ -22,7 +22,7 @@ export default function useDistribuicaoPcp({
   const [distribuindo, setDistribuindo] = useState(false);
   const envioAtivo = useRef(false);
 
-  const handleDistribuir = async (pedido, roteiroCDPorItem = null) => {
+  const handleDistribuir = async (pedido, roteiroCDPorItem = null, indicesAlvo = null) => {
     if (envioAtivo.current) return;
     envioAtivo.current = true;
     setDistribuindo(true); iniciarEnvio([pedido.id]);
@@ -32,6 +32,7 @@ export default function useDistribuicaoPcp({
         bobinasEstoque,
         filialAtiva,
         roteiroCDPorItem,
+        indicesAlvo,
         usuarioNome
       });
 
