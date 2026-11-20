@@ -8,6 +8,89 @@ import { finalizarOpsDoPedido } from "@/lib/conciliacaoPcpMaquinasHelper";
 import { notificarStatus } from "@/lib/biNotificador";
 
 /**
+ * Normaliza qualquer variação de nome de máquina de Corte & Dobra
+ * para a chave canônica reconhecida pelos painéis das máquinas:
+ * - "DOBRA 3M"
+ * - "CORTE 3M"
+ * - "CORTE 6M"
+ * - "DOBRA FUNDO 6M"
+ * - "DOBRA INICIO 6M"
+ * - "DOBRADEIRA 4M"
+ * - "PERFILADEIRA"
+ * - "DESBOBINADEIRA 01"
+ * - "DESBOBINADEIRA 02"
+ * - "LASER"
+ */
+export function normalizarChaveMaquinaCD(nome) {
+  if (!nome) return "";
+  const s = String(nome)
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // Desbobinadeiras
+  if (s.includes("DESBOBINAD")) {
+    if (s.includes("02") || s.includes(" 2")) return "DESBOBINADEIRA 02";
+    return "DESBOBINADEIRA 01";
+  }
+
+  // Dobradeiras 6m (Fundo vs Início)
+  if ((s.includes("DOBRA") || s.includes("DOBRADEIRA")) && s.includes("6")) {
+    if (s.includes("FUNDO")) return "DOBRA FUNDO 6M";
+    if (s.includes("INICIO") || s.includes("INIC")) return "DOBRA INICIO 6M";
+    return "DOBRA FUNDO 6M";
+  }
+
+  // Dobra 4m
+  if ((s.includes("DOBRA") || s.includes("DOBRADEIRA")) && s.includes("4")) {
+    return "DOBRADEIRA 4M";
+  }
+
+  // Dobra 3m / Dobradeira 3m
+  if ((s.includes("DOBRA") || s.includes("DOBRADEIRA")) && s.includes("3")) {
+    return "DOBRA 3M";
+  }
+
+  // Corte 6m / Guilhotina 6m
+  if ((s.includes("CORTE") || s.includes("GUILHOTINA")) && s.includes("6")) {
+    return "CORTE 6M";
+  }
+
+  // Corte 3m / Guilhotina 3m
+  if ((s.includes("CORTE") || s.includes("GUILHOTINA")) && s.includes("3")) {
+    return "CORTE 3M";
+  }
+
+  // Perfiladeira
+  if (s.includes("PERFIL")) return "PERFILADEIRA";
+
+  // Laser
+  if (s.includes("LASER")) return "LASER";
+
+  return s;
+}
+
+/**
+ * Compara se duas identificações de máquinas de Corte & Dobra se referem
+ * à mesma máquina física na fábrica, resolvendo variações como:
+ * "DOBRA 3M" vs "DOBRADEIRA 3M" vs "Dobradeira 3m"
+ * "CORTE 3M" vs "GUILHOTINA 3M" vs "Guilhotina 3m"
+ */
+export function ehMesmaMaquinaCD(maqA, maqB) {
+  if (!maqA || !maqB) return false;
+  if (maqA === maqB) return true;
+  const kA = normalizarChaveMaquinaCD(maqA);
+  const kB = normalizarChaveMaquinaCD(maqB);
+  if (kA && kB && kA === kB) return true;
+
+  const cleanA = String(maqA).toUpperCase().trim();
+  const cleanB = String(maqB).toUpperCase().trim();
+  return cleanA === cleanB;
+}
+
+/**
  * Roteia diretamente os itens de Corte & Dobra do pedido para o chão de fábrica
  * criando a OP na 1ª máquina do roteiro escolhido pelo PCP.
  *
@@ -413,6 +496,7 @@ export async function avancarProximaEtapaRoteiroCD(ordemAtual, entidadeOrigem = 
 
   // 5. Há próxima máquina no roteiro (ex.: Desbobinadeira ➔ Guilhotina, ou Guilhotina ➔ Dobradeira)
   const proximaMaquina = roteiro[proximoIndice];
+  const maquinaCanonica = normalizarChaveMaquinaCD(proximaMaquina) || proximaMaquina;
   const UNIDADES_VALIDAS = ["Matriz AJL", "Pinhais", "Ivaiporã", "Ponta Grossa"];
   let filialValida = ordemAtual.unidade;
   if (!UNIDADES_VALIDAS.includes(filialValida)) {
@@ -421,8 +505,8 @@ export async function avancarProximaEtapaRoteiroCD(ordemAtual, entidadeOrigem = 
 
   const payloadProxima = {
     data: dataHoje,
-    maquina: proximaMaquina,
-    maquina_inicial: roteiro[0] || proximaMaquina,
+    maquina: maquinaCanonica,
+    maquina_inicial: normalizarChaveMaquinaCD(roteiro[0]) || roteiro[0] || maquinaCanonica,
     unidade: filialValida,
     numero_pedido: numPedLimpo,
     cliente: ordemAtual.cliente || pedOdoo?.cliente_nome || "",

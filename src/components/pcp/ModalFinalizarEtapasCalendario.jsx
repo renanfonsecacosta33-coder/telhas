@@ -35,6 +35,7 @@ import { notificarStatus } from "@/lib/biNotificador";
 import { normalizarPrioridadeNivelNumerico } from "@/lib/prioridadeHelper";
 import { getItens } from "@/lib/pedidoOdooHelper";
 import { opDaMesmaOf } from "@/lib/opVinculoSeguro";
+import { normalizarChaveMaquinaCD, ehMesmaMaquinaCD } from "@/lib/roteamentoCorteDobraHelper";
 
 /**
  * Dialog interativo para seleção dinâmica e finalização individual de etapas de produção
@@ -417,27 +418,38 @@ export default function ModalFinalizarEtapasCalendario({
               }
 
               // B. Atualiza ou cria a OP na máquina destino (OrdemMaquinaCD)
-              const opsCD = await base44.entities.OrdemMaquinaCD.filter({
-                numero_pedido: numPedAlvo
-              }).catch(() => []);
+              const maquinaCanonica = normalizarChaveMaquinaCD(maquinaDestino) || maquinaDestino;
+              const numPedLimpo = String(numPedAlvo || "").replace(/^#/, "").trim();
 
-              const opViva = opsCD.find(o => o.status !== "finalizado" && o.status !== "cancelado");
+              let opsCD = [];
+              if (numPedLimpo) {
+                opsCD = await base44.entities.OrdemMaquinaCD.filter({ numero_pedido: numPedLimpo }).catch(() => []);
+                if (!opsCD || opsCD.length === 0) {
+                  opsCD = await base44.entities.OrdemMaquinaCD.filter({ numero_pedido: `#${numPedLimpo}` }).catch(() => []);
+                }
+              }
+              if ((!opsCD || opsCD.length === 0) && targetId) {
+                opsCD = await base44.entities.OrdemMaquinaCD.filter({ pedido_odoo_id: targetId }).catch(() => []);
+              }
+
+              const opViva = (opsCD || []).find(o => o.status !== "finalizado" && o.status !== "cancelado");
               if (opViva) {
                 await base44.entities.OrdemMaquinaCD.update(opViva.id, {
-                  maquina: maquinaDestino,
+                  maquina: maquinaCanonica,
                   status: "pendente",
+                  data: todayIso,
                   data_programada_pcp: todayIso
                 }).catch(() => {});
               } else {
                 const primeiroIt = itensAtuais[0] || {};
                 await base44.entities.OrdemMaquinaCD.create({
-                  numero_pedido: String(numPedAlvo).replace(/^#/, "").trim(),
+                  numero_pedido: numPedLimpo,
                   cliente: targetPed.cliente_nome || targetPed.cliente || "Cliente",
                   vendedor: targetPed.vendedor_nome || "—",
                   tipo_peca: primeiroIt.produto || targetPed.produto || "Corte e Dobra",
                   dimensoes_livres: primeiroIt.descricao || targetPed.descricao || "",
                   quantidade: Number(primeiroIt.quantidade) || 1,
-                  maquina: maquinaDestino,
+                  maquina: maquinaCanonica,
                   status: "pendente",
                   data: todayIso,
                   data_entrega: targetPed.data_entrega || todayIso,

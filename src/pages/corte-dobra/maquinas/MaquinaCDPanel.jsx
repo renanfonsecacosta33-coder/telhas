@@ -28,6 +28,7 @@ import HistoricoERelatorioMaquinaModal from "@/components/maquinas/HistoricoERel
 import AlertaCancelamentoPcpBanner from "@/components/maquinas/AlertaCancelamentoPcpBanner";
 import StatusRedeBadge from "@/components/common/StatusRedeBadge";
 import { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
+import { ehMesmaMaquinaCD } from "@/lib/roteamentoCorteDobraHelper";
 
 export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const { filialAtiva } = useFilial();
@@ -221,7 +222,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   });
 
   const todasOrdensDaMaquina = useMemo(
-    () => ordens.filter(o => o.maquina === maquinaId),
+    () => ordens.filter(o => ehMesmaMaquinaCD(o.maquina, maquinaId)),
     [ordens, maquinaId]
   );
 

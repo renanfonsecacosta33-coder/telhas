@@ -512,28 +512,51 @@ export async function processarConclusaoEtapas({
 
       // Se for Corte & Dobra:
       if (proximaEtapa.setor === "cd") {
-        const opsCD = await base44.entities.OrdemMaquinaCD.filter({
-          numero_pedido: pedido.numero_pedido
-        }).catch(() => []);
+        const maquinaCanonica = (function(nome) {
+          if (!nome) return "";
+          const s = String(nome).toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+          if (s.includes("DESBOBINAD")) return s.includes("02") || s.includes(" 2") ? "DESBOBINADEIRA 02" : "DESBOBINADEIRA 01";
+          if ((s.includes("DOBRA") || s.includes("DOBRADEIRA")) && s.includes("6")) return s.includes("INICIO") ? "DOBRA INICIO 6M" : "DOBRA FUNDO 6M";
+          if ((s.includes("DOBRA") || s.includes("DOBRADEIRA")) && s.includes("4")) return "DOBRADEIRA 4M";
+          if ((s.includes("DOBRA") || s.includes("DOBRADEIRA")) && s.includes("3")) return "DOBRA 3M";
+          if ((s.includes("CORTE") || s.includes("GUILHOTINA")) && s.includes("6")) return "CORTE 6M";
+          if ((s.includes("CORTE") || s.includes("GUILHOTINA")) && s.includes("3")) return "CORTE 3M";
+          return s;
+        })(maquinaDestino) || maquinaDestino;
+
+        const numPedLimpo = String(pedido.numero_pedido || "").replace(/^#/, "").trim();
+        let opsCD = [];
+        if (numPedLimpo) {
+          opsCD = await base44.entities.OrdemMaquinaCD.filter({ numero_pedido: numPedLimpo }).catch(() => []);
+          if (!opsCD || opsCD.length === 0) {
+            opsCD = await base44.entities.OrdemMaquinaCD.filter({ numero_pedido: `#${numPedLimpo}` }).catch(() => []);
+          }
+        }
+        if ((!opsCD || opsCD.length === 0) && pedido.id) {
+          opsCD = await base44.entities.OrdemMaquinaCD.filter({ pedido_odoo_id: pedido.id }).catch(() => []);
+        }
 
         if (opsCD && opsCD.length > 0) {
           for (const op of opsCD) {
             await base44.entities.OrdemMaquinaCD.update(op.id, {
-              maquina: maquinaDestino,
-              status: "pendente"
+              maquina: maquinaCanonica,
+              status: "pendente",
+              data: todayIso,
+              data_programada_pcp: todayIso
             });
           }
         } else {
           await base44.entities.OrdemMaquinaCD.create({
-            numero_pedido: pedido.numero_pedido,
+            numero_pedido: numPedLimpo,
             cliente: pedido.cliente_nome || "Cliente",
             vendedor: pedido.vendedor_nome || "—",
             produto: item?.produto || pedido.produto || "Corte e Dobra",
-            maquina: maquinaDestino,
+            maquina: maquinaCanonica,
             status: "pendente",
             data: todayIso,
             data_entrega: pedido.data_entrega || todayIso,
-            unidade: pedido.unidade || "Matriz AJL"
+            unidade: pedido.unidade || "Matriz AJL",
+            pedido_odoo_id: pedido.id
           }).catch(() => {});
         }
       } else {
