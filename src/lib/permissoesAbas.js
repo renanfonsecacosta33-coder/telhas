@@ -14,10 +14,7 @@ export const ESTRUTURA_ABAS_APLICATIVOS = [
       { id: "telhas_estoque_dashboard", label: "Estoque por Espessura", path: "/estoque-dashboard" },
       { id: "telhas_bobinas", label: "Bobinas", path: "/bobinas" },
       { id: "telhas_isopor", label: "Estoque Isopor (EPS)", path: "/isopor" },
-      { id: "telhas_corte_eps", label: "Corte de EPS", path: "/maquina/corte-eps" },
       { id: "telhas_cola", label: "Cola", path: "/cola" },
-      { id: "telhas_estoque", label: "Outros Produtos", path: "/estoque" },
-      { id: "telhas_mapa", label: "Mapa do Barracão", path: "/mapa-barracao" },
       { id: "telhas_logistica", label: "Logística Telhas", path: "/telhas/logistica" },
       { id: "telhas_configuracoes", label: "Configurações da Fábrica", path: "/configuracoes" },
     ]

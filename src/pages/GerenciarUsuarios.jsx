@@ -66,7 +66,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ESTRUTURA_ABAS_APLICATIVOS, extrairAbasPermitidas } from "@/lib/permissoesAbas";
 
-const MAQUINAS_TELHAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM", "CORTE DE EPS"];
+const MAQUINAS_TELHAS = ["TP - 25", "TP - 40", "ONDULADA", "COLONIAL", "BANDEJA", "DESBOBINADOR", "CUMEEIRA", "COLAGEM"];
 const MAQUINAS_CD = ["CORTE 3M", "CORTE 6M", "DOBRA 3M", "DOBRA FUNDO 6M", "DOBRA INICIO 6M", "PERFILADEIRA", "DESBOBINADEIRA 01", "DESBOBINADEIRA 02"];
 const MAQUINAS_EXPEDICAO = ["FRISADA"];
 const UNIDADES = ["Matriz AJL", "Pinhais", "Ivaiporã", "Ponta Grossa"];

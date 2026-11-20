@@ -3,7 +3,7 @@ import { Toaster as SonnerToaster } from "@/components/ui/sonner"
 import PwaInstallPrompt from "@/components/pwa/PwaInstallPrompt"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { ThemeProvider } from '@/lib/ThemeContext';
@@ -139,7 +139,7 @@ const AuthenticatedApp = () => {
         <Route path="/" element={<DashboardTelhas />} />
         <Route path="/bobinas" element={<Bobinas />} />
         <Route path="/isopor" element={<Isopor />} />
-        <Route path="/estoque" element={<Estoque />} />
+        <Route path="/estoque" element={<Navigate to="/producao" replace />} />
         <Route path="/producao" element={<Producao />} />
         <Route path="/configuracoes" element={<Configuracoes />} />
         <Route path="/usuarios-equipe" element={<UsuariosEquipe />} />
@@ -151,7 +151,7 @@ const AuthenticatedApp = () => {
         <Route path="/maquina/desbobinador" element={<Desbobinador />} />
         <Route path="/maquina/cumeeira" element={<Cumeeira />} />
         <Route path="/maquina/colagem" element={<Colagem />} />
-        <Route path="/maquina/corte-eps" element={<CorteEPS />} />
+        <Route path="/maquina/corte-eps" element={<Navigate to="/producao" replace />} />
         <Route path="/dashboard-producao" element={<DashboardProducao />} />
         <Route path="/dashboard/tp40" element={<DashboardTP40 />} />
         <Route path="/dashboard/tp25" element={<DashboardTP25 />} />
@@ -164,7 +164,7 @@ const AuthenticatedApp = () => {
         <Route path="/calculadora-isopor" element={<CalculadoraIsopor />} />
         <Route path="/dashboard-performance" element={<DashboardPerformance />} />
         <Route path="/cola" element={<Cola />} />
-        <Route path="/mapa-barracao" element={<MapaBarracaoTelhas />} />
+        <Route path="/mapa-barracao" element={<Navigate to="/producao" replace />} />
         <Route path="/dashboard-telhas" element={<DashboardTelhas />} />
         <Route path="/estoque-dashboard" element={<DashboardEstoque setorInicial="telhas" backUrl="/producao" backLabel="Voltar para Telhas" />} />
         <Route path="/telhas/estoque-dashboard" element={<DashboardEstoque setorInicial="telhas" backUrl="/producao" backLabel="Voltar para Telhas" />} />

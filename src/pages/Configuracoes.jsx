@@ -379,7 +379,7 @@ export default function Configuracoes() {
             ) : categorias.length === 0 ? (
               <div className="p-8 text-center">
                 <p className="text-sm text-muted-foreground">Nenhuma categoria criada ainda.</p>
-                <p className="text-xs text-muted-foreground mt-1">As rotas fixas (Bobinas, Isopor, Outros Produtos) sempre aparecem.</p>
+                <p className="text-xs text-muted-foreground mt-1">As rotas fixas (Bobinas, Isopor, Cola) sempre aparecem.</p>
               </div>
             ) : (
               <div className="divide-y divide-border">

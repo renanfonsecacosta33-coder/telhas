@@ -22,10 +22,7 @@ const FIXED_NAV = [
   { path: "/estoque-dashboard", label: "Estoque por Espessura", icon: Layers },
   { path: "/bobinas", label: "Bobinas", icon: Circle },
   { path: "/isopor", label: "Estoque Isopor", icon: Snowflake },
-  { path: "/maquina/corte-eps", label: "Corte de EPS", icon: Scissors },
   { path: "/cola", label: "Cola", icon: FlaskConical },
-  { path: "/estoque", label: "Outros Produtos", icon: Package },
-  { path: "/mapa-barracao", label: "Mapa do Barracão", icon: Map },
   { path: "/logistica", label: "Logística", icon: Truck },
 ];
 
@@ -38,7 +35,6 @@ const MAQUINA_ROUTE_MAP = {
   "DESBOBINADOR": "/maquina/desbobinador",
   "CUMEEIRA": "/maquina/cumeeira",
   "COLAGEM": "/maquina/colagem",
-  "CORTE DE EPS": "/maquina/corte-eps",
 };
 
 function parseMaquinas(maquina) {

@@ -233,24 +233,6 @@ export default function Dashboard() {
         </div>
       ),
     },
-    {
-      title: "Outros Produtos",
-      icon: Package,
-      path: "/estoque",
-      count: totalProdutos,
-      color: "green",
-      desc: categorias.map((c) => {
-        const n = produtos.filter((p) => p.categoria === c).length;
-        return n > 0 ? `${n} ${c.toLowerCase()}` : null;
-      }).filter(Boolean).join(", ") || "Bobininha, Cumeeira, Cola, Consumível",
-      items: produtos.slice(0, 4),
-      renderItem: (p) => (
-        <div key={p.id} className="flex items-center justify-between py-2">
-          <span className="text-sm font-medium">{p.nome}</span>
-          <Badge variant="outline" className="text-xs">{p.categoria}</Badge>
-        </div>
-      ),
-    },
   ];
 
   return (
