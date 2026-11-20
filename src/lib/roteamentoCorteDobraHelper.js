@@ -186,42 +186,28 @@ export async function rotearItensCorteDobraDireto({
 
     if (isDesbInicial) {
       // ── 1. Se a 1ª etapa for DESBOBINADEIRA: cria em OrdemDesbobinadeira ──
-      // 🛡️ O Base44 exige obrigatoriamente bobina_id: field required.
-      // Busca automaticamente a melhor bobina aberta no estoque para a bitola do pedido.
-      const bobinasAbertas = (listaBobinas || []).filter(b =>
-        !b.arquivada &&
-        b.status !== "fechada" &&
-        b.status !== "esgotada" &&
-        (b.peso_atual == null || b.peso_atual > 0)
-      );
+      // 🛡️ REGRA DE OURO (AJL):
+      // No Corte & Dobra, BOBINAS SÓ SÃO USADAS nas máquinas DESBOBINADEIRA 01 e DESBOBINADEIRA 02.
+      // E SE O USUÁRIO / PCP NÃO SELECIONOU UMA BOBINA, NUNCA ATRIBUIR AUTOMATICAMENTE!
+      const bobinaManualId = it.bobina_id || roteiroCfg?.bobina_id || null;
+      let bobinaIdFinal = "";
+      let bobinaDescFinal = "";
+      let espUtilizadaFinal = espAlvoStr || null;
 
-      let bobinaEscolhida = null;
-      if (!isNaN(espAlvo) && espAlvo > 0) {
-        // Prioriza mesma filial e espessura aproximada (±0.25mm)
-        bobinaEscolhida = bobinasAbertas.find(b => {
-          const matchFilial = !b.unidade || b.unidade === filialValida;
-          if (!matchFilial) return false;
-          const espBob = parseFloat(String(b.espessura_utilizada || b.chapa || b.espessura_real || b.espessura_mm || "").replace(",", "."));
-          return !isNaN(espBob) && Math.abs(espBob - espAlvo) <= 0.25;
-        });
-
-        if (!bobinaEscolhida) {
-          bobinaEscolhida = bobinasAbertas.find(b => {
-            const espBob = parseFloat(String(b.espessura_utilizada || b.chapa || b.espessura_real || b.espessura_mm || "").replace(",", "."));
-            return !isNaN(espBob) && Math.abs(espBob - espAlvo) <= 0.25;
-          });
-        }
+      if (bobinaManualId) {
+        // Usuário escolheu explicitamente uma bobina
+        const bobinaEscolhida = (listaBobinas || []).find(b => b.id === bobinaManualId || b.codigo === bobinaManualId);
+        bobinaIdFinal = bobinaEscolhida?.id || bobinaManualId;
+        bobinaDescFinal = bobinaEscolhida
+          ? `[${bobinaEscolhida.codigo || "CD"}] ${bobinaEscolhida.qualidade || "Galvanizado"} · ${bobinaEscolhida.espessura_utilizada || espAlvoStr || ""}mm`
+          : (it.bobina_descricao || "");
+        espUtilizadaFinal = bobinaEscolhida?.espessura_utilizada || espAlvoStr || null;
+      } else {
+        // 🛡️ Nenhuma bobina selecionada: fica limpa para o operador definir na máquina
+        bobinaIdFinal = "";
+        bobinaDescFinal = "";
+        espUtilizadaFinal = espAlvoStr || null;
       }
-
-      if (!bobinaEscolhida) {
-        bobinaEscolhida = bobinasAbertas.find(b => b.unidade === filialValida) || bobinasAbertas[0];
-      }
-
-      const bobinaIdFinal = bobinaEscolhida?.id || it.bobina_id || "BOBINA-PADRAO-CD";
-      const bobinaDescFinal = bobinaEscolhida
-        ? `[${bobinaEscolhida.codigo || "CD"}] ${bobinaEscolhida.qualidade || "Galvanizado"} · ${bobinaEscolhida.espessura_utilizada || espAlvoStr || "1.95"}mm`
-        : `Bobina Aço · ${espAlvoStr || "1.95"}mm`;
-      const espUtilizadaFinal = bobinaEscolhida?.espessura_utilizada || espAlvoStr || "1.95";
 
       const payloadDesb = {
         data: dataHoje,

@@ -299,18 +299,20 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
     return compativeis.length > 0 ? compativeis : abertas;
   }, [bobinas, espessuraFinal, novaEspessuraInput, o.material_espessura, mostrarTodasBobinas]);
 
-  // Limpeza da descrição da bobina (NUNCA exibe "GV mm" quebrado ou espaços em branco)
+  // Limpeza da descrição da bobina (NUNCA exibe "GV mm" quebrado, códigos duplicados ou bobina falsa)
   const bobinaDescricaoLimpa = useMemo(() => {
-    const cod = codigoBobinaExtraido ? `[${codigoBobinaExtraido}]` : "";
+    if (!o.bobina_id || o.bobina_id === "PENDENTE_MATERIAL" || o.bobina_id === "A_DEFINIR" || !o.bobina_descricao) {
+      return "A definir na máquina";
+    }
     let desc = String(o.bobina_descricao || "").trim();
     // Remove "mm" quebrado
     desc = desc.replace(/\bmm\b/gi, "").replace(/\s*·\s*$/, "").replace(/\s+/g, " ").trim();
     desc = desc.replace(/\bGV\b/g, "Galvanizado");
     if (desc === "Bobina" || desc === "Galvanizado" || !desc) {
-      return [cod, materialBobinaNome].filter(Boolean).join(" · ") || "Bobina Aço";
+      return codigoBobinaExtraido ? `[${codigoBobinaExtraido}] ${materialBobinaNome || "Galvanizado"}` : "A definir na máquina";
     }
     return desc;
-  }, [o.bobina_descricao, codigoBobinaExtraido, materialBobinaNome]);
+  }, [o.bobina_id, o.bobina_descricao, codigoBobinaExtraido, materialBobinaNome]);
 
   // Ação de salvar alteração rápida de Bobina / Espessura
   const handleSalvarEspessuraOuBobina = async () => {
@@ -714,7 +716,9 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                   <div>
                     <span className="text-slate-400 text-[10px] block font-bold">BOBINA UTILIZADA</span>
                     <strong className="font-mono text-slate-800 dark:text-slate-200">
-                      {codigoBobinaExtraido ? `[${codigoBobinaExtraido}] ` : ""}{bobinaDescricaoLimpa || "—"}
+                      {bobinaDescricaoLimpa.startsWith("[") || bobinaDescricaoLimpa.includes("definir")
+                        ? bobinaDescricaoLimpa
+                        : `${codigoBobinaExtraido ? `[${codigoBobinaExtraido}] ` : ""}${bobinaDescricaoLimpa}`}
                     </strong>
                   </div>
 
@@ -1012,7 +1016,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                   <div className="flex flex-col">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-black font-mono text-base sm:text-lg text-yellow-400 tracking-wide">
-                        {codigoBobinaExtraido ? `[${codigoBobinaExtraido}]` : "[BOBINA]"} {materialBobinaNome}
+                        {codigoBobinaExtraido ? `[${codigoBobinaExtraido}] ${materialBobinaNome}` : "Bobina: A definir na máquina"}
                       </span>
                       {larguraBobinaMm ? (
                         <span className="px-2 py-0.5 rounded text-xs font-bold bg-white/20 text-white border border-white/30 font-mono">
@@ -1054,7 +1058,7 @@ export default function OrdemDesbobinadiraRow({ ordem: o, onUpdate, onDelete, is
                     className="h-8 text-xs font-bold gap-1.5 bg-white/10 hover:bg-white/20 text-white border-white/20 shadow-xs"
                   >
                     <Layers className="w-3.5 h-3.5 text-yellow-300" />
-                    {espessuraFinal ? "Trocar / Ajustar Bobina" : "Definir Bobina"}
+                    {o.bobina_id && codigoBobinaExtraido ? "Trocar / Ajustar Bobina" : "Definir Bobina"}
                   </Button>
                 </div>
               </div>
