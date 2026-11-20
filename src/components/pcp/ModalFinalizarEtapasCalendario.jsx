@@ -75,6 +75,16 @@ export default function ModalFinalizarEtapasCalendario({
       const etapasDetectadas = identificarRoteiroDoPedido(pedido, ofItem);
 
       const base = ofItem || pedido;
+      const jaNaColagem = Boolean(
+        base.status === "aguardando_colagem" ||
+        base.maquina === "COLAGEM" ||
+        pedido.maquina === "COLAGEM" ||
+        base.perfilacao_concluida ||
+        pedido.perfilacao_concluida ||
+        String(base.onde_esta || "").toUpperCase().includes("COLAGEM") ||
+        String(pedido.onde_esta || "").toUpperCase().includes("COLAGEM")
+      );
+
       const inicializadas = etapasDetectadas.map((etp) => {
         let isConcluida = Boolean(etp.concluida);
         if (
@@ -83,12 +93,14 @@ export default function ModalFinalizarEtapasCalendario({
           (Number(base.percentual_concluido) || 0) >= 100
         ) {
           isConcluida = true;
-        } else if (etp.id === "telha_superior" || etp.id === "perfilacao_telha") {
-          if (
-            base.status === "aguardando_colagem" ||
-            base.maquina === "COLAGEM" ||
-            base.perfilacao_concluida
-          ) {
+        } else if (
+          etp.id === "telha_superior" ||
+          etp.id === "telha_inferior" ||
+          etp.id === "bandeja_inferior" ||
+          etp.id === "perfilacao_telha" ||
+          etp.id === "perfilacao_telha_simples"
+        ) {
+          if (jaNaColagem) {
             isConcluida = true;
           }
         }
@@ -407,7 +419,11 @@ export default function ModalFinalizarEtapasCalendario({
   const numPed = pedido.numero_pedido || pedido.id;
   const cliente = pedido.cliente_nome || pedido.cliente || "Cliente";
   const ofNome = ofAtiva?.of_nome || ofAtiva?.of_odoo_id || ofAtiva?.id;
-  const produtoNome = ofAtiva?.produto || ofAtiva?.descricao || pedido.produto || "Telhas / Perfis";
+
+  const itensOf = getItens(ofAtiva);
+  const primeiroItemOf = itensOf[0];
+  const produtoNome = primeiroItemOf?.produto || ofAtiva?.produto || pedido.produto || "";
+  const descricaoMedidas = primeiroItemOf?.descricao || ofAtiva?.descricao || "";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -432,8 +448,13 @@ export default function ModalFinalizarEtapasCalendario({
           <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
             Cliente: <strong className="text-slate-700 dark:text-slate-200">{cliente}</strong>
             {produtoNome && (
-              <span className="block text-[11px] text-slate-400 mt-0.5 truncate">
-                Material: {produtoNome}
+              <span className="block text-xs font-bold text-slate-800 dark:text-slate-100 mt-1 truncate" title={produtoNome}>
+                Produto: {produtoNome}
+              </span>
+            )}
+            {descricaoMedidas && descricaoMedidas !== produtoNome && (
+              <span className="block text-[11px] text-slate-500 dark:text-slate-400 italic mt-0.5 truncate" title={descricaoMedidas}>
+                Medidas: {descricaoMedidas}
               </span>
             )}
           </DialogDescription>

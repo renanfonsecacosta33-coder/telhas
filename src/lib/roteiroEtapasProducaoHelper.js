@@ -1,6 +1,6 @@
 import { base44 } from "@/api/base44Client";
 import { isTelhaBandeja } from "@/lib/bandejaHelper";
-import { detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
+import { detectarMaquinaTelha, getItens } from "@/lib/pedidoOdooHelper";
 import { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
 import { toast } from "sonner";
 
@@ -38,9 +38,27 @@ export function identificarRoteiroDoPedido(pedido, item = null) {
     item?.eps
   ];
 
+  // Extrai itens detalhados de ambos via getItens para garantir leitura dos itens_json
+  const itensDoItem = getItens(item);
+  const itensDoPedido = getItens(pedido);
+  [...itensDoItem, ...itensDoPedido].forEach((it) => {
+    partesTexto.push(it.produto, it.descricao, it.item_produto, it.modelo, it.eps, it.nome);
+  });
+
   if (pedido?.itens_json) {
     try {
       const its = typeof pedido.itens_json === "string" ? JSON.parse(pedido.itens_json) : pedido.itens_json;
+      if (Array.isArray(its)) {
+        its.forEach((it) => {
+          partesTexto.push(it.produto, it.descricao, it.item_produto, it.modelo, it.eps);
+        });
+      }
+    } catch {}
+  }
+
+  if (item?.itens_json) {
+    try {
+      const its = typeof item.itens_json === "string" ? JSON.parse(item.itens_json) : item.itens_json;
       if (Array.isArray(its)) {
         its.forEach((it) => {
           partesTexto.push(it.produto, it.descricao, it.item_produto, it.modelo, it.eps);
@@ -154,17 +172,19 @@ export function identificarRoteiroDoPedido(pedido, item = null) {
   }
 
   // ─────────────────────────────────────────────────────────────
-  // 2. CASO: TELHA SANDUÍCHE (Dupla vs Semi-Sanduíche / Manta)
+  // 2. CASO: TELHA SANDUÍCHE (Dupla vs Semi-Sanduíche / Manta / Na Colagem)
   // ─────────────────────────────────────────────────────────────
-  const temEps =
+  const temEpsOuColagem =
     Boolean(pedido.eps || item?.eps) ||
+    jaEstaNaColagem ||
     /\b(eps|isopor|sanduiche|sanduíche|manta|filme|termoacustica|termoacústica|semi[- ]?sanduiche)\b/i.test(textoCompleto);
 
-  if (temEps) {
-    // Verifica se é SANDUÍCHE DUPLO (Telha + EPS + Telha, ou tem chapa superior e inferior)
+  if (temEpsOuColagem) {
+    // Verifica se é SANDUÍCHE DUPLO (Telha + EPS + Telha, ou tem chapa superior e inferior, ou está na colagem sem ser filme/manta)
     const isSanduicheDuplo =
       /\b(telha\s*\+\s*eps\w*\s*\+\s*telha|telha\s*\+\s*isopor\s*\+\s*telha|sandu[ií]che\s*dupl[oa]|duplo|dupla)\b/i.test(textoCompleto) ||
-      (/\bsuperior\b/i.test(textoCompleto) && /\binferior\b/i.test(textoCompleto));
+      (/\bsuperior\b/i.test(textoCompleto) && /\binferior\b/i.test(textoCompleto)) ||
+      (jaEstaNaColagem && !textoCompleto.includes("manta") && !textoCompleto.includes("filme") && !textoCompleto.includes("semi"));
 
     if (isSanduicheDuplo) {
       // 3 Processos: Telha Superior + Telha Inferior + Colagem
@@ -212,10 +232,10 @@ export function identificarRoteiroDoPedido(pedido, item = null) {
       id: "telha_superior",
       ordem: 1,
       tag: "Telha Superior",
-      nome: `1. Perfiladeira Telha Superior (${maquinaBaseTelha})`,
+      nome: `1. Perfiladeira Telha (${maquinaBaseTelha})`,
       maquina: maquinaBaseTelha,
       setor: "telha",
-      descricao: "Perfilação da telha superior de aço",
+      descricao: "Perfilação da telha de aço",
       ativo: true,
       concluida: jaTotalmenteConcluido || jaEstaNaColagem
     });
