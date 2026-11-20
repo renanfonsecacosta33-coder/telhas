@@ -386,28 +386,39 @@ function rotearUnidadeProducao(params: {
  */
 export async function processarOdooWebhookCore(req: Request, unidadeForcada?: string): Promise<Response> {
   try {
-    // ── 1. Ler corpo da requisição (JSON direto ou Multipart/form-data com PDF) ──
+    // ── 1. Ler corpo da requisição (JSON direto ou Multipart/form-data com PDF ou urlencoded) ──
     let body: any = {};
     let rawBody = "";
     let pdfFile: File | null = null;
     let pdfNomeOriginal = "";
     const contentType = (req.headers.get("content-type") || "").toLowerCase();
 
-    if (contentType.includes("multipart/form-data") || contentType.includes("multipart/")) {
+    if (contentType.includes("multipart") || contentType.includes("form-data") || contentType.includes("urlencoded")) {
       try {
-        const formData = await req.formData();
-        const payloadRaw = formData.get("payload");
+        const reqClone = req.clone();
+        const formData = await reqClone.formData();
+        
+        let payloadRaw = formData.get("payload");
+        if (!payloadRaw) {
+          payloadRaw = formData.get("data") || formData.get("json") || formData.get("body");
+        }
+
         if (typeof payloadRaw === "string") {
-          body = JSON.parse(payloadRaw);
+          try {
+            body = JSON.parse(payloadRaw);
+          } catch {
+            try { body = JSON.parse(decodeURIComponent(payloadRaw)); } catch {}
+          }
         } else if (payloadRaw && typeof (payloadRaw as any).text === "function") {
-          body = JSON.parse(await (payloadRaw as any).text());
+          const txt = await (payloadRaw as any).text();
+          try { body = JSON.parse(txt); } catch {}
         }
 
         // Fallback: se por acaso os campos foram enviados diretamente no formData
         if (!body || Object.keys(body).length === 0 || !body.numero_pedido) {
           const directObj: Record<string, any> = {};
           for (const [k, v] of (formData as any).entries()) {
-            if (k !== "pdf_pedido" && typeof v === "string") {
+            if (k !== "pdf_pedido" && k !== "pdf" && typeof v === "string") {
               try {
                 directObj[k] = JSON.parse(v);
               } catch {
@@ -415,8 +426,12 @@ export async function processarOdooWebhookCore(req: Request, unidadeForcada?: st
               }
             }
           }
-          if (directObj.numero_pedido) {
-            body = { ...directObj, ...body };
+          if (directObj.numero_pedido || directObj.payload) {
+            if (directObj.payload && typeof directObj.payload === "object") {
+              body = { ...directObj.payload, ...body };
+            } else {
+              body = { ...directObj, ...body };
+            }
           }
         }
 
@@ -426,14 +441,39 @@ export async function processarOdooWebhookCore(req: Request, unidadeForcada?: st
           pdfNomeOriginal = (fileCandidate as any).name || "Pedido.pdf";
         }
       } catch (err) {
-        console.warn("[odooWebhook] Falha ao processar multipart/form-data:", err);
+        console.warn("[odooWebhook] Falha ao processar formData, tentando fallback raw:", err);
       }
-    } else {
+    }
+
+    // Fallback secundário: Se body ainda não tem numero_pedido, ler como raw text
+    if (!body || !body.numero_pedido) {
       try {
         rawBody = await req.text();
-        if (rawBody) body = JSON.parse(rawBody);
-      } catch {
-        // corpo não-JSON
+        if (rawBody && rawBody.trim()) {
+          try {
+            const parsed = JSON.parse(rawBody);
+            body = { ...parsed, ...body };
+          } catch {
+            if (rawBody.includes("payload=")) {
+              const params = new URLSearchParams(rawBody);
+              const p = params.get("payload");
+              if (p) {
+                try {
+                  body = { ...JSON.parse(p), ...body };
+                } catch {}
+              }
+            }
+            if (!body?.numero_pedido) {
+              const matchPed = rawBody.match(/["']?numero_pedido["']?\s*[:=]\s*["']([^"'\r\n&]+)["']/i);
+              if (matchPed && matchPed[1]) {
+                body = body || {};
+                body.numero_pedido = matchPed[1];
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[odooWebhook] Falha ao ler rawBody:", err);
       }
     }
 
