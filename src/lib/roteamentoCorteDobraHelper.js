@@ -1,8 +1,11 @@
 import { base44 } from "@/api/base44Client";
 import { format } from "date-fns";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
-import { normalizarUnidadeMedidaItem } from "@/lib/pedidoOdooHelper";
+import { normalizarUnidadeMedidaItem, getItens, classGrupo } from "@/lib/pedidoOdooHelper";
 import { extrairEspessuraDoTexto } from "@/lib/estoqueMaterialHelper";
+import { identificarRoteiroDoPedido } from "@/lib/roteiroEtapasProducaoHelper";
+import { finalizarOpsDoPedido } from "@/lib/conciliacaoPcpMaquinasHelper";
+import { notificarStatus } from "@/lib/biNotificador";
 
 /**
  * Roteia diretamente os itens de Corte & Dobra do pedido para o chão de fábrica
@@ -263,16 +266,38 @@ export async function rotearItensCorteDobraDireto({
 
 /**
  * Função responsável por avançar a OP para a próxima máquina do roteiro
- * quando o operador finaliza a etapa atual.
+ * quando o operador finaliza a etapa atual, atualizando automaticamente
+ * tanto a fila do chão de fábrica quanto o PedidoOdoo e o status na Central PCP.
  *
  * @param {Object} ordemAtual - Ordem finalizada (OrdemMaquinaCD ou OrdemDesbobinadeira)
  * @param {string} entidadeOrigem - "OrdemMaquinaCD" | "OrdemDesbobinadeira"
- * @returns {Promise<{ avancou: boolean, proximaMaquina?: string, novaOp?: Object }>}
+ * @returns {Promise<{ avancou: boolean, proximaMaquina?: string, novaOp?: Object, concluido?: boolean }>}
  */
 export async function avancarProximaEtapaRoteiroCD(ordemAtual, entidadeOrigem = "OrdemMaquinaCD") {
   if (!ordemAtual) return { avancou: false };
 
-  // Lê o roteiro de máquinas gravado na ordem
+  const dataHoje = format(new Date(), "yyyy-MM-dd");
+  const numPedLimpo = String(ordemAtual.numero_pedido || "").replace(/^#/, "").trim();
+
+  // 1. Localiza o PedidoOdoo correspondente
+  let pedOdoo = null;
+  try {
+    if (ordemAtual.pedido_odoo_id) {
+      pedOdoo = await base44.entities.PedidoOdoo.get(ordemAtual.pedido_odoo_id).catch(() => null);
+    }
+    if (!pedOdoo && numPedLimpo) {
+      const peds = await base44.entities.PedidoOdoo.filter({ numero_pedido: numPedLimpo }, "-created_date", 1).catch(() => []);
+      pedOdoo = peds?.[0] || null;
+      if (!pedOdoo) {
+        const pedsHash = await base44.entities.PedidoOdoo.filter({ numero_pedido: `#${numPedLimpo}` }, "-created_date", 1).catch(() => []);
+        pedOdoo = pedsHash?.[0] || null;
+      }
+    }
+  } catch (ePed) {
+    console.warn("[avancarProximaEtapaRoteiroCD] Falha ao consultar PedidoOdoo:", ePed);
+  }
+
+  // 2. Lê o roteiro de máquinas gravado na ordem ou recupera no pedido / itens
   let roteiro = [];
   try {
     roteiro = typeof ordemAtual.roteiro_maquinas === "string"
@@ -282,28 +307,116 @@ export async function avancarProximaEtapaRoteiroCD(ordemAtual, entidadeOrigem = 
     roteiro = [];
   }
 
-  if (!Array.isArray(roteiro) || roteiro.length <= 1) {
-    return { avancou: false, motivo: "sem_proxima_etapa" };
+  if (!Array.isArray(roteiro) || roteiro.length === 0) {
+    if (pedOdoo?.roteiro_maquinas) {
+      try {
+        roteiro = typeof pedOdoo.roteiro_maquinas === "string"
+          ? JSON.parse(pedOdoo.roteiro_maquinas)
+          : (Array.isArray(pedOdoo.roteiro_maquinas) ? pedOdoo.roteiro_maquinas : []);
+      } catch {}
+    }
+    if (!roteiro || roteiro.length === 0) {
+      const itensPed = pedOdoo ? getItens(pedOdoo) : [];
+      const itemComRoteiro = itensPed.find(i => i.roteiro_maquinas && i.roteiro_maquinas.length > 0);
+      if (itemComRoteiro) {
+        roteiro = Array.isArray(itemComRoteiro.roteiro_maquinas)
+          ? itemComRoteiro.roteiro_maquinas
+          : (typeof itemComRoteiro.roteiro_maquinas === "string" ? JSON.parse(itemComRoteiro.roteiro_maquinas) : []);
+      }
+    }
+    // Se ainda assim não encontrar, gera pelo helper ou usa o roteiro padrão de Corte e Dobra
+    if (!roteiro || roteiro.length === 0) {
+      if (pedOdoo) {
+        const etapasPed = identificarRoteiroDoPedido(pedOdoo, null, []);
+        roteiro = etapasPed.filter(e => e.ativo !== false).map(e => e.maquina);
+      }
+    }
+    if (!roteiro || roteiro.length === 0) {
+      roteiro = ["DESBOBINADEIRA 01", "GUILHOTINA 3M", "DOBRADEIRA 3M"];
+    }
   }
 
-  const indiceAtual = typeof ordemAtual.indice_etapa_atual === "number"
-    ? ordemAtual.indice_etapa_atual
-    : roteiro.indexOf(ordemAtual.maquina || ordemAtual.maquina_inicial);
+  // 3. Determina o índice da etapa atual com normalização inteligente
+  const maqAtualNorm = String(ordemAtual.maquina || ordemAtual.maquina_inicial || "").toUpperCase().trim();
+  let indiceAtual = typeof ordemAtual.indice_etapa_atual === "number" ? ordemAtual.indice_etapa_atual : -1;
+
+  if (indiceAtual < 0 || indiceAtual >= roteiro.length) {
+    indiceAtual = roteiro.findIndex(m => String(m || "").toUpperCase().trim() === maqAtualNorm);
+  }
+
+  if (indiceAtual < 0) {
+    if (entidadeOrigem === "OrdemDesbobinadeira" || maqAtualNorm.includes("DESBOBINADEIRA")) {
+      indiceAtual = roteiro.findIndex(m => String(m || "").toUpperCase().includes("DESBOBINADEIRA"));
+      if (indiceAtual < 0) indiceAtual = 0;
+    } else if (maqAtualNorm.includes("GUILHOTINA") || maqAtualNorm.includes("CORTE")) {
+      indiceAtual = roteiro.findIndex(m => {
+        const s = String(m || "").toUpperCase();
+        return s.includes("GUILHOTINA") || s.includes("CORTE");
+      });
+      if (indiceAtual < 0) indiceAtual = 1;
+    } else if (maqAtualNorm.includes("DOBRA")) {
+      indiceAtual = roteiro.findIndex(m => String(m || "").toUpperCase().includes("DOBRA"));
+      if (indiceAtual < 0) indiceAtual = 2;
+    } else {
+      indiceAtual = 0;
+    }
+  }
 
   const proximoIndice = indiceAtual + 1;
 
-  // Se já era a última etapa do roteiro, encerra o ciclo
+  // 4. Se já era a última etapa do roteiro (ex.: Dobradeira finalizada), CONCLUI O PEDIDO EM 100%
   if (proximoIndice >= roteiro.length) {
-    return { avancou: false, motivo: "roteiro_concluido" };
+    if (pedOdoo) {
+      try {
+        const itensPed = getItens(pedOdoo);
+        const novosItens = itensPed.map(it => {
+          if (classGrupo(it) === "cd") {
+            return {
+              ...it,
+              status: "concluido",
+              concluido: true,
+              percentual_concluido: 100,
+              onde_esta: "Expedição / Concluído"
+            };
+          }
+          return it;
+        });
+
+        // Etapas concluídas salvas
+        const etapasFinais = roteiro.map((maq, idx) => ({
+          id: `etapa_${idx + 1}`,
+          nome: `${idx + 1}. ${maq}`,
+          maquina: maq,
+          ativo: true,
+          concluida: true
+        }));
+
+        await base44.entities.PedidoOdoo.update(pedOdoo.id, {
+          status_pcp: "concluido",
+          status: "concluido",
+          percentual_concluido: 100,
+          onde_esta: "Expedição / Concluído",
+          data_conclusao: dataHoje,
+          itens_json: JSON.stringify(novosItens),
+          etapas_concluidas_json: JSON.stringify(etapasFinais)
+        });
+
+        // Notifica o Odoo ERP e finaliza OPs locais
+        await notificarStatus(pedOdoo.id, "concluido", { usuario: "Chão de Fábrica" }).catch(() => {});
+        await finalizarOpsDoPedido(pedOdoo.numero_pedido).catch(() => {});
+      } catch (errConcluir) {
+        console.error("[avancarProximaEtapaRoteiroCD] Erro ao concluir PedidoOdoo 100%:", errConcluir);
+      }
+    }
+    return { avancou: false, concluido: true, motivo: "roteiro_concluido" };
   }
 
+  // 5. Há próxima máquina no roteiro (ex.: Desbobinadeira ➔ Guilhotina, ou Guilhotina ➔ Dobradeira)
   const proximaMaquina = roteiro[proximoIndice];
-  const dataHoje = format(new Date(), "yyyy-MM-dd");
-
   const UNIDADES_VALIDAS = ["Matriz AJL", "Pinhais", "Ivaiporã", "Ponta Grossa"];
   let filialValida = ordemAtual.unidade;
   if (!UNIDADES_VALIDAS.includes(filialValida)) {
-    filialValida = "Matriz AJL";
+    filialValida = pedOdoo?.unidade || "Matriz AJL";
   }
 
   const payloadProxima = {
@@ -311,9 +424,9 @@ export async function avancarProximaEtapaRoteiroCD(ordemAtual, entidadeOrigem = 
     maquina: proximaMaquina,
     maquina_inicial: roteiro[0] || proximaMaquina,
     unidade: filialValida,
-    numero_pedido: ordemAtual.numero_pedido || "",
-    cliente: ordemAtual.cliente || "",
-    vendedor: ordemAtual.vendedor || "",
+    numero_pedido: numPedLimpo,
+    cliente: ordemAtual.cliente || pedOdoo?.cliente_nome || "",
+    vendedor: ordemAtual.vendedor || pedOdoo?.vendedor_nome || "",
     tipo_peca: ordemAtual.tipo_peca || "Corte & Dobra",
     dimensoes_livres: ordemAtual.dimensoes_livres || "",
     comprimento_mm: ordemAtual.comprimento_mm || 3000,
@@ -330,19 +443,74 @@ export async function avancarProximaEtapaRoteiroCD(ordemAtual, entidadeOrigem = 
     observacoes: `Veio de ${ordemAtual.maquina || entidadeOrigem} (Etapa ${proximoIndice + 1} de ${roteiro.length}: ${roteiro.join(" ➔ ")})`,
     roteiro_maquinas: JSON.stringify(roteiro),
     indice_etapa_atual: proximoIndice,
-    pedido_odoo_id: ordemAtual.pedido_odoo_id || null,
-    of_odoo_id: ordemAtual.of_odoo_id || null,
-    of_nome: ordemAtual.of_nome || null,
+    pedido_odoo_id: pedOdoo?.id || ordemAtual.pedido_odoo_id || null,
+    of_odoo_id: pedOdoo?.of_odoo_id || ordemAtual.of_odoo_id || null,
+    of_nome: pedOdoo?.of_nome || ordemAtual.of_nome || null,
     item_idx: ordemAtual.item_idx != null ? ordemAtual.item_idx : null,
     ordem_anterior_id: ordemAtual.id,
     ordem_corte_id: ordemAtual.id
   };
 
+  let novaOp = null;
   try {
-    const novaOp = await base44.entities.OrdemMaquinaCD.create(payloadProxima);
-    return { avancou: true, proximaMaquina, novaOp };
+    novaOp = await base44.entities.OrdemMaquinaCD.create(payloadProxima);
   } catch (errProxima) {
     console.error("[avancarProximaEtapaRoteiroCD] Falha ao criar OP da próxima etapa:", errProxima);
     return { avancou: false, erro: errProxima };
   }
+
+  // 6. Atualiza imediatamente o PedidoOdoo e os Itens no Banco para o PCP sincronizar em tempo real
+  if (pedOdoo) {
+    try {
+      const proxNorm = proximaMaquina.toUpperCase();
+      let novoPct = 45;
+      if (proxNorm.includes("DOBRA")) {
+        novoPct = 75;
+      } else if (proxNorm.includes("GUILHOTINA") || proxNorm.includes("CORTE")) {
+        novoPct = 45;
+      } else {
+        novoPct = Math.min(95, Math.round(((proximoIndice + 0.5) / roteiro.length) * 100));
+      }
+
+      const itensPed = getItens(pedOdoo);
+      const novosItens = itensPed.map(it => {
+        if (classGrupo(it) === "cd") {
+          return {
+            ...it,
+            maquina: proximaMaquina,
+            status: "pendente",
+            status_detalhado: `Fila da Máquina: ${proximaMaquina}`,
+            onde_esta: `Fila da Máquina: ${proximaMaquina}`,
+            percentual_concluido: novoPct,
+            roteiro_maquinas: roteiro
+          };
+        }
+        return it;
+      });
+
+      // Etapas concluídas até o momento
+      const etapasSalvas = roteiro.map((maq, idx) => ({
+        id: `etapa_${idx + 1}`,
+        nome: `${idx + 1}. ${maq}`,
+        maquina: maq,
+        ativo: true,
+        concluida: idx < proximoIndice
+      }));
+
+      await base44.entities.PedidoOdoo.update(pedOdoo.id, {
+        maquina: proximaMaquina,
+        onde_esta: `Fila da Máquina: ${proximaMaquina}`,
+        status_pcp: "em_producao",
+        status: "pendente",
+        percentual_concluido: novoPct,
+        itens_json: JSON.stringify(novosItens),
+        etapas_concluidas_json: JSON.stringify(etapasSalvas),
+        roteiro_maquinas: JSON.stringify(roteiro)
+      });
+    } catch (errPedSync) {
+      console.warn("[avancarProximaEtapaRoteiroCD] Aviso ao atualizar PedidoOdoo:", errPedSync);
+    }
+  }
+
+  return { avancou: true, proximaMaquina, novaOp };
 }

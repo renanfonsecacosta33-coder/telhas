@@ -316,9 +316,16 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
         avancarProximaEtapaRoteiroCD(res, "OrdemDesbobinadeira").then((avanco) => {
           if (avanco?.avancou && avanco.proximaMaquina) {
             toast.success(`OP avançada automaticamente para ${avanco.proximaMaquina}!`);
-            queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
-            queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd-todas"] });
+          } else if (avanco?.concluido) {
+            toast.success("🎉 Roteiro de Corte & Dobra concluído em 100%!");
           }
+          queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+          queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+          queryClient.invalidateQueries({ queryKey: ["ordens-cd-todos"] });
+          queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
+          queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd-todas"] });
+          queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
+          queryClient.invalidateQueries({ queryKey: ["ordens-desb-todas"] });
         }).catch(e => console.warn("[Desbobinadeira] Falha ao avançar roteiro:", e));
 
         base44.functions.invoke("descontarEstoqueDesbobinadeira", { ordem_id: id })
@@ -358,6 +365,8 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
       queryClient.invalidateQueries({ queryKey: ["ordens-desbobinadeira"] });
       queryClient.invalidateQueries({ queryKey: ["chapas-cd"] });
       queryClient.invalidateQueries({ queryKey: ["bobinas-cd-ativas"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-cd-todos"] });
     },
   });
 

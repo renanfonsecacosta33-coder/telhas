@@ -514,13 +514,27 @@ export function calcularProgressoRealPedido(pedido, pedidosProducao = [], ordens
       opReal = localizarOpDoItem(it, opsCD, itens);
     }
 
-    const maquinaItem = String(
-      opReal?.maquina ||
-      opReal?.maquina_nome ||
-      it.maquina ||
+    // Determina a máquina mais avançada entre a OP do chão de fábrica, o item e o cabeçalho do pedido
+    const maqPedidoCabecalho = String(
       pedido.maquina ||
       (String(pedido.onde_esta || "").match(/Fila da M[áa]quina:\s*([^\n\r]+)/i)?.[1] || "")
     ).toUpperCase();
+    const maqItemProp = String(it.maquina || "").toUpperCase();
+    const maqOpReal = String(opReal?.maquina || opReal?.maquina_nome || "").toUpperCase();
+
+    const pesoAvancoCD = (m) =>
+      m.includes("DOBRA") ? 3 : (m.includes("GUILHOTINA") || m.includes("CORTE")) ? 2 : m.includes("DESBOBINADEIRA") ? 1 : 0;
+
+    let maquinaItem = maqOpReal;
+    if (pesoAvancoCD(maqPedidoCabecalho) > pesoAvancoCD(maquinaItem)) {
+      maquinaItem = maqPedidoCabecalho;
+    }
+    if (pesoAvancoCD(maqItemProp) > pesoAvancoCD(maquinaItem)) {
+      maquinaItem = maqItemProp;
+    }
+    if (!maquinaItem) {
+      maquinaItem = maqPedidoCabecalho || maqItemProp || "DESBOBINADEIRA 01";
+    }
 
     let progressoItem = 0;
 
@@ -560,33 +574,29 @@ export function calcularProgressoRealPedido(pedido, pedidosProducao = [], ordens
       // - Dobradeira:     75% fila / 90% prod
       // - Concluído:     100%
       // ─────────────────────────────────────────────────────────────
-      if (opReal) {
-        if (opReal.status === "finalizado") {
+      const emProducao = opReal?.status === "em_producao" || it.status === "em_producao";
+      const emPausa = opReal?.status === "pausado" || it.status === "pausado";
+
+      if (opReal && opReal.status === "finalizado") {
+        // Se a OP finalizada for a última (Dobradeira ou Perfiladeira), 100%
+        if (maqOpReal.includes("DOBRA") || (!maqOpReal.includes("DESBOBINADEIRA") && !maqOpReal.includes("GUILHOTINA") && !maqOpReal.includes("CORTE"))) {
           progressoItem = 100;
-        } else if (maquinaItem.includes("DOBRA")) {
-          progressoItem = opReal.status === "em_producao" ? 90 : opReal.status === "pausado" ? 80 : 75;
-        } else if (maquinaItem.includes("GUILHOTINA") || maquinaItem.includes("CORTE")) {
-          progressoItem = opReal.status === "em_producao" ? 60 : opReal.status === "pausado" ? 50 : 45;
-        } else if (maquinaItem.includes("DESBOBINADEIRA")) {
-          progressoItem = opReal.status === "em_producao" ? 30 : opReal.status === "pausado" ? 20 : 15;
-        } else if (opReal.status === "em_producao") {
-          progressoItem = 60;
-        } else if (opReal.status === "pausado") {
-          progressoItem = 40;
-        } else if (opReal.status === "pendente") {
-          progressoItem = 15;
+        } else if (maqOpReal.includes("GUILHOTINA") || maqOpReal.includes("CORTE")) {
+          progressoItem = 75; // Já cortou, agora vai para a dobra
+        } else if (maqOpReal.includes("DESBOBINADEIRA")) {
+          progressoItem = 45; // Já desbobinou, agora vai para a guilhotina
         } else {
-          progressoItem = 10;
+          progressoItem = 100;
         }
       } else if (it.status === "concluido") {
         progressoItem = 100;
       } else if (maquinaItem.includes("DOBRA")) {
-        progressoItem = it.status === "em_producao" ? 90 : 75;
+        progressoItem = emProducao ? 90 : emPausa ? 80 : 75;
       } else if (maquinaItem.includes("GUILHOTINA") || maquinaItem.includes("CORTE")) {
-        progressoItem = it.status === "em_producao" ? 60 : 45;
+        progressoItem = emProducao ? 60 : emPausa ? 50 : 45;
       } else if (maquinaItem.includes("DESBOBINADEIRA")) {
-        progressoItem = it.status === "em_producao" ? 30 : 15;
-      } else if (it.status === "em_producao") {
+        progressoItem = emProducao ? 30 : emPausa ? 20 : 15;
+      } else if (emProducao) {
         progressoItem = 60;
       } else if (it.distribuido || pedido.status_pcp === "distribuido" || pedido.status_pcp === "em_producao") {
         progressoItem = 15;

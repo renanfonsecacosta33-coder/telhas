@@ -424,7 +424,14 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
     avancarProximaEtapaRoteiroCD(o, "OrdemMaquinaCD").then((res) => {
       if (res?.avancou && res.proximaMaquina) {
         toast.success(`OP encaminhada automaticamente para a próxima máquina: ${res.proximaMaquina}!`);
+      } else if (res?.concluido) {
+        toast.success("🎉 Roteiro de Corte & Dobra finalizado com sucesso!");
       }
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-cd-todos"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd-todas"] });
     }).catch(errAvanco => console.warn("[OrdemMaquinaRow] Falha ao avançar roteiro:", errAvanco));
 
     // Notifica Mini BI do Odoo e atualiza status do item no PedidoOdoo

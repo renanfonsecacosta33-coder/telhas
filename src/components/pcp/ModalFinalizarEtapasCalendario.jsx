@@ -79,19 +79,22 @@ export default function ModalFinalizarEtapasCalendario({
 
       const base = ofItem || pedido;
       const opVinculada = todasOps.find((op) => opDaMesmaOf(op, ofItem));
-      const opMaq = String(opVinculada?.maquina || opVinculada?.maquina_nome || "").toUpperCase();
+      const opMaq = String(opVinculada?.maquina || opVinculada?.maquina_nome || "").toUpperCase().trim();
       const itensBase = getItens(base);
       const itensPed = getItens(pedido);
-      const ondeEstaTexto = String(base.onde_esta || pedido.onde_esta || "").toUpperCase();
+      const ondeEstaTexto = String(base.onde_esta || pedido.onde_esta || "").toUpperCase().trim();
+      const maqOndeEsta = (ondeEstaTexto.match(/FILA DA M[ÁA]QUINA:\s*([^\n\r]+)/i)?.[1] || "").toUpperCase().trim();
+      const maqBase = String(base.maquina || "").toUpperCase().trim();
+      const maqPedido = String(pedido.maquina || "").toUpperCase().trim();
+      const maqItem = String(itensBase[0]?.maquina || itensPed[0]?.maquina || "").toUpperCase().trim();
 
-      const maquinaAtual = (
-        opMaq ||
-        base.maquina ||
-        itensBase[0]?.maquina ||
-        pedido.maquina ||
-        itensPed[0]?.maquina ||
-        (ondeEstaTexto.match(/FILA DA M[ÁA]QUINA:\s*([^\n\r]+)/i)?.[1] || "")
-      ).toUpperCase();
+      // Peso de avanço na esteira de produção para dar prioridade à máquina mais avançada
+      const pesoAvanco = (m) =>
+        m.includes("DOBRA") ? 4 : (m.includes("GUILHOTINA") || m.includes("CORTE")) ? 3 : m.includes("DESBOBINADEIRA") ? 2 : m.includes("COLAGEM") ? 5 : 1;
+
+      const candidatas = [maqOndeEsta, maqBase, maqPedido, maqItem, opMaq].filter(Boolean);
+      candidatas.sort((a, b) => pesoAvanco(b) - pesoAvanco(a));
+      const maquinaAtual = candidatas[0] || opMaq || maqBase || maqPedido || "DESBOBINADEIRA 01";
 
       const jaNaColagem = Boolean(
         opMaq === "COLAGEM" ||
