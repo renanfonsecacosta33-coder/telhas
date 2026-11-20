@@ -53,14 +53,31 @@ export function calcularEtapasProcesso(pedido, setor = "telhas") {
       }
     }
 
-    // Se temos máquinas específicas no roteiro, montamos as etapas reais
-    const temDesb = maquinasRoteiro.length > 0
+    // Se temos etapas salvas no pedido/OF pelo PCP, usamos a definição do PCP
+    let etapasSalvasPcp = null;
+    if (pedido?.etapas_concluidas_json) {
+      try {
+        const parsed = typeof pedido.etapas_concluidas_json === "string" ? JSON.parse(pedido.etapas_concluidas_json) : pedido.etapas_concluidas_json;
+        if (Array.isArray(parsed) && parsed.length > 0) etapasSalvasPcp = parsed;
+      } catch {}
+    }
+
+    // Se temos máquinas específicas no roteiro ou etapas definidas pelo PCP, montamos as etapas reais
+    const temDesb = etapasSalvasPcp
+      ? etapasSalvasPcp.some(e => e.id?.includes("desbobinadeira") && e.ativo !== false)
+      : maquinasRoteiro.length > 0
       ? maquinasRoteiro.some(m => /DESBOBINADEIRA/i.test(m))
       : Boolean(pedido?.ordem_desbobinadeira_id || pedido?.desbobinadeira_status || pedido?.bobina_id);
-    const temCorte = maquinasRoteiro.length > 0
+
+    const temCorte = etapasSalvasPcp
+      ? etapasSalvasPcp.some(e => e.id?.includes("guilhotina") && e.ativo !== false)
+      : maquinasRoteiro.length > 0
       ? maquinasRoteiro.some(m => /CORTE|GUILHOTINA/i.test(m))
       : true;
-    const temDobra = maquinasRoteiro.length > 0
+
+    const temDobra = etapasSalvasPcp
+      ? etapasSalvasPcp.some(e => e.id?.includes("dobradeira") && e.ativo !== false)
+      : maquinasRoteiro.length > 0
       ? maquinasRoteiro.some(m => /DOBRA/i.test(m))
       : true;
 

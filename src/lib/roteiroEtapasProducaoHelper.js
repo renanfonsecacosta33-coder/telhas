@@ -27,11 +27,25 @@ export function identificarRoteiroDoPedido(pedido, item = null) {
   const textoCompleto = `${prod} ${mod} ${obs}`;
 
   // Se já tiver etapas salvas anteriormente no pedido ou no item:
-  if (pedido.etapas_concluidas_json) {
+  const rawSalvasGeral = item?.etapas_concluidas_json || pedido.etapas_concluidas_json;
+  if (rawSalvasGeral) {
     try {
-      const salvas = JSON.parse(pedido.etapas_concluidas_json);
+      const salvas = typeof rawSalvasGeral === "string" ? JSON.parse(rawSalvasGeral) : rawSalvasGeral;
       if (Array.isArray(salvas) && salvas.length > 0) {
-        return salvas;
+        return salvas.map((s) => ({
+          ...s,
+          ativo: s.ativo !== false,
+          tag:
+            s.tag ||
+            (s.id?.includes("desbobinadeira")
+              ? "Desbobinadeira"
+              : s.id?.includes("guilhotina")
+              ? "Guilhotina"
+              : s.id?.includes("dobradeira")
+              ? "Dobradeira"
+              : s.nome?.split(" ")[1] || "Etapa"),
+          concluida: Boolean(s.concluida)
+        }));
       }
     } catch {}
   }
@@ -116,44 +130,68 @@ export function identificarRoteiroDoPedido(pedido, item = null) {
   const isCD =
     pedido.setor === "corte_dobra" ||
     pedido.setor === "cd" ||
-    /\b(dobra|dobradeira|guilhotina|desbobinadeira|chapa|perfil dobrado|rufo|calha)\b/i.test(textoCompleto);
+    item?.setor === "corte_dobra" ||
+    item?.setor === "cd" ||
+    /\b(dobra|dobradeira|guilhotina|desbobinadeira|chapa|perfil dobrado|rufo|calha|cartola|cantoneira|u enrijecido)\b/i.test(textoCompleto);
 
   if (isCD) {
-    const precisaDobra = /\b(dobra|dobradeira|perfil dobrado|rufo|calha|pingadeira|cantoneira|u enrijecido)\b/i.test(textoCompleto);
-    const precisaGuilhotina = precisaDobra || /\b(guilhotina|corte|blank|chapa cortada)\b/i.test(textoCompleto);
+    const precisaDobra = /\b(dobra|dobradeira|perfil dobrado|rufo|calha|pingadeira|cantoneira|u enrijecido|cartola)\b/i.test(textoCompleto);
 
     etapas.push({
       id: "cd_desbobinadeira",
       ordem: 1,
+      tag: "Desbobinadeira",
       nome: "1. Desbobinadeira (DESBOBINADEIRA 01)",
       maquina: "DESBOBINADEIRA 01",
       setor: "cd",
       descricao: "Avanço e corte inicial da chapa na bobina",
+      ativo: true,
       concluida: false
     });
 
-    if (precisaGuilhotina) {
-      etapas.push({
-        id: "cd_guilhotina",
-        ordem: 2,
-        nome: "2. Corte na Guilhotina (GUILHOTINA 3M / 6M)",
-        maquina: "GUILHOTINA 3M",
-        setor: "cd",
-        descricao: "Corte das peças no esquadro conforme croqui",
-        concluida: false
-      });
-    }
+    etapas.push({
+      id: "cd_guilhotina",
+      ordem: 2,
+      tag: "Guilhotina",
+      nome: "2. Corte na Guilhotina (GUILHOTINA 3M / 6M)",
+      maquina: "GUILHOTINA 3M",
+      setor: "cd",
+      descricao: "Corte das peças no esquadro conforme croqui",
+      ativo: true,
+      concluida: false
+    });
 
-    if (precisaDobra) {
-      etapas.push({
-        id: "cd_dobradeira",
-        ordem: etapas.length + 1,
-        nome: "3. Conformação na Dobradeira (DOBRADEIRA 3M / 6M)",
-        maquina: "DOBRADEIRA 3M",
-        setor: "cd",
-        descricao: "Dobra dos perfis conforme ângulos do croqui",
-        concluida: false
-      });
+    etapas.push({
+      id: "cd_dobradeira",
+      ordem: 3,
+      tag: "Dobradeira",
+      nome: "3. Conformação na Dobradeira (DOBRADEIRA 3M / 6M)",
+      maquina: "DOBRADEIRA 3M",
+      setor: "cd",
+      descricao: "Dobra dos perfis conforme ângulos do croqui",
+      ativo: Boolean(precisaDobra),
+      concluida: false
+    });
+
+    // Se já havia etapas salvas no pedido/item, recupera ativo e concluida
+    const rawSalvas = item?.etapas_concluidas_json || pedido.etapas_concluidas_json;
+    if (rawSalvas) {
+      try {
+        const salvas = typeof rawSalvas === "string" ? JSON.parse(rawSalvas) : rawSalvas;
+        if (Array.isArray(salvas) && salvas.length > 0) {
+          return etapas.map((etp) => {
+            const salva = salvas.find((s) => s.id === etp.id);
+            if (salva) {
+              return {
+                ...etp,
+                ativo: salva.ativo !== undefined ? salva.ativo : etp.ativo,
+                concluida: Boolean(salva.concluida)
+              };
+            }
+            return etp;
+          });
+        }
+      } catch {}
     }
 
     return etapas;
@@ -195,18 +233,19 @@ export async function processarConclusaoEtapas({
     const todayIso = new Date().toISOString().slice(0, 10);
     const numPed = normalizarNumeroPedido(pedido.numero_pedido);
 
-    const totalEtapas = etapas.length;
-    const etapasConcluidas = etapas.filter(e => e.concluida);
+    const etapasAtivas = etapas.filter((e) => e.ativo !== false);
+    const totalEtapas = etapasAtivas.length;
+    const etapasConcluidas = etapasAtivas.filter((e) => e.concluida);
     const totalConcluidas = etapasConcluidas.length;
-    const todasConcluidas = totalConcluidas === totalEtapas;
+    const todasConcluidas = totalEtapas > 0 && totalConcluidas === totalEtapas;
 
     // Próxima etapa pendente (se houver)
-    const proximaEtapa = etapas.find(e => !e.concluida);
+    const proximaEtapa = etapasAtivas.find((e) => !e.concluida);
 
     // Percentual calculado
     const novoPercentual = todasConcluidas
       ? 100
-      : Math.max(10, Math.min(95, Math.round((totalConcluidas / totalEtapas) * 100)));
+      : Math.max(10, Math.min(95, Math.round((totalConcluidas / (totalEtapas || 1)) * 100)));
 
     // ─────────────────────────────────────────────────────────────
     // CASO A: TODAS AS ETAPAS FORAM CONCLUÍDAS (100% FINALIZADO)
@@ -270,47 +309,74 @@ export async function processarConclusaoEtapas({
         etapas_concluidas_json: JSON.stringify(etapas)
       });
 
-      // Atualiza as OPs no chão de fábrica:
-      // Se estamos movendo para a COLAGEM (Telha e/ou Bandeja finalizadas):
-      const opsTelhas = await base44.entities.Pedido.filter({ numero_pedido: pedido.numero_pedido });
+      // Se for Corte & Dobra:
+      if (proximaEtapa.setor === "cd") {
+        const opsCD = await base44.entities.OrdemMaquinaCD.filter({
+          numero_pedido: pedido.numero_pedido
+        }).catch(() => []);
 
-      if (opsTelhas && opsTelhas.length > 0) {
-        for (const op of opsTelhas) {
-          // Se for a OP principal de Telha Bandeja ou Colagem:
-          if (maquinaDestino === "COLAGEM") {
-            await base44.entities.Pedido.update(op.id, {
-              maquina: "COLAGEM",
-              status: "aguardando_colagem",
-              bloqueado_colagem: false,
-              perfilacao_concluida: true,
-              data_perfilacao: todayIso,
-              operador_perfilacao: usuario
-            });
-          } else {
-            // Mover para outra máquina intermediária (ex: BANDEJA)
-            await base44.entities.Pedido.update(op.id, {
+        if (opsCD && opsCD.length > 0) {
+          for (const op of opsCD) {
+            await base44.entities.OrdemMaquinaCD.update(op.id, {
               maquina: maquinaDestino,
               status: "pendente"
             });
           }
+        } else {
+          await base44.entities.OrdemMaquinaCD.create({
+            numero_pedido: pedido.numero_pedido,
+            cliente: pedido.cliente_nome || "Cliente",
+            vendedor: pedido.vendedor_nome || "—",
+            produto: item?.produto || pedido.produto || "Corte e Dobra",
+            maquina: maquinaDestino,
+            status: "pendente",
+            data: todayIso,
+            data_entrega: pedido.data_entrega || todayIso,
+            unidade: pedido.unidade || "Matriz AJL"
+          }).catch(() => {});
         }
       } else {
-        // Se ainda não existia OP criada na máquina, cria a OP na máquina de destino
-        await base44.entities.Pedido.create({
-          numero_pedido: pedido.numero_pedido,
-          cliente: pedido.cliente_nome || "Cliente",
-          vendedor: pedido.vendedor_nome || "—",
-          produto: pedido.produto || "TELHA",
-          modelo: pedido.modelo || "TP - 40",
-          maquina: maquinaDestino,
-          maquina_origem: pedido.maquina || "TP - 40",
-          status: statusOpNovo,
-          bloqueado_colagem: false,
-          perfilacao_concluida: true,
-          data: todayIso,
-          data_entrega: pedido.data_entrega || todayIso,
-          unidade: pedido.unidade || "Matriz AJL"
-        });
+        // Telhas:
+        const opsTelhas = await base44.entities.Pedido.filter({ numero_pedido: pedido.numero_pedido });
+
+        if (opsTelhas && opsTelhas.length > 0) {
+          for (const op of opsTelhas) {
+            // Se for a OP principal de Telha Bandeja ou Colagem:
+            if (maquinaDestino === "COLAGEM") {
+              await base44.entities.Pedido.update(op.id, {
+                maquina: "COLAGEM",
+                status: "aguardando_colagem",
+                bloqueado_colagem: false,
+                perfilacao_concluida: true,
+                data_perfilacao: todayIso,
+                operador_perfilacao: usuario
+              });
+            } else {
+              // Mover para outra máquina intermediária (ex: BANDEJA)
+              await base44.entities.Pedido.update(op.id, {
+                maquina: maquinaDestino,
+                status: "pendente"
+              });
+            }
+          }
+        } else {
+          // Se ainda não existia OP criada na máquina, cria a OP na máquina de destino
+          await base44.entities.Pedido.create({
+            numero_pedido: pedido.numero_pedido,
+            cliente: pedido.cliente_nome || "Cliente",
+            vendedor: pedido.vendedor_nome || "—",
+            produto: pedido.produto || "TELHA",
+            modelo: pedido.modelo || "TP - 40",
+            maquina: maquinaDestino,
+            maquina_origem: pedido.maquina || "TP - 40",
+            status: statusOpNovo,
+            bloqueado_colagem: false,
+            perfilacao_concluida: true,
+            data: todayIso,
+            data_entrega: pedido.data_entrega || todayIso,
+            unidade: pedido.unidade || "Matriz AJL"
+          });
+        }
       }
 
       toast.success(
