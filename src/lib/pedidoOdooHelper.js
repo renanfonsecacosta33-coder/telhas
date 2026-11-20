@@ -514,33 +514,96 @@ export function calcularProgressoRealPedido(pedido, pedidosProducao = [], ordens
       opReal = localizarOpDoItem(it, opsCD, itens);
     }
 
-    if (opReal) {
-      if (opReal.status === "finalizado") {
-        soma += 100;
-      } else if (opReal.status === "aguardando_colagem") {
-        const isSand = /(eps|manta|sanduiche|sanduíche|isopor|termoacustica|termoacústica|bandeja)/i.test(String(it.produto || it.descricao || ""));
-        soma += isSand ? 85 : 100;
-      } else if (opReal.status === "em_producao") {
-        soma += 60; // Operador deu Play / máquina rodando!
-      } else if (opReal.status === "pausado") {
-        soma += 40;
-      } else if (opReal.status === "pendente") {
-        soma += 15; // ⚡ OP criada na máquina na fila do galpão (15% enviado à fábrica)
-      } else if (opReal.status === "aguardando_corte" || opReal.status === "aguardando_material") {
-        soma += 10;
-      } else {
-        soma += 0;
+    const maquinaItem = String(
+      opReal?.maquina ||
+      opReal?.maquina_nome ||
+      it.maquina ||
+      pedido.maquina ||
+      (String(pedido.onde_esta || "").match(/Fila da M[áa]quina:\s*([^\n\r]+)/i)?.[1] || "")
+    ).toUpperCase();
+
+    let progressoItem = 0;
+
+    if (grupo === "telha") {
+      // ─────────────────────────────────────────────────────────────
+      // PROGRESSO TELHAS (Perfiladeira ➔ Colagem)
+      // ─────────────────────────────────────────────────────────────
+      if (opReal) {
+        if (opReal.status === "finalizado") {
+          progressoItem = 100;
+        } else if (opReal.status === "aguardando_colagem" || maquinaItem.includes("COLAGEM")) {
+          progressoItem = opReal.status === "em_producao" ? 95 : 85;
+        } else if (opReal.status === "em_producao") {
+          progressoItem = 60;
+        } else if (opReal.status === "pausado") {
+          progressoItem = 40;
+        } else if (opReal.status === "pendente") {
+          progressoItem = 15;
+        } else {
+          progressoItem = 10;
+        }
+      } else if (it.status === "concluido") {
+        progressoItem = 100;
+      } else if (it.status === "aguardando_colagem" || maquinaItem.includes("COLAGEM")) {
+        progressoItem = 85;
+      } else if (it.status === "em_producao") {
+        progressoItem = 60;
+      } else if (it.distribuido || pedido.status_pcp === "distribuido") {
+        progressoItem = 15;
       }
-    } else if (it.status === "concluido") {
-      soma += 100;
-    } else if (it.status === "em_producao") {
-      soma += 60;
-    } else if (it.distribuido || pedido.status_pcp === "distribuido") {
-      soma += 15; // Distribuído para galpão
     } else {
-      // 🛡️ Se ainda está na mesa do PCP aguardando distribuição, o progresso é rigorosamente 0%
-      soma += 0;
+      // ─────────────────────────────────────────────────────────────
+      // PROGRESSO CORTE E DOBRA (Desbobinadeira ➔ Guilhotina ➔ Dobradeira)
+      // Dinâmico por Máquina + Fila/Produção:
+      // - Desbobinadeira: 15% fila / 30% prod
+      // - Guilhotina:     45% fila / 60% prod
+      // - Dobradeira:     75% fila / 90% prod
+      // - Concluído:     100%
+      // ─────────────────────────────────────────────────────────────
+      if (opReal) {
+        if (opReal.status === "finalizado") {
+          progressoItem = 100;
+        } else if (maquinaItem.includes("DOBRA")) {
+          progressoItem = opReal.status === "em_producao" ? 90 : opReal.status === "pausado" ? 80 : 75;
+        } else if (maquinaItem.includes("GUILHOTINA") || maquinaItem.includes("CORTE")) {
+          progressoItem = opReal.status === "em_producao" ? 60 : opReal.status === "pausado" ? 50 : 45;
+        } else if (maquinaItem.includes("DESBOBINADEIRA")) {
+          progressoItem = opReal.status === "em_producao" ? 30 : opReal.status === "pausado" ? 20 : 15;
+        } else if (opReal.status === "em_producao") {
+          progressoItem = 60;
+        } else if (opReal.status === "pausado") {
+          progressoItem = 40;
+        } else if (opReal.status === "pendente") {
+          progressoItem = 15;
+        } else {
+          progressoItem = 10;
+        }
+      } else if (it.status === "concluido") {
+        progressoItem = 100;
+      } else if (maquinaItem.includes("DOBRA")) {
+        progressoItem = it.status === "em_producao" ? 90 : 75;
+      } else if (maquinaItem.includes("GUILHOTINA") || maquinaItem.includes("CORTE")) {
+        progressoItem = it.status === "em_producao" ? 60 : 45;
+      } else if (maquinaItem.includes("DESBOBINADEIRA")) {
+        progressoItem = it.status === "em_producao" ? 30 : 15;
+      } else if (it.status === "em_producao") {
+        progressoItem = 60;
+      } else if (it.distribuido || pedido.status_pcp === "distribuido" || pedido.status_pcp === "em_producao") {
+        progressoItem = 15;
+      }
     }
+
+    // Se o pedido ou item já possui percentual_concluido salvo pelo modal de etapas
+    // garante que o progresso não fique inferior ao percentual já consolidado das etapas
+    const pctSalvo = Math.max(
+      Number(it.percentual_concluido || 0),
+      Number(pedido.percentual_concluido || 0)
+    );
+    if (pctSalvo > 0 && pctSalvo <= 100) {
+      progressoItem = Math.max(progressoItem, pctSalvo);
+    }
+
+    soma += progressoItem;
   }
 
   // 🛡️ Trava de Segurança: Se o pedido está com status "pendente_distribuicao" e nenhum item foi concluído manualmente,
