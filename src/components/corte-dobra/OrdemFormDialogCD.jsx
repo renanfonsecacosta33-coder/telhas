@@ -33,6 +33,7 @@ import {
   FileText,
   User,
   Hash,
+  Scissors,
 } from "lucide-react";
 import { useFilial } from "@/contexts/FilialContext";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";

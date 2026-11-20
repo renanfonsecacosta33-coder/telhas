@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { getEtapaColor } from "@/components/corte-dobra/RetrabalhoDialog";
 import { HistoricoPedidoButton } from "@/components/corte-dobra/HistoricoPedidoSidebar";
 import ImageLink from "@/components/ui/ImageLink";
+import SmartImage from "@/components/ui/SmartImage";
 import DualPhotoGallery from "@/components/corte-dobra/DualPhotoGallery";
 import CorChapaDot, { extractEspessuraFromDesc } from "@/components/corte-dobra/CorChapaDot";
 import AproveitamentoDialog from "@/components/corte-dobra/AproveitamentoDialog";

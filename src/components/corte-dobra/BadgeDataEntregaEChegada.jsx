@@ -48,8 +48,6 @@ function formatarTempoDecorrido(d) {
  * Badges de Data de Entrega e Data de Chegada da OP na Máquina (Universal: Corte & Dobra e Telhas)
  */
 export default function BadgeDataEntregaEChegada({ ordem, pedidoOdoo = null, maquinaAtual = null, className = "" }) {
-  if (!ordem && !pedidoOdoo) return null;
-
   const o = ordem || {};
   const p = pedidoOdoo || {};
 
