@@ -130,6 +130,38 @@ export default function CalendarioPcpView({
     return format(dataAtual, "MMMM 'de' yyyy", { locale: ptBR });
   }, [dataAtual, modoVisualizacao]);
 
+  // Contagem de pedidos no período visível (semana ou mês)
+  const totalPedidosNoPeriodo = useMemo(() => {
+    let count = 0;
+    diasDaGrade.forEach(dia => {
+      const iso = format(dia, "yyyy-MM-dd");
+      const dInfo = mapaDias.get(iso);
+      if (dInfo?.todos?.length) count += dInfo.todos.length;
+    });
+    return count;
+  }, [diasDaGrade, mapaDias]);
+
+  // Se o mês atual estiver vazio na grade, identifica em quais outros meses existem pedidos carregados
+  const outrosMesesComPedidos = useMemo(() => {
+    if (totalPedidosNoPeriodo > 0 || mapaDias.size === 0) return [];
+    const mesesMap = new Map();
+    mapaDias.forEach((diaInfo, dataIso) => {
+      if (!diaInfo.todos?.length) return;
+      try {
+        const d = parseISO(dataIso);
+        if (!isNaN(d.getTime())) {
+          const chaveMes = format(d, "yyyy-MM");
+          const labelMes = format(d, "MMMM 'de' yyyy", { locale: ptBR });
+          if (!mesesMap.has(chaveMes)) {
+            mesesMap.set(chaveMes, { data: d, label: labelMes, total: 0 });
+          }
+          mesesMap.get(chaveMes).total += diaInfo.todos.length;
+        }
+      } catch {}
+    });
+    return Array.from(mesesMap.values());
+  }, [totalPedidosNoPeriodo, mapaDias]);
+
   return (
     <div className="space-y-4">
       {/* Barra de Controles e Filtros do Calendário */}
@@ -311,6 +343,62 @@ export default function CalendarioPcpView({
           </div>
         )}
       </div>
+
+      {/* Banner de Navegação Inteligente se o mês atual estiver sem pedidos mas houver pedidos carregados */}
+      {outrosMesesComPedidos.length > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-amber-900 dark:text-amber-200 shadow-xs animate-in fade-in-50 duration-200">
+          <div className="flex items-center gap-2.5">
+            <CalendarIcon className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div>
+              <p className="text-xs sm:text-sm font-bold">
+                Nenhum pedido encontrado em <span className="capitalize">{tituloPeriodo}</span>.
+              </p>
+              <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                Os pedidos desta consulta estão agendados em outro(s) mês(es):
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {outrosMesesComPedidos.map((m, idx) => (
+              <Button
+                key={idx}
+                size="sm"
+                onClick={() => setDataAtual(m.data)}
+                className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white font-bold gap-1.5 shadow-xs cursor-pointer capitalize"
+              >
+                <span>Ir para {m.label}</span>
+                <Badge variant="secondary" className="bg-white/20 text-white text-[10px] px-1.5 py-0 h-4">
+                  {m.total} pedido(s)
+                </Badge>
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Aviso caso existam pedidos sem data definida e o mês atual esteja vazio */}
+      {semData.length > 0 && totalPedidosNoPeriodo === 0 && outrosMesesComPedidos.length === 0 && (
+        <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-amber-900 dark:text-amber-200 shadow-xs animate-in fade-in-50 duration-200">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div>
+              <p className="text-xs sm:text-sm font-bold">
+                Existem {semData.length} pedido(s) carregados aguardando definição de data pelo PCP.
+              </p>
+              <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                Os pedidos não têm data programada gravada e por isso não aparecem nos dias do calendário.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setGavetaSemDataAberta(true)}
+            className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white font-bold gap-1.5 shadow-xs cursor-pointer"
+          >
+            Abrir Pedidos sem Data ({semData.length})
+          </Button>
+        </div>
+      )}
 
       {/* Visão Semanal: Colunas Expandidas com Cards Diretos */}
       {modoVisualizacao === "semana" ? (

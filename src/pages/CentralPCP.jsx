@@ -2075,9 +2075,10 @@ export default function CentralPCP() {
   const pedidosConcluidosEmTodos = filtro === "todos" ? pedidosFiltrados.filter(p => isPedidoConcluido(p) || isPedidoEntregue(p)) : [];
 
   // Agrupa pedidos por numero_pedido mantendo a ordenação de prioridade/FIFO
+  // Quando visualizando 'todos os registros', exibe todos os pedidos retornados (ativos e concluídos juntos)
   const gruposPedidos = useMemo(() => {
     const map = new Map();
-    const lista = filtro === "todos" ? pedidosAtivosEmTodos : pedidosFiltrados;
+    const lista = pedidosFiltrados;
     lista.forEach(p => {
       const num = p.numero_pedido || `AVULSO_${p.id}`;
       if (!map.has(num)) {
@@ -2954,8 +2955,8 @@ export default function CentralPCP() {
               <div className="flex items-center gap-2 flex-wrap">
                 <Zap className="w-3.5 h-3.5 text-orange-500" />
                 <span className="font-semibold">
-                  {filtro === "concluido" ? "Pedidos Concluídos" : "Fila FIFO"}
-                </span> — {gruposPedidos.length} pedido(s) ({pedidosFiltrados.length} OFs)
+                  {filtro === "concluido" ? "Pedidos Concluídos" : filtro === "todos" ? "Todos os Registros" : "Fila FIFO"}
+                </span> — {viewMode === "calendario" ? gruposPedidosCalendario.length : gruposPedidos.length} pedido(s) ({viewMode === "calendario" ? gruposPedidosCalendario.reduce((acc, g) => acc + (g.ofs?.length || 1), 0) : pedidosFiltrados.length} OFs)
                 {filtro === "ativos" && " na fila ativa"}
                 {filtro === "todos" && " no total"}
               </div>
@@ -3087,7 +3088,7 @@ export default function CentralPCP() {
             {/* Visualizações Condicionais: Tabela / Kanban / Cards */}
             {viewMode === "tabela" ? (
               <FilaPCPTabelaView
-                pedidos={filtro === "todos" ? pedidosAtivosEmTodos : pedidosFiltrados}
+                pedidos={pedidosFiltrados}
                 gruposPedidos={gruposPedidos}
                 estoqueContext={estoqueContext}
                 pedidosProducao={pedidosProducao}
@@ -3108,7 +3109,7 @@ export default function CentralPCP() {
               />
             ) : viewMode === "kanban" ? (
               <FilaPCPKanbanView pedidosProducao={pedidosProducao} ordensCD={ordensCD}
-                pedidos={filtro === "todos" ? [...pedidosAtivosEmTodos, ...pedidosConcluidosEmTodos] : pedidosFiltrados}
+                pedidos={pedidosFiltrados}
                 gruposPedidos={gruposPedidos}
                 onOpenDetalhe={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
                 onDistribuir={iniciarDistribuicaoComRoteamento}
@@ -3162,7 +3163,7 @@ export default function CentralPCP() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {(filtro === "todos" ? pedidosAtivosEmTodos : pedidosFiltrados).map(p => (
+                {pedidosFiltrados.map(p => (
                   <PedidoOdooCard
                     key={p.id}
                     pedido={p}
@@ -3185,106 +3186,6 @@ export default function CentralPCP() {
                     estoqueContext={estoqueContext}
                   />
                 ))}
-              </div>
-            )}
-
-            {/* Seção recolhível de Concluídos quando visualizando 'Todos' em modo Cards */}
-            {viewMode === "cards" && filtro === "todos" && pedidosConcluidosEmTodos.length > 0 && (
-              <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800">
-                <div className="flex items-center justify-between mb-3 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 rounded-xl p-3">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                    <div>
-                      <span className="font-bold text-sm text-slate-800 dark:text-slate-100">
-                        Pedidos Concluídos ({pedidosConcluidosEmTodos.length} OFs em {gruposConcluidosEmTodos.length} pedidos)
-                      </span>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Pedidos 100% finalizados nas máquinas e prontos para expedição
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setMostrarConcluidosEmTodos(!mostrarConcluidosEmTodos)}
-                    className="text-xs h-8 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100/50"
-                  >
-                    {mostrarConcluidosEmTodos ? (
-                      <>
-                        <ChevronUp className="w-3.5 h-3.5 mr-1" />
-                        Minimizar Concluídos
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className="w-3.5 h-3.5 mr-1" />
-                        Mostrar Concluídos ({gruposConcluidosEmTodos.length} pedidos)
-                      </>
-                    )}
-                  </Button>
-                </div>
-
-                {mostrarConcluidosEmTodos && (
-                  modoVisao === "agrupado" ? (
-                    <div className="space-y-3">
-                      {gruposConcluidosEmTodos.map(grupo => (
-                        <PedidoOdooGrupoCard
-                          key={grupo.numero_pedido}
-                          grupo={grupo}
-                          expandido={pedidosExpandidos.has(grupo.numero_pedido)}
-                          onToggle={() => toggleExpandirPedido(grupo.numero_pedido)}
-                          pedidosProducao={pedidosProducao}
-                          ordensCD={ordensCD}
-                          selecionados={selecionados}
-                          onToggleSelect={handleToggleSelect}
-                          onToggleSelectGrupo={handleToggleSelectGrupo}
-                          onDistribuir={iniciarDistribuicaoComRoteamento}
-                          onDistribuirGrupo={handleDistribuirGrupoWrapper}
-                          onClickPedido={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
-                          onDelete={solicitarExclusaoIndividual}
-                          onDeleteGrupo={solicitarExclusaoGrupo}
-                          onRetirarFila={handleRetirarFila}
-                          onTogglePrioridade={handleTogglePrioridade}
-                          onSetPrioridade={handleSetPrioridade}
-                          onSetPrioridadeGrupo={handleSetPrioridadeGrupo}
-                          onVerHistorico={handleAbrirHistoricoMovimentacao}
-                          onTransferir={(p) => setModalTransferir({ aberto: true, pedidos: [p] })}
-                          onTransferirGrupo={(g) => setModalTransferir({ aberto: true, pedidos: g.ofs || [] })}
-                          onFinalizarGrupo100={(lista) => handleSolicitarFinalizar100(lista)}
-                          onMarcarGrupoEntregue={handleMarcarEntregue}
-                          onReverterGrupoEntregue={handleSolicitarReverterEntregue}
-                          onSincronizarGrupoOdoo={(lista) => handleSincronizarLoteOdoo(lista)}
-                          estoqueContext={estoqueContext}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {pedidosConcluidosEmTodos.map(p => (
-                        <PedidoOdooCard
-                          key={p.id}
-                          pedido={p}
-                          progressoReal={calcularProgressoRealPedido(p, pedidosProducao, ordensCD)}
-                          pedidosProducao={pedidosProducao}
-                          ordensCD={ordensCD}
-                          selecionado={selecionados.has(p.id)}
-                          onToggleSelect={handleToggleSelect}
-                          onDistribuir={iniciarDistribuicaoComRoteamento}
-                          onClick={() => { setPedidoSelecionado(p); setDetalheOpen(true); }}
-                          onDelete={solicitarExclusaoIndividual}
-                          onRetirarFila={handleRetirarFila}
-                          onTogglePrioridade={handleTogglePrioridade}
-                          onSetPrioridade={handleSetPrioridade}
-                          onVerHistorico={handleAbrirHistoricoMovimentacao}
-                          onTransferir={(ped) => setModalTransferir({ aberto: true, pedidos: [ped] })}
-                          onFinalizar100={(ped) => handleSolicitarFinalizar100([ped])}
-                          onMarcarEntregue={(ped) => handleMarcarEntregue([ped])}
-                          onReverterEntregue={(ped) => handleSolicitarReverterEntregue([ped])}
-                          estoqueContext={estoqueContext}
-                        />
-                      ))}
-                    </div>
-                  )
-                )}
               </div>
             )}
           </>
