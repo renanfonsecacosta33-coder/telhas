@@ -206,7 +206,10 @@ export default function PedidoItensLista({
           } else if ((espTec?.tipo_conformacao === "perfil_dobrado" || espTec?.tipo_conformacao === "chapa_lisa") && (pecasReal > 0 || espTec?.pecas > 0)) {
             const qPecas = pecasReal || espTec.pecas;
             displayQtd = qPecas;
-            displayUnidade = qPecas === 1 ? (espTec.tipo_conformacao === "chapa_lisa" ? "CHAPA" : "PEÇA") : (espTec.tipo_conformacao === "chapa_lisa" ? "CHAPAS" : "PEÇAS");
+            const ehBarra = unidade === "BR" || /\b(BR|BARRA|BARRAS)\b/i.test(unidade) || /\(PADR[AÃ]O\s*-\s*BR\)/i.test(`${it.produto || ""} ${it.descricao || ""}`);
+            const unidNomeSingular = ehBarra ? "BARRA" : (espTec.tipo_conformacao === "chapa_lisa" ? "CHAPA" : "PEÇA");
+            const unidNomePlural = ehBarra ? "BARRAS" : (espTec.tipo_conformacao === "chapa_lisa" ? "CHAPAS" : "PEÇAS");
+            displayUnidade = qPecas === 1 ? unidNomeSingular : unidNomePlural;
             const totalM = espTec.metragem_total;
             const pesoVal = Math.round(demanda?.pesoKgInformado || (unidade === "KG" ? it.quantidade : 0));
             const subPartes = [];

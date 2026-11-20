@@ -2,6 +2,7 @@ import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Layers, Scale, Scissors, Wrench, Package, Sparkles } from "lucide-react";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
+import { normalizarUnidadeMedidaItem } from "@/lib/pedidoOdooHelper";
 
 /**
  * Extrai a instrução real e limpa do vendedor vinda do Odoo/PCP,
@@ -135,10 +136,13 @@ export function extrairNomeProdutoOficial(ordem, spec = null, pedidoOdoo = null)
   // Se houver pedidoOdoo vinculado, busca o item correspondente à OF
   const itemOdoo = pedidoOdoo?.itens?.[o.item_idx ?? 0] || pedidoOdoo?.itens?.[0] || null;
 
+  const limparAspas = (str) => String(str || "").replace(/^["'“”«»]+|["'“”«»]+$/g, "").trim();
+
   const candidatos = [
     itemOdoo?.produto,
     itemOdoo?.name,
     pedidoOdoo?.produto,
+    o.instrucao,
     o.item_produto,
     o.produto_nome,
     o.produto,
@@ -149,9 +153,15 @@ export function extrairNomeProdutoOficial(ordem, spec = null, pedidoOdoo = null)
 
   for (const c of candidatos) {
     if (!c) continue;
-    const str = String(c).trim();
+    const str = limparAspas(c);
     const upper = str.toUpperCase();
-    if (NOMES_GENERICOS.has(upper)) {
+    if (
+      NOMES_GENERICOS.has(upper) ||
+      upper === "CHAPA CORTADA" ||
+      upper === "BLANK / CHAPA CORTADA" ||
+      upper.startsWith("ROTEIRO PCP:") ||
+      upper.startsWith("UNIDADE:")
+    ) {
       continue;
     }
     return str;
@@ -160,30 +170,37 @@ export function extrairNomeProdutoOficial(ordem, spec = null, pedidoOdoo = null)
   if (spec?.tipo_label && !NOMES_GENERICOS.has(String(spec.tipo_label).trim().toUpperCase())) {
     return spec.tipo_label;
   }
-  return o.tipo_peca || o.produto || "Chapa Cortada";
+  return o.tipo_peca || o.produto || "Corte & Dobra";
 }
 
 /**
  * Classifica se a ordem de Corte & Dobra é uma CHAPA LISA ou BARRA (Perfil Dobrado)
  * e calcula as duas métricas principais: Chapas/Barras e KG de forma 100% segura.
  *
- * 🛡️ REGRA AJL ANTI-CONFUSÃO MEDIDA (MM) X QUANTIDADE:
- * - Em 1277 x 3000 mm, 1277 é estritamente LARGURA e 3000 COMPRIMENTO, NUNCA quantidade de peças!
- * - A quantidade vem da contagem explícita na anotação ou de qtdOdoo (se UN/PC).
- * - Se vendido em KG no Odoo, calcula: KG / peso_unitario_teorico (Largura x Comp x Esp x 7.85).
+ * 🛡️ REGRA AJL SOBERANIA DA UNIDADE DE MEDIDA E TIPO DE PEÇA:
+ * - Se a unidade for BR (Barras), ou o nome tiver Perfil/Trilho/Calha/Rufo, ou tiver etapa de dobra no roteiro:
+ *   o produto é BARRAS (ex: 3 BARRAS), NUNCA chapas! Mesmo na Desbobinadeira ou Guilhotina.
+ * - CHAPAS é reservado exclusivamente para chapas planas/blanks sem dobra.
  */
 export function classificarItemCorteDobra(ordem, specTecOverride = null, pedidoOdoo = null) {
   const o = ordem || {};
+  const itemOdoo = pedidoOdoo?.itens?.[o.item_idx ?? 0] || pedidoOdoo?.itens?.[0] || null;
+
   const textoCompleto = [
     o.tipo_peca,
     o.produto,
+    o.instrucao,
     o.descricao,
     o.observacoes,
     o.dimensoes_livres,
-    o.especificacoes_tecnicas
+    o.especificacoes_tecnicas,
+    itemOdoo?.produto,
+    itemOdoo?.descricao,
+    pedidoOdoo?.produto,
+    pedidoOdoo?.descricao
   ].filter(Boolean).join(" ");
 
-  const unidadeNorm = String(o.unidade || "").toUpperCase();
+  const unidadeNorm = String(o.unidade || itemOdoo?.unidade || "").toUpperCase();
   const isKg = unidadeNorm === "KG" || unidadeNorm === "KGS";
 
   let spec = specTecOverride;
@@ -213,16 +230,25 @@ export function classificarItemCorteDobra(ordem, specTecOverride = null, pedidoO
     return String(m || "").trim();
   }).filter(Boolean);
 
-  const maquinaAtualUpper = String(o.maquina || o.maquina_inicial || "").toUpperCase();
-  const isMaquinaDobra = maquinaAtualUpper.includes("DOBRA");
-  const isMaquinaCorteOuDesb = maquinaAtualUpper.includes("DESBOBINADEIRA") || maquinaAtualUpper.includes("CORTE") || maquinaAtualUpper.includes("GUILHOTINA");
+  // 2. Detecção rigorosa da Unidade Oficial do Odoo ERP (BR = Barras)
+  const unidDetectada = normalizarUnidadeMedidaItem(itemOdoo || o);
+  const ehUnidadeBarra =
+    unidDetectada === "BR" ||
+    /\b(BR|BARRA|BARRAS)\b/i.test(unidadeNorm) ||
+    /\(PADR[AÃ]O\s*-\s*BR\)/i.test(textoCompleto) ||
+    /\[PADR[AÃ]O\s*-\s*BR\]/i.test(textoCompleto);
 
-  const textoChapa = /(?:chapa|blank)/i.test(textoCompleto);
-  const textoTemDobra = /(?:dobr|perfil|cantoneira|calha|cartola|degrau|pingadeira|rufo|\bl\b|\bu\b)/i.test(textoCompleto);
+  const temNomePerfilOuTrilho =
+    /\b(perfil|trilho|calha|rufo|cantoneira|cartola|degrau|pingadeira|u enrijecido|perfil dobrado)\b/i.test(textoCompleto);
 
-  // No Desbobinador e Guilhotina é sempre CHAPA (ex: 10 Chapas).
-  // Só vira BARRA/PERFIL quando a ordem estiver fisicamente na Dobradeira!
-  const isPerfilDobrado = isMaquinaDobra ? true : (isMaquinaCorteOuDesb ? false : (textoTemDobra && !textoChapa));
+  const temEtapaDobra =
+    maquinas.some(m => /DOBRA/i.test(m)) ||
+    String(o.maquina || o.maquina_inicial || "").toUpperCase().includes("DOBRA") ||
+    String(o.roteiro_maquinas || "").toUpperCase().includes("DOBRA");
+
+  // Regra Oficial AJL: Se é Barra, tem nome de perfil/trilho ou possui dobra no roteiro,
+  // é PERFIL/BARRA em qualquer máquina (Desbobinadeira, Guilhotina ou Dobradeira).
+  const isPerfilDobrado = Boolean(ehUnidadeBarra || temNomePerfilOuTrilho || temEtapaDobra);
   const isChapaLisa = !isPerfilDobrado;
 
   const tipoMetrica = isChapaLisa ? "chapa" : "barra";
@@ -352,16 +378,12 @@ export default function BannerInstrucaoCorteDobra({ ordem, specTec = null, pedid
 
             {/* Badges de Categoria e Medidas logo abaixo do Título */}
             <div className="flex items-center gap-2 flex-wrap mt-1.5">
-              <span
-                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-black uppercase tracking-wider shadow-2xs ${
-                  isChapaLisa
-                    ? "bg-amber-500 text-white dark:bg-amber-600"
-                    : "bg-indigo-600 text-white dark:bg-indigo-700"
-                }`}
-              >
-                {isChapaLisa ? <Scissors className="w-3 h-3" /> : <Wrench className="w-3 h-3" />}
-                {isChapaLisa ? "Chapa Lisa / Blank" : "Perfil Dobrado (Barra)"}
-              </span>
+              {isChapaLisa && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-black uppercase tracking-wider shadow-2xs bg-amber-500 text-white dark:bg-amber-600">
+                  <Scissors className="w-3 h-3" />
+                  Chapa Lisa / Blank
+                </span>
+              )}
 
               {medidaFmt && (
                 <span className="font-mono font-black text-xs px-2.5 py-0.5 rounded-md bg-white/80 dark:bg-slate-900/80 border border-current shadow-2xs">
@@ -390,12 +412,12 @@ export default function BannerInstrucaoCorteDobra({ ordem, specTec = null, pedid
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black font-mono shadow-xs border ${
                 isChapaLisa
                   ? "bg-orange-600 text-white border-orange-700"
-                  : "bg-indigo-700 text-white border-indigo-800"
+                  : "bg-blue-600 text-white border-blue-700"
               }`}
             >
               {isChapaLisa ? <Layers className="w-4 h-4" /> : <Package className="w-4 h-4" />}
               <span>
-                {qtdPecas} {(labelMetrica || "PEÇAS").toUpperCase()}
+                {qtdPecas} {(labelMetrica || (isChapaLisa ? "CHAPAS" : "BARRAS")).toUpperCase()}
               </span>
             </div>
 
