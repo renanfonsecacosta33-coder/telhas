@@ -25,6 +25,7 @@ import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
 import { PrioridadeBadge, BannerPrioridadeDestaque, isPedidoRetiraAgora, isPedidoRota, getCardPrioridadeClasses } from "@/lib/prioridadeHelper";
 import ProcessoStepperPedido from "@/components/producao/ProcessoStepperPedido";
 import PedidoRowEntrega from "@/components/producao/PedidoRowEntrega";
+import BadgeDataEntregaEChegada from "@/components/corte-dobra/BadgeDataEntregaEChegada";
 import AlertaMultiplasOpsMesmoPedido from "@/components/producao/AlertaMultiplasOpsMesmoPedido"; import BandejaColagemInfoPanel from "@/components/producao/BandejaColagemInfoPanel";
 import SmartImage from "@/components/ui/SmartImage";
 import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/compressImage";
@@ -2057,7 +2058,9 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
                     <strong className="text-foreground font-black">{p.vendedor || p.vendedor_nome}</strong>
                   </div>
                 )}
-                <PedidoRowEntrega pedido={p} />
+
+                {/* 📅 Datas Críticas: Chegada na Máquina e Entrega Prometida */}
+                <BadgeDataEntregaEChegada ordem={p} maquinaAtual={p.maquina || maquina} />
               </div>
             )}
           </div>

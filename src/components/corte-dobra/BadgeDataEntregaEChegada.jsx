@@ -45,17 +45,17 @@ function formatarTempoDecorrido(d) {
 }
 
 /**
- * Badges de Data de Entrega e Data de Chegada da OP na Máquina
+ * Badges de Data de Entrega e Data de Chegada da OP na Máquina (Universal: Corte & Dobra e Telhas)
  */
-export default function BadgeDataEntregaEChegada({ ordem, pedidoOdoo = null, className = "" }) {
+export default function BadgeDataEntregaEChegada({ ordem, pedidoOdoo = null, maquinaAtual = null, className = "" }) {
   if (!ordem && !pedidoOdoo) return null;
 
   const o = ordem || {};
   const p = pedidoOdoo || {};
 
-  // 1. Data de Entrega
+  // 1. Data de Entrega (com suporte a campos de Corte & Dobra e Telhas)
   const dataEntregaObj = useMemo(() => {
-    const raw = o.data_entrega || p.data_entrega || o.data_prontidao || p.data_prontidao;
+    const raw = o.data_entrega || p.data_entrega || o.data_prontidao || p.data_prontidao || o.data_previsao_fabrica || p.data_previsao_fabrica || o.data_prevista || p.data_prevista;
     if (!raw) return null;
     const dt = parseDataSegura(raw);
     if (!dt) return null;
@@ -73,11 +73,20 @@ export default function BadgeDataEntregaEChegada({ ordem, pedidoOdoo = null, cla
     else if (diffDias === 0) status = "hoje";
 
     return { dt, fmt, status, diffDias };
-  }, [o.data_entrega, p.data_entrega, o.data_prontidao, p.data_prontidao]);
+  }, [o.data_entrega, p.data_entrega, o.data_prontidao, p.data_prontidao, o.data_previsao_fabrica, p.data_previsao_fabrica, o.data_prevista, p.data_prevista]);
 
   // 2. Data de Chegada da OP na Máquina
   const dataChegadaObj = useMemo(() => {
-    const raw = o.created_date || o.created_at || o.data_recebimento || p.data_recebimento || o.data;
+    const maqNorm = String(maquinaAtual || o.maquina || "").toUpperCase();
+    let raw = null;
+
+    // Se estiver na Colagem e tiver data em que foi liberada/enviada para a colagem:
+    if (maqNorm.includes("COLAGEM")) {
+      raw = o.data_liberacao_colagem || o.data_envio_colagem || o.colagem_iniciada_em || o.data_entrada_maquina || o.created_date || o.created_at || o.data_recebimento || p.data_recebimento || o.data;
+    } else {
+      raw = o.data_entrada_maquina || o.created_date || o.created_at || o.data_recebimento || p.data_recebimento || o.data;
+    }
+
     if (!raw) return null;
     const dt = parseDataSegura(raw);
     if (!dt) return null;
@@ -87,7 +96,7 @@ export default function BadgeDataEntregaEChegada({ ordem, pedidoOdoo = null, cla
     const tempoRelativo = temHora ? formatarTempoDecorrido(dt) : "";
 
     return { dt, fmtDataHora, tempoRelativo, temHora };
-  }, [o.created_date, o.created_at, o.data_recebimento, p.data_recebimento, o.data]);
+  }, [o.data_entrada_maquina, o.data_liberacao_colagem, o.data_envio_colagem, o.colagem_iniciada_em, o.created_date, o.created_at, o.data_recebimento, p.data_recebimento, o.data, o.maquina, maquinaAtual]);
 
   if (!dataEntregaObj && !dataChegadaObj) return null;
 
