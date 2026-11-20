@@ -2,7 +2,7 @@ import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Layers, Scale, Scissors, Wrench, Package, Sparkles } from "lucide-react";
 import { extrairEspecificacao } from "@/lib/descricaoExtractor";
-import { normalizarUnidadeMedidaItem } from "@/lib/pedidoOdooHelper";
+import { normalizarUnidadeMedidaItem, getItens } from "@/lib/pedidoOdooHelper";
 
 /**
  * Extrai a instrução real e limpa do vendedor vinda do Odoo/PCP,
@@ -12,7 +12,8 @@ export function extrairInstrucaoLimpaVendedor(ordem, pedidoOdoo = null) {
   if (!ordem && !pedidoOdoo) return "";
   const o = ordem || {};
 
-  const itemOdoo = pedidoOdoo?.itens?.[o.item_idx ?? 0] || pedidoOdoo?.itens?.[0] || null;
+  const itensPed = pedidoOdoo ? getItens(pedidoOdoo) : [];
+  const itemOdoo = (o.item_idx != null ? itensPed[o.item_idx] : null) || itensPed[0] || null;
 
   const nomeProd = String(
     itemOdoo?.produto || o.tipo_peca || o.produto || ""
@@ -43,7 +44,13 @@ export function extrairInstrucaoLimpaVendedor(ordem, pedidoOdoo = null) {
       upper.startsWith("PAUSA:") ||
       upper.startsWith("MODO DIRETO") ||
       upper.startsWith("STATUS:") ||
-      upper.startsWith("ENTREGA:")
+      upper.startsWith("ENTREGA:") ||
+      upper.startsWith("VEIO DE") ||
+      upper.startsWith("TRANSFERIDO DE") ||
+      upper.startsWith("OP GERADA AUTOMATICAMENTE") ||
+      upper.includes("ETAPA ") ||
+      upper.includes("➔") ||
+      upper.includes("->")
     ) {
       return;
     }
@@ -74,7 +81,13 @@ export function extrairInstrucaoLimpaVendedor(ordem, pedidoOdoo = null) {
         bUpper.startsWith("FINALIZADO JUNTO") ||
         bUpper.startsWith("RETOMADA:") ||
         bUpper.startsWith("PAUSA:") ||
-        bUpper.startsWith("MODO DIRETO")
+        bUpper.startsWith("MODO DIRETO") ||
+        bUpper.startsWith("VEIO DE") ||
+        bUpper.startsWith("TRANSFERIDO DE") ||
+        bUpper.startsWith("OP GERADA AUTOMATICAMENTE") ||
+        bUpper.includes("ETAPA ") ||
+        bUpper.includes("➔") ||
+        bUpper.includes("->")
       ) {
         continue;
       }
@@ -134,7 +147,8 @@ export function extrairNomeProdutoOficial(ordem, spec = null, pedidoOdoo = null)
   ]);
 
   // Se houver pedidoOdoo vinculado, busca o item correspondente à OF
-  const itemOdoo = pedidoOdoo?.itens?.[o.item_idx ?? 0] || pedidoOdoo?.itens?.[0] || null;
+  const itensPed = pedidoOdoo ? getItens(pedidoOdoo) : [];
+  const itemOdoo = (o.item_idx != null ? itensPed[o.item_idx] : null) || itensPed[0] || null;
 
   const limparAspas = (str) => String(str || "").replace(/^["'“”«»]+|["'“”«»]+$/g, "").trim();
 
@@ -184,7 +198,8 @@ export function extrairNomeProdutoOficial(ordem, spec = null, pedidoOdoo = null)
  */
 export function classificarItemCorteDobra(ordem, specTecOverride = null, pedidoOdoo = null) {
   const o = ordem || {};
-  const itemOdoo = pedidoOdoo?.itens?.[o.item_idx ?? 0] || pedidoOdoo?.itens?.[0] || null;
+  const itensPed = pedidoOdoo ? getItens(pedidoOdoo) : [];
+  const itemOdoo = (o.item_idx != null ? itensPed[o.item_idx] : null) || itensPed[0] || null;
 
   const textoCompleto = [
     o.tipo_peca,

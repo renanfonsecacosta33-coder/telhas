@@ -225,6 +225,11 @@ export async function rotearItensCorteDobraDireto({
         cliente: pedido.cliente_nome || "",
         vendedor: pedido.vendedor_nome || "",
         tipo_peca: it.produto || "Blank / Chapa Cortada",
+        produto: it.produto || descItem,
+        descricao: descItem,
+        instrucao: it.instrucao || it.observacao || pedido.observacao_vendedor || descItem,
+        observacao_vendedor: pedido.observacao_vendedor || it.observacao || "",
+        chapa_descricao: it.chapa_descricao || descItem,
         dimensoes_livres: dimensoes,
         comprimento_mm: Number(compMm) || 3000,
         quantidade: qtdOp,
@@ -272,9 +277,15 @@ export async function rotearItensCorteDobraDireto({
         maquina_inicial: maquinaInicial,
         unidade: filialValida,
         numero_pedido: String(pedido.numero_pedido || "").replace(/^#/, "").trim(),
+        numero_oc: pedido.numero_oc || "",
         cliente: pedido.cliente_nome || "",
         vendedor: pedido.vendedor_nome || "",
         tipo_peca: it.produto || "Corte & Dobra",
+        produto: it.produto || descItem,
+        descricao: descItem,
+        instrucao: it.instrucao || it.observacao || pedido.observacao_vendedor || descItem,
+        observacao_vendedor: pedido.observacao_vendedor || it.observacao || "",
+        chapa_descricao: it.chapa_descricao || descItem,
         dimensoes_livres: dimensoes,
         comprimento_mm: Number(compMm) || 3000,
         desenvolvimento_mm: Number(desenvMm) || null,
@@ -489,28 +500,59 @@ export async function avancarProximaEtapaRoteiroCD(ordemAtual, entidadeOrigem = 
     filialValida = pedOdoo?.unidade || "Matriz AJL";
   }
 
+  // 🛡️ REGRA AJL A DESCRIÇÃO NUNCA MUDA, ELA É FIXA:
+  // Preserva integralmente a descrição, instrução e especificações da peça através de todas as etapas de produção
+  const itensPedOdoo = pedOdoo ? getItens(pedOdoo) : [];
+  const itemCorrespondente = (ordemAtual.item_idx != null ? itensPedOdoo[ordemAtual.item_idx] : null) || itensPedOdoo[0] || null;
+
+  const descricaoFixa = ordemAtual.descricao || itemCorrespondente?.descricao || ordemAtual.tipo_peca || pedOdoo?.descricao || "";
+  const instrucaoFixa = ordemAtual.instrucao || itemCorrespondente?.instrucao || itemCorrespondente?.observacao || pedOdoo?.observacao_vendedor || "";
+  const produtoFixo = ordemAtual.produto || itemCorrespondente?.produto || pedOdoo?.produto || ordemAtual.tipo_peca || "Corte & Dobra";
+  const tipoPecaFixo = ordemAtual.tipo_peca || produtoFixo || "Corte & Dobra";
+  const chapaDescFixa = ordemAtual.chapa_descricao || itemCorrespondente?.chapa_descricao || ordemAtual.bobina_descricao || "";
+  const desenvIdFixo = ordemAtual.desenvolvimento_id || itemCorrespondente?.desenvolvimento_id || null;
+  const desenvDescFixo = ordemAtual.desenvolvimento_descricao || itemCorrespondente?.desenvolvimento_descricao || null;
+
   const payloadProxima = {
     data: dataHoje,
     maquina: maquinaCanonica,
     maquina_inicial: normalizarChaveMaquinaCD(roteiro[0]) || roteiro[0] || maquinaCanonica,
     unidade: filialValida,
     numero_pedido: numPedLimpo,
+    numero_oc: ordemAtual.numero_oc || pedOdoo?.numero_oc || "",
     cliente: ordemAtual.cliente || pedOdoo?.cliente_nome || "",
     vendedor: ordemAtual.vendedor || pedOdoo?.vendedor_nome || "",
-    tipo_peca: ordemAtual.tipo_peca || "Corte & Dobra",
+    tipo_peca: tipoPecaFixo,
+    produto: produtoFixo,
+    descricao: descricaoFixa,
+    instrucao: instrucaoFixa,
+    chapa_descricao: chapaDescFixa,
+    desenvolvimento_id: desenvIdFixo,
+    desenvolvimento_descricao: desenvDescFixo,
     dimensoes_livres: ordemAtual.dimensoes_livres || "",
     comprimento_mm: ordemAtual.comprimento_mm || 3000,
     desenvolvimento_mm: ordemAtual.desenvolvimento_mm || null,
+    largura_mm: ordemAtual.largura_mm || null,
     quantidade: ordemAtual.quantidade || 1,
     quantidade_pecas: ordemAtual.quantidade_pecas || null,
     peso_kg: ordemAtual.peso_kg || null,
     espessura_exigida: ordemAtual.espessura_exigida || null,
     material_espessura: ordemAtual.material_espessura || ordemAtual.espessura_utilizada || null,
     status: "pendente", // ⚡ Entra pronta para ser executada na próxima máquina
-    chapa_origem: "chaparia",
+    chapa_origem: ordemAtual.chapa_origem || "chaparia",
+    chapa_cd_id: ordemAtual.chapa_cd_id || null,
+    prioridade: Boolean(ordemAtual.prioridade || pedOdoo?.prioridade),
+    prioridade_nivel: ordemAtual.prioridade_nivel || pedOdoo?.prioridade_nivel || null,
+    tipo_prioridade: ordemAtual.tipo_prioridade || pedOdoo?.tipo_prioridade || null,
+    cliente_retira_agora: Boolean(ordemAtual.cliente_retira_agora || pedOdoo?.cliente_retira_agora),
+    is_rota: Boolean(ordemAtual.is_rota || pedOdoo?.is_rota),
+    data_programada_pcp: ordemAtual.data_programada_pcp || pedOdoo?.data_programada_pcp || null,
     foto_pedido_url: ordemAtual.foto_pedido_url || null,
     foto_material_url: ordemAtual.foto_finalizacao_url || ordemAtual.foto_material_url || null,
-    observacoes: `Veio de ${ordemAtual.maquina || entidadeOrigem} (Etapa ${proximoIndice + 1} de ${roteiro.length}: ${roteiro.join(" ➔ ")})`,
+    observacoes: ordemAtual.observacoes || pedOdoo?.observacoes || "",
+    observacao_vendedor: ordemAtual.observacao_vendedor || pedOdoo?.observacao_vendedor || "",
+    veio_de: `${ordemAtual.maquina || entidadeOrigem}`,
+    historico_etapa: `Etapa ${proximoIndice + 1} de ${roteiro.length}: ${roteiro.join(" ➔ ")}`,
     roteiro_maquinas: JSON.stringify(roteiro),
     indice_etapa_atual: proximoIndice,
     pedido_odoo_id: pedOdoo?.id || ordemAtual.pedido_odoo_id || null,
