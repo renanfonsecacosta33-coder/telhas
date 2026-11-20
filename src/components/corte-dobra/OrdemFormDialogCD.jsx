@@ -1,1558 +1,686 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
+import React, { useState, useEffect, useMemo } from "react";
+import { format } from "date-fns";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Factory,
+  Calendar,
+  Layers,
+  Scale,
+  Package,
+  AlertTriangle,
+  AlertCircle,
+  Search,
+  ArrowRightLeft,
+  Sparkles,
+  CheckCircle2,
+  FileText,
+  User,
+  Hash,
+} from "lucide-react";
+import { useFilial } from "@/contexts/FilialContext";
+import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
-import { useFilial } from "@/contexts/FilialContext";
-import { Package, Warehouse, ShoppingCart, Ruler, Weight, Layers, Scale, AlertCircle, AlertTriangle, ShieldAlert, ShieldCheck, Camera, Loader2, X, Star, PackageX, Wrench, Trash2, User, Route, Flame, Plus } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
-import UploadButton from "@/components/ui/UploadButton";
-import CroquiImage from "@/components/pcp/CroquiImage";
-import ChapaEstoqueCombobox from "@/components/corte-dobra/ChapaEstoqueCombobox";
-import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
-import { useTolerancias } from "@/hooks/useTolerancias";
-import { getBobinaStatus, calcMetrosDisponiveis } from "@/lib/bobinaStatusHelper";
-import { validarBobina, filtrarBobinasCompativeis } from "@/lib/bobinaValidation";
-import BloqueioBobinaDialog from "@/components/bobinas/BloqueioBobinaDialog";
-import { extrairEspecificacao } from "@/lib/descricaoExtractor";
-import BoxAproveitamentoTiras from "@/components/corte-dobra/BoxAproveitamentoTiras";
 
-const MAQUINAS_INICIAIS = [
-  { id: "DESBOBINADEIRA 01", label: "Desbobinadeira 01 (até 3,00mm)", icon: Layers },
-  { id: "DESBOBINADEIRA 02", label: "Desbobinadeira 02 (0,80 a 4,75mm)", icon: Layers },
-  { id: "CORTE 3M", label: "Guilhotina 3m", icon: Wrench },
-  { id: "CORTE 6M", label: "Guilhotina 6m", icon: Wrench },
-  { id: "DOBRA 3M", label: "Dobradeira 3m", icon: Wrench },
-  { id: "DOBRA FUNDO 6M", label: "Dobradeira 6m (Fundo)", icon: Wrench },
-  { id: "DOBRA INICIO 6M", label: "Dobradeira 6m (Início)", icon: Wrench },
-];
-
+/**
+ * Extrai número limpo de espessura de bobina (ex: "1,25" -> 1.25)
+ */
 function getEspessuraNumeroBobina(b) {
   if (!b) return 0;
-  const str = String(b.espessura_utilizada || b.chapa || b.espessura_real || b.espessura_mm || "").replace(",", ".").replace(/[^\d.]/g, "");
+  const str = String(
+    b.espessura_utilizada || b.chapa || b.espessura_real || b.espessura_mm || ""
+  )
+    .replace(",", ".")
+    .replace(/[^\d.]/g, "");
   return parseFloat(str) || 0;
 }
 
-function labelBobina(b) {
-  if (!b) return "";
-  const parts = [];
-  if (b.codigo) parts.push(`[${b.codigo}]`);
-  const esp = String(b.espessura_utilizada || b.chapa || b.espessura_real || b.espessura_mm || b.espessura || "").replace("mm", "").trim();
-  if (esp) parts.push(`${esp} mm`);
-  const corOuQualidade = b.qualidade === "GV" ? "Galvanizado" : (b.qualidade === "GL (IMP)" ? "Galvalume Imp." : (b.qualidade || b.cor || ""));
-  if (corOuQualidade) parts.push(corOuQualidade);
-  if (b.largura_mm) parts.push(`${b.largura_mm}mm`);
-  return parts.join(" · ");
+/**
+ * Formata descrição da bobina para o seletor conforme especificação:
+ * [Código da Bobina] - Espessura (mm) - Largura (mm) - Cor - Saldo disponível (kg)
+ */
+function formatarOpcaoBobina(b, saldoKg) {
+  const codigo = b.codigo ? `[${b.codigo}]` : "[Sem Código]";
+  const espNum = getEspessuraNumeroBobina(b);
+  const espFmt = espNum > 0 ? `${espNum.toFixed(2).replace(".", ",")} mm` : "Esp. N/D";
+  const largFmt = b.largura_mm ? `${b.largura_mm} mm` : "Larg. N/D";
+  const corOuQualidade =
+    b.cor ||
+    (b.qualidade === "GV"
+      ? "Galvanizado"
+      : b.qualidade === "GL (IMP)"
+      ? "Galvalume Imp."
+      : b.qualidade || "Galvanizado");
+  const saldoFmt = `${Number(saldoKg || 0).toLocaleString("pt-BR", {
+    maximumFractionDigits: 1,
+  })} kg disp.`;
+
+  return `${codigo} - ${espFmt} - ${largFmt} - ${corOuQualidade} - ${saldoFmt}`;
 }
 
-// Calcula metragem restante com base no peso e largura/chapa
-function calcMetragem(bobina) {
-  if (!bobina) return null;
-  if (bobina.metragem_restante) return bobina.metragem_restante;
-  if (bobina.metragem) return bobina.metragem;
-  return null;
-}
-
-// Calcula quantas chapas de X mm cabem numa bobina de Y metros
-function calcMaxChapas(bobina, comprimento_mm) {
-  if (!bobina || !comprimento_mm || Number(comprimento_mm) <= 0) return null;
-  const metros = calcMetragem(bobina);
-  if (!metros) return null;
-  return Math.floor((metros * 1000) / Number(comprimento_mm));
-}
-
-// Calcula KG estimado das chapas: largura × comprimento × espessura × qtd × densidade
-// densidade aço galvanizado = 0.00000785 kg/mm³
-function calcKgEstimado(bobina, comprimento_mm, quantidade) {
-  if (!bobina || !comprimento_mm || !quantidade) return null;
-  const larg = Number(bobina.largura_mm) || 0;
-  const comp = Number(comprimento_mm) || 0;
-  const qtd = Number(quantidade) || 0;
-  // espessura pode ser "0,43" ou "0.43"
-  const espStr = String(bobina.chapa || "").replace(",", ".");
-  const esp = parseFloat(espStr) || 0;
-  if (larg <= 0 || comp <= 0 || esp <= 0 || qtd <= 0) return null;
-  return larg * comp * esp * qtd * 0.00000785;
-}
-
-export default function OrdemFormDialogCD({ open, onClose, onSave, editItem, defaultDate, isGestor, defaultMaquina = "DESBOBINADEIRA 01" }) {
-  const [form, setForm] = useState({
-    data: format(new Date(), "yyyy-MM-dd"),
-    maquina_inicial: defaultMaquina || "DESBOBINADEIRA 01",
-    bobina_id: "",
-    chapa_cd_id: "",
-    tipo_peca: "",
-    dimensoes_livres: "",
-    comprimento_mm: "",
-    quantidade: "",
-    destino: "estoque",
-    numero_pedido: "",
-    cliente: "",
-    guilhotina: "",
-    tamanho_corte_guilhotina: "",
-    foto_pedido_url: "",
-    observacoes: "",
-    prioridade: false,
-    prioridade_nivel: null,
-    rota: false,
-    valor_pago_cliente: "",
-    material_em_falta: false,
-    material_espessura: "",
-    material_cor: "",
-    espessura_exigida: "",
-    origem_exigida: "ambas",
-  });
-  const [confirmReserva, setConfirmReserva] = useState(false);
-  const [confirmExcluirOS, setConfirmExcluirOS] = useState(false);
-  const [excluindoOS, setExcluindoOS] = useState(false);
-  const [bloqueio, setBloqueio] = useState({ open: false, motivos: [], titulo: "" });
-  const [uploadingFoto, setUploadingFoto] = useState(false);
-  const [autorizaSubstituicaoBitola, setAutorizaSubstituicaoBitola] = useState(false);
-  const [modoDigitarVendedor, setModoDigitarVendedor] = useState(false);
-  const fotoInputRef = useRef();
-  const fotoScanRef = useRef();
-
+export default function OrdemFormDialogCD({
+  open,
+  onClose,
+  onSave,
+  editItem,
+  defaultDate,
+  isGestor,
+  defaultMaquina = "DESBOBINADEIRA 01",
+}) {
   const { filialAtiva } = useFilial();
-  const { toast } = useToast();
 
-  const isDesb02 = form.maquina_inicial === "DESBOBINADEIRA 02";
-  const isDesb01 = form.maquina_inicial === "DESBOBINADEIRA 01" || form.maquina_inicial === "DESBOBINADEIRA";
-  const isDesbobinadeiraAtiva = isDesb01 || isDesb02 || form.maquina_inicial?.startsWith?.("DESBOBINADEIRA");
-  const limiteEspessuraBobina = isDesb02 ? 4.75 : (isDesb01 ? 3.00 : null);
+  // Estados dos Campos Obrigatórios do Novo Modal
+  const [dataProducao, setDataProducao] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [maquina, setMaquina] = useState(defaultMaquina || "DESBOBINADEIRA 01");
+  const [bobinaId, setBobinaId] = useState("");
+  const [buscaBobina, setBuscaBobina] = useState("");
+  const [comprimentoMm, setComprimentoMm] = useState("");
+  const [quantidadeChapas, setQuantidadeChapas] = useState("");
+  const [pesoTotalKg, setPesoTotalKg] = useState("");
 
-  const { data: bobinas = [] } = useQuery({
-    queryKey: ["bobinas-cd-ativas", filialAtiva],
-    queryFn: () => {
+  // Campos Opcionais de Identificação
+  const [numeroPedido, setNumeroPedido] = useState("");
+  const [cliente, setCliente] = useState("");
+  const [observacoes, setObservacoes] = useState("");
+
+  // Rastreia qual campo do conversor bidirecional foi modificado por último
+  const [ultimoEditado, setUltimoEditado] = useState(null); // 'qtd' | 'peso'
+
+  // Consulta de bobinas ativas do setor Corte & Dobra na filial
+  const { data: bobinas = [], isLoading: isLoadingBobinas } = useQuery({
+    queryKey: ["bobinas-cd-ativas-modal-simplificado", filialAtiva],
+    queryFn: async () => {
       const filtro = { setor: "corte_dobra", arquivada: false };
       if (filialAtiva && filialAtiva !== "todas") {
         filtro.unidade = filialAtiva;
       }
       return base44.entities.Bobina.filter(filtro);
     },
-    enabled: open && isDesbobinadeiraAtiva,
+    enabled: open,
   });
 
+  // Cálculo de pré-baixa / reservas em tempo real
   const filiaisHook = filialAtiva === "todas" ? null : [filialAtiva];
-  const { preBaixaMap, statusMap } = usePreBaixaBobinas("corte_dobra", filiaisHook);
-  const { data: tolerancias = [] } = useTolerancias();
-  const reqValidacao = { espessuraExigida: form.espessura_exigida, origemExigida: form.origem_exigida, tolerancias };
-  const temReqOdoo = !!(form.espessura_exigida || (form.origem_exigida && form.origem_exigida !== "ambas"));
+  const { preBaixaMap } = usePreBaixaBobinas("corte_dobra", filiaisHook);
 
-  // Filtro de capacidade estrita de chão de fábrica:
-  // Desbobinadeira 01 suporta bobinas de até 3,00mm (bobinas > 3,00mm NÃO aparecem)
-  // Desbobinadeira 02 suporta bobinas de até 4,75mm (bobinas > 4,75mm NÃO aparecem)
-  const bobinasFiltradasPorCapacidade = useMemo(() => {
-    if (!isDesbobinadeiraAtiva || limiteEspessuraBobina === null) return bobinas;
-    return bobinas.filter(b => {
-      const esp = getEspessuraNumeroBobina(b);
-      if (!esp) return true;
-      return esp <= (limiteEspessuraBobina + 0.005);
-    });
-  }, [bobinas, isDesbobinadeiraAtiva, limiteEspessuraBobina]);
-
-  const bobinasCompativeis = filtrarBobinasCompativeis(bobinasFiltradasPorCapacidade, reqValidacao);
-
-  const handleBobinaChange = (bobinaId) => {
-    const b = bobinas.find(x => x.id === bobinaId);
-    if (b) {
-      const esp = getEspessuraNumeroBobina(b);
-      if (limiteEspessuraBobina && esp > (limiteEspessuraBobina + 0.005)) {
-        setBloqueio({
-          open: true,
-          titulo: `Espessura excede a capacidade da ${form.maquina_inicial}!`,
-          motivos: [`A ${form.maquina_inicial} suporta bobinas de até ${limiteEspessuraBobina.toFixed(2).replace(".", ",")} mm. A bobina selecionada tem ${b.chapa || esp} mm.`],
-        });
-        return;
-      }
-      const res = validarBobina(b, reqValidacao);
-      if (!res.ok) {
-        setBloqueio({ open: true, titulo: "Espessura da bobina incompatível com o pedido Odoo!", motivos: [res.detail] });
-        return;
-      }
-    }
-    set("bobina_id", bobinaId);
-  };
-
-  const { data: chapasDisponiveis = [] } = useQuery({
-    queryKey: ["chapas-cd-form-dinamico", filialAtiva],
-    queryFn: () => {
-      const filtro = {};
-      if (filialAtiva && filialAtiva !== "todas") {
-        filtro.unidade = filialAtiva;
-      }
-      return base44.entities.ChapaCD.filter(filtro);
-    },
-    enabled: open && !isDesbobinadeiraAtiva,
-  });
-
-  const { data: todasOrdens = [] } = useQuery({
-    queryKey: ["ordens-desbobinadeira"],
-    queryFn: () => base44.entities.OrdemDesbobinadeira.list("-data", 500),
-    enabled: open,
-  });
-
-  // Vendedores cadastrados na gestão de Dados de Produção (fonte principal)
-  const { data: dadosVendedores = [] } = useQuery({
-    queryKey: ["dados-producao", "vendedor"],
-    queryFn: () => base44.entities.DadosProducao.filter({ tipo: "vendedor", ativo: true }),
-    enabled: open,
-  });
-
-  // Usuários com role vendedor (caso existam)
-  const { data: usersVendedores = [] } = useQuery({
-    queryKey: ["users-vendedores-list"],
-    queryFn: () => base44.entities.User.filter({ role: "vendedor" }).catch(() => []),
-    enabled: open,
-  });
-
-  // Vínculo automático: foto do pedido e dados vindos do Odoo (PedidoOdoo)
-  const { data: pedidoOdooVinculado = [] } = useQuery({
-    queryKey: ["pedido-odoo-vinculo", form.numero_pedido],
-    queryFn: async () => {
-      const num = String(form.numero_pedido || "").replace(/^#/, "").trim();
-      if (!num) return [];
-      const res = await base44.entities.PedidoOdoo.filter({ numero_pedido: num }, "-created_date", 5).catch(() => []);
-      if (res.length > 0) return res;
-      return base44.entities.PedidoOdoo.filter({ numero_pedido: `#${num}` }, "-created_date", 5).catch(() => []);
-    },
-    enabled: open && !!form.numero_pedido && String(form.numero_pedido).trim().length > 0,
-  });
-
-  useEffect(() => {
-    const p = pedidoOdooVinculado?.[0];
-    if (p) {
-      if (p.foto_pedido_url && !form.foto_pedido_url) {
-        set("foto_pedido_url", p.foto_pedido_url);
-      }
-      if (p.vendedor_nome && !form.vendedor) {
-        set("vendedor", p.vendedor_nome);
-      }
-      if (p.cliente_nome && !form.cliente) {
-        set("cliente", p.cliente_nome);
-      }
-    }
-  }, [pedidoOdooVinculado]);
-
-  // Lista consolidada de vendedores para o dropdown (sem duplicatas e com fallback seguro)
-  const listaVendedores = useMemo(() => {
-    const nomes = new Set();
-
-    dadosVendedores.forEach(d => {
-      const v = (d.valor || d.nome || "").trim();
-      if (v) nomes.add(v);
-    });
-
-    usersVendedores.forEach(u => {
-      const v = (u.full_name || u.name || u.email || "").trim();
-      if (v) nomes.add(v);
-    });
-
-    if (form.vendedor && form.vendedor.trim()) {
-      nomes.add(form.vendedor.trim());
-    }
-
-    // Se nenhuma fonte tiver retornado vendedores cadastrados, usa a lista padrão da fábrica
-    if (nomes.size === 0) {
-      ["VERA (PG)", "HUDSON", "BALCÃO", "DIRETO", "INTERNO", "VENDEDOR EXTERNO"].forEach(v => nomes.add(v));
-    }
-
-    return Array.from(nomes).sort((a, b) => a.localeCompare(b, "pt-BR"));
-  }, [dadosVendedores, usersVendedores, form.vendedor]);
-
+  // Inicialização e preenchimento ao abrir ou editar
   useEffect(() => {
     if (!open) return;
-    const resolverMaq = (m) => {
-      if (!m) return defaultMaquina === "DESBOBINADEIRA" ? "DESBOBINADEIRA 01" : (defaultMaquina || "DESBOBINADEIRA 01");
-      if (m === "DESBOBINADEIRA") return "DESBOBINADEIRA 01";
-      return m;
-    };
-    if (editItem) {
-      const textoPecaEdit = `${editItem.observacoes || ""} ${editItem.dimensoes_livres || ""} ${editItem.tipo_peca || ""}`;
-      const specEdit = extrairEspecificacao(textoPecaEdit, editItem.quantidade);
-      const desenvInicial = editItem.desenvolvimento_mm || specEdit?.desenvolvimento_mm || "";
-      const compMmInicial = (editItem.comprimento_mm && Number(editItem.comprimento_mm) > 300)
-        ? editItem.comprimento_mm
-        : (specEdit?.comprimento_mm && specEdit.comprimento_mm > 300 ? specEdit.comprimento_mm : (editItem.comprimento_mm || ""));
 
-      setForm({
-        data: editItem.data || format(new Date(), "yyyy-MM-dd"),
-        maquina_inicial: resolverMaq(editItem.maquina_inicial || editItem.maquina),
-        bobina_id: editItem.bobina_id || "",
-        chapa_cd_id: editItem.chapa_cd_id || "",
-        tipo_peca: editItem.tipo_peca || "",
-        dimensoes_livres: editItem.dimensoes_livres || "",
-        desenvolvimento_mm: desenvInicial,
-        comprimento_mm: compMmInicial,
-        quantidade: editItem.quantidade || "",
-        destino: editItem.destino || "estoque",
-        numero_pedido: editItem.numero_pedido || "",
-        cliente: editItem.cliente || "",
-        guilhotina: editItem.guilhotina || "",
-        tamanho_corte_guilhotina: editItem.tamanho_corte_guilhotina || "",
-        foto_pedido_url: editItem.foto_pedido_url || "",
-        tamanho_blank: editItem.tamanho_corte_guilhotina || "",
-        observacoes: editItem.observacoes || "",
-        prioridade: editItem.prioridade || false,
-        prioridade_nivel: editItem.prioridade_nivel ? Number(editItem.prioridade_nivel) : (editItem.prioridade ? 1 : null),
-        rota: editItem.rota || false,
-        valor_pago_cliente: editItem.valor_pago_cliente || "",
-        material_em_falta: editItem.material_em_falta || false,
-        material_espessura: editItem.material_espessura || "",
-        material_cor: editItem.material_cor || "",
-        espessura_exigida: editItem.espessura_exigida || "",
-        origem_exigida: editItem.origem_exigida || "ambas",
-        vendedor: editItem.vendedor || "",
-      });
+    if (editItem && editItem.id) {
+      setDataProducao(editItem.data || format(new Date(), "yyyy-MM-dd"));
+      setMaquina(editItem.maquina || defaultMaquina || "DESBOBINADEIRA 01");
+      setBobinaId(editItem.bobina_id || "");
+      setComprimentoMm(editItem.comprimento_mm ? String(editItem.comprimento_mm) : "");
+      setQuantidadeChapas(editItem.quantidade ? String(editItem.quantidade) : "");
+      setPesoTotalKg(
+        editItem.peso_kg || editItem.kg_estimado
+          ? String(editItem.peso_kg || editItem.kg_estimado)
+          : ""
+      );
+      setNumeroPedido(editItem.numero_pedido || "");
+      setCliente(editItem.cliente || "");
+      setObservacoes(editItem.observacoes || "");
     } else {
-      setForm({
-        data: defaultDate || format(new Date(), "yyyy-MM-dd"),
-        maquina_inicial: resolverMaq(defaultMaquina),
-        bobina_id: "",
-        chapa_cd_id: "",
-        tipo_peca: "",
-        dimensoes_livres: "",
-        comprimento_mm: "",
-        quantidade: "",
-        destino: "estoque",
-        numero_pedido: "",
-        cliente: "",
-        guilhotina: "",
-        tamanho_corte_guilhotina: "",
-        foto_pedido_url: "",
-        tamanho_blank: "",
-        observacoes: "",
-        prioridade: false,
-        prioridade_nivel: null,
-        rota: false,
-        valor_pago_cliente: "",
-        material_em_falta: false,
-        material_espessura: "",
-        material_cor: "",
-        espessura_exigida: "",
-        origem_exigida: "ambas",
-        vendedor: "",
-      });
+      setDataProducao(defaultDate || format(new Date(), "yyyy-MM-dd"));
+      setMaquina(defaultMaquina || "DESBOBINADEIRA 01");
+      setBobinaId("");
+      setBuscaBobina("");
+      setComprimentoMm("");
+      setQuantidadeChapas("");
+      setPesoTotalKg("");
+      setNumeroPedido("");
+      setCliente("");
+      setObservacoes("");
     }
+    setUltimoEditado(null);
   }, [open, editItem, defaultDate, defaultMaquina]);
 
-  const [variacoesMedidas, setVariacoesMedidas] = useState(null);
+  // Limites de espessura por máquina
+  const isDesb02 = maquina === "DESBOBINADEIRA 02";
+  const limiteEspessuraMax = isDesb02 ? 4.75 : 3.0;
+  const limiteEspessuraMin = isDesb02 ? 0.8 : 0.0;
 
-  const initVariacoes = () => {
-    const qAtual = form.quantidade ? Number(form.quantidade) : 10;
-    const compAtual = form.comprimento_mm ? Number(form.comprimento_mm) : 3000;
-    const desenvAtual = form.desenvolvimento_mm || "";
-    setVariacoesMedidas([
-      { id: 1, qtd: qAtual, comp_mm: compAtual, desenv_mm: desenvAtual, obs: "" },
-      { id: 2, qtd: 10, comp_mm: 3000, desenv_mm: desenvAtual, obs: "" }
-    ]);
-  };
-
-  const addVariacao = () => {
-    const desenvPadrao = form.desenvolvimento_mm || "";
-    setVariacoesMedidas(prev => [
-      ...(prev || []),
-      { id: Date.now(), qtd: 10, comp_mm: 3000, desenv_mm: desenvPadrao, obs: "" }
-    ]);
-  };
-
-  const removeVariacao = (idx) => {
-    setVariacoesMedidas(prev => {
-      const nova = prev.filter((_, i) => i !== idx);
-      return nova.length > 0 ? nova : null;
+  // Filtro de bobinas compatíveis com a máquina selecionada
+  const bobinasFiltradas = useMemo(() => {
+    return bobinas.filter((b) => {
+      const esp = getEspessuraNumeroBobina(b);
+      if (esp > limiteEspessuraMax + 0.005) return false;
+      return true;
     });
+  }, [bobinas, limiteEspessuraMax]);
+
+  // Bobina atualmente selecionada
+  const bobinaSelecionada = useMemo(() => {
+    return bobinas.find((b) => b.id === bobinaId) || null;
+  }, [bobinas, bobinaId]);
+
+  // Saldo real e disponível da bobina selecionada
+  const { pesoBrutoBobina, saldoDisponivelBobina } = useMemo(() => {
+    if (!bobinaSelecionada) return { pesoBrutoBobina: 0, saldoDisponivelBobina: 0 };
+    const bruto =
+      Number(
+        bobinaSelecionada.peso_restante ??
+          bobinaSelecionada.peso_kg ??
+          bobinaSelecionada.peso_atual ??
+          0
+      ) || 0;
+    const preBaixa = preBaixaMap?.[bobinaSelecionada.id] || 0;
+    const disp = Math.max(0, bruto - preBaixa);
+    return { pesoBrutoBobina: bruto, saldoDisponivelBobina: disp };
+  }, [bobinaSelecionada, preBaixaMap]);
+
+  // Parâmetros técnicos da bobina para o cálculo de peso
+  const espessuraBobinaMm = useMemo(() => {
+    return getEspessuraNumeroBobina(bobinaSelecionada);
+  }, [bobinaSelecionada]);
+
+  const larguraBobinaMm = useMemo(() => {
+    return Number(bobinaSelecionada?.largura_mm) || 0;
+  }, [bobinaSelecionada]);
+
+  // Comprimento em milímetros e em metros
+  const compMmNum = Number(comprimentoMm) || 0;
+  const compMetrosFmt = compMmNum > 0 ? (compMmNum / 1000).toFixed(2).replace(".", ",") : "0,00";
+
+  /**
+   * ⚡ FÓRMULA DE PESO UNITÁRIO DA CHAPA:
+   * Peso_Unitario (kg) = (Comprimento_mm / 1000) * (Largura_mm / 1000) * Espessura_mm * 7,85
+   */
+  const pesoUnitarioChapa = useMemo(() => {
+    if (compMmNum <= 0 || larguraBobinaMm <= 0 || espessuraBobinaMm <= 0) return 0;
+    const peso = (compMmNum / 1000) * (larguraBobinaMm / 1000) * espessuraBobinaMm * 7.85;
+    return peso > 0 ? peso : 0;
+  }, [compMmNum, larguraBobinaMm, espessuraBobinaMm]);
+
+  /**
+   * 🔄 CONVERSOR BIDIRECIONAL EM TEMPO REAL:
+   * - Quando o usuário altera a Quantidade de Chapas:
+   *   Peso_KG = Qtd * Peso_Unitario
+   * - Quando o usuário altera o Peso Total (KG):
+   *   Qtd = Math.round(Peso_KG / Peso_Unitario)
+   */
+  const handleQuantidadeChange = (valStr) => {
+    setQuantidadeChapas(valStr);
+    setUltimoEditado("qtd");
+    const qtdNum = Number(valStr);
+    if (pesoUnitarioChapa > 0 && qtdNum > 0) {
+      const calcPeso = qtdNum * pesoUnitarioChapa;
+      setPesoTotalKg(calcPeso.toFixed(2));
+    } else if (!valStr || qtdNum <= 0) {
+      setPesoTotalKg("");
+    }
   };
 
-  const updateVariacao = (idx, campo, valor) => {
-    setVariacoesMedidas(prev => {
-      const clone = [...(prev || [])];
-      clone[idx] = { ...clone[idx], [campo]: valor };
-      return clone;
-    });
+  const handlePesoTotalChange = (valStr) => {
+    setPesoTotalKg(valStr);
+    setUltimoEditado("peso");
+    const pesoNum = parseFloat(String(valStr).replace(",", "."));
+    if (pesoUnitarioChapa > 0 && pesoNum > 0) {
+      const calcQtd = Math.round(pesoNum / pesoUnitarioChapa);
+      setQuantidadeChapas(calcQtd > 0 ? String(calcQtd) : "1");
+    } else if (!valStr || pesoNum <= 0) {
+      setQuantidadeChapas("");
+    }
   };
 
-  const bobinaObj = bobinas.find(b => b.id === form.bobina_id);
-
-  const totaisVariacoes = useMemo(() => {
-    if (!variacoesMedidas || variacoesMedidas.length === 0) return null;
-    let totalChapas = 0;
-    let totalMetros = 0;
-    let totalKgEstimado = 0;
-
-    variacoesMedidas.forEach(v => {
-      const q = Number(v.qtd) || 0;
-      const compMm = Number(v.comp_mm) || 0;
-      const m = (q * compMm) / 1000;
-      totalChapas += q;
-      totalMetros += m;
-      if (bobinaObj && compMm > 0 && q > 0) {
-        const kgLinha = calcKgEstimado(bobinaObj, compMm, q) || 0;
-        totalKgEstimado += kgLinha;
-      }
-    });
-
-    return {
-      totalChapas,
-      totalMetros: +totalMetros.toFixed(2),
-      totalKgEstimado: Math.round(totalKgEstimado * 10) / 10
-    };
-  }, [variacoesMedidas, bobinaObj]);
-
-  const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
-  const isDesbobinadeira = isDesbobinadeiraAtiva;
-  const chapaObj = chapasDisponiveis.find(c => c.id === form.chapa_cd_id);
-  const chapasFiltradas = chapasDisponiveis.filter(c => c.status === "disponivel" || c.status === "parcial");
-  // Chapa reservada para um pedido específico — exige o número do pedido para avançar
-  const chapaReservadaPedido = chapaObj?.destino === "pedido_direto" && !!chapaObj?.numero_pedido;
-  const maxChapas = calcMaxChapas(bobinaObj, form.comprimento_mm);
-  const metrosRestantes = calcMetragem(bobinaObj);
-  const kgEstimado = calcKgEstimado(bobinaObj, form.comprimento_mm, form.quantidade);
-
-  const largBobinaAtual = bobinaObj?.largura_mm || chapaObj?.largura_mm || 1200;
-  const isDesenvExcedido = Number(form.desenvolvimento_mm) > largBobinaAtual;
-  const espBobinaNum = getEspessuraNumeroBobina(bobinaObj);
-  const espessuraInformada = parseFloat(String(form.espessura_exigida || form.material_espessura || "").replace(",", "."));
-  const espessuraDesejada = Number.isFinite(espessuraInformada) && espessuraInformada > 0 ? espessuraInformada : null;
-  const isBitolaDivergente = Boolean(
-    bobinaObj && espessuraDesejada != null && espBobinaNum > 0 && Math.abs(espBobinaNum - espessuraDesejada) > 0.05
-  );
-
-  const handleInverterMedidas = () => {
-    const d = form.desenvolvimento_mm;
-    const c = form.comprimento_mm;
-    setForm(f => ({ ...f, desenvolvimento_mm: c, comprimento_mm: d }));
-    toast({
-      title: "Medidas invertidas com sucesso!",
-      description: `Desenvolvimento: ${c} mm · Comprimento: ${d} mm`,
-    });
-  };
-
-  // Lógica de reserva da bobina selecionada
-  const reservadaParaEste = bobinaObj?.reservada && form.destino === "pedido_direto" && form.numero_pedido && bobinaObj?.reserva_numero_pedido === form.numero_pedido;
-  const reservadaParaOutro = bobinaObj?.reservada && !reservadaParaEste;
-
-  // Pré-baixa: soma KG das ordens ativas (pendente/em_producao/pausado) da mesma bobina
-  const ordensDaBobina = todasOrdens.filter(o =>
-    o.bobina_id === form.bobina_id &&
-    o.id !== editItem?.id &&
-    ["pendente", "em_producao", "pausado"].includes(o.status)
-  );
-  const preReservadoKg = ordensDaBobina.reduce((s, o) => s + (o.kg_estimado || 0), 0);
-  const pesoBobina = bobinaObj?.peso_kg || 0;
-  const pesoDisponivel = Math.max(0, pesoBobina - preReservadoKg);
-  const excedePeso = kgEstimado !== null && kgEstimado > pesoDisponivel;
-
-  // Chapa reservada para um pedido: força destino "pedido_direto" para liberar o campo de nº do pedido
+  // Re-sincroniza conversão se o comprimento ou a bobina mudarem
   useEffect(() => {
-    if (chapaReservadaPedido && form.destino !== "pedido_direto") {
-      set("destino", "pedido_direto");
-    }
-  }, [chapaReservadaPedido]);
+    if (pesoUnitarioChapa <= 0) return;
 
-  const handleUploadFoto = async (file) => {
-    if (!file) return;
-    setUploadingFoto(true);
-    try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      set("foto_pedido_url", file_url);
-    } catch (e) {
-      alert("Erro ao enviar foto: " + (e.message || e));
-    }
-    setUploadingFoto(false);
-  };
-
-  const handleExcluirOS = async () => {
-    setExcluindoOS(true);
-    try {
-      const res = await base44.functions.invoke("cancelarOrdemServicoOdoo", {
-        numero_pedido: form.numero_pedido,
-        odoo_id: editItem?.odoo_id || pedidoOdooVinculado?.[0]?.odoo_id || null,
-        motivo: "Exclusão via modal Editar Ordem (Galpão de Produção)",
-      });
-      // Trava atômica: Odoo não confirmou (status ≠ 200/201) → nada foi excluído no App.
-      if (res?.status && res.status !== "ok") {
-        toast({
-          title: "❌ FALHA NO CANCELAMENTO ODOO",
-          description: "O Odoo não confirmou o cancelamento da ordem de fabricação. A OS foi mantida na fábrica!",
-          variant: "destructive",
-          duration: 9000,
-        });
-        return;
+    if (ultimoEditado === "qtd" && quantidadeChapas) {
+      const qtdNum = Number(quantidadeChapas);
+      if (qtdNum > 0) {
+        setPesoTotalKg((qtdNum * pesoUnitarioChapa).toFixed(2));
       }
-      toast({
-        title: res?.message || "Ordem de Serviço cancelada no Odoo e removida do App!",
-        description: `Odoo ID ${res?.odoo_id || ""}.`,
-        className: "border-emerald-500/40"
-      });
-      setConfirmExcluirOS(false);
-      onClose();
-    } catch (e) {
-      // Erro de rede/execução → nada foi excluído no App.
-      toast({
-        title: "❌ FALHA NO CANCELAMENTO ODOO",
-        description: "O Odoo não confirmou o cancelamento da ordem de fabricação. A OS foi mantida na fábrica!",
-        variant: "destructive",
-        duration: 9000,
-      });
-    } finally {
-      setExcluindoOS(false);
+    } else if (ultimoEditado === "peso" && pesoTotalKg) {
+      const pesoNum = parseFloat(String(pesoTotalKg).replace(",", "."));
+      if (pesoNum > 0) {
+        const calcQtd = Math.round(pesoNum / pesoUnitarioChapa);
+        setQuantidadeChapas(calcQtd > 0 ? String(calcQtd) : "1");
+      }
     }
-  };
+  }, [pesoUnitarioChapa]);
 
-  const doSave = () => {
-    const bobinaSnap = bobinaObj ? labelBobina(bobinaObj) : "";
-    const chapaSnap = chapaObj ? `${chapaObj.bobina_descricao || ""} · ${chapaObj.comprimento_mm}mm` : "";
-    const isMaterialEmFalta = form.material_em_falta;
-    const maqFinal = form.maquina_inicial === "DESBOBINADEIRA" ? "DESBOBINADEIRA 01" : form.maquina_inicial;
+  // Validação de Estoque
+  const pesoTotalNum = parseFloat(String(pesoTotalKg).replace(",", ".")) || 0;
+  const isEstoqueInsuficiente =
+    bobinaSelecionada &&
+    pesoTotalNum > 0 &&
+    saldoDisponivelBobina > 0 &&
+    pesoTotalNum > saldoDisponivelBobina + 0.1;
+
+  // Validação de Campos Obrigatórios para Habilitar Confirmação
+  const isFormValido =
+    Boolean(dataProducao) &&
+    Boolean(maquina) &&
+    Boolean(bobinaId) &&
+    compMmNum > 0 &&
+    Number(quantidadeChapas) > 0 &&
+    pesoTotalNum > 0 &&
+    !isEstoqueInsuficiente;
+
+  // Submissão da Ordem
+  const handleSubmit = (e) => {
+    e?.preventDefault();
+    if (!isFormValido) return;
 
     const UNIDADES_VALIDAS = ["Matriz AJL", "Pinhais", "Ivaiporã", "Ponta Grossa"];
-    let filialValida = (filialAtiva && filialAtiva !== "todas") ? filialAtiva : (form.unidade || "Matriz AJL");
+    let filialValida =
+      filialAtiva && filialAtiva !== "todas" ? filialAtiva : "Matriz AJL";
     if (!UNIDADES_VALIDAS.includes(filialValida)) filialValida = "Matriz AJL";
 
-    const bobinaIdSegura = form.bobina_id || (isMaterialEmFalta ? "PENDENTE_MATERIAL" : (bobinaObj?.id || "BOBINA-PADRAO-CD"));
+    const corOuQualidade =
+      bobinaSelecionada?.cor ||
+      (bobinaSelecionada?.qualidade === "GV"
+        ? "Galvanizado"
+        : bobinaSelecionada?.qualidade || "Galvanizado");
 
-    const baseData = {
-      ...form,
+    const descBobinaFmt = bobinaSelecionada
+      ? `[${bobinaSelecionada.codigo || "CD"}] ${espessuraBobinaMm.toFixed(2).replace(".", ",")}mm · ${larguraBobinaMm}mm · ${corOuQualidade}`
+      : "Bobina Aço CD";
+
+    const descPeca = `Chapa ${espessuraBobinaMm.toFixed(2).replace(".", ",")}mm x ${larguraBobinaMm}mm x ${compMmNum}mm`;
+
+    const payload = {
+      data: dataProducao,
+      maquina: maquina,
+      maquina_inicial: maquina,
       unidade: filialValida,
-      maquina: isDesbobinadeira ? maqFinal : (form.maquina || form.maquina_inicial),
-      maquina_inicial: maqFinal,
-      bobina_id: bobinaIdSegura,
-      bobina_descricao: isDesbobinadeira ? (bobinaSnap || "Bobina Aço") : "",
-      espessura_utilizada: bobinaObj?.espessura_utilizada || bobinaObj?.chapa || form.material_espessura || "1.95",
-      guilhotina: form.guilhotina || null,
-      tamanho_corte_guilhotina: form.destino === "pedido_direto" && form.tamanho_corte_guilhotina ? Number(form.tamanho_corte_guilhotina) : form.destino === "estoque" && form.tamanho_blank ? Number(form.tamanho_blank) : null,
-      foto_pedido_url: form.foto_pedido_url || null,
-      valor_pago_cliente: form.valor_pago_cliente ? Number(form.valor_pago_cliente) : null,
-      chapa_descricao: !isDesbobinadeira ? chapaSnap : "",
-      chapa_origem: !isDesbobinadeira ? "chaparia" : form.chapa_origem || undefined,
+      bobina_id: bobinaSelecionada?.id || bobinaId,
+      bobina_descricao: descBobinaFmt,
+      espessura_utilizada: String(espessuraBobinaMm),
+      largura_mm: larguraBobinaMm,
+      comprimento_mm: compMmNum,
+      quantidade: Number(quantidadeChapas),
+      peso_kg: Math.round(pesoTotalNum * 100) / 100,
+      kg_estimado: Math.round(pesoTotalNum * 100) / 100,
+      cliente: cliente.trim() || "Corte Interno / Estoque",
+      numero_pedido: numeroPedido.trim().replace(/^#/, ""),
+      observacoes: observacoes.trim(),
+      tipo_peca: "Chapa Lisa / Blank",
+      produto: descPeca,
+      descricao: descPeca,
+      instrucao: observacoes.trim() || descPeca,
+      status: "pendente",
+      destino: "estoque",
+      chapa_origem: "bobina",
     };
 
-    if (isMaterialEmFalta) {
-      baseData.status = "aguardando_material";
-      baseData.bobina_id = "PENDENTE_MATERIAL";
-      baseData.chapa_cd_id = "";
-      baseData.bobina_descricao = "";
-      baseData.chapa_descricao = "";
-      baseData.kg_estimado = null;
-    }
-
-    // Se estiver usando Múltiplas Medidas: gera lote de OPs individuais vinculadas
-    if (variacoesMedidas && variacoesMedidas.length > 1) {
-      const loteId = "LOTE_CD_" + Date.now();
-      const listaOps = variacoesMedidas.map((v, idx) => {
-        const compMm = Number(v.comp_mm) || 3000;
-        const qtdPecas = Number(v.qtd) || 1;
-        const desenv = v.desenv_mm ? Number(v.desenv_mm) : (Number(form.desenvolvimento_mm) || null);
-        const kgLinha = bobinaObj ? calcKgEstimado(bobinaObj, compMm, qtdPecas) : null;
-
-        return {
-          ...baseData,
-          comprimento_mm: compMm,
-          quantidade: qtdPecas,
-          desenvolvimento_mm: desenv,
-          kg_estimado: kgLinha ? Math.round(kgLinha * 100) / 100 : null,
-          lote_medidas_id: loteId,
-          lote_medida_item: `Item ${idx + 1}/${variacoesMedidas.length} · ${compMm}mm`,
-          observacoes: [
-            form.observacoes,
-            `Medida ${idx + 1} de ${variacoesMedidas.length}: ${qtdPecas} chapas c/ ${compMm}mm${desenv ? ` (largura ${desenv}mm)` : ""}`,
-            v.obs
-          ].filter(Boolean).join(" | "),
-        };
-      });
-
-      onSave(listaOps);
-      return;
-    }
-
-    // Medida única tradicional
-    const singleData = {
-      ...baseData,
-      desenvolvimento_mm: Number(form.desenvolvimento_mm) || null,
-      comprimento_mm: Number(form.comprimento_mm) || 0,
-      quantidade: Number(form.quantidade),
-      kg_estimado: kgEstimado ? Math.round(kgEstimado * 100) / 100 : null,
-    };
-
-    onSave(singleData);
-  };
-
-  const handleSave = () => {
-    if (isDesenvExcedido) {
-      alert(`🚫 Bloqueio Operacional: O Desenvolvimento informado (${form.desenvolvimento_mm} mm) ultrapassa a largura máxima da bobina-mãe (${largBobinaAtual} mm)!\n\nVerifique se o comprimento da barra não foi digitado neste campo por engano. Use o botão "Inverter com Comprimento da Barra" se necessário.`);
-      return;
-    }
-    if (isBitolaDivergente && !autorizaSubstituicaoBitola) {
-      alert(`🚫 Bitola Divergente!\n\nO pedido exige ${espessuraDesejada} mm e a bobina selecionada é de ${espBobinaNum} mm.\n\nConfirme a autorização no checkbox de substituição para continuar.`);
-      return;
-    }
-    // Se material em falta, pular validação de bobina/chapa
-    if (form.material_em_falta) {
-      if (!form.material_espessura) { alert("Informe a espessura desejada."); return; }
-      if (!variacoesMedidas && (!form.quantidade || Number(form.quantidade) <= 0)) { alert("Informe a quantidade."); return; }
-      doSave();
-      return;
-    }
-    if (isDesbobinadeira) {
-      if (!form.bobina_id) { alert("Selecione a bobina."); return; }
-    } else {
-      if (!form.chapa_cd_id) { alert("Selecione a chapa do estoque."); return; }
-      if (chapaReservadaPedido) {
-        if (!form.numero_pedido) {
-          alert(`🔒 Esta chapa é do pedido ${chapaObj.numero_pedido}.\n\nInforme o número do pedido no campo "Nº do Pedido" (destino: Pedido Direto) para continuar.`);
-          return;
-        }
-        if (String(form.numero_pedido) !== String(chapaObj.numero_pedido)) {
-          alert(`O número do pedido informado (${form.numero_pedido}) não corresponde ao pedido desta chapa (${chapaObj.numero_pedido}).\n\nUse o pedido correto para liberar a OP.`);
-          return;
-        }
-      }
-      if (!form.tipo_peca) { alert("Informe o tipo de peça."); return; }
-    }
-
-    // Validação de medidas
-    if (variacoesMedidas && variacoesMedidas.length > 0) {
-      for (let i = 0; i < variacoesMedidas.length; i++) {
-        const v = variacoesMedidas[i];
-        if (!v.qtd || Number(v.qtd) <= 0) {
-          alert(`Informe a quantidade de chapas para a Medida ${i + 1}.`);
-          return;
-        }
-        if (isDesbobinadeira && (!v.comp_mm || Number(v.comp_mm) <= 0)) {
-          alert(`Informe o comprimento de corte (mm) para a Medida ${i + 1}.`);
-          return;
-        }
-      }
-    } else {
-      if (isDesbobinadeira && (!form.comprimento_mm || Number(form.comprimento_mm) <= 0)) { alert("Informe o comprimento de corte em mm."); return; }
-      if (!form.quantidade || Number(form.quantidade) <= 0) { alert("Informe a quantidade de chapas."); return; }
-    }
-
-    if (form.destino === "pedido_direto" && !form.numero_pedido) { alert("Informe o número do pedido."); return; }
-
-    const pesoTotalEstimado = totaisVariacoes ? totaisVariacoes.totalKgEstimado : kgEstimado;
-    const excedePesoReal = pesoTotalEstimado !== null && pesoTotalEstimado > pesoDisponivel;
-
-    if (excedePesoReal) {
-      alert(`⚠️ Material insuficiente!\n\nBobina: ${bobinaObj?.codigo || '—'}\nPeso atual: ${pesoBobina.toFixed(1)} kg\nPré-baixa (OPs ativas): ${preReservadoKg.toFixed(1)} kg\nDisponível: ${pesoDisponivel.toFixed(1)} kg\nNecessário: ${(pesoTotalEstimado || 0).toFixed(1)} kg\n\nA OP será criada como "OP sem Material".`);
-      setForm(f => ({ ...f, material_em_falta: true }));
-      doSave();
-      return;
-    }
-    if (reservadaParaOutro) { setConfirmReserva(true); return; }
-    doSave();
+    onSave(payload);
+    onClose();
   };
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent
-        className="sm:max-w-lg max-h-[92vh] overflow-y-auto"
-        onInteractOutside={(e) => {
-          const t = e.target;
-          if (t?.closest?.('[data-radix-select-content]') || t?.closest?.('[role="listbox"]') || t?.closest?.('[data-radix-popper-content-wrapper]')) {
-            e.preventDefault();
-          }
-        }}
-        onPointerDownOutside={(e) => {
-          const t = e.target;
-          if (t?.closest?.('[data-radix-select-content]') || t?.closest?.('[role="listbox"]') || t?.closest?.('[data-radix-popper-content-wrapper]')) {
-            e.preventDefault();
-          }
-        }}
-      >
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Layers className="w-5 h-5 text-orange-500" />
-            {editItem ? "Revisar / Atualizar Ordem" : "Nova Ordem"}
-          </DialogTitle>
+      <DialogContent className="sm:max-w-2xl max-h-[92vh] overflow-y-auto p-0 gap-0 rounded-2xl border shadow-2xl">
+        {/* Cabeçalho do Modal */}
+        <DialogHeader className="p-5 pb-4 bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-transparent border-b border-border/80">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-xl bg-orange-500 text-white flex items-center justify-center shadow-sm">
+                <Scissors className="w-5 h-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-black tracking-tight text-foreground flex items-center gap-2">
+                  {editItem?.id ? "Revisar Ordem de Corte" : "Nova Ordem de Corte"}
+                  <Badge className="bg-orange-500 text-white font-mono text-xs font-bold uppercase tracking-wide">
+                    {maquina}
+                  </Badge>
+                </DialogTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Desbobinamento e corte de chapas a partir do estoque de bobinas
+                </p>
+              </div>
+            </div>
+          </div>
         </DialogHeader>
 
-        <div className="space-y-5 py-2">
-
-          {/* Data */}
-          <div className="space-y-1">
-            <Label>Data de Produção *</Label>
-            <Input type="date" value={form.data} onChange={e => set("data", e.target.value)} />
-          </div>
-
-          {/* Máquina Inicial */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-1">
-              <Wrench className="w-4 h-4 text-orange-500" /> Máquina Inicial do Processo
-            </Label>
-            <Select value={form.maquina_inicial} onValueChange={v => {
-              set("maquina_inicial", v);
-              set("bobina_id", "");
-              set("chapa_cd_id", "");
-            }}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Selecione a máquina..." />
-              </SelectTrigger>
-              <SelectContent>
-                {MAQUINAS_INICIAIS.map(m => {
-                  const Icon = m.icon;
-                  return (
-                    <SelectItem key={m.id} value={m.id}>
-                      <Icon className="w-4 h-4 mr-2 inline" /> {m.label}
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Requisitos do Pedido Odoo — trava de espessura + origem */}
-          <div className={`rounded-lg border-2 p-3 space-y-2 ${temReqOdoo ? "border-red-400 bg-red-50" : "border-border bg-muted/30"}`}>
-            <div className="flex items-center gap-2">
-              <ShieldAlert className={`w-4 h-4 ${temReqOdoo ? "text-red-600" : "text-muted-foreground"}`} />
-              <p className="text-sm font-bold">Requisitos do Pedido (Odoo) — Trava de Segurança</p>
-              {temReqOdoo && <span className="text-[10px] bg-red-600 text-white rounded-full px-2 py-0.5 font-bold ml-auto">FILTRO ATIVO</span>}
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Espessura Exigida</Label>
-                <Input placeholder="ex: 1,30" value={form.espessura_exigida} onChange={e => set("espessura_exigida", e.target.value)} />
-                <p className="text-[10px] text-muted-foreground">Apenas bobinas nesta espessura (ou faixa) serão listadas.</p>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Origem do Aço Exigida</Label>
-                <Select value={form.origem_exigida} onValueChange={v => set("origem_exigida", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ambas">Ambas (sem restrição)</SelectItem>
-                    <SelectItem value="Nacional">Nacional</SelectItem>
-                    <SelectItem value="Importado">Importado</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-[10px] text-muted-foreground">Bloqueia bobinas de origem incompatível.</p>
-              </div>
-            </div>
-            {temReqOdoo && isDesbobinadeira && bobinasCompativeis.length === 0 && (
-              <p className="text-xs text-red-600 font-semibold">⚠ Nenhuma bobina compatível em estoque — marque "Material em falta".</p>
-            )}
-          </div>
-
-          {/* Material em falta / A chegar */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => set("material_em_falta", !form.material_em_falta)}
-              className={`flex items-center gap-2 rounded-lg border-2 px-3 py-2 transition-all ${form.material_em_falta ? "border-amber-500 bg-amber-50" : "border-border bg-card hover:border-amber-300"}`}
-            >
-              <PackageX className={`w-4 h-4 ${form.material_em_falta ? "text-amber-600" : "text-muted-foreground"}`} />
-              <span className={`text-sm font-semibold ${form.material_em_falta ? "text-amber-700" : "text-muted-foreground"}`}>
-                {form.material_em_falta ? "Material em falta / A chegar" : "Marcar material em falta"}
-              </span>
-            </button>
-          </div>
-
-          {/* Campos manuais quando material em falta */}
-          {form.material_em_falta ? (
-            <div className="space-y-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
-              <p className="text-xs font-semibold text-amber-700">Informe as especificações do material desejado. A OP será criada na aba "OP sem Material".</p>
-              <div className="space-y-1">
-                <Label>Espessura Desejada *</Label>
-                <Input placeholder="Ex: 0,43" value={form.material_espessura} onChange={e => set("material_espessura", e.target.value)} />
-              </div>
-            </div>
-          ) : isDesbobinadeira ? (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between flex-wrap gap-1">
-              <Label className="flex items-center gap-1">
-                <Package className="w-4 h-4 text-blue-500" /> Bobina do Estoque *
+        {/* Formulário Principal */}
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {/* 1. SELEÇÃO DE DATA E MÁQUINA */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-3.5 rounded-xl bg-muted/40 border border-border/70">
+            {/* Campo 1: Data de Produção */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold flex items-center gap-1.5 text-foreground">
+                <Calendar className="w-3.5 h-3.5 text-orange-500" />
+                Data de Produção *
               </Label>
-              {limiteEspessuraBobina && (
-                <span className="text-[11px] font-semibold text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800 rounded px-2 py-0.5">
-                  Capacidade {form.maquina_inicial}: {isDesb02 ? "0,80 a 4,75 mm (mín: 0,80 mm)" : `até ${limiteEspessuraBobina.toFixed(2).replace(".", ",")} mm`}
-                </span>
-              )}
+              <Input
+                type="date"
+                value={dataProducao}
+                onChange={(e) => setDataProducao(e.target.value)}
+                className="h-10 text-sm font-semibold bg-background"
+                required
+              />
             </div>
-            {isDesb02 && bobinaObj && getEspessuraNumeroBobina(bobinaObj) > 0 && getEspessuraNumeroBobina(bobinaObj) < 0.795 && (
-              <div className="flex items-center gap-1.5 p-2 rounded-lg bg-amber-500/10 border border-amber-500/40 text-amber-800 dark:text-amber-200 text-xs font-bold">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>
-                  Aviso: A bobina selecionada tem {bobinaObj.chapa || bobinaObj.espessura_utilizada} mm. A Desbobinadeira 02 aceita no mínimo 0,80 mm. O operador só conseguirá iniciar esta OP mediante senha de liberação do gestor.
-                </span>
-              </div>
-            )}
-            <Select value={form.bobina_id} onValueChange={handleBobinaChange}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Selecione a bobina..." />
+
+            {/* Campo 2: Máquina */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold flex items-center gap-1.5 text-foreground">
+                <Factory className="w-3.5 h-3.5 text-orange-500" />
+                Máquina da Unidade *
+              </Label>
+              <Select value={maquina} onValueChange={(val) => setMaquina(val)}>
+                <SelectTrigger className="h-10 text-sm font-semibold bg-background">
+                  <SelectValue placeholder="Selecione a máquina..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DESBOBINADEIRA 01">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold">Desbobinadeira 01</span>
+                      <span className="text-xs text-muted-foreground">(até 3,00 mm)</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="DESBOBINADEIRA 02">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold">Desbobinadeira 02</span>
+                      <span className="text-xs text-muted-foreground">(0,80 a 4,75 mm)</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* 2. SELEÇÃO DE BOBINA DO ESTOQUE */}
+          <div className="space-y-2 p-3.5 rounded-xl bg-muted/40 border border-border/70">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-xs font-bold flex items-center gap-1.5 text-foreground">
+                <Layers className="w-3.5 h-3.5 text-blue-500" />
+                Selecionar Bobina do Estoque *
+              </Label>
+              <span className="text-[11px] font-mono text-muted-foreground">
+                {bobinasFiltradas.length} bobina(s) compatível(is)
+              </span>
+            </div>
+
+            {/* Busca textual de bobina */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-3" />
+              <Input
+                type="text"
+                placeholder="Filtrar por código (ex: CD0346), espessura ou cor..."
+                value={buscaBobina}
+                onChange={(e) => setBuscaBobina(e.target.value)}
+                className="h-8 pl-8 text-xs bg-background mb-1.5"
+              />
+            </div>
+
+            {/* Dropdown de Bobinas */}
+            <Select value={bobinaId} onValueChange={(val) => setBobinaId(val)}>
+              <SelectTrigger className="h-11 text-sm bg-background border-border">
+                <SelectValue placeholder="Escolha a bobina aberta/ativa no estoque..." />
               </SelectTrigger>
-              <SelectContent className="max-h-56">
-                {bobinasCompativeis.length === 0 && (
-                  <div className="px-3 py-4 text-sm text-muted-foreground text-center">
-                    {temReqOdoo ? "Nenhuma bobina compatível com o pedido Odoo" : "Nenhuma bobina ativa"}
-                  </div>
-                )}
-                {bobinasCompativeis.map(b => {
-                    const pb = preBaixaMap[b.id] || 0;
-                    const pesoBruto = b.peso_kg || 0;
-                    const dispLivre = Math.max(0, pesoBruto - pb);
-                    const metrosLivres = calcMetrosDisponiveis(b, dispLivre);
-                    const metrosBrutos = calcMetrosDisponiveis(b, pesoBruto);
-                    const st = getBobinaStatus(b, todasOrdens, statusMap);
+              <SelectContent className="max-h-60">
+                {bobinasFiltradas
+                  .filter((b) => {
+                    if (!buscaBobina.trim()) return true;
+                    const q = buscaBobina.toLowerCase();
+                    const cod = (b.codigo || "").toLowerCase();
+                    const esp = String(b.espessura_utilizada || b.chapa || "").toLowerCase();
+                    const cor = (b.cor || b.qualidade || "").toLowerCase();
+                    return cod.includes(q) || esp.includes(q) || cor.includes(q);
+                  })
+                  .map((b) => {
+                    const bruto =
+                      Number(b.peso_restante ?? b.peso_kg ?? b.peso_atual ?? 0) || 0;
+                    const pb = preBaixaMap?.[b.id] || 0;
+                    const disp = Math.max(0, bruto - pb);
 
                     return (
-                      <SelectItem key={b.id} value={b.id} className="py-2.5 cursor-pointer">
-                        <div className="flex items-center justify-between gap-2 w-full pr-2">
-                          <div className="space-y-0.5">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-mono font-bold text-sm text-primary">{b.codigo || "—"}</span>
-                              {(b.espessura_utilizada || b.chapa) && <span className="text-muted-foreground text-xs">{b.espessura_utilizada || b.chapa}mm</span>}
-                              {b.cor && <span className="text-blue-600 text-xs font-semibold">— {b.cor}</span>}
-                              {b.largura_mm && <span className="text-xs text-muted-foreground">{b.largura_mm}mm larg.</span>}
-                            </div>
-                            {pb > 0 ? (
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-muted-foreground text-[10px]">
-                                  Total: {pesoBruto.toLocaleString("pt-BR")}kg{metrosBrutos ? ` (~${metrosBrutos.toLocaleString("pt-BR")}m)` : ""}
-                                </span>
-                                <span className="text-amber-600 text-[10px] font-bold">
-                                  − {pb.toFixed(0)}kg reservado
-                                </span>
-                                <span className="text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">
-                                  = {dispLivre.toFixed(0)}kg livre{metrosLivres ? ` (~${metrosLivres.toLocaleString("pt-BR")}m)` : ""}
-                                </span>
-                              </div>
-                            ) : (
-                              <div>
-                                <span className="text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">
-                                  {dispLivre.toFixed(0)}kg disp.{metrosLivres ? ` (~${metrosLivres.toLocaleString("pt-BR")}m)` : ""}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          {st && (
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${st.bgClass}`}>
-                              {st.label}
-                            </span>
-                          )}
-                        </div>
+                      <SelectItem key={b.id} value={b.id} className="py-2 cursor-pointer">
+                        <span className="font-mono text-xs font-semibold">
+                          {formatarOpcaoBobina(b, disp)}
+                        </span>
                       </SelectItem>
                     );
                   })}
               </SelectContent>
             </Select>
 
-            {/* Ficha técnica da bobina selecionada */}
-            {bobinaObj && (
-              <div className="bg-gradient-to-br from-blue-50 to-slate-50 border border-blue-200 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-blue-800">{bobinaObj.codigo || "—"}</span>
-                  <div className="flex items-center gap-1">
-                    {reservadaParaEste && <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs"><ShieldCheck className="w-3 h-3 mr-1" />Reservada p/ este pedido</Badge>}
-                    {reservadaParaOutro && <Badge className="bg-red-100 text-red-700 border-red-200 text-xs"><ShieldAlert className="w-3 h-3 mr-1" />Reservada p/ outro</Badge>}
-                    <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs">Setor CD</Badge>
-                  </div>
+            {/* Ficha Técnica Rápida da Bobina Selecionada */}
+            {bobinaSelecionada && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
+                <div className="p-2 rounded-lg bg-background border border-border/80">
+                  <span className="text-[10px] text-muted-foreground block font-bold uppercase">
+                    Espessura
+                  </span>
+                  <span className="font-mono font-black text-foreground">
+                    {espessuraBobinaMm.toFixed(2).replace(".", ",")} mm
+                  </span>
                 </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-                  <div>
-                    <p className="text-muted-foreground uppercase tracking-wide text-[10px] mb-0.5">Espessura Utilizada</p>
-                    <p className="font-bold text-foreground">{bobinaObj.espessura_utilizada ? `${bobinaObj.espessura_utilizada}mm` : bobinaObj.chapa ? `${bobinaObj.chapa}mm` : "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground uppercase tracking-wide text-[10px] mb-0.5">Largura</p>
-                    <p className="font-bold text-foreground">{bobinaObj.largura_mm ? `${bobinaObj.largura_mm}mm` : "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground uppercase tracking-wide text-[10px] mb-0.5">Cor / RVM</p>
-                    <p className="font-bold text-foreground">{bobinaObj.cor || "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground uppercase tracking-wide text-[10px] mb-0.5">Qualidade</p>
-                    <p className="font-bold text-foreground">{bobinaObj.qualidade || "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground uppercase tracking-wide text-[10px] mb-0.5">Origem do Aço</p>
-                    <p className={`font-bold ${bobinaObj.origem === "Importado" ? "text-orange-600" : "text-emerald-600"}`}>{bobinaObj.origem || "Nacional"}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground uppercase tracking-wide text-[10px] mb-0.5">Peso Atual</p>
-                    <p className="font-bold text-foreground flex items-center gap-1">
-                      <Weight className="w-3 h-3 text-slate-400" />
-                      {bobinaObj.peso_kg ? `${bobinaObj.peso_kg} kg` : "—"}
-                    </p>
-                    {(preBaixaMap[bobinaObj.id] || 0) > 0 && (
-                      <p className="text-[10px] text-blue-600 font-semibold mt-0.5">Pré-baixa: {(preBaixaMap[bobinaObj.id] || 0).toFixed(1)}kg · Disp: {Math.max(0, (bobinaObj.peso_kg || 0) - (preBaixaMap[bobinaObj.id] || 0)).toFixed(1)}kg</p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground uppercase tracking-wide text-[10px] mb-0.5">Metragem Restante</p>
-                    <p className="font-bold text-foreground flex items-center gap-1">
-                      <Ruler className="w-3 h-3 text-slate-400" />
-                      {metrosRestantes ? `${metrosRestantes} m` : "—"}
-                    </p>
-                  </div>
-                  {bobinaObj.fornecedor && (
-                    <div className="col-span-2">
-                      <p className="text-muted-foreground uppercase tracking-wide text-[10px] mb-0.5">Fornecedor</p>
-                      <p className="font-bold text-foreground">{bobinaObj.fornecedor}</p>
-                    </div>
-                  )}
-                  {bobinaObj.nf && (
-                    <div>
-                      <p className="text-muted-foreground uppercase tracking-wide text-[10px] mb-0.5">NF</p>
-                      <p className="font-bold text-foreground">{bobinaObj.nf}</p>
-                    </div>
-                  )}
+                <div className="p-2 rounded-lg bg-background border border-border/80">
+                  <span className="text-[10px] text-muted-foreground block font-bold uppercase">
+                    Largura
+                  </span>
+                  <span className="font-mono font-black text-foreground">
+                    {larguraBobinaMm} mm
+                  </span>
                 </div>
-
-                {/* Banner de reserva */}
-                {reservadaParaEste && (
-                  <div className="bg-emerald-50 border border-emerald-300 rounded-lg p-3 flex items-start gap-2">
-                    <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-                    <div className="text-xs">
-                      <p className="font-bold text-emerald-800">Bobina reservada para este pedido</p>
-                      <p className="text-emerald-700">Esta bobina foi reservada especificamente para o pedido <strong>{bobinaObj.reserva_numero_pedido}</strong>. Pode prosseguir com tranquilidade.</p>
-                      {bobinaObj.reserva_motivo && <p className="text-emerald-600 mt-1">Motivo: {bobinaObj.reserva_motivo}</p>}
-                      {bobinaObj.reserva_autorizado_por && <p className="text-emerald-600">Autorizado por: {bobinaObj.reserva_autorizado_por}</p>}
-                    </div>
-                  </div>
-                )}
-                {reservadaParaOutro && (
-                  <div className="bg-red-50 border-2 border-red-400 rounded-lg p-3 flex items-start gap-2">
-                    <ShieldAlert className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                    <div className="text-xs">
-                      <p className="font-bold text-red-800">⚠️ ATENÇÃO: Bobina reservada para outro pedido!</p>
-                      <p className="text-red-700">Esta bobina está reservada para o pedido <strong>{bobinaObj.reserva_numero_pedido || "?"}</strong>. Ao continuar, você precisará confirmar que deseja utilizá-la mesmo assim.</p>
-                      {bobinaObj.reserva_motivo && <p className="text-red-600 mt-1">Motivo da reserva: {bobinaObj.reserva_motivo}</p>}
-                      {bobinaObj.reserva_autorizado_por && <p className="text-red-600">Reservado por: {bobinaObj.reserva_autorizado_por}</p>}
-                      {bobinaObj.reserva_tipo === "parcial" && <p className="text-red-600">Reserva parcial: {bobinaObj.reserva_kg} kg reservados</p>}
-                    </div>
-                  </div>
-                )}
+                <div className="p-2 rounded-lg bg-background border border-border/80">
+                  <span className="text-[10px] text-muted-foreground block font-bold uppercase">
+                    Cor / Qualidade
+                  </span>
+                  <span className="font-bold text-foreground truncate block">
+                    {bobinaSelecionada.cor || bobinaSelecionada.qualidade || "Galvanizado"}
+                  </span>
+                </div>
+                <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-950 dark:text-emerald-200">
+                  <span className="text-[10px] text-emerald-700 dark:text-emerald-300 block font-bold uppercase">
+                    Saldo Disponível
+                  </span>
+                  <span className="font-mono font-black text-sm">
+                    {saldoDisponivelBobina.toLocaleString("pt-BR", {
+                      maximumFractionDigits: 1,
+                    })}{" "}
+                    kg
+                  </span>
+                </div>
               </div>
             )}
           </div>
-          ) : (
-            <div className="space-y-2">
-              <Label className="flex items-center gap-1">
-                <Layers className="w-4 h-4 text-orange-500" /> Chapa do Estoque (Chaparia) *
-              </Label>
-              <ChapaEstoqueCombobox
-                chapas={chapasFiltradas}
-                value={form.chapa_cd_id}
-                onChange={v => set("chapa_cd_id", v)}
-                numeroPedido={form.numero_pedido}
-                placeholder="Pesquisar e selecionar chapa..."
-              />
-              {chapaObj && (
-                <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs flex flex-wrap gap-3 text-orange-800">
-                  <span>Bobina: <strong>{chapaObj.bobina_descricao}</strong></span>
-                  <span>Corte: <strong>{chapaObj.comprimento_mm}mm</strong></span>
-                  <span>Disponível: <strong>{chapaObj.quantidade_disponivel} pç</strong></span>
-                </div>
-              )}
-              {chapaReservadaPedido && (
-                <div className="bg-amber-50 border-2 border-amber-400 rounded-lg px-4 py-3 flex items-start gap-2">
-                  <ShieldAlert className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                  <div className="text-xs text-amber-800">
-                    <p className="font-bold">🔒 Chapa reservada para o pedido {chapaObj.numero_pedido}</p>
-                    <p className="mt-0.5">Para lançar esta OP, informe o número <strong>{chapaObj.numero_pedido}</strong> no campo "Nº do Pedido" (destino: Pedido Direto).</p>
-                  </div>
-                </div>
-              )}
-              <div className="space-y-1">
-                <Label>Tipo de Peça *</Label>
-                <Input placeholder="Ex: Blank, Dobra simples..." value={form.tipo_peca} onChange={e => set("tipo_peca", e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Dimensões / Especificações</Label>
-                <Input placeholder="Ex: A=100 B=50 · 6m" value={form.dimensoes_livres} onChange={e => set("dimensoes_livres", e.target.value)} />
-              </div>
-            </div>
-          )}
 
-          {/* Corte e Quantidades — Medida Única ou Múltiplas Medidas */}
-          <div className="border border-border/80 rounded-xl p-3 space-y-3 bg-slate-50/50 dark:bg-slate-900/40">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-bold text-foreground">
-                  {isDesbobinadeira ? "Corte & Chapas" : "Comprimento & Quantidade"}
-                </p>
-                {variacoesMedidas && variacoesMedidas.length > 1 && (
-                  <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-200 font-bold">
-                    {variacoesMedidas.length} medidas no lote
+          {/* 3. COMPRIMENTO & CONVERSOR BIDIRECIONAL (KG ⇄ QUANTIDADE) */}
+          <div className="p-3.5 rounded-xl bg-gradient-to-br from-amber-500/5 via-orange-500/5 to-transparent border border-orange-300 dark:border-orange-800 space-y-3.5">
+            {/* Campo 4: Comprimento da Chapa */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold flex items-center gap-1.5 text-foreground">
+                  <Scissors className="w-3.5 h-3.5 text-orange-500" />
+                  Comprimento da Chapa (mm) *
+                </Label>
+                {compMmNum > 0 && (
+                  <Badge className="bg-orange-500/15 text-orange-800 dark:text-orange-200 border border-orange-400 font-mono text-xs font-black">
+                    📐 {compMetrosFmt} metros
                   </Badge>
                 )}
               </div>
-              {variacoesMedidas && (
-                <button
-                  type="button"
-                  onClick={() => setVariacoesMedidas(null)}
-                  className="text-xs text-muted-foreground hover:text-foreground hover:underline cursor-pointer"
-                >
-                  Voltar para Medida Única
-                </button>
-              )}
+              <Input
+                type="number"
+                placeholder="Ex: 2000 ou 3000 (em milímetros)"
+                value={comprimentoMm}
+                onChange={(e) => setComprimentoMm(e.target.value)}
+                className="h-10 text-sm font-semibold bg-background"
+                min="100"
+                step="1"
+                required
+              />
             </div>
 
-            {!variacoesMedidas ? (
-              /* Modo Medida Única */
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold">Comprimento de Corte (mm) *</Label>
-                    <Input
-                      type="number"
-                      placeholder="Ex: 3000"
-                      value={form.comprimento_mm}
-                      onChange={e => set("comprimento_mm", e.target.value)}
-                      className="font-mono font-bold"
-                    />
-                    {bobinaObj && form.comprimento_mm > 0 && metrosRestantes && (
-                      <p className="text-xs text-muted-foreground">
-                        = <strong>{(Number(form.comprimento_mm) / 1000).toFixed(3)}m</strong> por chapa
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold">
-                      {isDesbobinadeira ? "Quantidade de Chapas *" : "Quantidade de Peças *"}
-                    </Label>
-                    <Input
-                      type="number"
-                      placeholder="0"
-                      value={form.quantidade}
-                      onChange={e => set("quantidade", e.target.value)}
-                      className="font-mono font-bold text-base"
-                    />
-                    {maxChapas !== null && (
-                      <p className={`text-xs ${Number(form.quantidade) > maxChapas ? "text-red-500 font-semibold" : "text-muted-foreground"}`}>
-                        Máx. possível: <strong>{maxChapas} chapas</strong>
-                      </p>
-                    )}
-                  </div>
-                </div>
+            {/* Destaque do Peso Unitário Calculado */}
+            <div className="flex items-center justify-between p-2.5 rounded-lg bg-orange-500/10 border border-orange-400/50 text-xs font-bold text-orange-950 dark:text-orange-100">
+              <span className="flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                Peso Unitário por Chapa:
+              </span>
+              <span className="font-mono text-sm font-black text-orange-600 dark:text-orange-400">
+                {pesoUnitarioChapa > 0
+                  ? `${pesoUnitarioChapa.toFixed(3).replace(".", ",")} kg / chapa`
+                  : "Preencha a bobina e o comprimento"}
+              </span>
+            </div>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-full gap-1.5 border-dashed border-orange-400 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/30 font-semibold cursor-pointer"
-                  onClick={initVariacoes}
-                >
-                  <Plus className="w-3.5 h-3.5" /> Adicionar Múltiplas Medidas
-                </Button>
+            {/* Inputs Reativos Bidirecionais: Quantidade de Chapas ⇄ Peso Total (KG) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {/* Campo: Quantidade de Chapas */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold flex items-center gap-1.5 text-foreground">
+                  <Package className="w-3.5 h-3.5 text-blue-500" />
+                  Quantidade de Chapas (un) *
+                </Label>
+                <Input
+                  type="number"
+                  placeholder="Ex: 50"
+                  value={quantidadeChapas}
+                  onChange={(e) => handleQuantidadeChange(e.target.value)}
+                  className="h-10 text-sm font-bold bg-background"
+                  min="1"
+                  step="1"
+                  required
+                />
+                <span className="text-[10px] text-muted-foreground block">
+                  Digitar calcula o Peso Total automaticamente
+                </span>
               </div>
-            ) : (
-              /* Modo Variações — Múltiplas Medidas em Lote */
-              <div className="space-y-2.5">
-                {variacoesMedidas.map((v, idx) => {
-                  const q = Number(v.qtd) || 0;
-                  const mm = Number(v.comp_mm) || 0;
-                  const subtotalM = (q * mm) / 1000;
-                  return (
-                    <div key={v.id || idx} className="border border-border/80 rounded-lg p-2.5 space-y-2 bg-white dark:bg-slate-900 shadow-2xs">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-black text-orange-600 dark:text-orange-400 font-mono">
-                          Medida #{idx + 1}
-                        </span>
-                        {variacoesMedidas.length > 1 && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-red-500 hover:bg-red-50 dark:hover:bg-red-950 cursor-pointer"
-                            onClick={() => removeVariacao(idx)}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        )}
-                      </div>
 
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-0.5">
-                          <Label className="text-[11px] text-muted-foreground font-semibold">Qtd. Chapas</Label>
-                          <Input
-                            type="number"
-                            placeholder="0"
-                            value={v.qtd}
-                            onChange={e => updateVariacao(idx, "qtd", e.target.value)}
-                            className="h-9 font-bold font-mono"
-                          />
-                        </div>
-                        <div className="space-y-0.5">
-                          <Label className="text-[11px] text-muted-foreground font-semibold">
-                            Comprimento (mm)
-                            {mm > 0 && <span className="text-muted-foreground ml-1">({(mm / 1000).toFixed(2)}m)</span>}
-                          </Label>
-                          <Input
-                            type="number"
-                            placeholder="Ex: 3000"
-                            value={v.comp_mm}
-                            onChange={e => updateVariacao(idx, "comp_mm", e.target.value)}
-                            className="h-9 font-bold font-mono"
-                          />
-                        </div>
-                      </div>
+              {/* Campo: Peso Total (KG) */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold flex items-center gap-1.5 text-foreground">
+                  <Scale className="w-3.5 h-3.5 text-emerald-500" />
+                  Peso Total (KG) *
+                </Label>
+                <Input
+                  type="number"
+                  placeholder="Ex: 1500"
+                  value={pesoTotalKg}
+                  onChange={(e) => handlePesoTotalChange(e.target.value)}
+                  className="h-10 text-sm font-bold bg-background"
+                  min="0.1"
+                  step="any"
+                  required
+                />
+                <span className="text-[10px] text-muted-foreground block">
+                  Digitar calcula a Quantidade de Chapas
+                </span>
+              </div>
+            </div>
 
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-0.5">
-                          <Label className="text-[11px] text-muted-foreground">Largura / Blank (opcional)</Label>
-                          <Input
-                            type="number"
-                            placeholder={form.desenvolvimento_mm ? `Padrão: ${form.desenvolvimento_mm}mm` : "Ex: 1200"}
-                            value={v.desenv_mm || ""}
-                            onChange={e => updateVariacao(idx, "desenv_mm", e.target.value)}
-                            className="h-8 text-xs font-mono"
-                          />
-                        </div>
-                        <div className="space-y-0.5">
-                          <Label className="text-[11px] text-muted-foreground">Obs desta medida</Label>
-                          <Input
-                            placeholder="Opcional..."
-                            value={v.obs || ""}
-                            onChange={e => updateVariacao(idx, "obs", e.target.value)}
-                            className="h-8 text-xs"
-                          />
-                        </div>
-                      </div>
-
-                      {q > 0 && mm > 0 && (
-                        <p className="text-[11px] text-orange-600 dark:text-orange-400 font-mono font-semibold">
-                          Subtotal: {q} peças × {mm}mm = {subtotalM.toFixed(2)} m linear
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-full gap-1 border-dashed border-primary/60 text-primary font-semibold cursor-pointer"
-                  onClick={addVariacao}
-                >
-                  <Plus className="w-3.5 h-3.5" /> Adicionar Outra Medida
-                </Button>
-
-                {/* Totais do Lote */}
-                {totaisVariacoes && (
-                  <div className="p-3 rounded-lg bg-orange-100/60 dark:bg-orange-950/40 border border-orange-300 dark:border-orange-800 flex items-center justify-between flex-wrap gap-2 text-xs font-mono font-bold">
-                    <span>Total: <strong>{totaisVariacoes.totalChapas} chapas</strong></span>
-                    <span>Consumo linear: <strong>{totaisVariacoes.totalMetros} m</strong></span>
-                    {totaisVariacoes.totalKgEstimado > 0 && (
-                      <span className="text-emerald-700 dark:text-emerald-300">
-                        ≈ {totaisVariacoes.totalKgEstimado.toLocaleString("pt-BR")} kg
-                      </span>
-                    )}
-                  </div>
-                )}
+            {/* 6. VALIDAÇÃO DE ESTOQUE: AVISO EM VERMELHO SE EXCEDER */}
+            {isEstoqueInsuficiente && (
+              <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border-2 border-red-500 text-red-700 dark:text-red-300 text-xs font-bold animate-pulse">
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-black text-sm">
+                    ⚠️ Peso solicitado excede o saldo da bobina!
+                  </p>
+                  <p className="text-xs mt-0.5 font-medium">
+                    Solicitado:{" "}
+                    <strong>
+                      {pesoTotalNum.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg
+                    </strong>{" "}
+                    | Saldo Disponível:{" "}
+                    <strong>
+                      {saldoDisponivelBobina.toLocaleString("pt-BR", {
+                        maximumFractionDigits: 1,
+                      })}{" "}
+                      kg
+                    </strong>
+                    . Ajuste o peso ou a quantidade antes de gerar a ordem.
+                  </p>
+                </div>
               </div>
             )}
           </div>
 
-          {/* KG Estimado + Pré-baixa */}
-          {kgEstimado !== null && (
-            <div className={`rounded-xl px-4 py-3 space-y-2 ${excedePeso ? "bg-red-50 border border-red-200" : "bg-emerald-50 border border-emerald-200"}`}>
-              <div className="flex items-center gap-3">
-                <Scale className={`w-5 h-5 flex-shrink-0 ${excedePeso ? "text-red-600" : "text-emerald-600"}`} />
-                <div>
-                  <p className={`text-xs font-semibold uppercase tracking-wide ${excedePeso ? "text-red-600" : "text-emerald-600"}`}>KG Estimado das Chapas</p>
-                  <p className={`text-2xl font-black ${excedePeso ? "text-red-700" : "text-emerald-700"}`}>{kgEstimado.toFixed(1)} <span className="text-sm font-normal">kg</span></p>
-                </div>
-              </div>
-              <div className="text-xs space-y-0.5 pl-8">
-                <p className="text-muted-foreground">Peso atual da bobina: <strong>{pesoBobina.toFixed(1)} kg</strong></p>
-                {preReservadoKg > 0 && (
-                  <p className="text-amber-600">Pré-reservado por outras ordens: <strong>{preReservadoKg.toFixed(1)} kg</strong></p>
-                )}
-                <p className={excedePeso ? "text-red-600 font-bold" : "text-emerald-600 font-semibold"}>
-                  Disponível para esta ordem: <strong>{pesoDisponivel.toFixed(1)} kg</strong>
-                </p>
-                {excedePeso && (
-                  <p className="text-red-600 font-bold flex items-center gap-1 mt-1">
-                    <AlertCircle className="w-3.5 h-3.5" /> KG estimado excede o peso disponível!
-                  </p>
-                )}
-                {isGestor && bobinaObj?.custo && kgEstimado && (
-                  <div className="flex items-center gap-2 bg-slate-600/10 border border-slate-600/30 rounded-lg px-3 py-2 mt-1">
-                    <Weight className="w-4 h-4 text-slate-600" />
-                    <span className="text-xs font-semibold text-slate-700">Custo de Material desta OP:</span>
-                    <span className="text-sm font-black text-slate-700">removido (regra industrial)</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Destino */}
-          <div className="space-y-2">
-            <Label>Destino das Chapas *</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => { set("destino", "estoque"); set("numero_pedido", ""); set("cliente", ""); }}
-                className={`flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all ${form.destino === "estoque" ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300 bg-card"}`}
-              >
-                <Warehouse className={`w-6 h-6 ${form.destino === "estoque" ? "text-orange-600" : "text-muted-foreground"}`} />
-                <div className="text-center">
-                  <p className={`text-sm font-bold ${form.destino === "estoque" ? "text-orange-700" : "text-foreground"}`}>Estoque</p>
-                  <p className="text-xs text-muted-foreground">Vai para a Chaparia</p>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => set("destino", "pedido_direto")}
-                className={`flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all ${form.destino === "pedido_direto" ? "border-blue-500 bg-blue-50" : "border-border hover:border-blue-300 bg-card"}`}
-              >
-                <ShoppingCart className={`w-6 h-6 ${form.destino === "pedido_direto" ? "text-blue-600" : "text-muted-foreground"}`} />
-                <div className="text-center">
-                  <p className={`text-sm font-bold ${form.destino === "pedido_direto" ? "text-blue-700" : "text-foreground"}`}>Pedido Direto</p>
-                  <p className="text-xs text-muted-foreground">Vai para um cliente</p>
-                </div>
-              </button>
-            </div>
-          </div>
-
-          {/* Campos de estoque */}
-          {form.destino === "estoque" && (
-            <div className="space-y-3 bg-orange-50 border border-orange-200 rounded-xl p-3">
+          {/* 7. CAMPOS OPCIONAIS DE IDENTIFICAÇÃO (CLIENTE / PEDIDO) */}
+          <div className="p-3.5 rounded-xl bg-muted/30 border border-border/60 space-y-3">
+            <span className="text-xs font-bold text-muted-foreground block uppercase tracking-wider">
+              Identificação & Destino (Opcional)
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="flex items-center gap-1">
-                  <Ruler className="w-4 h-4 text-orange-500" /> Tamanho do Blank (mm)
+                <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Hash className="w-3 h-3" />
+                  Nº Pedido / OC
                 </Label>
                 <Input
-                  type="number"
-                  placeholder="Ex: 1200"
-                  value={form.tamanho_blank}
-                  onChange={e => set("tamanho_blank", e.target.value)}
+                  type="text"
+                  placeholder="Ex: #S01081 (opcional)"
+                  value={numeroPedido}
+                  onChange={(e) => setNumeroPedido(e.target.value)}
+                  className="h-8 text-xs bg-background"
                 />
-                <p className="text-xs text-muted-foreground">Tamanho do blank que será cortado da chapa</p>
               </div>
 
               <div className="space-y-1">
-                <Label className="flex items-center gap-1">
-                  <Wrench className="w-4 h-4 text-orange-500" /> Guilhotina de Destino
+                <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                  <User className="w-3 h-3" />
+                  Cliente
                 </Label>
-                <Select value={form.guilhotina || ""} onValueChange={v => set("guilhotina", v)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione a guilhotina..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="CORTE 3M">Guilhotina 3m</SelectItem>
-                    <SelectItem value="CORTE 6M">Guilhotina 6m</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Foto do blank / pedido */}
-              <div className="space-y-1">
-                <Label className="flex items-center gap-1">
-                  <Camera className="w-4 h-4 text-orange-500" /> Foto Anexa
-                </Label>
-                <input ref={fotoInputRef} type="file" accept="image/*" capture="environment" className="hidden"
-                  onChange={e => handleUploadFoto(e.target.files[0])} />
-                <input ref={fotoScanRef} type="file" accept="image/*" className="hidden"
-                  onChange={e => handleUploadFoto(e.target.files[0])} />
-                {form.foto_pedido_url ? (
-                  <div className="relative rounded-lg overflow-hidden border-2 border-orange-300">
-                    <CroquiImage url={form.foto_pedido_url} alt="Foto anexa" imgClassName="w-full max-h-48 object-cover" />
-                    <button type="button" onClick={(e) => { e.stopPropagation(); set("foto_pedido_url", ""); }}
-                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors z-10">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    <UploadButton label="Anexar foto" icon={Camera} cameraRef={fotoInputRef} fileRef={fotoScanRef} uploading={uploadingFoto} size="default" />
-                    <p className="text-xs text-muted-foreground">A foto acompanha a OP</p>
-                  </div>
-                )}
+                <Input
+                  type="text"
+                  placeholder="Corte Interno / Estoque"
+                  value={cliente}
+                  onChange={(e) => setCliente(e.target.value)}
+                  className="h-8 text-xs bg-background"
+                />
               </div>
             </div>
-          )}
 
-          {/* Campos de pedido direto */}
-          {form.destino === "pedido_direto" && (
-            <div className="space-y-3 bg-blue-50 border border-blue-200 rounded-xl p-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label>Nº do Pedido *</Label>
-                  <Input placeholder="Ex: 12345" value={form.numero_pedido} onChange={e => set("numero_pedido", e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <Label>Cliente</Label>
-                  <Input placeholder="Nome do cliente" value={form.cliente} onChange={e => set("cliente", e.target.value)} />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <Label className="flex items-center gap-1">
-                    <User className="w-4 h-4 text-blue-500" /> Vendedor <span className="text-muted-foreground text-xs font-normal">(opcional)</span>
-                  </Label>
-                  <button
-                    type="button"
-                    onClick={() => setModoDigitarVendedor(!modoDigitarVendedor)}
-                    className="text-xs text-primary hover:underline font-medium"
-                  >
-                    {modoDigitarVendedor ? "← Selecionar da lista" : "✏️ Digitar vendedor"}
-                  </button>
-                </div>
-                {modoDigitarVendedor ? (
-                  <div className="flex items-center gap-2">
-                    <Input
-                      placeholder="Digite o nome do vendedor..."
-                      value={form.vendedor}
-                      onChange={e => set("vendedor", e.target.value)}
-                      autoFocus
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setModoDigitarVendedor(false)}
-                      title="Voltar para a lista"
-                      className="shrink-0"
-                    >
-                      Lista
-                    </Button>
-                  </div>
-                ) : (
-                  <Select
-                    value={form.vendedor}
-                    onValueChange={v => {
-                      if (v === "__digitar__") {
-                        setModoDigitarVendedor(true);
-                      } else {
-                        set("vendedor", v);
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione o vendedor..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {listaVendedores.map(nome => (
-                        <SelectItem key={nome} value={nome}>{nome}</SelectItem>
-                      ))}
-                      <SelectItem value="__digitar__" className="text-primary font-medium border-t border-border mt-1 pt-1">
-                        ✏️ Digitar outro vendedor...
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label>Guilhotina</Label>
-                  <Select value={form.guilhotina} onValueChange={v => set("guilhotina", v)}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione a guilhotina..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="CORTE 3M">CORTE 3M</SelectItem>
-                      <SelectItem value="CORTE 6M">CORTE 6M</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Tamanho de Corte na Guilhotina (mm)</Label>
-                  <Input
-                    type="number"
-                    placeholder="Ex: 1000"
-                    value={form.tamanho_corte_guilhotina}
-                    onChange={e => set("tamanho_corte_guilhotina", e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {/* Foto do pedido */}
-              <div className="space-y-1">
-                <Label className="flex items-center gap-1">
-                  <Camera className="w-4 h-4 text-blue-500" /> Foto do Pedido
-                </Label>
-                <input ref={fotoInputRef} type="file" accept="image/*" capture="environment" className="hidden"
-                  onChange={e => handleUploadFoto(e.target.files[0])} />
-                <input ref={fotoScanRef} type="file" accept="image/*" className="hidden"
-                  onChange={e => handleUploadFoto(e.target.files[0])} />
-                {form.foto_pedido_url ? (
-                  <div className="relative rounded-lg overflow-hidden border-2 border-blue-300">
-                    <CroquiImage url={form.foto_pedido_url} alt="Foto do pedido" imgClassName="w-full max-h-48 object-cover" />
-                    <button type="button" onClick={(e) => { e.stopPropagation(); set("foto_pedido_url", ""); }}
-                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors z-10">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    <UploadButton label="Anexar foto do pedido" icon={Camera} cameraRef={fotoInputRef} fileRef={fotoScanRef} uploading={uploadingFoto} size="default" />
-                    <p className="text-xs text-muted-foreground">A foto acompanha a OP até a guilhotina</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Nível de Prioridade (1 a 5) & Rota */}
-          <div className="rounded-xl border border-border p-3.5 bg-card/60 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs font-bold flex items-center gap-1.5">
-                <Flame className="w-4 h-4 text-amber-500" />
-                Nível de Prioridade (1 a 5)
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                <FileText className="w-3 h-3" />
+                Observações Técnicas da Ordem
               </Label>
-              <span className="text-[11px] text-muted-foreground">
-                1 é a mais urgente a fazer
-              </span>
-            </div>
-
-            <div className="grid grid-cols-6 gap-1.5">
-              {[
-                { nivel: 1, label: "P1", sub: "Urgente", cls: "border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40", activeCls: "bg-red-600 text-white border-red-700 shadow-sm animate-pulse font-black" },
-                { nivel: 2, label: "P2", sub: "Alta", cls: "border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/40", activeCls: "bg-orange-500 text-white border-orange-600 font-bold" },
-                { nivel: 3, label: "P3", sub: "Média", cls: "border-amber-500 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40", activeCls: "bg-amber-500 text-white border-amber-600 font-bold" },
-                { nivel: 4, label: "P4", sub: "Normal", cls: "border-blue-500 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40", activeCls: "bg-blue-600 text-white border-blue-700 font-bold" },
-                { nivel: 5, label: "P5", sub: "Baixa", cls: "border-slate-400 text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-900", activeCls: "bg-slate-600 text-white border-slate-700 font-bold" },
-                { nivel: null, label: "Sem P", sub: "Padrão", cls: "border-border text-muted-foreground hover:bg-accent", activeCls: "bg-muted text-foreground border-border font-bold" },
-              ].map(item => {
-                const isSelected = form.prioridade_nivel === item.nivel || (!form.prioridade_nivel && item.nivel === null);
-                return (
-                  <button
-                    key={String(item.nivel)}
-                    type="button"
-                    onClick={() => {
-                      setForm(f => ({
-                        ...f,
-                        prioridade_nivel: item.nivel,
-                        prioridade: Boolean(item.nivel)
-                      }));
-                    }}
-                    className={`flex flex-col items-center justify-center p-2 rounded-lg border text-center transition-all ${
-                      isSelected ? item.activeCls : `${item.cls} bg-background`
-                    }`}
-                  >
-                    <span className="text-xs font-black">{item.label}</span>
-                    <span className="text-[9px] opacity-80 whitespace-nowrap">{item.sub}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="pt-1.5 flex items-center justify-between border-t border-border/60">
-              <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={Boolean(form.rota)}
-                  onChange={(e) => set("rota", e.target.checked)}
-                  className="rounded border-gray-300 text-red-600 focus:ring-red-500 h-4 w-4"
-                />
-                <span className="flex items-center gap-1 text-red-600 font-bold">
-                  <Route className="w-3.5 h-3.5" />
-                  Pedido de Rota (Carga Agendada)
-                </span>
-              </label>
-              {form.prioridade_nivel && (
-                <span className="text-[11px] font-bold text-amber-600">
-                  Prioridade Selecionada: P{form.prioridade_nivel}
-                </span>
-              )}
+              <Input
+                type="text"
+                placeholder="Instruções adicionais para o operador (opcional)..."
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
+                className="h-8 text-xs bg-background"
+              />
             </div>
           </div>
 
-          {/* Observações */}
-          <div className="space-y-1">
-            <Label>Observações / Instruções para o Operador</Label>
-            <Textarea
-              placeholder="Ex: Atenção ao alinhamento, usar régua de 1250mm..."
-              value={form.observacoes}
-              onChange={e => set("observacoes", e.target.value)}
-              rows={3}
-            />
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          {editItem && form.numero_pedido && (
-            <Button variant="destructive" onClick={() => setConfirmExcluirOS(true)} disabled={excluindoOS}>
-              <Trash2 className="w-4 h-4" /> Excluir OS
+          {/* Rodapé e Botão de Confirmação */}
+          <DialogFooter className="pt-2 sm:justify-between gap-2 border-t border-border/80">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              className="h-10 px-4 text-xs font-bold"
+            >
+              Cancelar
             </Button>
-          )}
-          <Button onClick={handleSave} className="bg-orange-500 hover:bg-orange-600 font-bold">
-            {editItem ? "Atualizar Ordem" : "Criar Ordem"}
-          </Button>
-        </DialogFooter>
+            <Button
+              type="submit"
+              disabled={!isFormValido}
+              className="h-10 px-6 font-bold text-sm bg-orange-500 hover:bg-orange-600 text-white shadow-md disabled:opacity-50 disabled:cursor-not-allowed gap-2"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              {editItem?.id ? "Salvar Alterações da Ordem" : "Gerar Ordem de Produção"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
-
-      {/* Confirmação para bobina reservada para outro pedido */}
-      <AlertDialog open={confirmReserva} onOpenChange={setConfirmReserva}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-red-700">
-              <ShieldAlert className="w-5 h-5" /> Confirmar uso de bobina reservada
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-2 text-sm">
-                <p className="text-red-600 font-semibold">
-                  A bobina <strong>{bobinaObj?.codigo}</strong> está reservada para o pedido <strong>{bobinaObj?.reserva_numero_pedido || "?"}</strong>.
-                </p>
-                {bobinaObj?.reserva_motivo && <p>Motivo da reserva: {bobinaObj.reserva_motivo}</p>}
-                {bobinaObj?.reserva_autorizado_por && <p>Reservado por: {bobinaObj.reserva_autorizado_por}</p>}
-                <p className="text-foreground">
-                  Tem certeza que deseja utilizar esta bobina mesmo assim? Esta ação pode comprometer o pedido para o qual ela foi reservada.
-                </p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700 text-white"
-              onClick={() => { setConfirmReserva(false); doSave(); }}
-            >
-              Sim, usar esta bobina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <BloqueioBobinaDialog
-        open={bloqueio.open}
-        onOpenChange={(v) => setBloqueio((b) => ({ ...b, open: v }))}
-        titulo={bloqueio.titulo}
-        motivos={bloqueio.motivos}
-      />
-
-      <AlertDialog open={confirmExcluirOS} onOpenChange={setConfirmExcluirOS}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-red-700">
-              <Trash2 className="w-5 h-5" /> Excluir Ordem de Serviço (OS)
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-2 text-sm">
-                <p className="text-foreground font-semibold">
-                  Tem certeza que deseja cancelar e excluir esta Ordem de Serviço da fábrica e do Odoo?
-                </p>
-                <p className="text-muted-foreground">
-                  Pedido <strong>#{form.numero_pedido}</strong>. Será disparado o webhook de retorno ao Odoo (status: cancelado),
-                  a OS será removida da Central PCP e as Ordens de Produção vinculadas serão arquivadas (canceladas).
-                </p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={excluindoOS}>Manter OS</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700 text-white"
-              disabled={excluindoOS}
-              onClick={handleExcluirOS}
-            >
-              {excluindoOS ? "Cancelando..." : "Sim, excluir OS"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </Dialog>
   );
 }
