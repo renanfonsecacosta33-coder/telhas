@@ -172,7 +172,7 @@ export default function CentralPCP() {
   const [filtroSetor, setFiltroSetor] = useState("todos"); // "todos" | "telhas" | "corte_dobra" | "frisadas" | "ambos"
   const [mostrarConcluidosEmTodos, setMostrarConcluidosEmTodos] = useState(false);
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
-  const [modalRoteamentoCD, setModalRoteamentoCD] = useState({ aberto: false, pedido: null, itensCD: [] });
+  const [modalRoteamentoCD, setModalRoteamentoCD] = useState({ aberto: false, pedido: null, itensCD: [], callbackAposRoteamento: null });
   const [detalheOpen, setDetalheOpen] = useState(false);
   const [webhookOpen, setWebhookOpen] = useState(false);
   const [recuperarModalOpen, setRecuperarModalOpen] = useState(false);
@@ -743,6 +743,47 @@ export default function CentralPCP() {
 
     const numPed = primeiro.numero_pedido;
     const grupo = gruposPedidos.find(g => g.numero_pedido === numPed) || primeiro;
+
+    // 🔒 REGRA CORTE & DOBRA: Antes de finalizar, é OBRIGATÓRIO ter o roteiro escolhido
+    const ehCD = lista.some(p => {
+      const g = classGrupo(p);
+      return g === "cd" || (p.itens_cd_count || 0) > 0 || String(p.setor || "").toLowerCase().includes("cd") || String(p.produto || "").toLowerCase().includes("chapa");
+    });
+
+    if (ehCD) {
+      // Verifica se há itens de C&D pendentes sem roteiro oficial
+      const itens = getItens(primeiro);
+      const itensCD = itens
+        .map((it, idx) => ({ ...it, _idx: idx }))
+        .filter(it => classGrupo(it) === "cd" && !it.concluido && it.status !== "concluido");
+
+      const jaPossuiRoteiro = itensCD.length > 0 && itensCD.every(it => {
+        if (Array.isArray(it.roteiro_maquinas) && it.roteiro_maquinas.length > 0) return true;
+        if (typeof it.roteiro_maquinas === "string" && it.roteiro_maquinas.length > 2) return true;
+        if (it.maquina && it.maquina !== "Mesa PCP" && it.maquina !== "Galpão") return true;
+        return false;
+      }) && Boolean(primeiro.roteiro_maquinas || primeiro.etapas_concluidas_json);
+
+      if (itensCD.length > 0 && !jaPossuiRoteiro) {
+        toast.info("Defina o roteiro de máquinas antes de finalizar a peça de Corte e Dobra.");
+        setModalRoteamentoCD({
+          aberto: true,
+          pedido: primeiro,
+          itensCD,
+          callbackAposRoteamento: () => {
+            if (lista.length > 1 || primeiro.ofs) {
+              setPedidoEtapasPcpAlvo(grupo);
+              setOfEtapasPcpAlvo(null);
+            } else {
+              setPedidoEtapasPcpAlvo(grupo);
+              setOfEtapasPcpAlvo(primeiro);
+            }
+            setModalEtapasPcpOpen(true);
+          }
+        });
+        return;
+      }
+    }
 
     if (lista.length > 1 || primeiro.ofs) {
       setPedidoEtapasPcpAlvo(grupo);
@@ -1591,10 +1632,14 @@ export default function CentralPCP() {
   const handleConfirmarRoteamentoCD = async (dadosRoteamento) => {
     if (!modalRoteamentoCD.pedido) return;
     const pedidoAlvo = modalRoteamentoCD.pedido;
-    setModalRoteamentoCD({ aberto: false, pedido: null, itensCD: [] });
+    const callbackApos = modalRoteamentoCD.callbackAposRoteamento;
+    setModalRoteamentoCD({ aberto: false, pedido: null, itensCD: [], callbackAposRoteamento: null });
     const roteiroLimpo = dadosRoteamento?.roteiroFinalPorItem || dadosRoteamento;
     try {
       await handleDistribuir(pedidoAlvo, roteiroLimpo);
+      if (typeof callbackApos === "function") {
+        setTimeout(() => callbackApos(roteiroLimpo), 200);
+      }
     } catch (err) {
       console.error("[CentralPCP] Erro ao distribuir Corte & Dobra com roteamento:", err);
       toast({
@@ -3263,7 +3308,7 @@ export default function CentralPCP() {
       <ModalRoteamentoCD
         open={modalRoteamentoCD.aberto}
         onOpenChange={(aberto) => {
-          if (!aberto) setModalRoteamentoCD({ aberto: false, pedido: null, itensCD: [] });
+          if (!aberto) setModalRoteamentoCD({ aberto: false, pedido: null, itensCD: [], callbackAposRoteamento: null });
         }}
         pedido={modalRoteamentoCD.pedido}
         itensCD={modalRoteamentoCD.itensCD}

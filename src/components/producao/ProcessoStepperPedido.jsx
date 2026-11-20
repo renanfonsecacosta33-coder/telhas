@@ -137,7 +137,7 @@ export function calcularEtapasProcesso(pedido, setor = "telhas") {
   }
 
   // ── ROTEIRO ESPECIAL: TELHA BANDEJA ──
-  // Central PCP -> Telha Superior (bobina da superior) -> Bandeja Inferior (bobina da inferior) -> Colagem -> Finalizado
+  // Central PCP -> Telha Superior (bobina da superior) -> Bandeja Inferior (bobina da inferior) -> Colagem -> Expedição
   if (isTelhaBandeja(pedido)) {
     const maqNorm = String(pedido?.maquina || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
     const is100 = percentual >= 100 || stGeral === "finalizado" || stGeral === "concluido";
@@ -178,11 +178,77 @@ export function calcularEtapasProcesso(pedido, setor = "telhas") {
         icon: Package,
       },
       {
-        id: "finalizado",
-        label: "Finalizado",
-        descricao: "Processo finalizado",
+        id: "expedicao",
+        label: "Expedição",
+        descricao: "Processo finalizado e liberado",
         status: is100 ? "concluido" : "pendente",
-        icon: CheckCircle2,
+        icon: Truck,
+      },
+    ];
+  }
+
+  // ── ROTEIRO ESPECIAL: TELHA SANDUÍCHE DUPLA (Telha + EPS + Telha) ──
+  // Central PCP -> Telha Superior -> Telha Inferior -> Colagem -> Expedição
+  const textoCompleto = [
+    pedido?.produto,
+    pedido?.item_produto,
+    pedido?.modelo,
+    pedido?.descricao,
+    pedido?.observacoes_odoo,
+    pedido?.observacoes,
+    typeof pedido?.itens_json === "string" ? pedido.itens_json : JSON.stringify(pedido?.itens_json || []),
+    pedido?.eps
+  ].filter(Boolean).join(" ").toLowerCase();
+
+  const isSanduicheDuplo =
+    /\b(telha\s*\+\s*eps\w*\s*\+\s*telha|telha\s*\+\s*isopor\s*\+\s*telha|sandu[ií]che\s*dupl[oa]|duplo|dupla)\b/i.test(textoCompleto) ||
+    (/\bsuperior\b/i.test(textoCompleto) && /\binferior\b/i.test(textoCompleto) && /\b(eps|isopor|sandu|termo)\b/i.test(textoCompleto));
+
+  if (isSanduicheDuplo) {
+    const maqNorm = String(pedido?.maquina || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    const is100 = percentual >= 100 || stGeral === "finalizado" || stGeral === "concluido";
+    const emColagem = maqNorm === "COLAGEM" || stGeral === "aguardando_colagem" || stGeral === "em_colagem";
+    const perfilacaoConcluida = pedido?.perfilacao_concluida === true;
+    const superiorPronta = is100 || perfilacaoConcluida || emColagem;
+    const inferiorPronta = is100 || perfilacaoConcluida || emColagem;
+    const colagemPronta = is100 || stGeral === "colagem_concluida";
+    const rodando = stGeral === "em_producao" || stGeral === "pausado";
+
+    return [
+      {
+        id: "pcp",
+        label: "PCP",
+        descricao: "Recebimento e Fila",
+        status: "concluido",
+        icon: Factory,
+      },
+      {
+        id: "telha_superior",
+        label: "Telha Superior",
+        descricao: "Perfilação da telha superior de aço",
+        status: superiorPronta ? "concluido" : rodando ? "em_andamento" : "pendente",
+        icon: Scissors,
+      },
+      {
+        id: "telha_inferior",
+        label: "Telha Inferior",
+        descricao: "Perfilação da telha inferior de aço",
+        status: inferiorPronta ? "concluido" : rodando ? "em_andamento" : "pendente",
+        icon: Scissors,
+      },
+      {
+        id: "colagem",
+        label: "Colagem",
+        descricao: "Injeção de EPS e colagem final",
+        status: colagemPronta ? "concluido" : (rodando && emColagem) ? "em_andamento" : "pendente",
+        icon: Layers,
+      },
+      {
+        id: "expedicao",
+        label: "Expedição",
+        descricao: "Concluído e Liberado",
+        status: is100 ? "concluido" : "pendente",
+        icon: Truck,
       },
     ];
   }

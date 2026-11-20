@@ -21,10 +21,35 @@ function normalizarTexto(txt) {
 export function identificarRoteiroDoPedido(pedido, item = null) {
   if (!pedido) return [];
 
-  const prod = normalizarTexto(item?.produto || pedido.produto || "");
-  const mod = normalizarTexto(item?.modelo || pedido.modelo || item?.item_produto || pedido.item_produto || "");
-  const obs = normalizarTexto(item?.observacoes || pedido.observacoes_odoo || pedido.observacoes || "");
-  const textoCompleto = `${prod} ${mod} ${obs}`;
+  // Coleta texto completo de todos os campos possíveis do item e do pedido
+  const partesTexto = [
+    item?.produto,
+    item?.item_produto,
+    item?.modelo,
+    item?.descricao,
+    item?.nome_produto,
+    pedido?.produto,
+    pedido?.modelo,
+    pedido?.item_produto,
+    pedido?.descricao,
+    pedido?.observacoes_odoo,
+    pedido?.observacoes,
+    pedido?.eps,
+    item?.eps
+  ];
+
+  if (pedido?.itens_json) {
+    try {
+      const its = typeof pedido.itens_json === "string" ? JSON.parse(pedido.itens_json) : pedido.itens_json;
+      if (Array.isArray(its)) {
+        its.forEach((it) => {
+          partesTexto.push(it.produto, it.descricao, it.item_produto, it.modelo, it.eps);
+        });
+      }
+    } catch {}
+  }
+
+  const textoCompleto = partesTexto.filter(Boolean).map(normalizarTexto).join(" ");
 
   // Se já tiver etapas salvas anteriormente no pedido ou no item:
   const rawSalvasGeral = item?.etapas_concluidas_json || pedido.etapas_concluidas_json;
@@ -39,10 +64,18 @@ export function identificarRoteiroDoPedido(pedido, item = null) {
             s.tag ||
             (s.id?.includes("desbobinadeira")
               ? "Desbobinadeira"
-              : s.id?.includes("guilhotina")
+              : s.id?.includes("guilhotina") || s.id?.includes("corte")
               ? "Guilhotina"
               : s.id?.includes("dobradeira")
               ? "Dobradeira"
+              : s.id?.includes("telha_superior")
+              ? "Telha Superior"
+              : s.id?.includes("telha_inferior")
+              ? "Telha Inferior"
+              : s.id?.includes("bandeja")
+              ? "Bandeja Inferior"
+              : s.id?.includes("colagem")
+              ? "Colagem"
               : s.nome?.split(" ")[1] || "Etapa"),
           concluida: Boolean(s.concluida)
         }));
@@ -56,6 +89,27 @@ export function identificarRoteiroDoPedido(pedido, item = null) {
     ? pedido.maquina
     : (pedido.maquina_origem || (maquinaDetectada && maquinaDetectada !== "BANDEJA" && maquinaDetectada !== "COLAGEM" ? maquinaDetectada : "TP - 40"));
 
+  const alvoAtual = item || pedido;
+  const jaEstaNaColagem = Boolean(
+    alvoAtual.maquina === "COLAGEM" ||
+    pedido.maquina === "COLAGEM" ||
+    alvoAtual.status === "aguardando_colagem" ||
+    pedido.status === "aguardando_colagem" ||
+    alvoAtual.perfilacao_concluida ||
+    pedido.perfilacao_concluida ||
+    String(alvoAtual.onde_esta || "").toUpperCase().includes("COLAGEM") ||
+    String(pedido.onde_esta || "").toUpperCase().includes("COLAGEM")
+  );
+
+  const jaTotalmenteConcluido = Boolean(
+    alvoAtual.status === "finalizado" ||
+    pedido.status === "finalizado" ||
+    alvoAtual.status_pcp === "concluido" ||
+    pedido.status_pcp === "concluido" ||
+    (Number(alvoAtual.percentual_concluido) || 0) >= 100 ||
+    (Number(pedido.percentual_concluido) || 0) >= 100
+  );
+
   // ─────────────────────────────────────────────────────────────
   // 1. CASO: TELHA BANDEJA (Colonial / TP-25 / TP-40 ➔ BANDEJA ➔ COLAGEM)
   // ─────────────────────────────────────────────────────────────
@@ -63,62 +117,119 @@ export function identificarRoteiroDoPedido(pedido, item = null) {
     etapas.push({
       id: "telha_superior",
       ordem: 1,
-      nome: `1. Perfiladeira Telha (${maquinaBaseTelha})`,
+      tag: "Telha Superior",
+      nome: `1. Perfiladeira Telha Superior (${maquinaBaseTelha})`,
       maquina: maquinaBaseTelha,
       setor: "telha",
       descricao: `Perfilação da telha superior na ${maquinaBaseTelha}`,
-      concluida: Boolean(pedido.perfilacao_concluida || pedido.status === "aguardando_colagem" || pedido.maquina === "BANDEJA" || pedido.maquina === "COLAGEM")
+      ativo: true,
+      concluida: jaTotalmenteConcluido || jaEstaNaColagem || Boolean(alvoAtual.perfilacao_concluida || alvoAtual.maquina === "BANDEJA")
     });
 
     etapas.push({
       id: "bandeja_inferior",
       ordem: 2,
+      tag: "Bandeja Inferior",
       nome: "2. Perfiladeira Bandeja (BANDEJA)",
       maquina: "BANDEJA",
       setor: "telha",
       descricao: "Perfilação da bandeja inferior de aço",
-      concluida: Boolean(pedido.status === "aguardando_colagem" || pedido.maquina === "COLAGEM")
+      ativo: true,
+      concluida: jaTotalmenteConcluido || jaEstaNaColagem
     });
 
     etapas.push({
       id: "colagem_final",
       ordem: 3,
+      tag: "Colagem",
       nome: "3. Colagem Final (COLAGEM)",
       maquina: "COLAGEM",
       setor: "telha",
       descricao: "Injeção de EPS/PU, cola e prensagem final",
-      concluida: Boolean(pedido.status === "finalizado" || pedido.status_pcp === "concluido" || pedido.percentual_concluido >= 100)
+      ativo: true,
+      concluida: jaTotalmenteConcluido
     });
 
     return etapas;
   }
 
   // ─────────────────────────────────────────────────────────────
-  // 2. CASO: TELHA SANDUÍCHE CONVENCIONAL (TP-40 / TP-25 ➔ COLAGEM)
+  // 2. CASO: TELHA SANDUÍCHE (Dupla vs Semi-Sanduíche / Manta)
   // ─────────────────────────────────────────────────────────────
-  const isSanduiche =
-    Boolean(pedido.eps) ||
-    /\b(eps|isopor|sanduiche|sanduíche|manta|termoacustica|termoacústica|semi[- ]?sanduiche)\b/i.test(textoCompleto);
+  const temEps =
+    Boolean(pedido.eps || item?.eps) ||
+    /\b(eps|isopor|sanduiche|sanduíche|manta|filme|termoacustica|termoacústica|semi[- ]?sanduiche)\b/i.test(textoCompleto);
 
-  if (isSanduiche) {
+  if (temEps) {
+    // Verifica se é SANDUÍCHE DUPLO (Telha + EPS + Telha, ou tem chapa superior e inferior)
+    const isSanduicheDuplo =
+      /\b(telha\s*\+\s*eps\w*\s*\+\s*telha|telha\s*\+\s*isopor\s*\+\s*telha|sandu[ií]che\s*dupl[oa]|duplo|dupla)\b/i.test(textoCompleto) ||
+      (/\bsuperior\b/i.test(textoCompleto) && /\binferior\b/i.test(textoCompleto));
+
+    if (isSanduicheDuplo) {
+      // 3 Processos: Telha Superior + Telha Inferior + Colagem
+      etapas.push({
+        id: "telha_superior",
+        ordem: 1,
+        tag: "Telha Superior",
+        nome: `1. Perfiladeira Telha Superior (${maquinaBaseTelha})`,
+        maquina: maquinaBaseTelha,
+        setor: "telha",
+        descricao: "Perfilação da telha superior de aço",
+        ativo: true,
+        concluida: jaTotalmenteConcluido || jaEstaNaColagem
+      });
+
+      etapas.push({
+        id: "telha_inferior",
+        ordem: 2,
+        tag: "Telha Inferior",
+        nome: `2. Perfiladeira Telha Inferior (${maquinaBaseTelha})`,
+        maquina: maquinaBaseTelha,
+        setor: "telha",
+        descricao: "Perfilação da telha inferior de aço",
+        ativo: true,
+        concluida: jaTotalmenteConcluido || jaEstaNaColagem
+      });
+
+      etapas.push({
+        id: "colagem_final",
+        ordem: 3,
+        tag: "Colagem",
+        nome: "3. Colagem Final (COLAGEM)",
+        maquina: "COLAGEM",
+        setor: "telha",
+        descricao: "Injeção de EPS e colagem final do sanduíche duplo",
+        ativo: true,
+        concluida: jaTotalmenteConcluido
+      });
+
+      return etapas;
+    }
+
+    // Semi-Sanduíche / Filme / Manta (Telha Superior + Colagem)
     etapas.push({
-      id: "perfilacao_telha",
+      id: "telha_superior",
       ordem: 1,
-      nome: `1. Perfiladeira Telha (${maquinaBaseTelha})`,
+      tag: "Telha Superior",
+      nome: `1. Perfiladeira Telha Superior (${maquinaBaseTelha})`,
       maquina: maquinaBaseTelha,
       setor: "telha",
-      descricao: "Perfilação das telhas de aço",
-      concluida: Boolean(pedido.perfilacao_concluida || pedido.status === "aguardando_colagem" || pedido.maquina === "COLAGEM")
+      descricao: "Perfilação da telha superior de aço",
+      ativo: true,
+      concluida: jaTotalmenteConcluido || jaEstaNaColagem
     });
 
     etapas.push({
       id: "colagem_final",
       ordem: 2,
+      tag: "Colagem",
       nome: "2. Colagem Final (COLAGEM)",
       maquina: "COLAGEM",
       setor: "telha",
-      descricao: "Injeção de EPS e colagem final do sanduíche",
-      concluida: Boolean(pedido.status === "finalizado" || pedido.status_pcp === "concluido" || pedido.percentual_concluido >= 100)
+      descricao: "Injeção de EPS/filme/manta e colagem final",
+      ativo: true,
+      concluida: jaTotalmenteConcluido
     });
 
     return etapas;
@@ -137,15 +248,33 @@ export function identificarRoteiroDoPedido(pedido, item = null) {
   if (isCD) {
     const precisaDobra = /\b(dobra|dobradeira|perfil dobrado|rufo|calha|pingadeira|cantoneira|u enrijecido|cartola)\b/i.test(textoCompleto);
 
+    // Se o pedido/item já possui roteiro oficial de máquinas configurado pelo PCP:
+    let maquinasRoteiroOficiais = [];
+    if (Array.isArray(item?.roteiro_maquinas)) maquinasRoteiroOficiais = item.roteiro_maquinas;
+    else if (typeof item?.roteiro_maquinas === "string") {
+      try { maquinasRoteiroOficiais = JSON.parse(item.roteiro_maquinas); } catch {}
+    } else if (Array.isArray(pedido?.roteiro_maquinas)) maquinasRoteiroOficiais = pedido.roteiro_maquinas;
+    else if (typeof pedido?.roteiro_maquinas === "string") {
+      try { maquinasRoteiroOficiais = JSON.parse(pedido.roteiro_maquinas); } catch {}
+    }
+
+    const maqDesb = maquinasRoteiroOficiais.find((m) => /DESBOBINADEIRA/i.test(m)) || "DESBOBINADEIRA 01";
+    const maqCorte = maquinasRoteiroOficiais.find((m) => /CORTE|GUILHOTINA/i.test(m)) || "GUILHOTINA 3M";
+    const maqDobra = maquinasRoteiroOficiais.find((m) => /DOBRA/i.test(m)) || "DOBRADEIRA 3M";
+
+    const temDesbOficial = maquinasRoteiroOficiais.length > 0 ? maquinasRoteiroOficiais.some((m) => /DESBOBINADEIRA/i.test(m)) : true;
+    const temCorteOficial = maquinasRoteiroOficiais.length > 0 ? maquinasRoteiroOficiais.some((m) => /CORTE|GUILHOTINA/i.test(m)) : true;
+    const temDobraOficial = maquinasRoteiroOficiais.length > 0 ? maquinasRoteiroOficiais.some((m) => /DOBRA/i.test(m)) : Boolean(precisaDobra);
+
     etapas.push({
       id: "cd_desbobinadeira",
       ordem: 1,
       tag: "Desbobinadeira",
-      nome: "1. Desbobinadeira (DESBOBINADEIRA 01)",
-      maquina: "DESBOBINADEIRA 01",
+      nome: `1. Desbobinadeira (${maqDesb})`,
+      maquina: maqDesb,
       setor: "cd",
       descricao: "Avanço e corte inicial da chapa na bobina",
-      ativo: true,
+      ativo: temDesbOficial,
       concluida: false
     });
 
@@ -153,11 +282,11 @@ export function identificarRoteiroDoPedido(pedido, item = null) {
       id: "cd_guilhotina",
       ordem: 2,
       tag: "Guilhotina",
-      nome: "2. Corte na Guilhotina (GUILHOTINA 3M / 6M)",
-      maquina: "GUILHOTINA 3M",
+      nome: `2. Corte na Guilhotina (${maqCorte})`,
+      maquina: maqCorte,
       setor: "cd",
       descricao: "Corte das peças no esquadro conforme croqui",
-      ativo: true,
+      ativo: temCorteOficial,
       concluida: false
     });
 
@@ -165,11 +294,11 @@ export function identificarRoteiroDoPedido(pedido, item = null) {
       id: "cd_dobradeira",
       ordem: 3,
       tag: "Dobradeira",
-      nome: "3. Conformação na Dobradeira (DOBRADEIRA 3M / 6M)",
-      maquina: "DOBRADEIRA 3M",
+      nome: `3. Conformação na Dobradeira (${maqDobra})`,
+      maquina: maqDobra,
       setor: "cd",
       descricao: "Dobra dos perfis conforme ângulos do croqui",
-      ativo: Boolean(precisaDobra),
+      ativo: temDobraOficial,
       concluida: false
     });
 
