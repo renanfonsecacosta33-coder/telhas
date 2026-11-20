@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Play, Pause, CheckCircle2, Timer, Coffee, Square, Circle,
   AlertCircle, Clock, Camera, Loader2, Layers, Package, ShoppingCart, Trash2, Image as ImageIcon,
   Edit3, History, Star, User, Users, PackageX, AlertTriangle, Ban, ChevronDown, ChevronUp, Calculator,
-  Truck, Zap, Sparkles
+  Truck, Zap, Sparkles, ArrowRightLeft
 } from "lucide-react";
 import { registrarAuditoria } from "@/lib/auditHelper";
 import UploadButton from "@/components/ui/UploadButton";
@@ -43,6 +45,7 @@ import CroquiPeca2D from "@/components/corte-dobra/CroquiPeca2D";
 import { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
 import BannerInstrucaoCorteDobra, { classificarItemCorteDobra } from "@/components/corte-dobra/BannerInstrucaoCorteDobra";
 import BadgeDataEntregaEChegada from "@/components/corte-dobra/BadgeDataEntregaEChegada";
+import { maquinasCDPorFilial } from "@/lib/maquinasPorFilial";
 
 
 function formatTempo(segundos) {
@@ -135,6 +138,61 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
   const [operadoresDialogOpen, setOperadoresDialogOpen] = useState(false);
   const [confirmarExclusaoOpen, setConfirmarExclusaoOpen] = useState(false);
   const [confirmarCancelarOpen, setConfirmarCancelarOpen] = useState(false);
+
+  const queryClient = useQueryClient();
+  const [transferirMaquinaOpen, setTransferirMaquinaOpen] = useState(false);
+  const [novaMaquinaDestino, setNovaMaquinaDestino] = useState("");
+  const [salvandoTransferencia, setSalvandoTransferencia] = useState(false);
+
+  const opcoesMaquinasTransferencia = useMemo(() => {
+    return maquinasCDPorFilial(o.unidade);
+  }, [o.unidade]);
+
+  const handleConfirmarTransferenciaMaquina = async () => {
+    if (!novaMaquinaDestino || novaMaquinaDestino === o.maquina) return;
+    setSalvandoTransferencia(true);
+    try {
+      await base44.entities.OrdemMaquinaCD.update(o.id, {
+        maquina: novaMaquinaDestino,
+        observacoes: (o.observacoes ? `${o.observacoes} | ` : "") + `Transferido de ${o.maquina} para ${novaMaquinaDestino} em ${format(new Date(), "dd/MM/yyyy HH:mm")}`
+      });
+
+      // Atualiza também no PedidoOdoo correspondente se existir
+      if (pedidoOdooVinculado) {
+        try {
+          const itens = getItens(pedidoOdooVinculado);
+          const novosItens = itens.map((it, idx) => {
+            if (o.item_idx != null ? idx === o.item_idx : classGrupo(it) === "cd") {
+              return {
+                ...it,
+                maquina_atual: novaMaquinaDestino,
+                onde_esta: `Fila da Máquina: ${novaMaquinaDestino}`
+              };
+            }
+            return it;
+          });
+          await base44.entities.PedidoOdoo.update(pedidoOdooVinculado.id, {
+            itens_json: JSON.stringify(novosItens),
+            onde_esta: `Fila da Máquina: ${novaMaquinaDestino}`
+          });
+        } catch (ePed) {
+          console.warn("[OrdemMaquinaRow] Falha ao sincronizar transferência no PedidoOdoo:", ePed);
+        }
+      }
+
+      toast.success(`OP transferida com sucesso para ${novaMaquinaDestino}!`);
+      setTransferirMaquinaOpen(false);
+      onUpdate(o.id, { maquina: novaMaquinaDestino });
+      queryClient.invalidateQueries({ queryKey: ["alert-ordens-maquina"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
+      queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd-todas"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+    } catch (err) {
+      toast.error("Erro ao transferir máquina: " + (err.message || err));
+    } finally {
+      setSalvandoTransferencia(false);
+    }
+  };
 
   useEffect(() => {
     const iv = setInterval(() => setTick(t => t + 1), 1000);
@@ -942,6 +1000,24 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               ↩ Reabrir
             </Button>
           )}
+
+          {/* Mudar Dobradeira / Transferir Máquina */}
+          {o.status !== "finalizado" && o.status !== "cancelado" && (
+            <Button
+              size="sm"
+              variant="outline"
+              className={`gap-1 ${z.btn} text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900/60 hover:bg-blue-50 dark:hover:bg-blue-950/40`}
+              onClick={() => {
+                setNovaMaquinaDestino("");
+                setTransferirMaquinaOpen(true);
+              }}
+              title="Mudar a dobradeira ou máquina desta ordem de produção"
+            >
+              <ArrowRightLeft className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span>{String(o.maquina || "").toUpperCase().includes("DOBRA") ? "Mudar Dobradeira" : "Transferir Máquina"}</span>
+            </Button>
+          )}
+
           {/* Se a ordem NÃO estiver finalizada e NÃO estiver cancelada: botão Cancelar disponível */}
           {o.status !== "finalizado" && o.status !== "cancelado" && (
             <Button
@@ -1280,6 +1356,62 @@ export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor
               }}
             >
               <Trash2 className="w-4 h-4" /> Sim, Excluir Definitivamente
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Transferir Máquina / Mudar Dobradeira */}
+      <Dialog open={transferirMaquinaOpen} onOpenChange={setTransferirMaquinaOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="w-5 h-5 text-blue-600" />
+              Transferir Máquina / Mudar Dobradeira
+            </DialogTitle>
+            <DialogDescription>
+              Selecione a nova máquina de destino para esta Ordem de Produção no chão de fábrica.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs space-y-1">
+              <div><strong className="text-slate-700 dark:text-slate-300">Pedido:</strong> <span className="font-mono">#{o.numero_pedido || o.id}</span></div>
+              {o.cliente && <div><strong className="text-slate-700 dark:text-slate-300">Cliente:</strong> {o.cliente}</div>}
+              {o.tipo_peca && <div><strong className="text-slate-700 dark:text-slate-300">Peça:</strong> {o.tipo_peca}</div>}
+              <div><strong className="text-slate-700 dark:text-slate-300">Máquina Atual:</strong> <Badge className="bg-orange-100 text-orange-800 border-orange-300 ml-1">{o.maquina}</Badge></div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                Nova Máquina de Destino:
+              </Label>
+              <Select value={novaMaquinaDestino} onValueChange={setNovaMaquinaDestino}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecione para qual máquina transferir..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {opcoesMaquinasTransferencia.map(m => (
+                    <SelectItem key={m} value={m} disabled={m === o.maquina}>
+                      {m} {m === o.maquina ? "(Máquina Atual)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTransferirMaquinaOpen(false)} disabled={salvandoTransferencia}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConfirmarTransferenciaMaquina}
+              disabled={!novaMaquinaDestino || novaMaquinaDestino === o.maquina || salvandoTransferencia}
+              className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5 font-bold"
+            >
+              {salvandoTransferencia ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />}
+              Confirmar Transferência
             </Button>
           </DialogFooter>
         </DialogContent>

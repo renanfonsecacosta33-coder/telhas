@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { playFinishSound, speakOpFinalizada, playMaterialDisponivelSound, speakMaterialDisponivel, playAlertSound } from "@/lib/sounds";
 import { useFilial } from "@/contexts/FilialContext";
-import PopupDobradeira from "./PopupDobradeira";
 import CentralChats from "@/components/chat/CentralChats";
 import { useAllUnreadCount } from "@/hooks/useUnreadMessages";
 
@@ -221,21 +220,9 @@ export default function AlertBellCD({ user }) {
     prevMaterialKeysRef.current = chavesAtuais;
   }, [materiaisDisponiveis, isGestor]);
 
-  // CORTE 3M/6M finalizado sem dobra vinculada → pendente atribuição
-  const pendingDobradeira = useMemo(() => {
-    const corteFinalizadas = ordensMaquina.filter(o =>
-      (o.maquina === "CORTE 3M" || o.maquina === "CORTE 6M") && o.status === "finalizado"
-    );
-    const dobraCorteIds = new Set(
-      ordensMaquina.filter(o => o.ordem_corte_id).map(o => o.ordem_corte_id)
-    );
-    return corteFinalizadas.filter(o => !dobraCorteIds.has(o.id));
-  }, [ordensMaquina]);
-
   if (!isGestor) return null;
 
-  const pendingCount = pendingDobradeira.length;
-  const totalAlerts = pendingCount + materiaisDisponiveis.length;
+  const totalAlerts = materiaisDisponiveis.length;
 
   return (
     <>
@@ -317,32 +304,6 @@ export default function AlertBellCD({ user }) {
               </div>
             )}
 
-            {pendingDobradeira.length > 0 && (
-              <div className="space-y-1.5 pt-2">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 px-2 flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5" />
-                  Cortes Concluídos — Vincular Dobra ({pendingDobradeira.length})
-                </p>
-                <div className="p-2.5 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 flex items-center justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-foreground">{pendingDobradeira.length} corte(s) finalizados</p>
-                    <p className="text-[11px] text-muted-foreground">Necessitam selecionar a máquina de dobra</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs border-amber-400 text-amber-700 dark:text-amber-300 hover:bg-amber-100 shrink-0 font-semibold"
-                    onClick={() => {
-                      setBellOpen(false);
-                      setPopupOpen(true);
-                    }}
-                  >
-                    Atribuir
-                  </Button>
-                </div>
-              </div>
-            )}
-
             {totalAlerts === 0 && (
               <div className="py-8 text-center text-muted-foreground">
                 <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-500 mb-2 opacity-80" />
@@ -376,28 +337,6 @@ export default function AlertBellCD({ user }) {
           </div>
         </PopoverContent>
       </Popover>
-
-      {/* Badge vermelho flutuante quando minimizado */}
-      {minimized && pendingCount > 0 && (
-        <button
-          onClick={() => { setMinimized(false); setPopupOpen(true); }}
-          className="fixed top-16 right-4 z-50 bg-red-500 text-white rounded-full px-4 py-2.5 shadow-lg flex items-center gap-2 animate-pulse hover:bg-red-600 transition-colors cursor-pointer"
-        >
-          <Bell className="w-4 h-4" />
-          <span className="text-sm font-bold">{pendingCount} OP(s) aguardando dobradeira</span>
-        </button>
-      )}
-
-      <PopupDobradeira
-        items={pendingDobradeira}
-        open={popupOpen && pendingCount > 0}
-        onClose={() => setPopupOpen(false)}
-        onMinimize={() => { setMinimized(true); setPopupOpen(false); }}
-        onAssigned={() => {
-          queryClient.invalidateQueries({ queryKey: ["alert-ordens-maquina"] });
-          queryClient.invalidateQueries({ queryKey: ["ordens-maquina-cd"] });
-        }}
-      />
 
       <CentralChats user={user} open={centralChatsOpen} onOpenChange={setCentralChatsOpen} />
     </>
