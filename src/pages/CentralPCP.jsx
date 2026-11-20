@@ -765,7 +765,7 @@ export default function CentralPCP() {
       }) && Boolean(primeiro.roteiro_maquinas || primeiro.etapas_concluidas_json);
 
       if (itensCD.length > 0 && !jaPossuiRoteiro) {
-        toast.info("Defina o roteiro de máquinas antes de finalizar a peça de Corte e Dobra.");
+        toast({ title: "Defina o roteiro", description: "Selecione o roteiro de máquinas antes de finalizar a peça de Corte e Dobra." });
         setModalRoteamentoCD({
           aberto: true,
           pedido: primeiro,
