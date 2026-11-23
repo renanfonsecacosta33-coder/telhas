@@ -83,10 +83,36 @@ export default function AjustarMetragensModal({
       });
     }
 
+    // Helper de detecção de anomalia real (comprimento impossível ou incompatível com peso em KG)
+    const checarSeSuspeito = (o, m) => {
+      const mm = Number(o.metragem_mm) || 0;
+      const prod = String(o.produto || o.modelo || "").toUpperCase();
+      const maq = String(o.maquina || "").toUpperCase();
+      // Telha unitária > 14m
+      if (mm >= 15000) return true;
+      // Cumeeira unitária > 3m
+      if ((prod.includes("CUMEEIRA") || maq === "CUMEEIRA") && mm >= 10000) return true;
+      // Bobininha > 50m
+      if ((prod.includes("BOBININHA") || maq === "DESBOBINADOR") && (mm >= 50000 || m >= 1000)) return true;
+      // Se tiver peso cadastrado, compara fisicamente
+      const peso = Number(o.peso_kg || o.kg_total || o.peso_real || 0);
+      if (peso > 0) {
+        const esp = parseFloat(o.espessura || o.chapa) || 0.43;
+        const larg = /(bobininha|bobina|fita|desbobinador)/i.test(`${prod} ${maq}`) ? 300 : 1200;
+        const mEsperado = peso / (esp * 7.85 * (larg / 1000));
+        if (mEsperado > 0 && (m > mEsperado * 2.5 || m < mEsperado * 0.35)) {
+          return true;
+        }
+      } else if (m >= 4000) {
+        return true;
+      }
+      return false;
+    };
+
     // Calcula metros e marca ordens suspeitas
     const comMetros = lista.map((o) => {
       const m = calcularMetrosPedido(o);
-      const isSuspeito = m >= 500; // Pedido de telha com mais de 500m lineares costuma ter erro de digitação
+      const isSuspeito = checarSeSuspeito(o, m);
       return { ...o, _metrosCalculados: m, _isSuspeito: isSuspeito };
     });
 
@@ -105,7 +131,23 @@ export default function AjustarMetragensModal({
   }, [ordensProcessadas]);
 
   const totalSuspeitos = useMemo(() => {
-    return ordens.filter(o => o.status === "finalizado" && calcularMetrosPedido(o) >= 500).length;
+    return ordens.filter(o => {
+      if (o.status !== "finalizado") return false;
+      const m = calcularMetrosPedido(o);
+      const mm = Number(o.metragem_mm) || 0;
+      const prod = String(o.produto || o.modelo || "").toUpperCase();
+      const maq = String(o.maquina || "").toUpperCase();
+      if (mm >= 15000) return true;
+      if ((prod.includes("CUMEEIRA") || maq === "CUMEEIRA") && mm >= 10000) return true;
+      const peso = Number(o.peso_kg || o.kg_total || o.peso_real || 0);
+      if (peso > 0) {
+        const esp = parseFloat(o.espessura || o.chapa) || 0.43;
+        const larg = /(bobininha|bobina|fita|desbobinador)/i.test(`${prod} ${maq}`) ? 300 : 1200;
+        const mEsperado = peso / (esp * 7.85 * (larg / 1000));
+        if (mEsperado > 0 && (m > mEsperado * 2.5 || m < mEsperado * 0.35)) return true;
+      } else if (m >= 4000) return true;
+      return false;
+    }).length;
   }, [ordens]);
 
   // Iniciar edição de uma ordem

@@ -16,8 +16,23 @@ export async function executarAutoReparoMetragens(ordens = []) {
   for (const o of ordens) {
     if (!o || !o.id) continue;
 
-    // Se já foi retificado explicitamente por um operador/gestor, respeita a decisão
-    if (o.retificado_manualmente || Number(o.metros_retificados) > 0) continue;
+    const pesoAtual = Number(o.peso_kg || o.kg_total || o.peso_real || 0);
+    const espessura = parseFloat(o.espessura || o.chapa) || 0.43;
+    const prodStr = String(o.produto || o.modelo || "").toUpperCase();
+    const isBobininha = /(bobininha|bobina|fita|desbobinador)/i.test(`${prodStr} ${o.maquina || ""}`);
+    const largMm = isBobininha ? 300 : 1200;
+
+    // Se já foi retificado: verifica se foi um falso-positivo do auto-reparo antigo
+    // (onde o peso de aço em KG é muito maior do que os metros retificados)
+    if (o.retificado_manualmente || Number(o.metros_retificados) > 0) {
+      const mAtual = Number(o.metros_retificados || o.metros_totais || 0);
+      const kgEstimadoMAtual = calcKgDeMetros(mAtual, espessura, largMm);
+      // Se peso for > 1000kg e mAtual foi cortado para menos de 40% do peso, precisa ser desfeito/restaurado
+      const precisaRestaurar = pesoAtual >= 1000 && kgEstimadoMAtual > 0 && pesoAtual > kgEstimadoMAtual * 2.5;
+      if (!precisaRestaurar) {
+        continue;
+      }
+    }
 
     const metrosSugeridos = sanitizarMetrosAnormais(o);
     if (metrosSugeridos !== null && metrosSugeridos >= 0) {
@@ -26,7 +41,6 @@ export async function executarAutoReparoMetragens(ordens = []) {
       let compMmNovo = mmAtual;
 
       // Corrige escala de mm se tinha zero extra
-      const prodStr = String(o.produto || o.modelo || "").toUpperCase();
       if ((prodStr.includes("CUMEEIRA") || o.maquina === "CUMEEIRA") && mmAtual >= 10000) {
         compMmNovo = 1000;
       } else if (mmAtual >= 15000 && mmAtual % 10 === 0 && (mmAtual / 10) <= 14000) {
@@ -39,8 +53,7 @@ export async function executarAutoReparoMetragens(ordens = []) {
         pecasNovas = Math.max(1, Math.round(novosMetros / (compMmNovo / 1000)));
       }
 
-      const espessura = parseFloat(o.espessura || o.chapa) || 0.43;
-      const novoKg = Number(calcKgDeMetros(novosMetros, espessura).toFixed(1));
+      const novoKg = pesoAtual > 0 ? pesoAtual : Number(calcKgDeMetros(novosMetros, espessura, largMm).toFixed(1));
 
       const payload = {
         metros_retificados: novosMetros,
@@ -63,7 +76,7 @@ export async function executarAutoReparoMetragens(ordens = []) {
       try {
         await base44.entities.Pedido.update(o.id, payload);
         corrigidas++;
-        console.log(`[AutoReparoMetragens] Ordem #${o.numero_pedido || o.id} corrigida para ${novosMetros}m (${pecasNovas} pçs x ${compMmNovo}mm).`);
+        console.log(`[AutoReparoMetragens] Ordem #${o.numero_pedido || o.id} restaurada para ${novosMetros}m (${pecasNovas} pçs x ${compMmNovo}mm, ${novoKg}kg).`);
       } catch (err) {
         console.warn(`[AutoReparoMetragens] Falha ao atualizar ordem ${o.id}:`, err);
       }

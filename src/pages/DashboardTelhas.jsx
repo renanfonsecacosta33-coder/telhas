@@ -225,12 +225,13 @@ export default function DashboardTelhas() {
     return pedidosFiltrados.filter(o => o.maquina === maquinaSel);
   }, [pedidosFiltrados, maquinaSel]);
 
-  // Ordens do chão de fábrica no período selecionado
+  // Ordens do chão de fábrica no período selecionado (com blindagem de data ISO)
   const ordensPeriodo = useMemo(() => {
     return ordensBase.filter(o => {
-      const ref = (o.status === "finalizado" && o.data_finalizacao)
+      const rawRef = (o.status === "finalizado" && o.data_finalizacao)
         ? o.data_finalizacao
-        : (o.data || (o.created_date ? o.created_date.substring(0, 10) : ""));
+        : (o.data || o.created_date || "");
+      const ref = String(rawRef).substring(0, 10);
       if (!ref) return false;
       return ref >= filtroInicio && ref <= filtroFim;
     });
@@ -239,7 +240,8 @@ export default function DashboardTelhas() {
   // Ordens de Odoo concluídas no período (garante métricas ricas de faturamento/produção)
   const odooPeriodo = useMemo(() => {
     return odooFiltrados.filter(p => {
-      const ref = p.data_finalizacao || p.data_entrega_prometida || (p.created_date ? p.created_date.substring(0, 10) : "");
+      const rawRef = p.data_finalizacao || p.data_entrega_prometida || p.created_date || "";
+      const ref = String(rawRef).substring(0, 10);
       if (!ref) return false;
       return ref >= filtroInicio && ref <= filtroFim;
     });
@@ -350,8 +352,8 @@ export default function DashboardTelhas() {
       const ordemPausada = pedidosFiltrados.find(p => p.maquina === maq.id && p.status === "pausado");
       // 3. Fila de pendentes
       const filaPendentes = pedidosFiltrados.filter(p => p.maquina === maq.id && p.status === "pendente");
-      // 4. Metros produzidos no período
-      const metrosPeriodoMaq = pedidosFiltrados
+      // 4. Metros produzidos no período selecionado (harmonizado com o KPI do topo)
+      const metrosPeriodoMaq = ordensPeriodo
         .filter(p => p.maquina === maq.id && p.status === "finalizado")
         .reduce((sum, p) => sum + calcularMetrosPedido(p), 0);
 
@@ -367,7 +369,7 @@ export default function DashboardTelhas() {
         metrosPeriodo: Math.round(metrosPeriodoMaq * 10) / 10,
       };
     });
-  }, [pedidosFiltrados]);
+  }, [pedidosFiltrados, ordensPeriodo]);
 
   // ══════════════ DADOS PARA GRÁFICOS ══════════════
   // Gráfico 1: Produção Diária ao longo da Semana/Mês
