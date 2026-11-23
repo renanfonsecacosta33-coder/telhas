@@ -10,7 +10,7 @@ import {
   Weight, DollarSign, RefreshCw, Pause, CheckCircle2,
   Layers, Clock, Zap, Activity, X, Loader2, Factory,
   TrendingUp, Snowflake, Ruler, Calendar, ChevronRight,
-  ExternalLink, History, Search, Pencil, ArrowUpDown
+  ExternalLink, History, Search, Pencil, ArrowUpDown, Calculator
 } from "lucide-react";
 import { calcularMetrosPedido, calcularKgPedido } from "@/lib/metrosHelper";
 import { calcularCustoOrdem, formatarMoeda } from "@/lib/custoPedidoHelper";
@@ -998,4 +998,3 @@ function EficienciaContent({ eficiencia, tempoProdTotal, tempoPausaTotal, tempoS
     </div>
   );
 }
-
