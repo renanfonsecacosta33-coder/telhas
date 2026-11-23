@@ -101,6 +101,7 @@ import DevolucoesExpedicao from '@/pages/expedicao/Devolucoes';
 import ReservasExpedicao from '@/pages/expedicao/Reservas';
 import LogisticaExpedicao from '@/pages/expedicao/Logistica';
 import ArquivoRotas from '@/pages/ArquivoRotas';
+import AjlIaCopilot from '@/components/chat/AjlIaCopilot';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -234,6 +235,7 @@ const AuthenticatedApp = () => {
       <Route path="/pops" element={<CentralPopsPage />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
+    <AjlIaCopilot />
     </FilialProvider>
   );
 };

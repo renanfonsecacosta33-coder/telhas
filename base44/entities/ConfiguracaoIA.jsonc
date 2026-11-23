@@ -1,0 +1,45 @@
+{
+  "name": "ConfiguracaoIA",
+  "type": "object",
+  "properties": {
+    "nome": {
+      "type": "string",
+      "default": "AJL IA",
+      "description": "Nome da IA"
+    },
+    "gemini_api_key": {
+      "type": "string",
+      "description": "Chave da API Google Gemini (AI Studio)"
+    },
+    "modelo_gemini": {
+      "type": "string",
+      "default": "gemini-1.5-flash",
+      "description": "Modelo utilizado (ex: gemini-1.5-flash ou gemini-2.0-flash)"
+    },
+    "zapi_instance_id": {
+      "type": "string",
+      "description": "ID da Instância Z-API para WhatsApp"
+    },
+    "zapi_token": {
+      "type": "string",
+      "description": "Token da Instância Z-API"
+    },
+    "zapi_client_token": {
+      "type": "string",
+      "description": "Client Token de segurança do Z-API"
+    },
+    "telefones_autorizados": {
+      "type": "string",
+      "description": "Telefones permitidos para falar com a IA no WhatsApp separados por vírgula (ex: 5541999999999,5541888888888)"
+    },
+    "prompt_sistema": {
+      "type": "string",
+      "description": "Instruções do sistema para a personalidade e regras do AJL IA"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se o assistente AJL IA está ativo"
+    }
+  }
+}

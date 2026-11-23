@@ -1,0 +1,40 @@
+{
+  "name": "HistoricoAjlIa",
+  "type": "object",
+  "properties": {
+    "canal": {
+      "type": "string",
+      "enum": ["web_app", "whatsapp"],
+      "default": "web_app",
+      "description": "Canal da conversa: web_app ou whatsapp"
+    },
+    "sessao_id": {
+      "type": "string",
+      "description": "ID da sessão (ID do usuário no app ou número de telefone no WhatsApp)"
+    },
+    "remetente_nome": {
+      "type": "string",
+      "description": "Nome de quem enviou a mensagem"
+    },
+    "remetente_telefone": {
+      "type": "string",
+      "description": "Telefone caso venha do WhatsApp"
+    },
+    "mensagem_usuario": {
+      "type": "string",
+      "description": "Texto digitado pelo usuário"
+    },
+    "resposta_ia": {
+      "type": "string",
+      "description": "Resposta gerada pelo AJL IA"
+    },
+    "tools_executadas": {
+      "type": "string",
+      "description": "JSON com as ferramentas e consultas executadas pelo agente"
+    },
+    "filial": {
+      "type": "string",
+      "description": "Filial de contexto (ex: Matriz AJL)"
+    }
+  }
+}
