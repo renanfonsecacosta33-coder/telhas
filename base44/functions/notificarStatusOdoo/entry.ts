@@ -166,7 +166,19 @@ export default async function(req: Request): Promise<Response> {
       itens_telha_count,
       total_itens,
       itens_cd_json: JSON.stringify(itens_cd_arr),
-      itens_telha_json: JSON.stringify(itens_telha_arr)
+      itens_telha_json: JSON.stringify(itens_telha_arr),
+      // ── Campos de Custo Real de Fabricação (Apropriação Contábil / MRP Odoo) ──
+      custo_total: Number(body.custo_total || 0),
+      custo_materia_prima: Number(body.custo_materia_prima || 0),
+      custo_aco: Number(body.custo_aco || 0),
+      custo_eps: Number(body.custo_eps || 0),
+      custo_cola: Number(body.custo_cola || 0),
+      custo_operacional: Number(body.custo_operacional || 0),
+      custo_unitario_metro: Number(body.custo_unitario_metro || 0),
+      custo_unitario_kg: Number(body.custo_unitario_kg || 0),
+      kg_consumido: Number(body.kg_consumido || 0),
+      bobina_codigo: String(body.bobina_codigo || ""),
+      bobina_custo_kg: Number(body.bobina_custo_kg || 0)
     };
 
     let res: Response | null = null;

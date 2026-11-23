@@ -24,6 +24,7 @@ import HistoricoBobinasTelhas from "@/components/telhas/HistoricoBobinasTelhas";
 import KpiDetailSidebarTelhas from "@/components/telhas/KpiDetailSidebarTelhas";
 import AjustarMetragensModal from "@/components/telhas/AjustarMetragensModal";
 import { calcularMetrosPedido, calcularKgPedido } from "@/lib/metrosHelper";
+import { calcularCustoOrdem } from "@/lib/custoPedidoHelper";
 import { executarAutoReparoMetragens } from "@/lib/repararMetragensAnormaisHelper";
 import { getItens, prepararPresetNovaOrdemTelhas } from "@/lib/pedidoOdooHelper";
 import { isTelhaBandeja } from "@/lib/bandejaHelper";
@@ -333,10 +334,21 @@ export default function DashboardTelhas() {
     return { tempoProdTotal: tProd, tempoPausaTotal: tPausa, tempoSetupTotal: tSetup, tempoTotal: total, eficiencia: ef };
   }, [ordensPeriodo]);
 
-  // 9. Custo / Valor de Produção Estimado (R$ 38/m médio)
+  // Mapa rápido de bobinas para cálculo de custos
+  const bobinaMap = useMemo(() => {
+    const map = {};
+    (bobinas || []).forEach(b => {
+      if (b && b.id) map[b.id] = b;
+    });
+    return map;
+  }, [bobinas]);
+
+  // 9. Custo / Valor Real Estimado de Fabricação no Período
   const custoProducao = useMemo(() => {
-    return Math.round(metrosPeriodo * 38.5);
-  }, [metrosPeriodo]);
+    const fin = ordensPeriodo.filter(o => o.status === "finalizado");
+    if (fin.length === 0) return 0;
+    return Math.round(fin.reduce((sum, o) => sum + calcularCustoOrdem(o, bobinaMap).custoTotal, 0));
+  }, [ordensPeriodo, bobinaMap]);
 
   // 10. Alertas
   const bobinasCriticas = useMemo(() => {
@@ -786,15 +798,19 @@ export default function DashboardTelhas() {
             </div>
 
             {/* Custo de Produção */}
-            <div className="bg-white border border-slate-200/80 rounded-xl p-3.5 flex items-center gap-3 shadow-xs">
-              <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <div
+              onClick={() => setKpiDetail("custo")}
+              className="bg-white border border-slate-200/80 rounded-xl p-3.5 flex items-center gap-3 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer group"
+              title="Clique para ver o detalhamento de custos de fabricação por pedido"
+            >
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
                 <DollarSign className="w-4 h-4" />
               </div>
               <div>
                 <p className="text-base font-black text-emerald-700 leading-tight">
                   {custoProducao.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}
                 </p>
-                <p className="text-[11px] text-slate-500 font-medium">Valor fabricado est.</p>
+                <p className="text-[11px] text-slate-500 font-medium">Custo Produção (Clique)</p>
               </div>
             </div>
           </div>

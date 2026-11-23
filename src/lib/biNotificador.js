@@ -1,5 +1,6 @@
 import { base44 } from "@/api/base44Client";
 import { getItens, classGrupo } from "@/lib/pedidoOdooHelper";
+import { prepararCustoParaOdoo } from "@/lib/custoPedidoHelper";
 
 // ── Mini BI Industrial — Rastreamento por Máquina ──────────────────────
 // Helpers compartilhados para sequência de máquinas C&D e etapas de Telhas.
@@ -95,6 +96,7 @@ export async function notificarStatus(pedido, evento, extra = {}) {
 
   const statusNovoEfetivo = isConcluido ? "concluido" : (extra.status_novo || pedido.status_pcp || "");
   const pctEfetivo = isConcluido ? 100 : (extra.percentual_concluido != null ? extra.percentual_concluido : (pedido.percentual_concluido ?? 0));
+  const custoOdoo = prepararCustoParaOdoo(pedido);
 
   try {
     const res = await base44.functions.invoke("notificarStatusOdoo", {
@@ -130,7 +132,19 @@ export async function notificarStatus(pedido, evento, extra = {}) {
       total_itens: pedido.total_itens || itens.length,
       itens_json: pedido.itens_json || JSON.stringify(itens),
       maquinas,
-      etapas
+      etapas,
+      // ── Campos de Custo de Fabricação para Apropriação Contábil/MRP no Odoo ──
+      custo_total: extra.custo_total != null ? extra.custo_total : custoOdoo.custo_total,
+      custo_materia_prima: extra.custo_materia_prima != null ? extra.custo_materia_prima : custoOdoo.custo_materia_prima,
+      custo_aco: extra.custo_aco != null ? extra.custo_aco : custoOdoo.custo_aco,
+      custo_eps: extra.custo_eps != null ? extra.custo_eps : custoOdoo.custo_eps,
+      custo_cola: extra.custo_cola != null ? extra.custo_cola : custoOdoo.custo_cola,
+      custo_operacional: extra.custo_operacional != null ? extra.custo_operacional : custoOdoo.custo_operacional,
+      custo_unitario_metro: extra.custo_unitario_metro != null ? extra.custo_unitario_metro : custoOdoo.custo_unitario_metro,
+      custo_unitario_kg: extra.custo_unitario_kg != null ? extra.custo_unitario_kg : custoOdoo.custo_unitario_kg,
+      kg_consumido: extra.kg_consumido != null ? extra.kg_consumido : custoOdoo.kg_consumido,
+      bobina_codigo: extra.bobina_codigo || custoOdoo.bobina_codigo,
+      bobina_custo_kg: extra.bobina_custo_kg != null ? extra.bobina_custo_kg : custoOdoo.bobina_custo_kg
     });
     return { ok: true, data: res };
   } catch (e) {

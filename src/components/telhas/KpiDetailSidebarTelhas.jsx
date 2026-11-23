@@ -3,15 +3,17 @@ import { useNavigate } from "react-router-dom";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import {
   Weight, DollarSign, RefreshCw, Pause, CheckCircle2,
   Layers, Clock, Zap, Activity, X, Loader2, Factory,
   TrendingUp, Snowflake, Ruler, Calendar, ChevronRight,
-  ExternalLink, History, Search, Pencil
+  ExternalLink, History, Search, Pencil, ArrowUpDown
 } from "lucide-react";
 import { calcularMetrosPedido, calcularKgPedido } from "@/lib/metrosHelper";
+import { calcularCustoOrdem, formatarMoeda } from "@/lib/custoPedidoHelper";
 import HistoricoPedidoTelhasSidebar from "@/components/producao/HistoricoPedidoTelhasSidebar";
 
 function formatBRL(v) {
@@ -59,10 +61,10 @@ export default function KpiDetailSidebarTelhas({
   const [historicoPedido, setHistoricoPedido] = useState(null);
 
   useEffect(() => {
-    if (open && (type === "kg" || type === "custo")) {
+    if (open) {
       fetchBobinas();
     }
-  }, [open, type]);
+  }, [open]);
 
   const fetchBobinas = async () => {
     setLoading(true);
@@ -125,36 +127,35 @@ export default function KpiDetailSidebarTelhas({
     return map;
   }, [bobinasAtivas, allBobinas]);
 
-  // KG & Custo Data (calcula peso real ou teórico consolidado)
+  // KG & Custo Data consolidado por ordem e por bobina
   const kgCustoData = useMemo(() => {
     const finOrdens = ordensPeriodo.filter(o => o.status === "finalizado");
     const byBobina = {};
     let totalKG = 0;
     let totalCusto = 0;
+    let totalMetros = 0;
 
     finOrdens.forEach(o => {
-      const kg = calcularKgPedido(o);
-      const bob = o.bobina_id ? bobinaMap[o.bobina_id] : null;
-      const custoKg = bob?.custo || 0;
-      const custo = kg * custoKg;
-      totalKG += kg;
-      totalCusto += custo;
+      const custoInfo = calcularCustoOrdem(o, bobinaMap);
+      totalKG += custoInfo.kgAco;
+      totalCusto += custoInfo.custoTotal;
+      totalMetros += custoInfo.metros;
 
-      const key = o.bobina_id || o.bobina_descricao || "outros";
+      const key = o.bobina_id || o.bobina_superior_id || o.bobina_descricao || custoInfo.bobinaCodigo || "outros";
       if (!byBobina[key]) {
         byBobina[key] = {
-          bobina_id: o.bobina_id,
-          bobina: bob,
-          descricao: o.bobina_descricao || bob?.codigo || "Bobina Telhas",
+          bobina_id: o.bobina_id || o.bobina_superior_id,
+          bobina: o.bobina_id ? bobinaMap[o.bobina_id] : (o.bobina_superior_id ? bobinaMap[o.bobina_superior_id] : null),
+          descricao: o.bobina_descricao || custoInfo.bobinaCodigo || "Bobina Telhas",
           kg_total: 0,
           metros_total: 0,
           custo_total: 0,
           ops: [],
         };
       }
-      byBobina[key].kg_total += kg;
-      byBobina[key].metros_total += calcularMetrosPedido(o);
-      byBobina[key].custo_total += custo;
+      byBobina[key].kg_total += custoInfo.kgAco;
+      byBobina[key].metros_total += custoInfo.metros;
+      byBobina[key].custo_total += custoInfo.custoTotal;
       byBobina[key].ops.push({
         id: o.id,
         maquina: o.maquina,
@@ -162,16 +163,26 @@ export default function KpiDetailSidebarTelhas({
         cliente: o.cliente,
         numero_pedido: o.numero_pedido,
         data: o.data_finalizacao || o.data,
-        metros: calcularMetrosPedido(o),
-        kg,
-        custo,
-        custoKg,
+        metros: custoInfo.metros,
+        kg: custoInfo.kgAco,
+        custo: custoInfo.custoTotal,
+        custoKg: custoInfo.custoKgAco,
+        custoInfo,
         rawObj: o,
       });
     });
 
     const bobinasList = Object.values(byBobina).sort((a, b) => b.kg_total - a.kg_total);
-    return { finOrdens, bobinasList, totalKG, totalCusto, custoMedio: totalKG > 0 ? totalCusto / totalKG : 0 };
+    return {
+      finOrdens,
+      bobinasList,
+      totalKG,
+      totalMetros,
+      totalCusto,
+      custoMedio: totalKG > 0 ? totalCusto / totalKG : 0,
+      custoMedioMetro: totalMetros > 0 ? totalCusto / totalMetros : 0,
+      bobinaMap,
+    };
   }, [ordensPeriodo, bobinaMap]);
 
   const cfg = HEADER_CFG[type] || HEADER_CFG.ordens;
@@ -235,6 +246,7 @@ export default function KpiDetailSidebarTelhas({
                     )}
                     <MetrosContent
                       ordens={ordensPeriodo.filter(o => o.status === "finalizado")}
+                      bobinaMap={bobinaMap}
                       onGoToPedido={handleIrAtePedido}
                       onEditarOrdem={handleEditar}
                       onOpenHistorico={handleAbrirHistorico}
@@ -296,6 +308,7 @@ export default function KpiDetailSidebarTelhas({
                 {type === "finalizados" && (
                   <MetrosContent
                     ordens={ordensPeriodo.filter(o => o.status === "finalizado")}
+                    bobinaMap={bobinaMap}
                     onGoToPedido={handleIrAtePedido}
                     onEditarOrdem={handleEditar}
                     onOpenHistorico={handleAbrirHistorico}
@@ -344,9 +357,10 @@ export default function KpiDetailSidebarTelhas({
   );
 }
 
-// Card de Ordem Clicável Reutilizável
-function OrdemItemCard({ ordem, metros, onGoToPedido, onEditarOrdem, onOpenHistorico, badgeText, badgeColor }) {
+// Card de Ordem Clicável Reutilizável com Custo Industrial
+function OrdemItemCard({ ordem, metros, bobinaMap = {}, onGoToPedido, onEditarOrdem, onOpenHistorico, badgeText, badgeColor }) {
   const m = metros != null ? metros : calcularMetrosPedido(ordem);
+  const custo = calcularCustoOrdem(ordem, bobinaMap);
 
   const handleClickCard = () => {
     if (onEditarOrdem) {
@@ -372,9 +386,21 @@ function OrdemItemCard({ ordem, metros, onGoToPedido, onEditarOrdem, onOpenHisto
               {badgeText}
             </Badge>
           )}
+          {custo.isTermoacustica && (
+            <span className="text-[9px] font-bold text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-950/40 px-1.5 py-0.5 rounded border border-cyan-200 dark:border-cyan-800">
+              EPS + Cola
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {m > 0 && <span className="font-black text-xs text-blue-600 dark:text-blue-400">{m.toFixed(1)} m</span>}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="text-right">
+            <span className="font-black text-xs text-emerald-600 dark:text-emerald-400 block">
+              {formatarMoeda(custo.custoTotal)}
+            </span>
+            <span className="text-[10px] text-muted-foreground block font-medium">
+              {m > 0 ? `${m.toFixed(1)}m · ${formatarMoeda(custo.custoPorMetro)}/m` : `${custo.kgAco.toFixed(0)} kg`}
+            </span>
+          </div>
           <div className="w-5 h-5 rounded-md bg-muted/60 group-hover:bg-blue-600 group-hover:text-white flex items-center justify-center transition-colors">
             <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
           </div>
@@ -388,9 +414,16 @@ function OrdemItemCard({ ordem, metros, onGoToPedido, onEditarOrdem, onOpenHisto
             #{ordem.numero_pedido || "S/N"}
           </strong>
         </span>
-        <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0 bg-muted/50 px-1.5 py-0.5 rounded text-[10px]">
-          {ordem.maquina}
-        </span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {custo.bobinaCodigo && (
+            <span className="text-[10px] text-slate-500 font-mono bg-muted/50 px-1.5 py-0.5 rounded truncate max-w-[130px]" title={`Bobina: ${custo.bobinaCodigo}`}>
+              {custo.bobinaCodigo}
+            </span>
+          )}
+          <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0 bg-muted/50 px-1.5 py-0.5 rounded text-[10px]">
+            {ordem.maquina}
+          </span>
+        </div>
       </div>
 
       {/* Barra de ações rápida com hover */}
@@ -420,39 +453,50 @@ function OrdemItemCard({ ordem, metros, onGoToPedido, onEditarOrdem, onOpenHisto
             <ExternalLink className="w-3 h-3" /> Produção
           </button>
         </div>
-        {onOpenHistorico && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenHistorico(ordem);
-            }}
-            className="text-muted-foreground hover:text-foreground flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-muted font-medium transition-colors cursor-pointer"
-            title="Ver histórico e rastreabilidade"
-          >
-            <History className="w-3 h-3" /> Histórico
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-slate-400">
+            Aço: {custo.kgAco.toFixed(0)}kg @ {formatarMoeda(custo.custoKgAco)}/kg
+          </span>
+          {onOpenHistorico && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenHistorico(ordem);
+              }}
+              className="text-muted-foreground hover:text-foreground flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-muted font-medium transition-colors cursor-pointer"
+              title="Ver histórico e rastreabilidade"
+            >
+              <History className="w-3 h-3" /> Histórico
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
 // Sub-componentes do Sheet de Detalhes
-function MetrosContent({ ordens = [], onGoToPedido, onEditarOrdem, onOpenHistorico }) {
+function MetrosContent({ ordens = [], bobinaMap = {}, onGoToPedido, onEditarOrdem, onOpenHistorico }) {
   const totalM = ordens.reduce((s, o) => s + calcularMetrosPedido(o), 0);
   const totalTelhas = ordens.reduce((s, o) => s + (o.quantidade || o.quantidade_telhas || 1), 0);
+  const totalCusto = ordens.reduce((s, o) => s + calcularCustoOrdem(o, bobinaMap).custoTotal, 0);
 
   return (
     <div className="space-y-4">
-      <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/40 rounded-xl p-4 flex items-center justify-between">
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-200 dark:border-blue-900/40 rounded-xl p-4 flex items-center justify-between">
         <div>
           <p className="text-2xl font-black text-blue-700 dark:text-blue-300">{totalM.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m</p>
-          <p className="text-xs text-muted-foreground">Total finalizado no período</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Total finalizado no período</p>
         </div>
         <div className="text-right">
-          <p className="text-lg font-bold text-slate-700 dark:text-slate-300">{totalTelhas} telhas</p>
-          <p className="text-xs text-muted-foreground">{ordens.length} ordem(ns)</p>
+          <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+            {Math.round(totalTelhas).toLocaleString("pt-BR")} telhas
+          </p>
+          <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+            {formatarMoeda(totalCusto)} ({formatarMoeda(totalM > 0 ? totalCusto / totalM : 0)}/m)
+          </p>
+          <p className="text-[10px] text-muted-foreground">{ordens.length} ordem(ns)</p>
         </div>
       </div>
 
@@ -461,6 +505,7 @@ function MetrosContent({ ordens = [], onGoToPedido, onEditarOrdem, onOpenHistori
           <OrdemItemCard
             key={o.id}
             ordem={o}
+            bobinaMap={bobinaMap}
             onGoToPedido={onGoToPedido}
             onEditarOrdem={onEditarOrdem}
             onOpenHistorico={onOpenHistorico}
@@ -538,60 +583,212 @@ function KgContent({ data, onGoToPedido, onEditarOrdem, onOpenHistorico }) {
 }
 
 function CustoContent({ data, onGoToPedido, onEditarOrdem }) {
+  const [visao, setVisao] = useState("ordens"); // "ordens" | "bobinas"
+  const [busca, setBusca] = useState("");
+
+  // Todas as OPs finalizadas com dados calculados
+  const todasOps = useMemo(() => {
+    const list = [];
+    (data.bobinasList || []).forEach(b => {
+      (b.ops || []).forEach(op => list.push(op));
+    });
+    return list.sort((a, b) => (b.custo || 0) - (a.custo || 0));
+  }, [data]);
+
+  const opsFiltradas = useMemo(() => {
+    if (!busca.trim()) return todasOps;
+    const q = busca.toLowerCase().trim();
+    return todasOps.filter(op => {
+      const cli = String(op.cliente || "").toLowerCase();
+      const num = String(op.numero_pedido || "").toLowerCase();
+      const prod = String(op.produto || "").toLowerCase();
+      const bob = String(op.custoInfo?.bobinaCodigo || "").toLowerCase();
+      return cli.includes(q) || num.includes(q) || prod.includes(q) || bob.includes(q);
+    });
+  }, [todasOps, busca]);
+
   return (
     <div className="space-y-4">
-      <div className="bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-900/40 rounded-xl p-4 flex items-center justify-between">
-        <div>
-          <p className="text-2xl font-black text-green-700 dark:text-green-300">{formatBRL(data.totalCusto)}</p>
-          <p className="text-xs text-muted-foreground">Custo total de material</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-muted-foreground">Custo Médio/kg</p>
-          <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{formatBRL(data.custoMedio)}/kg</p>
+      {/* 1. Header Consolidado de Custos */}
+      <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-green-50 dark:from-emerald-950/40 dark:via-teal-950/30 dark:to-green-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-xl p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-2xl font-black text-emerald-700 dark:text-emerald-300">{formatBRL(data.totalCusto)}</p>
+            <p className="text-xs text-muted-foreground font-medium mt-0.5">Custo real de fabricação no período</p>
+          </div>
+          <div className="text-right space-y-0.5">
+            <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              {formatBRL(data.custoMedioMetro)}<span className="text-[10px] text-muted-foreground font-normal">/metro</span>
+            </p>
+            <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              {formatBRL(data.custoMedio)}<span className="text-[10px] text-muted-foreground font-normal">/kg</span>
+            </p>
+            <p className="text-[10px] text-muted-foreground">{data.finOrdens?.length || 0} ordens · {data.totalMetros?.toFixed(0) || 0}m</p>
+          </div>
         </div>
       </div>
 
-      <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-        {data.bobinasList.map((b, i) => (
-          <div key={i} className="p-3 border rounded-xl bg-card space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-xs truncate">{b.descricao}</span>
-              <span className="font-black text-xs text-green-600">{formatBRL(b.custo_total)}</span>
-            </div>
-            <p className="text-[11px] text-muted-foreground">{b.kg_total.toFixed(0)} kg · {b.ops.length} ordem(ns)</p>
+      {/* 2. Barra de Controle: Alternância de Visão e Busca */}
+      <div className="flex items-center gap-2">
+        <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border/60 text-xs shrink-0">
+          <button
+            type="button"
+            onClick={() => setVisao("ordens")}
+            className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
+              visao === "ordens" ? "bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-xs" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Por Pedido ({todasOps.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setVisao("bobinas")}
+            className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
+              visao === "bobinas" ? "bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-xs" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Por Bobina ({data.bobinasList?.length || 0})
+          </button>
+        </div>
 
-            {b.ops.length > 0 && (
-              <div className="pt-2 border-t border-border/50 space-y-1.5">
-                {b.ops.map((op) => (
-                  <div
-                    key={op.id}
-                    onClick={() => {
-                      const raw = op.rawObj || op;
-                      if (onEditarOrdem) onEditarOrdem(raw);
-                      else onGoToPedido(raw);
-                    }}
-                    className="p-2 rounded-lg bg-muted/40 hover:bg-green-500/10 hover:border-green-500/40 border border-transparent transition-all cursor-pointer flex items-center justify-between text-xs group"
-                    title="Clique para editar valores desta ordem"
-                  >
+        <div className="relative flex-1">
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar pedido, cliente..."
+            className="h-8 pl-8 text-xs bg-card"
+          />
+        </div>
+      </div>
+
+      {/* 3. Conteúdo da Visão Selecionada */}
+      {visao === "ordens" ? (
+        <div className="space-y-2 max-h-[58vh] overflow-y-auto pr-1">
+          {opsFiltradas.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-6">Nenhum pedido encontrado com este filtro.</p>
+          ) : (
+            opsFiltradas.map((op) => {
+              const c = op.custoInfo || {};
+              const raw = op.rawObj || op;
+              return (
+                <div
+                  key={op.id}
+                  onClick={() => {
+                    if (onEditarOrdem) onEditarOrdem(raw);
+                    else onGoToPedido(raw);
+                  }}
+                  className="p-3 border border-border/80 hover:border-emerald-500 rounded-xl bg-card hover:bg-emerald-50/20 dark:hover:bg-emerald-950/20 transition-all cursor-pointer shadow-2xs group"
+                  title="Clique para editar valores desta ordem"
+                >
+                  <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <span className="font-bold block truncate group-hover:text-green-600">
-                        {op.produto || "Telha"} · #{op.numero_pedido || "S/N"}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground truncate block">
-                        {op.cliente || "S/ Cliente"}
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-xs truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
+                          {op.produto || "Telha"}
+                        </span>
+                        {c.isTermoacustica && (
+                          <span className="text-[9px] font-bold text-cyan-700 bg-cyan-100 dark:bg-cyan-950 dark:text-cyan-300 px-1 rounded">
+                            Termoacústica
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-muted-foreground truncate block mt-0.5">
+                        {op.cliente || "S/ Cliente"} · <strong className="text-foreground font-mono">#{op.numero_pedido || "S/N"}</strong> · {op.maquina}
                       </span>
                     </div>
-                    <div className="text-right shrink-0 ml-2">
-                      <span className="font-bold text-green-600 block">{formatBRL(op.custo)}</span>
-                      <span className="text-[10px] text-muted-foreground">{op.kg.toFixed(0)} kg</span>
+
+                    <div className="text-right shrink-0">
+                      <span className="font-black text-sm text-emerald-600 dark:text-emerald-400 block">
+                        {formatBRL(op.custo)}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-semibold">
+                        {op.metros > 0 ? `${op.metros.toFixed(1)}m · ${formatBRL(c.custoPorMetro)}/m` : `${op.kg.toFixed(0)} kg`}
+                      </span>
                     </div>
                   </div>
-                ))}
+
+                  {/* Composição detalhada de custos */}
+                  <div className="mt-2 pt-2 border-t border-border/50 grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
+                    <div className="bg-muted/40 p-1 rounded">
+                      <span className="text-muted-foreground block text-[9px]">Aço ({op.kg.toFixed(0)} kg)</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-300">{formatBRL(c.custoAco || 0)}</span>
+                    </div>
+
+                    {c.custoEps > 0 && (
+                      <div className="bg-cyan-50/50 dark:bg-cyan-950/30 p-1 rounded">
+                        <span className="text-cyan-700 dark:text-cyan-400 block text-[9px]">EPS / Isopor</span>
+                        <span className="font-bold text-cyan-800 dark:text-cyan-300">{formatBRL(c.custoEps)}</span>
+                      </div>
+                    )}
+
+                    {c.custoCola > 0 && (
+                      <div className="bg-blue-50/50 dark:bg-blue-950/30 p-1 rounded">
+                        <span className="text-blue-700 dark:text-blue-400 block text-[9px]">Cola PU</span>
+                        <span className="font-bold text-blue-800 dark:text-blue-300">{formatBRL(c.custoCola)}</span>
+                      </div>
+                    )}
+
+                    <div className="bg-muted/40 p-1 rounded">
+                      <span className="text-muted-foreground block text-[9px]">Operação</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-300">{formatBRL(c.custoOperacional || 0)}</span>
+                    </div>
+
+                    {c.bobinaCodigo && (
+                      <div className="col-span-2 sm:col-span-1 bg-amber-50/40 dark:bg-amber-950/30 p-1 rounded">
+                        <span className="text-amber-700 dark:text-amber-400 block text-[9px]">Bobina</span>
+                        <span className="font-mono font-bold text-amber-800 dark:text-amber-300 truncate block">{c.bobinaCodigo}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3 max-h-[58vh] overflow-y-auto pr-1">
+          {data.bobinasList.map((b, i) => (
+            <div key={i} className="p-3 border rounded-xl bg-card space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-xs truncate">{b.descricao}</span>
+                <span className="font-black text-xs text-emerald-600">{formatBRL(b.custo_total)}</span>
               </div>
-            )}
-          </div>
-        ))}
-      </div>
+              <p className="text-[11px] text-muted-foreground">{b.kg_total.toFixed(0)} kg · {b.metros_total?.toFixed(1) || 0}m · {b.ops.length} ordem(ns)</p>
+
+              {b.ops.length > 0 && (
+                <div className="pt-2 border-t border-border/50 space-y-1.5">
+                  {b.ops.map((op) => (
+                    <div
+                      key={op.id}
+                      onClick={() => {
+                        const raw = op.rawObj || op;
+                        if (onEditarOrdem) onEditarOrdem(raw);
+                        else onGoToPedido(raw);
+                      }}
+                      className="p-2 rounded-lg bg-muted/40 hover:bg-emerald-500/10 hover:border-emerald-500/40 border border-transparent transition-all cursor-pointer flex items-center justify-between text-xs group"
+                      title="Clique para editar valores desta ordem"
+                    >
+                      <div className="min-w-0">
+                        <span className="font-bold block truncate group-hover:text-emerald-600">
+                          {op.produto || "Telha"} · #{op.numero_pedido || "S/N"}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground truncate block">
+                          {op.cliente || "S/ Cliente"}
+                        </span>
+                      </div>
+                      <div className="text-right shrink-0 ml-2">
+                        <span className="font-bold text-emerald-600 block">{formatBRL(op.custo)}</span>
+                        <span className="text-[10px] text-muted-foreground">{op.metros.toFixed(1)}m · {op.kg.toFixed(0)} kg</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
