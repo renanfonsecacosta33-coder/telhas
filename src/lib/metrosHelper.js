@@ -6,8 +6,89 @@
  * bata exatamente com a Visão Admin, Dashboards e Cards.
  */
 
+/**
+ * 🛡️ Detecta anomalias matemáticas conhecidas de pedidos de telhas
+ * (ex: metros ao quadrado, cumeeiras com 60m, telhas com 69m por erro de escala de float no Odoo).
+ */
+export function sanitizarMetrosAnormais(p) {
+  if (!p) return null;
+
+  // 1. Decisão manual expressa tem prioridade
+  if (Number(p.metros_retificados) > 0) return Number(p.metros_retificados);
+  if (p.retificado_manualmente && Number(p.metros_totais) > 0) return Number(p.metros_totais);
+
+  let mm = Number(p.metragem_mm) || 0;
+  let pecas = Number(p.metros) || Number(p.quantidade) || 0;
+  const qtdTelhasLinear = Number(p.quantidade_telhas || p.metragem_planejada || 0);
+  const produtoStr = String(p.produto || p.modelo || "").toUpperCase();
+
+  // Caso A: Cumeeira com comprimento absurdo (ex: 60.000mm = 60 metros por peça)
+  // Cumeeiras industriais são sempre de 1000mm (1.0m) a 3000mm (3.0m).
+  if ((produtoStr.includes("CUMEEIRA") || p.maquina === "CUMEEIRA") && mm >= 10000) {
+    return pecas > 0 ? pecas * 1.0 : (mm / 1000);
+  }
+
+  // Caso B: Telha com comprimento individual absurdo (>= 15.000 mm = 15 metros)
+  // Caminhões não transportam telhas > 14m. Valores como 69.000mm, 38.400mm vieram de formatação float.
+  if (mm >= 15000) {
+    // Subcaso B1: Se mm / 1000 é exatamente igual a pecas (ex: mm=38400 e pecas=38.4)
+    if (pecas > 0 && Math.abs(pecas - (mm / 1000)) < 0.1) {
+      return pecas;
+    }
+    // Subcaso B2: mm tem um zero a mais por erro de digitação/export (ex: 69000 -> 6900mm = 6.9m)
+    if (mm % 10 === 0 && (mm / 10) <= 14000) {
+      const mmCorrigido = mm / 10;
+      return (pecas * mmCorrigido) / 1000;
+    }
+  }
+
+  // Caso C: Metragem total do Odoo multiplicada pelo comprimento (Metros ao quadrado)
+  // Exemplo: pecas = 387.5 (que é decimal e veio de metros) e mm = 6000 (6m).
+  // Ninguém pede "387.5 peças" de telha. O 387.5 é a metragem total linear!
+  if (pecas > 0 && mm > 1000) {
+    const isPecasFracionada = pecas % 1 !== 0; // tem casas decimais (ex: 387.5, 38.4, 121.6)
+    const totalCalculado = (pecas * mm) / 1000;
+
+    if (totalCalculado >= 500 && isPecasFracionada) {
+      return pecas;
+    }
+
+    if (qtdTelhasLinear > 0 && Math.abs(qtdTelhasLinear - pecas) < 0.01 && totalCalculado > qtdTelhasLinear * 1.5) {
+      return pecas;
+    }
+  }
+
+  // Caso D: Bobininha no desbobinador com comprimento excessivo
+  if (produtoStr.includes("BOBININHA") || p.maquina === "DESBOBINADOR") {
+    const totalCalculado = mm > 0 && pecas > 0 ? (pecas * mm) / 1000 : 0;
+    if (totalCalculado >= 1000 && mm === 500000) {
+      return pecas * 0.5;
+    }
+    if (totalCalculado >= 2000 && mm >= 50000) {
+      // Ex: 10 pçs c/ 500mm computado como 500m -> 50m
+      return pecas * (mm / 100000);
+    }
+  }
+
+  return null;
+}
+
 export function calcularMetrosPedido(p) {
   if (!p) return 0;
+
+  // 0. Prioridade absoluta para retificação manual expressa
+  if (Number(p.metros_retificados) > 0) {
+    return Number(p.metros_retificados);
+  }
+  if (p.retificado_manualmente && Number(p.metros_totais) > 0) {
+    return Number(p.metros_totais);
+  }
+
+  // 0.1 Sanitização inteligente de anomalias matemáticas
+  const metrosSanitizados = sanitizarMetrosAnormais(p);
+  if (metrosSanitizados !== null && metrosSanitizados >= 0) {
+    return Number(metrosSanitizados.toFixed(2));
+  }
 
   // 1. Se tiver variações de telhas salvas (modo de medidas múltiplas)
   let variacoes = [];
@@ -21,16 +102,27 @@ export function calcularMetrosPedido(p) {
 
   if (Array.isArray(variacoes) && variacoes.length > 0) {
     const totalM = variacoes.reduce(
-      (sum, v) => sum + (Number(v.qty) || 0) * (Number(v.mm) || 0),
+      (sum, v) => {
+        let vMm = Number(v.mm) || 0;
+        let vQty = Number(v.qty) || 0;
+        // Sanitiza se a variação individual tiver erro de zero extra (ex: 69000mm)
+        if (vMm >= 15000 && vMm % 10 === 0 && (vMm / 10) <= 14000) {
+          vMm = vMm / 10;
+        }
+        return sum + (vQty * vMm);
+      },
       0
     ) / 1000;
     if (totalM > 0) return totalM;
   }
 
   // 2. Se tiver metragem_mm e metros/quantidade (onde p.metros é a quantidade de peças)
-  const mm = Number(p.metragem_mm) || 0;
-  const pecas = Number(p.metros) || Number(p.quantidade_telhas) || 0;
+  let mm = Number(p.metragem_mm) || 0;
+  let pecas = Number(p.metros) || Number(p.quantidade_telhas) || 0;
   if (mm > 0 && pecas > 0) {
+    if (mm >= 15000 && mm % 10 === 0 && (mm / 10) <= 14000) {
+      mm = mm / 10;
+    }
     return (pecas * mm) / 1000;
   }
 
@@ -112,4 +204,3 @@ export function calcularKgPedido(p) {
 
   return Math.round(calcKgDeMetros(metros, esp, largMm));
 }
-

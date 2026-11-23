@@ -1141,9 +1141,28 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
       metragemTotalLinear = espTec.metragem_total || item?.quantidade || "";
       variacoesTelhasJson = JSON.stringify(espTec.variacoes);
     } else if (espTec.comprimento_mm && espTec.quantidade) {
-      qtdChapas = espTec.quantidade; // ex: 50 peças
-      metragemMm = espTec.comprimento_mm; // ex: 2000 mm
-      metragemTotalLinear = espTec.metragem_total || item?.quantidade || ""; // ex: 100 metros
+      metragemMm = espTec.comprimento_mm;
+      const mmNum = Number(metragemMm) || 0;
+
+      // Sanitização de cumeeira e telhas longas (zeros extras de float Odoo)
+      if (prodTipo === "CUMEEIRA" && mmNum >= 10000) {
+        metragemMm = 1000;
+      } else if (mmNum >= 15000 && mmNum % 10 === 0 && (mmNum / 10) <= 14000) {
+        metragemMm = mmNum / 10;
+      }
+
+      const compM = (Number(metragemMm) || 1000) / 1000;
+      const ehUnidadeMetro = String(item?.unidade || "").toUpperCase() === "M";
+      const temDecimal = (Number(espTec.quantidade) || 0) % 1 !== 0;
+
+      // Se a quantidade em Odoo for em metros lineares ou tiver decimais (ex: 387.5m c/ 6000mm)
+      if ((ehUnidadeMetro || temDecimal) && compM > 0) {
+        metragemTotalLinear = Number(espTec.quantidade);
+        qtdChapas = Math.max(1, Math.round(metragemTotalLinear / compM));
+      } else {
+        qtdChapas = espTec.quantidade;
+        metragemTotalLinear = espTec.metragem_total || +(qtdChapas * compM).toFixed(2);
+      }
     } else if (espTec.quantidade) {
       qtdChapas = espTec.quantidade;
       if (espTec.comprimento_mm) metragemMm = espTec.comprimento_mm;

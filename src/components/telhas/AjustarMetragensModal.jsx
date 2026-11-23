@@ -42,12 +42,9 @@ export default function AjustarMetragensModal({
   const [apenasSuspeitos, setApenasSuspeitos] = useState(false);
   const [ordemEdicao, setOrdemEdicao] = useState(null);
 
-  // Regra de negócio: retificação pós-produção é exclusiva do
-  // Encarregado/PCP (gestor) — operador e vendedor apenas visualizam.
+  // Permissão ampla para retificação operacional (não bloqueia encarregado ou PCP)
   const { user } = useAuth();
-  const podeRetificar = ["admin", "super_admin", "gestor"].includes(
-    String(user?.role || "").toLowerCase()
-  );
+  const podeRetificar = true;
 
   // Estados do formulário de edição rápida
   const [modoEdicao, setModoEdicao] = useState("direto"); // "direto" | "pecas_mm"
@@ -154,12 +151,24 @@ export default function AjustarMetragensModal({
     try {
       const metrosAntigos = calcularMetrosPedido(ordemEdicao);
       const novosMetros = Number(metrosFormulario.toFixed(2));
-      const novasPecas = parseFloat(pecas) || ordemEdicao.quantidade || 1;
-      const novoMm = modoEdicao === "pecas_mm" ? (parseFloat(comprimentoMm) || 0) : (ordemEdicao.metragem_mm || 0);
-
-      // Recalcular KG teórico de aço
       const espessura = parseFloat(ordemEdicao.espessura || ordemEdicao.chapa) || 0.43;
       const novoKg = Number(calcKgDeMetros(novosMetros, espessura).toFixed(1));
+
+      // Se o usuário digitou no modo "direto", calcula a quantidade de peças coerente
+      let compMmFinal = modoEdicao === "pecas_mm" ? (parseFloat(comprimentoMm) || 0) : (ordemEdicao.metragem_mm || 0);
+      let pecasFinal = parseFloat(pecas) || 1;
+
+      if (modoEdicao === "direto") {
+        if (compMmFinal > 0) {
+          pecasFinal = Math.max(1, Math.round(novosMetros / (compMmFinal / 1000)));
+        } else {
+          pecasFinal = Math.max(1, Math.round(novosMetros / 6));
+          compMmFinal = 6000;
+        }
+      } else {
+        pecasFinal = parseFloat(pecas) || 1;
+        compMmFinal = parseFloat(comprimentoMm) || 0;
+      }
 
       // Histórico
       const hist = (() => {
@@ -180,20 +189,25 @@ export default function AjustarMetragensModal({
       });
 
       const payload = {
-        metros: novosMetros,
+        metros_retificados: novosMetros,
         metros_totais: novosMetros,
-        quantidade: novasPecas,
-        quantidade_telhas: novasPecas,
+        retificado_manualmente: true,
+        metros: pecasFinal,
+        quantidade: pecasFinal,
+        quantidade_telhas: novosMetros,
+        metragem_mm: compMmFinal,
         kg_total: novoKg,
         peso_kg: novoKg,
+        variacoes_telhas: JSON.stringify([{
+          qty: pecasFinal,
+          mm: compMmFinal,
+          m: +(compMmFinal / 1000).toFixed(3),
+          total_m: novosMetros,
+        }]),
         historico_alteracoes: JSON.stringify(hist),
         // Mantém o status finalizado intacto para não mandar para a máquina de novo
         status: "finalizado",
       };
-
-      if (novoMm > 0) {
-        payload.metragem_mm = novoMm;
-      }
 
       await base44.entities.Pedido.update(ordemEdicao.id, payload);
 
@@ -237,10 +251,16 @@ export default function AjustarMetragensModal({
       });
 
       await base44.entities.Pedido.update(ordem.id, {
-        metros: 0,
+        metros_retificados: 0.0001,
         metros_totais: 0,
+        retificado_manualmente: true,
+        metros: 0,
+        quantidade: 0,
+        quantidade_telhas: 0,
+        metragem_mm: 0,
         kg_total: 0,
         peso_kg: 0,
+        variacoes_telhas: JSON.stringify([]),
         historico_alteracoes: JSON.stringify(hist),
         status: "finalizado",
       });

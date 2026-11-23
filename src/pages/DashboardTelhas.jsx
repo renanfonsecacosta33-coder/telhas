@@ -24,6 +24,7 @@ import HistoricoBobinasTelhas from "@/components/telhas/HistoricoBobinasTelhas";
 import KpiDetailSidebarTelhas from "@/components/telhas/KpiDetailSidebarTelhas";
 import AjustarMetragensModal from "@/components/telhas/AjustarMetragensModal";
 import { calcularMetrosPedido, calcularKgPedido } from "@/lib/metrosHelper";
+import { executarAutoReparoMetragens } from "@/lib/repararMetragensAnormaisHelper";
 import { getItens, prepararPresetNovaOrdemTelhas } from "@/lib/pedidoOdooHelper";
 import { isTelhaBandeja } from "@/lib/bandejaHelper";
 import { toast } from "sonner";
@@ -177,6 +178,18 @@ export default function DashboardTelhas() {
   const pedidosFiltrados = useMemo(() => {
     return pedidosProducao.filter(p => matchFilial(p.unidade));
   }, [pedidosProducao, matchFilial]);
+
+  // 🛡️ Auto-correção silenciosa de metragens anormais (zeros extras, metros ao quadrado) em segundo plano
+  useEffect(() => {
+    if (Array.isArray(pedidosFiltrados) && pedidosFiltrados.length > 0) {
+      executarAutoReparoMetragens(pedidosFiltrados).then(qtd => {
+        if (qtd > 0) {
+          queryClient.invalidateQueries({ queryKey: ["pedidos-dash-telhas"] });
+          queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+        }
+      }).catch(() => {});
+    }
+  }, [pedidosFiltrados]);
 
   const odooFiltrados = useMemo(() => {
     return pedidosOdoo.filter(p => matchFilial(p.unidade));
