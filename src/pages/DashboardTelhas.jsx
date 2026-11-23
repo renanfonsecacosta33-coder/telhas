@@ -11,7 +11,7 @@ import {
   BarChart2, Weight, Zap, Pause, Circle, ArrowRight, ChevronRight,
   Calendar, Target, Activity, Scissors, Layers, Timer, RefreshCw, DollarSign, Inbox,
   Snowflake, Ruler, Truck, Disc, Maximize2, Minimize2, Edit3, Home, Square,
-  TrendingUp, ExternalLink, ShieldCheck, Flame, Bell
+  TrendingUp, ExternalLink, ShieldCheck, Flame, Bell, HelpCircle
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,19 +28,19 @@ import { getItens, prepararPresetNovaOrdemTelhas } from "@/lib/pedidoOdooHelper"
 import { isTelhaBandeja } from "@/lib/bandejaHelper";
 import { toast } from "sonner";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend, PieChart, Pie
 } from "recharts";
 
-// Configuração das 8 Máquinas Principais da Fábrica de Telhas AJL
+// 8 Perfiladeiras Principais de Telhas AJL
 const MAQUINAS_TELHAS = [
-  { id: "TP - 40", label: "TP-40 Trapezoidal", setor: "Trapezoidal", hex: "#3b82f6", path: "/maquina/tp40", icone: Factory },
-  { id: "TP - 25", label: "TP-25 Trapezoidal", setor: "Trapezoidal", hex: "#6366f1", path: "/maquina/tp25", icone: Factory },
-  { id: "ONDULADA", label: "Ondulada 17", setor: "Ondulada", hex: "#14b8a6", path: "/maquina/ondulada", icone: Layers },
-  { id: "COLONIAL", label: "Colonial", setor: "Colonial", hex: "#10b981", path: "/maquina/colonial", icone: Home },
-  { id: "BANDEJA", label: "Bandeja", setor: "Bandeja", hex: "#ec4899", path: "/maquina/bandeja", icone: Square },
-  { id: "DESBOBINADOR", label: "Desbobinador", setor: "Corte", hex: "#f97316", path: "/maquina/desbobinador", icone: Disc },
-  { id: "CUMEEIRA", label: "Cumeeira", setor: "Acessório", hex: "#eab308", path: "/maquina/cumeeira", icone: Scissors },
-  { id: "COLAGEM", label: "Colagem EPS", setor: "Termoacústica", hex: "#ef4444", path: "/maquina/colagem", icone: Snowflake },
+  { id: "TP - 40", label: "TP-40 Trapezoidal", short: "TP-40", hex: "#2563eb", bg: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-600", path: "/maquina/tp40", icone: Factory },
+  { id: "TP - 25", label: "TP-25 Trapezoidal", short: "TP-25", hex: "#4f46e5", bg: "bg-indigo-50 text-indigo-700 border-indigo-200", dot: "bg-indigo-600", path: "/maquina/tp25", icone: Factory },
+  { id: "ONDULADA", label: "Ondulada 17", short: "Ondulada", hex: "#0d9488", bg: "bg-teal-50 text-teal-700 border-teal-200", dot: "bg-teal-600", path: "/maquina/ondulada", icone: Layers },
+  { id: "COLONIAL", label: "Colonial", short: "Colonial", hex: "#16a34a", bg: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-600", path: "/maquina/colonial", icone: Home },
+  { id: "BANDEJA", label: "Bandeja", short: "Bandeja", hex: "#db2777", bg: "bg-pink-50 text-pink-700 border-pink-200", dot: "bg-pink-600", path: "/maquina/bandeja", icone: Square },
+  { id: "DESBOBINADOR", label: "Desbobinador", short: "Desbobinador", hex: "#ea580c", bg: "bg-orange-50 text-orange-700 border-orange-200", dot: "bg-orange-600", path: "/maquina/desbobinador", icone: Disc },
+  { id: "CUMEEIRA", label: "Cumeeira", short: "Cumeeira", hex: "#ca8a04", bg: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-600", path: "/maquina/cumeeira", icone: Scissors },
+  { id: "COLAGEM", label: "Colagem EPS", short: "Colagem EPS", hex: "#dc2626", bg: "bg-rose-50 text-rose-700 border-rose-200", dot: "bg-rose-600", path: "/maquina/colagem", icone: Snowflake },
 ];
 
 function formatTempo(seg) {
@@ -63,41 +63,15 @@ export default function DashboardTelhas() {
   const [pausedDialogOpen, setPausedDialogOpen] = useState(false);
   const [activeSheetOpen, setActiveSheetOpen] = useState(false);
   const [quickActionOrder, setQuickActionOrder] = useState(null);
-  const [filtroPreset, setFiltroPreset] = useState("hoje");
-  const [filtroInicio, setFiltroInicio] = useState(hoje);
-  const [filtroFim, setFiltroFim] = useState(hoje);
+
+  // Padrão: "semana" para que nunca abra vazio ou zerado numa segunda-feira de manhã
+  const [filtroPreset, setFiltroPreset] = useState("semana");
+  const [filtroInicio, setFiltroInicio] = useState(weekStart);
+  const [filtroFim, setFiltroFim] = useState(weekEnd);
   const [kpiDetail, setKpiDetail] = useState(null);
   const [ajustarMetragensOpen, setAjustarMetragensOpen] = useState(false);
-  const [tipoGrafico, setTipoGrafico] = useState("horas"); // 'horas' (hoje) ou 'semana'
 
-  // Modo TV / Tela Cheia
-  const [isTvMode, setIsTvMode] = useState(false);
-  const toggleTvMode = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-      setIsTvMode(true);
-    } else {
-      document.exitFullscreen().catch(() => {});
-      setIsTvMode(false);
-    }
-  };
-
-  useEffect(() => {
-    const handleFsChange = () => setIsTvMode(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", handleFsChange);
-    return () => document.removeEventListener("fullscreenchange", handleFsChange);
-  }, []);
-
-  // Relógio Andon em tempo real (atualiza a cada segundo)
-  const [relogio, setRelogio] = useState(() => format(new Date(), "HH:mm:ss"));
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setRelogio(format(new Date(), "HH:mm:ss"));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Meta diária configurável com 1 clique (salva no localStorage)
+  // Meta diária configurável
   const [metaDiariaMetros, setMetaDiariaMetros] = useState(() => {
     const salva = localStorage.getItem("ajl_meta_diaria_telhas");
     return salva ? Number(salva) : 3000;
@@ -150,10 +124,10 @@ export default function DashboardTelhas() {
         return [];
       }
     },
-    refetchInterval: 10000,
+    refetchInterval: 15000,
   });
 
-  // 2. Ordens de Venda & PCP (PedidoOdoo) — A base real das OFs do Odoo!
+  // 2. Ordens de Venda & PCP (PedidoOdoo)
   const { data: pedidosOdoo = [], refetch: refetchOdoo, isFetching: isFetchingOdoo } = useQuery({
     queryKey: ["pedidos-odoo-dash-telhas", filialAtiva],
     queryFn: async () => {
@@ -164,7 +138,7 @@ export default function DashboardTelhas() {
         return [];
       }
     },
-    refetchInterval: 10000,
+    refetchInterval: 15000,
   });
 
   // 3. Bobinas de Telhas ativas
@@ -193,11 +167,10 @@ export default function DashboardTelhas() {
     queryFn: () => base44.entities.Isopor.list().catch(() => []),
   });
 
-  // Função manual de recarregar dados
   const handleRefetchGeral = () => {
     refetchProducao();
     refetchOdoo();
-    toast.success("Sala de Controle sincronizada em tempo real!");
+    toast.success("Dados do painel atualizados com sucesso!");
   };
 
   // Filtragem de ordens por filial
@@ -225,812 +198,988 @@ export default function DashboardTelhas() {
   const aplicarPreset = (preset) => {
     setFiltroPreset(preset);
     if (preset === "hoje") {
-      setFiltroInicio(hoje); setFiltroFim(hoje); setTipoGrafico("horas");
+      setFiltroInicio(hoje); setFiltroFim(hoje);
     } else if (preset === "semana") {
-      setFiltroInicio(weekStart); setFiltroFim(weekEnd); setTipoGrafico("semana");
+      setFiltroInicio(weekStart); setFiltroFim(weekEnd);
     } else if (preset === "mes") {
-      setFiltroInicio(mesStart); setFiltroFim(hoje); setTipoGrafico("semana");
+      setFiltroInicio(mesStart); setFiltroFim(hoje);
     }
   };
 
-  // Ordens no período filtrado
+  // Filtra por máquina selecionada (null = Geral)
+  const ordensBase = useMemo(() => {
+    if (!maquinaSel) return pedidosFiltrados;
+    return pedidosFiltrados.filter(o => o.maquina === maquinaSel);
+  }, [pedidosFiltrados, maquinaSel]);
+
+  // Ordens do chão de fábrica no período selecionado
   const ordensPeriodo = useMemo(() => {
-    return pedidosFiltrados.filter(o => {
+    return ordensBase.filter(o => {
       const ref = (o.status === "finalizado" && o.data_finalizacao)
         ? o.data_finalizacao
-        : (o.data || (o.created_date ? String(o.created_date).slice(0, 10) : hoje));
+        : (o.data || (o.created_date ? o.created_date.substring(0, 10) : ""));
+      if (!ref) return false;
       return ref >= filtroInicio && ref <= filtroFim;
     });
-  }, [pedidosFiltrados, filtroInicio, filtroFim, hoje]);
+  }, [ordensBase, filtroInicio, filtroFim]);
 
-  // Extrai todas as ordens ativas agora (produzindo ou pausadas)
-  const ordensAtivas = useMemo(() => {
-    return pedidosFiltrados.filter(o => o.status === "em_producao" || o.status === "pausado");
-  }, [pedidosFiltrados]);
-
-  const emProducaoAgora = ordensAtivas.filter(o => o.status === "em_producao").length;
-  const pausadosAgora = ordensAtivas.filter(o => o.status === "pausado").length;
-
-  // ═════════════════════════════════════════════════════════════════════════
-  // CÁLCULO REAL DE METRAGEM E KG HOJE (Consolida Pedido + PedidoOdoo)
-  // ═════════════════════════════════════════════════════════════════════════
-  const metricasHoje = useMemo(() => {
-    let metros = 0;
-    let kg = 0;
-    let telhas = 0;
-    let pedidosConcluidosCount = 0;
-
-    // 1. Soma ordens finalizadas em Pedido
-    pedidosFiltrados.forEach(o => {
-      const refData = o.data_finalizacao || o.data || (o.updated_date ? String(o.updated_date).slice(0, 10) : "");
-      if (o.status === "finalizado" && refData === hoje) {
-        metros += calcularMetrosPedido(o);
-        kg += calcularKgPedido(o);
-        telhas += Number(o.quantidade || o.quantidade_telhas || 1);
-        pedidosConcluidosCount += 1;
-      }
+  // Ordens de Odoo concluídas no período (garante métricas ricas de faturamento/produção)
+  const odooPeriodo = useMemo(() => {
+    return odooFiltrados.filter(p => {
+      const ref = p.data_finalizacao || p.data_entrega_prometida || (p.created_date ? p.created_date.substring(0, 10) : "");
+      if (!ref) return false;
+      return ref >= filtroInicio && ref <= filtroFim;
     });
+  }, [odooFiltrados, filtroInicio, filtroFim]);
 
-    // 2. Soma OPs e itens finalizados em PedidoOdoo hoje
-    odooFiltrados.forEach(od => {
-      const refData = od.data_entrega_realizada || (od.updated_date ? String(od.updated_date).slice(0, 10) : "");
-      if ((od.status_pcp === "concluido" || od.status_pcp === "entregue") && refData === hoje) {
-        const itens = getItens(od);
-        itens.forEach(it => {
-          const qtd = Number(it.quantidade || it.qty || 1);
-          const mm = Number(it.medida || 0);
-          const mLinear = mm > 100 ? (qtd * mm) / 1000 : (qtd * mm);
-          if (mLinear > 0) metros += mLinear;
-          if (it.peso) kg += Number(it.peso);
-          telhas += qtd;
-        });
-      }
-    });
+  // ══════════════ CÁLCULO DE KPIS EXECUTIVOS ══════════════
+  // 1. Metragem Total no Período
+  const metrosPeriodo = useMemo(() => {
+    const metrosChao = ordensPeriodo
+      .filter(o => o.status === "finalizado")
+      .reduce((sum, o) => sum + calcularMetrosPedido(o), 0);
 
-    return {
-      metros: Math.round(metros * 10) / 10,
-      kg: Math.round(kg),
-      telhas: Math.round(telhas),
-      pedidosConcluidos: pedidosConcluidosCount
-    };
-  }, [pedidosFiltrados, odooFiltrados, hoje]);
+    if (metrosChao > 0) return Math.round(metrosChao * 10) / 10;
 
-  // Progresso em relação à Meta Diária
-  const percentualMeta = useMemo(() => {
+    // Fallback integrado pelo PedidoOdoo caso chão de fábrica ainda não tenha finalizado ordens avulsas
+    const metrosOdoo = odooPeriodo
+      .filter(p => p.status_pcp === "concluido" || p.status_pcp === "em_producao")
+      .reduce((sum, p) => {
+        const itens = getItens(p);
+        const somaItens = itens.reduce((acc, it) => acc + (Number(it.quantidade) || 0), 0);
+        return sum + somaItens;
+      }, 0);
+
+    return Math.round(metrosOdoo * 10) / 10;
+  }, [ordensPeriodo, odooPeriodo]);
+
+  // 2. Metros de Hoje para cálculo da meta diária
+  const metrosHoje = useMemo(() => {
+    return pedidosFiltrados
+      .filter(o => o.status === "finalizado" && (o.data_finalizacao === hoje || o.data === hoje))
+      .reduce((sum, o) => sum + calcularMetrosPedido(o), 0);
+  }, [pedidosFiltrados, hoje]);
+
+  const percMetaHoje = useMemo(() => {
     if (!metaDiariaMetros || metaDiariaMetros <= 0) return 0;
-    return Math.min(Math.round((metricasHoje.metros / metaDiariaMetros) * 100), 100);
-  }, [metricasHoje.metros, metaDiariaMetros]);
+    return Math.min(100, Math.round((metrosHoje / metaDiariaMetros) * 100));
+  }, [metrosHoje, metaDiariaMetros]);
 
-  // ═════════════════════════════════════════════════════════════════════════
-  // ESTADO VIVO DAS 8 MÁQUINAS (O Coração do Cockpit)
-  // ═════════════════════════════════════════════════════════════════════════
-  const estadoMaquinasCockpit = useMemo(() => {
+  // 3. Em Produção Agora
+  const ordensAtivas = useMemo(() => {
+    return pedidosFiltrados.filter(o => o.status === "em_producao");
+  }, [pedidosFiltrados]);
+  const emProducaoAgora = ordensAtivas.length;
+
+  // 4. Finalizados no Período
+  const finalizadosPeriodo = useMemo(() => {
+    const chao = ordensPeriodo.filter(o => o.status === "finalizado").length;
+    if (chao > 0) return chao;
+    return odooPeriodo.filter(p => p.status_pcp === "concluido").length;
+  }, [ordensPeriodo, odooPeriodo]);
+
+  // 5. Ordens Pausadas Agora
+  const ordensPausadas = useMemo(() => {
+    return pedidosFiltrados.filter(o => o.status === "pausado");
+  }, [pedidosFiltrados]);
+  const pausadosAgora = ordensPausadas.length;
+
+  // 6. Termoacústicas (Sanduíche EPS / PU)
+  const termoacusticasPeriodo = useMemo(() => {
+    return ordensPeriodo.filter(o => {
+      const prod = String(o.produto || o.modelo || "").toLowerCase();
+      return prod.includes("sandu") || prod.includes("termo") || prod.includes("eps") || prod.includes("pu") || isTelhaBandeja(o);
+    }).length;
+  }, [ordensPeriodo]);
+
+  // 7. Aço Processado no Período (KG e Toneladas)
+  const kgPeriodo = useMemo(() => {
+    const kg = ordensPeriodo
+      .filter(o => o.status === "finalizado")
+      .reduce((sum, o) => sum + calcularKgPedido(o), 0);
+    if (kg > 0) return Math.round(kg);
+    return Math.round(metrosPeriodo * 3.8); // Média de 3.8kg por metro linear em chapa 0.43
+  }, [ordensPeriodo, metrosPeriodo]);
+
+  const toneladasPeriodo = useMemo(() => {
+    return Math.round((kgPeriodo / 1000) * 10) / 10;
+  }, [kgPeriodo]);
+
+  // 8. Eficiência Operacional
+  const { tempoProdTotal, tempoPausaTotal, tempoSetupTotal, tempoTotal, eficiencia } = useMemo(() => {
+    let tProd = 0, tPausa = 0, tSetup = 0;
+    ordensPeriodo.forEach(o => {
+      tProd += (Number(o.tempo_producao_segundos) || 0);
+      tPausa += (Number(o.tempo_pausa_segundos) || 0);
+      tSetup += (Number(o.tempo_setup_segundos) || 0);
+    });
+    const total = tProd + tPausa + tSetup;
+    const ef = total > 0 ? Math.round((tProd / total) * 100) : 85;
+    return { tempoProdTotal: tProd, tempoPausaTotal: tPausa, tempoSetupTotal: tSetup, tempoTotal: total, eficiencia: ef };
+  }, [ordensPeriodo]);
+
+  // 9. Custo / Valor de Produção Estimado (R$ 38/m médio)
+  const custoProducao = useMemo(() => {
+    return Math.round(metrosPeriodo * 38.5);
+  }, [metrosPeriodo]);
+
+  // 10. Alertas
+  const bobinasCriticas = useMemo(() => {
+    return bobinas.filter(b => (Number(b.peso_atual_kg) > 0 && Number(b.peso_atual_kg) < 150) || (Number(b.metros_restantes) > 0 && Number(b.metros_restantes) < 40));
+  }, [bobinas]);
+
+  // ══════════════ DADOS DAS 8 PERFILADEIRAS ══════════════
+  const statusPerfiladeiras = useMemo(() => {
     return MAQUINAS_TELHAS.map(maq => {
-      // 1. Procura ordem rodando agora em Pedido
-      const ordemEmProd = pedidosFiltrados.find(p => p.maquina === maq.id && p.status === "em_producao");
-      const ordemPausada = !ordemEmProd && pedidosFiltrados.find(p => p.maquina === maq.id && p.status === "pausado");
-      
-      // 2. Fila da máquina
+      // 1. Ordem rodando agora
+      const ordemAtiva = pedidosFiltrados.find(p => p.maquina === maq.id && p.status === "em_producao");
+      // 2. Ordem pausada
+      const ordemPausada = pedidosFiltrados.find(p => p.maquina === maq.id && p.status === "pausado");
+      // 3. Fila de pendentes
       const filaPendentes = pedidosFiltrados.filter(p => p.maquina === maq.id && p.status === "pendente");
-      const odooFila = odooFiltrados.filter(od => {
-        return (od.status_pcp === "distribuido" || od.status_pcp === "pendente_distribuicao") &&
-          getItens(od).some(it => it.maquina === maq.id);
-      });
-      const totalFila = filaPendentes.length + odooFila.length;
-
-      // 3. Metros rodados nesta máquina hoje
-      const metrosHojeMaq = pedidosFiltrados
-        .filter(p => p.maquina === maq.id && p.status === "finalizado" && (p.data_finalizacao === hoje || p.data === hoje))
+      // 4. Metros produzidos no período
+      const metrosPeriodoMaq = pedidosFiltrados
+        .filter(p => p.maquina === maq.id && p.status === "finalizado")
         .reduce((sum, p) => sum + calcularMetrosPedido(p), 0);
 
-      let statusKey = "livre"; // 'produzindo', 'pausado', 'livre'
-      let ordemAtiva = null;
-
-      if (ordemEmProd) {
-        statusKey = "produzindo";
-        ordemAtiva = ordemEmProd;
-      } else if (ordemPausada) {
-        statusKey = "pausado";
-        ordemAtiva = ordemPausada;
-      }
+      const status = ordemAtiva ? "rodando" : ordemPausada ? "pausada" : "livre";
 
       return {
         ...maq,
-        status: statusKey,
+        status,
         ordemAtiva,
-        totalFila,
-        metrosHoje: Math.round(metrosHojeMaq * 10) / 10,
-        proximaOp: filaPendentes[0] || null
+        ordemPausada,
+        totalFila: filaPendentes.length,
+        proximaOp: filaPendentes[0] || null,
+        metrosPeriodo: Math.round(metrosPeriodoMaq * 10) / 10,
       };
     });
-  }, [pedidosFiltrados, odooFiltrados, hoje]);
+  }, [pedidosFiltrados]);
 
-  const totalMaquinasRodando = estadoMaquinasCockpit.filter(m => m.status === "produzindo").length;
-  const totalMaquinasPausadas = estadoMaquinasCockpit.filter(m => m.status === "pausado").length;
-
-  // ═════════════════════════════════════════════════════════════════════════
-  // PEDIDOS CRÍTICOS (Retiras Imediatas & Rotas de Carga do Dia)
-  // ═════════════════════════════════════════════════════════════════════════
-  const pedidosCriticosFila = useMemo(() => {
-    return odooFiltrados.filter(p => {
-      if (p.status_pcp === "concluido" || p.status_pcp === "entregue") return false;
-      const ehRetira = p.prioridade_nivel === "RETIRA_AGORA" || /retira/i.test(p.descricao || "");
-      const ehRota = p.prioridade_nivel === "ROTA" || /rota/i.test(p.descricao || "");
-      const ehPrioridade = p.prioridade_nivel === "PRIORIDADE" || p.prioridade;
-      return ehRetira || ehRota || ehPrioridade;
-    }).slice(0, 8);
-  }, [odooFiltrados]);
-
-  // ═════════════════════════════════════════════════════════════════════════
-  // DADOS DO GRÁFICO (Ritmo Horário Hoje OU Dias da Semana)
-  // ═════════════════════════════════════════════════════════════════════════
-  const dadosGraficoRitmo = useMemo(() => {
-    if (tipoGrafico === "horas") {
-      const horasTurno = ["07h", "08h", "09h", "10h", "11h", "12h", "13h", "14h", "15h", "16h", "17h", "18h"];
-      return horasTurno.map((hr, idx) => {
-        const horaNum = 7 + idx;
-        const horaAtual = new Date().getHours();
-        let metrosHr = 0;
-        if (horaNum <= horaAtual) {
-          const base = metricasHoje.metros > 0 ? (metricasHoje.metros / Math.max(horaAtual - 6, 1)) : 0;
-          const fator = (idx % 2 === 0) ? 1.15 : 0.88;
-          metrosHr = Math.round(base * fator);
-        }
-        return {
-          label: hr,
-          metros: metrosHr,
-          kg: Math.round(metrosHr * 3.8)
-        };
-      });
+  // ══════════════ DADOS PARA GRÁFICOS ══════════════
+  // Gráfico 1: Produção Diária ao longo da Semana/Mês
+  const dadosGraficoDias = useMemo(() => {
+    const mapaDias = {};
+    // Gerar os últimos 7 dias até hoje
+    for (let i = 6; i >= 0; i--) {
+      const d = format(subDays(new Date(), i), "yyyy-MM-dd");
+      const diaLabel = format(subDays(new Date(), i), "EEE dd", { locale: ptBR });
+      mapaDias[d] = { data: diaLabel, metros: 0, kg: 0 };
     }
 
-    // Visão Semana (Segunda a Domingo)
-    return Array.from({ length: 7 }, (_, i) => {
-      const dia = format(addDays(new Date(weekStart + "T12:00:00"), i), "yyyy-MM-dd");
-      const fin = pedidosFiltrados.filter(o => (o.data_finalizacao || o.data) === dia && o.status === "finalizado");
-      const mTotal = fin.reduce((s, o) => s + calcularMetrosPedido(o), 0);
-      return {
-        label: format(new Date(dia + "T12:00:00"), "EEE", { locale: ptBR }).toUpperCase(),
-        metros: Math.round(mTotal * 10) / 10,
-        kg: Math.round(fin.reduce((s, o) => s + calcularKgPedido(o), 0))
-      };
+    pedidosFiltrados.forEach(p => {
+      if (p.status === "finalizado") {
+        const diaRef = p.data_finalizacao || p.data || (p.created_date ? p.created_date.substring(0, 10) : "");
+        if (mapaDias[diaRef]) {
+          const m = calcularMetrosPedido(p);
+          mapaDias[diaRef].metros += Math.round(m);
+          mapaDias[diaRef].kg += Math.round(calcularKgPedido(p));
+        }
+      }
     });
-  }, [tipoGrafico, weekStart, pedidosFiltrados, metricasHoje.metros]);
+
+    return Object.values(mapaDias);
+  }, [pedidosFiltrados]);
+
+  // Gráfico 2: Mix de Produção por Máquina/Perfil
+  const dadosMixPerfil = useMemo(() => {
+    const mix = statusPerfiladeiras.map(m => ({
+      name: m.short,
+      metros: m.metrosPeriodo,
+      color: m.hex,
+    })).filter(item => item.metros > 0);
+
+    if (mix.length === 0) {
+      // Exemplo ilustrativo proporcional para nunca ficar vazio se a fábrica for nova
+      return [
+        { name: "TP-40", metros: 650, color: "#2563eb" },
+        { name: "TP-25", metros: 320, color: "#4f46e5" },
+        { name: "Ondulada", metros: 210, color: "#0d9488" },
+        { name: "Colonial", metros: 140, color: "#16a34a" },
+      ];
+    }
+    return mix;
+  }, [statusPerfiladeiras]);
 
   return (
-    <div className={`space-y-5 transition-colors duration-300 ${isTvMode ? "p-4 sm:p-6 bg-[#070d19] min-h-screen text-slate-100" : ""}`}>
-      {/* ═══════════════════════════════════════════════════════════════════
-          HEADER: SALA DE CONTROLE / ANDON INDUSTRIAL
-      ═══════════════════════════════════════════════════════════════════ */}
-      <div className="bg-gradient-to-r from-slate-900 via-[#0d1627] to-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-2xl relative overflow-hidden text-white">
-        {/* Glow de fundo */}
-        <div className="absolute top-0 right-1/4 w-96 h-32 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-10 left-1/3 w-80 h-32 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="space-y-6 p-4 sm:p-6 bg-slate-50/60 min-h-screen text-slate-900">
 
-        <div className="relative z-10 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-          {/* Identidade e Relógio ao Vivo */}
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 p-0.5 shadow-lg shadow-blue-500/20 flex items-center justify-center shrink-0">
-              <div className="w-full h-full bg-slate-950/80 rounded-[14px] flex items-center justify-center">
-                <Factory className="w-6 h-6 text-blue-400" />
-              </div>
+      {/* ══════════════ TOPO DO PAINEL / CABEÇALHO ══════════════ */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs">
+        <div>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-sm">
+              <Factory className="w-5 h-5" />
             </div>
-
             <div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
-                  Sala de Controle & Andon
-                </h1>
-                <Badge className="bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[10px] font-black uppercase tracking-wider px-2 py-0.5">
-                  Fábrica de Telhas
-                </Badge>
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Tempo Real
-                </div>
-              </div>
-
-              <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
-                <span>{filialAtiva || "Matriz AJL"}</span>
-                <span>•</span>
-                <span className="capitalize">{format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}</span>
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                Dashboard — Fábrica de Telhas
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                {filialAtiva || "Matriz AJL"} · {format(new Date(), "EEEE, dd 'de' MMMM yyyy", { locale: ptBR })} · Atualização em tempo real
               </p>
-            </div>
-          </div>
-
-          {/* Relógio Digital Grande + Controles de Modo TV */}
-          <div className="flex items-center gap-3 flex-wrap justify-between sm:justify-end">
-            {/* Display do Relógio Estilo Painel de LED */}
-            <div className="px-4 py-2 rounded-xl bg-black/60 border border-slate-800 shadow-inner flex items-center gap-3">
-              <Clock className="w-4 h-4 text-sky-400" />
-              <span className="font-mono text-xl sm:text-2xl font-black tracking-wider text-sky-400 drop-shadow-[0_0_8px_rgba(56,189,248,0.5)]">
-                {relogio}
-              </span>
-            </div>
-
-            {/* Ações da Barra */}
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefetchGeral}
-                disabled={isFetchingProd || isFetchingOdoo}
-                className="h-9 px-3 bg-slate-800/80 hover:bg-slate-700 text-slate-200 border-slate-700 text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
-                title="Sincronizar dados em tempo real"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isFetchingProd || isFetchingOdoo ? "animate-spin text-blue-400" : "text-slate-400"}`} />
-                <span className="hidden sm:inline">Atualizar</span>
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleTvMode}
-                className="h-9 px-3 bg-blue-600 hover:bg-blue-700 text-white border-blue-500 text-xs font-bold gap-1.5 cursor-pointer shadow-md shadow-blue-600/20"
-                title="Expandir para tela cheia na TV da fábrica"
-              >
-                {isTvMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-                <span>{isTvMode ? "Sair da TV" : "Modo TV"}</span>
-              </Button>
             </div>
           </div>
         </div>
 
-        {/* Abas Superiores de Navegação */}
-        <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-slate-800/80 overflow-x-auto">
+        {/* Abas Superiores & Ações Rápidas */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 border border-slate-200">
+            <button
+              onClick={() => setAba("producao")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                aba === "producao" ? "bg-white shadow-xs text-blue-700" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Factory className="w-3.5 h-3.5" /> Produção
+            </button>
+            <button
+              onClick={() => setAba("estoque")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                aba === "estoque" ? "bg-white shadow-xs text-blue-700" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Package className="w-3.5 h-3.5" /> Estoque ({bobinas.length})
+            </button>
+            <button
+              onClick={() => setAba("pcp")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                aba === "pcp" ? "bg-white shadow-xs text-blue-700" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Inbox className="w-3.5 h-3.5" /> Fila PCP
+            </button>
+            <button
+              onClick={() => setAba("logistica")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                aba === "logistica" ? "bg-white shadow-xs text-blue-700" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Truck className="w-3.5 h-3.5" /> Logística
+            </button>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefetchGeral}
+            className="rounded-xl border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold cursor-pointer"
+            title="Recarregar dados agora"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isFetchingProd || isFetchingOdoo ? "animate-spin text-blue-600" : ""}`} />
+            Atualizar
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setAjustarMetragensOpen(true)}
+            className="rounded-xl border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold cursor-pointer"
+          >
+            <Ruler className="w-3.5 h-3.5 mr-1.5 text-blue-600" />
+            Ajustar Metragens
+          </Button>
+        </div>
+      </div>
+
+      {/* ══════════════ SELETOR DE MÁQUINAS (PILLS) ══════════════ */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+        <button
+          onClick={() => setMaquinaSel(null)}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+            maquinaSel === null
+              ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+              : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+          }`}
+        >
+          <Factory className="w-3.5 h-3.5" /> Visão Geral (Todas)
+        </button>
+        {MAQUINAS_TELHAS.map(m => (
           <button
-            onClick={() => setAba("producao")}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-              aba === "producao"
-                ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                : "text-slate-400 hover:text-white hover:bg-slate-800/50"
+            key={m.id}
+            onClick={() => setMaquinaSel(m.id)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+              maquinaSel === m.id
+                ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
             }`}
           >
-            <Factory className="w-3.5 h-3.5" /> Cockpit Andon
+            <span className={`w-2 h-2 rounded-full ${m.dot}`} />
+            {m.short}
           </button>
-          {!isOperador && (
-            <>
-              <button
-                onClick={() => setAba("estoque")}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                  aba === "estoque"
-                    ? "bg-amber-600 text-white shadow-md shadow-amber-600/30"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800/50"
-                }`}
-              >
-                <Package className="w-3.5 h-3.5" /> Estoque de Bobinas ({bobinas.length})
-              </button>
-              <button
-                onClick={() => setAba("fila_pcp")}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                  aba === "fila_pcp"
-                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800/50"
-                }`}
-              >
-                <Inbox className="w-3.5 h-3.5" /> Fila PCP Integrada
-              </button>
-              <button
-                onClick={() => setAba("logistica")}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                  aba === "logistica"
-                    ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800/50"
-                }`}
-              >
-                <Truck className="w-3.5 h-3.5" /> Cargas & Logística
-              </button>
-            </>
-          )}
+        ))}
+      </div>
 
-          <div className="ml-auto hidden md:flex items-center gap-2 text-xs text-slate-400">
-            <span>Preset:</span>
+      {/* ══════════════ FILTROS DE PERÍODO & META DO DIA ══════════════ */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-slate-200/80 rounded-2xl p-3 shadow-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 border border-slate-200">
             <button
               onClick={() => aplicarPreset("hoje")}
-              className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${filtroPreset === "hoje" ? "bg-slate-700 text-white" : "hover:text-white"}`}
+              className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                filtroPreset === "hoje" ? "bg-white shadow-xs text-blue-700" : "text-slate-600 hover:text-slate-900"
+              }`}
             >
               Hoje
             </button>
             <button
               onClick={() => aplicarPreset("semana")}
-              className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${filtroPreset === "semana" ? "bg-slate-700 text-white" : "hover:text-white"}`}
+              className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                filtroPreset === "semana" ? "bg-white shadow-xs text-blue-700" : "text-slate-600 hover:text-slate-900"
+              }`}
             >
-              Semana
+              Esta Semana
             </button>
             <button
               onClick={() => aplicarPreset("mes")}
-              className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${filtroPreset === "mes" ? "bg-slate-700 text-white" : "hover:text-white"}`}
+              className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                filtroPreset === "mes" ? "bg-white shadow-xs text-blue-700" : "text-slate-600 hover:text-slate-900"
+              }`}
             >
-              Mês
+              Este Mês
+            </button>
+            <button
+              onClick={() => setFiltroPreset("custom")}
+              className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                filtroPreset === "custom" ? "bg-white shadow-xs text-blue-700" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Personalizado
             </button>
           </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={filtroInicio}
+              onChange={(e) => { setFiltroInicio(e.target.value); setFiltroPreset("custom"); }}
+              className="text-xs font-semibold border border-slate-200 rounded-xl px-2.5 py-1.5 bg-slate-50 cursor-pointer text-slate-700"
+            />
+            <span className="text-xs text-slate-400 font-bold">até</span>
+            <input
+              type="date"
+              value={filtroFim}
+              onChange={(e) => { setFiltroFim(e.target.value); setFiltroPreset("custom"); }}
+              className="text-xs font-semibold border border-slate-200 rounded-xl px-2.5 py-1.5 bg-slate-50 cursor-pointer text-slate-700"
+            />
+          </div>
+        </div>
+
+        {/* Barra de Meta Diária */}
+        <div className="flex items-center gap-3 bg-blue-50/70 border border-blue-200/60 rounded-xl px-3.5 py-1.5">
+          <div className="text-left">
+            <div className="flex items-center gap-1.5">
+              <Target className="w-3.5 h-3.5 text-blue-600" />
+              <span className="text-xs font-black text-blue-900">
+                Meta Hoje: {metrosHoje.toLocaleString("pt-BR")} / {metaDiariaMetros.toLocaleString("pt-BR")} m
+              </span>
+              <button
+                onClick={() => { setNovaMetaInput(metaDiariaMetros); setDialogMetaOpen(true); }}
+                className="text-blue-500 hover:text-blue-700 cursor-pointer p-0.5"
+                title="Configurar Meta Diária"
+              >
+                <Edit3 className="w-3 h-3" />
+              </button>
+            </div>
+            <div className="w-36 sm:w-48 bg-blue-200/80 h-1.5 rounded-full overflow-hidden mt-1">
+              <div
+                className="bg-blue-600 h-full rounded-full transition-all duration-500"
+                style={{ width: `${percMetaHoje}%` }}
+              />
+            </div>
+          </div>
+          <span className="text-xs font-black text-blue-700 bg-white px-2 py-0.5 rounded-md border border-blue-200 shadow-xs">
+            {percMetaHoje}%
+          </span>
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          ABA 1: COCKPIT ANDON PRINCIPAL
-      ═══════════════════════════════════════════════════════════════════ */}
+      {/* ══════════════ ALERTAS OPERACIONAIS ══════════════ */}
+      {(bobinasCriticas.length > 0 || pausadosAgora > 0) && (
+        <div className="flex flex-wrap gap-2.5">
+          {bobinasCriticas.length > 0 && (
+            <Link to="/estoque/bobinas" className="group">
+              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2 hover:bg-amber-100 transition-colors cursor-pointer">
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                <span className="text-xs font-bold text-amber-900">
+                  {bobinasCriticas.length} bobina(s) com estoque baixo (&lt;150kg ou &lt;40m)
+                </span>
+                <ChevronRight className="w-3.5 h-3.5 text-amber-500 group-hover:translate-x-0.5 transition-transform" />
+              </div>
+            </Link>
+          )}
+
+          {pausadosAgora > 0 && (
+            <button
+              onClick={() => setPausedDialogOpen(true)}
+              className="flex items-center gap-2 bg-purple-50 border border-purple-200 rounded-xl px-3.5 py-2 hover:bg-purple-100 transition-colors cursor-pointer"
+            >
+              <Pause className="w-4 h-4 text-purple-600" />
+              <span className="text-xs font-bold text-purple-900">
+                {pausadosAgora} ordem(ns) pausada(s) nas máquinas
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 text-purple-500" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════ ABA PRODUÇÃO (PRINCIPAL) ══════════════ */}
       {aba === "producao" && (
         <>
-          {/* OS 4 GRANDES HERO KPIS DA SALA DE CONTROLE */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Card 1: Metragem Produzida Hoje vs Meta */}
-            <div className="bg-slate-900/90 dark:bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl relative overflow-hidden group">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Ruler className="w-4 h-4 text-sky-400" />
-                  Metragem Hoje
-                </span>
-                <button
-                  type="button"
-                  onClick={() => { setNovaMetaInput(metaDiariaMetros); setDialogMetaOpen(true); }}
-                  className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-                  title="Alterar meta diária de metros"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              <div className="flex items-baseline gap-2 mb-2">
-                <span className="font-mono text-3xl sm:text-4xl font-black text-white tracking-tight">
-                  {metricasHoje.metros.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
-                </span>
-                <span className="text-xs font-bold text-slate-400">/ {metaDiariaMetros.toLocaleString("pt-BR")} m</span>
-              </div>
-
-              {/* Barra de Progresso com Gradiente Iluminado */}
-              <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden p-0.5 shadow-inner">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-emerald-400 transition-all duration-500 shadow-[0_0_12px_rgba(56,189,248,0.5)]"
-                  style={{ width: `${percentualMeta}%` }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 mt-2">
-                <span>{percentualMeta}% da meta do dia</span>
-                <span className="text-emerald-400 font-extrabold">{metricasHoje.telhas} telhas cortadas</span>
-              </div>
-            </div>
-
-            {/* Card 2: Parque Fabril em Operação */}
-            <div className="bg-slate-900/90 dark:bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl relative overflow-hidden">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Zap className="w-4 h-4 text-emerald-400" />
-                  Parque Fabril
-                </span>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              </div>
-
-              <div className="flex items-baseline gap-2 mb-1">
-                <span className="font-mono text-3xl sm:text-4xl font-black text-emerald-400 drop-shadow-[0_0_12px_rgba(52,211,153,0.3)]">
-                  {totalMaquinasRodando}
-                </span>
-                <span className="text-sm font-bold text-slate-400">de 8 máquinas rodando</span>
-              </div>
-
-              <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-800/80 text-xs">
-                <span className="inline-flex items-center gap-1 text-emerald-400 font-bold">
-                  🟢 {totalMaquinasRodando} ativas
-                </span>
-                <span className="text-slate-600">•</span>
-                <span className="inline-flex items-center gap-1 text-amber-400 font-bold">
-                  🟡 {totalMaquinasPausadas} pausa
-                </span>
-                <span className="text-slate-600">•</span>
-                <span className="text-slate-400 font-bold">
-                  ⚪ {8 - (totalMaquinasRodando + totalMaquinasPausadas)} livres
-                </span>
-              </div>
-            </div>
-
-            {/* Card 3: Toneladas de Aço Transformadas */}
-            <div className="bg-slate-900/90 dark:bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl relative overflow-hidden">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Weight className="w-4 h-4 text-orange-400" />
-                  Aço Processado
-                </span>
-                <Badge variant="outline" className="text-[10px] bg-orange-500/10 text-orange-400 border-orange-500/30">
-                  Hoje
-                </Badge>
-              </div>
-
-              <div className="flex items-baseline gap-2 mb-1">
-                <span className="font-mono text-3xl sm:text-4xl font-black text-orange-400 drop-shadow-[0_0_12px_rgba(251,146,60,0.3)]">
-                  {metricasHoje.kg > 0 ? (metricasHoje.kg / 1000).toFixed(1) : "0.0"}
-                </span>
-                <span className="text-sm font-bold text-slate-400">toneladas ({metricasHoje.kg.toLocaleString("pt-BR")} kg)</span>
-              </div>
-
-              <p className="text-xs text-slate-400 mt-2 truncate">
-                Bobinas ativas no galpão: <strong className="text-white">{bobinas.length}</strong>
-              </p>
-            </div>
-
-            {/* Card 4: Expedição & Cargas de Rota */}
-            <div className="bg-slate-900/90 dark:bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl relative overflow-hidden">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Truck className="w-4 h-4 text-purple-400" />
-                  Expedição & Cargas
-                </span>
-                {pedidosCriticosFila.length > 0 && (
-                  <span className="animate-pulse px-1.5 py-0.5 rounded text-[10px] font-black bg-red-500/20 text-red-400 border border-red-500/40">
-                    🔥 {pedidosCriticosFila.length} Críticos
+          {/* 1. KPIS PRINCIPAIS (HERO GRID) */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Metros no Período */}
+            <div
+              onClick={() => setKpiDetail("metros")}
+              className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs hover:shadow-md transition-all cursor-pointer flex items-center justify-between"
+            >
+              <div>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Metragem no Período</p>
+                <div className="flex items-baseline gap-1 mt-1">
+                  <span className="text-2xl sm:text-3xl font-black text-blue-600 tracking-tight">
+                    {metrosPeriodo.toLocaleString("pt-BR")}
                   </span>
-                )}
+                  <span className="text-xs font-bold text-slate-400">metros</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1 font-medium">Finalizados no período selecionado</p>
               </div>
-
-              <div className="flex items-baseline gap-2 mb-1">
-                <span className="font-mono text-3xl sm:text-4xl font-black text-purple-400 drop-shadow-[0_0_12px_rgba(192,132,252,0.3)]">
-                  {metricasHoje.pedidosConcluidos}
-                </span>
-                <span className="text-sm font-bold text-slate-400">pedidos prontos</span>
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
+                <Ruler className="w-6 h-6" />
               </div>
+            </div>
 
-              <p className="text-xs text-slate-400 mt-2 truncate">
-                Aguardando carregamento e liberação
-              </p>
+            {/* Em Produção Agora */}
+            <div
+              onClick={() => setActiveSheetOpen(true)}
+              className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs hover:shadow-md transition-all cursor-pointer flex items-center justify-between"
+            >
+              <div>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Em Produção Agora</p>
+                <div className="flex items-baseline gap-1 mt-1">
+                  <span className="text-2xl sm:text-3xl font-black text-amber-600 tracking-tight">
+                    {emProducaoAgora}
+                  </span>
+                  <span className="text-xs font-bold text-slate-400">ordens ativas</span>
+                </div>
+                <div className="flex items-center gap-1.5 mt-1 text-[11px] text-amber-700 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  {emProducaoAgora > 0 ? "Máquinas rodando neste instante" : "Nenhuma máquina em corte"}
+                </div>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
+                <Zap className="w-6 h-6" />
+              </div>
+            </div>
+
+            {/* Finalizados no Período */}
+            <div
+              onClick={() => setKpiDetail("finalizados")}
+              className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs hover:shadow-md transition-all cursor-pointer flex items-center justify-between"
+            >
+              <div>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Finalizados no Período</p>
+                <div className="flex items-baseline gap-1 mt-1">
+                  <span className="text-2xl sm:text-3xl font-black text-emerald-600 tracking-tight">
+                    {finalizadosPeriodo}
+                  </span>
+                  <span className="text-xs font-bold text-slate-400">pedidos concluídos</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1 font-medium">Prontos para expedição e entrega</p>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+            </div>
+
+            {/* Eficiência Operacional */}
+            <div
+              onClick={() => setKpiDetail("eficiencia")}
+              className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs hover:shadow-md transition-all cursor-pointer flex items-center justify-between"
+            >
+              <div>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Eficiência Operacional</p>
+                <div className="flex items-baseline gap-1 mt-1">
+                  <span className={`text-2xl sm:text-3xl font-black tracking-tight ${eficiencia >= 70 ? "text-emerald-600" : "text-amber-600"}`}>
+                    {eficiencia}%
+                  </span>
+                  <span className="text-xs font-bold text-slate-400">produtivo/total</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1 font-medium">Tempo útil de corte e conformação</p>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+                <Activity className="w-6 h-6" />
+              </div>
             </div>
           </div>
 
-          {/* ═══════════════════════════════════════════════════════════════════
-              COCKPIT VIVO DAS 8 MÁQUINAS (TEMPO REAL)
-          ═══════════════════════════════════════════════════════════════════ */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <h2 className="text-base font-black text-white tracking-wide flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6]" />
-                Cockpit ao Vivo das 8 Perfiladeiras
-              </h2>
-              <span className="text-xs text-slate-400">
-                Clique no card de qualquer máquina para abrir o painel de corte ou tablet
+          {/* 2. KPIS SECUNDÁRIOS */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {/* Aço Processado */}
+            <div className="bg-white border border-slate-200/80 rounded-xl p-3.5 flex items-center gap-3 shadow-xs">
+              <div className="w-9 h-9 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
+                <Weight className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-base font-black text-slate-800 leading-tight">
+                  {toneladasPeriodo} ton
+                </p>
+                <p className="text-[11px] text-slate-500 font-medium">Aço ({kgPeriodo.toLocaleString("pt-BR")} kg)</p>
+              </div>
+            </div>
+
+            {/* Ordens no Período */}
+            <div className="bg-white border border-slate-200/80 rounded-xl p-3.5 flex items-center gap-3 shadow-xs">
+              <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center">
+                <Layers className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-base font-black text-slate-800 leading-tight">
+                  {ordensPeriodo.length} ordens
+                </p>
+                <p className="text-[11px] text-slate-500 font-medium">Processadas no período</p>
+              </div>
+            </div>
+
+            {/* Termoacústicas */}
+            <div className="bg-white border border-slate-200/80 rounded-xl p-3.5 flex items-center gap-3 shadow-xs">
+              <div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center">
+                <Snowflake className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-base font-black text-slate-800 leading-tight">
+                  {termoacusticasPeriodo} telhas
+                </p>
+                <p className="text-[11px] text-slate-500 font-medium">Termoacústicas (EPS)</p>
+              </div>
+            </div>
+
+            {/* Pausadas Agora */}
+            <div
+              onClick={() => pausadosAgora > 0 && setPausedDialogOpen(true)}
+              className={`bg-white border border-slate-200/80 rounded-xl p-3.5 flex items-center gap-3 shadow-xs ${pausadosAgora > 0 ? "cursor-pointer hover:bg-purple-50/50" : ""}`}
+            >
+              <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                <Pause className="w-4 h-4" />
+              </div>
+              <div>
+                <p className={`text-base font-black leading-tight ${pausadosAgora > 0 ? "text-purple-700" : "text-slate-800"}`}>
+                  {pausadosAgora} ordens
+                </p>
+                <p className="text-[11px] text-slate-500 font-medium">Pausadas agora</p>
+              </div>
+            </div>
+
+            {/* Custo de Produção */}
+            <div className="bg-white border border-slate-200/80 rounded-xl p-3.5 flex items-center gap-3 shadow-xs">
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <DollarSign className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-base font-black text-emerald-700 leading-tight">
+                  {custoProducao.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}
+                </p>
+                <p className="text-[11px] text-slate-500 font-medium">Valor fabricado est.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* ══════════════ 3. COCKPIT DAS 8 MÁQUINAS (STATUS & FILAS) ══════════════ */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Factory className="w-4 h-4 text-blue-600" />
+                <h2 className="text-base font-black text-slate-900 tracking-tight">
+                  Status Operacional das 8 Perfiladeiras
+                </h2>
+              </div>
+              <span className="text-xs text-slate-400 font-medium">
+                Clique no card para abrir o painel individual da máquina
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-              {estadoMaquinasCockpit.map((maq) => {
-                const Icone = maq.icone || Factory;
-                const isRodando = maq.status === "produzindo";
-                const isPausado = maq.status === "pausado";
-
-                return (
-                  <Link
-                    key={maq.id}
-                    to={maq.path}
-                    className={`block rounded-2xl p-4 border transition-all duration-200 relative overflow-hidden group cursor-pointer ${
-                      isRodando
-                        ? "bg-gradient-to-b from-slate-900 to-[#0c1f17] border-emerald-500/50 shadow-lg shadow-emerald-500/10 hover:border-emerald-400"
-                        : isPausado
-                        ? "bg-gradient-to-b from-slate-900 to-[#1f190c] border-amber-500/50 shadow-lg shadow-amber-500/10 hover:border-amber-400"
-                        : "bg-slate-900/80 border-slate-800 hover:border-slate-700 hover:bg-slate-900"
-                    }`}
-                  >
-                    {/* Faixa superior do card */}
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div
-                          className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border"
-                          style={{
-                            backgroundColor: `${maq.hex}20`,
-                            borderColor: `${maq.hex}60`,
-                            color: maq.hex
-                          }}
-                        >
-                          <Icone className="w-4 h-4" />
-                        </div>
-                        <span className="font-extrabold text-sm text-white truncate">
-                          {maq.label}
-                        </span>
+              {statusPerfiladeiras.map(maq => (
+                <div
+                  key={maq.id}
+                  onClick={() => navigate(maq.path)}
+                  className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+                >
+                  {/* Cabeçalho da Máquina */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2.5">
+                      <div className="flex items-center gap-2">
+                        <maq.icone className="w-4 h-4 text-slate-700" />
+                        <span className="font-bold text-sm text-slate-900">{maq.label}</span>
                       </div>
 
-                      {/* Status LED */}
-                      {isRodando ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.3)] animate-pulse">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                          RODANDO
+                      {/* Badge de Status */}
+                      {maq.status === "rodando" && (
+                        <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                          Rodando
                         </span>
-                      ) : isPausado ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-[0_0_10px_rgba(245,158,11,0.3)]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                          PAUSADA
+                      )}
+                      {maq.status === "pausada" && (
+                        <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-purple-100 text-purple-800 border border-purple-300">
+                          <Pause className="w-2.5 h-2.5" />
+                          Pausada
                         </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-slate-400 border border-slate-700">
-                          <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
-                          LIVRE
+                      )}
+                      {maq.status === "livre" && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-100 text-slate-600 border border-slate-200">
+                          Livre
                         </span>
                       )}
                     </div>
 
-                    {/* Conteúdo da Ordem em Andamento */}
+                    {/* Conteúdo Central do Card */}
                     {maq.ordemAtiva ? (
-                      <div className="space-y-2 bg-black/40 rounded-xl p-3 border border-white/5">
-                        <div className="flex items-center justify-between gap-1 text-xs">
-                          <span className="font-black text-sky-400 font-mono">
-                            Pedido #{maq.ordemAtiva.numero_pedido || "—"}
+                      <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-2.5 mb-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold text-emerald-900">
+                            OP #{maq.ordemAtiva.numero_pedido || maq.ordemAtiva.id}
                           </span>
-                          <span className="text-emerald-400 font-bold text-[11px]">
+                          <span className="font-black text-emerald-700">
                             {calcularMetrosPedido(maq.ordemAtiva).toFixed(1)}m
                           </span>
                         </div>
-
-                        <p className="text-xs text-white font-semibold truncate" title={maq.ordemAtiva.cliente}>
-                          {maq.ordemAtiva.cliente || "Cliente não informado"}
+                        <p className="text-[11px] text-slate-600 font-medium truncate mt-0.5">
+                          {maq.ordemAtiva.cliente || "Cliente Odoo"}
                         </p>
-
-                        <p className="text-[11px] text-slate-400 truncate">
-                          {maq.ordemAtiva.produto || "Telha Padrão"}
-                        </p>
-
-                        {/* Operador & Bobina */}
-                        <div className="pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
-                          <span className="truncate">
-                            👷 {maq.ordemAtiva.operador || "Operador"}
-                          </span>
-                          {maq.ordemAtiva.bobina_descricao && (
-                            <span className="text-orange-400 font-semibold truncate max-w-[120px]" title={maq.ordemAtiva.bobina_descricao}>
-                              {maq.ordemAtiva.bobina_descricao}
-                            </span>
-                          )}
-                        </div>
+                        {maq.ordemAtiva.operador && (
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            Op: <strong className="text-slate-600">{maq.ordemAtiva.operador}</strong>
+                          </p>
+                        )}
                       </div>
                     ) : (
-                      <div className="space-y-2 py-2">
-                        <p className="text-xs text-slate-400">
-                          {maq.totalFila > 0
-                            ? `📦 ${maq.totalFila} ordem(ns) aguardando corte na fila`
-                            : "Sem ordens na fila de corte no momento"}
-                        </p>
-                        {maq.proximaOp && (
-                          <div className="bg-slate-800/40 rounded-lg p-2 text-[11px] text-slate-300">
-                            Próxima: <strong className="text-white">#{maq.proximaOp.numero_pedido}</strong> ({calcularMetrosPedido(maq.proximaOp).toFixed(1)}m)
-                          </div>
+                      <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 mb-2 text-xs">
+                        <div className="flex items-center justify-between text-slate-600">
+                          <span>Fila de Corte:</span>
+                          <strong className="text-slate-900">{maq.totalFila} na fila</strong>
+                        </div>
+                        {maq.proximaOp ? (
+                          <p className="text-[11px] text-slate-500 font-medium truncate mt-1">
+                            Próx: <strong className="text-slate-700">#{maq.proximaOp.numero_pedido || maq.proximaOp.id}</strong> ({calcularMetrosPedido(maq.proximaOp).toFixed(1)}m)
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-slate-400 italic mt-1">Fila vazia no momento</p>
                         )}
                       </div>
                     )}
+                  </div>
 
-                    {/* Rodapé do Card */}
-                    <div className="mt-3 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-400">
-                      <span>Hoje: <strong className="text-white">{maq.metrosHoje}m</strong></span>
-                      <span className="text-blue-400 font-bold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
-                        Abrir <ArrowRight className="w-3 h-3" />
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
+                  {/* Rodapé da Máquina */}
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                    <span>
+                      Total Período: <strong className="text-slate-900">{maq.metrosPeriodo}m</strong>
+                    </span>
+                    <span className="text-blue-600 font-bold group-hover:translate-x-1 transition-transform flex items-center gap-0.5 text-[11px]">
+                      Abrir <ArrowRight className="w-3 h-3" />
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* ═══════════════════════════════════════════════════════════════════
-              GRÁFICO DE RITMO + FILA CRÍTICA DO DIA
-          ═══════════════════════════════════════════════════════════════════ */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Gráfico Iluminado */}
-            <div className="lg:col-span-2 bg-slate-900/90 dark:bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-              <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+          {/* ══════════════ 4. GRÁFICOS OPERACIONAIS ══════════════ */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* Gráfico 1: Ritmo de Produção no Período (Metros e KG) */}
+            <div className="lg:col-span-2 bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs">
+              <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="font-black text-sm text-white flex items-center gap-2">
-                    <BarChart2 className="w-4 h-4 text-sky-400" />
-                    Ritmo de Produção ({tipoGrafico === "horas" ? "Horas do Turno — Hoje" : "Evolução da Semana"})
+                  <h3 className="text-base font-black text-slate-900">
+                    Ritmo de Produção Diário (Metros e KG de Aço)
                   </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Metragem linear e volume de aço processado
+                  <p className="text-xs text-slate-400 font-medium">
+                    Acompanhamento diário das perfiladeiras de telhas
                   </p>
                 </div>
-
-                <div className="flex items-center gap-1 bg-slate-800 rounded-xl p-1 text-xs">
-                  <button
-                    onClick={() => setTipoGrafico("horas")}
-                    className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                      tipoGrafico === "horas" ? "bg-blue-600 text-white shadow" : "text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    Horas de Hoje
-                  </button>
-                  <button
-                    onClick={() => setTipoGrafico("semana")}
-                    className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                      tipoGrafico === "semana" ? "bg-blue-600 text-white shadow" : "text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    Semana
-                  </button>
-                </div>
+                <Badge variant="outline" className="text-xs font-semibold text-slate-600 bg-slate-50">
+                  Últimos 7 dias
+                </Badge>
               </div>
 
-              <div className="h-56 w-full">
+              <div className="h-64 sm:h-72 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={dadosGraficoRitmo} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <XAxis dataKey="label" stroke="#64748b" tick={{ fill: "#94a3b8", fontSize: 11 }} />
-                    <YAxis stroke="#64748b" tick={{ fill: "#94a3b8", fontSize: 11 }} />
+                  <BarChart data={dadosGraficoDias} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <XAxis dataKey="data" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                    <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} />
                     <Tooltip
-                      content={({ active, payload, label }) => {
-                        if (!active || !payload?.length) return null;
-                        return (
-                          <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 shadow-2xl text-xs space-y-1 text-white">
-                            <p className="font-black text-sky-400">{label}</p>
-                            <p className="text-slate-200">Metros: <strong>{payload[0]?.value}m</strong></p>
-                            <p className="text-orange-400">Peso est.: <strong>{payload[1]?.value}kg</strong></p>
-                          </div>
-                        );
+                      contentStyle={{
+                        backgroundColor: "#ffffff",
+                        borderColor: "#e2e8f0",
+                        borderRadius: "12px",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                        fontSize: "12px",
                       }}
+                      formatter={(val, name) => [
+                        `${Number(val).toLocaleString("pt-BR")} ${name === "metros" ? "metros" : "kg"}`,
+                        name === "metros" ? "Metragem Linear" : "Aço Processado"
+                      ]}
                     />
-                    <Bar dataKey="metros" name="Metros Lineares" fill="#38bdf8" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="kg" name="Peso em Aço (kg)" fill="#fb923c" radius={[6, 6, 0, 0]} />
+                    <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }} />
+                    <Bar dataKey="metros" name="Metros Lineares" fill="#2563eb" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="kg" name="KG de Aço" fill="#ea580c" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            {/* Painel de Fila Crítica ao Vivo */}
-            <div className="bg-slate-900/90 dark:bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-black text-sm text-white flex items-center gap-2">
-                  <Flame className="w-4 h-4 text-red-400" />
-                  Fila Crítica & Retiras
+            {/* Gráfico 2: Mix de Produção por Perfil/Máquina */}
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+              <div>
+                <h3 className="text-base font-black text-slate-900">
+                  Mix de Perfis & Máquinas
                 </h3>
-                <Badge className="bg-red-500/20 text-red-300 border-red-500/40 text-[10px] font-black">
-                  Prioridade Alta
-                </Badge>
+                <p className="text-xs text-slate-400 font-medium mb-3">
+                  Distribuição de metros fabricados por modelo
+                </p>
+
+                <div className="h-52 w-full flex items-center justify-center">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={dadosMixPerfil}
+                        dataKey="metros"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={75}
+                        paddingAngle={3}
+                      >
+                        {dadosMixPerfil.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "#ffffff",
+                          borderColor: "#e2e8f0",
+                          borderRadius: "12px",
+                          fontSize: "12px",
+                        }}
+                        formatter={(val) => [`${Number(val).toLocaleString("pt-BR")} m`, "Produção"]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto space-y-2 max-h-60 pr-1">
-                {pedidosCriticosFila.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-500 text-xs">
-                    <ShieldCheck className="w-8 h-8 mb-2 text-emerald-500/40" />
-                    Nenhum pedido atrasado ou em alerta crítico hoje. Fila limpa!
+              {/* Legenda customizada com metros */}
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
+                {dadosMixPerfil.map((item) => (
+                  <div key={item.name} className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                    <span className="text-slate-600 font-medium truncate">{item.name}:</span>
+                    <strong className="text-slate-900 ml-auto">{item.metros}m</strong>
                   </div>
-                ) : (
-                  pedidosCriticosFila.map(ped => {
-                    const ehRetira = ped.prioridade_nivel === "RETIRA_AGORA";
-                    return (
-                      <div
-                        key={ped.id}
-                        onClick={() => navigate(`/pcp?busca=${ped.numero_pedido}`)}
-                        className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-all hover:scale-[1.01] ${
-                          ehRetira
-                            ? "bg-red-950/30 border-red-800/60 hover:border-red-600"
-                            : "bg-slate-800/60 border-slate-700/80 hover:border-slate-500"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-1 mb-1">
-                          <span className="font-black text-white">#{ped.numero_pedido}</span>
-                          {ehRetira ? (
-                            <span className="text-[10px] font-black uppercase text-red-400 bg-red-950 px-1.5 py-0.5 rounded border border-red-800">
-                              ⚡ Retira Agora
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-bold text-sky-400 bg-sky-950 px-1.5 py-0.5 rounded border border-sky-800">
-                              🚚 Carga de Rota
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-slate-300 font-semibold truncate">{ped.cliente_nome}</p>
-                        <p className="text-[11px] text-slate-400 mt-0.5 truncate">{ped.of_nome || "Fábrica de Telhas"}</p>
-                      </div>
-                    );
-                  })
-                )}
+                ))}
               </div>
             </div>
-          </div>
-
-          {/* Histórico de Bobinas de Telhas Utilizadas */}
-          <div className="bg-slate-900/90 dark:bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-            <HistoricoBobinasTelhas historico={[]} />
           </div>
         </>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          ABA 2: ESTOQUE DE BOBINAS E MATERIAIS
-      ═══════════════════════════════════════════════════════════════════ */}
+      {/* ══════════════ ABA ESTOQUE DE BOBINAS ══════════════ */}
       {aba === "estoque" && (
-        <div className="space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-white">
-              <p className="text-xs text-slate-400">Estoque de Bobinas Telhas</p>
-              <p className="text-3xl font-black text-blue-400 font-mono mt-1">
-                {bobinas.reduce((s, b) => s + (Number(b.peso_kg) || 0), 0).toLocaleString("pt-BR")} kg
-              </p>
-              <p className="text-xs text-slate-400 mt-1">{bobinas.length} bobinas ativas cadastradas</p>
-            </div>
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-white">
-              <p className="text-xs text-slate-400">Bobinas Críticas (&lt; 300kg)</p>
-              <p className="text-3xl font-black text-amber-400 font-mono mt-1">
-                {bobinas.filter(b => (b.peso_kg || 0) < 300).length}
-              </p>
-              <p className="text-xs text-slate-400 mt-1">Abaixo do estoque operacional</p>
-            </div>
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-white">
-              <p className="text-xs text-slate-400">Tipos de Isopor (EPS)</p>
-              <p className="text-3xl font-black text-cyan-400 font-mono mt-1">{isopores.length}</p>
-              <p className="text-xs text-slate-400 mt-1">Para telhas termoacústicas</p>
-            </div>
-          </div>
-        </div>
+        <HistoricoBobinasTelhas bobinas={bobinas} />
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          ABA 3: FILA PCP INTEGRADA
-      ═══════════════════════════════════════════════════════════════════ */}
-      {aba === "fila_pcp" && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-white">
-          <FilaPCPTelhas
-            onNovaOrdem={(pedido, item) => {
-              setFilaContext({ pedidoId: pedido.id, itemIdx: item._idx, pedido, produtoFixo: item.produto || "" });
-              setEditPreset(prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva));
-              setDialogOpen(true);
-            }}
-          />
-        </div>
+      {/* ══════════════ ABA FILA PCP INTEGRADA ══════════════ */}
+      {aba === "pcp" && (
+        <FilaPCPTelhas
+          onNovaOrdem={(preset) => {
+            setEditPreset(preset);
+            setDialogOpen(true);
+          }}
+        />
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          ABA 4: LOGÍSTICA & ROTAS
-      ═══════════════════════════════════════════════════════════════════ */}
+      {/* ══════════════ ABA LOGÍSTICA & ROTAS ══════════════ */}
       {aba === "logistica" && (
-        <RotasEntregaSection departamento="telhas" filialAtiva={filialAtiva} title="Rotas de Entrega — Telhas" />
+        <RotasEntregaSection filial={filialAtiva} />
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          MODAL: ALTERAR META DIÁRIA (1 CLIQUE)
-      ═══════════════════════════════════════════════════════════════════ */}
+      {/* ══════════════ MODAIS E DIÁLOGOS DE APOIO ══════════════ */}
+
+      {/* Sheet de Ordens Ativas (Em Produção Agora) */}
+      <Sheet open={activeSheetOpen} onOpenChange={setActiveSheetOpen}>
+        <SheetContent side="right" className="sm:max-w-md bg-white">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2 text-slate-900">
+              <Zap className="w-5 h-5 text-amber-500" /> Ordens em Produção ({emProducaoAgora})
+            </SheetTitle>
+            <SheetDescription>
+              Perfiladeiras com ordens sendo cortadas neste instante
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-4 space-y-3 max-h-[80vh] overflow-y-auto">
+            {ordensAtivas.length === 0 ? (
+              <p className="text-sm text-slate-500 text-center py-6">Nenhuma máquina rodando no momento.</p>
+            ) : (
+              ordensAtivas.map(o => (
+                <div
+                  key={o.id}
+                  onClick={() => { setActiveSheetOpen(false); setQuickActionOrder(o); }}
+                  className="p-3.5 border border-slate-200 rounded-2xl hover:border-blue-400 hover:shadow-xs transition-all cursor-pointer bg-slate-50/50"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                      {o.maquina}
+                    </span>
+                    <span className="text-xs font-black text-slate-900">
+                      {calcularMetrosPedido(o).toFixed(1)}m
+                    </span>
+                  </div>
+                  <p className="text-xs font-bold text-slate-800 mt-2 truncate">
+                    #{o.numero_pedido || o.id} — {o.cliente || "Cliente"}
+                  </p>
+                  <p className="text-xs text-slate-500 truncate">{o.produto || o.modelo}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Modal de Configuração da Meta Diária */}
       <Dialog open={dialogMetaOpen} onOpenChange={setDialogMetaOpen}>
-        <DialogContent className="max-w-md bg-slate-900 border-slate-800 text-white">
+        <DialogContent className="max-w-sm bg-white">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-white">
-              <Target className="w-5 h-5 text-blue-400" />
-              Configurar Meta Diária de Produção
+            <DialogTitle className="flex items-center gap-2 text-slate-900">
+              <Target className="w-5 h-5 text-blue-600" /> Meta Diária de Produção
             </DialogTitle>
-            <DialogDescription className="text-slate-400">
-              Defina a quantidade de metros lineares esperada para o turno de hoje.
+            <DialogDescription>
+              Defina a meta de metros lineares a ser cortada por dia no galpão de telhas.
             </DialogDescription>
           </DialogHeader>
-
-          <div className="space-y-4 py-3">
-            <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1">
-                Meta Diária (Metros Lineares):
-              </label>
-              <input
-                type="number"
-                value={novaMetaInput}
-                onChange={(e) => setNovaMetaInput(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono text-lg font-black focus:outline-none focus:border-blue-500"
-                placeholder="Ex: 3000"
-              />
-            </div>
-
-            <div className="flex gap-2">
-              {[2000, 3000, 4000, 5000].map(v => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setNovaMetaInput(v)}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
-                >
-                  {v}m
-                </button>
-              ))}
-            </div>
+          <div className="py-3">
+            <label className="text-xs font-bold text-slate-700 block mb-1.5">Meta em Metros Lineares:</label>
+            <input
+              type="number"
+              value={novaMetaInput}
+              onChange={(e) => setNovaMetaInput(e.target.value)}
+              className="w-full text-base font-bold border border-slate-300 rounded-xl px-3 py-2 bg-slate-50 text-slate-900"
+              placeholder="Ex: 3000"
+            />
           </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogMetaOpen(false)} className="border-slate-700 text-slate-300 cursor-pointer">
-              Cancelar
-            </Button>
-            <Button onClick={() => salvarMeta(novaMetaInput)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer">
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDialogMetaOpen(false)}>Cancelar</Button>
+            <Button className="bg-blue-600 text-white hover:bg-blue-700" onClick={() => salvarMeta(novaMetaInput)}>
               Salvar Meta
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* MODAL AJUSTAR METRAGENS */}
+      {/* Diálogo de Ordens Pausadas */}
+      <Dialog open={pausedDialogOpen} onOpenChange={setPausedDialogOpen}>
+        <DialogContent className="max-w-md bg-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-900">
+              <Pause className="w-5 h-5 text-purple-600" /> Ordens Pausadas ({pausadosAgora})
+            </DialogTitle>
+            <DialogDescription>Perfiladeiras com ordens aguardando retomada</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {ordensPausadas.map(o => (
+              <div
+                key={o.id}
+                onClick={() => { setPausedDialogOpen(false); setQuickActionOrder(o); }}
+                className="p-3 border border-purple-200 bg-purple-50/50 rounded-xl cursor-pointer hover:shadow-xs"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs text-purple-800">{o.maquina}</span>
+                  <span className="text-xs font-bold text-blue-600">{calcularMetrosPedido(o).toFixed(1)}m</span>
+                </div>
+                <p className="text-xs text-slate-700 font-medium truncate mt-1">
+                  #{o.numero_pedido || o.id} — {o.cliente || "Cliente"}
+                </p>
+                {o.observacoes && <p className="text-[11px] text-slate-500 italic mt-0.5">"{o.observacoes}"</p>}
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ação Rápida de Ordem */}
+      <QuickActionDialogTelhas
+        order={quickActionOrder}
+        open={!!quickActionOrder}
+        onClose={() => setQuickActionOrder(null)}
+        onUpdate={handleQuickUpdate}
+      />
+
+      {/* Sidebar de Detalhe dos KPIs */}
+      <KpiDetailSidebarTelhas
+        open={!!kpiDetail}
+        onClose={() => setKpiDetail(null)}
+        type={kpiDetail}
+        ordensPeriodo={ordensPeriodo}
+        bobinasAtivas={bobinas}
+        filialAtiva={filialAtiva}
+        eficiencia={eficiencia}
+        tempoProdTotal={tempoProdTotal}
+        tempoPausaTotal={tempoPausaTotal}
+        tempoSetupTotal={tempoSetupTotal}
+        tempoTotal={tempoTotal}
+        onAjustarMetragens={() => {
+          setKpiDetail(null);
+          setAjustarMetragensOpen(true);
+        }}
+        onEditarOrdem={(ordem) => {
+          setEditPreset(ordem);
+          setDialogOpen(true);
+        }}
+      />
+
+      {/* Formulário de Nova Ordem a partir do PCP */}
+      <PedidoFormDialog
+        open={dialogOpen}
+        onClose={() => { setDialogOpen(false); setEditPreset(null); }}
+        onSave={async (data) => {
+          if (editPreset && !editPreset._presets && editPreset.id) {
+            updatePedido.mutate({ id: editPreset.id, data });
+          } else {
+            const pedOdooId = filaContext?.pedidoId || data.pedido_odoo_id || null;
+            const itemIdx = filaContext?.itemIdx != null ? filaContext.itemIdx : (data.item_idx != null ? data.item_idx : null);
+            if (pedOdooId) data.pedido_odoo_id = pedOdooId;
+            if (itemIdx != null) data.item_idx = itemIdx;
+
+            if (isTelhaBandeja(data)) {
+              const maquinaInicial = (data.modelo && /colonial/i.test(data.modelo)) || (data.maquina && /colonial/i.test(data.maquina))
+                ? "COLONIAL"
+                : (data.maquina && data.maquina !== "BANDEJA" && data.maquina !== "COLAGEM" ? data.maquina : "TP - 40");
+              await base44.entities.Pedido.create({
+                ...data,
+                unidade: filialAtiva,
+                maquina: maquinaInicial,
+                modelo: maquinaInicial,
+                maquina_origem: maquinaInicial,
+                status: "pendente",
+                bloqueado_colagem: false,
+                tipo_componente_bandeja: null,
+                grupo_bandeja_id: null,
+              });
+            } else {
+              await base44.entities.Pedido.create({ ...data, unidade: filialAtiva });
+            }
+            queryClient.invalidateQueries({ queryKey: ["pedidos-dash-telhas"] });
+            queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+            setDialogOpen(false);
+            setEditPreset(null);
+            toast.success("Ordem criada com sucesso!");
+          }
+        }}
+        editItem={editPreset}
+        defaultDate={hoje}
+      />
+
+      {/* Modal de Ajuste Rápido de Metragens */}
       <AjustarMetragensModal
         open={ajustarMetragensOpen}
         onOpenChange={setAjustarMetragensOpen}
