@@ -95,14 +95,43 @@ export function calcularCustoOrdem(ordem, bobinaMap = {}) {
   }
 
   const metros = calcularMetrosPedido(ordem);
-  const kgAco = calcularKgPedido(ordem);
+  const kgGravado = calcularKgPedido(ordem);
   const custoKgAco = getCustoKgAco(ordem, bobinaMap);
+
+  // Análise física da largura e espessura da chapa
+  const prod = String(ordem.produto || ordem.modelo || "").toUpperCase();
+  const maq = String(ordem.maquina || "").toUpperCase();
+  const isBobininha = /(bobininha|bobina|fita|desbobinador)/i.test(`${prod} ${maq}`);
+  const isCumeeira = prod.includes("CUMEEIRA") || maq === "CUMEEIRA";
+  const largMm = isBobininha ? 300 : isCumeeira ? 600 : 1200;
+  const espessura = parseFloat(ordem.espessura || ordem.chapa) || 0.43;
+
+  // Peso teórico exato derivado da física do aço (Densidade 7,85 g/cm³)
+  const kgTeorico = metros > 0 ? Math.round(metros * (espessura * 7.85 * (largMm / 1000)) * 10) / 10 : 0;
+
+  // Detecção de discrepância física extrema (ex: 60m com 14.582 kg herdados por erro de digitação antigo)
+  let discrepanciaPeso = false;
+  let kgAco = kgGravado;
+
+  if (metros > 0 && kgTeorico > 0) {
+    if (kgGravado > kgTeorico * 2.5 || (kgGravado > 0 && kgGravado < kgTeorico * 0.35)) {
+      discrepanciaPeso = true;
+      // Se não houver confirmação manual expressa de peso pesado na balança, usa o peso físico real
+      if (!ordem.peso_confirmado_balanca) {
+        kgAco = kgTeorico;
+      }
+    }
+  }
+
+  // Se o peso gravado for zero, adota o peso teórico
+  if (kgAco <= 0 && kgTeorico > 0) {
+    kgAco = kgTeorico;
+  }
 
   // 1. Custo Matéria-Prima: Aço
   const custoAco = Math.round(kgAco * custoKgAco * 100) / 100;
 
   // 2. Custo Insumos: EPS / Isopor (Telhas Termoacústicas)
-  const prod = String(ordem.produto || ordem.modelo || "").toUpperCase();
   const isTermoacustica = /(EPS|ISOPOR|SANDU|TERMO|MANTA|COLAGEM)/i.test(prod) || ordem.maquina === "COLAGEM";
 
   let custoEps = 0;
@@ -144,6 +173,11 @@ export function calcularCustoOrdem(ordem, bobinaMap = {}) {
   const bobObj = bobId ? bobinaMap[bobId] : null;
   const bobinaCodigo = bobObj?.codigo || ordem.bobina_numero || ordem.bobina_descricao || "";
 
+  // Preço de venda (se importado do Odoo) e Margem Bruta
+  const precoVenda = Number(ordem.valor_total || ordem.total_geral || ordem.valor_venda || 0);
+  const lucroBruto = precoVenda > 0 ? Math.round((precoVenda - custoTotal) * 100) / 100 : null;
+  const margemBrutaPct = precoVenda > 0 ? Math.round(((precoVenda - custoTotal) / precoVenda) * 1000) / 10 : null;
+
   return {
     custoTotal,
     custoAco,
@@ -152,12 +186,22 @@ export function calcularCustoOrdem(ordem, bobinaMap = {}) {
     custoOperacional,
     custoMateriaPrima: Math.round((custoAco + custoEps + custoCola) * 100) / 100,
     kgAco,
+    kgGravado,
+    kgTeorico,
+    discrepanciaPeso,
+    espessura,
+    largMm,
+    tempoSegundos,
     custoKgAco,
     metros,
     custoPorMetro,
     custoPorKg,
     bobinaCodigo,
+    bobinaObj: bobObj,
     isTermoacustica,
+    precoVenda,
+    lucroBruto,
+    margemBrutaPct,
   };
 }
 

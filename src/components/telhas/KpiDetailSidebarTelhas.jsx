@@ -15,6 +15,7 @@ import {
 import { calcularMetrosPedido, calcularKgPedido } from "@/lib/metrosHelper";
 import { calcularCustoOrdem, formatarMoeda } from "@/lib/custoPedidoHelper";
 import HistoricoPedidoTelhasSidebar from "@/components/producao/HistoricoPedidoTelhasSidebar";
+import RaioXCustoPedidoModal from "@/components/telhas/RaioXCustoPedidoModal";
 
 function formatBRL(v) {
   return (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -59,6 +60,7 @@ export default function KpiDetailSidebarTelhas({
   const [allBobinas, setAllBobinas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [historicoPedido, setHistoricoPedido] = useState(null);
+  const [ordemRaioX, setOrdemRaioX] = useState(null);
 
   useEffect(() => {
     if (open) {
@@ -250,6 +252,7 @@ export default function KpiDetailSidebarTelhas({
                       onGoToPedido={handleIrAtePedido}
                       onEditarOrdem={handleEditar}
                       onOpenHistorico={handleAbrirHistorico}
+                      onAbrirRaioX={(o) => setOrdemRaioX(o)}
                     />
                   </>
                 )}
@@ -271,6 +274,7 @@ export default function KpiDetailSidebarTelhas({
                     onGoToPedido={handleIrAtePedido}
                     onEditarOrdem={handleEditar}
                     onOpenHistorico={handleAbrirHistorico}
+                    onAbrirRaioX={(o) => setOrdemRaioX(o)}
                   />
                 )}
 
@@ -312,6 +316,7 @@ export default function KpiDetailSidebarTelhas({
                     onGoToPedido={handleIrAtePedido}
                     onEditarOrdem={handleEditar}
                     onOpenHistorico={handleAbrirHistorico}
+                    onAbrirRaioX={(o) => setOrdemRaioX(o)}
                   />
                 )}
 
@@ -353,17 +358,32 @@ export default function KpiDetailSidebarTelhas({
           pedidoObj={historicoPedido.obj}
         />
       )}
+
+      {/* Modal de Raio-X Completo de Custo Industrial & Rentabilidade */}
+      {ordemRaioX && (
+        <RaioXCustoPedidoModal
+          open={Boolean(ordemRaioX)}
+          onOpenChange={(v) => !v && setOrdemRaioX(null)}
+          ordem={ordemRaioX}
+          bobinaMap={bobinaMap}
+          onAtualizado={() => {
+            fetchBobinas();
+          }}
+        />
+      )}
     </>
   );
 }
 
 // Card de Ordem Clicável Reutilizável com Custo Industrial
-function OrdemItemCard({ ordem, metros, bobinaMap = {}, onGoToPedido, onEditarOrdem, onOpenHistorico, badgeText, badgeColor }) {
+function OrdemItemCard({ ordem, metros, bobinaMap = {}, onGoToPedido, onEditarOrdem, onOpenHistorico, onAbrirRaioX, badgeText, badgeColor }) {
   const m = metros != null ? metros : calcularMetrosPedido(ordem);
   const custo = calcularCustoOrdem(ordem, bobinaMap);
 
   const handleClickCard = () => {
-    if (onEditarOrdem) {
+    if (onAbrirRaioX) {
+      onAbrirRaioX(ordem);
+    } else if (onEditarOrdem) {
       onEditarOrdem(ordem);
     } else if (onGoToPedido) {
       onGoToPedido(ordem);
@@ -374,7 +394,7 @@ function OrdemItemCard({ ordem, metros, bobinaMap = {}, onGoToPedido, onEditarOr
     <div
       onClick={handleClickCard}
       className="p-3 border border-border/80 hover:border-blue-500 rounded-xl bg-card hover:bg-blue-50/20 dark:hover:bg-blue-950/20 transition-all cursor-pointer shadow-2xs hover:shadow-sm group relative"
-      title="Clique para editar valores deste pedido"
+      title="Clique para ver o Raio-X de Custo ou editar valores"
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
@@ -392,7 +412,16 @@ function OrdemItemCard({ ordem, metros, bobinaMap = {}, onGoToPedido, onEditarOr
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div
+          onClick={(e) => {
+            if (onAbrirRaioX) {
+              e.stopPropagation();
+              onAbrirRaioX(ordem);
+            }
+          }}
+          className="flex items-center gap-2 shrink-0 hover:scale-105 transition-transform"
+          title="Clique para abrir o Raio-X de Custos completo"
+        >
           <div className="text-right">
             <span className="font-black text-xs text-emerald-600 dark:text-emerald-400 block">
               {formatarMoeda(custo.custoTotal)}
@@ -401,7 +430,7 @@ function OrdemItemCard({ ordem, metros, bobinaMap = {}, onGoToPedido, onEditarOr
               {m > 0 ? `${m.toFixed(1)}m · ${formatarMoeda(custo.custoPorMetro)}/m` : `${custo.kgAco.toFixed(0)} kg`}
             </span>
           </div>
-          <div className="w-5 h-5 rounded-md bg-muted/60 group-hover:bg-blue-600 group-hover:text-white flex items-center justify-center transition-colors">
+          <div className="w-5 h-5 rounded-md bg-muted/60 group-hover:bg-emerald-600 group-hover:text-white flex items-center justify-center transition-colors">
             <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
           </div>
         </div>
@@ -428,7 +457,20 @@ function OrdemItemCard({ ordem, metros, bobinaMap = {}, onGoToPedido, onEditarOr
 
       {/* Barra de ações rápida com hover */}
       <div className="mt-2 pt-1.5 border-t border-border/40 flex items-center justify-between text-[10px]">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
+          {onAbrirRaioX && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAbrirRaioX(ordem);
+              }}
+              className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+              title="Abrir Raio-X completo de custos deste pedido"
+            >
+              <Calculator className="w-3 h-3" /> Raio-X
+            </button>
+          )}
           <button
             type="button"
             onClick={(e) => {
@@ -477,7 +519,7 @@ function OrdemItemCard({ ordem, metros, bobinaMap = {}, onGoToPedido, onEditarOr
 }
 
 // Sub-componentes do Sheet de Detalhes
-function MetrosContent({ ordens = [], bobinaMap = {}, onGoToPedido, onEditarOrdem, onOpenHistorico }) {
+function MetrosContent({ ordens = [], bobinaMap = {}, onGoToPedido, onEditarOrdem, onOpenHistorico, onAbrirRaioX }) {
   const totalM = ordens.reduce((s, o) => s + calcularMetrosPedido(o), 0);
   const totalTelhas = ordens.reduce((s, o) => s + (o.quantidade || o.quantidade_telhas || 1), 0);
   const totalCusto = ordens.reduce((s, o) => s + calcularCustoOrdem(o, bobinaMap).custoTotal, 0);
@@ -509,6 +551,7 @@ function MetrosContent({ ordens = [], bobinaMap = {}, onGoToPedido, onEditarOrde
             onGoToPedido={onGoToPedido}
             onEditarOrdem={onEditarOrdem}
             onOpenHistorico={onOpenHistorico}
+            onAbrirRaioX={onAbrirRaioX}
           />
         ))}
       </div>
@@ -582,7 +625,7 @@ function KgContent({ data, onGoToPedido, onEditarOrdem, onOpenHistorico }) {
   );
 }
 
-function CustoContent({ data, onGoToPedido, onEditarOrdem }) {
+function CustoContent({ data, onGoToPedido, onEditarOrdem, onAbrirRaioX }) {
   const [visao, setVisao] = useState("ordens"); // "ordens" | "bobinas"
   const [busca, setBusca] = useState("");
 
@@ -675,11 +718,12 @@ function CustoContent({ data, onGoToPedido, onEditarOrdem }) {
                 <div
                   key={op.id}
                   onClick={() => {
-                    if (onEditarOrdem) onEditarOrdem(raw);
+                    if (onAbrirRaioX) onAbrirRaioX(raw);
+                    else if (onEditarOrdem) onEditarOrdem(raw);
                     else onGoToPedido(raw);
                   }}
                   className="p-3 border border-border/80 hover:border-emerald-500 rounded-xl bg-card hover:bg-emerald-50/20 dark:hover:bg-emerald-950/20 transition-all cursor-pointer shadow-2xs group"
-                  title="Clique para editar valores desta ordem"
+                  title="Clique para abrir o Raio-X de Custo completo deste pedido"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
@@ -741,6 +785,45 @@ function CustoContent({ data, onGoToPedido, onEditarOrdem }) {
                       </div>
                     )}
                   </div>
+
+                  {/* Barra de Ações Rápidas do Card de Custo */}
+                  <div className="mt-2 pt-2 border-t border-border/50 flex items-center justify-between text-[10px]">
+                    <div className="flex items-center gap-2">
+                      {onAbrirRaioX && (
+                        <Button
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAbrirRaioX(raw);
+                          }}
+                          className="h-6 px-2 text-[10px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white gap-1 cursor-pointer shadow-2xs"
+                        >
+                          <Calculator className="w-3 h-3" /> Raio-X Completo
+                        </Button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onEditarOrdem) onEditarOrdem(raw);
+                          else onGoToPedido(raw);
+                        }}
+                        className="text-amber-600 dark:text-amber-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Pencil className="w-3 h-3" /> Editar
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onGoToPedido(raw);
+                      }}
+                      className="text-blue-600 dark:text-blue-400 hover:underline font-medium flex items-center gap-1 cursor-pointer"
+                    >
+                      <ExternalLink className="w-3 h-3" /> Produção
+                    </button>
+                  </div>
                 </div>
               );
             })
@@ -758,31 +841,34 @@ function CustoContent({ data, onGoToPedido, onEditarOrdem }) {
 
               {b.ops.length > 0 && (
                 <div className="pt-2 border-t border-border/50 space-y-1.5">
-                  {b.ops.map((op) => (
-                    <div
-                      key={op.id}
-                      onClick={() => {
-                        const raw = op.rawObj || op;
-                        if (onEditarOrdem) onEditarOrdem(raw);
-                        else onGoToPedido(raw);
-                      }}
-                      className="p-2 rounded-lg bg-muted/40 hover:bg-emerald-500/10 hover:border-emerald-500/40 border border-transparent transition-all cursor-pointer flex items-center justify-between text-xs group"
-                      title="Clique para editar valores desta ordem"
-                    >
-                      <div className="min-w-0">
-                        <span className="font-bold block truncate group-hover:text-emerald-600">
-                          {op.produto || "Telha"} · #{op.numero_pedido || "S/N"}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground truncate block">
-                          {op.cliente || "S/ Cliente"}
-                        </span>
+                  {b.ops.map((op) => {
+                    const raw = op.rawObj || op;
+                    return (
+                      <div
+                        key={op.id}
+                        onClick={() => {
+                          if (onAbrirRaioX) onAbrirRaioX(raw);
+                          else if (onEditarOrdem) onEditarOrdem(raw);
+                          else onGoToPedido(raw);
+                        }}
+                        className="p-2 rounded-lg bg-muted/40 hover:bg-emerald-500/10 hover:border-emerald-500/40 border border-transparent transition-all cursor-pointer flex items-center justify-between text-xs group"
+                        title="Clique para ver o Raio-X desta ordem"
+                      >
+                        <div className="min-w-0">
+                          <span className="font-bold block truncate group-hover:text-emerald-600">
+                            {op.produto || "Telha"} · #{op.numero_pedido || "S/N"}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground truncate block">
+                            {op.cliente || "S/ Cliente"}
+                          </span>
+                        </div>
+                        <div className="text-right shrink-0 ml-2">
+                          <span className="font-bold text-emerald-600 block">{formatBRL(op.custo)}</span>
+                          <span className="text-[10px] text-muted-foreground">{op.metros.toFixed(1)}m · {op.kg.toFixed(0)} kg</span>
+                        </div>
                       </div>
-                      <div className="text-right shrink-0 ml-2">
-                        <span className="font-bold text-emerald-600 block">{formatBRL(op.custo)}</span>
-                        <span className="text-[10px] text-muted-foreground">{op.metros.toFixed(1)}m · {op.kg.toFixed(0)} kg</span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
