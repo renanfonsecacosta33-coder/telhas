@@ -69,17 +69,23 @@ export default async function(req: Request): Promise<Response> {
     const randSuffix = Math.floor(1000 + Math.random() * 9000);
     const requestId = body.request_id || `LOG-${dataStr}-${randSuffix}`;
 
-    // Obtém a URL do Webhook do Odoo (Variável de ambiente ou parâmetro manual)
+    // Obtém a URL do Webhook do Odoo (URL padrão acordada ou Variável de ambiente)
     const odooWebhookUrl = (
       urlDestinoManual ||
       Deno.env.get('ODOO_WEBHOOK_PDFS_URL') ||
       Deno.env.get('ODOO_PDF_WEBHOOK_URL') ||
-      ''
+      'https://ajlferroeaco.odoo.com/web/hook/4c36f83e-8eae-4949-8f3e-0a515fc158a3'
+    ).trim();
+
+    const tokenOdoo = (
+      Deno.env.get('LOGISTICA_PDF_TOKEN') ||
+      'AJL_ok32kf46ncwo15_PDF'
     ).trim();
 
     const payloadOdoo = {
       request_id: requestId,
       pedidos: pedidosNormalizados,
+      token: tokenOdoo,
       timestamp: agora.toISOString(),
       rota_id: rotaId || undefined,
       rota_titulo: rotaTitulo || undefined
@@ -108,7 +114,9 @@ export default async function(req: Request): Promise<Response> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${tokenOdoo}`,
+        'x-api-key': tokenOdoo,
       },
       body: JSON.stringify(payloadOdoo)
     });
