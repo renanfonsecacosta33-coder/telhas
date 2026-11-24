@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 import { processarMensagemAjlIa } from '../../shared/ajlIaCore.ts';
 
+// Entry point do Copilot AJL IA - v1.0.1
 Deno.serve(async (req) => {
   // CORS preflight
   if (req.method === "OPTIONS") {
@@ -25,9 +26,13 @@ Deno.serve(async (req) => {
       return Response.json({ error: "Payload JSON inválido" }, { status: 400 });
     }
 
+    const payload = (body && typeof body === 'object' && body.data && typeof body.data === 'object')
+      ? { ...body, ...body.data }
+      : (body || {});
+
     // Suporte para salvar configurações com asServiceRole
-    if (body.acao === "salvar_config") {
-      const { gemini_api_key, zapi_instance_id, zapi_token, telefones_autorizados } = body;
+    if (payload.acao === "salvar_config") {
+      const { gemini_api_key, zapi_instance_id, zapi_token, telefones_autorizados } = payload;
       const existentes = await base44.asServiceRole.entities.ConfiguracaoIA.list("-created_date", 1).catch(() => []);
       let salvo: any;
       const dados = {
@@ -48,9 +53,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { mensagem, filial, historico_recente } = body;
+    const { mensagem, filial, historico_recente } = payload;
     if (!mensagem || typeof mensagem !== "string" || !mensagem.trim()) {
-      return Response.json({ error: "Campo 'mensagem' é obrigatório" }, { status: 400 });
+      return Response.json({ error: "Campo 'mensagem' é obrigatório", debug_body: body }, { status: 400 });
     }
 
     const resposta = await processarMensagemAjlIa(base44, {

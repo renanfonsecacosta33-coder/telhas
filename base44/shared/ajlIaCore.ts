@@ -49,7 +49,10 @@ export async function processarMensagemAjlIa(
   }
 
   const geminiApiKey = config?.gemini_api_key || Deno.env.get("GEMINI_API_KEY") || "";
-  const modeloGemini = config?.modelo_gemini || "gemini-3.5-flash";
+  let modeloGemini = config?.modelo_gemini || "gemini-3.5-flash";
+  if (!modeloGemini || modeloGemini.includes("1.5") || modeloGemini.includes("2.5")) {
+    modeloGemini = "gemini-3.5-flash";
+  }
   const promptSistema = config?.prompt_sistema || DEFAULT_PROMPT_SISTEMA;
 
   // 2. Declaração das Ferramentas (Tool Calling para Gemini)

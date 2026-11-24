@@ -66,7 +66,7 @@ export default function AjlIaCopilot() {
     setSalvandoConfig(true);
     try {
       // Salva de forma ultra confiável via backend com service role
-      await base44.functions.ajlIaChat({
+      await base44.functions.invoke("ajlIaChat", {
         acao: "salvar_config",
         gemini_api_key: geminiApiKey.trim(),
         zapi_instance_id: zapiInstanceId.trim(),
@@ -105,19 +105,21 @@ export default function AjlIaCopilot() {
     }));
 
     try {
-      const res = await base44.functions.ajlIaChat({
+      const res = await base44.functions.invoke("ajlIaChat", {
         mensagem: texto,
         filial: filialAtiva || "Matriz AJL",
         historico_recente: historicoRecente
       });
 
+      const dadosResposta = res?.data || res;
+
       const novaMsgIa = {
         id: "ia_" + Date.now(),
         remetente: "ia",
-        texto: res?.texto || "Operação concluída.",
-        tools_usadas: res?.tools_usadas || [],
-        pdf_url: res?.pdf_url,
-        pdf_nome: res?.pdf_nome,
+        texto: dadosResposta?.texto || "Operação concluída.",
+        tools_usadas: dadosResposta?.tools_usadas || [],
+        pdf_url: dadosResposta?.pdf_url,
+        pdf_nome: dadosResposta?.pdf_nome,
         data: new Date()
       };
 

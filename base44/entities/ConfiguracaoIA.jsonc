@@ -13,8 +13,8 @@
     },
     "modelo_gemini": {
       "type": "string",
-      "default": "gemini-1.5-flash",
-      "description": "Modelo utilizado (ex: gemini-1.5-flash ou gemini-2.0-flash)"
+      "default": "gemini-3.5-flash",
+      "description": "Modelo utilizado (ex: gemini-3.5-flash ou gemini-3.1-flash-lite)"
     },
     "zapi_instance_id": {
       "type": "string",
