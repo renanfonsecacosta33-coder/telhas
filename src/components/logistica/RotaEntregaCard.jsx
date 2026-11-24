@@ -141,6 +141,24 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
       });
       queryClient.invalidateQueries({ queryKey: ["rotas-entrega"] });
       toast.success("Rota atualizada! IA releu todos os dados.");
+
+      // 🚀 Gatilho imediato ao trocar a foto da rota: solicita os PDFs ao Odoo
+      const pedidosParaPdf = (parsed.itens || []).map((i) => i.numero_pedido).filter(Boolean);
+      if (pedidosParaPdf.length > 0) {
+        toast.info(`🔄 Solicitando PDFs de ${pedidosParaPdf.length} pedidos ao Odoo...`, { duration: 3500 });
+        base44.functions
+          .invoke("solicitarPdfsOdoo", {
+            pedidos: pedidosParaPdf,
+            rota_id: rota.id,
+            rota_titulo: parsed.titulo || rota.titulo,
+          })
+          .then((res) => {
+            if (res?.data?.success) {
+              toast.success(`✅ Pedido de PDFs disparado ao Odoo (${pedidosParaPdf.length} pedidos)!`);
+            }
+          })
+          .catch(() => {});
+      }
     } catch (e) {
       toast.error("Erro ao atualizar rota: " + (e?.message || ""));
     } finally {

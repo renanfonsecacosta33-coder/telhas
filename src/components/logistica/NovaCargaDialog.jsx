@@ -26,7 +26,8 @@ import {
   Clock,
   Sparkles,
   ArrowRight,
-  CheckCircle2
+  CheckCircle2,
+  RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
 import UploadButton from "@/components/ui/UploadButton";
@@ -44,6 +45,8 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
   const [placa, setPlaca] = useState("");
 
   const [saving, setSaving] = useState(false);
+  const [statusPdfsOdoo, setStatusPdfsOdoo] = useState(null); // 'solicitando' | 'sucesso' | 'erro'
+  const [qtdPdfsOdoo, setQtdPdfsOdoo] = useState(0);
   const [viewerUrl, setViewerUrl] = useState(null);
   const [viewerName, setViewerName] = useState("");
 
@@ -58,6 +61,8 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
         setRotaImagemUrl("");
         setRotaImagemNome("");
         setParsed(null);
+        setStatusPdfsOdoo(null);
+        setQtdPdfsOdoo(0);
         setObs("");
         setMotorista("");
         setPlaca("");
@@ -81,9 +86,39 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
     }
   };
 
+  const dispararSolicitacaoPdfsOdoo = (pedidosArray, tituloRota) => {
+    const pedidosParaPdf = (pedidosArray || []).map((i) => i.numero_pedido).filter(Boolean);
+    if (pedidosParaPdf.length === 0) return;
+
+    setStatusPdfsOdoo("solicitando");
+    setQtdPdfsOdoo(pedidosParaPdf.length);
+    toast.info(`🔄 Solicitando PDFs de ${pedidosParaPdf.length} pedidos ao Odoo ERP...`, {
+      duration: 3500,
+    });
+
+    base44.functions
+      .invoke("solicitarPdfsOdoo", {
+        pedidos: pedidosParaPdf,
+        rota_titulo: tituloRota || "Rota de Entrega",
+      })
+      .then((res) => {
+        if (res?.data?.success) {
+          setStatusPdfsOdoo("sucesso");
+          toast.success(`✅ Solicitação de PDFs disparada ao Odoo (${pedidosParaPdf.length} pedidos)!`);
+        } else {
+          setStatusPdfsOdoo("sucesso"); // mesmo que retorno seja parcial, foi disparado
+        }
+      })
+      .catch((err) => {
+        console.warn("[NovaCargaDialog] Erro ao disparar solicitação de PDFs:", err);
+        setStatusPdfsOdoo("erro");
+      });
+  };
+
   const parseRota = async (imageUrl) => {
     setParsing(true);
     setParsed(null);
+    setStatusPdfsOdoo(null);
     try {
       const parsedData = await parseRotaImage(imageUrl, filialAtiva);
       setParsed(parsedData);
@@ -91,6 +126,9 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
       if (parsedData.placa) setPlaca(parsedData.placa.toUpperCase());
       if (parsedData.nota_geral && !obs) setObs(parsedData.nota_geral);
       toast.success(`${parsedData.itens?.length || 0} pedidos lidos da imagem pela IA!`);
+
+      // 🚀 GATILHO IMEDIATO AO COLOCAR A FOTO: Pede os PDFs dos pedidos ao Odoo no mesmo instante!
+      dispararSolicitacaoPdfsOdoo(parsedData.itens, parsedData.titulo);
     } catch (e) {
       toast.error("Erro ao ler imagem com IA: " + (e?.message || ""));
     } finally {
@@ -284,9 +322,34 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
                     </h3>
                   </div>
 
-                  <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-1 shadow-xs">
-                    {totalPedidos} {totalPedidos === 1 ? "Pedido Identificado" : "Pedidos Identificados"}
-                  </Badge>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {statusPdfsOdoo === "solicitando" && (
+                      <Badge variant="outline" className="text-xs py-1 px-2.5 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 animate-pulse flex items-center gap-1.5 font-semibold">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                        Puxando PDFs do Odoo ({qtdPdfsOdoo})...
+                      </Badge>
+                    )}
+                    {statusPdfsOdoo === "sucesso" && (
+                      <Badge variant="outline" className="text-xs py-1 px-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5 font-semibold">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        PDFs Solicitados ao Odoo
+                      </Badge>
+                    )}
+                    {statusPdfsOdoo === "erro" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1 border-amber-300 text-amber-700 hover:bg-amber-50"
+                        onClick={() => dispararSolicitacaoPdfsOdoo(parsed.itens, parsed.titulo)}
+                      >
+                        <RefreshCw className="w-3 h-3 text-amber-600" /> Tentar Puxar PDFs Novamente
+                      </Button>
+                    )}
+                    <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-1 shadow-xs">
+                      {totalPedidos} {totalPedidos === 1 ? "Pedido Identificado" : "Pedidos Identificados"}
+                    </Badge>
+                  </div>
                 </div>
 
                 {/* Grid de KPIs da Rota */}
