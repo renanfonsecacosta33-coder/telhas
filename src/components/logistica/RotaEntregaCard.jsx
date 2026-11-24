@@ -311,7 +311,7 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
           {/* Botão Oficial: Imprimir Romaneio em PDF */}
           <Button
             size="sm"
-            onClick={() => imprimirRomaneioHtml(rota, { filialAtiva: rota.unidade })}
+            onClick={() => imprimirRomaneioHtml(rota, { filialAtiva: rota.unidade, infoPedidosMap })}
             className="gap-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs h-9 px-3.5 shadow-sm cursor-pointer"
             title="Abrir folha oficial do Romaneio/Manifesto de Carga para impressão ou salvar em PDF"
           >
@@ -323,7 +323,7 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
           <Button
             size="sm"
             variant="outline"
-            onClick={() => baixarRomaneioPdf(rota, { filialAtiva: rota.unidade })}
+            onClick={() => baixarRomaneioPdf(rota, { filialAtiva: rota.unidade, infoPedidosMap })}
             className="gap-1.5 text-xs font-semibold h-9 px-3 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
             title="Baixar arquivo PDF nativo do Romaneio de Carga"
           >
