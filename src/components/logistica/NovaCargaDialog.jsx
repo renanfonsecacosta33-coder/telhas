@@ -430,7 +430,8 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
                         <th className="text-left p-2.5 font-bold w-36">Barracão</th>
                         <th className="text-left p-2.5 font-bold min-w-[240px]">Observações da Rota</th>
                         <th className="text-left p-2.5 font-bold w-32">Bairro</th>
-                        <th className="text-right p-2.5 font-bold w-28 pr-4">Valor</th>
+                        <th className="text-right p-2.5 font-bold w-28">Valor</th>
+                        <th className="text-center p-2.5 font-bold w-28 pr-4">PDF (Odoo)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -495,8 +496,23 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
                               {it.bairro || "—"}
                             </span>
                           </td>
-                          <td className="p-2.5 text-right font-bold text-foreground text-xs pr-4 tabular-nums">
+                          <td className="p-2.5 text-right font-bold text-foreground text-xs tabular-nums">
                             {it.valor || "—"}
+                          </td>
+                          <td className="p-2.5 text-center pr-4 whitespace-nowrap">
+                            {statusPdfsOdoo === "solicitando" ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 animate-pulse">
+                                <Loader2 className="w-3 h-3 animate-spin" /> Solicitando...
+                              </span>
+                            ) : statusPdfsOdoo === "sucesso" ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shadow-2xs">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Solicitado
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                <Clock className="w-3 h-3 text-amber-600" /> Aguardando
+                              </span>
+                            )}
                           </td>
                         </tr>
                       ))}

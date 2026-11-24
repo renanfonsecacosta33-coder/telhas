@@ -136,10 +136,10 @@ export default async function(req: Request): Promise<Response> {
           success: false,
           request_id: requestId,
           status_odoo: respOdoo.status,
-          message: `Odoo retornou status ${respOdoo.status}: ${odooRespostaTexto}`,
+          message: `Odoo retornou status ${respOdoo.status}. Verifique se o Guilherme já salvou a URL do Base44 no Odoo.`,
           resposta_odoo: odooRespostaJson
         },
-        { status: 502 }
+        { status: 200 }
       );
     }
 

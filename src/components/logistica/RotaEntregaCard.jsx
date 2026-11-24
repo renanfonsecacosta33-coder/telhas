@@ -26,7 +26,10 @@ import {
   ChevronUp,
   FileText,
   MapPin,
-  Calendar
+  Calendar,
+  CheckCircle2,
+  AlertCircle,
+  ExternalLink
 } from "lucide-react";
 import { toast } from "sonner";
 import ImageViewer from "@/components/ui/ImageViewer";
@@ -70,20 +73,41 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
       return;
     }
     setSolicitandoPdfs(true);
+    toast.loading("Disparando solicitação de PDFs para o Odoo ERP...", { id: "puxar-pdfs" });
     try {
-      const res = await base44.functions.invoke("solicitarPdfsOdoo", {
+      const rawRes = await base44.functions.invoke("solicitarPdfsOdoo", {
         rota_id: rota.id,
         pedidos: listaPedidos,
       });
+      const res = rawRes?.data || rawRes;
       if (res?.success) {
-        toast.success(`Solicitação de PDFs enviada ao Odoo! (${res.pedidos?.length || listaPedidos.length} pedidos) ID: ${res.request_id}`);
+        toast.success(
+          `✅ Deu boa no envio! Solicitação aceita pelo Odoo (ID: ${res.request_id}). Aguardando recebimento dos ${listaPedidos.length} PDFs...`,
+          { id: "puxar-pdfs", duration: 6000 }
+        );
+
+        // Monitoramento ativo em tempo real: atualiza a cada 3 segundos durante 21 segundos
+        let ciclo = 0;
+        const interval = setInterval(() => {
+          ciclo++;
+          queryClient.invalidateQueries({ queryKey: ["rotas-entrega"] });
+          queryClient.invalidateQueries({ queryKey: ["pedidos-odoo"] });
+          if (ciclo >= 7) {
+            clearInterval(interval);
+          }
+        }, 3000);
+      } else if (res?.status_odoo) {
+        toast.error(
+          `❌ Não deu boa com o Odoo (Status ${res.status_odoo}): O webhook do Odoo deu erro. Peça ao Guilherme para salvar a URL do Base44 no Odoo.`,
+          { id: "puxar-pdfs", duration: 8000 }
+        );
       } else if (res?.config_pendente) {
-        toast.info(res.message || "Aguardando URL do webhook fornecida pela equipe do Odoo.");
+        toast.info(res.message || "Aguardando URL do webhook fornecida pela equipe do Odoo.", { id: "puxar-pdfs" });
       } else {
-        toast.error(res?.message || "Erro ao solicitar PDFs ao Odoo.");
+        toast.error(res?.message || "Não deu boa ao solicitar PDFs ao Odoo.", { id: "puxar-pdfs" });
       }
     } catch (e) {
-      toast.error("Erro na solicitação: " + (e?.message || ""));
+      toast.error("Erro na comunicação com o Odoo: " + (e?.message || ""), { id: "puxar-pdfs" });
     } finally {
       setSolicitandoPdfs(false);
     }
@@ -229,6 +253,19 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
     return map;
   }, [itens, getInfoPedido, rota.titulo]);
 
+  // Quantidade de PDFs recebidos do Odoo e disponíveis nesta rota
+  const totalPdfsProntos = useMemo(() => {
+    return itens.filter((it) => {
+      const info = infoPedidosMap[it.numero_pedido];
+      return Boolean(
+        it.pdf_url ||
+        info?.pedidoOdoo?.pdf_pedido_url ||
+        info?.pedidoOdoo?.pdf_url ||
+        info?.anexos?.find((a) => a?.toLowerCase?.()?.endsWith(".pdf"))
+      );
+    }).length;
+  }, [itens, infoPedidosMap]);
+
   // Cálculo de peso total carregado (telhas, CD e itens)
   const dadosPeso = useMemo(() => {
     return calcularPesoRota(rota, infoPedidosMap);
@@ -359,12 +396,30 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
             variant="outline"
             onClick={handleSolicitarPdfsOdoo}
             disabled={solicitandoPdfs}
-            className="gap-1.5 text-xs font-semibold h-9 px-3 border-blue-300 dark:border-blue-700 bg-blue-50/60 hover:bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/30 cursor-pointer"
+            className="gap-1.5 text-xs font-semibold h-9 px-3 border-blue-300 dark:border-blue-700 bg-blue-50/60 hover:bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/30 cursor-pointer shadow-2xs"
             title="Solicitar envio dos PDFs de venda ao Webhook do Odoo ERP"
           >
             {solicitandoPdfs ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 text-blue-600" />}
             <span>Puxar PDFs do Odoo</span>
           </Button>
+
+          {/* Indicador de Status: Se deu boa ou não na busca de PDFs */}
+          {totalPdfsProntos === itens.length && itens.length > 0 ? (
+            <Badge className="bg-emerald-100 hover:bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-200 font-bold text-xs gap-1.5 py-1 px-2.5 h-9 flex items-center shadow-2xs">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>Deu boa! {totalPdfsProntos}/{itens.length} PDFs</span>
+            </Badge>
+          ) : totalPdfsProntos > 0 ? (
+            <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-300 font-bold text-xs gap-1.5 py-1 px-2.5 h-9 flex items-center">
+              <Clock className="w-3.5 h-3.5 text-amber-600" />
+              <span>PDFs: {totalPdfsProntos}/{itens.length}</span>
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-slate-500 border-slate-300 dark:border-slate-700 font-medium text-xs gap-1.5 py-1 px-2.5 h-9 flex items-center" title="Nenhum PDF recebido do Odoo para esta rota ainda. Clique em 'Puxar PDFs do Odoo' para solicitar.">
+              <Clock className="w-3.5 h-3.5 text-slate-400" />
+              <span>0/{itens.length} PDFs</span>
+            </Badge>
+          )}
 
           {/* Botão Oficial: Imprimir Romaneio em PDF */}
           <Button
@@ -569,6 +624,7 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
                     <th className="text-left p-2.5 font-bold min-w-[260px]">Observações da Rota</th>
                     <th className="text-left p-2.5 font-bold w-36">Bairro / Cidade</th>
                     <th className="text-right p-2.5 font-bold w-28">Valor</th>
+                    <th className="text-center p-2.5 font-bold w-28">PDF (Odoo)</th>
                     <th className="text-center p-2.5 font-bold w-32 pr-3">Fotos Pedido</th>
                   </tr>
                 </thead>
@@ -582,6 +638,18 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
                       it.cliente,
                       it.vendedor
                     );
+
+                    // Resolução do PDF oficial do pedido (recebido via webhook do Odoo ou anexo)
+                    const pdfUrl =
+                      it.pdf_url ||
+                      info?.pedidoOdoo?.pdf_pedido_url ||
+                      info?.pedidoOdoo?.pdf_url ||
+                      info?.anexos?.find((a) => a?.toLowerCase?.()?.endsWith(".pdf"));
+                    const pdfNome =
+                      it.pdf_nome ||
+                      info?.pedidoOdoo?.pdf_pedido_nome ||
+                      `Pedido_${it.numero_pedido}.pdf`;
+
                     return (
                       <tr
                         key={idx}
@@ -601,6 +669,12 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
                           >
                             <FileText className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform" />
                             <span>#{it.numero_pedido}</span>
+                            {pdfUrl && (
+                              <span
+                                className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"
+                                title="PDF do pedido já recebido e anexado"
+                              />
+                            )}
                           </button>
                         </td>
                         <td className="p-2.5">
@@ -655,6 +729,30 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
                         </td>
                         <td className="p-2.5 text-right font-bold text-foreground text-xs tabular-nums">
                           {it.valor || "—"}
+                        </td>
+                        <td className="p-2.5 text-center whitespace-nowrap">
+                          {pdfUrl ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => window.open(pdfUrl, "_blank")}
+                              className="h-7 px-2.5 gap-1.5 text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 shadow-2xs cursor-pointer group"
+                              title={`Abrir PDF oficial do Pedido #${it.numero_pedido} (${pdfNome})`}
+                            >
+                              <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
+                              <span>Ver PDF</span>
+                              <ExternalLink className="w-3 h-3 text-emerald-500 opacity-60" />
+                            </Button>
+                          ) : (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900"
+                              title="PDF ainda não recebido do Odoo. Clique em 'Puxar PDFs do Odoo' acima para solicitar."
+                            >
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              Sem PDF
+                            </span>
+                          )}
                         </td>
                         <td className="p-2.5 text-center pr-3">
                           <FotoPedidoButton
