@@ -21,8 +21,9 @@ export default function AutoRefreshInactivity() {
       if (Date.now() - ultimoRefreshRef.current < 20000) return;
       ultimoRefreshRef.current = Date.now();
 
-      // Invalida cache de dados para atualização em segundo plano sem recarregar a janela
-      queryClient.invalidateQueries();
+      // Atualiza apenas consultas visíveis que já venceram, sem invalidar
+      // todas as telas e todos os filtros que continuam válidos no cache.
+      queryClient.refetchQueries({ type: "active", stale: true });
     };
 
     const resetarTimer = () => {

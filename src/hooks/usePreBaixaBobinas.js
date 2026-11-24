@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 
+const EMPTY_MAP = Object.freeze({});
+
 /**
  * Hook universal que calcula a pré-baixa (reserva virtual) de KG nas bobinas
  * e o status de programação em tempo real (Em uso vs Programada).
@@ -22,7 +24,7 @@ function regexDoCodigo(codigo) {
 export function usePreBaixaBobinas(setor, filiais = null) {
   const filialKey = filiais ? filiais.join(",") : "all";
 
-  const { data = {}, isLoading } = useQuery({
+  const { data = EMPTY_MAP, isLoading } = useQuery({
     queryKey: ["pre-baixa-bobinas-v2", setor, filialKey],
     queryFn: async () => {
       const preBaixaMap = {};
@@ -406,9 +408,9 @@ export function usePreBaixaBobinas(setor, filiais = null) {
     refetchInterval: 60000,
   });
 
-  const preBaixaMap = data.preBaixaMap || {};
-  const preBaixaMetrosMap = data.preBaixaMetrosMap || {};
-  const preBaixaOpsMap = data.preBaixaOpsMap || {};
+  const preBaixaMap = data.preBaixaMap || EMPTY_MAP;
+  const preBaixaMetrosMap = data.preBaixaMetrosMap || EMPTY_MAP;
+  const preBaixaOpsMap = data.preBaixaOpsMap || EMPTY_MAP;
 
   const getPreBaixa = (bobinaOrId) => {
     if (!bobinaOrId) return { kg: 0, metros: 0, ops: [], disponivelReal: 0, pctComprometido: 0 };

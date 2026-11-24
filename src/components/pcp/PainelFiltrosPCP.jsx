@@ -1,4 +1,5 @@
 import React from "react";
+import BuscaPcpInput from "@/components/pcp/BuscaPcpInput";
 import {
   Search,
   X,
@@ -194,23 +195,7 @@ export default function PainelFiltrosPCP({
       <Sec label="Busca de Pedidos" icon={Search}>
         <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-colors">
           <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-          <input
-            type="text"
-            placeholder={tipoBuscaAtual.placeholder}
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            className="flex-1 bg-transparent border-0 outline-none text-[12.5px] text-white placeholder:text-slate-500 min-w-0"
-          />
-          {busca && (
-            <button
-              type="button"
-              onClick={onLimparBusca}
-              title="Limpar pesquisa"
-              className="p-0.5 text-slate-400 hover:text-white rounded transition-colors shrink-0"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+          <BuscaPcpInput value={busca} onChange={setBusca} onClear={onLimparBusca} placeholder={tipoBuscaAtual.placeholder} />
         </div>
 
         {/* Seletor do tipo de busca */}

@@ -19,6 +19,21 @@ const ENTIDADES_BASE44 = [
   'Carga'
 ];
 
+const PREFIXOS_POR_ENTIDADE = {
+  PedidoOdoo: ['pedidos-odoo', 'resumo-pcp'],
+  Pedido: ['pedidos', 'pre-baixa-bobinas-v2'],
+  OrdemDesbobinadeira: ['ordens-desb', 'ordens-cd', 'pre-baixa-bobinas-v2'],
+  OrdemMaquinaCD: ['ordens-maquina', 'ordens-maquinas-cd', 'ordens-cd', 'pre-baixa-bobinas-v2'],
+  Bobina: ['bobinas', 'pre-baixa-bobinas-v2'],
+  ChapaCD: ['chapas'],
+  Carga: ['cargas', 'rotas']
+};
+const ENTIDADE_POR_TABELA = {
+  pedidos_odoo: ['PedidoOdoo'],
+  ordens_producao: ['Pedido', 'OrdemDesbobinadeira', 'OrdemMaquinaCD'],
+  bobinas_estoque: ['Bobina']
+};
+
 export default function SupabaseRealtimeSync() {
   const queryClient = useQueryClient();
 
@@ -27,36 +42,28 @@ export default function SupabaseRealtimeSync() {
     let ultimoDisparo = 0;
     let ocultoDesde = 0;
 
-    const dispararRefresh = () => {
-      if (timer) clearTimeout(timer);
-      const agora = Date.now();
-      const tempoDecorrido = agora - ultimoDisparo;
-
-      const executar = () => {
-        ultimoDisparo = Date.now();
-        // Aba em segundo plano: apenas marca como desatualizado, sem gastar
-        // requisições que deixariam a tela esperando ao voltar.
-        const refetchOpt = { refetchType: typeof document !== 'undefined' && document.hidden ? 'none' : 'active' };
-        queryClient.invalidateQueries({ queryKey: ['ordens-desbobinadeira'], ...refetchOpt });
-        queryClient.invalidateQueries({ queryKey: ['ordens-desb-todas'], ...refetchOpt });
-        queryClient.invalidateQueries({ queryKey: ['ordens-maquina-cd'], ...refetchOpt });
-        queryClient.invalidateQueries({ queryKey: ['ordens-maquina-cd-todas'], ...refetchOpt });
-        queryClient.invalidateQueries({ queryKey: ['pedidos-odoo-pcp'], ...refetchOpt });
-        queryClient.invalidateQueries({ queryKey: ['pedidos-odoo-cd'], ...refetchOpt });
-        queryClient.invalidateQueries({ queryKey: ['pedidos-odoo-desbobinadeira'], ...refetchOpt });
-        queryClient.invalidateQueries({ queryKey: ['pedidos-producao-todos'], ...refetchOpt });
-        queryClient.invalidateQueries({ queryKey: ['pedidos'], ...refetchOpt });
-        queryClient.invalidateQueries({ queryKey: ['bobinas-cd-ativas'], ...refetchOpt });
-        queryClient.invalidateQueries({ queryKey: ['chapas-cd'], ...refetchOpt });
-      };
-
-      // Throttle de 8s: a fábrica grava em rajada e cada disparo refaz várias consultas,
-      // o que estourava o limite de requisições por minuto (429 / rate limit).
-      if (tempoDecorrido < 8000) {
-        timer = setTimeout(executar, 8000 - tempoDecorrido);
-      } else {
-        timer = setTimeout(executar, 1200);
+    const pendentes = new Set();
+    const dispararRefresh = (entidades = ENTIDADES_BASE44) => {
+      for (const entidade of entidades) {
+        for (const prefixo of PREFIXOS_POR_ENTIDADE[entidade] || []) pendentes.add(prefixo);
       }
+      if (timer) return;
+      const executar = () => {
+        timer = null;
+        ultimoDisparo = Date.now();
+        const prefixos = [...pendentes];
+        pendentes.clear();
+        // Uma alteração de estoque não recarrega a produção, e uma alteração
+        // de OP não refaz todas as consultas de bobinas e chapas.
+        queryClient.invalidateQueries({
+          predicate: query => prefixos.some(prefixo => {
+            const key = String(query.queryKey[0] || '');
+            return key === prefixo || key.startsWith(`${prefixo}-`);
+          }),
+          refetchType: document.hidden ? 'none' : 'active'
+        });
+      };
+      timer = setTimeout(executar, Math.max(1200, 8000 - (Date.now() - ultimoDisparo)));
     };
 
     // Ao voltar para a aba, atualiza o que ficou pendente enquanto ela estava oculta.
@@ -80,7 +87,7 @@ export default function SupabaseRealtimeSync() {
           channel = channel.on(
             'postgres_changes',
             { event: '*', schema: 'public', table: tabela },
-            dispararRefresh
+            () => dispararRefresh(ENTIDADE_POR_TABELA[tabela])
           );
         });
         channel.subscribe();
@@ -95,7 +102,7 @@ export default function SupabaseRealtimeSync() {
       try {
         if (base44?.entities?.[entidade]?.subscribe) {
           const unsub = base44.entities[entidade].subscribe(() => {
-            dispararRefresh();
+            dispararRefresh([entidade]);
           });
           if (typeof unsub === 'function') {
             unsubsBase44.push(unsub);

@@ -40,6 +40,7 @@ export default function useFilaPaginada({ entidade, query, prefixo, sort = "data
   });
   const total = useQuery({
     queryKey: [...queryKey, "total"],
+    enabled: consulta.isSuccess && navigator.onLine,
     queryFn: () => comPrioridade(() => base44.entities[entidade].count(query)),
     staleTime: 60000,
     retry: false

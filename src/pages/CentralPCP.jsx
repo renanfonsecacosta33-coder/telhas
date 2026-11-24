@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { lazy, useState, useEffect, useRef, useMemo } from "react";
+import DeferredQueueItem from "@/components/pcp/DeferredQueueItem";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
@@ -59,13 +60,15 @@ import {
   obterStatusExecucaoPedido, classGrupo, getItens
 } from "@/lib/pedidoOdooHelper";
 import useDistribuicaoPcp from "@/hooks/useDistribuicaoPcp"; import useProgramacaoPcp from "@/hooks/useProgramacaoPcp";
-import useFilaPaginada from "@/hooks/useFilaPaginada"; import useRealtimeThrottled from "@/hooks/useRealtimeThrottled";
+import useFilaPaginada from "@/hooks/useFilaPaginada";
 import FilaPagination from "@/components/pcp/FilaPagination";
 import { montarConsultaPcp, buscarOpsDasOfs } from "@/lib/consultaFilaPcp"; import useFecharProduzidosPcp from "@/hooks/useFecharProduzidosPcp";
 import { getPesoOrdenacaoPrioridade, formatarDataProgramadaAmigavel, hasPrioridadeDefinida, montarUpdatesPrioridade, normalizarPrioridadeNivelNumerico } from "@/lib/prioridadeHelper";
 import ModalPrioridadeObrigatoria from "@/components/pcp/ModalPrioridadeObrigatoria";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
 import { usePreBaixaBobinas } from "@/hooks/usePreBaixaBobinas";
+
+const EMPTY_LIST = Object.freeze([]);
 
 const BadgeTempoSync = React.memo(function BadgeTempoSync({ dataUpdatedAt }) {
   const [segundos, setSegundos] = useState(0);
@@ -106,26 +109,18 @@ export default function CentralPCP() {
   const { toast } = useToast();
   const [busca, setBusca] = useState("");
   const [tipoBusca, setTipoBusca] = useState("todos"); // "todos" | "cliente" | "vendedor" | "numero_pedido" | "modelo"
-  const [buscaDebounced, setBuscaDebounced] = useState("");
-
-  // Debounce ultra-fluido de 180ms para eliminar qualquer travamento ao digitar
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setBuscaDebounced(busca);
-    }, 180);
-    return () => clearTimeout(timer);
-  }, [busca]);
+  // A digitação e o debounce vivem no campo de busca, sem renderizar
+  // todos os pedidos a cada tecla. Aqui chega somente o termo confirmado.
+  const buscaDebounced = busca;
 
   const handleLimparBusca = () => {
     setBusca("");
-    setBuscaDebounced("");
   };
 
   const handleSelecionarModeloRapido = (mod) => {
     const ativo = busca.toLowerCase().trim() === mod.toLowerCase().trim();
     const novo = ativo ? "" : mod;
     setBusca(novo);
-    setBuscaDebounced(novo);
   };
 
   const [buscandoNoBanco, setBuscandoNoBanco] = useState(false);
@@ -369,7 +364,7 @@ export default function CentralPCP() {
   const consultaPcp = montarConsultaPcp({ filtro, lojaSelecionada, busca: buscaDebounced, tipoBusca, filtroSetor,
     filtroDataCampo, filtroDataInicio, filtroDataFim, filtroDataPreset });
   const filaPcp = useFilaPaginada({ entidade: "PedidoOdoo", query: consultaPcp, prefixo: "pedidos-odoo-pcp" });
-  const { data: pedidosRaw = [], isLoading: carregando, refetch, dataUpdatedAt } = filaPcp;
+  const { data: pedidosRaw = EMPTY_LIST, isLoading: carregando, isFetching: atualizandoFila, refetch, dataUpdatedAt } = filaPcp;
   const { data: resumoServidor = { rows: [] } } = useQuery({
     queryKey: ["resumo-pcp"], queryFn: () => base44.entities.PedidoOdoo.aggregate({ groupBy: ["unidade", "status_pcp"] }), staleTime: 30000
   });
@@ -431,7 +426,7 @@ export default function CentralPCP() {
     return lista;
   }, [pedidosRaw]);
 
-  const { data: pedidosProducao = [] } = useQuery({
+  const { data: pedidosProducao = EMPTY_LIST } = useQuery({
     queryKey: ["pedidos-producao-todos", pedidos.map(p => p.id).join(",")],
     enabled: pedidos.length > 0,
     queryFn: () => buscarOpsDasOfs(base44, "Pedido", pedidos),
@@ -440,7 +435,7 @@ export default function CentralPCP() {
     refetchOnWindowFocus: false
   });
 
-  const { data: ordensCD = [] } = useQuery({
+  const { data: ordensCD = EMPTY_LIST } = useQuery({
     queryKey: ["ordens-cd-todos", pedidos.map(p => p.id).join(",")],
     enabled: pedidos.length > 0,
     queryFn: async () => {
@@ -457,7 +452,7 @@ export default function CentralPCP() {
 
   useFecharProduzidosPcp({ pedidos, pedidosProducao, ordensCD, queryKey: filaPcp.queryKey });
   // Consultas de Matéria-Prima em Tempo Real para Análise de Disponibilidade no PCP
-  const { data: bobinasEstoque = [] } = useQuery({
+  const { data: bobinasEstoque = EMPTY_LIST } = useQuery({
     queryKey: ["bobinas-estoque-pcp"],
     queryFn: async () => {
       const CHAVE = "bobinas_estoque_pcp_cache";
@@ -482,7 +477,7 @@ export default function CentralPCP() {
     refetchInterval: 60000
   });
 
-  const { data: chapasEstoque = [] } = useQuery({
+  const { data: chapasEstoque = EMPTY_LIST } = useQuery({
     queryKey: ["chapas-estoque-pcp"],
     queryFn: async () => {
       const CHAVE = "chapas_estoque_pcp_cache";
@@ -518,8 +513,8 @@ export default function CentralPCP() {
     preBaixaOpsMap
   }), [bobinasEstoque, chapasEstoque, preBaixaMap, preBaixaMetrosMap, preBaixaOpsMap]);
 
-  // Tempo real com throttle: rajadas de gravação viram um único refetch da fila
-  useRealtimeThrottled({ entidade: "PedidoOdoo", queryKey: ["pedidos-odoo-pcp"], chaveSecundaria: ["resumo-pcp"] });
+  // A sincronização global já atualiza a fila e o resumo. Uma segunda
+  // assinatura aqui duplicava as consultas para o mesmo evento.
 
   // Sincronização 100% Automática em Tempo Real com o Odoo ERP:
   // Detecta alterações no progresso real das máquinas e sincroniza tanto o banco quanto o Odoo
@@ -2621,12 +2616,12 @@ export default function CentralPCP() {
         <Button
           variant="outline"
           onClick={handleRefetchComFeedback}
-          disabled={carregando}
+          disabled={atualizandoFila}
           className="h-9 px-3.5 rounded-lg text-[13px] font-semibold text-slate-800 dark:text-slate-100 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 gap-1.5"
           title="Forçar atualização e sincronização imediata com o Odoo ERP"
         >
-          <RefreshCw className={`w-4 h-4 ${carregando ? "animate-spin text-orange-500" : "text-emerald-600"}`} />
-          Sincronizar
+          <RefreshCw className={`w-4 h-4 ${atualizandoFila ? "animate-spin text-orange-500" : "text-emerald-600"}`} />
+          {atualizandoFila ? "Atualizando…" : "Sincronizar"}
         </Button>
         <Button
           onClick={() => setWebhookOpen(true)}

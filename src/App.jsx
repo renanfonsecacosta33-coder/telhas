@@ -1,3 +1,5 @@
+import { lazy, Suspense } from 'react';
+import RouteLoading from '@/components/routing/RouteLoading';
 import { Toaster } from "@/components/ui/toaster"
 import { Toaster as SonnerToaster } from "@/components/ui/sonner"
 import PwaInstallPrompt from "@/components/pwa/PwaInstallPrompt"
@@ -15,93 +17,88 @@ import { OfflineProvider } from '@/contexts/OfflineContext';
 import OfflineStatusBar from '@/components/offline/OfflineStatusBar';
 import SupabaseRealtimeSync from '@/components/SupabaseRealtimeSync';
 import AutoRefreshInactivity from '@/components/AutoRefreshInactivity';
-import AppLayout from '@/components/layout/AppLayout';
-import Dashboard from '@/pages/Dashboard';
-import DashboardTelhas from '@/pages/DashboardTelhas';
-import DashboardCorteDobraCompleto from '@/pages/DashboardCorteDobraCompleto';
-import Bobinas from '@/pages/Bobinas';
-import Isopor from '@/pages/Isopor';
-import Estoque from '@/pages/Estoque';
-import Producao from '@/pages/Producao';
-import Configuracoes from '@/pages/Configuracoes';
-import GerenciarUsuarios from '@/pages/GerenciarUsuarios';
-import UsuariosEquipe from '@/pages/UsuariosEquipe';
-import TP40 from '@/pages/maquinas/TP40';
-import TP25 from '@/pages/maquinas/TP25';
-import Ondulada from '@/pages/maquinas/Ondulada';
-import Colonial from '@/pages/maquinas/Colonial';
-import Bandeja from '@/pages/maquinas/Bandeja';
-import Desbobinador from '@/pages/maquinas/Desbobinador';
-import Cumeeira from '@/pages/maquinas/Cumeeira';
-import Colagem from '@/pages/maquinas/Colagem';
-import CorteEPS from '@/pages/maquinas/CorteEPS';
-import DashboardProducao from '@/pages/DashboardProducao';
-import DashboardEstoque from '@/pages/DashboardEstoque';
-import DashboardTP40 from '@/pages/maquinas/DashboardTP40';
-import DashboardTP25 from '@/pages/maquinas/DashboardTP25';
-import DashboardOndulada from '@/pages/maquinas/DashboardOndulada';
-import DashboardColonial from '@/pages/maquinas/DashboardColonial';
-import DashboardBandeja from '@/pages/maquinas/DashboardBandeja';
-import DashboardDesbobinador from '@/pages/maquinas/DashboardDesbobinador';
-import DashboardCumeeira from '@/pages/maquinas/DashboardCumeeira';
-import DashboardColagem from '@/pages/maquinas/DashboardColagem';
-import CalculadoraIsopor from '@/pages/CalculadoraIsopor';
-import DashboardPerformance from '@/pages/DashboardPerformance';
-import Cola from '@/pages/Cola';
-import VendedorEstoque from '@/pages/VendedorEstoque';
-import VendedorDashboard from '@/pages/VendedorDashboard';
-import PainelAdministrativo from '@/pages/PainelAdministrativo';
-import AdminUsuarios from '@/pages/AdminUsuarios';
-import PerformanceOperadores from '@/pages/PerformanceOperadores';
-import SeletorSetor from '@/pages/SeletorSetor';
-import AppLayoutCD from '@/components/layout/CorteDobra/AppLayoutCD';
-import DashboardCD from '@/pages/corte-dobra/Dashboard';
-import ProducaoCD from '@/pages/corte-dobra/Producao';
-import BobinasCD from '@/pages/corte-dobra/Bobinas';
-import Chaparia from '@/pages/corte-dobra/Chaparia';
-import EPI from '@/pages/corte-dobra/EPI';
-import DesenvolvimentoCD from '@/pages/corte-dobra/Desenvolvimento';
-import AuditoriaPage from '@/pages/AuditoriaPage';
-import TimelineCarregamentoPage from '@/pages/TimelineCarregamentoPage';
-import CatalogoCD from '@/pages/corte-dobra/Catalogo';
-import CentralPopsPage from '@/pages/CentralPopsPage';
-import RetalhosCD from '@/pages/corte-dobra/Retalhos';
-import SlitterPage from '@/pages/corte-dobra/Slitter';
-import CalculosCD from '@/pages/corte-dobra/Calculos';
-import Corte3m from '@/pages/corte-dobra/maquinas/Corte3m';
-import Dobra3m from '@/pages/corte-dobra/maquinas/Dobra3m';
-import Corte6m from '@/pages/corte-dobra/maquinas/Corte6m';
-import DobraFundo6m from '@/pages/corte-dobra/maquinas/DobraFundo6m';
-import DobraInicio6m from '@/pages/corte-dobra/maquinas/DobraInicio6m';
-import Perfiladeira from '@/pages/corte-dobra/maquinas/Perfiladeira';
-import Desbobinadeira from '@/pages/corte-dobra/maquinas/Desbobinadeira';
-import Laser from '@/pages/corte-dobra/maquinas/Laser';
-import Dobra4m from '@/pages/corte-dobra/maquinas/Dobra4m';
-import MapaBarracao from '@/pages/corte-dobra/MapaBarracao';
-import MapaBarracaoTelhas from '@/pages/MapaBarracaoTelhas';
-import BobinaQR from '@/pages/BobinaQR';
-import Logistica from '@/pages/corte-dobra/Logistica';
-import LogisticaStandalone from '@/pages/Logistica';
-import CentralAlertas from '@/pages/corte-dobra/CentralAlertas';
-import CentralPCP from '@/pages/CentralPCP';
-import CalendarioLogisticaPage from '@/pages/CalendarioLogisticaPage';
-import DashboardExecutivo from '@/pages/DashboardExecutivo';
-import RelatoriosGerenciais from '@/pages/RelatoriosGerenciais';
-
-// Expedição
-import AppLayoutExpedicao from '@/components/layout/Expedicao/AppLayoutExpedicao';
-import DashboardExpedicao from '@/pages/expedicao/Dashboard';
-import RecebimentoExpedicao from '@/pages/expedicao/Recebimento';
-import EstoqueExpedicao from '@/pages/expedicao/Estoque';
-import MapaArmazenagem from '@/pages/expedicao/MapaArmazenagem';
-import FrisadaPage from '@/pages/expedicao/Frisada';
-import HistoricoExpedicao from '@/pages/expedicao/Historico';
-import SaidaMaterial from '@/pages/expedicao/SaidaMaterial';
-import DevolucoesExpedicao from '@/pages/expedicao/Devolucoes';
-import ReservasExpedicao from '@/pages/expedicao/Reservas';
-import LogisticaExpedicao from '@/pages/expedicao/Logistica';
-import ArquivoRotas from '@/pages/ArquivoRotas';
 import AjlIaCopilot from '@/components/chat/AjlIaCopilot';
+
+// Somente a tela visitada é baixada e preparada. Relatórios, mapas,
+// calculadoras e outros setores não bloqueiam a abertura do PCP.
+const AppLayout = lazy(() => import('@/components/layout/AppLayout'));
+const AppLayoutCD = lazy(() => import('@/components/layout/CorteDobra/AppLayoutCD'));
+const AppLayoutExpedicao = lazy(() => import('@/components/layout/Expedicao/AppLayoutExpedicao'));
+const DashboardTelhas = lazy(() => import('@/pages/DashboardTelhas'));
+const DashboardCorteDobraCompleto = lazy(() => import('@/pages/DashboardCorteDobraCompleto'));
+const Bobinas = lazy(() => import('@/pages/Bobinas'));
+const Isopor = lazy(() => import('@/pages/Isopor'));
+const Producao = lazy(() => import('@/pages/Producao'));
+const Configuracoes = lazy(() => import('@/pages/Configuracoes'));
+const GerenciarUsuarios = lazy(() => import('@/pages/GerenciarUsuarios'));
+const UsuariosEquipe = lazy(() => import('@/pages/UsuariosEquipe'));
+const TP40 = lazy(() => import('@/pages/maquinas/TP40'));
+const TP25 = lazy(() => import('@/pages/maquinas/TP25'));
+const Ondulada = lazy(() => import('@/pages/maquinas/Ondulada'));
+const Colonial = lazy(() => import('@/pages/maquinas/Colonial'));
+const Bandeja = lazy(() => import('@/pages/maquinas/Bandeja'));
+const Desbobinador = lazy(() => import('@/pages/maquinas/Desbobinador'));
+const Cumeeira = lazy(() => import('@/pages/maquinas/Cumeeira'));
+const Colagem = lazy(() => import('@/pages/maquinas/Colagem'));
+const DashboardProducao = lazy(() => import('@/pages/DashboardProducao'));
+const DashboardEstoque = lazy(() => import('@/pages/DashboardEstoque'));
+const DashboardTP40 = lazy(() => import('@/pages/maquinas/DashboardTP40'));
+const DashboardTP25 = lazy(() => import('@/pages/maquinas/DashboardTP25'));
+const DashboardOndulada = lazy(() => import('@/pages/maquinas/DashboardOndulada'));
+const DashboardColonial = lazy(() => import('@/pages/maquinas/DashboardColonial'));
+const DashboardBandeja = lazy(() => import('@/pages/maquinas/DashboardBandeja'));
+const DashboardDesbobinador = lazy(() => import('@/pages/maquinas/DashboardDesbobinador'));
+const DashboardCumeeira = lazy(() => import('@/pages/maquinas/DashboardCumeeira'));
+const DashboardColagem = lazy(() => import('@/pages/maquinas/DashboardColagem'));
+const CalculadoraIsopor = lazy(() => import('@/pages/CalculadoraIsopor'));
+const DashboardPerformance = lazy(() => import('@/pages/DashboardPerformance'));
+const Cola = lazy(() => import('@/pages/Cola'));
+const VendedorEstoque = lazy(() => import('@/pages/VendedorEstoque'));
+const VendedorDashboard = lazy(() => import('@/pages/VendedorDashboard'));
+const PainelAdministrativo = lazy(() => import('@/pages/PainelAdministrativo'));
+const PerformanceOperadores = lazy(() => import('@/pages/PerformanceOperadores'));
+const SeletorSetor = lazy(() => import('@/pages/SeletorSetor'));
+const ProducaoCD = lazy(() => import('@/pages/corte-dobra/Producao'));
+const BobinasCD = lazy(() => import('@/pages/corte-dobra/Bobinas'));
+const Chaparia = lazy(() => import('@/pages/corte-dobra/Chaparia'));
+const EPI = lazy(() => import('@/pages/corte-dobra/EPI'));
+const DesenvolvimentoCD = lazy(() => import('@/pages/corte-dobra/Desenvolvimento'));
+const AuditoriaPage = lazy(() => import('@/pages/AuditoriaPage'));
+const TimelineCarregamentoPage = lazy(() => import('@/pages/TimelineCarregamentoPage'));
+const CatalogoCD = lazy(() => import('@/pages/corte-dobra/Catalogo'));
+const CentralPopsPage = lazy(() => import('@/pages/CentralPopsPage'));
+const RetalhosCD = lazy(() => import('@/pages/corte-dobra/Retalhos'));
+const SlitterPage = lazy(() => import('@/pages/corte-dobra/Slitter'));
+const CalculosCD = lazy(() => import('@/pages/corte-dobra/Calculos'));
+const Corte3m = lazy(() => import('@/pages/corte-dobra/maquinas/Corte3m'));
+const Dobra3m = lazy(() => import('@/pages/corte-dobra/maquinas/Dobra3m'));
+const Corte6m = lazy(() => import('@/pages/corte-dobra/maquinas/Corte6m'));
+const DobraFundo6m = lazy(() => import('@/pages/corte-dobra/maquinas/DobraFundo6m'));
+const DobraInicio6m = lazy(() => import('@/pages/corte-dobra/maquinas/DobraInicio6m'));
+const Perfiladeira = lazy(() => import('@/pages/corte-dobra/maquinas/Perfiladeira'));
+const Desbobinadeira = lazy(() => import('@/pages/corte-dobra/maquinas/Desbobinadeira'));
+const Laser = lazy(() => import('@/pages/corte-dobra/maquinas/Laser'));
+const Dobra4m = lazy(() => import('@/pages/corte-dobra/maquinas/Dobra4m'));
+const MapaBarracao = lazy(() => import('@/pages/corte-dobra/MapaBarracao'));
+const BobinaQR = lazy(() => import('@/pages/BobinaQR'));
+const Logistica = lazy(() => import('@/pages/corte-dobra/Logistica'));
+const LogisticaStandalone = lazy(() => import('@/pages/Logistica'));
+const CentralAlertas = lazy(() => import('@/pages/corte-dobra/CentralAlertas'));
+const CentralPCP = lazy(() => import('@/pages/CentralPCP'));
+const CalendarioLogisticaPage = lazy(() => import('@/pages/CalendarioLogisticaPage'));
+const DashboardExecutivo = lazy(() => import('@/pages/DashboardExecutivo'));
+const RelatoriosGerenciais = lazy(() => import('@/pages/RelatoriosGerenciais'));
+const DashboardExpedicao = lazy(() => import('@/pages/expedicao/Dashboard'));
+const RecebimentoExpedicao = lazy(() => import('@/pages/expedicao/Recebimento'));
+const EstoqueExpedicao = lazy(() => import('@/pages/expedicao/Estoque'));
+const MapaArmazenagem = lazy(() => import('@/pages/expedicao/MapaArmazenagem'));
+const FrisadaPage = lazy(() => import('@/pages/expedicao/Frisada'));
+const HistoricoExpedicao = lazy(() => import('@/pages/expedicao/Historico'));
+const SaidaMaterial = lazy(() => import('@/pages/expedicao/SaidaMaterial'));
+const DevolucoesExpedicao = lazy(() => import('@/pages/expedicao/Devolucoes'));
+const ReservasExpedicao = lazy(() => import('@/pages/expedicao/Reservas'));
+const LogisticaExpedicao = lazy(() => import('@/pages/expedicao/Logistica'));
+const ArquivoRotas = lazy(() => import('@/pages/ArquivoRotas'));
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -135,6 +132,7 @@ const AuthenticatedApp = () => {
     <FilialProvider>
     <SupabaseRealtimeSync />
     <AutoRefreshInactivity />
+    <Suspense fallback={<RouteLoading />}>
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<DashboardTelhas />} />
@@ -235,6 +233,7 @@ const AuthenticatedApp = () => {
       <Route path="/pops" element={<CentralPopsPage />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
+    </Suspense>
     <AjlIaCopilot />
     </FilialProvider>
   );
@@ -248,7 +247,7 @@ function App() {
       <QueryClientProvider client={queryClientInstance}>
         <OfflineProvider>
           <OfflineStatusBar />
-          <Router>
+          <Router future={{ v7_startTransition: true }}>
             <AuthenticatedApp />
           </Router>
           <Toaster />
