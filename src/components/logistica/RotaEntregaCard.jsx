@@ -733,18 +733,17 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
                         </td>
                         <td className="p-2.5 text-center whitespace-nowrap">
                           {pdfUrl ? (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => window.open(pdfUrl, "_blank")}
-                              className="h-7 px-2.5 gap-1.5 text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 shadow-2xs cursor-pointer group"
+                            <a
+                              href={pdfUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center h-7 px-2.5 gap-1.5 text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 rounded-md shadow-2xs cursor-pointer group transition-colors"
                               title={`Abrir PDF oficial do Pedido #${it.numero_pedido} (${pdfNome})`}
                             >
                               <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
                               <span>Ver PDF</span>
                               <ExternalLink className="w-3 h-3 text-emerald-500 opacity-60" />
-                            </Button>
+                            </a>
                           ) : (
                             <span
                               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900"
