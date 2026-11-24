@@ -56,11 +56,38 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
   const [viewerUrl, setViewerUrl] = useState(null);
   const [viewerName, setViewerName] = useState("");
   const [replacingRota, setReplacingRota] = useState(false);
+  const [solicitandoPdfs, setSolicitandoPdfs] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [pedidoOdooModal, setPedidoOdooModal] = useState(null);
   const [tabelaExpandida, setTabelaExpandida] = useState(true);
   const editRotaRef = useRef(null);
   const queryClient = useQueryClient();
+
+  const handleSolicitarPdfsOdoo = async () => {
+    const listaPedidos = itens.map((it) => it.numero_pedido).filter(Boolean);
+    if (listaPedidos.length === 0) {
+      toast.error("Nenhum pedido identificado nesta rota.");
+      return;
+    }
+    setSolicitandoPdfs(true);
+    try {
+      const res = await base44.functions.invoke("solicitarPdfsOdoo", {
+        rota_id: rota.id,
+        pedidos: listaPedidos,
+      });
+      if (res?.success) {
+        toast.success(`Solicitação de PDFs enviada ao Odoo! (${res.pedidos?.length || listaPedidos.length} pedidos) ID: ${res.request_id}`);
+      } else if (res?.config_pendente) {
+        toast.info(res.message || "Aguardando URL do webhook fornecida pela equipe do Odoo.");
+      } else {
+        toast.error(res?.message || "Erro ao solicitar PDFs ao Odoo.");
+      }
+    } catch (e) {
+      toast.error("Erro na solicitação: " + (e?.message || ""));
+    } finally {
+      setSolicitandoPdfs(false);
+    }
+  };
 
   const handleAbrirOdoo = async (it, info) => {
     if (info?.pedidoOdoo) {
@@ -308,6 +335,19 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
 
         {/* Ações do Topo: Gerar PDF, Editar e Quantidade de Pedidos */}
         <div className="flex items-center gap-2 flex-wrap shrink-0">
+          {/* Botão: Solicitar PDFs ao Odoo ERP */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleSolicitarPdfsOdoo}
+            disabled={solicitandoPdfs}
+            className="gap-1.5 text-xs font-semibold h-9 px-3 border-blue-300 dark:border-blue-700 bg-blue-50/60 hover:bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/30 cursor-pointer"
+            title="Solicitar envio dos PDFs de venda ao Webhook do Odoo ERP"
+          >
+            {solicitandoPdfs ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 text-blue-600" />}
+            <span>Puxar PDFs do Odoo</span>
+          </Button>
+
           {/* Botão Oficial: Imprimir Romaneio em PDF */}
           <Button
             size="sm"

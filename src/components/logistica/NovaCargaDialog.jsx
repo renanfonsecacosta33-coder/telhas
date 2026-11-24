@@ -144,6 +144,17 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
         })
         .catch(() => {});
 
+      // Solicita automaticamente os PDFs dos pedidos ao Odoo ERP
+      const pedidosParaPdf = (parsed.itens || []).map((i) => i.numero_pedido).filter(Boolean);
+      if (pedidosParaPdf.length > 0) {
+        base44.functions
+          .invoke("solicitarPdfsOdoo", {
+            pedidos: pedidosParaPdf,
+            rota_titulo: parsed.titulo || "Rota de Entrega",
+          })
+          .catch(() => {});
+      }
+
       onClose();
     } catch (e) {
       toast.error("Erro ao salvar: " + (e?.message || ""));
