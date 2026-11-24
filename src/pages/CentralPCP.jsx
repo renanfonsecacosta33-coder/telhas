@@ -1,5 +1,4 @@
-import React, { lazy, useState, useEffect, useRef, useMemo } from "react";
-import DeferredQueueItem from "@/components/pcp/DeferredQueueItem";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
@@ -10,10 +9,7 @@ import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers,
 import { exportarRelatorioEntregasCSV } from "@/lib/relatorioEntregasHelper";
 import { executarExclusaoOsBackground } from "@/lib/excluirOsHelper"; import { sincronizarLoteOdoo } from "@/lib/sincronizarOdooHelper";
 import { finalizarOpsDoPedido, cancelarOpsDoPedido, executarVarreduraEConciliacaoGeral, cancelarOpsDasOfsExatas, comRetryLimite } from "@/lib/conciliacaoPcpMaquinasHelper";
-import RelatorioAuditoriaDiariaModal from "@/components/pcp/RelatorioAuditoriaDiariaModal";
-import HistoricoExclusoesModal from "@/components/pcp/HistoricoExclusoesModal";
-import CentralSaudeSistemaModal from "@/components/pcp/CentralSaudeSistemaModal";
-import DiagnosticoOperacionalModal from "@/components/pcp/DiagnosticoOperacionalModal";
+import PcpDeferredDialogs from "@/components/pcp/PcpDeferredDialogs";
 import { registrarHistoricoExclusao, obterHistoricoExclusoes } from "@/lib/historicoExclusoesHelper";
 import { executarAuditoriaDiariaCompleta, obterUltimoRelatorioAuditoria } from "@/lib/auditoriaDiariaHelper";
 import BotaoDevolverLotePCP from "@/components/pcp/BotaoDevolverLotePCP";
@@ -30,23 +26,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import PedidoOdooCard from "@/components/pcp/PedidoOdooCard";
-import PedidoOdooGrupoCard from "@/components/pcp/PedidoOdooGrupoCard";
-import PedidoOdooDetalheDialog from "@/components/pcp/PedidoOdooDetalheDialog";
-import ModalRoteamentoCD from "@/components/pcp/ModalRoteamentoCD";
-import WebhookSimulatorDialog from "@/components/pcp/WebhookSimulatorDialog";
-import RecuperarPedidoOdooDialog from "@/components/pcp/RecuperarPedidoOdooDialog";
-import AuditarRestaurarOpsDialog from "@/components/pcp/AuditarRestaurarOpsDialog";
-import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
+import PcpQueueViews from "@/components/pcp/PcpQueueViews";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
-import TransferirLojaDialog from "@/components/pcp/TransferirLojaDialog";
-import HistoricoMovimentacaoDialog from "@/components/pcp/HistoricoMovimentacaoDialog";
 import ViewModeToggle from "@/components/ui/ViewModeToggle";
-import FilaPCPTabelaView from "@/components/pcp/FilaPCPTabelaView";
-import FilaPCPKanbanView from "@/components/pcp/FilaPCPKanbanView";
-import CalendarioPcpView from "@/components/pcp/CalendarioPcpView";
-import ModalFinalizarEtapasCalendario from "@/components/pcp/ModalFinalizarEtapasCalendario";
-import HistoricoPedidoSidebar from "@/components/corte-dobra/HistoricoPedidoSidebar";
 import { salvarCacheLocal, obterCacheLocal } from "@/lib/offlineStorage";
 import { useFilial } from "@/contexts/FilialContext";
 import { useOffline } from "@/contexts/OfflineContext";
@@ -3081,175 +3063,85 @@ export default function CentralPCP() {
             </div>
 
             {/* Visualizações Condicionais: Tabela / Kanban / Cards */}
-            {viewMode === "tabela" ? (
-              <FilaPCPTabelaView
-                pedidos={pedidosFiltrados}
-                gruposPedidos={gruposPedidos}
-                estoqueContext={estoqueContext}
-                pedidosProducao={pedidosProducao}
-                ordensCD={ordensCD}
-                selecionados={selecionados}
-                onToggleSelect={handleToggleSelect}
-                onToggleSelectGrupo={handleToggleSelectGrupo}
-                onOpenDetalhe={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
-                onDistribuir={iniciarDistribuicaoComRoteamento}
-                onDistribuirGrupo={handleDistribuirGrupoWrapper}
-                onFinalizarOP={(p) => handleSolicitarFinalizar100([p])}
-                onFinalizarGrupo100={(lista) => handleSolicitarFinalizar100(lista)}
-                onOpenHistorico={(num) => setPedidoHistoricoNumero(num)}
-                onSincronizarOdoo={(p) => handleSincronizarLoteOdoo([p])}
-                onSincronizarGrupoOdoo={(lista) => handleSincronizarLoteOdoo(lista)}
-                onSetPrioridade={handleSetPrioridade}
-                onSetPrioridadeGrupo={handleSetPrioridadeGrupo}
-              />
-            ) : viewMode === "kanban" ? (
-              <FilaPCPKanbanView pedidosProducao={pedidosProducao} ordensCD={ordensCD}
-                pedidos={pedidosFiltrados}
-                gruposPedidos={gruposPedidos}
-                onOpenDetalhe={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
-                onDistribuir={iniciarDistribuicaoComRoteamento}
-                onDistribuirGrupo={handleDistribuirGrupoWrapper}
-                onFinalizarOP={(p) => handleSolicitarFinalizar100([p])}
-                onFinalizarGrupo100={(lista) => handleSolicitarFinalizar100(lista)}
-                onOpenHistorico={(num) => setPedidoHistoricoNumero(num)}
-                selecionados={selecionados}
-                onToggleSelectGrupo={handleToggleSelectGrupo}
-              />
-            ) : viewMode === "calendario" ? (
-              <CalendarioPcpView
-                gruposPedidos={gruposPedidosCalendario}
-                pedidosFiltrados={gruposPedidosCalendario}
-                pedidosProducao={pedidosProducao}
-                ordensCD={ordensCD}
-                onOpenDetalhe={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
-              />
-            ) : modoVisao === "agrupado" ? (
-              <div className="space-y-3">
-                {gruposPedidos.map(grupo => (
-                  <PedidoOdooGrupoCard
-                    key={grupo.numero_pedido}
-                    grupo={grupo}
-                    expandido={pedidosExpandidos.has(grupo.numero_pedido)}
-                    onToggle={() => toggleExpandirPedido(grupo.numero_pedido)}
-                    pedidosProducao={pedidosProducao}
-                    ordensCD={ordensCD}
-                    selecionados={selecionados}
-                    onToggleSelect={handleToggleSelect}
-                    onToggleSelectGrupo={handleToggleSelectGrupo}
-                    onDistribuir={iniciarDistribuicaoComRoteamento}
-                    onDistribuirGrupo={handleDistribuirGrupoWrapper}
-                    onClickPedido={(p) => { setPedidoSelecionado(p); setDetalheOpen(true); }}
-                    onDelete={solicitarExclusaoIndividual}
-                    onDeleteGrupo={solicitarExclusaoGrupo}
-                    onRetirarFila={handleRetirarFila}
-                    onTogglePrioridade={handleTogglePrioridade}
-                    onSetPrioridade={handleSetPrioridade}
-                    onSetPrioridadeGrupo={handleSetPrioridadeGrupo}
-                    onVerHistorico={handleAbrirHistoricoMovimentacao}
-                    onTransferir={(p) => setModalTransferir({ aberto: true, pedidos: [p] })}
-                    onTransferirGrupo={(g) => setModalTransferir({ aberto: true, pedidos: g.ofs || [] })}
-                    onFinalizarGrupo100={(lista) => handleSolicitarFinalizar100(lista)}
-                    onMarcarGrupoEntregue={handleMarcarEntregue}
-                    onReverterGrupoEntregue={handleSolicitarReverterEntregue}
-                    onSincronizarGrupoOdoo={(lista) => handleSincronizarLoteOdoo(lista)}
-                    estoqueContext={estoqueContext}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {pedidosFiltrados.map(p => (
-                  <PedidoOdooCard
-                    key={p.id}
-                    pedido={p}
-                    progressoReal={calcularProgressoRealPedido(p, pedidosProducao, ordensCD)}
-                    pedidosProducao={pedidosProducao}
-                    ordensCD={ordensCD}
-                    selecionado={selecionados.has(p.id)}
-                    onToggleSelect={handleToggleSelect}
-                    onDistribuir={iniciarDistribuicaoComRoteamento}
-                    onClick={() => { setPedidoSelecionado(p); setDetalheOpen(true); }}
-                    onDelete={solicitarExclusaoIndividual}
-                    onRetirarFila={handleRetirarFila}
-                    onTogglePrioridade={handleTogglePrioridade}
-                    onSetPrioridade={handleSetPrioridade}
-                    onVerHistorico={handleAbrirHistoricoMovimentacao}
-                    onTransferir={(ped) => setModalTransferir({ aberto: true, pedidos: [ped] })}
-                    onFinalizar100={(ped) => handleSolicitarFinalizar100([ped])}
-                    onMarcarEntregue={(ped) => handleMarcarEntregue([ped])}
-                    onReverterEntregue={(ped) => handleSolicitarReverterEntregue([ped])}
-                    estoqueContext={estoqueContext}
-                  />
-                ))}
-              </div>
-            )}
+            <PcpQueueViews
+              viewMode={viewMode} mode={modoVisao} orders={pedidosFiltrados} groups={gruposPedidos}
+              calendarGroups={gruposPedidosCalendario} productionOrders={pedidosProducao} cdOrders={ordensCD}
+              selected={selecionados} expanded={pedidosExpandidos} onToggleGroup={toggleExpandirPedido}
+              viewProps={{
+                onToggleSelect: handleToggleSelect, onToggleSelectGrupo: handleToggleSelectGrupo,
+                onOpenDetalhe: (p) => { setPedidoSelecionado(p); setDetalheOpen(true); },
+                onDistribuir: iniciarDistribuicaoComRoteamento, onDistribuirGrupo: handleDistribuirGrupoWrapper,
+                onFinalizarOP: (p) => handleSolicitarFinalizar100([p]),
+                onFinalizarGrupo100: handleSolicitarFinalizar100,
+                onOpenHistorico: setPedidoHistoricoNumero,
+                onSincronizarOdoo: (p) => handleSincronizarLoteOdoo([p]),
+                onSincronizarGrupoOdoo: handleSincronizarLoteOdoo,
+                onSetPrioridade: handleSetPrioridade, onSetPrioridadeGrupo: handleSetPrioridadeGrupo
+              }}
+              groupProps={{
+                onToggleSelect: handleToggleSelect, onToggleSelectGrupo: handleToggleSelectGrupo,
+                onDistribuir: iniciarDistribuicaoComRoteamento, onDistribuirGrupo: handleDistribuirGrupoWrapper,
+                onClickPedido: (p) => { setPedidoSelecionado(p); setDetalheOpen(true); },
+                onDelete: solicitarExclusaoIndividual, onDeleteGrupo: solicitarExclusaoGrupo,
+                onRetirarFila: handleRetirarFila, onTogglePrioridade: handleTogglePrioridade,
+                onSetPrioridade: handleSetPrioridade, onSetPrioridadeGrupo: handleSetPrioridadeGrupo,
+                onVerHistorico: handleAbrirHistoricoMovimentacao,
+                onTransferir: (p) => setModalTransferir({ aberto: true, pedidos: [p] }),
+                onTransferirGrupo: (g) => setModalTransferir({ aberto: true, pedidos: g.ofs || [] }),
+                onFinalizarGrupo100: handleSolicitarFinalizar100,
+                onMarcarGrupoEntregue: handleMarcarEntregue,
+                onReverterGrupoEntregue: handleSolicitarReverterEntregue,
+                onSincronizarGrupoOdoo: handleSincronizarLoteOdoo,
+                estoqueContext
+              }}
+              cardProps={{
+                onToggleSelect: handleToggleSelect, onDistribuir: iniciarDistribuicaoComRoteamento,
+                onDelete: solicitarExclusaoIndividual, onRetirarFila: handleRetirarFila,
+                onTogglePrioridade: handleTogglePrioridade, onSetPrioridade: handleSetPrioridade,
+                onVerHistorico: handleAbrirHistoricoMovimentacao,
+                onTransferir: (p) => setModalTransferir({ aberto: true, pedidos: [p] }),
+                onFinalizar100: (p) => handleSolicitarFinalizar100([p]),
+                onMarcarEntregue: (p) => handleMarcarEntregue([p]),
+                onReverterEntregue: (p) => handleSolicitarReverterEntregue([p]),
+                estoqueContext
+              }}
+            />
           </>
         )}
       </div>
 
-      <PedidoOdooDetalheDialog
-        pedido={pedidoSelecionado}
-        progressoReal={pedidoSelecionado ? calcularProgressoRealPedido(pedidoSelecionado, pedidosProducao, ordensCD) : null}
-        open={detalheOpen}
-        onOpenChange={setDetalheOpen}
-        onDistribuir={iniciarDistribuicaoComRoteamento}
-        distribuindo={distribuindo}
-        onExcluirOS={handleExcluirOS}
-        onRetirarFila={handleRetirarFila}
-        onDevolverPCP={handleDevolverPCP}
-        onTogglePrioridade={handleTogglePrioridade}
-        onSetPrioridade={handleSetPrioridade}
-        onToggleItem={handleToggleItem}
-        onProgramarItem={handleProgramarItem}
-        onProgramarTodosItens={handleProgramarTodosItens}
-        onVerHistorico={handleAbrirHistoricoMovimentacao}
-        onTransferir={(p) => setModalTransferir({ aberto: true, pedidos: [p] })}
-        estoqueContext={estoqueContext}
-        onAtualizado={() => {
-          queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
-          queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
-          queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
-        }}
-      />
-
-      {/* Modal de Roteamento de Corte & Dobra Direto para as Máquinas */}
-      <ModalRoteamentoCD
-        open={modalRoteamentoCD.aberto}
-        onOpenChange={(aberto) => {
-          if (!aberto) setModalRoteamentoCD({ aberto: false, pedido: null, itensCD: [], callbackAposRoteamento: null });
-        }}
-        pedido={modalRoteamentoCD.pedido}
-        itensCD={modalRoteamentoCD.itensCD}
-        onConfirmar={handleConfirmarRoteamentoCD}
-        distribuindo={distribuindo}
-      />
-
-      {/* Modal de Histórico de Exclusões PCP */}
-      <HistoricoExclusoesModal
-        open={modalHistoricoExclusoesOpen}
-        onOpenChange={setModalHistoricoExclusoesOpen}
-      />
-      {/* Central de Saúde e Diagnóstico 360° */}
-      <CentralSaudeSistemaModal
-        open={modalSaudeOpen}
-        onOpenChange={setModalSaudeOpen}
-      />
-      {/* Diagnóstico Operacional: Índice de Duplicados e Descompasso de Máquinas/Colagem */}
-      <DiagnosticoOperacionalModal
-        open={modalDiagnosticoOpen}
-        onOpenChange={setModalDiagnosticoOpen}
-        pedidosPcp={pedidosRaw}
-      />
-      {/* Modal de Finalização de Etapas Individual / Grupo na Central PCP */}
-      <ModalFinalizarEtapasCalendario
-        open={modalEtapasPcpOpen}
-        onOpenChange={setModalEtapasPcpOpen}
-        pedido={pedidoEtapasPcpAlvo}
-        ofAlvo={ofEtapasPcpAlvo}
-        pedidosProducao={pedidosProducao}
-        ordensCD={ordensCD}
-        usuario="Central PCP"
-      />
+      <PcpDeferredDialogs dialogs={{
+        detalhe: {
+          pedido: pedidoSelecionado,
+          progressoReal: detalheOpen && pedidoSelecionado ? calcularProgressoRealPedido(pedidoSelecionado, pedidosProducao, ordensCD) : null,
+          open: detalheOpen, onOpenChange: setDetalheOpen,
+          onDistribuir: iniciarDistribuicaoComRoteamento, distribuindo,
+          onExcluirOS: handleExcluirOS, onRetirarFila: handleRetirarFila, onDevolverPCP: handleDevolverPCP,
+          onTogglePrioridade: handleTogglePrioridade, onSetPrioridade: handleSetPrioridade,
+          onToggleItem: handleToggleItem, onProgramarItem: handleProgramarItem,
+          onProgramarTodosItens: handleProgramarTodosItens, onVerHistorico: handleAbrirHistoricoMovimentacao,
+          onTransferir: (p) => setModalTransferir({ aberto: true, pedidos: [p] }), estoqueContext,
+          onAtualizado: () => {
+            queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
+            queryClient.invalidateQueries({ queryKey: ["ordens-maquinas-cd"] });
+            queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+          }
+        },
+        roteiro: {
+          open: modalRoteamentoCD.aberto,
+          onOpenChange: (aberto) => { if (!aberto) setModalRoteamentoCD({ aberto: false, pedido: null, itensCD: [], callbackAposRoteamento: null }); },
+          pedido: modalRoteamentoCD.pedido, itensCD: modalRoteamentoCD.itensCD,
+          onConfirmar: handleConfirmarRoteamentoCD, distribuindo
+        },
+        exclusoes: { open: modalHistoricoExclusoesOpen, onOpenChange: setModalHistoricoExclusoesOpen },
+        saude: { open: modalSaudeOpen, onOpenChange: setModalSaudeOpen },
+        diagnostico: { open: modalDiagnosticoOpen, onOpenChange: setModalDiagnosticoOpen, pedidosPcp: pedidosRaw },
+        etapas: {
+          open: modalEtapasPcpOpen, onOpenChange: setModalEtapasPcpOpen,
+          pedido: pedidoEtapasPcpAlvo, ofAlvo: ofEtapasPcpAlvo,
+          pedidosProducao, ordensCD, usuario: "Central PCP"
+        }
+      }} />
       <SenhaGestorDialog
         open={senhaGestorOpen}
         onOpenChange={setSenhaGestorOpen}
@@ -3282,40 +3174,27 @@ export default function CentralPCP() {
         aviso="A reversão destrava o pedido para novas alterações na Central PCP."
         onAutorizado={confirmarReverterEntregue}
         />
-      <WebhookSimulatorDialog
-        open={webhookOpen}
-        onOpenChange={setWebhookOpen}
-        onReceber={handleReceberWebhook}
-      />
-      <RecuperarPedidoOdooDialog
-        open={recuperarModalOpen}
-        onOpenChange={setRecuperarModalOpen}
-        onSucesso={() => {
-          refetch();
-        }}
-        onAbrirSimuladorWebhook={(numero) => {
-          setWebhookOpen(true);
-        }}
-      />
-      <AuditarRestaurarOpsDialog
-        open={auditarModalOpen}
-        onOpenChange={setAuditarModalOpen}
-        onSucesso={() => {
-          refetch();
-          queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
-          queryClient.invalidateQueries({ queryKey: ["ordens-cd-todos"] });
-        }}
-      />
-      <TransferirLojaDialog
-        open={modalTransferir.aberto}
-        onOpenChange={(aberto) => setModalTransferir(prev => ({ ...prev, aberto }))}
-        pedidos={modalTransferir.pedidos}
-        onSuccess={() => {
-          setSelecionados(new Set());
-          setPedidoSelecionado(null);
-          setDetalheOpen(false);
-        }}
-      />
+      <PcpDeferredDialogs dialogs={{
+        webhook: { open: webhookOpen, onOpenChange: setWebhookOpen, onReceber: handleReceberWebhook },
+        recuperar: {
+          open: recuperarModalOpen, onOpenChange: setRecuperarModalOpen,
+          onSucesso: () => refetch(), onAbrirSimuladorWebhook: () => setWebhookOpen(true)
+        },
+        auditar: {
+          open: auditarModalOpen, onOpenChange: setAuditarModalOpen,
+          onSucesso: () => {
+            refetch();
+            queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
+            queryClient.invalidateQueries({ queryKey: ["ordens-cd-todos"] });
+          }
+        },
+        transferir: {
+          open: modalTransferir.aberto,
+          onOpenChange: (aberto) => setModalTransferir(prev => ({ ...prev, aberto })),
+          pedidos: modalTransferir.pedidos,
+          onSuccess: () => { setSelecionados(new Set()); setPedidoSelecionado(null); setDetalheOpen(false); }
+        }
+      }} />
 
       {/* Modal Seguro de Confirmação de Exclusão (Lote, Grupo ou Individual) */}
       <AlertDialog
@@ -3450,47 +3329,27 @@ export default function CentralPCP() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Sidebar de Histórico Completo do Pedido */}
-      <HistoricoPedidoSidebar
-        open={Boolean(pedidoHistoricoNumero)}
-        onClose={() => setPedidoHistoricoNumero(null)}
-        numeroPedido={pedidoHistoricoNumero}
-      />
-
-      {/* Modal de Linha do Tempo e Histórico de Movimentação do Pedido */}
-      <HistoricoMovimentacaoDialog
-        open={modalHistoricoMov.aberto}
-        onOpenChange={(aberto) => setModalHistoricoMov(prev => ({ ...prev, aberto }))}
-        pedido={modalHistoricoMov.pedido}
-        grupo={modalHistoricoMov.grupo}
-      />
-
-      {/* Guia Operacional e Fluxograma do PCP */}
-      <GuiaOperacionalModal
-        open={popModalOpen}
-        onOpenChange={setPopModalOpen}
-        maquinaNome={popModalKey}
-      />
-
-      <RelatorioAuditoriaDiariaModal
-        open={modalRelatorioAuditoriaOpen}
-        onOpenChange={setModalRelatorioAuditoriaOpen}
-        relatorio={relatorioAuditoria}
-        executando={executandoAuditoriaDiaria}
-        onExecutarNovamente={async () => {
-          setExecutandoAuditoriaDiaria(true);
-          try {
-            const novoRel = await executarAuditoriaDiariaCompleta({ queryClient, usuario: "Gestor PCP (Manual)" });
-            setRelatorioAuditoria(novoRel);
-            toast({
-              title: "Auditoria Diária Concluída!",
-              description: `Score de Saúde: ${novoRel.scoreSaude}% — ${novoRel.statusGeral}`
-            });
-          } finally {
-            setExecutandoAuditoriaDiaria(false);
+      <PcpDeferredDialogs dialogs={{
+        historico: { open: Boolean(pedidoHistoricoNumero), onClose: () => setPedidoHistoricoNumero(null), numeroPedido: pedidoHistoricoNumero },
+        movimentacao: {
+          open: modalHistoricoMov.aberto,
+          onOpenChange: (aberto) => setModalHistoricoMov(prev => ({ ...prev, aberto })),
+          pedido: modalHistoricoMov.pedido, grupo: modalHistoricoMov.grupo
+        },
+        guia: { open: popModalOpen, onOpenChange: setPopModalOpen, maquinaNome: popModalKey },
+        relatorio: {
+          open: modalRelatorioAuditoriaOpen, onOpenChange: setModalRelatorioAuditoriaOpen,
+          relatorio: relatorioAuditoria, executando: executandoAuditoriaDiaria,
+          onExecutarNovamente: async () => {
+            setExecutandoAuditoriaDiaria(true);
+            try {
+              const novoRel = await executarAuditoriaDiariaCompleta({ queryClient, usuario: "Gestor PCP (Manual)" });
+              setRelatorioAuditoria(novoRel);
+              toast({ title: "Auditoria Diária Concluída!", description: `Score de Saúde: ${novoRel.scoreSaude}% — ${novoRel.statusGeral}` });
+            } finally { setExecutandoAuditoriaDiaria(false); }
           }
-        }}
-      />
+        }
+      }} />
 
       {/* Barra Flutuante de Ações em Lote */}
       {selecionados.size > 0 && (
