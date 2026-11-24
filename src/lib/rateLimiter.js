@@ -13,41 +13,67 @@
  *    respeitando o tempo de espera informado por ele.
  */
 
-const MAX_CONCORRENTES = 6;
+const MAX_CONCORRENTES = 8;
+const RESERVA_PRIORITARIA = 2;
 const JANELA_MS = 60000;
 const MAX_POR_JANELA = 95;
+const TETO_PRIORITARIO = MAX_POR_JANELA + 30;
 const MAX_TENTATIVAS = 3;
 
 let ativos = 0;
 let marcas = [];
 const fila = [];
+const filaPrioritaria = [];
 let timerJanela = null;
+let proximaPrioritaria = false;
+
+/** Consultas da tela do usuário (lista visível, contadores) furam a fila. */
+export function comPrioridade(fn) {
+  proximaPrioritaria = true;
+  try {
+    return fn();
+  } finally {
+    proximaPrioritaria = false;
+  }
+}
+
+function janelaDisponivel(teto) {
+  const agora = Date.now();
+  marcas = marcas.filter((t) => agora - t < JANELA_MS);
+  if (marcas.length < teto) return true;
+  if (!timerJanela) {
+    const espera = Math.max(JANELA_MS - (agora - marcas[0]) + 30, 200);
+    timerJanela = setTimeout(() => {
+      timerJanela = null;
+      processarFila();
+    }, espera);
+  }
+  return false;
+}
+
+function despachar(tarefa) {
+  ativos++;
+  marcas.push(Date.now());
+  tarefa();
+}
 
 function processarFila() {
-  while (fila.length && ativos < MAX_CONCORRENTES) {
-    const agora = Date.now();
-    marcas = marcas.filter((t) => agora - t < JANELA_MS);
-    if (marcas.length >= MAX_POR_JANELA) {
-      if (!timerJanela) {
-        const espera = Math.max(JANELA_MS - (agora - marcas[0]) + 30, 200);
-        timerJanela = setTimeout(() => {
-          timerJanela = null;
-          processarFila();
-        }, espera);
-      }
-      return;
-    }
-    const tarefa = fila.shift();
-    ativos++;
-    marcas.push(agora);
-    tarefa();
+  // 1) O que a pessoa está olhando sai primeiro, sem esperar a janela de 1 minuto.
+  while (filaPrioritaria.length && ativos < MAX_CONCORRENTES && janelaDisponivel(TETO_PRIORITARIO)) {
+    despachar(filaPrioritaria.shift());
+  }
+  // 2) Trabalho de fundo (estoque, pré-baixa, OPs) respeita a janela e deixa
+  //    vagas livres para a tela nunca ficar esperando.
+  const limiteFundo = filaPrioritaria.length ? MAX_CONCORRENTES - RESERVA_PRIORITARIA : MAX_CONCORRENTES;
+  while (fila.length && ativos < limiteFundo && janelaDisponivel(MAX_POR_JANELA)) {
+    despachar(fila.shift());
   }
 }
 
 /** Enfileira uma requisição e resolve com o resultado dela. */
-export function agendar(executar) {
+export function agendar(executar, prioridade = false) {
   return new Promise((resolve, reject) => {
-    fila.push(async () => {
+    const tarefa = async () => {
       try {
         resolve(await executar());
       } catch (e) {
@@ -56,7 +82,9 @@ export function agendar(executar) {
         ativos--;
         processarFila();
       }
-    });
+    };
+    if (prioridade) filaPrioritaria.push(tarefa);
+    else fila.push(tarefa);
     processarFila();
   });
 }
@@ -77,8 +105,9 @@ function ehLimite(erro) {
 
 /** Enfileira uma requisição e repete sozinha quando o limite é atingido. */
 export function agendarComRetry(executar) {
+  const prioridade = proximaPrioritaria;
   const tentar = (tentativa) =>
-    agendar(executar).catch(async (erro) => {
+    agendar(executar, prioridade).catch(async (erro) => {
       if (!ehLimite(erro) || tentativa >= MAX_TENTATIVAS) throw erro;
       await new Promise((r) => setTimeout(r, esperaSugerida(erro) + 250));
       return tentar(tentativa + 1);

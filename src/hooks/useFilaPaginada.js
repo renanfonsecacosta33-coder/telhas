@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { obterCacheLocal, salvarCacheLocal } from "@/lib/offlineStorage";
+import { comPrioridade } from "@/lib/rateLimiter";
 
 export default function useFilaPaginada({ entidade, query, prefixo, sort = "data_recebimento", limit = 100 }) {
   const client = useQueryClient();
@@ -21,7 +22,11 @@ export default function useFilaPaginada({ entidade, query, prefixo, sort = "data
       const cursors = [];
       for (let i = 0; i < estado.cursors.length; i++) {
         cursors.push(cursor);
-        const page = await base44.entities[entidade].filter(query, { sort, limit, ...(cursor ? { cursor } : {}) });
+        // Fura a fila global: a lista que a pessoa está vendo não espera o
+        // trabalho de fundo (estoque, pré-baixa, OPs das máquinas).
+        const page = await comPrioridade(() =>
+          base44.entities[entidade].filter(query, { sort, limit, ...(cursor ? { cursor } : {}) })
+        );
         records.push(...page.items);
         cursor = page.has_more ? page.next_cursor : null;
         if (!cursor) break;
@@ -33,13 +38,18 @@ export default function useFilaPaginada({ entidade, query, prefixo, sort = "data
     },
     staleTime: 60000, refetchOnWindowFocus: false, retry: false
   });
-  const total = useQuery({ queryKey: [...queryKey, "total"], queryFn: () => base44.entities[entidade].count(query), staleTime: 60000, retry: false });
+  const total = useQuery({
+    queryKey: [...queryKey, "total"],
+    queryFn: () => comPrioridade(() => base44.entities[entidade].count(query)),
+    staleTime: 60000,
+    retry: false
+  });
   const carregarMais = async () => {
     if (!estado.next || carregandoMais) return;
     setCarregandoMais(true);
     try {
       const cursor = estado.next;
-      const page = await base44.entities[entidade].filter(query, { sort, limit, cursor });
+      const page = await comPrioridade(() => base44.entities[entidade].filter(query, { sort, limit, cursor }));
       estado.cursors.push(cursor);
       estado.next = page.has_more ? page.next_cursor : null;
       client.setQueryData(queryKey, (old = []) => [...new Map([...old, ...page.items].map(record => [record.id, record])).values()]);

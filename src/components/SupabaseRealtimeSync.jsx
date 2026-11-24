@@ -25,6 +25,7 @@ export default function SupabaseRealtimeSync() {
   useEffect(() => {
     let timer = null;
     let ultimoDisparo = 0;
+    let ocultoDesde = 0;
 
     const dispararRefresh = () => {
       if (timer) clearTimeout(timer);
@@ -33,8 +34,9 @@ export default function SupabaseRealtimeSync() {
 
       const executar = () => {
         ultimoDisparo = Date.now();
-        // Invalidação suave apenas para consultas ativas na tela do usuário
-        const refetchOpt = { refetchType: 'active' };
+        // Aba em segundo plano: apenas marca como desatualizado, sem gastar
+        // requisições que deixariam a tela esperando ao voltar.
+        const refetchOpt = { refetchType: typeof document !== 'undefined' && document.hidden ? 'none' : 'active' };
         queryClient.invalidateQueries({ queryKey: ['ordens-desbobinadeira'], ...refetchOpt });
         queryClient.invalidateQueries({ queryKey: ['ordens-desb-todas'], ...refetchOpt });
         queryClient.invalidateQueries({ queryKey: ['ordens-maquina-cd'], ...refetchOpt });
@@ -56,6 +58,18 @@ export default function SupabaseRealtimeSync() {
         timer = setTimeout(executar, 1200);
       }
     };
+
+    // Ao voltar para a aba, atualiza o que ficou pendente enquanto ela estava oculta.
+    const aoTrocarVisibilidade = () => {
+      if (document.hidden) {
+        ocultoDesde = Date.now();
+        return;
+      }
+      const ficouOculta = ocultoDesde && Date.now() - ocultoDesde > 10000;
+      ocultoDesde = 0;
+      if (ficouOculta) dispararRefresh();
+    };
+    document.addEventListener('visibilitychange', aoTrocarVisibilidade);
 
     // 1. Supabase Postgres Realtime (se configurado)
     let channel = null;
@@ -93,6 +107,7 @@ export default function SupabaseRealtimeSync() {
     });
 
     return () => {
+      document.removeEventListener('visibilitychange', aoTrocarVisibilidade);
       if (timer) clearTimeout(timer);
       if (channel && supabase && typeof supabase.removeChannel === 'function') {
         try {
