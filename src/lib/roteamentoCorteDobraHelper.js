@@ -6,6 +6,7 @@ import { extrairEspessuraDoTexto } from "@/lib/estoqueMaterialHelper";
 import { identificarRoteiroDoPedido } from "@/lib/roteiroEtapasProducaoHelper";
 import { finalizarOpsDoPedido } from "@/lib/conciliacaoPcpMaquinasHelper";
 import { notificarStatus } from "@/lib/biNotificador";
+import { payloadLimpo, textoOuNulo } from "@/lib/payloadLimpo";
 
 /**
  * Normaliza qualquer variação de nome de máquina de Corte & Dobra
@@ -240,8 +241,8 @@ export async function rotearItensCorteDobraDireto({
         status: "pendente",
         prioridade: Boolean(pedido.prioridade),
         prioridade_nivel: pedido.prioridade_nivel || null,
-        tipo_prioridade: pedido.tipo_prioridade || pedido.prioridade_nivel || null,
-        prioridade_logistica: pedido.prioridade_logistica || null,
+        tipo_prioridade: textoOuNulo(pedido.tipo_prioridade) || textoOuNulo(pedido.prioridade_logistica),
+        prioridade_logistica: textoOuNulo(pedido.prioridade_logistica),
         prioridade_selecionada: true,
         cliente_retira_agora: Boolean(pedido.cliente_retira_agora || pedido.retira_agora),
         is_rota: Boolean(pedido.is_rota || pedido.rota),
@@ -264,7 +265,7 @@ export async function rotearItensCorteDobraDireto({
       };
 
       try {
-        opCriada = await base44.entities.OrdemDesbobinadeira.create(payloadDesb);
+        opCriada = await base44.entities.OrdemDesbobinadeira.create(payloadLimpo(payloadDesb));
       } catch (errDesb) {
         console.error("[rotearItensCorteDobraDireto] Erro ao criar OrdemDesbobinadeira:", errDesb);
         throw new Error(`Falha ao criar OP no ${maquinaInicial}: ${errDesb?.message || errDesb}`);
@@ -297,8 +298,8 @@ export async function rotearItensCorteDobraDireto({
         status: "pendente",
         prioridade: Boolean(pedido.prioridade),
         prioridade_nivel: pedido.prioridade_nivel || null,
-        tipo_prioridade: pedido.tipo_prioridade || pedido.prioridade_nivel || null,
-        prioridade_logistica: pedido.prioridade_logistica || null,
+        tipo_prioridade: textoOuNulo(pedido.tipo_prioridade) || textoOuNulo(pedido.prioridade_logistica),
+        prioridade_logistica: textoOuNulo(pedido.prioridade_logistica),
         prioridade_selecionada: true,
         cliente_retira_agora: Boolean(pedido.cliente_retira_agora || pedido.retira_agora),
         is_rota: Boolean(pedido.is_rota || pedido.rota),
@@ -322,7 +323,7 @@ export async function rotearItensCorteDobraDireto({
       };
 
       try {
-        opCriada = await base44.entities.OrdemMaquinaCD.create(payloadMaquina);
+        opCriada = await base44.entities.OrdemMaquinaCD.create(payloadLimpo(payloadMaquina));
       } catch (errMaq) {
         console.error("[rotearItensCorteDobraDireto] Erro ao criar OrdemMaquinaCD:", errMaq);
         throw new Error(`Falha ao criar OP no ${maquinaInicial}: ${errMaq?.message || errMaq}`);
@@ -543,7 +544,7 @@ export async function avancarProximaEtapaRoteiroCD(ordemAtual, entidadeOrigem = 
     chapa_cd_id: ordemAtual.chapa_cd_id || null,
     prioridade: Boolean(ordemAtual.prioridade || pedOdoo?.prioridade),
     prioridade_nivel: ordemAtual.prioridade_nivel || pedOdoo?.prioridade_nivel || null,
-    tipo_prioridade: ordemAtual.tipo_prioridade || pedOdoo?.tipo_prioridade || null,
+    tipo_prioridade: textoOuNulo(ordemAtual.tipo_prioridade) || textoOuNulo(pedOdoo?.tipo_prioridade),
     cliente_retira_agora: Boolean(ordemAtual.cliente_retira_agora || pedOdoo?.cliente_retira_agora),
     is_rota: Boolean(ordemAtual.is_rota || pedOdoo?.is_rota),
     data_programada_pcp: ordemAtual.data_programada_pcp || pedOdoo?.data_programada_pcp || null,
@@ -565,7 +566,7 @@ export async function avancarProximaEtapaRoteiroCD(ordemAtual, entidadeOrigem = 
 
   let novaOp = null;
   try {
-    novaOp = await base44.entities.OrdemMaquinaCD.create(payloadProxima);
+    novaOp = await base44.entities.OrdemMaquinaCD.create(payloadLimpo(payloadProxima));
   } catch (errProxima) {
     console.error("[avancarProximaEtapaRoteiroCD] Falha ao criar OP da próxima etapa:", errProxima);
     return { avancou: false, erro: errProxima };
