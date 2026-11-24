@@ -29,7 +29,8 @@ import {
   Calendar,
   CheckCircle2,
   AlertCircle,
-  ExternalLink
+  ExternalLink,
+  Clock
 } from "lucide-react";
 import { toast } from "sonner";
 import ImageViewer from "@/components/ui/ImageViewer";
