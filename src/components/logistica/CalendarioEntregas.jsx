@@ -448,12 +448,7 @@ export default function CalendarioEntregas({ filial = null }) {
                       {pedidosRota.map((p, idx) => (
                         <div key={idx} className="flex items-center justify-between text-[11px] py-0.5 border-b border-border/50 last:border-0">
                           <div className="flex items-center gap-1.5 truncate min-w-0">
-                            <span className="font-bold text-foreground shrink-0">#{p.numero_pedido}</span>
-                            {p.numero_odoo && String(p.numero_odoo).toUpperCase() !== "NT" && (
-                              <Badge className="text-[9px] py-0 px-1 bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 font-mono font-bold shrink-0">
-                                Odoo: #{p.numero_odoo}
-                              </Badge>
-                            )}
+                            <span className="font-bold text-blue-700 dark:text-blue-300 font-mono shrink-0">#{p.numero_pedido}</span>
                             <span className="text-muted-foreground truncate">{p.cliente}</span>
                           </div>
                           {p.valor && <span className="font-medium shrink-0 ml-2">{p.valor}</span>}

@@ -152,8 +152,11 @@ export async function parseRotaImage(imageUrl, filialAtiva = null) {
       }
     }
 
+    const numPrincipal = item.numero_pedido || item.numero_odoo || "";
     return {
       ...item,
+      numero_pedido: numPrincipal,
+      numero_odoo: numPrincipal,
       departamentos: deps.length ? deps : ["expedicao"],
       barracao_sugerido: barracaoSugerido,
       barracao_label: barracaoLabel,

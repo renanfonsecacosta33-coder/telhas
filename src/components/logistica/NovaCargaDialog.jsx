@@ -347,12 +347,11 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
                 </div>
 
                 <div className="rounded-xl border border-border overflow-hidden bg-background shadow-xs max-h-[380px] lg:max-h-[440px] overflow-y-auto overflow-x-auto">
-                  <table className="w-full text-xs min-w-[900px] border-collapse">
+                  <table className="w-full text-xs min-w-[850px] border-collapse">
                     <thead className="bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 sticky top-0 z-10 border-b border-border shadow-xs">
                       <tr>
                         <th className="text-center p-2.5 font-bold w-12">#</th>
-                        <th className="text-left p-2.5 font-bold w-24">Pedido</th>
-                        <th className="text-left p-2.5 font-bold w-28">Nº Odoo</th>
+                        <th className="text-left p-2.5 font-bold w-36">Pedido (Odoo)</th>
                         <th className="text-left p-2.5 font-bold min-w-[200px]">Cliente / Vendedor</th>
                         <th className="text-left p-2.5 font-bold w-36">Barracão</th>
                         <th className="text-left p-2.5 font-bold min-w-[240px]">Observações da Rota</th>
@@ -372,24 +371,9 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
                             </span>
                           </td>
                           <td className="p-2.5">
-                            <span className="font-bold text-sm text-foreground">
+                            <Badge className="text-xs bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 font-mono font-bold px-2.5 py-1">
                               #{it.numero_pedido}
-                            </span>
-                          </td>
-                          <td className="p-2.5">
-                            {it.numero_odoo ? (
-                              it.numero_odoo.toUpperCase() === "NT" ? (
-                                <Badge variant="outline" className="text-[11px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono font-bold px-2 py-0.5">
-                                  NT
-                                </Badge>
-                              ) : (
-                                <Badge className="text-[11px] bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 font-mono font-bold px-2 py-0.5">
-                                  #{it.numero_odoo}
-                                </Badge>
-                              )
-                            ) : (
-                              <span className="text-muted-foreground text-xs">—</span>
-                            )}
+                            </Badge>
                           </td>
                           <td className="p-2.5">
                             <div className="font-semibold text-foreground text-xs leading-snug">
