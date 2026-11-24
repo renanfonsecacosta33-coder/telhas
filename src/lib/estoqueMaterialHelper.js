@@ -1014,7 +1014,24 @@ export function verificarEstoqueItem(
  * Avalia todos os itens de uma Ordem de Fabricação (OF) ou Pedido individual.
  * Consolida peso total do pedido e agrega simulações de bobinas e chapas considerando Pré-baixa.
  */
-export function verificarEstoquePedido(pedido, { bobinas = [], chapas = [], slitters = [], preBaixaMap = {}, preBaixaMetrosMap = {} } = {}) {
+// ── Cache do diagnóstico de matéria-prima por OF ────────────────────────────
+// A verificação percorre bobinas/chapas e reextrai especificações de cada item.
+// Ela era refeita a cada render e a cada sincronização (8s), travando a tela.
+const cacheEstoquePedido = new Map();
+const LIMITE_CACHE_ESTOQUE = 800;
+
+export function verificarEstoquePedido(pedido, contexto = {}) {
+  if (!pedido) return verificarEstoquePedidoCalc(pedido, contexto);
+  const chave = `${pedido.id || ""}|${pedido.updated_date || ""}|${typeof pedido.itens_json === "string" ? pedido.itens_json : ""}`;
+  const guardado = cacheEstoquePedido.get(chave);
+  if (guardado && guardado.contexto === contexto) return guardado.resultado;
+  const resultado = verificarEstoquePedidoCalc(pedido, contexto);
+  if (cacheEstoquePedido.size > LIMITE_CACHE_ESTOQUE) cacheEstoquePedido.clear();
+  cacheEstoquePedido.set(chave, { contexto, resultado });
+  return resultado;
+}
+
+function verificarEstoquePedidoCalc(pedido, { bobinas = [], chapas = [], slitters = [], preBaixaMap = {}, preBaixaMetrosMap = {} } = {}) {
   if (!pedido) {
     return {
       statusGeral: "indisponivel",
@@ -1107,7 +1124,7 @@ export function verificarEstoquePedido(pedido, { bobinas = [], chapas = [], slit
  * Avalia todas as Ordens de Fabricação (OFs) pertencentes a um Pedido Consolidado (Grupo).
  * Retorna o diagnóstico global de matéria-prima do pedido consolidado com peso agregado.
  */
-export function verificarEstoqueGrupo(grupo, { bobinas = [], chapas = [], slitters = [], preBaixaMap = {}, preBaixaMetrosMap = {} } = {}) {
+export function verificarEstoqueGrupo(grupo, contexto = {}) {
   const ofs = Array.isArray(grupo) ? grupo : (grupo?.ofs || []);
   if (ofs.length === 0) {
     return {
@@ -1126,7 +1143,7 @@ export function verificarEstoqueGrupo(grupo, { bobinas = [], chapas = [], slitte
   const analisesOfs = ofs.map((ofItem) => {
     return {
       of: ofItem,
-      diagnostico: verificarEstoquePedido(ofItem, { bobinas, chapas, slitters, preBaixaMap, preBaixaMetrosMap })
+      diagnostico: verificarEstoquePedido(ofItem, contexto)
     };
   });
 

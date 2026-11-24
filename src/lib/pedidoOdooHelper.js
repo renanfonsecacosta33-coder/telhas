@@ -13,8 +13,26 @@ const STATUS_DEFAULTS = {
   medicao: ""                // medição conferida (CD)
 };
 
+// ── Cache de parsing por OF ─────────────────────────────────────────────────
+// getItens e classGrupo são chamados dezenas de vezes por render (progresso,
+// status de execução, cards, filtros). O parse do itens_json + as expressões
+// regulares de normalização eram refeitos a cada chamada, travando a tela.
+const cacheItens = new WeakMap();
+const cacheGrupo = new WeakMap();
+
 export function getItens(pedido) {
   if (!pedido) return [];
+  const json = typeof pedido.itens_json === "string" ? pedido.itens_json : null;
+  if (json === null) return normalizarItens(pedido);
+  const guardado = cacheItens.get(pedido);
+  if (guardado && guardado.json === json) return guardado.itens.map((it) => ({ ...it }));
+  const itens = normalizarItens(pedido);
+  cacheItens.set(pedido, { json, itens });
+  // Cópia rasa: cada consumidor altera o array/itens sem contaminar o cache.
+  return itens.map((it) => ({ ...it }));
+}
+
+function normalizarItens(pedido) {
   let arr = [];
   if (Array.isArray(pedido.itens)) {
     arr = pedido.itens;
@@ -80,6 +98,17 @@ export function getItens(pedido) {
 
 // Aceita item individual (obj), Pedido/OF completo (obj com itens_json) ou categoria + produto (strings)
 export function classGrupo(itemOrCat, produtoNome = "") {
+  const temJson = typeof itemOrCat === "object" && itemOrCat !== null && typeof itemOrCat.itens_json === "string" && !produtoNome;
+  if (!temJson) return classGrupoCalc(itemOrCat, produtoNome);
+  const chave = `${itemOrCat.itens_json}|${itemOrCat.produto || ""}|${itemOrCat.descricao || ""}|${itemOrCat.of_nome || ""}`;
+  const guardado = cacheGrupo.get(itemOrCat);
+  if (guardado && guardado.chave === chave) return guardado.valor;
+  const valor = classGrupoCalc(itemOrCat, produtoNome);
+  cacheGrupo.set(itemOrCat, { chave, valor });
+  return valor;
+}
+
+function classGrupoCalc(itemOrCat, produtoNome = "") {
   let cat = "";
   let prod = "";
   let desc = "";
@@ -477,8 +506,28 @@ export function localizarOpDoItem(it, opsList = [], todosItens = []) {
 }
 
 // Calcula o progresso real e dinâmico consultando as OPs de produção nas máquinas
+const cacheProgresso = new WeakMap();
+
 export function calcularProgressoRealPedido(pedido, pedidosProducao = [], ordensCD = []) {
   if (!pedido) return 0;
+  const json = typeof pedido.itens_json === "string" ? pedido.itens_json : null;
+  const guardado = cacheProgresso.get(pedido);
+  if (
+    guardado &&
+    guardado.telhas === pedidosProducao &&
+    guardado.cd === ordensCD &&
+    guardado.json === json &&
+    guardado.status === pedido.status_pcp &&
+    guardado.pct === pedido.percentual_concluido
+  ) {
+    return guardado.valor;
+  }
+  const valor = calcularProgressoRealCalc(pedido, pedidosProducao, ordensCD);
+  cacheProgresso.set(pedido, { telhas: pedidosProducao, cd: ordensCD, json, status: pedido.status_pcp, pct: pedido.percentual_concluido, valor });
+  return valor;
+}
+
+function calcularProgressoRealCalc(pedido, pedidosProducao, ordensCD) {
   const itens = getItens(pedido);
   if (!itens || itens.length === 0) return pedido.percentual_concluido || 0;
 

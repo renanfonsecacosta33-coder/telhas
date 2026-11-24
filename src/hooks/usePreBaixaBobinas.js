@@ -6,6 +6,19 @@ import { base44 } from "@/api/base44Client";
  * e o status de programação em tempo real (Em uso vs Programada).
  * Suporta Telhas e Corte & Dobra com resolução precisa de IDs e KG.
  */
+// Regex de código de bobina reaproveitada entre OPs (era recompilada para cada
+// bobina de cada ordem, travando a thread principal a cada sincronização).
+const regexPorCodigo = new Map();
+function regexDoCodigo(codigo) {
+  let regex = regexPorCodigo.get(codigo);
+  if (!regex) {
+    regex = new RegExp(`(^|[^A-Z0-9])${codigo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^A-Z0-9]|$)`, "i");
+    if (regexPorCodigo.size > 2000) regexPorCodigo.clear();
+    regexPorCodigo.set(codigo, regex);
+  }
+  return regex;
+}
+
 export function usePreBaixaBobinas(setor, filiais = null) {
   const filialKey = filiais ? filiais.join(",") : "all";
 
@@ -106,8 +119,7 @@ export function usePreBaixaBobinas(setor, filiais = null) {
               if (!x.codigo) return false;
               const xCod = String(x.codigo).trim().toUpperCase();
               if (xCod.length < 3) return false;
-              const regex = new RegExp(`(^|[^A-Z0-9])${xCod.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^A-Z0-9]|$)`, "i");
-              return regex.test(clean);
+              return regexDoCodigo(xCod).test(clean);
             });
             if (found) b = found;
           }
