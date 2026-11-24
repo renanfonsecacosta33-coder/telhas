@@ -43,6 +43,11 @@ import { sincronizarStatusOpPcp } from "@/lib/sincronizarOpPcpSeguro";
 import { isTelhaBandeja } from "@/lib/bandejaHelper";
 import PedidoMiniCard from "@/components/producao/PedidoMiniCard";
 import MaquinaSwitcherAdmin from "@/components/maquinas/MaquinaSwitcherAdmin";
+import {
+  isOpFinalizadaComprovada,
+  registrarFinalizacaoLocal,
+  removerTravaFinalizacaoLocal
+} from "@/lib/travaFinalizacaoHelper";
 
 
 const STATUS_LABELS_TELHAS = {
@@ -70,6 +75,7 @@ export function isPedidoTotalmenteConcluido(p) {
   if (STATUS_CONCLUIDOS_INDUSTRIA.includes(p.status_pcp)) return true;
   if (["expedido", "entregue", "carregado", "em_transito"].includes(p.status_expedicao)) return true;
   if (p.percentual_concluido != null && p.percentual_concluido >= 100) return true;
+  if (isOpFinalizadaComprovada(p)) return true;
   return false;
 }
 
@@ -81,6 +87,8 @@ export function isPedidoTotalmenteConcluido(p) {
  */
 export function isPedidoConcluidoNaMaquina(p, maquina) {
   if (!p) return false;
+  // 🛡️ TRAVA DEFINITIVA ANTI-REGRESSÃO: se a OP já foi finalizada localmente ou tem histórico/marcação de término
+  if (isOpFinalizadaComprovada(p, maquina)) return true;
   if (isPedidoTotalmenteConcluido(p)) return true;
 
   const norm = (m) => String(m || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
@@ -218,6 +226,52 @@ export default function MaquinaPanel({ maquina }) {
       if (typeof unsubscribe === "function") unsubscribe();
     };
   }, [refetch]);
+
+  // 🛡️ AUTO-CURA CONTRA REGRESSÃO DE ESTADO APÓS RELOAD / PUBLICAÇÃO:
+  // Se qualquer pedido retornar do backend como 'em_producao' ou 'pausado',
+  // mas for comprovadamente finalizado (por trava local, histórico de finalização ou foto de conclusão),
+  // cura imediatamente o cache em memória (congelando o cronômetro) e sincroniza com o banco Base44.
+  useEffect(() => {
+    if (!todosPedidos || todosPedidos.length === 0) return;
+    const inconsistentes = todosPedidos.filter(p => {
+      const estaAtivoNoBanco = p.status === "em_producao" || p.status === "pausado";
+      return estaAtivoNoBanco && isOpFinalizadaComprovada(p, maquina);
+    });
+
+    if (inconsistentes.length > 0) {
+      // Corrige na memória no mesmo ciclo de render
+      queryClient.setQueriesData({ queryKey: ["pedidos"] }, (antigos) => {
+        if (!antigos || !Array.isArray(antigos)) return antigos;
+        return antigos.map(p => {
+          if (inconsistentes.some(inc => inc.id === p.id)) {
+            return {
+              ...p,
+              status: "finalizado",
+              inicio_producao_ts: null,
+              fim_producao_ts: p.fim_producao_ts || new Date().toISOString(),
+              data_finalizacao: p.data_finalizacao || format(new Date(), "yyyy-MM-dd")
+            };
+          }
+          return p;
+        });
+      });
+
+      // Auto-cura no Base44 em background para sanar o banco
+      inconsistentes.forEach(async (inc) => {
+        try {
+          await base44.entities.Pedido.update(inc.id, {
+            status: "finalizado",
+            inicio_producao_ts: null,
+            fim_producao_ts: inc.fim_producao_ts || new Date().toISOString(),
+            data_finalizacao: inc.data_finalizacao || format(new Date(), "yyyy-MM-dd")
+          });
+          console.log(`[Auto-Cura] OP #${inc.numero_pedido || inc.id} consolidada no Base44 como finalizada.`);
+        } catch (errCura) {
+          console.warn(`[Auto-Cura] Não foi possível persistir OP #${inc.numero_pedido || inc.id}:`, errCura);
+        }
+      });
+    }
+  }, [todosPedidos, maquina, queryClient]);
 
   // Localiza pedido alvo se a navegação veio com parâmetros de foco da busca/rastreamento
   const pedidoAlvoFoco = useMemo(() => {
@@ -561,7 +615,7 @@ export default function MaquinaPanel({ maquina }) {
     }
   };
 
-  const handleStatusChange = (pedido, novoStatus, extraData = {}) => {
+  const handleStatusChange = async (pedido, novoStatus, extraData = {}) => {
     // Chamado sem pedido (ex: refresh após salvar o texto da bobina) = apenas recarrega a lista
     if (!pedido) {
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
@@ -570,10 +624,31 @@ export default function MaquinaPanel({ maquina }) {
     // Se chamado sem novoStatus definido, delega com segurança para update sem alterar status
     if (!novoStatus) {
       if (extraData && Object.keys(extraData).length > 0) {
-        updateMutation.mutate({ id: pedido.id, data: extraData });
+        return await updateMutation.mutateAsync({ id: pedido.id, data: extraData });
       }
       return;
     }
+
+    const hojeStr = format(new Date(), "yyyy-MM-dd");
+    const agoraIso = new Date().toISOString();
+
+    // 🛡️ TRAVA SÍNCRONA LOCALSTORAGE ANTI-REGRESSÃO:
+    // Salva antes de qualquer requisição de rede para garantir integridade mesmo se a conexão falhar ou houver reload/deploy imediato.
+    if (novoStatus === "finalizado" || novoStatus === "aguardando_colagem" || extraData?.perfilacao_concluida) {
+      registrarFinalizacaoLocal(pedido.id, {
+        numero_pedido: pedido.numero_pedido,
+        maquina: maquina || pedido.maquina,
+        status: novoStatus,
+        data_finalizacao: hojeStr,
+        fim_producao_ts: agoraIso,
+        tempo_producao_seg: extraData?.tempo_producao_seg || pedido.tempo_producao_seg || 0,
+        metragem_utilizada: extraData?.metragem_utilizada || null,
+        operador: extraData?.operador || pedido.operador || user?.full_name
+      });
+    } else if (novoStatus === "pendente") {
+      removerTravaFinalizacaoLocal(pedido.id);
+    }
+
     const acaoMap = {
       em_producao: pedido.status === "pausado" ? ["retomado", "Retomou Produção"] : ["iniciado", "Iniciou Produção"],
       pausado: ["pausado", "Pausou Produção"],
@@ -595,8 +670,6 @@ export default function MaquinaPanel({ maquina }) {
     const histData = extraData?.historico_alteracoes
       ? {}
       : appendHistorico(pedido, acao, label, detalhes, extraData?.operador || pedido?.operador);
-    const hojeStr = format(new Date(), "yyyy-MM-dd");
-    const agoraIso = new Date().toISOString();
     const isPainelColagem = maquina === "COLAGEM";
     const maqOrigem = extraData.maquina_origem || pedido.maquina_origem || (!isPainelColagem ? maquina : null) || (pedido.maquina !== "COLAGEM" ? pedido.maquina : null);
 
@@ -613,7 +686,7 @@ export default function MaquinaPanel({ maquina }) {
       playFinishSound();
       speakOpFinalizada(pedido.maquina, pedido.numero_pedido);
     }
-    updateMutation.mutate({ id: pedido.id, data });
+    return await updateMutation.mutateAsync({ id: pedido.id, data });
 
     // PCP e Odoo são sincronizados no onSuccess, apenas após a gravação confirmada da OP.
   };

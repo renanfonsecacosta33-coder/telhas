@@ -32,6 +32,7 @@ import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/c
 import { isTelhaBandeja, verificarStatusComponentesBandeja } from "@/lib/bandejaHelper"; import { descricaoItemOriginal, verificarDivergenciaModeloDescricao } from "@/lib/descricaoItemOriginal";
 import { useRegrasProducao } from "@/lib/regrasProducao";
 import { detectarTipoProdutoTelha, detectarEPSTelha, detectarMaquinaTelha } from "@/lib/pedidoOdooHelper";
+import { isOpFinalizadaComprovada, registrarFinalizacaoLocal } from "@/lib/travaFinalizacaoHelper";
 
 
 
@@ -253,6 +254,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const [operadoresDialogOpen, setOperadoresDialogOpen] = useState(false);
   const [modoOperadorDialog, setModoOperadorDialog] = useState("inicio"); // "inicio" | "troca" | "finalizacao"
   const [operadorFinalizacao, setOperadorFinalizacao] = useState("");
+  const [salvandoFinalizacao, setSalvandoFinalizacao] = useState(false);
   const [pendingColagemUpdates, setPendingColagemUpdates] = useState(null);
   const [cumeeiraEstoqueOpen, setCumeeiraEstoqueOpen] = useState(false);
   const intervalRef = useRef(null);
@@ -827,10 +829,15 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     )
   );
 
+  // 🛡️ TRAVA DEFINITIVA ANTI-REGRESSÃO: verifica se a OP já foi finalizada localmente ou possui término comprovado
+  const jaFinalizadoNestaMaquina = isOpFinalizadaComprovada(p, maquina);
+
   // Status efetivo na máquina atual: na Colagem, se o tempo de colagem ainda for zero e veio pausado/troca de op herdado, o status real é aguardando_colagem
-  const statusEfetivo = (p.maquina === "COLAGEM" && p.status === "pausado" && (!p.tempo_colagem_seg || p.tempo_colagem_seg === 0))
-    ? "aguardando_colagem"
-    : p.status;
+  const statusEfetivo = jaFinalizadoNestaMaquina
+    ? "finalizado"
+    : (p.maquina === "COLAGEM" && p.status === "pausado" && (!p.tempo_colagem_seg || p.tempo_colagem_seg === 0))
+      ? "aguardando_colagem"
+      : p.status;
 
   // Calcula tempo ao vivo
   const now = Date.now();
@@ -842,23 +849,35 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   let tempoColagemVivo = p.tempo_colagem_seg || 0;
   let tempoPausaColagemVivo = p.tempo_pausa_colagem_seg || 0;
 
-  if (p.status === "em_producao" && p.inicio_producao_ts) {
-    tempoProducaoVivo += Math.floor((now - new Date(p.inicio_producao_ts).getTime()) / 1000);
+  // 🛡️ CRONÔMETRO BLINDADO: Não corre se a OP for comprovadamente finalizada
+  if (!jaFinalizadoNestaMaquina && p.status === "em_producao" && p.inicio_producao_ts) {
+    const decorridoSeg = Math.floor((now - new Date(p.inicio_producao_ts).getTime()) / 1000);
+    if (decorridoSeg > 0 && decorridoSeg < 16 * 3600) {
+      tempoProducaoVivo += decorridoSeg;
+    }
   }
-  if (p.status === "pausado" && p.inicio_pausa_ts) {
+  if (!jaFinalizadoNestaMaquina && p.status === "pausado" && p.inicio_pausa_ts) {
     const pausaSeg = Math.floor((now - new Date(p.inicio_pausa_ts).getTime()) / 1000);
-    if (p.motivo_pausa === "setup") tempoSetupVivo += pausaSeg;
-    else tempoPausaVivo += pausaSeg;
+    if (pausaSeg > 0 && pausaSeg < 24 * 3600) {
+      if (p.motivo_pausa === "setup") tempoSetupVivo += pausaSeg;
+      else tempoPausaVivo += pausaSeg;
+    }
   }
 
   // Se está em colagem
-  if (p.maquina === "COLAGEM" && p.status === "em_producao" && p.inicio_producao_ts) {
+  if (!jaFinalizadoNestaMaquina && p.maquina === "COLAGEM" && p.status === "em_producao" && p.inicio_producao_ts) {
     tempoColagemVivo = p.tempo_colagem_seg || 0;
-    tempoColagemVivo += Math.floor((now - new Date(p.inicio_producao_ts).getTime()) / 1000);
+    const decorridoColagem = Math.floor((now - new Date(p.inicio_producao_ts).getTime()) / 1000);
+    if (decorridoColagem > 0 && decorridoColagem < 16 * 3600) {
+      tempoColagemVivo += decorridoColagem;
+    }
   }
-  if (p.maquina === "COLAGEM" && p.status === "pausado" && p.inicio_pausa_ts) {
+  if (!jaFinalizadoNestaMaquina && p.maquina === "COLAGEM" && p.status === "pausado" && p.inicio_pausa_ts) {
     tempoPausaColagemVivo = p.tempo_pausa_colagem_seg || 0;
-    tempoPausaColagemVivo += Math.floor((now - new Date(p.inicio_pausa_ts).getTime()) / 1000);
+    const decorridoPausaColagem = Math.floor((now - new Date(p.inicio_pausa_ts).getTime()) / 1000);
+    if (decorridoPausaColagem > 0 && decorridoPausaColagem < 24 * 3600) {
+      tempoPausaColagemVivo += decorridoPausaColagem;
+    }
   }
 
   const handleIniciar = () => {
@@ -1159,7 +1178,13 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       const pBandeja = proximaEtapaBandeja === "BANDEJA";
       const varsResetadas = JSON.stringify(novos.map(v => ({ ...v, iniciado: false, finalizado: false, metragem_real: null, [pBandeja ? "foto_etapa1_url" : "foto_etapa2_url"]: v.foto_item_url || null, foto_item_url: null })));
       playFinishSound();
-      onStatusChange(p, pBandeja ? "pendente" : "aguardando_colagem", { variacoes_telhas: varsResetadas, inicio_producao_ts: null,
+      registrarFinalizacaoLocal(p.id, {
+        numero_pedido: p.numero_pedido,
+        maquina: pBandeja ? "BANDEJA" : "COLAGEM",
+        status: pBandeja ? "pendente" : "aguardando_colagem",
+        data_finalizacao: hojeStr
+      });
+      await onStatusChange(p, pBandeja ? "pendente" : "aguardando_colagem", { variacoes_telhas: varsResetadas, inicio_producao_ts: null,
         maquina: pBandeja ? "BANDEJA" : "COLAGEM", maquina_origem: p.maquina_origem || (pBandeja ? p.maquina : "TP - 40"),
         etapa_anterior_concluida: pBandeja ? p.maquina : "BANDEJA", data_perfilacao: hojeStr,
         ...(pBandeja ? { telha_superior_concluida: true, perfilacao_concluida: false, ...(p.bobina_inferior ? { bobina_superior: p.bobina_inferior, bobina_superior_id: p.bobina_inferior_id || null, rvm_superior: p.rvm_inferior || "Natural" } : {}) } : { bandeja_concluida: true, perfilacao_concluida: true, foto_finalizacao_url: fotoUrl }) });
@@ -1167,10 +1192,20 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       return;
     }
     const novoStatusOp = todosFinalizados ? (precisaColagem ? "aguardando_colagem" : "finalizado") : "em_producao";
-    onStatusChange(p, novoStatusOp, {
+    if (todosFinalizados) {
+      registrarFinalizacaoLocal(p.id, {
+        numero_pedido: p.numero_pedido,
+        maquina: p.maquina,
+        status: novoStatusOp,
+        data_finalizacao: hojeStr,
+        operador: p.operador || ""
+      });
+    }
+    await onStatusChange(p, novoStatusOp, {
       variacoes_telhas: JSON.stringify(novos),
       foto_finalizacao_url: fotoUrl || p.foto_finalizacao_url || "",
       ...(todosFinalizados ? {
+        inicio_producao_ts: null,
         data_finalizacao: novoStatusOp === "finalizado" ? hojeStr : undefined,
         fim_producao_ts: agoraIso,
         ...(precisaColagem ? { maquina: "COLAGEM", maquina_origem: maqOrigem, data_perfilacao: p.data_perfilacao || hojeStr, hora_perfilacao: p.hora_perfilacao || agoraIso, perfilacao_concluida: true } : {})
@@ -1453,76 +1488,87 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       return;
     }
 
-    const opFinal = operadorFinalizacao || p.operador || p.operador_inicio || (user?.full_name || "Operador");
+    setSalvandoFinalizacao(true);
+    try {
+      const opFinal = operadorFinalizacao || p.operador || p.operador_inicio || (user?.full_name || "Operador");
 
-    // Prepara auto-finalização de variações/itens da OP para garantir conclusão 100%
-    let varsFinalizadas = p.variacoes_telhas;
-    if (temVariacoes) {
-      try {
-        varsFinalizadas = JSON.stringify(_variacoesTelhas.map(v => ({ ...v, iniciado: true, finalizado: true })));
-      } catch {}
-    }
+      // Prepara auto-finalização de variações/itens da OP para garantir conclusão 100%
+      let varsFinalizadas = p.variacoes_telhas;
+      if (temVariacoes) {
+        try {
+          varsFinalizadas = JSON.stringify(_variacoesTelhas.map(v => ({ ...v, iniciado: true, finalizado: true })));
+        } catch {}
+      }
 
-    // ── COLAGEM: desconta isopor e finaliza (NÃO desconta bobinas aqui) ──
-    if (p.maquina === "COLAGEM" || isPainelColagem) {
-      let colagSeg = p.tempo_colagem_seg || 0;
-      if (p.inicio_producao_ts) {
-        colagSeg += Math.floor((Date.now() - new Date(p.inicio_producao_ts).getTime()) / 1000);
-      }
-      // Desconta isopor somente na finalização da colagem
-      if (p.eps && p.isopor_utilizado > 0) {
-        const isopores = await base44.entities.Isopor.list().catch(() => []);
-        const isoporItem = isopores.find(i => i.tipo === p.eps);
-        if (isoporItem) {
-          const novaQtd = Math.max(0, (isoporItem.quantidade || 0) - p.isopor_utilizado);
-          await base44.entities.Isopor.update(isoporItem.id, { quantidade: novaQtd });
+      // ── COLAGEM: desconta isopor e finaliza (NÃO desconta bobinas aqui) ──
+      if (p.maquina === "COLAGEM" || isPainelColagem) {
+        let colagSeg = p.tempo_colagem_seg || 0;
+        if (p.inicio_producao_ts) {
+          colagSeg += Math.floor((Date.now() - new Date(p.inicio_producao_ts).getTime()) / 1000);
         }
-      }
-      // Desconta Manta (somente TELHA + EPS + MANTA)
-      if (p.produto === "TELHA + EPS + MANTA" && Number(p.metros) > 0) {
-        const mantas = await base44.entities.Produto.filter({ categoria: "Consumivel", nome: "Manta" }).catch(() => []);
-        if (mantas && mantas.length > 0) {
-          const manta = mantas[0];
-          const novaQtd = Math.max(0, (manta.quantidade || 0) - Number(p.metros));
-          await base44.entities.Produto.update(manta.id, { quantidade: +novaQtd.toFixed(1) });
+        // Desconta isopor somente na finalização da colagem
+        if (p.eps && p.isopor_utilizado > 0) {
+          const isopores = await base44.entities.Isopor.list().catch(() => []);
+          const isoporItem = isopores.find(i => i.tipo === p.eps);
+          if (isoporItem) {
+            const novaQtd = Math.max(0, (isoporItem.quantidade || 0) - p.isopor_utilizado);
+            await base44.entities.Isopor.update(isoporItem.id, { quantidade: novaQtd });
+          }
         }
-      }
-      // Desconta Cola (~0,05 kg por metro de telha EPS)
-      if (Number(p.metros) > 0) {
-        const colas = await base44.entities.Produto.filter({ categoria: "Cola" }).catch(() => []);
-        if (colas && colas.length > 0) {
-          const cola = colas[0];
-          const kgCola = +(Number(p.metros) * 0.05).toFixed(2);
-          const novaQtd = Math.max(0, (cola.quantidade || 0) - kgCola);
-          await base44.entities.Produto.update(cola.id, { quantidade: +novaQtd.toFixed(2) });
+        // Desconta Manta (somente TELHA + EPS + MANTA)
+        if (p.produto === "TELHA + EPS + MANTA" && Number(p.metros) > 0) {
+          const mantas = await base44.entities.Produto.filter({ categoria: "Consumivel", nome: "Manta" }).catch(() => []);
+          if (mantas && mantas.length > 0) {
+            const manta = mantas[0];
+            const novaQtd = Math.max(0, (manta.quantidade || 0) - Number(p.metros));
+            await base44.entities.Produto.update(manta.id, { quantidade: +novaQtd.toFixed(1) });
+          }
         }
-      }
-      playFinishSound();
-      speakOpFinalizada("COLAGEM", p.numero_pedido);
+        // Desconta Cola (~0,05 kg por metro de telha EPS)
+        if (Number(p.metros) > 0) {
+          const colas = await base44.entities.Produto.filter({ categoria: "Cola" }).catch(() => []);
+          if (colas && colas.length > 0) {
+            const cola = colas[0];
+            const kgCola = +(Number(p.metros) * 0.05).toFixed(2);
+            const novaQtd = Math.max(0, (cola.quantidade || 0) - kgCola);
+            await base44.entities.Produto.update(cola.id, { quantidade: +novaQtd.toFixed(2) });
+          }
+        }
+        playFinishSound();
+        speakOpFinalizada("COLAGEM", p.numero_pedido);
 
-      const payloadColagem = {
-        tempo_colagem_seg: colagSeg,
-        metragem_utilizada: metragemRealNum,
-        inicio_producao_ts: null,
-        data_finalizacao: format(new Date(), "yyyy-MM-dd"),
-        foto_finalizacao_url: urlFinalFoto,
-        operador: opFinal,
-        operador_fim: opFinal,
-        ...(varsFinalizadas ? { variacoes_telhas: varsFinalizadas } : {}),
-      };
-      if (appendHistoricoFn) {
-        Object.assign(payloadColagem, appendHistoricoFn(
-          p,
-          "finalizacao",
-          "Finalizou a colagem",
-          `Metragem colada: ${metragemRealNum}m`,
-          opFinal
-        ));
+        const payloadColagem = {
+          tempo_colagem_seg: colagSeg,
+          metragem_utilizada: metragemRealNum,
+          inicio_producao_ts: null,
+          data_finalizacao: format(new Date(), "yyyy-MM-dd"),
+          foto_finalizacao_url: urlFinalFoto,
+          operador: opFinal,
+          operador_fim: opFinal,
+          ...(varsFinalizadas ? { variacoes_telhas: varsFinalizadas } : {}),
+        };
+        if (appendHistoricoFn) {
+          Object.assign(payloadColagem, appendHistoricoFn(
+            p,
+            "finalizacao",
+            "Finalizou a colagem",
+            `Metragem colada: ${metragemRealNum}m`,
+            opFinal
+          ));
+        }
+        registrarFinalizacaoLocal(p.id, {
+          numero_pedido: p.numero_pedido,
+          maquina: "COLAGEM",
+          status: "finalizado",
+          data_finalizacao: format(new Date(), "yyyy-MM-dd"),
+          tempo_producao_seg: colagSeg,
+          metragem_utilizada: metragemRealNum,
+          operador: opFinal
+        });
+        await onStatusChange(p, "finalizado", payloadColagem);
+        setMetragemDialog(false);
+        return;
       }
-      onStatusChange(p, "finalizado", payloadColagem);
-      setMetragemDialog(false);
-      return;
-    }
 
     // ── MÁQUINA (não é colagem): desconta bobinas, NÃO desconta isopor ──
     let prodSeg = p.tempo_producao_seg || 0;
@@ -1601,7 +1647,16 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
           opFinal
         ));
       }
-      onStatusChange(p, "finalizado", payloadComp);
+      registrarFinalizacaoLocal(p.id, {
+        numero_pedido: p.numero_pedido,
+        maquina: p.maquina,
+        status: "finalizado",
+        data_finalizacao: hojeStr,
+        tempo_producao_seg: prodSeg,
+        metragem_utilizada: metragemRealNum,
+        operador: opFinal
+      });
+      await onStatusChange(p, "finalizado", payloadComp);
       setMetragemDialog(false);
       return;
     }
@@ -1658,7 +1713,16 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
             opFinal
           ));
         }
-        onStatusChange(p, "pendente", payloadBandeja);
+        registrarFinalizacaoLocal(p.id, {
+          numero_pedido: p.numero_pedido,
+          maquina: "BANDEJA",
+          status: "pendente",
+          data_finalizacao: hojeStr,
+          tempo_producao_seg: prodSeg,
+          metragem_utilizada: metragemRealNum,
+          operador: opFinal
+        });
+        await onStatusChange(p, "pendente", payloadBandeja);
         setMetragemDialog(false);
         return;
       }
@@ -1698,7 +1762,16 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
             opFinal
           ));
         }
-        onStatusChange(p, "aguardando_colagem", payloadColagemEtapa);
+        registrarFinalizacaoLocal(p.id, {
+          numero_pedido: p.numero_pedido,
+          maquina: "COLAGEM",
+          status: "aguardando_colagem",
+          data_finalizacao: hojeStr,
+          tempo_producao_seg: prodSeg,
+          metragem_utilizada: metragemRealNum,
+          operador: opFinal
+        });
+        await onStatusChange(p, "aguardando_colagem", payloadColagemEtapa);
         setMetragemDialog(false);
         return;
       }
@@ -1743,9 +1816,24 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
       ));
     }
 
-    onStatusChange(p, novoStatus, payloadFinal);
+    registrarFinalizacaoLocal(p.id, {
+      numero_pedido: p.numero_pedido,
+      maquina: p.maquina,
+      status: novoStatus,
+      data_finalizacao: hojeStr,
+      tempo_producao_seg: prodSeg,
+      metragem_utilizada: metragemRealNum,
+      operador: opFinal
+    });
+    await onStatusChange(p, novoStatus, payloadFinal);
     setMetragemDialog(false);
-  };
+  } catch (errFin) {
+    console.error("Erro ao finalizar pedido:", errFin);
+    toast.error("Erro ao finalizar: " + (errFin?.message || "tente novamente"));
+  } finally {
+    setSalvandoFinalizacao(false);
+  }
+};
 
   // Metragem Total e Quantidade Total de Telhas sincronizados com a Central PCP
   const totaisProducaoPCP = useMemo(() => {
@@ -2888,17 +2976,21 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setMetragemDialog(false)}>Cancelar</Button>
+              <Button variant="outline" disabled={salvandoFinalizacao} onClick={() => setMetragemDialog(false)}>Cancelar</Button>
               <Button
                 onClick={confirmarFinalizacao}
-                disabled={!metragemReal || Number(metragemReal) <= 0 || !fotoFinalizacaoUrl || uploadingFoto || fotoFinalizacaoUrl.startsWith("blob:")}
+                disabled={salvandoFinalizacao || !metragemReal || Number(metragemReal) <= 0 || !fotoFinalizacaoUrl || uploadingFoto || fotoFinalizacaoUrl.startsWith("blob:")}
                 className={`gap-1.5 font-bold ${
-                  !metragemReal || Number(metragemReal) <= 0 || !fotoFinalizacaoUrl || uploadingFoto || fotoFinalizacaoUrl.startsWith("blob:")
+                  salvandoFinalizacao || !metragemReal || Number(metragemReal) <= 0 || !fotoFinalizacaoUrl || uploadingFoto || fotoFinalizacaoUrl.startsWith("blob:")
                     ? "bg-slate-200 text-slate-400 cursor-not-allowed"
                     : "bg-green-600 hover:bg-green-700 text-white shadow-sm cursor-pointer"
                 }`}
               >
-                {uploadingFoto ? (
+                {salvandoFinalizacao ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Gravando e garantindo finalização...
+                  </>
+                ) : uploadingFoto ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" /> Salvando foto na nuvem...
                   </>
