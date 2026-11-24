@@ -521,6 +521,26 @@ export default function ProducaoCD() {
     return [...base, ...extras];
   }, [ordensMaq, filialAtiva]);
 
+  // Lista de máquinas com links dedicados para acesso direto (estilo Telhas)
+  const MAQUINAS_NAVEGACAO_CD = useMemo(() => {
+    if (ehIvaipora(filialAtiva)) {
+      return [
+        { id: "LASER", label: "Laser", color: "bg-rose-500", path: "/corte-dobra/maquina/laser" },
+        { id: "DOBRADEIRA 4M", label: "Dobradeira 4m", color: "bg-blue-500", path: "/corte-dobra/maquina/dobra-4m" },
+      ];
+    }
+    return [
+      { id: "DESBOBINADEIRA 01", label: "Desbobinadeira 01", color: "bg-orange-600", path: "/corte-dobra/maquina/desbobinadeira-1" },
+      { id: "DESBOBINADEIRA 02", label: "Desbobinadeira 02", color: "bg-amber-600", path: "/corte-dobra/maquina/desbobinadeira-2" },
+      { id: "CORTE 3M", label: "Guilhotina 3m", color: "bg-purple-500", path: "/corte-dobra/maquina/corte-3m" },
+      { id: "DOBRA 3M", label: "Dobradeira 3m", color: "bg-blue-500", path: "/corte-dobra/maquina/dobra-3m" },
+      { id: "CORTE 6M", label: "Guilhotina 6m", color: "bg-indigo-500", path: "/corte-dobra/maquina/corte-6m" },
+      { id: "DOBRA FUNDO 6M", label: "Dobradeira Fundo 6m", color: "bg-teal-500", path: "/corte-dobra/maquina/dobra-fundo-6m" },
+      { id: "DOBRA INICIO 6M", label: "Dobradeira Início 6m", color: "bg-emerald-500", path: "/corte-dobra/maquina/dobra-inicio-6m" },
+      { id: "PERFILADEIRA", label: "Perfiladeira", color: "bg-orange-500", path: "/corte-dobra/maquina/perfiladeira" },
+    ];
+  }, [filialAtiva]);
+
   const openNewDesb = (date = null) => {
     setEditDesb(date ? { _presets: { data: date } } : null);
     setDialogDesb(true);
@@ -1279,6 +1299,40 @@ export default function ProducaoCD() {
           </div>
         </div>
       )}
+
+      {/* ── BARRA DE ACESSO DIRETO ÀS MÁQUINAS (PADRÃO TELHAS) ── */}
+      <div className="bg-card/80 border border-border/80 rounded-2xl p-2.5 shadow-2xs flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 w-full sm:w-auto">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground pr-2 border-r border-border shrink-0">
+            <Wrench className="w-4 h-4 text-orange-500" />
+            <span className="hidden sm:inline">Acesso às</span> Máquinas:
+          </div>
+          <div className="flex items-center gap-1.5 flex-nowrap">
+            {MAQUINAS_NAVEGACAO_CD.map((m) => {
+              const count = m.id.startsWith("DESBOBINADEIRA")
+                ? ordensDia.filter((o) => o.status !== "cancelado" && (m.id === "DESBOBINADEIRA 01" ? (!o.maquina || o.maquina.includes("01") || o.maquina === "DESBOBINADEIRA") : o.maquina?.includes("02"))).length
+                : ordensMaqDia.filter((o) => o.maquina === m.id && o.status !== "cancelado").length;
+
+              return (
+                <Link
+                  key={m.id}
+                  to={m.path}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold text-foreground/85 hover:text-foreground bg-muted/40 hover:bg-orange-500/10 border border-border/70 hover:border-orange-500/40 transition-all shrink-0 group cursor-pointer shadow-2xs"
+                  title={`Abrir terminal de ${m.label}`}
+                >
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${m.color}`} />
+                  <span className="group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">{m.label}</span>
+                  {count > 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-orange-100 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800">
+                      {count}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </div>
 
       {/* Abas Principais + Busca + Zoom */}
       <div className="flex items-center justify-between gap-3 flex-wrap border-b border-border pb-3">

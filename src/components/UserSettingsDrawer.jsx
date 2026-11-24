@@ -12,7 +12,7 @@ import {
   SheetClose
 } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Camera, Sun, Moon, Monitor, LogOut, Briefcase, MapPin, MonitorPlay, ChevronRight, Clock, Volume2, Play, Sparkles } from 'lucide-react';
+import { Camera, Sun, Moon, Monitor, LogOut, Briefcase, MapPin, MonitorPlay, ChevronRight, Clock, Volume2, Play, Sparkles, Users } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { isCopilotOculto, setCopilotOculto } from '@/lib/copilotPrefs';
 import { getModoVoz, setModoVoz, testarVoz } from '@/lib/sounds';
@@ -249,6 +249,22 @@ export default function UserSettingsDrawer({ open, onOpenChange }) {
 
         {/* Actions Section */}
         <div className="p-6 border-t border-border/50 bg-background space-y-2">
+          {isAdmin && (
+            <button
+              onClick={() => {
+                onOpenChange(false);
+                navigate('/admin/usuarios');
+              }}
+              className="w-full flex items-center justify-between p-3 bg-secondary/30 hover:bg-secondary/60 text-foreground rounded-xl transition-colors duration-200"
+            >
+              <div className="flex items-center gap-2">
+                <Users size={18} className="text-orange-500" />
+                <span className="font-medium text-sm">Gerenciar Usuários</span>
+              </div>
+              <ChevronRight size={18} className="text-muted-foreground" />
+            </button>
+          )}
+
           <button 
             onClick={handleTrocarSetor}
             className="w-full flex items-center justify-between p-3 bg-secondary/30 hover:bg-secondary/60 text-foreground rounded-xl transition-colors duration-200"

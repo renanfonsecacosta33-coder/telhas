@@ -13,38 +13,14 @@ import { ehIvaipora } from "@/lib/maquinasPorFilial";
 
 const NAV = [
   { path: "/corte-dobra", label: "Dashboard", icon: LayoutDashboard },
-  { path: "/corte-dobra/catalogo", label: "Catálogo", icon: BookOpen },
   { path: "/corte-dobra/desenvolvimento", label: "Desenvolvimento", icon: Calculator },
   { path: "/corte-dobra/producao", label: "Produção Geral", icon: Factory },
   { path: "/corte-dobra/estoque-dashboard", label: "Estoque por Espessura", icon: Layers },
-  { path: "/corte-dobra/retalhos", label: "Retalhos", icon: Scissors },
   { path: "/corte-dobra/calculos", label: "Cálculos", icon: FlaskConical },
   { path: "/corte-dobra/bobinas", label: "Bobinas", icon: Circle },
   { path: "/corte-dobra/chaparia", label: "Chaparia", icon: Layers },
   { path: "/corte-dobra/slitter", label: "Slitter", icon: ArrowLeftRight },
-  { path: "/corte-dobra/epi", label: "EPI", icon: ShieldCheck },
-  { path: "/corte-dobra/mapa", label: "Mapa do Barracão", icon: Map },
   { path: "/corte-dobra/logistica", label: "Logística", icon: Truck },
-];
-
-const MAQUINAS_NAV_IVAIPORA = [
-  { path: "/corte-dobra/maquina/laser", label: "Laser" },
-  { path: "/corte-dobra/maquina/dobra-4m", label: "Dobradeira 4m" },
-];
-
-const MAQUINAS_NAV = [
-  { path: "/corte-dobra/maquina/corte-3m", label: "Guilhotina 3m" },
-  { path: "/corte-dobra/maquina/dobra-3m", label: "Dobradeira 3m" },
-  { path: "/corte-dobra/maquina/corte-6m", label: "Guilhotina 6m" },
-  { path: "/corte-dobra/maquina/dobra-fundo-6m", label: "Dobradeira Fundo 6m" },
-  { path: "/corte-dobra/maquina/dobra-inicio-6m", label: "Dobradeira Início 6m" },
-  { path: "/corte-dobra/maquina/perfiladeira", label: "Perfiladeira" },
-  { path: "/corte-dobra/maquina/desbobinadeira-1", label: "Desbobinadeira 01" },
-  { path: "/corte-dobra/maquina/desbobinadeira-2", label: "Desbobinadeira 02" },
-];
-
-const ADMIN_NAV = [
-  { path: "/corte-dobra/usuarios", label: "Usuários", icon: Users },
 ];
 
 export default function SidebarCD({ isOpen, onToggle }) {
@@ -52,11 +28,6 @@ export default function SidebarCD({ isOpen, onToggle }) {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const { filialAtiva } = useFilial();
-  // Ivaiporã só possui Laser e Dobradeira 4m no Corte e Dobra
-  const maquinasNav = ehIvaipora(filialAtiva) ? MAQUINAS_NAV_IVAIPORA : MAQUINAS_NAV;
-  const [maquinasOpen, setMaquinasOpen] = useState(
-    [...MAQUINAS_NAV, ...MAQUINAS_NAV_IVAIPORA].some(m => location.pathname === m.path)
-  );
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
@@ -171,56 +142,6 @@ export default function SidebarCD({ isOpen, onToggle }) {
                 </p>
               )}
               {NAV.filter(item => usuarioTemPermissaoAba(user, item.path)).map(renderLink)}
-
-              {/* Máquinas individuais */}
-              <div>
-                <button
-                  onClick={() => setMaquinasOpen(o => !o)}
-                  title={!isOpen ? "Máquinas" : undefined}
-                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:bg-slate-800/80 hover:text-white transition-all cursor-pointer touch-manipulation min-h-[48px]"
-                >
-                  <Wrench className="w-5 h-5 flex-shrink-0" />
-                  {isOpen && (
-                    <>
-                      <span className="flex-1 text-left truncate">Máquinas</span>
-                      {maquinasOpen ? <ChevronDown className="w-4 h-4 opacity-60" /> : <ChevronRight className="w-4 h-4 opacity-60" />}
-                    </>
-                  )}
-                </button>
-                {isOpen && maquinasOpen && (
-                  <div className="ml-4 mt-1 space-y-0.5 border-l border-slate-800 pl-3">
-                    {maquinasNav.map(item => {
-                      const isActive = location.pathname === item.path;
-                      return (
-                        <Link
-                          key={item.path}
-                          to={item.path}
-                          onClick={() => window.innerWidth < 1024 && onToggle()}
-                          className={cn(
-                            "flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-medium transition-all",
-                            isActive
-                              ? "bg-orange-500/20 text-orange-300 font-semibold border border-orange-500/30"
-                              : "text-slate-400 hover:bg-slate-800 hover:text-white"
-                          )}
-                        >
-                          <span>{item.label}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {isSuperAdmin && (
-                <>
-                  {isOpen && (
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 mt-4 mb-2">
-                      Administração
-                    </p>
-                  )}
-                  {ADMIN_NAV.map(renderLink)}
-                </>
-              )}
 
               {(isAdmin || isSuperAdmin || user?.permitido_central_alertas === true || isGerencia) && (
                 <>
