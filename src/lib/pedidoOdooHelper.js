@@ -1152,12 +1152,17 @@ export function prepararPresetNovaOrdemTelhas(pedido, item, filialAtiva) {
       }
 
       const compM = (Number(metragemMm) || 1000) / 1000;
-      const ehUnidadeMetro = String(item?.unidade || "").toUpperCase() === "M";
+      const uOdooNorm = String(item?.unidade || "").toUpperCase().trim();
+      const ehUnidadeMetro = ["M", "MT", "MTS", "METRO", "METROS"].includes(uOdooNorm);
       const temDecimal = (Number(espTec.quantidade) || 0) % 1 !== 0;
 
-      // Se a quantidade em Odoo for em metros lineares ou tiver decimais (ex: 387.5m c/ 6000mm)
-      if ((ehUnidadeMetro || temDecimal) && compM > 0) {
-        metragemTotalLinear = Number(espTec.quantidade);
+      // 🛡️ Trava Anti-Multiplicação: Se a quantidade for alta e multiplicar por compM gera explosão (> 2.5x qNum com compM > 1.5m)
+      const qNum = Number(espTec.quantidade || item?.quantidade) || 1;
+      const multDistorcida = compM > 1.5 && qNum > 10 && (qNum * compM) > (qNum * 2.5);
+
+      // Se a quantidade em Odoo for em metros lineares ou tiver decimais (ex: 387.5m c/ 6000mm) ou for distorcida
+      if ((ehUnidadeMetro || temDecimal || multDistorcida) && compM > 0) {
+        metragemTotalLinear = Number(item?.quantidade || espTec.quantidade);
         qtdChapas = Math.max(1, Math.round(metragemTotalLinear / compM));
       } else {
         qtdChapas = espTec.quantidade;

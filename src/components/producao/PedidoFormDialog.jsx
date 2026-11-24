@@ -20,6 +20,7 @@ import BobinaComboboxTelhas from "@/components/producao/BobinaComboboxTelhas";
 import { Building2, X, Loader2, FileText, Plus, Trash2, Camera, ShieldAlert, Flame, Route, AlertTriangle, Target, Unlock, Lock, RefreshCw, Globe, CheckCircle2, Paintbrush, Scissors } from "lucide-react";
 import { detectarTipoProdutoTelha, detectarMaquinaTelha, detectarEspessura, detectarOrigemAco, detectarEPSTelha, normalizarNumPedido, saoPedidosIguais, extrairCortesBobininha } from "@/lib/pedidoOdooHelper";
 import { calcularDataPrometidaSLA, toISODate, formatDataBR } from "@/lib/sla";
+import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import { useMetasProducao } from "@/hooks/useMetasProducao";
 import { useFilial, FILIAIS } from "@/contexts/FilialContext";
 import { cn } from "@/lib/utils";
@@ -473,11 +474,49 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           maquinario_inferior: editItem.maquinario_inferior || "",
           kg_superior: editItem.kg_superior || "",
           kg_inferior: editItem.kg_inferior || "",
-          kg_total: editItem.kg_total || "",
-          metros: editItem.metros || "",
-          metragem_mm: editItem.metragem_mm || "",
-          quantidade_telhas: editItem.quantidade_telhas || "",
-          metragem_planejada: editItem.metragem_planejada || "",
+          kg_total: (() => {
+            const pesoAtual = Number(editItem.kg_total || 0);
+            // Se peso foi inflado por metros ao quadrado (> 3000kg para menos de 200m lineares reais)
+            const textoC = `${editItem.observacoes || ""} ${editItem.observacoes_odoo || ""} ${editItem.descricao || ""}`.trim();
+            const spec = textoC ? extrairEspecificacao(textoC, editItem.metragem_planejada || editItem.quantidade_telhas || editItem.metros, "M") : null;
+            if (spec && spec.variacoes && spec.variacoes.length > 1 && spec.metragem_total > 0 && pesoAtual > spec.metragem_total * 10) {
+              const esp = parseFloat(editItem.espessura_exigida || "0.43") || 0.43;
+              return Math.round(spec.metragem_total * esp * 7.85 * 1.2);
+            }
+            return editItem.kg_total || "";
+          })(),
+          metros: (() => {
+            const varsP = (() => { try { return JSON.parse(editItem.variacoes_telhas || "[]"); } catch { return []; } })();
+            if (varsP.length > 1) return editItem.metros || "";
+            const textoC = `${editItem.observacoes || ""} ${editItem.observacoes_odoo || ""} ${editItem.descricao || ""}`.trim();
+            const spec = textoC ? extrairEspecificacao(textoC, editItem.metragem_planejada || editItem.quantidade_telhas || editItem.metros, "M") : null;
+            if (spec && spec.variacoes && spec.variacoes.length > 1) return spec.quantidade;
+            return editItem.metros || "";
+          })(),
+          metragem_mm: (() => {
+            const varsP = (() => { try { return JSON.parse(editItem.variacoes_telhas || "[]"); } catch { return []; } })();
+            if (varsP.length > 1) return editItem.metragem_mm || "";
+            const textoC = `${editItem.observacoes || ""} ${editItem.observacoes_odoo || ""} ${editItem.descricao || ""}`.trim();
+            const spec = textoC ? extrairEspecificacao(textoC, editItem.metragem_planejada || editItem.quantidade_telhas || editItem.metros, "M") : null;
+            if (spec && spec.variacoes && spec.variacoes.length > 1) return spec.comprimento_mm;
+            return editItem.metragem_mm || "";
+          })(),
+          quantidade_telhas: (() => {
+            const varsP = (() => { try { return JSON.parse(editItem.variacoes_telhas || "[]"); } catch { return []; } })();
+            if (varsP.length > 1) return editItem.quantidade_telhas || "";
+            const textoC = `${editItem.observacoes || ""} ${editItem.observacoes_odoo || ""} ${editItem.descricao || ""}`.trim();
+            const spec = textoC ? extrairEspecificacao(textoC, editItem.metragem_planejada || editItem.quantidade_telhas || editItem.metros, "M") : null;
+            if (spec && spec.variacoes && spec.variacoes.length > 1) return spec.quantidade;
+            return editItem.quantidade_telhas || "";
+          })(),
+          metragem_planejada: (() => {
+            const varsP = (() => { try { return JSON.parse(editItem.variacoes_telhas || "[]"); } catch { return []; } })();
+            if (varsP.length > 1) return editItem.metragem_planejada || "";
+            const textoC = `${editItem.observacoes || ""} ${editItem.observacoes_odoo || ""} ${editItem.descricao || ""}`.trim();
+            const spec = textoC ? extrairEspecificacao(textoC, editItem.metragem_planejada || editItem.quantidade_telhas || editItem.metros, "M") : null;
+            if (spec && spec.variacoes && spec.variacoes.length > 1) return spec.metragem_total;
+            return editItem.metragem_planejada || "";
+          })(),
           corte: editItem.corte || "",
           largura_corte: editItem.largura_corte || "",
           status: editItem.status || "pendente",
@@ -485,7 +524,14 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           data_prevista: editItem.data_prevista || "",
           observacoes: editItem.observacoes || "",
           foto_pedido_url: editItem.foto_pedido_url || "",
-          variacoes_telhas: editItem.variacoes_telhas || "",
+          variacoes_telhas: (() => {
+            const varsP = (() => { try { return JSON.parse(editItem.variacoes_telhas || "[]"); } catch { return []; } })();
+            if (varsP.length > 1) return editItem.variacoes_telhas;
+            const textoC = `${editItem.observacoes || ""} ${editItem.observacoes_odoo || ""} ${editItem.descricao || ""}`.trim();
+            const spec = textoC ? extrairEspecificacao(textoC, editItem.metragem_planejada || editItem.quantidade_telhas || editItem.metros, "M") : null;
+            if (spec && spec.variacoes && spec.variacoes.length > 1) return JSON.stringify(spec.variacoes);
+            return editItem.variacoes_telhas || "";
+          })(),
           espessura_exigida: editItem.espessura_exigida || "",
           origem_exigida: editItem.origem_exigida || "ambas",
           cor_exigida: editItem.cor_exigida || editItem.rvm_superior || detectarCorTelha(editItem.item_produto || editItem.produto_rotulo_pcp || editItem.modelo || "", editItem.observacoes || "") || "NATURAL",
@@ -539,11 +585,46 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
           observacoes_odoo: presets.observacoes_odoo || (presets.trava_produto_pcp ? presets.observacoes : "") || "",
           observacoes: presets.trava_produto_pcp ? (presets.observacoes_encarregado || "") : (presets.observacoes || ""),
           trava_produto_pcp: Boolean(presets.trava_produto_pcp || presets.numero_pedido || rawProd),
-          metros: presets.metros || "",
-          metragem_mm: presets.metragem_mm || "",
-          quantidade_telhas: presets.quantidade_telhas || presets.quantidade || "",
-          metragem_planejada: presets.metragem_planejada || presets.quantidade_telhas || "",
-          variacoes_telhas: presets.variacoes_telhas || "",
+          metros: (() => {
+            const varsP = (() => { try { return JSON.parse(presets.variacoes_telhas || "[]"); } catch { return []; } })();
+            if (varsP.length > 1) return presets.metros || "";
+            const textoC = `${presets.observacoes_odoo || ""} ${presets.observacoes || ""} ${rawProd}`.trim();
+            const spec = textoC ? extrairEspecificacao(textoC, presets.metragem_planejada || presets.quantidade_telhas || presets.quantidade, "M") : null;
+            if (spec && spec.variacoes && spec.variacoes.length > 1) return spec.quantidade;
+            return presets.metros || "";
+          })(),
+          metragem_mm: (() => {
+            const varsP = (() => { try { return JSON.parse(presets.variacoes_telhas || "[]"); } catch { return []; } })();
+            if (varsP.length > 1) return presets.metragem_mm || "";
+            const textoC = `${presets.observacoes_odoo || ""} ${presets.observacoes || ""} ${rawProd}`.trim();
+            const spec = textoC ? extrairEspecificacao(textoC, presets.metragem_planejada || presets.quantidade_telhas || presets.quantidade, "M") : null;
+            if (spec && spec.variacoes && spec.variacoes.length > 1) return spec.comprimento_mm;
+            return presets.metragem_mm || "";
+          })(),
+          quantidade_telhas: (() => {
+            const varsP = (() => { try { return JSON.parse(presets.variacoes_telhas || "[]"); } catch { return []; } })();
+            if (varsP.length > 1) return presets.quantidade_telhas || presets.quantidade || "";
+            const textoC = `${presets.observacoes_odoo || ""} ${presets.observacoes || ""} ${rawProd}`.trim();
+            const spec = textoC ? extrairEspecificacao(textoC, presets.metragem_planejada || presets.quantidade_telhas || presets.quantidade, "M") : null;
+            if (spec && spec.variacoes && spec.variacoes.length > 1) return spec.quantidade;
+            return presets.quantidade_telhas || presets.quantidade || "";
+          })(),
+          metragem_planejada: (() => {
+            const varsP = (() => { try { return JSON.parse(presets.variacoes_telhas || "[]"); } catch { return []; } })();
+            if (varsP.length > 1) return presets.metragem_planejada || presets.quantidade_telhas || "";
+            const textoC = `${presets.observacoes_odoo || ""} ${presets.observacoes || ""} ${rawProd}`.trim();
+            const spec = textoC ? extrairEspecificacao(textoC, presets.metragem_planejada || presets.quantidade_telhas || presets.quantidade, "M") : null;
+            if (spec && spec.variacoes && spec.variacoes.length > 1) return spec.metragem_total;
+            return presets.metragem_planejada || presets.quantidade_telhas || "";
+          })(),
+          variacoes_telhas: (() => {
+            const varsP = (() => { try { return JSON.parse(presets.variacoes_telhas || "[]"); } catch { return []; } })();
+            if (varsP.length > 1) return presets.variacoes_telhas;
+            const textoC = `${presets.observacoes_odoo || ""} ${presets.observacoes || ""} ${rawProd}`.trim();
+            const spec = textoC ? extrairEspecificacao(textoC, presets.metragem_planejada || presets.quantidade_telhas || presets.quantidade, "M") : null;
+            if (spec && spec.variacoes && spec.variacoes.length > 1) return JSON.stringify(spec.variacoes);
+            return presets.variacoes_telhas || "";
+          })(),
           foto_pedido_url: presets.foto_pedido_url || "",
           rota: Boolean(presets.rota),
           prioridade: Boolean(presets.prioridade),
@@ -2246,6 +2327,12 @@ export default function PedidoFormDialog({ open, onClose, onSave, editItem, defa
                           </p>
                         </div>
                       </div>
+                      {totalMetros >= 500 && (
+                        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 p-2 rounded text-xs flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+                          <span>Metragem elevada ({totalMetros.toFixed(1)}m). Verifique se o pedido não teve metros multiplicados por comprimento.</span>
+                        </div>
+                      )}
                       {form.kg_total && (
                         <div className="flex items-center justify-between border-t border-primary/20 pt-2">
                           <p className="text-xs font-medium text-muted-foreground">Peso Total (KG)</p>

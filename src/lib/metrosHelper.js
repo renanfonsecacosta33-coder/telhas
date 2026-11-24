@@ -5,6 +5,7 @@
  * Garante que a metragem mostrada no Painel da Máquina (ex: 101,7m)
  * bata exatamente com a Visão Admin, Dashboards e Cards.
  */
+import { extrairEspecificacao } from "./descricaoExtractor";
 
 /**
  * 🛡️ Detecta e corrige anomalias matemáticas conhecidas de pedidos de telhas
@@ -43,6 +44,19 @@ export function sanitizarMetrosAnormais(p) {
       }
     } else {
       return mRet;
+    }
+  }
+
+  // Caso 0: Decomposição de cortes múltiplos explícitos na observação/descrição
+  // Ex: "5 X 10400 M / 10 X 4500 M / 20 X 2100 M" que somam 139m, mas foram multiplicados para 1.445,6m
+  const textoCortes = `${p.observacoes || ""} ${p.observacoes_odoo || ""} ${p.descricao || ""}`.trim();
+  const totalCalcBruto = pecas > 0 && mm > 0 ? (pecas * mm) / 1000 : 0;
+  if (textoCortes && (pecas >= 10 || totalCalcBruto >= 300)) {
+    const specObs = extrairEspecificacao(textoCortes, p.quantidade_telhas || p.metragem_planejada || p.metros, "M");
+    if (specObs && specObs.variacoes && specObs.variacoes.length > 1 && specObs.metragem_total > 0) {
+      if (totalCalcBruto > specObs.metragem_total * 1.5) {
+        return specObs.metragem_total;
+      }
     }
   }
 

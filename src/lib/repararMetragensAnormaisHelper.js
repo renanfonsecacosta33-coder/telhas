@@ -1,5 +1,6 @@
 import { base44 } from "@/api/base44Client";
 import { sanitizarMetrosAnormais, calcKgDeMetros } from "@/lib/metrosHelper";
+import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 
 /**
  * 🛡️ AUTO-CORREÇÃO SILENCIOSA DE METRAGENS ANORMAIS
@@ -47,13 +48,30 @@ export async function executarAutoReparoMetragens(ordens = []) {
         compMmNovo = mmAtual / 10;
       }
 
+      // 🛡️ Verifica se há variações completas na observação/descrição (ex: 5 X 10400 M / 10 X 4500 M / 20 X 2100 M)
+      const textoCortes = `${o.observacoes || ""} ${o.observacoes_odoo || ""} ${o.descricao || ""}`.trim();
+      const specObs = textoCortes ? extrairEspecificacao(textoCortes, novosMetros, "M") : null;
+      const temVariacoesMultiplas = Boolean(specObs && specObs.variacoes && specObs.variacoes.length > 1 && Math.abs(specObs.metragem_total - novosMetros) < 0.5);
+
       // Calcula peças coerentes com a metragem real
       let pecasNovas = Number(o.quantidade) || Number(o.metros) || 1;
-      if (compMmNovo > 0) {
+      if (temVariacoesMultiplas) {
+        pecasNovas = specObs.quantidade;
+        compMmNovo = specObs.comprimento_mm;
+      } else if (compMmNovo > 0) {
         pecasNovas = Math.max(1, Math.round(novosMetros / (compMmNovo / 1000)));
       }
 
-      const novoKg = pesoAtual > 0 ? pesoAtual : Number(calcKgDeMetros(novosMetros, espessura, largMm).toFixed(1));
+      const pesoCalculadoFisico = Number(calcKgDeMetros(novosMetros, espessura, largMm).toFixed(1));
+      // Se pesoAtual foi inflado pelo erro de metros ao quadrado (ex: 5856kg para 139m), restaura peso físico real
+      const novoKg = (pesoAtual > 0 && pesoAtual <= pesoCalculadoFisico * 2.2) ? pesoAtual : pesoCalculadoFisico;
+
+      const varsFinal = temVariacoesMultiplas ? specObs.variacoes : [{
+        qty: pecasNovas,
+        mm: compMmNovo,
+        m: +(compMmNovo / 1000).toFixed(3),
+        total_m: novosMetros,
+      }];
 
       const payload = {
         metros_retificados: novosMetros,
@@ -61,16 +79,12 @@ export async function executarAutoReparoMetragens(ordens = []) {
         metros: pecasNovas,
         quantidade: pecasNovas,
         quantidade_telhas: novosMetros,
+        metragem_planejada: novosMetros,
         metragem_mm: compMmNovo,
         kg_total: novoKg,
         peso_kg: novoKg,
         retificado_manualmente: true,
-        variacoes_telhas: JSON.stringify([{
-          qty: pecasNovas,
-          mm: compMmNovo,
-          m: +(compMmNovo / 1000).toFixed(3),
-          total_m: novosMetros,
-        }]),
+        variacoes_telhas: JSON.stringify(varsFinal),
       };
 
       try {

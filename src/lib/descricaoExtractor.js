@@ -143,16 +143,19 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
   // - "19 peças TP25 com 3000mm"
   // - Padrões múltiplos: "19 telhas TP25 c/ 3000mm + 5 telhas TP25 c/ 2000mm"
   // ═══════════════════════════════════════════════════════════════════════════
+  const matchModeloTelha = tLimpo.match(/\b(tp\s*-?\s*25|tp\s*-?\s*40|tp\s*-?\s*100|ondulad[ao]|trapezoidal|colonial|termoac[uú]stica|sandu[íi]che)\b/i);
+  const modeloGeral = matchModeloTelha ? matchModeloTelha[1].replace(/\s+/g, "").toUpperCase() : null;
+
   const regexTelhaQtdComp = /(\d+)\s*(?:telhas?|p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|unidades?|un\.?)\s*(?:(?:do\s*tipo|modelo|mod\.?)?\s*(tp\s*-?\s*25|tp\s*-?\s*40|tp\s*-?\s*100|ondulad[ao]|trapezoidal|colonial|termoac[uú]stica|sandu[íi]che))?\s*(?:c\/|com|de|\*|x|-|–|—)?\s*(\d{1,2}\.\d{3}|\d{3,5}\s*mm|\d+(?:[.,]\d+)?\s*(?:m\b|mts?\b|metros?\b))\b/gi;
 
   const regexTelhaModeloAntes = /(?:(?:telhas?|painel)\s*)?(tp\s*-?\s*25|tp\s*-?\s*40|tp\s*-?\s*100|ondulad[ao]|trapezoidal|colonial)\s*[-–—:]?\s*(\d+)\s*(?:telhas?|p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|unidades?|un\.?)?\s*(?:c\/|com|de|\*|x|-|–|—)?\s*(\d{1,2}\.\d{3}|\d{3,5}\s*mm|\d+(?:[.,]\d+)?\s*(?:m\b|mts?\b|metros?\b))\b/gi;
 
-  const variacoesTelha = [];
+  let variacoesTelha = [];
   let mTelha;
 
   while ((mTelha = regexTelhaQtdComp.exec(tLimpo)) !== null) {
     const q = parseInt(mTelha[1], 10);
-    const mod = mTelha[2] ? mTelha[2].replace(/\s+/g, "").toUpperCase() : null;
+    const mod = mTelha[2] ? mTelha[2].replace(/\s+/g, "").toUpperCase() : modeloGeral;
     const compRaw = mTelha[3];
     const { mm, m: mLinear } = parseComprimento(compRaw);
     if (q > 0 && mm && mm >= 300) {
@@ -169,7 +172,7 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
 
   if (variacoesTelha.length === 0) {
     while ((mTelha = regexTelhaModeloAntes.exec(tLimpo)) !== null) {
-      const mod = mTelha[1] ? mTelha[1].replace(/\s+/g, "").toUpperCase() : null;
+      const mod = mTelha[1] ? mTelha[1].replace(/\s+/g, "").toUpperCase() : modeloGeral;
       const q = parseInt(mTelha[2], 10);
       const compRaw = mTelha[3];
       const { mm, m: mLinear } = parseComprimento(compRaw);
@@ -186,15 +189,50 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
     }
   }
 
+  // 🛡️ RECONHECIMENTO DE CORTES MÚLTIPLOS EM LINHA OU TEXTO COMERCIAL (Ex: "5 X 10400 M 10 X 4500 M 20 X 2100 M")
+  // Se temos 0 ou apenas 1 variação detectada, mas o texto contém múltiplos cortes lineares:
+  const tPrepCortes = tLimpo.replace(/\b(tp|mod)\s*(\d+)\b/gi, "$1_$2_MOD");
+  const regexCortesMulti = /(?:^|[^\d.,xX*])(\d{1,4})\s*(?:telhas?|p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|barras?|unidades?|un\.?|pc\.?)?\s*(?:c\/|com|de|\*|[xX]|-|–|—)\s*(\d{1,2}\.\d{3}|\d{3,5}\s*mm|\d{3,5}|\d{1,2}[.,]\d{1,3}\s*(?:m\b|mts?\b|metros?\b)?)(?!\s*[xX*]\s*\d)/gi;
+  const cortesLinearesLivres = [];
+  let mCorteLivre;
+  while ((mCorteLivre = regexCortesMulti.exec(tPrepCortes)) !== null) {
+    const q = parseInt(mCorteLivre[1], 10);
+    const compRaw = mCorteLivre[2];
+    if (!q || isNaN(q) || q >= 300) continue; // evita larguras de chapa como 1200x3000
+    const parsed = parseComprimento(compRaw);
+    if (!parsed.mm || parsed.mm < 300) continue;
+    cortesLinearesLivres.push({
+      qty: q,
+      mm: parsed.mm,
+      m: parsed.m,
+      total_m: +(q * parsed.m).toFixed(2),
+      modelo: modeloGeral,
+      tipo: "telha"
+    });
+  }
+
+  // Se foram detectados 2 ou mais cortes livres, OU se a soma deles bate com a metragem total de Odoo:
+  if (cortesLinearesLivres.length > 1) {
+    variacoesTelha = cortesLinearesLivres;
+  } else if (cortesLinearesLivres.length === 1 && variacoesTelha.length === 0 && (modeloGeral || /(telha|cobertura|trapezoidal|ondulad|colonial)/i.test(tLimpo))) {
+    variacoesTelha = cortesLinearesLivres;
+  }
+
   if (variacoesTelha.length > 0) {
     // 🛡️ Validação cruzada com Odoo: se a unidade for MT e temos a metragem exata
-    const uOdoo = String(unidadeOdoo || "").toUpperCase();
+    const uOdoo = String(unidadeOdoo || "").toUpperCase().trim();
     const qOdooNum = Number(qtdOdoo) || 0;
     let varsFinais = variacoesTelha;
+    const somaTotalMetros = +(variacoesTelha.reduce((acc, v) => acc + v.total_m, 0)).toFixed(2);
+
     if (["MT", "M", "MTS", "METRO", "METROS"].includes(uOdoo) && qOdooNum > 0 && variacoesTelha.length > 1) {
-      const exata = variacoesTelha.find(v => Math.abs(v.total_m - qOdooNum) < 0.1);
-      if (exata) {
-        varsFinais = [exata];
+      // Se a soma de todas as variações bater com a quantidade de Odoo (ex: 52 + 45 + 42 = 139), PRESERVA TODAS!
+      if (Math.abs(somaTotalMetros - qOdooNum) > 0.5) {
+        // Se a soma não bate mas uma das variações isoladas é idêntica à quantidade pedida no item:
+        const exata = variacoesTelha.find(v => Math.abs(v.total_m - qOdooNum) < 0.1);
+        if (exata) {
+          varsFinais = [exata];
+        }
       }
     }
 

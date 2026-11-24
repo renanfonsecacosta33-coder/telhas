@@ -29,6 +29,7 @@ import {
   Lock
 } from "lucide-react";
 import { calcularMetrosPedido, calcKgDeMetros } from "@/lib/metrosHelper";
+import { extrairEspecificacao } from "@/lib/descricaoExtractor";
 import { useAuth } from "@/lib/AuthContext";
 
 export default function AjustarMetragensModal({
@@ -164,6 +165,17 @@ export default function AjustarMetragensModal({
     setModoEdicao("direto");
   };
 
+  const cortesSugeridos = useMemo(() => {
+    if (!ordemEdicao) return null;
+    const txt = `${ordemEdicao.observacoes || ""} ${ordemEdicao.observacoes_odoo || ""} ${ordemEdicao.descricao || ""}`.trim();
+    if (!txt) return null;
+    const spec = extrairEspecificacao(txt, ordemEdicao.quantidade_telhas || ordemEdicao.metros, "M");
+    if (spec && spec.variacoes && spec.variacoes.length > 1 && spec.metragem_total > 0) {
+      return spec;
+    }
+    return null;
+  }, [ordemEdicao]);
+
   const handleCancelarEdicao = () => {
     setOrdemEdicao(null);
     setMetrosDiretos("");
@@ -230,6 +242,15 @@ export default function AjustarMetragensModal({
         metros_novos: novosMetros,
       });
 
+      const varsFinal = (cortesSugeridos && Math.abs(cortesSugeridos.metragem_total - novosMetros) < 0.5)
+        ? cortesSugeridos.variacoes
+        : [{
+            qty: pecasFinal,
+            mm: compMmFinal,
+            m: +(compMmFinal / 1000).toFixed(3),
+            total_m: novosMetros,
+          }];
+
       const payload = {
         metros_retificados: novosMetros,
         metros_totais: novosMetros,
@@ -237,15 +258,11 @@ export default function AjustarMetragensModal({
         metros: pecasFinal,
         quantidade: pecasFinal,
         quantidade_telhas: novosMetros,
+        metragem_planejada: novosMetros,
         metragem_mm: compMmFinal,
         kg_total: novoKg,
         peso_kg: novoKg,
-        variacoes_telhas: JSON.stringify([{
-          qty: pecasFinal,
-          mm: compMmFinal,
-          m: +(compMmFinal / 1000).toFixed(3),
-          total_m: novosMetros,
-        }]),
+        variacoes_telhas: JSON.stringify(varsFinal),
         historico_alteracoes: JSON.stringify(hist),
         // Mantém o status finalizado intacto para não mandar para a máquina de novo
         status: "finalizado",
@@ -452,6 +469,31 @@ export default function AjustarMetragensModal({
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            {cortesSugeridos && (
+              <div className="mb-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2.5 flex items-center justify-between flex-wrap gap-2 text-xs">
+                <div className="flex items-center gap-2 text-emerald-300">
+                  <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>
+                    Detectado na Observação: <strong>{cortesSugeridos.quantidade} telhas</strong> • <strong>{cortesSugeridos.metragem_total}m</strong> ({cortesSugeridos.resumo_formatado})
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setMetrosDiretos(String(cortesSugeridos.metragem_total));
+                    setPecas(String(cortesSugeridos.quantidade));
+                    setComprimentoMm(String(cortesSugeridos.comprimento_mm));
+                    setModoEdicao("direto");
+                  }}
+                  className="h-7 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold border-none"
+                >
+                  Aplicar Cortes da OBS
+                </Button>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
               {/* Abas de Modo */}
