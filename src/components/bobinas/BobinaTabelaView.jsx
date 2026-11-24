@@ -34,22 +34,24 @@ function extrairAlerta(bobina) {
 
 function getCustoUnitarioBobina(b) {
   const raw = b.custo ?? b.custo_kg;
+  let base = null;
   if (raw !== undefined && raw !== null && raw !== "") {
     const num = typeof raw === "number" ? raw : parseFloat(String(raw).replace(",", "."));
-    if (!isNaN(num) && num > 0) return num;
+    if (!isNaN(num) && num > 0) base = num;
   }
-  if (b.custo_total && b.peso_kg && Number(b.peso_kg) > 0) {
+  if (!base && b.custo_total && b.peso_kg && Number(b.peso_kg) > 0) {
     const num = Number(b.custo_total) / Number(b.peso_kg);
-    if (!isNaN(num) && num > 0) return num;
+    if (!isNaN(num) && num > 0) base = num;
   }
-  return null;
+  // Aplicação de 3,25% de IPI sobre todas as bobinas de aço
+  return base ? Math.round(base * 1.0325 * 100) / 100 : null;
 }
 
 function getCustoTotalBobina(b) {
   const cUnit = getCustoUnitarioBobina(b);
   const peso = Number(b.peso_kg) || 0;
   if (cUnit && peso > 0) return cUnit * peso;
-  if (b.custo_total && Number(b.custo_total) > 0) return Number(b.custo_total);
+  if (b.custo_total && Number(b.custo_total) > 0) return Number(b.custo_total) * 1.0325;
   return null;
 }
 
@@ -178,7 +180,7 @@ export default function BobinaTabelaView({
               {mostrarCustos && (
                 <>
                   <th className="py-2.5 px-3 text-right text-emerald-800 dark:text-emerald-400 bg-emerald-500/5">
-                    Custo (R$/kg)
+                    Custo (R$/kg) c/ IPI
                   </th>
                   <th className="py-2.5 px-3 text-right text-emerald-800 dark:text-emerald-400 bg-emerald-500/5">
                     Valor Total (R$)

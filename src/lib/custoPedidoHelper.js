@@ -22,6 +22,9 @@ export const CUSTOS_ACO_PADRAO = {
   PADRAO: 7.20,   // Média geral
 };
 
+// Alíquota de IPI aplicável sobre bobinas de aço (3,25%)
+export const ALIQUOTA_IPI_ACO = 0.0325; // 3,25%
+
 export const CUSTOS_INSUMOS_PADRAO = {
   EPS_30MM_M: 13.50,    // R$ por metro linear de EPS 30mm (densidade F1/ISO)
   EPS_50MM_M: 19.50,    // R$ por metro linear de EPS 50mm
@@ -33,44 +36,59 @@ export const CUSTOS_INSUMOS_PADRAO = {
 };
 
 /**
- * Identifica o custo por KG de aço mais preciso para a ordem:
+ * Identifica o custo base por KG e calcula detalhadamente o IPI de 3,25%:
  * 1º: Custo cadastrado na Bobina vinculada (R$/kg)
  * 2º: Custo médio das bobinas ativas no estoque
  * 3º: Custo tabelado padrão por qualidade do aço
  */
+export function getCustoKgAcoDetalhado(ordem, bobinaMap = {}) {
+  let custoBase = CUSTOS_ACO_PADRAO.PADRAO;
+
+  if (ordem) {
+    // 1. Bobina vinculada diretamente
+    const bobId = ordem.bobina_id || ordem.bobina_superior_id || ordem.bobina_inferior_id;
+    if (bobId && bobinaMap[bobId]) {
+      const b = bobinaMap[bobId];
+      const raw = b.custo ?? b.custo_kg;
+      if (raw !== undefined && raw !== null && raw !== "") {
+        const num = typeof raw === "number" ? raw : parseFloat(String(raw).replace(",", "."));
+        if (!isNaN(num) && num > 0) custoBase = num;
+      } else if (b.custo_total && b.peso_kg && Number(b.peso_kg) > 0) {
+        const num = Number(b.custo_total) / Number(b.peso_kg);
+        if (!isNaN(num) && num > 0) custoBase = num;
+      }
+    } else {
+      // 2. Qualidade identificada no produto/modelo
+      const texto = `${ordem.produto || ""} ${ordem.modelo || ""} ${ordem.bobina_descricao || ""}`.toUpperCase();
+      if (texto.includes("PINTAD") || texto.includes("BRANC") || texto.includes("PRE-PINT") || texto.includes("PP")) {
+        custoBase = CUSTOS_ACO_PADRAO.PP;
+      } else if (texto.includes("GALVALUME") || texto.includes("GL") || texto.includes("ZINCALUME")) {
+        custoBase = CUSTOS_ACO_PADRAO.GL;
+      } else if (texto.includes("GALVANIZAD") || texto.includes("GV")) {
+        custoBase = CUSTOS_ACO_PADRAO.GV;
+      } else if (texto.includes("FF")) {
+        custoBase = CUSTOS_ACO_PADRAO.FF;
+      } else if (texto.includes("FQ")) {
+        custoBase = CUSTOS_ACO_PADRAO.FQ;
+      }
+    }
+  }
+
+  // Aplicação do IPI de 3,25% sobre todas as bobinas de aço
+  const aliquotaIpi = 3.25;
+  const valorIpi = Math.round(custoBase * ALIQUOTA_IPI_ACO * 10000) / 10000;
+  const custoComIpi = Math.round((custoBase + valorIpi) * 10000) / 10000;
+
+  return {
+    custoBase,
+    aliquotaIpi,
+    valorIpi,
+    custoComIpi,
+  };
+}
+
 export function getCustoKgAco(ordem, bobinaMap = {}) {
-  if (!ordem) return CUSTOS_ACO_PADRAO.PADRAO;
-
-  // 1. Bobina vinculada diretamente
-  const bobId = ordem.bobina_id || ordem.bobina_superior_id || ordem.bobina_inferior_id;
-  if (bobId && bobinaMap[bobId]) {
-    const b = bobinaMap[bobId];
-    const raw = b.custo ?? b.custo_kg;
-    if (raw !== undefined && raw !== null && raw !== "") {
-      const num = typeof raw === "number" ? raw : parseFloat(String(raw).replace(",", "."));
-      if (!isNaN(num) && num > 0) return num;
-    }
-    if (b.custo_total && b.peso_kg && Number(b.peso_kg) > 0) {
-      const num = Number(b.custo_total) / Number(b.peso_kg);
-      if (!isNaN(num) && num > 0) return num;
-    }
-  }
-
-  // 2. Qualidade identificada no produto/modelo
-  const texto = `${ordem.produto || ""} ${ordem.modelo || ""} ${ordem.bobina_descricao || ""}`.toUpperCase();
-  if (texto.includes("PINTAD") || texto.includes("BRANC") || texto.includes("PRE-PINT") || texto.includes("PP")) {
-    return CUSTOS_ACO_PADRAO.PP;
-  }
-  if (texto.includes("GALVALUME") || texto.includes("GL") || texto.includes("ZINCALUME")) {
-    return CUSTOS_ACO_PADRAO.GL;
-  }
-  if (texto.includes("GALVANIZAD") || texto.includes("GV")) {
-    return CUSTOS_ACO_PADRAO.GV;
-  }
-  if (texto.includes("FF")) return CUSTOS_ACO_PADRAO.FF;
-  if (texto.includes("FQ")) return CUSTOS_ACO_PADRAO.FQ;
-
-  return CUSTOS_ACO_PADRAO.PADRAO;
+  return getCustoKgAcoDetalhado(ordem, bobinaMap).custoComIpi;
 }
 
 /**
@@ -85,7 +103,10 @@ export function calcularCustoOrdem(ordem, bobinaMap = {}) {
       custoCola: 0,
       custoOperacional: 0,
       kgAco: 0,
-      custoKgAco: CUSTOS_ACO_PADRAO.PADRAO,
+      custoKgBase: CUSTOS_ACO_PADRAO.PADRAO,
+      aliquotaIpi: 3.25,
+      valorIpiKg: Math.round(CUSTOS_ACO_PADRAO.PADRAO * ALIQUOTA_IPI_ACO * 10000) / 10000,
+      custoKgAco: Math.round(CUSTOS_ACO_PADRAO.PADRAO * (1 + ALIQUOTA_IPI_ACO) * 10000) / 10000,
       metros: 0,
       custoPorMetro: 0,
       custoPorKg: 0,
@@ -96,7 +117,11 @@ export function calcularCustoOrdem(ordem, bobinaMap = {}) {
 
   const metros = calcularMetrosPedido(ordem);
   const kgGravado = calcularKgPedido(ordem);
-  const custoKgAco = getCustoKgAco(ordem, bobinaMap);
+  const acoDetalhe = getCustoKgAcoDetalhado(ordem, bobinaMap);
+  const custoKgBase = acoDetalhe.custoBase;
+  const aliquotaIpi = acoDetalhe.aliquotaIpi;
+  const valorIpiKg = acoDetalhe.valorIpi;
+  const custoKgAco = acoDetalhe.custoComIpi; // Custo efetivo com 3,25% de IPI
 
   // Análise física da largura e espessura da chapa
   const prod = String(ordem.produto || ordem.modelo || "").toUpperCase();
@@ -192,7 +217,11 @@ export function calcularCustoOrdem(ordem, bobinaMap = {}) {
     espessura,
     largMm,
     tempoSegundos,
-    custoKgAco,
+    custoKgBase,
+    aliquotaIpi,
+    valorIpiKg,
+    custoKgAco, // Custo efetivo com 3,25% de IPI
+    temIpi: true,
     metros,
     custoPorMetro,
     custoPorKg,
@@ -229,6 +258,9 @@ export function prepararCustoParaOdoo(ordem, bobinaMap = {}) {
     custo_unitario_kg: c.custoPorKg,
     kg_consumido: c.kgAco,
     bobina_codigo: c.bobinaCodigo,
+    bobina_custo_kg_base: c.custoKgBase,
+    aliquota_ipi: c.aliquotaIpi,
+    valor_ipi_kg: c.valorIpiKg,
     bobina_custo_kg: c.custoKgAco,
     tempo_producao_segundos: Number(ordem.tempo_producao_segundos || 0),
   };

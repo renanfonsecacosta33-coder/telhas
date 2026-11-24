@@ -280,11 +280,16 @@ export default function BobinasCD() {
     const raw = b.custo ?? b.custo_kg;
     if (raw !== undefined && raw !== null && raw !== "") {
       const num = typeof raw === "number" ? raw : parseFloat(String(raw).replace(",", "."));
-      if (!isNaN(num) && num > 0) return num;
+      if (!isNaN(num) && num > 0) {
+        // Custo efetivo com 3,25% de IPI
+        return Math.round(num * 1.0325 * 100) / 100;
+      }
     }
     if (b.custo_total && b.peso_kg && Number(b.peso_kg) > 0) {
       const num = Number(b.custo_total) / Number(b.peso_kg);
-      if (!isNaN(num) && num > 0) return num;
+      if (!isNaN(num) && num > 0) {
+        return Math.round(num * 1.0325 * 100) / 100;
+      }
     }
     return null;
   };

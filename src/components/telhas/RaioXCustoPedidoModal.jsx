@@ -313,7 +313,12 @@ export default function RaioXCustoPedidoModal({
                       <Weight className="w-4 h-4" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-foreground">1. Matéria-Prima: Aço da Bobina</h4>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-sm font-bold text-foreground">1. Matéria-Prima: Aço da Bobina</h4>
+                        <Badge className="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 text-[10px] font-bold py-0 px-1.5">
+                          + 3,25% IPI Somado
+                        </Badge>
+                      </div>
                       <p className="text-[11px] text-muted-foreground">
                         Chapa {custo.espessura}mm · Largura {custo.largMm}mm · Densidade 7,85 kg/m³
                       </p>
@@ -335,8 +340,18 @@ export default function RaioXCustoPedidoModal({
                     <strong className="text-foreground">{custo.kgAco.toLocaleString("pt-BR")} kg</strong>
                   </div>
                   <div className="flex justify-between text-muted-foreground">
-                    <span>Custo do Aço por KG:</span>
-                    <strong className="text-foreground">{formatarMoeda(custo.custoKgAco)} / kg</strong>
+                    <span>Custo Base da Bobina (s/ IPI):</span>
+                    <span className="text-foreground font-semibold">{formatarMoeda(custo.custoKgBase)} / kg</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-200/60 text-[11px]">
+                    <span className="font-semibold flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-emerald-500" /> IPI Somado ({custo.aliquotaIpi}%):
+                    </span>
+                    <span className="font-bold">+ {formatarMoeda(custo.valorIpiKg)} / kg</span>
+                  </div>
+                  <div className="flex justify-between text-muted-foreground font-bold">
+                    <span className="text-foreground">Custo Efetivo do Aço (c/ IPI):</span>
+                    <strong className="text-orange-600 dark:text-orange-400">{formatarMoeda(custo.custoKgAco)} / kg</strong>
                   </div>
                   {custo.bobinaCodigo && (
                     <div className="flex justify-between text-muted-foreground">
@@ -347,7 +362,7 @@ export default function RaioXCustoPedidoModal({
                   <div className="flex justify-between text-muted-foreground pt-1 border-t border-border/60">
                     <span>Fórmula Industrial:</span>
                     <span className="text-slate-600 dark:text-slate-300">
-                      {custo.metros.toFixed(1)}m × {(custo.largMm/1000).toFixed(2)}m × {custo.espessura}mm × 7,85 = {custo.kgAco.toFixed(1)} kg × {formatarMoeda(custo.custoKgAco)}
+                      {custo.metros.toFixed(1)}m × {(custo.largMm/1000).toFixed(2)}m × {custo.espessura}mm × 7,85 = {custo.kgAco.toFixed(1)} kg × {formatarMoeda(custo.custoKgAco)} ({formatarMoeda(custo.custoKgBase)} + 3,25% IPI)
                     </span>
                   </div>
                 </div>

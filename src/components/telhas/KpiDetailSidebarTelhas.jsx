@@ -755,7 +755,10 @@ function CustoContent({ data, onGoToPedido, onEditarOrdem, onAbrirRaioX }) {
                   {/* Composição detalhada de custos */}
                   <div className="mt-2 pt-2 border-t border-border/50 grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
                     <div className="bg-muted/40 p-1 rounded">
-                      <span className="text-muted-foreground block text-[9px]">Aço ({op.kg.toFixed(0)} kg)</span>
+                      <div className="flex items-center justify-between text-muted-foreground text-[9px]">
+                        <span>Aço ({op.kg.toFixed(0)} kg)</span>
+                        <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400">+3,25% IPI</span>
+                      </div>
                       <span className="font-bold text-slate-700 dark:text-slate-300">{formatBRL(c.custoAco || 0)}</span>
                     </div>
 

@@ -114,8 +114,11 @@ export default function BobinaCard({
   const pctRestante = pctUso !== null ? 100 - pctUso : null;
   const diasRestantes = getPrevisaoAcabar(bobina);
   const alerta = getAlertaNivel(bobina);
-  const custoKg = bobina.custo ?? bobina.custo_kg;
-  const custoTotal = custoKg && bobina.peso_kg ? Number(custoKg) * Number(bobina.peso_kg) : (bobina.custo_total || null);
+  const custoKgRaw = bobina.custo ?? bobina.custo_kg;
+  const custoKgBase = custoKgRaw !== undefined && custoKgRaw !== null && custoKgRaw !== "" ? Number(custoKgRaw) : null;
+  // IPI de 3,25% somado conforme legislação fiscal e alíquota do aço
+  const custoKg = custoKgBase ? Math.round(custoKgBase * 1.0325 * 100) / 100 : null;
+  const custoTotal = custoKg && bobina.peso_kg ? Number(custoKg) * Number(bobina.peso_kg) : (bobina.custo_total ? Number(bobina.custo_total) * 1.0325 : null);
 
   const infoStatus = getStatusBadge(statusInfo, bobina);
 
@@ -162,6 +165,11 @@ export default function BobinaCard({
               )}
               {infoStatus && (
                 <Badge variant="outline" className={`text-xs ${infoStatus.cls}`}>{infoStatus.label}</Badge>
+              )}
+              {custoKg && (
+                <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 font-semibold" title="O custo desta bobina inclui 3,25% de IPI somado">
+                  +3,25% IPI
+                </Badge>
               )}
               {bobina.reservada && (
                 <Badge variant="outline" className="text-xs bg-purple-100 text-purple-800 border-purple-300">
@@ -409,8 +417,16 @@ export default function BobinaCard({
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
               {bobina.nf && <div><span className="text-muted-foreground">NF:</span> <strong>{bobina.nf}</strong></div>}
-              {custoKg && <div><span className="text-muted-foreground">Custo/kg:</span> <strong>R$ {Number(custoKg).toFixed(2)}</strong></div>}
-              {custoTotal && <div><span className="text-muted-foreground">Valor estoque:</span> <strong>R$ {custoTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</strong></div>}
+              {custoKg && (
+                <div className="col-span-2 sm:col-span-1">
+                  <span className="text-muted-foreground">Custo/kg (c/ IPI):</span>{" "}
+                  <strong>R$ {custoKg.toFixed(2)}</strong>{" "}
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold block">
+                    (R$ {custoKgBase?.toFixed(2)} + 3,25% IPI)
+                  </span>
+                </div>
+              )}
+              {custoTotal && <div><span className="text-muted-foreground">Valor estoque (c/ IPI):</span> <strong>R$ {custoTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</strong></div>}
               {bobina.consumo_diario_kg && <div><span className="text-muted-foreground">Consumo/dia:</span> <strong>{bobina.consumo_diario_kg} kg</strong></div>}
               {bobina.setor !== "corte_dobra" && bobina.metragem_restante && <div><span className="text-muted-foreground">Metr. restante:</span> <strong>{bobina.metragem_restante} m</strong></div>}
               {bobina.data_encerramento && <div><span className="text-muted-foreground">Encerrada em:</span> <strong>{bobina.data_encerramento}</strong></div>}

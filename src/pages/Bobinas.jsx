@@ -264,11 +264,16 @@ export default function Bobinas() {
     const raw = b.custo ?? b.custo_kg;
     if (raw !== undefined && raw !== null && raw !== "") {
       const num = typeof raw === "number" ? raw : parseFloat(String(raw).replace(",", "."));
-      if (!isNaN(num) && num > 0) return num;
+      if (!isNaN(num) && num > 0) {
+        // Custo efetivo com 3,25% de IPI
+        return Math.round(num * 1.0325 * 100) / 100;
+      }
     }
     if (b.custo_total && b.peso_kg && Number(b.peso_kg) > 0) {
       const num = Number(b.custo_total) / Number(b.peso_kg);
-      if (!isNaN(num) && num > 0) return num;
+      if (!isNaN(num) && num > 0) {
+        return Math.round(num * 1.0325 * 100) / 100;
+      }
     }
     return null;
   };
@@ -281,7 +286,7 @@ export default function Bobinas() {
         return acc + (c * peso);
       }
       if (b.custo_total && Number(b.custo_total) > 0) {
-        return acc + Number(b.custo_total);
+        return acc + (Number(b.custo_total) * 1.0325);
       }
       return acc;
     }, 0);
@@ -561,9 +566,12 @@ export default function Bobinas() {
               {valorTotalEstoque > 0 ? `R$ ${valorTotalEstoque.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "—"}
             </p>
           )}
-          <p className="text-xs text-emerald-700 dark:text-emerald-400 font-bold">Valor em Estoque</p>
+          <p className="text-xs text-emerald-700 dark:text-emerald-400 font-bold flex items-center justify-center gap-1">
+            <span>Valor em Estoque</span>
+            <span className="text-[10px] bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 px-1 rounded font-black">+3,25% IPI</span>
+          </p>
           <p className="text-[11px] text-muted-foreground mt-1">
-            {totalPeso > 0 && valorTotalEstoque > 0 ? `Méd: R$ ${(valorTotalEstoque / totalPeso).toFixed(2)}/kg` : "Patrimônio ativo"}
+            {totalPeso > 0 && valorTotalEstoque > 0 ? `Méd: R$ ${(valorTotalEstoque / totalPeso).toFixed(2)}/kg (c/ IPI)` : "Patrimônio ativo (c/ IPI)"}
           </p>
         </div>
 
