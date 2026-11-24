@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { notificarStatus } from "@/lib/biNotificador";
+import { cancelarOpsDasOfsExatas } from "@/lib/conciliacaoPcpMaquinasHelper";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
@@ -253,18 +254,9 @@ export default function PedidoOdooDetalheDialog({
     setResetando(true);
     try {
       const todayIso = new Date().toISOString().slice(0, 10);
-      await base44.entities.OrdemMaquinaCD.updateMany(
-        { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
-        { $set: { status: "cancelado", data_finalizacao: todayIso } }
-      ).catch(() => {});
-      await base44.entities.OrdemDesbobinadeira.updateMany(
-        { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
-        { $set: { status: "cancelado", data_finalizacao: todayIso } }
-      ).catch(() => {});
-      await base44.entities.Pedido.updateMany(
-        { numero_pedido: pedido.numero_pedido, status: { $ne: "cancelado" } },
-        { $set: { status: "cancelado", data_finalizacao: todayIso } }
-      ).catch(() => {});
+      // Cancela SOMENTE as OPs desta OF: casar apenas pelo numero_pedido derrubava
+      // as OFs irmãs da mesma venda (ex: S07186 tem 8 OFs).
+      await cancelarOpsDasOfsExatas({ pedidos: [pedido], todayIso });
 
       const itensAtuais = getItens(pedido);
       const itensZerados = itensAtuais.map(i => ({
