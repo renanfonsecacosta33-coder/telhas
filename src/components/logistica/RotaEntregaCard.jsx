@@ -2,9 +2,32 @@ import React, { useState, useMemo, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { Link } from "react-router-dom";
-import { Truck, Eye, Factory, Layers, PackageCheck, DollarSign, StickyNote, RefreshCw, Loader2, Trash2, Pencil, Camera, AlertTriangle, Weight } from "lucide-react";
+import {
+  Truck,
+  Eye,
+  Factory,
+  Layers,
+  PackageCheck,
+  DollarSign,
+  StickyNote,
+  RefreshCw,
+  Loader2,
+  Trash2,
+  Pencil,
+  Camera,
+  AlertTriangle,
+  Weight,
+  Printer,
+  Download,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  MapPin,
+  Calendar
+} from "lucide-react";
 import { toast } from "sonner";
 import ImageViewer from "@/components/ui/ImageViewer";
 import RotaCarregamentoSlot from "@/components/logistica/RotaCarregamentoSlot";
@@ -20,6 +43,7 @@ import {
   calcularPesoRota,
   analisarCapacidadeCaminhao,
 } from "@/lib/veiculosCapacidadeHelper";
+import { baixarRomaneioPdf, imprimirRomaneioHtml } from "@/lib/romaneioCargaPdfHelper";
 
 const DEP_LABEL = { telhas: "Telhas", corte_dobra: "Corte e Dobra", expedicao: "Expedição" };
 const DEP_COLOR = {
@@ -34,6 +58,7 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
   const [replacingRota, setReplacingRota] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [pedidoOdooModal, setPedidoOdooModal] = useState(null);
+  const [tabelaExpandida, setTabelaExpandida] = useState(true);
   const editRotaRef = useRef(null);
   const queryClient = useQueryClient();
 
@@ -215,7 +240,6 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
     fotosJson: rota[`fotos_${dep}_json`] || "",
     videoUrl: rota[`video_${dep}_url`] || "",
     videoNome: rota[`video_${dep}_nome`] || "",
-    // compat legado: se não houver fotos novas mas houver foto única legada, reutiliza
     legadoUrl: rota[`imagem_carregamento_${dep}_url`],
     legadoNome: rota[`imagem_carregamento_${dep}_nome`],
   });
@@ -224,72 +248,121 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
   const dataCriacao = rota.data_criacao ? format(new Date(rota.data_criacao + "T12:00:00"), "dd/MM") : "";
 
   return (
-    <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-xs">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="font-bold text-sm truncate">{rota.titulo}</p>
-          <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground flex-wrap">
-            {rota.entrega_date && <span className="flex items-center gap-0.5"><Truck className="w-3 h-3" /> Entrega: <b>{rota.entrega_date}</b></span>}
-            {rota.embarque_date && <span>Embarque: <b>{rota.embarque_date}</b></span>}
-            {dataCriacao && <span>· {dataCriacao}</span>}
-          </div>
-          {(rota.motorista_nome || rota.placa) && (
-            <div className="flex items-center gap-2 mt-1 text-xs font-semibold text-foreground">
-              <span>👤 Motorista: <b>{rota.motorista_nome || "—"}</b></span>
-              {rota.placa && <span>· 🚛 Placa: <b>{rota.placa}</b></span>}
+    <div className="bg-card border border-border rounded-2xl p-5 space-y-4 shadow-sm w-full transition-all">
+      {/* Header Amplo da Rota */}
+      <div className="flex items-start justify-between gap-4 flex-wrap pb-3 border-b border-border">
+        <div className="space-y-1.5 min-w-0">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="p-2 rounded-xl bg-primary/10 text-primary border border-primary/20">
+              <Truck className="w-5 h-5" />
+            </span>
+            <div>
+              <h3 className="font-bold text-base text-foreground leading-tight">
+                {rota.titulo || "Rota de Entrega"}
+              </h3>
+              <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground flex-wrap">
+                {rota.entrega_date && (
+                  <span className="flex items-center gap-1 font-semibold text-foreground">
+                    <Calendar className="w-3.5 h-3.5 text-primary" /> Entrega: <strong>{rota.entrega_date}</strong>
+                  </span>
+                )}
+                {rota.embarque_date && (
+                  <span>Embarque: <strong>{rota.embarque_date}</strong></span>
+                )}
+                {dataCriacao && <span>· Criada em: {dataCriacao}</span>}
+              </div>
             </div>
-          )}
-          {/* Badges de Investigação Dinâmica nos 2 Barracões */}
-          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+          </div>
+
+          {/* Motorista, Placa e Badges dos Barracões */}
+          <div className="flex items-center gap-2 pt-1 flex-wrap">
+            {(rota.motorista_nome || rota.placa) && (
+              <Badge variant="outline" className="text-xs bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-800 text-slate-800 dark:text-slate-200 font-semibold gap-1.5 py-1 px-2.5">
+                <span>👤 Motorista: <strong>{rota.motorista_nome || "—"}</strong></span>
+                {rota.placa && <span>· 🚛 Placa: <strong className="font-mono">{rota.placa}</strong></span>}
+              </Badge>
+            )}
+
             {resumoBarracoes.telhas > 0 && (
-              <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-[10px] font-semibold">
+              <Badge className="bg-blue-100 hover:bg-blue-100 text-blue-900 border-blue-200 text-xs font-bold gap-1 py-1 px-2.5">
                 🏠 {resumoBarracoes.telhas} Telhas
               </Badge>
             )}
             {resumoBarracoes.cd > 0 && (
-              <Badge className="bg-orange-100 text-orange-800 border-orange-200 text-[10px] font-semibold">
+              <Badge className="bg-orange-100 hover:bg-orange-100 text-orange-900 border-orange-200 text-xs font-bold gap-1 py-1 px-2.5">
                 🏗️ {resumoBarracoes.cd} Corte & Dobra
               </Badge>
             )}
             {resumoBarracoes.ambos > 0 && (
-              <Badge className="bg-purple-100 text-purple-800 border-purple-200 text-[10px] font-semibold">
+              <Badge className="bg-purple-100 hover:bg-purple-100 text-purple-900 border-purple-200 text-xs font-bold gap-1 py-1 px-2.5">
                 📦 {resumoBarracoes.ambos} Ambos
               </Badge>
             )}
             {resumoBarracoes.aguardando > 0 && (
-              <Badge className="bg-slate-100 text-slate-700 border-slate-200 text-[10px]">
+              <Badge variant="outline" className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 text-xs py-1 px-2.5">
                 ⏳ {resumoBarracoes.aguardando} Aguardando Entrada
               </Badge>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => setEditDialogOpen(true)}
-            className="h-7 w-7 rounded-md bg-primary/10 text-primary hover:bg-primary/20 flex items-center justify-center transition-colors"
-            title="Editar rota"
+
+        {/* Ações do Topo: Gerar PDF, Editar e Quantidade de Pedidos */}
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
+          {/* Botão Oficial: Imprimir Romaneio em PDF */}
+          <Button
+            size="sm"
+            onClick={() => imprimirRomaneioHtml(rota, { filialAtiva: rota.unidade })}
+            className="gap-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs h-9 px-3.5 shadow-sm cursor-pointer"
+            title="Abrir folha oficial do Romaneio/Manifesto de Carga para impressão ou salvar em PDF"
           >
-            <Pencil className="w-3.5 h-3.5" />
-          </button>
-          <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 font-bold">
+            <Printer className="w-4 h-4" />
+            Imprimir Romaneio (PDF)
+          </Button>
+
+          {/* Botão: Baixar PDF nativo */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => baixarRomaneioPdf(rota, { filialAtiva: rota.unidade })}
+            className="gap-1.5 text-xs font-semibold h-9 px-3 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+            title="Baixar arquivo PDF nativo do Romaneio de Carga"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Baixar PDF
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setEditDialogOpen(true)}
+            className="h-9 w-9 p-0 rounded-lg text-primary hover:bg-primary/10 border-primary/20"
+            title="Editar dados da rota"
+          >
+            <Pencil className="w-4 h-4" />
+          </Button>
+
+          <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white font-bold text-xs px-3 py-1.5">
             {itens.length} {itens.length === 1 ? "pedido" : "pedidos"}
           </Badge>
         </div>
       </div>
 
       {/* Monitoramento de Capacidade do Veículo & Ocupação de Peso */}
-      <div className="bg-muted/40 border border-border/80 rounded-lg p-2.5 space-y-1.5 shadow-2xs">
-        <div className="flex items-center justify-between gap-2 text-xs">
-          <div className="flex items-center gap-1.5 font-bold text-foreground">
-            <span className="text-base">{veiculoDef.icone}</span>
-            <span className="text-xs">{veiculoDef.label}</span>
-            {rota.placa && <span className="text-muted-foreground font-mono font-normal">({rota.placa})</span>}
+      <div className="bg-slate-50/80 dark:bg-slate-900/50 border border-border rounded-xl p-3.5 space-y-2 shadow-2xs">
+        <div className="flex items-center justify-between gap-3 text-xs flex-wrap">
+          <div className="flex items-center gap-2 font-bold text-foreground">
+            <span className="text-lg">{veiculoDef.icone}</span>
+            <span className="text-sm">{veiculoDef.label}</span>
+            {rota.placa && (
+              <span className="text-muted-foreground font-mono font-normal">
+                ({rota.placa})
+              </span>
+            )}
           </div>
-          <div className="flex items-center gap-1.5">
-            <Badge variant="outline" className={`text-[10px] py-0 px-2 font-bold ${analiseCapacidade.badgeCls}`}>
-              {analiseCapacidade.status === "sobrepeso" && <AlertTriangle className="w-3 h-3 mr-1 shrink-0" />}
+
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className={`text-xs py-0.5 px-2.5 font-bold ${analiseCapacidade.badgeCls}`}>
+              {analiseCapacidade.status === "sobrepeso" && <AlertTriangle className="w-3.5 h-3.5 mr-1 shrink-0" />}
               {analiseCapacidade.status === "sobrepeso"
                 ? `SOBREPESO (${analiseCapacidade.percentual}%)`
                 : `${analiseCapacidade.percentual}% ocupado`}
@@ -298,19 +371,19 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
         </div>
 
         {/* Barra de progresso visual */}
-        <div className="w-full bg-muted h-2 rounded-full overflow-hidden border border-border/40">
+        <div className="w-full bg-slate-200 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden border border-border/40">
           <div
             className={`h-full transition-all duration-500 rounded-full ${analiseCapacidade.corBarra}`}
             style={{ width: `${Math.min(100, analiseCapacidade.percentual)}%` }}
           />
         </div>
 
-        <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5 flex-wrap gap-1">
-          <div className="flex items-center gap-1 font-medium">
-            <Weight className="w-3 h-3 text-muted-foreground shrink-0" />
-            <span>Peso Est.: <b className="text-foreground">{dadosPeso.pesoTotalKg.toLocaleString("pt-BR")} kg</b></span>
+        <div className="flex items-center justify-between text-xs text-muted-foreground pt-0.5 flex-wrap gap-2">
+          <div className="flex items-center gap-1.5 font-medium">
+            <Weight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            <span>Peso Est.: <strong className="text-foreground text-sm">{dadosPeso.pesoTotalKg.toLocaleString("pt-BR")} kg</strong></span>
             {(dadosPeso.pesoTelhasKg > 0 || dadosPeso.pesoCdKg > 0) && (
-              <span className="text-[10px] text-muted-foreground/80 hidden sm:inline">
+              <span className="text-xs text-muted-foreground/80 hidden sm:inline">
                 ({dadosPeso.pesoTelhasKg > 0 ? `${dadosPeso.pesoTelhasKg.toLocaleString("pt-BR")}kg Telhas` : ""}
                 {dadosPeso.pesoTelhasKg > 0 && dadosPeso.pesoCdKg > 0 ? " · " : ""}
                 {dadosPeso.pesoCdKg > 0 ? `${dadosPeso.pesoCdKg.toLocaleString("pt-BR")}kg CD` : ""})
@@ -318,14 +391,14 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
             )}
           </div>
           <div>
-            <span>Capacidade: <b className="text-foreground">{capacidadeFinalKg.toLocaleString("pt-BR")} kg</b></span>
+            <span>Capacidade Máxima: <strong className="text-foreground text-sm">{capacidadeFinalKg.toLocaleString("pt-BR")} kg</strong></span>
           </div>
         </div>
 
         {analiseCapacidade.sobrepesoKg > 0 && (
-          <div className="text-[11px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 rounded px-2 py-0.5 flex items-center justify-between">
-            <span className="flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" />
+          <div className="text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 rounded-lg p-2 flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
               Atenção: Peso da rota excede a capacidade do caminhão!
             </span>
             <span>+{analiseCapacidade.sobrepesoKg.toLocaleString("pt-BR")} kg excedentes</span>
@@ -333,36 +406,39 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
         )}
       </div>
 
-      {/* Imagem da rota + carregamento por barracão */}
-      <div className="flex gap-2">
+      {/* Imagem da rota + Carregamento por Barracão em Grid Espaçoso */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-stretch">
         {rota.rota_imagem_url && (
-          <div className="relative h-20 w-28 shrink-0">
-            <button
-              onClick={() => { setViewerUrl(rota.rota_imagem_url); setViewerName(rota.rota_imagem_nome); }}
-              className="relative h-full w-full rounded-lg border border-border overflow-hidden bg-muted group"
-              title="Ver rota"
-            >
-              <img src={rota.rota_imagem_url} alt="rota" className="h-full w-full object-cover" />
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[9px] text-center py-0.5">Rota</span>
-            </button>
+          <div className="relative h-24 md:h-full min-h-[90px] rounded-xl border border-border overflow-hidden bg-muted group md:col-span-1 shadow-2xs">
+            <img src={rota.rota_imagem_url} alt="Folha de Rota" className="h-full w-full object-cover" />
+            <div className="absolute inset-0 bg-black/30 group-hover:bg-black/50 transition-colors flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => { setViewerUrl(rota.rota_imagem_url); setViewerName(rota.rota_imagem_nome || "Folha de Rota"); }}
+                className="p-1.5 rounded-lg bg-white/90 text-slate-800 hover:bg-white transition-all shadow-sm flex items-center gap-1 text-[11px] font-bold cursor-pointer"
+                title="Visualizar documento em tela cheia"
+              >
+                <Eye className="w-4 h-4 text-primary" /> Ver Folha
+              </button>
+            </div>
             <button
               type="button"
               onClick={() => editRotaRef.current?.click()}
               disabled={replacingRota}
-              className="absolute top-1 right-1 h-6 w-6 rounded-md bg-background/90 border border-border shadow-sm flex items-center justify-center hover:bg-background disabled:opacity-60"
-              title="Editar foto da rota (reler tudo com IA)"
+              className="absolute top-1.5 right-1.5 h-6 w-6 rounded-md bg-background/90 border border-border shadow-xs flex items-center justify-center hover:bg-background disabled:opacity-60 cursor-pointer"
+              title="Trocar folha da rota e reler com IA"
             >
               {replacingRota ? <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" /> : <RefreshCw className="w-3.5 h-3.5 text-primary" />}
             </button>
+            <span className="absolute bottom-0 inset-x-0 bg-slate-900/80 text-white text-[10px] text-center py-0.5 font-bold">
+              Foto Original da Rota
+            </span>
           </div>
         )}
-        <div className={`grid gap-2 flex-1 ${departamentosAtivos.length === 1 ? "grid-cols-1" : "grid-cols-3"}`}>
+
+        <div className={`grid gap-2.5 ${rota.rota_imagem_url ? "md:col-span-3" : "md:col-span-4"} ${departamentosAtivos.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-3"}`}>
           {departamentosAtivos.map((dep) => {
             const f = carregamentoField(dep);
-            // Se houver foto legada única e nenhuma foto nova, converte para o novo formato
             const fotosArr = (() => { try { return JSON.parse(f.fotosJson || "[]"); } catch { return []; } })();
             const fotosJsonFinal = fotosArr.length > 0
               ? f.fotosJson
@@ -390,146 +466,192 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
       {/* Botão de Auditoria Fotográfica Sequencial (5 Etapas) */}
       <Link
         to={`/timeline-carregamento?rotaId=${rota.id}`}
-        className="flex items-center justify-between gap-2 w-full py-2 px-3 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-all font-semibold text-xs shadow-xs group"
+        className="flex items-center justify-between gap-3 w-full py-2.5 px-4 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-all font-semibold text-xs shadow-xs group"
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <Camera className="w-4 h-4 text-primary shrink-0 transition-transform group-hover:scale-110" />
-          <span>📸 Timeline de Carregamento & Amarração (5 Etapas)</span>
+          <span>📸 Timeline de Carregamento & Amarração (5 Etapas Fotográficas Oficiais)</span>
         </div>
-        <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded font-mono font-bold">
-          Vistoria ➔
+        <span className="text-xs bg-primary/20 text-primary px-3 py-1 rounded-md font-mono font-bold">
+          Iniciar Vistoria ➔
         </span>
       </Link>
 
-      {/* Tabela detalhada de pedidos da rota com Barracão dinâmico, Observações e Foto por Pedido */}
+      {/* Cabeçalho Interativo para Alternar a Visualização da Tabela de Pedidos */}
       {itensFiltrados.length > 0 && (
-        <div className="max-h-60 overflow-y-auto rounded-md border border-border">
-          <table className="w-full text-xs">
-            <thead className="bg-muted sticky top-0">
-              <tr>
-                <th className="text-left p-1.5 font-semibold w-6">#</th>
-                <th className="text-left p-1.5 font-semibold">Pedido</th>
-                <th className="text-left p-1.5 font-semibold">Nº Odoo</th>
-                <th className="text-left p-1.5 font-semibold">Cliente</th>
-                <th className="text-left p-1.5 font-semibold">Barracão / Status</th>
-                <th className="text-left p-1.5 font-semibold">Observação</th>
-                <th className="text-left p-1.5 font-semibold hidden sm:table-cell">Bairro</th>
-                <th className="text-left p-1.5 font-semibold">Valor</th>
-                <th className="text-center p-1.5 font-semibold">Fotos do Pedido</th>
-              </tr>
-            </thead>
-            <tbody>
-              {itensFiltrados.map((it, idx) => {
-                const info = getInfoPedido(
-                  it.numero_pedido,
-                  it.observacao,
-                  rota.titulo,
-                  it.numero_odoo,
-                  it.cliente,
-                  it.vendedor
-                );
-                return (
-                  <tr key={idx} className="border-t border-border hover:bg-muted/30 transition-colors">
-                    <td className="p-1.5 text-muted-foreground">{it.ordem}</td>
-                    <td className="p-1.5 font-bold">{it.numero_pedido}</td>
-                    <td className="p-1.5 whitespace-nowrap">
-                      {it.numero_odoo ? (
-                        it.numero_odoo.toUpperCase() === "NT" ? (
-                          <Badge variant="outline" className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 font-mono font-medium" title="Balcão / Sem Odoo">
-                            NT
-                          </Badge>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleAbrirOdoo(it, info)}
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 dark:text-blue-300 dark:border-blue-800 transition-colors shadow-xs"
-                            title="Clique para ver croqui, itens e status deste pedido no Odoo"
-                          >
-                            <span>#{it.numero_odoo}</span>
-                          </button>
-                        )
-                      ) : info?.numero_odoo ? (
-                        <button
-                          type="button"
-                          onClick={() => handleAbrirOdoo(it, info)}
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50/60 hover:bg-blue-100 text-blue-600 border border-blue-200/60 dark:bg-blue-950/40 dark:text-blue-300 transition-colors"
-                          title="Cruzado automaticamente pelo sistema. Clique para ver detalhes no Odoo"
-                        >
-                          <span>#{info.numero_odoo}</span>
-                        </button>
-                      ) : (
-                        <span className="text-muted-foreground text-[10px]">—</span>
-                      )}
-                    </td>
-                    <td className="p-1.5 truncate max-w-[120px]" title={it.cliente}>
-                      <span className="font-medium">{it.cliente}</span>
-                      {(it.vendedor || it.pagamento) && (
-                        <span className="block text-[10px] text-muted-foreground truncate">
-                          {[it.vendedor && `Vend: ${it.vendedor}`, it.pagamento && `Pg: ${it.pagamento}`].filter(Boolean).join(" · ")}
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-1.5 whitespace-nowrap">
-                      <div className="flex flex-col gap-0.5">
-                        <select
-                          value={it.barracao_sugerido || info?.barracao || "aguardando"}
-                          onChange={(e) => alterarBarracaoPedido(it.numero_pedido, e.target.value)}
-                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded border cursor-pointer outline-none transition-colors ${info?.barracaoBadgeClass || ""}`}
-                          title="Clique para alterar o barracão deste pedido"
-                        >
-                          <option value="telhas">🏠 Telhas</option>
-                          <option value="corte_dobra">🏗️ Corte & Dobra</option>
-                          <option value="ambos">📦 Ambos os Barracões</option>
-                          <option value="aguardando">⏳ Aguardando Entrada</option>
-                        </select>
-                        {info?.statusGeralLabel && (
-                          <span className="text-[10px] text-muted-foreground font-medium">
-                            {info.statusGeralLabel}
-                            {info.maquinasTelhas?.length > 0 && ` (${info.maquinasTelhas.join(",")})`}
-                            {info.maquinasCD?.length > 0 && ` (${info.maquinasCD.join(",")})`}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="p-1.5 max-w-[170px]">
-                      {it.observacao ? (
-                        <span className="inline-flex items-center gap-1 font-semibold text-amber-900 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5 text-[10px] leading-tight">
-                          📌 {it.observacao}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground text-[10px]">—</span>
-                      )}
-                    </td>
-                    <td className="p-1.5 truncate max-w-[80px] hidden sm:table-cell">{it.bairro}</td>
-                    <td className="p-1.5 font-medium">{it.valor}</td>
-                    <td className="p-1.5 text-center">
-                      <FotoPedidoButton
-                        rotaId={rota.id}
-                        numeroPedido={it.numero_pedido}
-                        cliente={it.cliente}
-                        fotosPedidosJson={rota.fotos_pedidos_json}
-                      />
-                    </td>
+        <div className="space-y-2 pt-1">
+          <button
+            type="button"
+            onClick={() => setTabelaExpandida(!tabelaExpandida)}
+            className="flex items-center justify-between w-full p-3 rounded-xl bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition-colors font-bold text-xs text-foreground cursor-pointer border border-border/80"
+          >
+            <span className="flex items-center gap-2">
+              <PackageCheck className="w-4 h-4 text-primary" />
+              Manifesto de Carga — Pedidos da Rota ({itensFiltrados.length} pedidos)
+            </span>
+            <span className="flex items-center gap-1.5 text-xs text-primary font-bold">
+              {tabelaExpandida ? (
+                <>Recolher Tabela <ChevronUp className="w-4 h-4" /></>
+              ) : (
+                <>Visualizar Tabela Ampla <ChevronDown className="w-4 h-4" /></>
+              )}
+            </span>
+          </button>
+
+          {/* Tabela Ampla, Espaçosa e Nítida */}
+          {tabelaExpandida && (
+            <div className="rounded-xl border border-border overflow-hidden bg-background shadow-xs max-h-[460px] overflow-y-auto overflow-x-auto transition-all">
+              <table className="w-full text-xs min-w-[950px] border-collapse">
+                <thead className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 sticky top-0 z-10 border-b border-border shadow-xs">
+                  <tr>
+                    <th className="text-center p-2.5 font-bold w-12">#</th>
+                    <th className="text-left p-2.5 font-bold w-24">Pedido</th>
+                    <th className="text-left p-2.5 font-bold w-28">Nº Odoo</th>
+                    <th className="text-left p-2.5 font-bold min-w-[220px]">Cliente / Vendedor</th>
+                    <th className="text-left p-2.5 font-bold w-44">Barracão / Destino</th>
+                    <th className="text-left p-2.5 font-bold min-w-[260px]">Observações da Rota</th>
+                    <th className="text-left p-2.5 font-bold w-36">Bairro / Cidade</th>
+                    <th className="text-right p-2.5 font-bold w-28">Valor</th>
+                    <th className="text-center p-2.5 font-bold w-32 pr-3">Fotos Pedido</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {itensFiltrados.map((it, idx) => {
+                    const info = getInfoPedido(
+                      it.numero_pedido,
+                      it.observacao,
+                      rota.titulo,
+                      it.numero_odoo,
+                      it.cliente,
+                      it.vendedor
+                    );
+                    return (
+                      <tr
+                        key={idx}
+                        className="hover:bg-slate-50/80 dark:hover:bg-slate-900/50 transition-colors"
+                      >
+                        <td className="p-2.5 text-center font-bold text-muted-foreground">
+                          <span className="inline-block w-6 h-6 leading-6 text-center rounded-full bg-slate-100 dark:bg-slate-800 text-[11px]">
+                            {it.ordem || idx + 1}
+                          </span>
+                        </td>
+                        <td className="p-2.5">
+                          <span className="font-bold text-sm text-foreground">
+                            #{it.numero_pedido}
+                          </span>
+                        </td>
+                        <td className="p-2.5 whitespace-nowrap">
+                          {it.numero_odoo ? (
+                            it.numero_odoo.toUpperCase() === "NT" ? (
+                              <Badge variant="outline" className="text-[11px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono font-bold px-2 py-0.5">
+                                NT
+                              </Badge>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleAbrirOdoo(it, info)}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-mono font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 transition-colors shadow-2xs cursor-pointer"
+                                title="Ver croquis, itens e espelho do pedido no Odoo"
+                              >
+                                #{it.numero_odoo}
+                              </button>
+                            )
+                          ) : info?.numero_odoo ? (
+                            <button
+                              type="button"
+                              onClick={() => handleAbrirOdoo(it, info)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-mono font-bold bg-blue-50/60 hover:bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 transition-colors cursor-pointer"
+                              title="Cruzado pelo sistema. Ver no Odoo"
+                            >
+                              #{info.numero_odoo}
+                            </button>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="p-2.5">
+                          <div className="font-semibold text-foreground text-xs leading-snug">
+                            {it.cliente}
+                          </div>
+                          {(it.vendedor || it.pagamento) && (
+                            <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
+                              {it.vendedor && <span>Vend: <strong className="font-medium text-slate-700 dark:text-slate-300">{it.vendedor}</strong></span>}
+                              {it.vendedor && it.pagamento && <span>•</span>}
+                              {it.pagamento && <span>Pg: <strong className="font-medium text-slate-700 dark:text-slate-300">{it.pagamento}</strong></span>}
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-2.5">
+                          <div className="flex flex-col gap-1">
+                            <select
+                              value={it.barracao_sugerido || info?.barracao || "aguardando"}
+                              onChange={(e) => alterarBarracaoPedido(it.numero_pedido, e.target.value)}
+                              className={`text-xs font-bold px-2 py-1 rounded-md border cursor-pointer outline-none transition-colors shadow-2xs ${info?.barracaoBadgeClass || "bg-background border-border text-foreground"}`}
+                              title="Clique para alterar o barracão responsável deste pedido"
+                            >
+                              <option value="telhas">🏠 Telhas</option>
+                              <option value="corte_dobra">🏗️ Corte & Dobra</option>
+                              <option value="ambos">📦 Ambos os Barracões</option>
+                              <option value="aguardando">⏳ Aguardando Entrada</option>
+                            </select>
+                            {info?.statusGeralLabel && (
+                              <span className="text-[10px] text-muted-foreground font-medium">
+                                {info.statusGeralLabel}
+                                {info.maquinasTelhas?.length > 0 && ` (${info.maquinasTelhas.join(",")})`}
+                                {info.maquinasCD?.length > 0 && ` (${info.maquinasCD.join(",")})`}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-2.5">
+                          {it.observacao ? (
+                            <div className="inline-flex items-start gap-1.5 font-semibold text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-md p-1.5 text-[11px] leading-tight">
+                              <span className="flex-none">📌</span>
+                              <span>{it.observacao}</span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="p-2.5 text-foreground text-xs">
+                          <span className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
+                            <MapPin className="w-3.5 h-3.5 text-muted-foreground flex-none" />
+                            {it.bairro || "—"}
+                          </span>
+                        </td>
+                        <td className="p-2.5 text-right font-bold text-foreground text-xs tabular-nums">
+                          {it.valor || "—"}
+                        </td>
+                        <td className="p-2.5 text-center pr-3">
+                          <FotoPedidoButton
+                            rotaId={rota.id}
+                            numeroPedido={it.numero_pedido}
+                            cliente={it.cliente}
+                            fotosPedidosJson={rota.fotos_pedidos_json}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Departamentos envolvidos */}
+      {/* Departamentos Envolvidos */}
       {!departamento && (
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap pt-1">
           {["telhas", "corte_dobra", "expedicao"].map((d) => {
             const count = itens.filter((i) => (i.departamentos || []).includes(d)).length;
             if (count === 0) return null;
             return (
-              <Badge key={d} className={`text-[10px] ${DEP_COLOR[d]}`}>
-                {d === "telhas" && <Factory className="w-3 h-3 mr-0.5" />}
-                {d === "corte_dobra" && <Layers className="w-3 h-3 mr-0.5" />}
-                {d === "expedicao" && <PackageCheck className="w-3 h-3 mr-0.5" />}
-                {DEP_LABEL[d]}: {count}
+              <Badge key={d} className={`text-xs py-1 px-2.5 font-semibold ${DEP_COLOR[d]}`}>
+                {d === "telhas" && <Factory className="w-3.5 h-3.5 mr-1" />}
+                {d === "corte_dobra" && <Layers className="w-3.5 h-3.5 mr-1" />}
+                {d === "expedicao" && <PackageCheck className="w-3.5 h-3.5 mr-1" />}
+                {DEP_LABEL[d]}: {count} {count === 1 ? "pedido" : "pedidos"}
               </Badge>
             );
           })}
@@ -538,34 +660,47 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
 
       {/* OBS — Observações da Carga e Rota */}
       {(rota.observacao || rota.nota_geral) && (
-        <div className="flex items-start gap-1.5 text-xs text-amber-900 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 rounded-md p-2">
-          <StickyNote className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-600" />
-          <div className="space-y-0.5">
-            {rota.observacao && <p className="whitespace-pre-wrap font-semibold">📝 {rota.observacao}</p>}
+        <div className="flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 rounded-xl p-3 shadow-2xs">
+          <StickyNote className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
+          <div className="space-y-1">
+            {rota.observacao && <p className="whitespace-pre-wrap font-bold">📝 {rota.observacao}</p>}
             {rota.nota_geral && rota.nota_geral !== rota.observacao && (
-              <p className="whitespace-pre-wrap text-muted-foreground italic text-[11px]">Nota: {rota.nota_geral}</p>
+              <p className="whitespace-pre-wrap text-muted-foreground italic text-xs">Nota da folha: {rota.nota_geral}</p>
             )}
           </div>
         </div>
       )}
 
-      {totalFmt && (
-        <div className="flex items-center justify-between text-xs pt-1 border-t border-border">
-          <span className="text-muted-foreground flex items-center gap-1">
-            <DollarSign className="w-3 h-3" /> Total da rota
-          </span>
-          <span className="font-bold">{totalFmt}</span>
+      {/* Barra Inferior com Total e Ação de Exclusão */}
+      <div className="flex items-center justify-between text-xs pt-2 border-t border-border flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          {totalFmt && (
+            <div className="flex items-center gap-1.5 font-bold text-sm text-foreground">
+              <DollarSign className="w-4 h-4 text-emerald-600" />
+              <span>Valor Total da Rota: <strong className="text-emerald-700 dark:text-emerald-400">{totalFmt}</strong></span>
+            </div>
+          )}
         </div>
-      )}
 
-      {allowDelete && (
-        <button onClick={handleDelete} className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-md py-2 transition-colors">
-          <Trash2 className="w-3.5 h-3.5" /> Excluir Rota
-        </button>
-      )}
+        {allowDelete && (
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={handleDelete}
+            className="gap-1.5 text-xs font-bold h-8 px-3 cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" /> Excluir Rota
+          </Button>
+        )}
+      </div>
 
-      <input ref={editRotaRef} type="file" accept="image/*" className="hidden"
-        onChange={(e) => handleReplaceRota(e.target.files?.[0])} />
+      <input
+        ref={editRotaRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => handleReplaceRota(e.target.files?.[0])}
+      />
       <ImageViewer url={viewerUrl} name={viewerName} open={!!viewerUrl} onClose={() => setViewerUrl(null)} />
       <EditarRotaDialog open={editDialogOpen} onOpenChange={setEditDialogOpen} rota={rota} />
       {pedidoOdooModal && (

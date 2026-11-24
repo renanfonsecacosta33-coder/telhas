@@ -185,7 +185,7 @@ export default function RotasEntregaSection({
           <Archive className="w-3.5 h-3.5" /> Ver Arquivo
         </Link>
       </div>
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="space-y-4">
         {rotasFiltradas.map((r) => (
           <RotaEntregaCard key={r.id} rota={r} departamento={departamento} allowDelete={allowDelete} />
         ))}
