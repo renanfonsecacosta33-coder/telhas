@@ -147,9 +147,9 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
   const matchModeloTelha = tLimpo.match(/\b(tp\s*-?\s*25|tp\s*-?\s*40|tp\s*-?\s*100|ondulad[ao]|trapezoidal|colonial|termoac[uú]stica|sandu[íi]che)\b/i);
   const modeloGeral = matchModeloTelha ? matchModeloTelha[1].replace(/\s+/g, "").toUpperCase() : null;
 
-  const regexTelhaQtdComp = /(\d+)\s*(?:telhas?|p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|unidades?|un\.?)\s*(?:(?:do\s*tipo|modelo|mod\.?)?\s*(tp\s*-?\s*25|tp\s*-?\s*40|tp\s*-?\s*100|ondulad[ao]|trapezoidal|colonial|termoac[uú]stica|sandu[íi]che))?\s*(?:c\/|com|de|\*|x|-|–|—)?\s*(\d{1,2}\.\d{3}|\d{3,5}\s*mm|\d+(?:[.,]\d+)?\s*(?:m\b|mts?\b|metros?\b))\b/gi;
+  const regexTelhaQtdComp = /(\d+)\s*(?:telhas?|(?:p[çc]|po[çc])s?\.?|pe[çc]as?|pcas?|pecas?|unidades?|un\.?)\s*(?:(?:do\s*tipo|modelo|mod\.?)?\s*(tp\s*-?\s*25|tp\s*-?\s*40|tp\s*-?\s*100|ondulad[ao]|trapezoidal|colonial|termoac[uú]stica|sandu[íi]che))?\s*(?:c\/|com|de|\*|x|-|–|—)?\s*(\d{1,2}\.\d{3}|\d{3,5}\s*mm|\d+(?:[.,]\d+)?\s*(?:m\b|mts?\b|metros?\b))\b/gi;
 
-  const regexTelhaModeloAntes = /(?:(?:telhas?|painel)\s*)?(tp\s*-?\s*25|tp\s*-?\s*40|tp\s*-?\s*100|ondulad[ao]|trapezoidal|colonial)\s*[-–—:]?\s*(\d+)\s*(?:telhas?|p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|unidades?|un\.?)?\s*(?:c\/|com|de|\*|x|-|–|—)?\s*(\d{1,2}\.\d{3}|\d{3,5}\s*mm|\d+(?:[.,]\d+)?\s*(?:m\b|mts?\b|metros?\b))\b/gi;
+  const regexTelhaModeloAntes = /(?:(?:telhas?|painel)\s*)?(tp\s*-?\s*25|tp\s*-?\s*40|tp\s*-?\s*100|ondulad[ao]|trapezoidal|colonial)\s*[-–—:]?\s*(\d+)\s*(?:telhas?|(?:p[çc]|po[çc])s?\.?|pe[çc]as?|pcas?|pecas?|unidades?|un\.?)?\s*(?:c\/|com|de|\*|x|-|–|—)?\s*(\d{1,2}\.\d{3}|\d{3,5}\s*mm|\d+(?:[.,]\d+)?\s*(?:m\b|mts?\b|metros?\b))\b/gi;
 
   let variacoesTelha = [];
   let mTelha;
@@ -193,7 +193,7 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
   // 🛡️ RECONHECIMENTO DE CORTES MÚLTIPLOS EM LINHA OU TEXTO COMERCIAL (Ex: "5 X 10400 M 10 X 4500 M 20 X 2100 M")
   // Se temos 0 ou apenas 1 variação detectada, mas o texto contém múltiplos cortes lineares:
   const tPrepCortes = tLimpo.replace(/\b(tp|mod)\s*(\d+)\b/gi, "$1_$2_MOD");
-  const regexCortesMulti = /(?:^|[^\d.,xX*])(\d{1,4})\s*(?:telhas?|p[çc]s?\.?|pe[çc]as?|pcas?|pecas?|barras?|unidades?|un\.?|pc\.?)?\s*(?:c\/|com|de|\*|[xX]|-|–|—)\s*(\d{1,2}\.\d{3}|\d{3,5}\s*mm|\d{3,5}|\d{1,2}[.,]\d{1,3}\s*(?:m\b|mts?\b|metros?\b)?)(?!\s*[xX*]\s*\d)/gi;
+  const regexCortesMulti = /(?:^|[^\d.,xX*])(\d{1,4})\s*(?:telhas?|(?:p[çc]|po[çc])s?\.?|pe[çc]as?|pcas?|pecas?|barras?|unidades?|un\.?|pc\.?)?\s*(?:c\/|com|de|\*|[xX]|-|–|—)\s*(\d{1,2}\.\d{3}|\d{3,5}\s*mm|\d{3,5}|\d{1,2}[.,]\d{1,3}\s*(?:m\b|mts?\b|metros?\b)?)(?!\s*[xX*]\s*\d)/gi;
   const cortesLinearesLivres = [];
   let mCorteLivre;
   while ((mCorteLivre = regexCortesMulti.exec(tPrepCortes)) !== null) {

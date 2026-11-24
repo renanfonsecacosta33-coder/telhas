@@ -752,18 +752,26 @@ export async function rotearLoteTelhasAgrupadas({
         });
       } else {
         // Corte único ou item sem quebra em variações
-        const qty = Number(espTec?.quantidade || it.quantidade) || 1;
+        const unidMetros = /^(MT|M|MTS|METRO|METROS)$/i.test(String(it.unidade || "").trim());
+        const qtdOdoo = Number(it.quantidade) || 0;
         const mm = Number(espTec?.comprimento_mm) || null;
-        const m = mm ? +(mm / 1000).toFixed(3) : (Number(espTec?.metragem_total || it.quantidade) || 1);
-        const total_m = +(qty * m).toFixed(2);
-        variacoesConsolidadas.push({
-          qty,
-          mm: mm || (m ? Math.round(m * 1000) : null),
-          m,
-          total_m
-        });
-        somaPecas += qty;
-        somaMetrosLineares += total_m;
+
+        if (mm > 0) {
+          const qty = Number(espTec?.quantidade || qtdOdoo) || 1;
+          const m = +(mm / 1000).toFixed(3);
+          const total_m = +(qty * m).toFixed(2);
+          variacoesConsolidadas.push({ qty, mm, m, total_m });
+          somaPecas += qty;
+          somaMetrosLineares += total_m;
+        } else {
+          // Sem comprimento unitário: a quantidade em MT já É a metragem total
+          // (multiplicar a quantidade por ela mesma gerava metragens absurdas)
+          const total_m = +(Number(espTec?.metragem_total) || qtdOdoo || 1).toFixed(2);
+          const qty = Number(espTec?.quantidade) || (unidMetros ? 1 : qtdOdoo) || 1;
+          variacoesConsolidadas.push({ qty, mm: null, m: +(total_m / qty).toFixed(3), total_m });
+          somaPecas += qty;
+          somaMetrosLineares += total_m;
+        }
       }
     });
 
