@@ -341,27 +341,16 @@ export function processarMapaBarracoes({
  */
 export function useInvestigacaoBarracoes(filialAtiva) {
   const query = useQuery({
-    queryKey: ["investigacao-barracoes-realtime", filialAtiva],
+    queryKey: ["investigacao-barracoes-realtime", filialAtiva || "todas"],
     queryFn: async () => {
-      const filialQuery = filialAtiva ? { unidade: filialAtiva } : {};
-
+      // PedidoOdoo e ordens das fábricas são pesquisados globalmente para permitir que rotas de qualquer cidade
+      // encontrem os pedidos gerados na Matriz AJL ou filiais.
       let [pedidosTelhas, ordensCD, ordensDesbob, pedidosOdoo] = await Promise.all([
-        base44.entities.Pedido.filter(filialQuery, "-created_date", 500).catch(() => []),
-        base44.entities.OrdemMaquinaCD.filter(filialQuery, "-created_date", 500).catch(() => []),
-        base44.entities.OrdemDesbobinadeira.filter(filialQuery, "-created_date", 500).catch(() => []),
-        base44.entities.PedidoOdoo.filter(filialQuery, "-created_date", 500).catch(() => []),
+        base44.entities.Pedido.filter({}, "-created_date", 800).catch(() => []),
+        base44.entities.OrdemMaquinaCD.filter({}, "-created_date", 800).catch(() => []),
+        base44.entities.OrdemDesbobinadeira.filter({}, "-created_date", 800).catch(() => []),
+        base44.entities.PedidoOdoo.filter({}, "-created_date", 1000).catch(() => []),
       ]);
-
-      // Fallback resiliente caso a busca por filial venha vazia
-      if (pedidosTelhas.length === 0) {
-        pedidosTelhas = await base44.entities.Pedido.filter({}, "-created_date", 500).catch(() => []);
-      }
-      if (ordensCD.length === 0) {
-        ordensCD = await base44.entities.OrdemMaquinaCD.filter({}, "-created_date", 500).catch(() => []);
-      }
-      if (pedidosOdoo.length === 0) {
-        pedidosOdoo = await base44.entities.PedidoOdoo.filter({}, "-created_date", 500).catch(() => []);
-      }
 
       return processarMapaBarracoes({
         pedidosTelhas,
@@ -550,21 +539,11 @@ export async function investigarBarracoesParaPedidos(listaNumeros = [], filialAt
 
   try {
     let [pedidosTelhas, ordensCD, ordensDesbob, pedidosOdoo] = await Promise.all([
-      base44.entities.Pedido.filter(filialQuery, "-created_date", 500).catch(() => []),
-      base44.entities.OrdemMaquinaCD.filter(filialQuery, "-created_date", 500).catch(() => []),
-      base44.entities.OrdemDesbobinadeira.filter(filialQuery, "-created_date", 500).catch(() => []),
-      base44.entities.PedidoOdoo.filter(filialQuery, "-created_date", 500).catch(() => []),
+      base44.entities.Pedido.filter({}, "-created_date", 800).catch(() => []),
+      base44.entities.OrdemMaquinaCD.filter({}, "-created_date", 800).catch(() => []),
+      base44.entities.OrdemDesbobinadeira.filter({}, "-created_date", 800).catch(() => []),
+      base44.entities.PedidoOdoo.filter({}, "-created_date", 1000).catch(() => []),
     ]);
-
-    if (pedidosTelhas.length === 0) {
-      pedidosTelhas = await base44.entities.Pedido.filter({}, "-created_date", 500).catch(() => []);
-    }
-    if (ordensCD.length === 0) {
-      ordensCD = await base44.entities.OrdemMaquinaCD.filter({}, "-created_date", 500).catch(() => []);
-    }
-    if (pedidosOdoo.length === 0) {
-      pedidosOdoo = await base44.entities.PedidoOdoo.filter({}, "-created_date", 500).catch(() => []);
-    }
 
     return processarMapaBarracoes({
       pedidosTelhas,

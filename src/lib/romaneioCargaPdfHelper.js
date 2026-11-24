@@ -1,18 +1,19 @@
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { base44 } from "@/api/base44Client";
 import { extrairAnexosLista } from "@/lib/croquiExtractor";
 import { normalizarImagemBase64 } from "@/lib/imagemBase64";
 import { parseItensPedido } from "@/lib/regrasFabrica";
 
 /**
- * Helper de Impressão e Geração de PDF Oficial do Romaneio/Manifesto de Carga AJL
- * 
- * Estrutura das Páginas:
- * - PÁGINA 1: Foto original da folha de rota inserida manualmente
- * - PÁGINA 2: Manifesto Geral de Carga (resumo da rota, tabela de pedidos e canhotos)
+ * Helper de Impressão e Geração de PDF Oficial do Romaneio AJL
+ *
+ * Estrutura:
+ * - PÁGINA 1 (DEITADA / LANDSCAPE): Foto original da folha de rota inserida manualmente.
  * - PÁGINAS SEGUINTES: Folha individual de cada pedido na ordem da rota (#1, #2, #3...)
- *   com cabeçalho, croqui/desenho técnico do PCP, tabela de medidas e canhoto de entrega.
+ *   com o PDF oficial importado do Odoo/Central PCP, croquis/desenhos e tabela de medidas.
+ * (A folha resumo duplicada foi removida a pedido do usuário).
  */
 
 function formatarMoeda(val) {
@@ -34,14 +35,14 @@ function formatarMedida(val) {
 }
 
 /**
- * Extrai anexos, croquis e desenhos do pedido cruzado com a Central PCP
+ * Extrai anexos gráficos (croquis, desenhos técnicos)
  */
-function obterDocumentosPedido(it, info = {}) {
+function obterDocumentosPedido(it, info = {}, pedidoOdoo = null) {
   const anexos = [];
-  const pedidoOdoo = info?.pedidoOdoo;
+  const pOdoo = pedidoOdoo || info?.pedidoOdoo;
 
-  if (pedidoOdoo) {
-    const daLista = extrairAnexosLista(pedidoOdoo);
+  if (pOdoo) {
+    const daLista = extrairAnexosLista(pOdoo);
     daLista.forEach((a) => {
       const srcNorm = normalizarImagemBase64(a.src);
       if (srcNorm && !anexos.some((x) => x.src === srcNorm)) {
@@ -68,7 +69,6 @@ function obterDocumentosPedido(it, info = {}) {
     }
   }
 
-  // Se o item da rota tiver foto específica
   if (it?.foto_url) {
     const srcNorm = normalizarImagemBase64(it.foto_url);
     if (srcNorm && !anexos.some((x) => x.src === srcNorm)) {
@@ -80,24 +80,31 @@ function obterDocumentosPedido(it, info = {}) {
 }
 
 /**
- * Extrai os itens e medidas produzidas no PCP para aquele pedido
+ * Busca de fallback direto no banco de PedidoOdoo para garantir 100% dos PDFs
  */
-function obterItensMedidasPedido(it, info = {}) {
-  const pedidoOdoo = info?.pedidoOdoo;
-  if (pedidoOdoo?.itens_json) {
-    const itens = parseItensPedido(pedidoOdoo.itens_json);
-    if (itens.length > 0) return itens;
+async function buscarPedidoOdooBanco(numeroPedido) {
+  if (!numeroPedido) return null;
+  const numLimpo = String(numeroPedido).replace(/^[Ss]0*/, "").replace(/\D/g, "");
+  try {
+    const res = await base44.entities.PedidoOdoo.filter({
+      $or: [
+        { numero_pedido: String(numeroPedido) },
+        { numero_pedido: `S${numLimpo.padStart(5, "0")}` },
+        { numero_pedido: `S${numLimpo}` },
+        { odoo_id: String(numeroPedido) },
+        ...(numLimpo ? [{ numero_pedido: numLimpo }, { odoo_id: numLimpo }] : []),
+      ]
+    }, "-created_date", 1);
+    return res && res.length > 0 ? res[0] : null;
+  } catch {
+    return null;
   }
-  if (Array.isArray(it.itens) && it.itens.length > 0) {
-    return it.itens;
-  }
-  return [];
 }
 
 /**
  * Abre a janela de visualização e impressão direta em alta definição
  */
-export function imprimirRomaneioHtml(rota, options = {}) {
+export async function imprimirRomaneioHtml(rota, options = {}) {
   let itens = [];
   try {
     itens = typeof rota.itens_json === "string" ? JSON.parse(rota.itens_json || "[]") : rota.itens_json || [];
@@ -108,20 +115,41 @@ export function imprimirRomaneioHtml(rota, options = {}) {
   const infoMap = options.infoPedidosMap || {};
   const filial = rota.unidade || options.filialAtiva || "Matriz AJL";
   const dataHoje = format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
-  const totalFormatado = formatarMoeda(rota.total_valor);
   const temFotoRota = Boolean(rota.rota_imagem_url);
+
+  // Busca dados completos de PedidoOdoo para todos os pedidos da rota que ainda não estão em cache
+  const pedidosOdooMap = {};
+  await Promise.all(
+    itens.map(async (it) => {
+      const emInfo = infoMap[it.numero_pedido]?.pedidoOdoo;
+      if (emInfo) {
+        pedidosOdooMap[it.numero_pedido] = emInfo;
+      } else {
+        const achado = await buscarPedidoOdooBanco(it.numero_pedido);
+        if (achado) pedidosOdooMap[it.numero_pedido] = achado;
+      }
+    })
+  );
 
   const html = `
     <!DOCTYPE html>
     <html lang="pt-BR">
     <head>
       <meta charset="UTF-8">
-      <title>Romaneio de Carga — ${rota.titulo || "Rota de Entrega"}</title>
+      <title>Romaneio — ${rota.titulo || "Rota de Entrega"}</title>
       <style>
+        /* Regra padrão: A4 Portrait */
         @page {
           size: A4 portrait;
           margin: 8mm 8mm 10mm 8mm;
         }
+
+        /* Página 1 específica: A4 LANDSCAPE (DEITADA) */
+        @page rota-landscape {
+          size: A4 landscape;
+          margin: 6mm;
+        }
+
         * {
           box-sizing: border-box;
           -webkit-print-color-adjust: exact !important;
@@ -136,37 +164,28 @@ export function imprimirRomaneioHtml(rota, options = {}) {
           font-size: 11px;
           line-height: 1.3;
         }
-        .page-sheet {
-          position: relative;
+
+        /* Página 1: Foto Original Deitada (Landscape) */
+        .page-sheet-landscape {
+          page: rota-landscape;
           width: 100%;
-          min-height: 275mm;
+          min-height: 195mm;
+          height: 100vh;
           page-break-after: always;
           display: flex;
           flex-direction: column;
-        }
-        .page-sheet:last-child {
-          page-break-after: avoid;
-        }
-
-        /* Página 1: Foto Original da Rota */
-        .page-foto-rota {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
           justify-content: space-between;
-          height: 275mm;
-          padding: 4mm;
         }
         .page-foto-header {
           width: 100%;
           border-bottom: 2px solid #0f172a;
-          padding-bottom: 6px;
-          margin-bottom: 8px;
+          padding-bottom: 4px;
+          margin-bottom: 6px;
           display: flex;
           justify-content: space-between;
           align-items: flex-end;
         }
-        .foto-container {
+        .foto-container-deitada {
           flex: 1;
           width: 100%;
           display: flex;
@@ -176,180 +195,41 @@ export function imprimirRomaneioHtml(rota, options = {}) {
           background: #f8fafc;
           border: 1px solid #cbd5e1;
           border-radius: 6px;
-          padding: 6px;
+          padding: 4px;
         }
-        .foto-container img {
+        .foto-container-deitada img {
           max-width: 100%;
-          max-height: 240mm;
+          max-height: 180mm;
+          width: auto;
+          height: auto;
           object-fit: contain;
           border-radius: 4px;
         }
         .page-foto-footer {
           width: 100%;
-          margin-top: 6px;
+          margin-top: 4px;
           font-size: 9px;
           color: #64748b;
           display: flex;
           justify-content: space-between;
           border-top: 1px solid #e2e8f0;
-          padding-top: 4px;
+          padding-top: 3px;
         }
 
-        /* Header Geral */
-        .header-bar {
-          background-color: #0f172a;
-          color: white;
-          padding: 8px 12px;
-          border-radius: 6px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 10px;
-        }
-        .header-title {
-          font-size: 15px;
-          font-weight: 800;
-          letter-spacing: 0.5px;
-        }
-        .header-sub {
-          font-size: 10px;
-          color: #2dd4bf;
-          font-weight: 700;
-          margin-top: 1px;
-        }
-        .header-meta {
-          text-align: right;
-          font-size: 9.5px;
-          color: #94a3b8;
-        }
-        .header-meta strong {
-          color: #fff;
-        }
-
-        .kpi-grid {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 6px;
-          margin-bottom: 10px;
-        }
-        .kpi-card {
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          border-radius: 5px;
-          padding: 6px 8px;
-        }
-        .kpi-card .label {
-          font-size: 8.5px;
-          text-transform: uppercase;
-          font-weight: 700;
-          color: #64748b;
-          margin-bottom: 2px;
-        }
-        .kpi-card .val {
-          font-size: 12px;
-          font-weight: 800;
-          color: #0f172a;
-        }
-        .kpi-card .val.green {
-          color: #059669;
-        }
-
-        .table-manifesto {
+        /* Páginas dos Pedidos (Retrato) */
+        .page-sheet-portrait {
+          position: relative;
           width: 100%;
-          border-collapse: collapse;
-          margin-bottom: 10px;
-          font-size: 9.5px;
-        }
-        .table-manifesto th {
-          background: #1e293b;
-          color: #fff;
-          font-weight: 700;
-          text-align: left;
-          padding: 5px 6px;
-          font-size: 8.5px;
-          letter-spacing: 0.3px;
-        }
-        .table-manifesto td {
-          padding: 5px 6px;
-          border-bottom: 1px solid #e2e8f0;
-          vertical-align: middle;
-        }
-        .table-manifesto tr:nth-child(even) {
-          background-color: #f8fafc;
-        }
-        .badge-barracao {
-          display: inline-block;
-          padding: 1px 5px;
-          border-radius: 3px;
-          font-size: 8.5px;
-          font-weight: 700;
-        }
-        .badge-telhas { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
-        .badge-cd { background: #ffedd5; color: #9a3412; border: 1px solid #fed7aa; }
-        .badge-ambos { background: #f3e8ff; color: #6b21a8; border: 1px solid #e9d5ff; }
-        .badge-aguardando { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
-        .badge-odoo {
-          font-family: monospace;
-          background: #eff6ff;
-          color: #1d4ed8;
-          border: 1px solid #bfdbfe;
-          padding: 1px 3px;
-          border-radius: 3px;
-          font-weight: 700;
-        }
-        .obs-box {
-          background: #fef3c7;
-          border: 1px solid #fde68a;
-          color: #92400e;
-          padding: 1px 5px;
-          border-radius: 3px;
-          font-size: 8.5px;
-          font-weight: 700;
-          display: inline-block;
-        }
-        .box-check {
-          width: 12px;
-          height: 12px;
-          border: 1.5px solid #64748b;
-          border-radius: 2px;
-          margin: 0 auto;
-        }
-        .obs-geral {
-          background: #fffbeb;
-          border: 1px solid #fef3c7;
-          border-left: 3px solid #f59e0b;
-          padding: 6px 10px;
-          border-radius: 4px;
-          margin-bottom: 12px;
-          font-size: 9.5px;
-          color: #92400e;
-        }
-        .assinaturas-container {
-          margin-top: auto;
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 30px;
-          padding-top: 15px;
-          border-top: 1px solid #cbd5e1;
-        }
-        .assinatura-box {
-          text-align: center;
-        }
-        .assinatura-linha {
-          border-top: 1px solid #475569;
-          margin-bottom: 4px;
-        }
-        .assinatura-cargo {
-          font-size: 8.5px;
-          font-weight: 700;
-          color: #334155;
-          text-transform: uppercase;
-        }
-
-        /* Folha Individual do Pedido (Páginas dos Pedidos) */
-        .pedido-sheet {
+          min-height: 275mm;
+          page-break-after: always;
+          display: flex;
+          flex-direction: column;
           padding: 2mm 0;
         }
+        .page-sheet-portrait:last-child {
+          page-break-after: avoid;
+        }
+
         .pedido-header {
           background: #0f172a;
           color: white;
@@ -363,6 +243,7 @@ export function imprimirRomaneioHtml(rota, options = {}) {
         .pedido-header-title {
           font-size: 14px;
           font-weight: 800;
+          letter-spacing: 0.3px;
         }
         .pedido-header-badge {
           background: #2dd4bf;
@@ -372,6 +253,7 @@ export function imprimirRomaneioHtml(rota, options = {}) {
           padding: 2px 8px;
           border-radius: 4px;
         }
+
         .pedido-info-grid {
           display: grid;
           grid-template-columns: 2fr 1fr;
@@ -390,7 +272,34 @@ export function imprimirRomaneioHtml(rota, options = {}) {
           color: #0f172a;
         }
 
-        /* Seção do Croqui / Desenho Técnico */
+        /* Bloco do PDF do Odoo / Central PCP */
+        .pdf-container-box {
+          width: 100%;
+          margin-bottom: 8px;
+          border: 1px solid #cbd5e1;
+          border-radius: 6px;
+          overflow: hidden;
+          background: #fff;
+        }
+        .pdf-container-header {
+          background: #f1f5f9;
+          padding: 5px 8px;
+          font-size: 9.5px;
+          font-weight: 800;
+          color: #334155;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 1px solid #e2e8f0;
+        }
+        .pdf-frame-view {
+          width: 100%;
+          height: 180mm;
+          border: none;
+          display: block;
+        }
+
+        /* Seção de Croquis / Desenhos Técnicos */
         .croqui-section {
           background: #fff;
           border: 1px solid #cbd5e1;
@@ -424,22 +333,12 @@ export function imprimirRomaneioHtml(rota, options = {}) {
         }
         .croqui-image-box img {
           max-width: 100%;
-          max-height: 110mm;
+          max-height: 120mm;
           object-fit: contain;
           border-radius: 3px;
         }
-        .croqui-vazio {
-          padding: 12px;
-          text-align: center;
-          color: #64748b;
-          font-size: 9.5px;
-          font-style: italic;
-          background: #f8fafc;
-          width: 100%;
-          border-radius: 4px;
-        }
 
-        /* Tabela de Itens e Medidas do Pedido */
+        /* Tabela de Medidas e Itens Produzidos */
         .table-itens {
           width: 100%;
           border-collapse: collapse;
@@ -463,7 +362,6 @@ export function imprimirRomaneioHtml(rota, options = {}) {
           background: #f8fafc;
         }
 
-        /* Canhoto de Entrega no Rodapé do Pedido */
         .canhoto-entrega-pedido {
           margin-top: auto;
           background: #f8fafc;
@@ -483,7 +381,7 @@ export function imprimirRomaneioHtml(rota, options = {}) {
           display: grid;
           grid-template-columns: 2fr 1fr 1fr;
           gap: 10px;
-          margin-top: 10px;
+          margin-top: 8px;
           border-top: 1px dashed #94a3b8;
           padding-top: 4px;
         }
@@ -496,16 +394,25 @@ export function imprimirRomaneioHtml(rota, options = {}) {
             padding: 20px;
             background: #e2e8f0;
           }
-          .page-sheet {
+          .page-sheet-landscape {
+            background: #fff;
+            max-width: 297mm;
+            min-height: 210mm;
+            margin: 0 auto 20px auto;
+            padding: 8mm;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.12);
+            border-radius: 4px;
+          }
+          .page-sheet-portrait {
             background: #fff;
             max-width: 210mm;
             margin: 0 auto 20px auto;
-            padding: 12mm;
+            padding: 10mm;
             box-shadow: 0 4px 15px rgba(0,0,0,0.12);
             border-radius: 4px;
           }
           .action-bar {
-            max-width: 210mm;
+            max-width: 297mm;
             margin: 0 auto 12px auto;
             display: flex;
             justify-content: space-between;
@@ -526,145 +433,56 @@ export function imprimirRomaneioHtml(rota, options = {}) {
     </head>
     <body>
       <div class="action-bar no-print">
-        <button class="btn-print" onclick="window.print()">🖨️ Imprimir Todo o Romaneio e Folhas</button>
+        <button class="btn-print" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
         <span style="font-size: 12px; color: #475569; font-weight: 600;">
-          Dica: No diálogo de impressão, escolha "Salvar como PDF" ou sua impressora.
+          Dica: No diálogo de impressão, escolha "Salvar como PDF" ou a impressora da expedição.
         </span>
       </div>
 
-      <!-- PÁGINA 1: FOTO ORIGINAL DA ROTA (INSERIDA MANUALMENTE) -->
+      <!-- PÁGINA 1: FOTO ORIGINAL DA ROTA — DEITADA (LANDSCAPE) -->
       ${temFotoRota ? `
-        <div class="page-sheet page-foto-rota">
+        <div class="page-sheet-landscape">
           <div class="page-foto-header">
             <div>
-              <div style="font-size: 15px; font-weight: 800; color: #0f172a;">AJL FERRO & AÇO — EXPEDIÇÃO</div>
+              <div style="font-size: 16px; font-weight: 800; color: #0f172a;">AJL FERRO & AÇO — EXPEDIÇÃO & LOGÍSTICA</div>
               <div style="font-size: 11px; font-weight: 700; color: #0d9488;">FOLHA ORIGINAL DA ROTA / CARGA PROGRAMADA</div>
             </div>
             <div style="text-align: right; font-size: 10px; color: #475569;">
               <div>Rota: <strong>${rota.titulo || "Rota de Entrega"}</strong></div>
-              <div>Motorista: <strong>${rota.motorista_nome || "—"}</strong> (${rota.placa || "S/ Placa"})</div>
+              <div>Motorista: <strong>${rota.motorista_nome || "—"}</strong> (${rota.placa || "S/ Placa"}) · Data: <strong>${rota.entrega_date || "—"}</strong></div>
             </div>
           </div>
 
-          <div class="foto-container">
-            <img src="${rota.rota_imagem_url}" alt="Folha Original da Rota" />
+          <div class="foto-container-deitada">
+            <img src="${rota.rota_imagem_url}" alt="Folha Original da Rota (Deitada)" />
           </div>
 
           <div class="page-foto-footer">
-            <span>Página 1 — Documento Fotográfico Original da Rota</span>
-            <span>Emissão: ${dataHoje} · Unidade: ${filial}</span>
+            <span>Página 1 — Manifesto Fotográfico da Rota (A4 Deitada)</span>
+            <span>Emissão: ${dataHoje} · Filial: ${filial}</span>
           </div>
         </div>
       ` : ""}
 
-      <!-- PÁGINA 2: MANIFESTO GERAL DA CARGA (ROMANEIO CORPORATIVO) -->
-      <div class="page-sheet">
-        <div class="header-bar">
-          <div>
-            <div class="header-title">AJL FERRO & AÇO</div>
-            <div class="header-sub">MANIFESTO & ROMANEIO DE CARGA — EXPEDIÇÃO</div>
-          </div>
-          <div class="header-meta">
-            <div>Unidade: <strong>${filial}</strong></div>
-            <div>Emissão: <strong>${dataHoje}</strong></div>
-            <div>Status: <strong>DISTRIBUÍDO</strong></div>
-          </div>
-        </div>
-
-        <div class="kpi-grid">
-          <div class="kpi-card">
-            <div class="label">Manifesto / Rota</div>
-            <div class="val" style="font-size: 11px;">${rota.titulo || "Rota de Entrega"}</div>
-          </div>
-          <div class="kpi-card">
-            <div class="label">Motorista & Veículo</div>
-            <div class="val" style="font-size: 11px;">${rota.motorista_nome || "—"} (${rota.placa || "S/ Placa"})</div>
-          </div>
-          <div class="kpi-card">
-            <div class="label">Datas (Embarque / Entrega)</div>
-            <div class="val" style="font-size: 11px;">${rota.embarque_date || "—"} ➔ ${rota.entrega_date || "—"}</div>
-          </div>
-          <div class="kpi-card">
-            <div class="label">Total da Carga</div>
-            <div class="val green">${totalFormatado} (${itens.length} pedidos)</div>
-          </div>
-        </div>
-
-        ${(rota.nota_geral || rota.observacao) ? `
-          <div class="obs-geral">
-            <strong>Instruções de Carga & Observações:</strong>
-            ${[rota.nota_geral, rota.observacao].filter(Boolean).join(" | ")}
-          </div>
-        ` : ""}
-
-        <table class="table-manifesto">
-          <thead>
-            <tr>
-              <th style="width: 25px; text-align: center;">#</th>
-              <th style="width: 65px;">Pedido</th>
-              <th style="width: 75px;">Nº Odoo</th>
-              <th>Cliente / Destinatário</th>
-              <th style="width: 95px;">Barracão</th>
-              <th>Observação da Folha</th>
-              <th style="width: 85px; text-align: right;">Valor</th>
-              <th style="width: 45px; text-align: center;">Visto</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itens.map((it, idx) => {
-              const bCls = it.barracao_sugerido === "telhas" ? "badge-telhas" : it.barracao_sugerido === "corte_dobra" ? "badge-cd" : it.barracao_sugerido === "ambos" ? "badge-ambos" : "badge-aguardando";
-              const bLabel = it.barracao_sugerido === "telhas" ? "🏠 Telhas" : it.barracao_sugerido === "corte_dobra" ? "🏗️ C&D" : it.barracao_sugerido === "ambos" ? "📦 Ambos" : "⏳ Aguardando";
-              return `
-                <tr>
-                  <td style="text-align: center; font-weight: 700; color: #64748b;">${it.ordem || idx + 1}</td>
-                  <td><strong>#${it.numero_pedido}</strong></td>
-                  <td>${it.numero_odoo ? `<span class="badge-odoo">#${it.numero_odoo}</span>` : "—"}</td>
-                  <td>
-                    <strong>${it.cliente || "—"}</strong>
-                    ${(it.bairro || it.vendedor) ? `<div style="font-size: 8.5px; color: #64748b;">${[it.bairro, it.vendedor && `Vend: ${it.vendedor}`].filter(Boolean).join(" · ")}</div>` : ""}
-                  </td>
-                  <td><span class="badge-barracao ${bCls}">${bLabel}</span></td>
-                  <td>${it.observacao ? `<span class="obs-box">📌 ${it.observacao}</span>` : "—"}</td>
-                  <td style="text-align: right; font-weight: 700;">${it.valor || "—"}</td>
-                  <td><div class="box-check"></div></td>
-                </tr>
-              `;
-            }).join("")}
-          </tbody>
-        </table>
-
-        <div class="assinaturas-container">
-          <div class="assinatura-box">
-            <div class="assinatura-linha"></div>
-            <div class="assinatura-cargo">Conferente / Responsável pelo Carregamento</div>
-            <div style="font-size: 8px; color: #64748b; margin-top: 2px;">Assinatura e Visto de Liberação da Carga</div>
-          </div>
-          <div class="assinatura-box">
-            <div class="assinatura-linha"></div>
-            <div class="assinatura-cargo">Motorista: ${rota.motorista_nome || "Assinatura do Condutor"}</div>
-            <div style="font-size: 8px; color: #64748b; margin-top: 2px;">Declaro ter conferido e recebido os pedidos descritos</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- PÁGINAS SEGUINTES: FOLHA INDIVIDUAL DE CADA PEDIDO NA ORDEM DA ROTA -->
+      <!-- PÁGINAS SEGUINTES: FOLHAS DOS PEDIDOS COM PDF/CROQUIS DA CENTRAL PCP -->
       ${itens.map((it, idx) => {
         const info = infoMap[it.numero_pedido] || {};
-        const documentos = obterDocumentosPedido(it, info);
-        const itensPcp = obterItensMedidasPedido(it, info);
+        const pOdoo = pedidosOdooMap[it.numero_pedido] || info.pedidoOdoo;
+        const documentos = obterDocumentosPedido(it, info, pOdoo);
+        const pdfOdooUrl = pOdoo?.pdf_pedido_url || pOdoo?.pdf_url || info.pdf_pedido_url || null;
+        const itensPcp = pOdoo?.itens_json ? parseItensPedido(pOdoo.itens_json) : (Array.isArray(it.itens) ? it.itens : []);
         const paradaNum = it.ordem || idx + 1;
-        const bLabel = it.barracao_sugerido === "telhas" ? "🏠 Fábrica de Telhas" : it.barracao_sugerido === "corte_dobra" ? "🏗️ Corte & Dobra" : it.barracao_sugerido === "ambos" ? "📦 Ambos os Barracões" : "⏳ Logística / Expedição";
+        const bLabel = it.barracao_sugerido === "telhas" ? "🏠 Telhas" : it.barracao_sugerido === "corte_dobra" ? "🏗️ Corte & Dobra" : it.barracao_sugerido === "ambos" ? "📦 Ambos" : "⏳ Expedição";
 
         return `
-          <div class="page-sheet pedido-sheet">
-            <!-- Cabeçalho do Pedido -->
+          <div class="page-sheet-portrait">
+            <!-- Cabeçalho Oficial do Pedido -->
             <div class="pedido-header">
               <div>
                 <div class="pedido-header-title">
-                  PEDIDO #${it.numero_pedido}
-                  ${it.numero_odoo && it.numero_odoo.toUpperCase() !== "NT" ? `<span style="font-size: 12px; color: #cbd5e1; margin-left: 6px;">(Odoo: #${it.numero_odoo})</span>` : ""}
+                  PEDIDO (ODOO) #${it.numero_pedido}
                 </div>
-                <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">
+                <div style="font-size: 10px; color: #94a3b8; margin-top: 1px;">
                   Rota: <strong>${rota.titulo || "Rota de Entrega"}</strong> · Motorista: <strong>${rota.motorista_nome || "—"}</strong>
                 </div>
               </div>
@@ -673,27 +491,40 @@ export function imprimirRomaneioHtml(rota, options = {}) {
               </div>
             </div>
 
-            <!-- Dados do Cliente, Entrega e Observações -->
+            <!-- Dados do Cliente, Entrega e Observação -->
             <div class="pedido-info-grid">
               <div>
-                <div>Cliente: <strong>${it.cliente || "—"}</strong></div>
+                <div>Cliente: <strong>${it.cliente || pOdoo?.cliente_nome || "—"}</strong></div>
                 <div>Destino / Bairro / Cidade: <strong>${it.bairro || "—"}</strong></div>
                 ${it.observacao ? `<div>Obs. Rota: <strong style="color: #b45309; background: #fef3c7; padding: 1px 4px; border-radius: 2px;">📌 ${it.observacao}</strong></div>` : ""}
               </div>
               <div>
                 <div>Barracão: <strong>${bLabel}</strong></div>
-                <div>Vendedor: <strong>${it.vendedor || info?.vendedor || "—"}</strong></div>
+                <div>Vendedor: <strong>${it.vendedor || pOdoo?.vendedor_nome || "—"}</strong></div>
                 <div>Valor: <strong>${it.valor || "—"}</strong> ${it.pagamento ? `(${it.pagamento})` : ""}</div>
               </div>
             </div>
 
-            <!-- Croqui / Desenho Técnico vindo do PCP -->
-            <div class="croqui-section">
-              <div class="croqui-title">
-                <span>📐 Documento / Desenho Técnico / Croqui (Central PCP)</span>
-                <span>${documentos.length > 0 ? `${documentos.length} documento(s)` : "Sem anexo gráfico"}</span>
+            <!-- PDF Oficial do Pedido vindo do Odoo / Central PCP (se houver) -->
+            ${pdfOdooUrl ? `
+              <div class="pdf-container-box">
+                <div class="pdf-container-header">
+                  <span>📄 Documento PDF Oficial do Pedido (Odoo ERP / Central PCP)</span>
+                  <a href="${pdfOdooUrl}" target="_blank" rel="noopener noreferrer" style="color: #0284c7; text-decoration: none; font-weight: 700;">
+                    Abrir em Tela Cheia ↗
+                  </a>
+                </div>
+                <iframe src="${pdfOdooUrl}#toolbar=0" class="pdf-frame-view" title="PDF Pedido #${it.numero_pedido}"></iframe>
               </div>
-              ${documentos.length > 0 ? `
+            ` : ""}
+
+            <!-- Croquis e Desenhos Técnicos do PCP -->
+            ${documentos.length > 0 ? `
+              <div class="croqui-section">
+                <div class="croqui-title">
+                  <span>📐 Desenho Técnico / Croqui (Central PCP)</span>
+                  <span>${documentos.length} anexo(s)</span>
+                </div>
                 <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
                   ${documentos.map((doc, dIdx) => `
                     <div class="croqui-image-box">
@@ -701,14 +532,14 @@ export function imprimirRomaneioHtml(rota, options = {}) {
                     </div>
                   `).join("")}
                 </div>
-              ` : `
-                <div class="croqui-vazio">
-                  📋 Nenhum croqui gráfico anexado no PCP para este pedido. Conferir as medidas e produtos na tabela abaixo.
-                </div>
-              `}
-            </div>
+              </div>
+            ` : (!pdfOdooUrl ? `
+              <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 10px; margin-bottom: 8px; text-align: center; color: #64748b; font-size: 9.5px;">
+                📋 Pedido sem PDF ou croqui anexado na Central PCP — Seguir especificações da tabela de medidas abaixo.
+              </div>
+            ` : "")}
 
-            <!-- Tabela de Itens e Medidas do PCP -->
+            <!-- Tabela de Itens e Medidas Produzidos -->
             <div style="margin-bottom: 6px;">
               <div style="font-size: 9px; font-weight: 800; color: #475569; text-transform: uppercase; margin-bottom: 3px;">
                 📦 Itens, Medidas e Acabamentos Produzidos
@@ -741,8 +572,8 @@ export function imprimirRomaneioHtml(rota, options = {}) {
                   </tbody>
                 </table>
               ` : `
-                <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 4px; padding: 8px; font-size: 9.5px; color: #475569;">
-                  Item cadastrado pela rota: <strong>${it.cliente}</strong> · Observações: <em>${it.observacao || "Conferir detalhes no Odoo ERP"}</em>
+                <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 4px; padding: 6px 10px; font-size: 9px; color: #475569;">
+                  Item da carga: <strong>${it.cliente}</strong> · Observações: <em>${it.observacao || "Conferir detalhes no Odoo ERP"}</em>
                 </div>
               `}
             </div>
@@ -765,7 +596,6 @@ export function imprimirRomaneioHtml(rota, options = {}) {
 
       <script>
         window.onload = function() {
-          // Aguarda todas as imagens carregarem antes de acionar a impressão
           var imgs = Array.from(document.images);
           var promises = imgs.map(function(img) {
             if (img.complete) return Promise.resolve();
@@ -792,7 +622,6 @@ export function imprimirRomaneioHtml(rota, options = {}) {
     printWindow.document.write(html);
     printWindow.document.close();
   } else {
-    // Se o pop-up estiver bloqueado pelo navegador, gera e baixa PDF nativo
     baixarRomaneioPdf(rota, options);
   }
 }
@@ -802,14 +631,14 @@ export function imprimirRomaneioHtml(rota, options = {}) {
  */
 export function baixarRomaneioPdf(rota, options = {}) {
   const doc = new jsPDF({
-    orientation: "portrait",
+    orientation: "landscape",
     unit: "mm",
     format: "a4",
   });
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const margem = 12;
+  const margem = 10;
   const areaWidth = pageWidth - margem * 2;
 
   let itens = [];
@@ -822,178 +651,110 @@ export function baixarRomaneioPdf(rota, options = {}) {
   const dataHoje = format(new Date(), "dd/MM/yyyy HH:mm", { locale: ptBR });
   const filial = rota.unidade || options.filialAtiva || "Matriz AJL";
 
-  // Barra de topo corporativa AJL
-  doc.setFillColor(15, 23, 42); // slate-900
+  // Cabeçalho Landscape
+  doc.setFillColor(15, 23, 42);
   doc.rect(0, 0, pageWidth, 5, "F");
 
-  // Cabeçalho
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(15);
+  doc.setFontSize(14);
   doc.setTextColor(15, 23, 42);
-  doc.text("AJL FERRO & AÇO — LOGÍSTICA E EXPEDIÇÃO", margem, 14);
+  doc.text("AJL FERRO & AÇO — EXPEDIÇÃO & LOGÍSTICA", margem, 14);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
-  doc.setTextColor(13, 148, 136); // teal-600
-  doc.text("MANIFESTO & ROMANEIO DE CARGA / ROTA DE ENTREGA", margem, 20);
+  doc.setTextColor(13, 148, 136);
+  doc.text(`MANIFESTO DE CARGA — ${rota.titulo || "Rota de Entrega"}`, margem, 20);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
   doc.text(`Emissão: ${dataHoje} | Unidade: ${filial}`, pageWidth - margem, 14, { align: "right" });
-  doc.text(`ID Rota: #${String(rota.id || "").slice(-8)}`, pageWidth - margem, 19, { align: "right" });
+  doc.text(`Motorista: ${rota.motorista_nome || "—"} (${rota.placa || "S/ Placa"})`, pageWidth - margem, 19, { align: "right" });
 
-  // Linha divisória
   doc.setDrawColor(203, 213, 225);
   doc.setLineWidth(0.5);
   doc.line(margem, 23, pageWidth - margem, 23);
 
-  // Box de Dados do Veículo e Rota
-  doc.setFillColor(248, 250, 252);
-  doc.roundedRect(margem, 25, areaWidth, 26, 2, 2, "F");
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(margem, 25, areaWidth, 26, 2, 2, "S");
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.setTextColor(15, 23, 42);
-  doc.text(rota.titulo || "Rota de Entrega", margem + 4, 31);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
-  doc.setTextColor(51, 65, 85);
-
-  const col1 = margem + 4;
-  const col2 = margem + 55;
-  const col3 = margem + 115;
-
-  doc.text(`Motorista: `, col1, 37);
-  doc.setFont("helvetica", "bold");
-  doc.text(`${rota.motorista_nome || "—"}`, col1 + 16, 37);
-  doc.setFont("helvetica", "normal");
-
-  doc.text(`Placa Veículo: `, col1, 43);
-  doc.setFont("helvetica", "bold");
-  doc.text(`${rota.placa || "—"}`, col1 + 20, 43);
-  doc.setFont("helvetica", "normal");
-
-  doc.text(`Data Embarque: `, col2, 37);
-  doc.setFont("helvetica", "bold");
-  doc.text(`${rota.embarque_date || "—"}`, col2 + 23, 37);
-  doc.setFont("helvetica", "normal");
-
-  doc.text(`Data Entrega: `, col2, 43);
-  doc.setFont("helvetica", "bold");
-  doc.text(`${rota.entrega_date || "—"}`, col2 + 21, 43);
-  doc.setFont("helvetica", "normal");
-
-  doc.text(`Total de Pedidos: `, col3, 37);
-  doc.setFont("helvetica", "bold");
-  doc.text(`${itens.length} pedidos`, col3 + 25, 37);
-  doc.setFont("helvetica", "normal");
-
-  doc.text(`Valor Total Carga: `, col3, 43);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(16, 149, 93);
-  doc.text(`${formatarMoeda(rota.total_valor)}`, col3 + 26, 43);
-  doc.setTextColor(51, 65, 85);
-  doc.setFont("helvetica", "normal");
-
-  // Barra de título da Tabela
-  let y = 56;
+  let y = 30;
   doc.setFillColor(15, 23, 42);
   doc.rect(margem, y, areaWidth, 6.5, "F");
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
+  doc.setFontSize(8);
   doc.setTextColor(255, 255, 255);
 
   doc.text("#", margem + 2, y + 4.5);
-  doc.text("PEDIDO", margem + 8, y + 4.5);
-  doc.text("Nº ODOO", margem + 23, y + 4.5);
+  doc.text("PEDIDO (ODOO)", margem + 10, y + 4.5);
   doc.text("CLIENTE / DESTINATÁRIO", margem + 42, y + 4.5);
-  doc.text("BARRACÃO", margem + 105, y + 4.5);
-  doc.text("OBSERVAÇÃO / INSTRUÇÃO", margem + 128, y + 4.5);
-  doc.text("VALOR", margem + 164, y + 4.5);
-  doc.text("CONF.", margem + 178, y + 4.5);
+  doc.text("BARRACÃO", margem + 120, y + 4.5);
+  doc.text("OBSERVAÇÃO DA ROTA", margem + 155, y + 4.5);
+  doc.text("BAIRRO / CIDADE", margem + 215, y + 4.5);
+  doc.text("VALOR", margem + 250, y + 4.5);
+  doc.text("CONF.", margem + 270, y + 4.5);
 
   y += 6.5;
 
-  // Itens da Rota
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.5);
+  doc.setFontSize(8);
 
   itens.forEach((it, idx) => {
-    if (y > pageHeight - 35) {
+    if (y > pageHeight - 25) {
       doc.addPage();
       y = 15;
       doc.setFillColor(15, 23, 42);
       doc.rect(margem, y, areaWidth, 6.5, "F");
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(7.5);
+      doc.setFontSize(8);
       doc.setTextColor(255, 255, 255);
       doc.text("#", margem + 2, y + 4.5);
-      doc.text("PEDIDO", margem + 8, y + 4.5);
-      doc.text("Nº ODOO", margem + 23, y + 4.5);
+      doc.text("PEDIDO (ODOO)", margem + 10, y + 4.5);
       doc.text("CLIENTE / DESTINATÁRIO", margem + 42, y + 4.5);
-      doc.text("BARRACÃO", margem + 105, y + 4.5);
-      doc.text("OBSERVAÇÃO / INSTRUÇÃO", margem + 128, y + 4.5);
-      doc.text("VALOR", margem + 164, y + 4.5);
-      doc.text("CONF.", margem + 178, y + 4.5);
+      doc.text("BARRACÃO", margem + 120, y + 4.5);
+      doc.text("OBSERVAÇÃO DA ROTA", margem + 155, y + 4.5);
+      doc.text("BAIRRO / CIDADE", margem + 215, y + 4.5);
+      doc.text("VALOR", margem + 250, y + 4.5);
+      doc.text("CONF.", margem + 270, y + 4.5);
       y += 6.5;
     }
 
     const linhaBg = idx % 2 === 0 ? 255 : 248;
     doc.setFillColor(linhaBg, linhaBg, linhaBg);
-    doc.rect(margem, y, areaWidth, 8.5, "F");
+    doc.rect(margem, y, areaWidth, 8, "F");
 
     doc.setDrawColor(226, 232, 240);
-    doc.line(margem, y + 8.5, margem + areaWidth, y + 8.5);
+    doc.line(margem, y + 8, margem + areaWidth, y + 8);
 
     doc.setTextColor(51, 65, 85);
     doc.setFont("helvetica", "bold");
     doc.text(String(it.ordem || idx + 1), margem + 2, y + 5.5);
-    doc.text(`#${it.numero_pedido}`, margem + 8, y + 5.5);
+    doc.text(`#${it.numero_pedido}`, margem + 10, y + 5.5);
 
     doc.setFont("helvetica", "normal");
-    doc.text(it.numero_odoo ? (it.numero_odoo.toUpperCase() === "NT" ? "NT" : `#${it.numero_odoo}`) : "—", margem + 23, y + 5.5);
-
-    const clienteTxt = (it.cliente || "—").slice(0, 32);
-    const subCliente = [it.bairro, it.vendedor && `Vend: ${it.vendedor}`].filter(Boolean).join(" · ").slice(0, 36);
-    doc.setFont("helvetica", "bold");
-    doc.text(clienteTxt, margem + 42, y + 3.8);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text(subCliente, margem + 42, y + 7.2);
-    doc.setFontSize(7.5);
-    doc.setTextColor(51, 65, 85);
+    doc.text((it.cliente || "—").slice(0, 38), margem + 42, y + 5.5);
 
     const bNome = it.barracao_sugerido === "telhas" ? "Telhas" : it.barracao_sugerido === "corte_dobra" ? "Corte & Dobra" : it.barracao_sugerido === "ambos" ? "Ambos" : "Aguardando";
-    doc.text(bNome, margem + 105, y + 5.5);
-
-    const obsTxt = (it.observacao || "—").slice(0, 22);
-    doc.text(obsTxt, margem + 128, y + 5.5);
-    doc.text(it.valor || "—", margem + 164, y + 5.5);
+    doc.text(bNome, margem + 120, y + 5.5);
+    doc.text((it.observacao || "—").slice(0, 30), margem + 155, y + 5.5);
+    doc.text((it.bairro || "—").slice(0, 20), margem + 215, y + 5.5);
+    doc.text(it.valor || "—", margem + 250, y + 5.5);
 
     doc.setDrawColor(148, 163, 184);
-    doc.rect(margem + 179, y + 2, 4.5, 4.5, "S");
+    doc.rect(margem + 271, y + 1.5, 4.5, 4.5, "S");
 
-    y += 8.5;
+    y += 8;
   });
 
-  // Assinaturas
-  const assinaY = pageHeight - 22;
+  const assinaY = pageHeight - 16;
   doc.setDrawColor(100, 116, 139);
   doc.setLineWidth(0.4);
-  doc.line(margem + 10, assinaY, margem + 75, assinaY);
+  doc.line(margem + 20, assinaY, margem + 110, assinaY);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
+  doc.setFontSize(7.5);
   doc.setTextColor(71, 85, 105);
-  doc.text("CONFERENTE / EXPEDIÇÃO (VISTO E CARREGAMENTO)", margem + 12, assinaY + 4);
+  doc.text("CONFERENTE / EXPEDIÇÃO (VISTO E CARREGAMENTO)", margem + 25, assinaY + 4);
 
-  doc.line(margem + 105, assinaY, margem + 170, assinaY);
-  doc.text(`MOTORISTA: ${rota.motorista_nome || "Assinatura do Condutor"}`, margem + 107, assinaY + 4);
+  doc.line(margem + 160, assinaY, margem + 260, assinaY);
+  doc.text(`MOTORISTA: ${rota.motorista_nome || "Assinatura do Condutor"}`, margem + 165, assinaY + 4);
 
   const nomeLimpo = (rota.titulo || "Rota_Entrega").replace(/[^a-zA-Z0-9_-]/g, "_");
   doc.save(`Romaneio_${nomeLimpo}.pdf`);

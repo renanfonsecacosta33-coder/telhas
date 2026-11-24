@@ -505,8 +505,7 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
                 <thead className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 sticky top-0 z-10 border-b border-border shadow-xs">
                   <tr>
                     <th className="text-center p-2.5 font-bold w-12">#</th>
-                    <th className="text-left p-2.5 font-bold w-24">Pedido</th>
-                    <th className="text-left p-2.5 font-bold w-28">Nº Odoo</th>
+                    <th className="text-left p-2.5 font-bold w-36">Pedido (Odoo)</th>
                     <th className="text-left p-2.5 font-bold min-w-[220px]">Cliente / Vendedor</th>
                     <th className="text-left p-2.5 font-bold w-44">Barracão / Destino</th>
                     <th className="text-left p-2.5 font-bold min-w-[260px]">Observações da Rota</th>
@@ -535,39 +534,16 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
                             {it.ordem || idx + 1}
                           </span>
                         </td>
-                        <td className="p-2.5">
-                          <span className="font-bold text-sm text-foreground">
-                            #{it.numero_pedido}
-                          </span>
-                        </td>
                         <td className="p-2.5 whitespace-nowrap">
-                          {it.numero_odoo ? (
-                            it.numero_odoo.toUpperCase() === "NT" ? (
-                              <Badge variant="outline" className="text-[11px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono font-bold px-2 py-0.5">
-                                NT
-                              </Badge>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleAbrirOdoo(it, info)}
-                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-mono font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 transition-colors shadow-2xs cursor-pointer"
-                                title="Ver croquis, itens e espelho do pedido no Odoo"
-                              >
-                                #{it.numero_odoo}
-                              </button>
-                            )
-                          ) : info?.numero_odoo ? (
-                            <button
-                              type="button"
-                              onClick={() => handleAbrirOdoo(it, info)}
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-mono font-bold bg-blue-50/60 hover:bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 transition-colors cursor-pointer"
-                              title="Cruzado pelo sistema. Ver no Odoo"
-                            >
-                              #{info.numero_odoo}
-                            </button>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleAbrirOdoo(it, info)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900 transition-colors shadow-2xs cursor-pointer group"
+                            title="Nº Pedido Odoo — Clique para ver croquis, itens e espelho do pedido no Odoo"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform" />
+                            <span>#{it.numero_pedido}</span>
+                          </button>
                         </td>
                         <td className="p-2.5">
                           <div className="font-semibold text-foreground text-xs leading-snug">
