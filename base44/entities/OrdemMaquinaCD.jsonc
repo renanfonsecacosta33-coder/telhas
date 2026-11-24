@@ -32,6 +32,10 @@
       ],
       "description": "M\u00e1quina respons\u00e1vel (Ivaipor\u00e3 opera somente com LASER e DOBRADEIRA 4M)"
     },
+    "maquina_inicial": {
+      "type": "string",
+      "description": "Primeira m\u00e1quina do roteiro escolhido no PCP"
+    },
     "chapa_cd_id": {
       "type": "string",
       "description": "ID da ChapaCD do estoque (se vier da chaparia)"
@@ -69,9 +73,37 @@
       "type": "string",
       "description": "Tipo de pe\u00e7a do cat\u00e1logo (ex: Perfil Serralheiro n\u00ba5, Blank, Dobra simples...)"
     },
+    "produto": {
+      "type": "string",
+      "description": "Nome do produto do item da OF (snapshot)"
+    },
+    "item_produto": {
+      "type": "string",
+      "description": "Nome exato do produto do item Odoo (usado no v\u00ednculo OP \u2194 item)"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o do item da OF (snapshot)"
+    },
+    "instrucao": {
+      "type": "string",
+      "description": "Instru\u00e7\u00e3o de produ\u00e7\u00e3o herdada do item / vendedor"
+    },
+    "observacao_vendedor": {
+      "type": "string",
+      "description": "Observa\u00e7\u00e3o do vendedor para a produ\u00e7\u00e3o"
+    },
     "dimensoes_livres": {
       "type": "string",
       "description": "Dimens\u00f5es livres informadas pelo gestor (ex: 100x50x3m, A=75 B=38)"
+    },
+    "comprimento_mm": {
+      "type": "number",
+      "description": "Comprimento da pe\u00e7a em mm"
+    },
+    "desenvolvimento_mm": {
+      "type": "number",
+      "description": "Comprimento desenvolvido da pe\u00e7a em mm"
     },
     "ordem_corte_id": {
       "type": "string",
@@ -86,6 +118,34 @@
         "DOBRADEIRA 4M"
       ],
       "description": "M\u00e1quina de dobra escolhida (para ordens de corte que geram dobra)"
+    },
+    "pedido_odoo_id": {
+      "type": "string",
+      "description": "ID da OF (PedidoOdoo) que originou esta OP \u2014 v\u00ednculo exato usado pelo PCP"
+    },
+    "of_odoo_id": {
+      "type": "string",
+      "description": "ID da OF no Odoo (mrp.production)"
+    },
+    "of_nome": {
+      "type": "string",
+      "description": "Nome vis\u00edvel da OF no Odoo (ex: WH/MO/406632)"
+    },
+    "item_idx": {
+      "type": "number",
+      "description": "\u00cdndice do item dentro do itens_json da OF"
+    },
+    "itens_indices": {
+      "type": "string",
+      "description": "JSON array com todos os \u00edndices de itens da OF cobertos por esta OP"
+    },
+    "roteiro_maquinas": {
+      "type": "string",
+      "description": "JSON array com o roteiro de m\u00e1quinas definido pelo PCP (ex: [\"CORTE 6M\",\"DOBRA INICIO 6M\"])"
+    },
+    "indice_etapa_atual": {
+      "type": "number",
+      "description": "\u00cdndice da etapa atual dentro do roteiro de m\u00e1quinas"
     },
     "numero_pedido": {
       "type": "string",
@@ -107,6 +167,10 @@
       "type": "number",
       "description": "Quantidade de pe\u00e7as a produzir"
     },
+    "quantidade_pecas": {
+      "type": "number",
+      "description": "Quantidade de pe\u00e7as (quando a quantidade comercial \u00e9 em KG)"
+    },
     "quantidade_produzida": {
       "type": "number",
       "description": "Quantidade efetivamente produzida"
@@ -127,6 +191,10 @@
     "material_espessura": {
       "type": "string",
       "description": "Espessura desejada informada manualmente (quando material em falta)"
+    },
+    "espessura_exigida": {
+      "type": "string",
+      "description": "Espessura exigida pelo pedido Odoo (trava de seguran\u00e7a)"
     },
     "material_cor": {
       "type": "string",
@@ -269,6 +337,23 @@
       "minimum": 1,
       "maximum": 5,
       "description": "N\u00edvel de prioridade de 1 (mais urgente) a 5 (baixa prioridade)"
+    },
+    "tipo_prioridade": {
+      "type": "string",
+      "description": "Tipo de prioridade herdado do pedido (Cliente Retira, Rota, Prioridade)"
+    },
+    "prioridade_logistica": {
+      "type": "string",
+      "description": "Prioridade log\u00edstica herdada do pedido"
+    },
+    "prioridade_selecionada": {
+      "type": "boolean",
+      "default": false,
+      "description": "Indica que a prioridade j\u00e1 foi definida no PCP antes da distribui\u00e7\u00e3o"
+    },
+    "data_programada_pcp": {
+      "type": "string",
+      "description": "Data programada pelo PCP para produ\u00e7\u00e3o"
     },
     "rota": {
       "type": "boolean",
