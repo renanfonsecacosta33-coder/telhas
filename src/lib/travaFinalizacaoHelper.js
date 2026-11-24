@@ -105,13 +105,13 @@ export function verificarSeOpTemFinalizacaoNoHistorico(pedido, maquinaAtual) {
         return true;
       }
 
-      // Etapa concluída na máquina atual
+      // Etapa concluída: só comprova conclusão NA MÁQUINA em que foi apontada.
+      // "Finalizou Telha Superior" na TP-40 NÃO conclui a OP na Bandeja,
+      // na Colagem ou no pedido inteiro — apenas libera a etapa seguinte.
       if (acao === "etapa_concluida" || label.includes("concluiu perfilação") || label.includes("finalizou telha superior") || label.includes("finalizou bandeja inferior")) {
-        if (!mTargetNorm) return true;
+        if (!mTargetNorm) return false;
         const hMaqNorm = normMaq(h.maquina);
-        if (hMaqNorm && hMaqNorm === mTargetNorm) return true;
-        if (detalhes.includes(mTargetNorm)) return true;
-        return true;
+        return Boolean((hMaqNorm && hMaqNorm === mTargetNorm) || detalhes.includes(mTargetNorm));
       }
 
       return false;

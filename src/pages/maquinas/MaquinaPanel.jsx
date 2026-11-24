@@ -730,6 +730,12 @@ export default function MaquinaPanel({ maquina }) {
       // 4. Status ativo hoje
       if (p.status === "pausado" || p.status === "em_producao") return true;
 
+      // 4b. OP pendente atribuída a esta máquina é fila real dela, mesmo que a
+      // data planejada seja de outro dia (evita sumir do painel no dia seguinte).
+      if (p.status === "pendente" && maquinaNorm(p.maquina) === targetNorm && (!p.data || p.data <= selectedDay)) {
+        return true;
+      }
+
       // 5. Se hoje: pedidos pendentes ou atrasados (somente se ainda NÃO foram concluídos/expedidos)
       if (isHoje && p.data && p.data < hoje && !isPedidoTotalmenteConcluido(p)) {
         return true;
