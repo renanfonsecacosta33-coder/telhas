@@ -46,14 +46,14 @@ export default function AlertBellCD({ user }) {
   const { data: ordensMaquina = [] } = useQuery({
     queryKey: ["alert-ordens-maquina", filialAtiva],
     queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva }, "-data", 500),
-    refetchInterval: 10000,
+    refetchInterval: 30000,
     enabled: !!isGestor,
   });
 
   const { data: ordensDesbob = [] } = useQuery({
     queryKey: ["alert-ordens-desbob", filialAtiva],
     queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva }, "-data", 500),
-    refetchInterval: 10000,
+    refetchInterval: 30000,
     enabled: !!isGestor,
   });
 

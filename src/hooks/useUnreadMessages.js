@@ -20,8 +20,15 @@ export function useUnreadCount(currentUser, tipo, canal_id) {
       } catch {}
     };
     fetchCount();
-    const interval = setInterval(fetchCount, 5000);
-    const unsubscribe = base44.entities.MensagemChat.subscribe(() => fetchCount());
+    // 20s + limite no evento: consultar a cada 5s em vários pontos da tela
+    // estourava o teto de requisições por minuto (rate limit 429).
+    const interval = setInterval(fetchCount, 20000);
+    let ultimoEvento = 0;
+    const unsubscribe = base44.entities.MensagemChat.subscribe(() => {
+      if (Date.now() - ultimoEvento < 15000) return;
+      ultimoEvento = Date.now();
+      fetchCount();
+    });
     return () => { active = false; clearInterval(interval); unsubscribe(); };
   }, [currentUser?.id, tipo, canal_id]);
 
@@ -50,8 +57,15 @@ export function useAllUnreadCount(currentUser) {
       } catch {}
     };
     fetchCount();
-    const interval = setInterval(fetchCount, 5000);
-    const unsubscribe = base44.entities.MensagemChat.subscribe(() => fetchCount());
+    // 20s + limite no evento: consultar a cada 5s em vários pontos da tela
+    // estourava o teto de requisições por minuto (rate limit 429).
+    const interval = setInterval(fetchCount, 20000);
+    let ultimoEvento = 0;
+    const unsubscribe = base44.entities.MensagemChat.subscribe(() => {
+      if (Date.now() - ultimoEvento < 15000) return;
+      ultimoEvento = Date.now();
+      fetchCount();
+    });
     return () => { active = false; clearInterval(interval); unsubscribe(); };
   }, [currentUser?.id]);
 

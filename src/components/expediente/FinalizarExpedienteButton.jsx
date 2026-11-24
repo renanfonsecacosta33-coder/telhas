@@ -43,7 +43,7 @@ export default function FinalizarExpedienteButton({ maquina, setor, pedidosAtivo
     queryFn: () => base44.entities.HoraExtra.filter({
       maquina, unidade: filialAtiva, data: getHorariosHoje().hojeStr
     }, "-created_date", 1),
-    refetchInterval: 5000,
+    refetchInterval: 30000,
   });
 
   const registro = registroHoje?.[0] || null;

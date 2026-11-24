@@ -193,16 +193,21 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   // Inscrição em tempo real para novas ordens ou alterações nas máquinas de Corte e Dobra
   useEffect(() => {
     let unsubscribe = null;
+    let timerRef = null;
     try {
       if (base44.entities?.OrdemMaquinaCD?.subscribe) {
+        // Rajada de gravações (distribuição de 8 OPs de uma vez) disparava um
+        // refetch por evento e estourava o limite de requisições por minuto.
         unsubscribe = base44.entities.OrdemMaquinaCD.subscribe(() => {
-          refetch();
+          if (timerRef) return;
+          timerRef = setTimeout(() => { timerRef = null; refetch(); }, 12000);
         });
       }
     } catch (e) {
       console.warn("Realtime subscribe OrdemMaquinaCD:", e);
     }
     return () => {
+      if (timerRef) clearTimeout(timerRef);
       if (typeof unsubscribe === "function") unsubscribe();
     };
   }, [refetch]);

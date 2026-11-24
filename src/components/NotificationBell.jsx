@@ -39,7 +39,7 @@ export default function NotificationBell({ user }) {
         }
       }
     },
-    refetchInterval: 15000,
+    refetchInterval: 30000,
   });
 
   const unreadCount = notificacoes.filter(n => !n.lida).length;
