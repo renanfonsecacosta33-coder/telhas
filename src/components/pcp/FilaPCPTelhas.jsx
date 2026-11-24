@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { executarAutoReparoMetragens } from "@/lib/repararMetragensAnormaisHelper";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -116,6 +117,15 @@ export default function FilaPCPTelhas({ onNovaOrdem }) {
     refetchOnWindowFocus: false,
     placeholderData: (prev) => prev
   });
+
+  // Auto-reparo silencioso de ordens com anomalias de metragens ou contagem de peças inflada
+  useEffect(() => {
+    if (pedidosProducao && pedidosProducao.length > 0) {
+      executarAutoReparoMetragens(pedidosProducao).catch(err => {
+        console.warn("[FilaPCPTelhas] Auto-reparo de metragens:", err);
+      });
+    }
+  }, [pedidosProducao]);
 
   // Detecção de OPs idênticas duplicadas nas máquinas de Telhas
   const duplicadasDetectadasPCP = useMemo(() => {

@@ -51,10 +51,23 @@ export default function InstrucaoVendedorCard({ descricao, quantidadeOdoo, espes
             </>
           )}
 
-          {esp.tipo_conformacao !== "chapa_lisa" && esp.comprimento_m != null && (
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-600 text-white">
-              <Ruler className="w-3 h-3" /> {esp.comprimento_m}m ({esp.comprimento_mm}mm)
-            </span>
+          {esp.variacoes && esp.variacoes.length > 1 ? (
+            <div className="w-full flex flex-wrap gap-1 mt-1 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+              <span className="text-[10px] font-extrabold text-amber-800 dark:text-amber-300 w-full mb-0.5">
+                Cortes especificados ({esp.variacoes.length} medidas • {esp.metragem_total}m):
+              </span>
+              {esp.variacoes.map((v, i) => (
+                <span key={i} className="inline-flex items-center text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shadow-2xs">
+                  {v.qty}x {v.mm.toLocaleString("pt-BR")}mm ({v.total_m}m)
+                </span>
+              ))}
+            </div>
+          ) : (
+            esp.tipo_conformacao !== "chapa_lisa" && esp.comprimento_m != null && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-600 text-white">
+                <Ruler className="w-3 h-3" /> {esp.comprimento_m}m ({esp.comprimento_mm}mm)
+              </span>
+            )
           )}
 
           {esp.cor && (
@@ -82,7 +95,17 @@ export default function InstrucaoVendedorCard({ descricao, quantidadeOdoo, espes
             </span>
           </div>
         )}
-        {esp.tipo_conformacao !== "chapa_lisa" && esp.metragem_total != null && (
+        {esp.tipo_conformacao !== "chapa_lisa" && esp.variacoes?.length > 1 && (
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase flex items-center gap-1">
+              <Gauge className="w-3 h-3" /> Detalhamento
+            </span>
+            <span className="text-sm font-extrabold text-slate-800 dark:text-slate-100">
+              {esp.quantidade} peças em {esp.variacoes.length} medidas = {esp.metragem_total}m
+            </span>
+          </div>
+        )}
+        {esp.tipo_conformacao !== "chapa_lisa" && (!esp.variacoes || esp.variacoes.length <= 1) && esp.metragem_total != null && (
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase flex items-center gap-1">
               <Gauge className="w-3 h-3" /> Detalhamento

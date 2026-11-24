@@ -219,18 +219,20 @@ export default function PedidoItensLista({
               label: subPartes.join(" • ") || `${qPecas} pçs`,
               title: `${qPecas} peças de ${espTec.dimensoes_fmt || ""} (Total: ${totalM || 0}m)${pesoVal > 0 ? ` • Peso: ${pesoVal} kg` : ""}`
             };
-          } else if (g === "telha" && (pecasReal || demanda?.metros > 0)) {
+          } else if (g === "telha" && (pecasReal || demanda?.metros > 0 || (espTec?.pecas > 0))) {
             // 🏠 Setor de Telhas: Exibe a quantidade de telhas (peças) e destaca metragem total + peso teórico real
-            displayQtd = pecasReal || 1;
+            displayQtd = (espTec?.variacoes && espTec.variacoes.length > 1 && espTec.pecas > 0) ? espTec.pecas : (pecasReal || 1);
             displayUnidade = displayQtd === 1 ? "TELHA" : "TELHAS";
-            const totalM = demanda?.metros || espTec?.metragem_total || (isUnidadeMetro ? it.quantidade : null);
+            const totalM = (espTec?.variacoes && espTec.variacoes.length > 1 && espTec.metragem_total > 0)
+              ? espTec.metragem_total
+              : (demanda?.metros || espTec?.metragem_total || (isUnidadeMetro ? it.quantidade : null));
             const espNum = parseFloat(String(it.espessura || "0.43").replace(",", ".")) || 0.43;
             const pesoEst = estoqueItem?.pesoNecessarioKg || Math.round((totalM || (displayQtd * 5.5)) * (espNum * 7.85 * 1.2));
             const metragemTexto = totalM ? `${totalM}m total` : "";
             const pesoTexto = pesoEst ? `~${pesoEst}kg` : "";
             displaySubBadge = {
               label: [metragemTexto, pesoTexto].filter(Boolean).join(" • "),
-              title: `${displayQtd} telha(s) de ${espTec?.comprimento_mm || "5.500"} mm • Metragem Total: ${totalM || 0}m • Consumo Teórico: ~${pesoEst || 0} kg`
+              title: `${displayQtd} telha(s)${espTec?.variacoes?.length > 1 ? ` em ${espTec.variacoes.length} medidas` : ` de ${espTec?.comprimento_mm || "5.500"} mm`} • Metragem Total: ${totalM || 0}m • Consumo Teórico: ~${pesoEst || 0} kg`
             };
           } else if (isVendidoEmKg && pecasReal && pecasReal > 0) {
             displayQtd = pecasReal;
@@ -328,6 +330,31 @@ export default function PedidoItensLista({
                       <p className="text-xs font-semibold text-sky-800 dark:text-sky-200 leading-snug break-words">
                         {textoDescricaoVendedor}
                       </p>
+                    </div>
+                  )}
+
+                  {/* Lista de Cortes / Medidas Estruturadas (Telhas com múltiplos comprimentos) */}
+                  {espTec?.variacoes && espTec.variacoes.length > 1 && (
+                    <div className="mt-1.5 p-2 rounded-lg bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/60 shadow-2xs">
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className="text-[10px] font-extrabold text-blue-800 dark:text-blue-300 uppercase tracking-wide flex items-center gap-1">
+                          <Scissors className="w-3 h-3 text-blue-600" /> Medidas do Pedido ({espTec.variacoes.length} cortes • {espTec.metragem_total}m):
+                        </span>
+                        <span className="text-[10px] font-mono font-bold text-blue-600 dark:text-blue-400">
+                          Total: {espTec.pecas || espTec.quantidade} telhas
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {espTec.variacoes.map((v, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 text-blue-800 dark:text-blue-200 border border-blue-300/80 dark:border-blue-700/80 shadow-2xs"
+                            title={`Corte #${i + 1}: ${v.qty}x de ${v.mm}mm (${v.total_m}m linear)`}
+                          >
+                            <strong className="text-blue-600 dark:text-blue-400 mr-0.5">{v.qty}x</strong> {v.mm.toLocaleString("pt-BR")}mm <span className="text-slate-400 dark:text-slate-500 text-[9px] ml-1">({v.total_m}m)</span>
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
 

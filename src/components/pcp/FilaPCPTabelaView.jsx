@@ -284,7 +284,7 @@ export default function FilaPCPTabelaView({
                     const unid = normalizarUnidadeMedidaItem(it, grp);
                     const esp = extrairEspecificacao(`${it.observacao || ""} ${it.descricao || ""} ${it.produto || ""}`, it.quantidade, unid);
                     totalMetros += esp.metragem_total || (Number(it.quantidade) || 0);
-                    totalPecas += esp.pecas || (Number(it.quantidade) || 1);
+                    totalPecas += (esp?.variacoes?.length > 1 && esp.pecas > 0) ? esp.pecas : (esp.pecas || (Number(it.quantidade) || 1));
                   });
                 } else {
                   totalMetros += Number(p.metros) || 0;
@@ -598,11 +598,17 @@ export default function FilaPCPTabelaView({
                                   const demanda = estoqueItem?.demanda || extrairDemandaItem(it);
                                   const pecasReal = (demanda?.pecas && demanda.pecas > 0) ? demanda.pecas : (espTec?.pecas > 0 ? espTec.pecas : null);
 
-                                  let qPecas = pecasReal || Number(it.quantidade) || 1;
-                                  let totM = demanda?.metros || espTec?.metragem_total || Number(it.quantidade) || 0;
+                                  let qPecas = (espTec?.variacoes && espTec.variacoes.length > 1 && espTec.pecas > 0)
+                                    ? espTec.pecas
+                                    : (pecasReal || Number(it.quantidade) || 1);
+                                  let totM = (espTec?.variacoes && espTec.variacoes.length > 1 && espTec.metragem_total > 0)
+                                    ? espTec.metragem_total
+                                    : (demanda?.metros || espTec?.metragem_total || Number(it.quantidade) || 0);
 
                                   let indFmt = "—";
-                                  if (espTec?.comprimento_mm > 0) {
+                                  if (espTec?.variacoes && espTec.variacoes.length > 1) {
+                                    indFmt = `${espTec.variacoes.length} medidas (${totM.toFixed(2)}m)`;
+                                  } else if (espTec?.comprimento_mm > 0) {
                                     const mm = espTec.comprimento_mm;
                                     indFmt = `${mm.toLocaleString("pt-BR")} mm (${(mm / 1000).toFixed(2)} m)`;
                                   } else if (espTec?.comprimento_m > 0) {
@@ -636,6 +642,20 @@ export default function FilaPCPTabelaView({
                                             </span>
                                           )}
                                         </div>
+                                        {/* Lista de Cortes Estruturados (se múltiplas variações) */}
+                                        {espTec?.variacoes && espTec.variacoes.length > 1 && (
+                                          <div className="flex flex-wrap gap-1 mt-1.5">
+                                            {espTec.variacoes.map((v, i) => (
+                                              <span
+                                                key={i}
+                                                className="inline-flex items-center text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800 shadow-2xs"
+                                                title={`Corte #${i + 1}: ${v.qty}x de ${v.mm}mm (${v.total_m}m)`}
+                                              >
+                                                <strong className="text-blue-600 dark:text-blue-400 mr-0.5">{v.qty}x</strong> {v.mm.toLocaleString("pt-BR")}mm
+                                              </span>
+                                            ))}
+                                          </div>
+                                        )}
                                       </td>
 
                                       {/* Peças × Comprimento individual */}

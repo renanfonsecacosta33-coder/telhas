@@ -103,8 +103,9 @@ export function sanitizarTextoParaCortes(texto) {
   s = s.replace(/\b[1-9]\s*faces?\s+(?:p[óo]s|pr[ée])?\s*pintad[ao]s?\b/gi, " ");
   s = s.replace(/\b0[.,]\d+\s*c\/\s*\d+\s*(?:pinturas?|faces?)?/gi, " ");
 
-  // 2. Remove códigos numéricos de produto entre colchetes no início (ex: "[409] 409 - ")
-  s = s.replace(/\[\d+\]\s*\d+\s*[-–—]/g, " ");
+  // 2. Remove códigos numéricos de produto entre colchetes no início (ex: "[409] 409 - " ou "[2287]")
+  s = s.replace(/\[\d+\]\s*\d*\s*[-–—]?/g, " ");
+  s = s.replace(/\[\d+\]/g, " ");
 
   return s;
 }
@@ -218,6 +219,53 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
     variacoesTelha = cortesLinearesLivres;
   }
 
+  // 🛡️ RECONHECIMENTO DE LISTA DE MEDIDAS AVULSAS EM MILÍMETROS (Ex: 7000, 6340, 5740, 5640, 5230, 4100, 3530, 3000, 2500, 1970, 1420 = 11 telhas, 46.47m)
+  // Vendedores frequentemente colam no Odoo a lista de comprimentos que o cliente pediu (um por linha ou separados por espaço).
+  if (variacoesTelha.length === 0) {
+    // Remove modelos (ex: TP 40, TP 25), códigos entre colchetes, espessuras com parênteses ex: (0,50)
+    const tSemModelos = tLimpo
+      .replace(/\[\d+\]/g, " ")
+      .replace(/\b(tp\s*-?\s*\d{2,3}|ondulad[ao]|trapezoidal|colonial)\b/gi, " ")
+      .replace(/\(\s*\d+[.,]\d+\s*\)/g, " ")
+      .replace(/\b0[.,]\d+\b/g, " ");
+
+    // Busca números inteiros entre 400 e 14000 (comprimentos típicos de telhas em mm)
+    // Suporta com ou sem 'x' ou 'c/' antes (ex: "1x 7000" ou apenas "7000")
+    const regexLinhaMedida = /(?:(?:^|[^\d.,])(\d{1,3})\s*(?:[xX*]|de|c\/|com)?\s*)?\b([1-9]\d{2,4})\b(?!\s*[.,]\d)/g;
+    const medidasAvulsas = [];
+    let mAvulso;
+    while ((mAvulso = regexLinhaMedida.exec(tSemModelos)) !== null) {
+      const q = mAvulso[1] ? parseInt(mAvulso[1], 10) : 1;
+      const mm = parseInt(mAvulso[2], 10);
+      // Validar faixa física industrial de corte de telha (400mm até 14.000mm)
+      if (mm >= 400 && mm <= 14000 && q > 0 && q < 300) {
+        const mLinear = +(mm / 1000).toFixed(3);
+        medidasAvulsas.push({
+          qty: q,
+          mm,
+          m: mLinear,
+          total_m: +(q * mLinear).toFixed(2),
+          modelo: modeloGeral,
+          tipo: "telha"
+        });
+      }
+    }
+
+    if (medidasAvulsas.length > 0) {
+      const somaM = +(medidasAvulsas.reduce((acc, v) => acc + v.total_m, 0)).toFixed(2);
+      const qOdooNum = Number(qtdOdoo) || 0;
+      const ehTelhaContexto = modeloGeral || /(telha|cobertura|trapezoidal|ondulad|colonial)/i.test(t);
+      const bateComOdoo = qOdooNum > 0 && Math.abs(somaM - qOdooNum) < 0.5;
+
+      // Se temos 2 ou mais medidas avulsas que somam aproximadamente a metragem do Odoo, OU se é telha:
+      if (medidasAvulsas.length >= 2 && (bateComOdoo || ehTelhaContexto)) {
+        variacoesTelha = medidasAvulsas;
+      } else if (medidasAvulsas.length === 1 && bateComOdoo && ehTelhaContexto) {
+        variacoesTelha = medidasAvulsas;
+      }
+    }
+  }
+
   if (variacoesTelha.length > 0) {
     // 🛡️ Validação cruzada com Odoo: se a unidade for MT e temos a metragem exata
     const uOdoo = String(unidadeOdoo || "").toUpperCase().trim();
@@ -255,8 +303,10 @@ export function extrairEspecificacao(texto, qtdOdoo = null, unidadeOdoo = "") {
       const v = varsFinais[0];
       const labelTelha = v.qty === 1 ? "telha" : "telhas";
       out.resumo_formatado = `${v.qty} ${labelTelha} c/ ${v.mm.toLocaleString("pt-BR")} mm (${totalMetros}m)`;
-    } else {
+    } else if (varsFinais.length <= 4) {
       out.resumo_formatado = varsFinais.map(v => `${v.qty} c/ ${v.mm}mm`).join(" + ") + ` (${totalMetros}m)`;
+    } else {
+      out.resumo_formatado = `${totalQtd} telhas em ${varsFinais.length} medidas: ` + varsFinais.map(v => `${v.qty > 1 ? `${v.qty}x ` : ""}${v.mm}mm`).join(", ") + ` (${totalMetros}m)`;
     }
 
     return extrairCorEEspessura(t, out);
@@ -1059,7 +1109,8 @@ export function extrairPecasDaObs(texto) {
   // 3. Número isolado caso a observação seja apenas o número de peças
   if (/^\d+$/.test(t)) {
     const q = parseInt(t, 10);
-    if (q > 0 && q < 10000) return q;
+    // 🛡️ Valores >= 400 são comprimentos em mm (ex: 1420mm = 1,42m), NUNCA contagem de peças de telha!
+    if (q > 0 && q < 400) return q;
   }
 
   return null;

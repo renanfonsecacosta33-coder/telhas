@@ -30,14 +30,24 @@ export async function executarAutoReparoMetragens(ordens = []) {
       const kgEstimadoMAtual = calcKgDeMetros(mAtual, espessura, largMm);
       // Se peso for > 1000kg e mAtual foi cortado para menos de 40% do peso, precisa ser desfeito/restaurado
       const precisaRestaurar = pesoAtual >= 1000 && kgEstimadoMAtual > 0 && pesoAtual > kgEstimadoMAtual * 2.5;
-      if (!precisaRestaurar) {
+      const precisaReparoPecasPrioritario = Number(o.quantidade) >= 400 || Number(o.metros) >= 400;
+      if (!precisaRestaurar && !precisaReparoPecasPrioritario) {
         continue;
       }
     }
 
+    const pecasAtuais = Number(o.quantidade) || Number(o.metros) || Number(o.quantidade_telhas) || 0;
+    const metrosAtuais = Number(o.metros_retificados || o.metros_totais || o.metragem_planejada || o.metros || 0);
+    const textoCortes = `${o.observacoes || ""} ${o.observacoes_odoo || ""} ${o.descricao || ""}`.trim();
+    const specObs = textoCortes ? extrairEspecificacao(textoCortes, metrosAtuais, "M") : null;
+    const temMedidasAvulsas = Boolean(specObs && specObs.variacoes && specObs.variacoes.length > 1);
+
+    const pecasAbsurdas = pecasAtuais >= 400 && metrosAtuais > 0 && metrosAtuais < 300 && (pecasAtuais / metrosAtuais) > 5;
+    const precisaReparoPecas = pecasAbsurdas && temMedidasAvulsas;
+
     const metrosSugeridos = sanitizarMetrosAnormais(o);
-    if (metrosSugeridos !== null && metrosSugeridos >= 0) {
-      const novosMetros = Number(metrosSugeridos.toFixed(2));
+    if ((metrosSugeridos !== null && metrosSugeridos >= 0) || precisaReparoPecas) {
+      const novosMetros = Number((metrosSugeridos !== null ? metrosSugeridos : (specObs?.metragem_total || metrosAtuais)).toFixed(2));
       const mmAtual = Number(o.metragem_mm) || 0;
       let compMmNovo = mmAtual;
 
@@ -48,10 +58,8 @@ export async function executarAutoReparoMetragens(ordens = []) {
         compMmNovo = mmAtual / 10;
       }
 
-      // 🛡️ Verifica se há variações completas na observação/descrição (ex: 5 X 10400 M / 10 X 4500 M / 20 X 2100 M)
-      const textoCortes = `${o.observacoes || ""} ${o.observacoes_odoo || ""} ${o.descricao || ""}`.trim();
-      const specObs = textoCortes ? extrairEspecificacao(textoCortes, novosMetros, "M") : null;
-      const temVariacoesMultiplas = Boolean(specObs && specObs.variacoes && specObs.variacoes.length > 1 && Math.abs(specObs.metragem_total - novosMetros) < 0.5);
+      // 🛡️ Verifica se há variações completas na observação/descrição (ex: 5 X 10400 M / 10 X 4500 M ou 11 cortes em mm)
+      const temVariacoesMultiplas = Boolean(specObs && specObs.variacoes && specObs.variacoes.length > 1 && Math.abs(specObs.metragem_total - novosMetros) < 1.0);
 
       // Calcula peças coerentes com a metragem real
       let pecasNovas = Number(o.quantidade) || Number(o.metros) || 1;
