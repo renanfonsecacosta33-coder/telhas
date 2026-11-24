@@ -557,8 +557,12 @@ export async function processarConclusaoEtapas({
           opsCD = await base44.entities.OrdemMaquinaCD.filter({ pedido_odoo_id: pedido.id }).catch(() => []);
         }
 
-        if (opsCD && opsCD.length > 0) {
-          for (const op of opsCD) {
+        const opsCDVivas = (opsCD || []).filter(
+          (op) => op.status !== "finalizado" && op.status !== "cancelado"
+        );
+
+        if (opsCDVivas.length > 0) {
+          for (const op of opsCDVivas) {
             await base44.entities.OrdemMaquinaCD.update(op.id, {
               maquina: maquinaCanonica,
               status: "pendente",
@@ -566,7 +570,7 @@ export async function processarConclusaoEtapas({
               data_programada_pcp: todayIso
             });
           }
-        } else {
+        } else if (!opsCD || opsCD.length === 0) {
           await base44.entities.OrdemMaquinaCD.create({
             numero_pedido: numPedLimpo,
             cliente: pedido.cliente_nome || "Cliente",
@@ -586,6 +590,8 @@ export async function processarConclusaoEtapas({
 
         if (opsTelhas && opsTelhas.length > 0) {
           for (const op of opsTelhas) {
+            // Nunca reabre OP já finalizada ou cancelada (evita itens voltando para a fila)
+            if (op.status === "finalizado" || op.status === "cancelado") continue;
             // Se for a OP principal de Telha Bandeja ou Colagem:
             if (maquinaDestino === "COLAGEM") {
               await base44.entities.Pedido.update(op.id, {

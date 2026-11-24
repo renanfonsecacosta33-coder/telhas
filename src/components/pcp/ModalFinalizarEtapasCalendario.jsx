@@ -452,7 +452,7 @@ export default function ModalFinalizarEtapasCalendario({
                   data: todayIso,
                   data_programada_pcp: todayIso
                 }).catch(() => {});
-              } else {
+              } else if (!opsCD || opsCD.length === 0) {
                 const primeiroIt = itensAtuais[0] || {};
                 await base44.entities.OrdemMaquinaCD.create({
                   numero_pedido: numPedLimpo,
@@ -480,6 +480,8 @@ export default function ModalFinalizarEtapasCalendario({
 
               if (opsTelhas && opsTelhas.length > 0) {
                 for (const op of opsTelhas) {
+                  // Nunca reabre OP já finalizada ou cancelada (evita itens voltando para a fila)
+                  if (op.status === "finalizado" || op.status === "cancelado") continue;
                   if (maquinaDestino === "COLAGEM") {
                     await base44.entities.Pedido.update(op.id, {
                       maquina: "COLAGEM",
