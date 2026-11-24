@@ -53,7 +53,7 @@ export default function AjlIaCopilot() {
         if (res && res.length > 0) {
           const c = res[0];
           setConfigId(c.id);
-          setGeminiApiKey(c.gemini_api_key || "");
+          if (c.gemini_api_key) setGeminiApiKey(c.gemini_api_key);
           setZapiInstanceId(c.zapi_instance_id || "");
           setZapiToken(c.zapi_token || "");
           setTelefonesAutorizados(c.telefones_autorizados || "");
@@ -65,21 +65,15 @@ export default function AjlIaCopilot() {
   const salvarConfiguracoes = async () => {
     setSalvandoConfig(true);
     try {
-      const data = {
+      // Salva de forma ultra confiável via backend com service role
+      await base44.functions.ajlIaChat({
+        acao: "salvar_config",
         gemini_api_key: geminiApiKey.trim(),
         zapi_instance_id: zapiInstanceId.trim(),
         zapi_token: zapiToken.trim(),
-        telefones_autorizados: telefonesAutorizados.trim(),
-        ativo: true
-      };
-
-      if (configId) {
-        await base44.entities.ConfiguracaoIA.update(configId, data);
-      } else {
-        const novo = await base44.entities.ConfiguracaoIA.create(data);
-        setConfigId(novo.id);
-      }
-      toast.success("Configurações do AJL IA salvas com sucesso!");
+        telefones_autorizados: telefonesAutorizados.trim()
+      });
+      toast.success("Chave e configurações do AJL IA salvas com sucesso!");
       setConfigOpen(false);
     } catch (err) {
       toast.error("Falha ao salvar configurações: " + (err?.message || "Erro"));

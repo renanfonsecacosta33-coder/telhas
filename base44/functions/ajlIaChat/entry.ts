@@ -25,6 +25,29 @@ Deno.serve(async (req) => {
       return Response.json({ error: "Payload JSON inválido" }, { status: 400 });
     }
 
+    // Suporte para salvar configurações com asServiceRole
+    if (body.acao === "salvar_config") {
+      const { gemini_api_key, zapi_instance_id, zapi_token, telefones_autorizados } = body;
+      const existentes = await base44.asServiceRole.entities.ConfiguracaoIA.list("-created_date", 1).catch(() => []);
+      let salvo: any;
+      const dados = {
+        gemini_api_key: gemini_api_key || "",
+        zapi_instance_id: zapi_instance_id || "",
+        zapi_token: zapi_token || "",
+        telefones_autorizados: telefones_autorizados || "",
+        modelo_gemini: "gemini-3.5-flash",
+        ativo: true
+      };
+      if (existentes && existentes.length > 0) {
+        salvo = await base44.asServiceRole.entities.ConfiguracaoIA.update(existentes[0].id, dados);
+      } else {
+        salvo = await base44.asServiceRole.entities.ConfiguracaoIA.create(dados);
+      }
+      return Response.json({ status: "success", config: salvo }, {
+        headers: { "Access-Control-Allow-Origin": "*" }
+      });
+    }
+
     const { mensagem, filial, historico_recente } = body;
     if (!mensagem || typeof mensagem !== "string" || !mensagem.trim()) {
       return Response.json({ error: "Campo 'mensagem' é obrigatório" }, { status: 400 });

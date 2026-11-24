@@ -41,5 +41,11 @@
       "default": true,
       "description": "Se o assistente AJL IA está ativo"
     }
+  },
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
   }
 }

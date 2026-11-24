@@ -36,5 +36,11 @@
       "type": "string",
       "description": "Filial de contexto (ex: Matriz AJL)"
     }
+  },
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
   }
 }
