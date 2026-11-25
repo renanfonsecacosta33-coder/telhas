@@ -1,5 +1,5 @@
 import React from "react";
-import { Layers, AlertTriangle, Link2, Check } from "lucide-react";
+import { Layers, AlertTriangle, Link2, Check, Loader2, RefreshCw } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 function rotuloBobina(b) {
@@ -17,6 +17,9 @@ export default function SeletorBobinaProducao({
   exigeInferior = false,
   mesma = false,
   onToggleMesma,
+  carregando = false,
+  erro = false,
+  onRecarregar,
 }) {
   const semBobinas = bobinas.length === 0;
 
@@ -37,10 +40,26 @@ export default function SeletorBobinaProducao({
       </div>
 
       {semBobinas ? (
-        <div className="flex items-center gap-2 text-xs font-semibold text-amber-800 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-2">
-          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-          Nenhuma bobina disponível nesta filial. Cadastre/abra uma bobina no estoque para iniciar esta OP.
-        </div>
+        carregando ? (
+          <div className="flex items-center gap-2 text-xs font-semibold text-violet-800 dark:text-violet-200 bg-violet-100 dark:bg-violet-900/40 border border-violet-300 dark:border-violet-700 rounded-lg px-3 py-2">
+            <Loader2 className="w-4 h-4 text-violet-600 animate-spin shrink-0" />
+            Carregando as bobinas desta filial...
+          </div>
+        ) : erro ? (
+          <button
+            type="button"
+            onClick={() => onRecarregar?.()}
+            className="flex items-center gap-2 w-full text-left text-xs font-semibold text-amber-800 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-2 cursor-pointer hover:bg-amber-100"
+          >
+            <RefreshCw className="w-4 h-4 text-amber-600 shrink-0" />
+            Não foi possível carregar as bobinas. Toque para tentar de novo.
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 text-xs font-semibold text-amber-800 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            Nenhuma bobina disponível nesta filial. Cadastre/abra uma bobina no estoque para iniciar esta OP.
+          </div>
+        )
       ) : (
         <div className={`grid gap-2 ${exigeInferior ? "sm:grid-cols-2" : "sm:grid-cols-1"}`}>
           <div>

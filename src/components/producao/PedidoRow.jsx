@@ -17,7 +17,7 @@ import IniciarOpOperadoresDialog from "@/components/producao/IniciarOpOperadores
 import ItensVariacoesTelhas from "@/components/producao/ItensVariacoesTelhas";
 import PainelBobinaInferior from "@/components/producao/PainelBobinaInferior";
 import SeletorBobinaProducao from "@/components/producao/SeletorBobinaProducao";
-import { isBobinaAberta } from "@/lib/bobinaStatusHelper";
+import { isBobinaAberta } from "@/lib/bobinaStatusHelper"; import { comPrioridade } from "@/lib/rateLimiter";
 import CumeeiraEstoqueDialog from "@/components/producao/CumeeiraEstoqueDialog";
 import { playFinishSound, speakOpFinalizada, playAlertSound } from "@/lib/sounds";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -661,14 +661,14 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
   const isComponenteParaleloBandeja = Boolean(p.tipo_componente_bandeja === "telha_superior" || p.tipo_componente_bandeja === "bandeja_inferior");
 
   // Lista de bobinas para conferência nos itens de múltiplas medidas
-  const { data: todasBobinas = [] } = useQuery({
-    queryKey: ["todas-bobinas-row"],
-    queryFn: () => base44.entities.Bobina.list(),
-    staleTime: 60000,
-  });
-
-  // Somente bobinas ABERTAS da loja do próprio pedido (ex.: pedido da Matriz → bobinas da Matriz), setor Telhas
+  // Somente bobinas da loja do próprio pedido (ex.: pedido da Matriz → bobinas da Matriz), setor Telhas
   const unidadePedido = p.unidade || filialAtiva;
+  const { data: todasBobinas = [], isLoading: carregandoBobinas, isError: erroBobinas, refetch: recarregarBobinas } = useQuery({
+    queryKey: ["bobinas-row", unidadePedido || "todas"],
+    // Só as bobinas da loja vêm do servidor: a lista inteira (678) estourava o limite e voltava vazia
+    queryFn: () => comPrioridade(() => base44.entities.Bobina.filter({ ...(unidadePedido && unidadePedido !== "todas" ? { unidade: unidadePedido } : {}), arquivada: { $ne: true }, setor: { $ne: "corte_dobra" } }, { limit: 500 }).then(r => r?.items || r || [])),
+    staleTime: 60000, retry: 2,
+  });
   const bobinasAbertas = useMemo(() => (todasBobinas || []).filter(b =>
     Boolean(b?.id) && isBobinaAberta(b) && (Number(b.peso_kg) || 0) > 0 &&
     (!b.setor || b.setor === "telhas") &&
@@ -2206,7 +2206,7 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
         {/* Escolha das bobinas abertas antes de iniciar */}
         {precisaEscolherBobina && (
           <SeletorBobinaProducao
-            bobinas={bobinasAbertas}
+            bobinas={bobinasAbertas} carregando={carregandoBobinas} erro={erroBobinas} onRecarregar={recarregarBobinas}
             superiorId={bobSelSupId}
             inferiorId={bobSelInfId}
             onSuperior={(id) => { setBobSelSupId(id); if (mesmaBobina) setBobSelInfId(id); }}
