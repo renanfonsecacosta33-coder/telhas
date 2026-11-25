@@ -362,16 +362,20 @@ export async function rotearItensCorteDobraDireto({
  */
 async function buscarOpExistenteNaEtapa({ pedidoOdoo, ordemAtual, maquina }) {
   try {
-    const maqAlvo = String(maquina || "").replace(/[^A-Z0-9]/g, "").toUpperCase();
+    const maqAlvo = normalizarChaveMaquinaCD(maquina);
     if (!maqAlvo) return null;
 
     const pedidoId = pedidoOdoo?.id || ordemAtual?.pedido_odoo_id || null;
     const ofNome = pedidoOdoo?.of_nome || ordemAtual?.of_nome || "";
+    const numPed = String(pedidoOdoo?.numero_pedido || ordemAtual?.numero_pedido || "").replace(/^#/, "").trim();
     const itemIdx = ordemAtual?.item_idx != null ? Number(ordemAtual.item_idx) : null;
+    const produtoAtual = String(ordemAtual?.item_produto || ordemAtual?.tipo_peca || "").trim().toUpperCase();
 
     const consultas = [];
     if (pedidoId) consultas.push({ pedido_odoo_id: String(pedidoId) });
     if (ofNome) consultas.push({ of_nome: ofNome });
+    // OPs criadas sem vínculo de OF só são encontradas pelo número do pedido
+    if (numPed) consultas.push({ numero_pedido: numPed }, { numero_pedido: `#${numPed}` });
     if (!consultas.length) return null;
 
     const filtro = consultas.length === 1
@@ -389,11 +393,23 @@ async function buscarOpExistenteNaEtapa({ pedidoOdoo, ordemAtual, maquina }) {
       if (!op?.id || String(op.id) === String(ordemAtual.id)) return false;
       if (op.status === "cancelado") return false;
       if (op.is_retrabalho) return false;
-      const m = String(op.maquina || "").replace(/[^A-Z0-9]/g, "").toUpperCase();
-      if (m !== maqAlvo) return false;
-      if (itemIdx == null) return true;
+      if (normalizarChaveMaquinaCD(op.maquina) !== maqAlvo) return false;
+
+      // Identidade da OF: NUNCA mistura OFs diferentes da mesma venda.
+      const opPedId = String(op.pedido_odoo_id || "").trim();
+      const opOfNome = String(op.of_nome || "").trim().toUpperCase();
+      const casaOf = (Boolean(pedidoId) && opPedId === String(pedidoId)) ||
+        (Boolean(ofNome) && opOfNome === String(ofNome).trim().toUpperCase());
+      const opSemOf = !opPedId && !opOfNome;
+      const pedIgual = Boolean(numPed) &&
+        String(op.numero_pedido || "").replace(/^#/, "").trim() === numPed;
+      if (!casaOf && !(opSemOf && pedIgual)) return false;
+
+      // Item: índice quando os dois têm; senão o produto precisa ser o mesmo
       const idx = op.item_idx != null ? Number(op.item_idx) : null;
-      return idx == null || idx === itemIdx;
+      const prod = String(op.item_produto || op.tipo_peca || "").trim().toUpperCase();
+      if (itemIdx != null && idx != null) return idx === itemIdx;
+      return Boolean(prod && produtoAtual && prod === produtoAtual);
     }) || null;
   } catch (e) {
     console.warn("[avancarProximaEtapaRoteiroCD] Falha na trava anti-duplicação:", e);
@@ -460,37 +476,61 @@ export async function avancarProximaEtapaRoteiroCD(ordemAtual, entidadeOrigem = 
       }
     }
     if (!roteiro || roteiro.length === 0) {
-      roteiro = ["DESBOBINADEIRA 01", "GUILHOTINA 3M", "DOBRADEIRA 3M"];
+      roteiro = [];
     }
   }
 
-  // 3. Determina o índice da etapa atual com normalização inteligente
-  const maqAtualNorm = String(ordemAtual.maquina || ordemAtual.maquina_inicial || "").toUpperCase().trim();
-  let indiceAtual = typeof ordemAtual.indice_etapa_atual === "number" ? ordemAtual.indice_etapa_atual : -1;
+  // Sem roteiro não há como saber a próxima máquina: a OP fica finalizada onde está
+  // (nada de criar OP em máquina errada nem de concluir o pedido inteiro por engano).
+  if (!Array.isArray(roteiro) || roteiro.length === 0) {
+    return { avancou: false, semRoteiro: true, motivo: "sem_roteiro" };
+  }
 
-  if (indiceAtual < 0 || indiceAtual >= roteiro.length) {
-    indiceAtual = roteiro.findIndex(m => String(m || "").toUpperCase().trim() === maqAtualNorm);
+  // 3. Determina a etapa atual pela MÁQUINA REAL da OP.
+  //    O índice gravado só vale se a máquina daquele índice for a máquina onde a OP
+  //    está: um índice desatualizado fazia a OP "avançar" para ela mesma.
+  const maqAtualNorm = String(ordemAtual.maquina || ordemAtual.maquina_inicial || "").toUpperCase().trim();
+  const chaveAtual = normalizarChaveMaquinaCD(ordemAtual.maquina || ordemAtual.maquina_inicial);
+  let indiceAtual = chaveAtual ? roteiro.findIndex(m => normalizarChaveMaquinaCD(m) === chaveAtual) : -1;
+
+  if (indiceAtual < 0 && typeof ordemAtual.indice_etapa_atual === "number" && ordemAtual.indice_etapa_atual >= 0 && ordemAtual.indice_etapa_atual < roteiro.length) {
+    const maqDoIndice = normalizarChaveMaquinaCD(roteiro[ordemAtual.indice_etapa_atual]);
+    if (!maqDoIndice || maqDoIndice === chaveAtual) indiceAtual = ordemAtual.indice_etapa_atual;
   }
 
   if (indiceAtual < 0) {
     if (entidadeOrigem === "OrdemDesbobinadeira" || maqAtualNorm.includes("DESBOBINADEIRA")) {
       indiceAtual = roteiro.findIndex(m => String(m || "").toUpperCase().includes("DESBOBINADEIRA"));
-      if (indiceAtual < 0) indiceAtual = 0;
     } else if (maqAtualNorm.includes("GUILHOTINA") || maqAtualNorm.includes("CORTE")) {
       indiceAtual = roteiro.findIndex(m => {
         const s = String(m || "").toUpperCase();
         return s.includes("GUILHOTINA") || s.includes("CORTE");
       });
-      if (indiceAtual < 0) indiceAtual = 1;
     } else if (maqAtualNorm.includes("DOBRA")) {
       indiceAtual = roteiro.findIndex(m => String(m || "").toUpperCase().includes("DOBRA"));
-      if (indiceAtual < 0) indiceAtual = 2;
-    } else {
-      indiceAtual = 0;
     }
   }
 
-  const proximoIndice = indiceAtual + 1;
+  // 🛡️ TRAVA ANTI-LOOP: a etapa seguinte nunca é a própria máquina onde a OP está,
+  // nunca volta para desbobinadeira, e etapa que já tem OP finalizada é considerada
+  // cumprida (segue adiante em vez de recriar a mesma etapa).
+  let proximoIndice = indiceAtual >= 0 ? indiceAtual + 1 : 0;
+  let opExistenteNaProxima = null;
+
+  while (proximoIndice < roteiro.length) {
+    const chaveCand = normalizarChaveMaquinaCD(roteiro[proximoIndice]);
+    if (!chaveCand || chaveCand === chaveAtual || chaveCand.startsWith("DESBOBINADEIRA")) {
+      proximoIndice++;
+      continue;
+    }
+    const opCand = await buscarOpExistenteNaEtapa({ pedidoOdoo: pedOdoo, ordemAtual, maquina: chaveCand });
+    if (opCand && opCand.status === "finalizado") {
+      proximoIndice++;
+      continue;
+    }
+    opExistenteNaProxima = opCand || null;
+    break;
+  }
 
   // 4. Se já era a última etapa do roteiro (ex.: Dobradeira finalizada), CONCLUI O PEDIDO EM 100%
   if (proximoIndice >= roteiro.length) {
@@ -613,17 +653,15 @@ export async function avancarProximaEtapaRoteiroCD(ordemAtual, entidadeOrigem = 
 
   // 🛡️ TRAVA: a etapa seguinte só é criada uma vez. Se já existe OP viva nesta
   // máquina para esta OF/item, reutiliza (nada de segunda OP duplicada).
-  const opExistenteNaEtapa = await buscarOpExistenteNaEtapa({ pedidoOdoo: pedOdoo, ordemAtual, maquina: maquinaCanonica });
-  if (opExistenteNaEtapa) {
-    return { avancou: false, jaExistia: true, proximaMaquina: maquinaCanonica, novaOp: opExistenteNaEtapa };
-  }
-
-  let novaOp = null;
-  try {
-    novaOp = await base44.entities.OrdemMaquinaCD.create(payloadLimpo(payloadProxima));
-  } catch (errProxima) {
-    console.error("[avancarProximaEtapaRoteiroCD] Falha ao criar OP da próxima etapa:", errProxima);
-    return { avancou: false, erro: errProxima };
+  const opExistenteNaEtapa = opExistenteNaProxima;
+  let novaOp = opExistenteNaEtapa || null;
+  if (!opExistenteNaEtapa) {
+    try {
+      novaOp = await base44.entities.OrdemMaquinaCD.create(payloadLimpo(payloadProxima));
+    } catch (errProxima) {
+      console.error("[avancarProximaEtapaRoteiroCD] Falha ao criar OP da próxima etapa:", errProxima);
+      return { avancou: false, erro: errProxima };
+    }
   }
 
   // 6. Atualiza imediatamente o PedidoOdoo e os Itens no Banco para o PCP sincronizar em tempo real
@@ -679,5 +717,8 @@ export async function avancarProximaEtapaRoteiroCD(ordemAtual, entidadeOrigem = 
     }
   }
 
+  if (opExistenteNaEtapa) {
+    return { avancou: false, jaExistia: true, proximaMaquina: maquinaCanonica, novaOp };
+  }
   return { avancou: true, proximaMaquina, novaOp };
 }

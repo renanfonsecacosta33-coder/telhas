@@ -490,6 +490,10 @@ function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "norma
         toast.success(`OP encaminhada automaticamente para a próxima máquina: ${res.proximaMaquina}!`);
       } else if (res?.concluido) {
         toast.success("🎉 Roteiro de Corte & Dobra finalizado com sucesso!");
+      } else if (res?.jaExistia) {
+        toast.info(`Esta OP já está na fila da ${res.proximaMaquina}.`);
+      } else if (res?.semRoteiro) {
+        toast.warning("OP finalizada. Roteiro não definido pelo PCP: avise o PCP para liberar a próxima etapa.");
       }
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });

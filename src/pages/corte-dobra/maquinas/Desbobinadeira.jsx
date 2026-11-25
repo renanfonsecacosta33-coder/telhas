@@ -319,6 +319,10 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
             toast.success(`OP avançada automaticamente para ${avanco.proximaMaquina}!`);
           } else if (avanco?.concluido) {
             toast.success("🎉 Roteiro de Corte & Dobra concluído em 100%!");
+          } else if (avanco?.jaExistia) {
+            toast.info(`Esta OP já está na fila da ${avanco.proximaMaquina}.`);
+          } else if (avanco?.semRoteiro) {
+            toast.warning("OP finalizada. Roteiro não definido pelo PCP: avise o PCP para liberar a próxima etapa.");
           }
           queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
           queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
