@@ -65,7 +65,9 @@ function envolverEntidade(handler) {
       if (FORA_DA_FILA.has(metodo)) return valor.bind(alvo);
       // Toda leitura/gravação entra na fila global, que evita o erro 429
       // e repete automaticamente se o servidor ainda pedir para aguardar.
+      // Mutações (ações diretas do usuário) têm PRIORIDADE MÁXIMA (0ms de espera).
       return (...args) => {
+        const isMutacao = ["create", "update", "delete", "updateMany"].includes(metodo);
         if (metodo === "update" && args[1]) {
           sanitizarPayloadBase44(args[1]);
         } else if (metodo === "create" && args[0]) {
@@ -73,7 +75,7 @@ function envolverEntidade(handler) {
         } else if (metodo === "updateMany" && args[1]) {
           sanitizarPayloadBase44(args[1]);
         }
-        return agendarComRetry(() => valor.apply(alvo, args));
+        return agendarComRetry(() => valor.apply(alvo, args), isMutacao);
       };
     },
   });

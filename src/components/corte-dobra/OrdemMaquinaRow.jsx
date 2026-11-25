@@ -92,7 +92,7 @@ const ZOOM_CFG = {
   grande:   { card: "p-5",   title: "text-lg", info: "text-sm", badge: "text-sm", cronText: "text-base", cronLabel: "text-sm", cronPad: "px-4 py-2.5", btn: "h-10 text-sm", obs: "text-sm py-2", gap: "gap-2.5", mb: "mb-3" },
 };
 
-export default function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "normal", ordens = [], pedidoSeq, user, pedidosOdooMap = {} }) {
+function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "normal", ordens = [], pedidoSeq, user, pedidosOdooMap = {} }) {
   const regras = useRegrasProducao();
   const z = ZOOM_CFG[zoom] || ZOOM_CFG.normal;
 
@@ -1559,3 +1559,5 @@ function DesenvolvimentoCroquiPanel({ ordem: o, zoom }) {
     </div>
   );
 }
+
+export default React.memo(OrdemMaquinaRow);

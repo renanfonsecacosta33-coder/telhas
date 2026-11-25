@@ -77,7 +77,7 @@ function formatTempo(segundos) {
   return `${String(m).padStart(2, "0")}m ${String(sec).padStart(2, "0")}s`;
 }
 
-export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate, userRole, opRodando, maquina, user, filialAtiva, appendHistoricoFn, todosPedidos = [] }) {
+function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate, userRole, opRodando, maquina, user, filialAtiva, appendHistoricoFn, todosPedidos = [] }) {
   const isOperador = userRole === "operador";
   const podeGerenciar = !isOperador;
   const isAdminOuGestor = ["admin", "super_admin", "gestor"].includes(userRole || user?.role);
@@ -3126,6 +3126,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     </>
   );
 }
+
+export default React.memo(PedidoRow);
 
 function StatusBadge({ status }) {
   const cfg = {

@@ -16,7 +16,7 @@ const STATUS_MINI = {
  * O total de metros é o herói; material (cor/espessura/origem) fica em bloco próprio.
  * A barra de ações (Rota, Prioridade, Data, Histórico, Editar, Excluir) entra pela prop `toolbar`.
  */
-export default function PedidoMiniCard({ pedido: p, onExpand, toolbar = null }) {
+function PedidoMiniCard({ pedido: p, onExpand, toolbar = null }) {
   const statusEfetivoKey = (p.maquina === "COLAGEM" && (p.status === "pausado" || p.status === "aguardando_colagem"))
     ? "aguardando_colagem"
     : p.status;
@@ -127,3 +127,5 @@ export default function PedidoMiniCard({ pedido: p, onExpand, toolbar = null }) 
     </div>
   );
 }
+
+export default React.memo(PedidoMiniCard);

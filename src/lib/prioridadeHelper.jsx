@@ -557,19 +557,30 @@ export function pertenceAFilaDaMaquinaNoDia(item, selectedDay, targetNorm = "", 
 /**
  * 🎯 Comparador hierárquico oficial AJL para a fila da máquina:
  * 1º: Status ativo imediato (em_producao, pausado)
- * 2º: Categoria do Dia (Retira -> Atrasados -> Hoje -> D+1 -> Sem Data)
- * 3º: Prioridade Logística AJL (Rotas agendadas -> Prioridade com data -> FIFO)
+ * 2º: 🔒 Regra de Ouro: Pedidos SEM PRIORIDADE (não classificados pelo PCP) vão para o FINAL ABSOLUTO da fila
+ * 3º: Categoria do Dia (Retira -> Atrasados -> Hoje -> D+1 -> Sem Data)
+ * 4º: Prioridade Logística AJL (Rotas agendadas -> Prioridade com data -> FIFO)
  */
 export function compararFilaMaquinaAJL(a, b, selectedDay) {
   if (!a && !b) return 0;
   if (!a) return 1;
   if (!b) return -1;
 
+  // 1º Lugar Absoluto: Status ativo imediato na máquina (em_producao em 1º, depois pausado)
   const orderAtivo = { em_producao: 0, pausado: 1 };
   const stA = orderAtivo[a.status] ?? 2;
   const stB = orderAtivo[b.status] ?? 2;
   if (stA !== stB && (stA <= 1 || stB <= 1)) return stA - stB;
 
+  // 🔒 REGRA DE OURO AJL:
+  // Pedidos SEM PRIORIDADE definida conscientemente pelo PCP (com o aviso "⚠️ Sem Prioridade")
+  // DEVEM IR PARA O FINAL ABSOLUTO DA FILA da máquina, mesmo se tiverem data anterior ou de hoje!
+  const temPrioA = hasPrioridadeDefinida(a);
+  const temPrioB = hasPrioridadeDefinida(b);
+  if (temPrioA && !temPrioB) return -1;
+  if (!temPrioA && temPrioB) return 1;
+
+  // 2º Lugar: Categoria do Dia (Retira -> Atrasados -> Hoje -> D+1 -> Sem Data)
   const catA = classificarCategoriaDiaPedido(a, selectedDay);
   const catB = classificarCategoriaDiaPedido(b, selectedDay);
   const pA = catA?.pesoVisual ?? 99;

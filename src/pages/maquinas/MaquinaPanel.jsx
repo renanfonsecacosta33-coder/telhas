@@ -505,7 +505,7 @@ export default function MaquinaPanel({ maquina }) {
         throw new Error("OFFLINE_TRIGGERED");
       }
       const payloadLimpo = { ...data };
-      const atual = await base44.entities.Pedido.get(id).catch(() => null);
+      const atual = pedidos.find(p => p.id === id) || null;
 
       if (payloadLimpo.status && atual) {
         // FINALIZADO É TERMINAL: OP concluída não retorna para a fila da máquina
