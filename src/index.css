@@ -84,6 +84,16 @@
   }
 }
 
+/* ── Resposta Tátil Instantânea e Remoção de Delay de Clique ── */
+html, body, button, a, [role="button"], input, select, textarea {
+  touch-action: manipulation;
+}
+
+button:active:not(:disabled), [role="button"]:active:not([aria-disabled="true"]) {
+  transform: scale(0.985);
+  transition: transform 0.04s ease-out;
+}
+
 /* ── Fallbacks Automáticos Elegantes para Modo Escuro ── */
 .dark .bg-white:not(.preserve-light):not(.preserve-light *):not(.etq-container):not(.etq-container *):not(.print-white):not(.print-white *) {
   background-color: #101726 !important;

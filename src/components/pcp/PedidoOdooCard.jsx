@@ -84,7 +84,7 @@ const STATUS_PCP = {
   concluido: { label: "Concluído", cls: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40" }
 };
 
-export default function PedidoOdooCard({
+function PedidoOdooCard({
   pedido, onClick, onDelete, onRetirarFila, onTogglePrioridade, onSetPrioridade,
   progressoReal, pedidosProducao = [], ordensCD = [],
   selecionado = false, onToggleSelect, onDistribuir, onTransferir, onFinalizar100,
@@ -975,3 +975,5 @@ export default function PedidoOdooCard({
     </div>
   );
 }
+
+export default React.memo(PedidoOdooCard);

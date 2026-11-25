@@ -31,7 +31,7 @@ import { formatarTempoEntregaRelativo } from "@/lib/relatorioEntregasHelper";
  * Por padrão, chega minimizado exibindo o resumo do pedido e progresso consolidado.
  * Ao clicar, expande a grade com os cards individuais de cada OF.
  */
-export default function PedidoOdooGrupoCard({
+function PedidoOdooGrupoCard({
   grupo,
   expandido = false,
   onToggle,
@@ -723,3 +723,5 @@ export default function PedidoOdooGrupoCard({
     </div>
   );
 }
+
+export default React.memo(PedidoOdooGrupoCard);
