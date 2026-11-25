@@ -28,7 +28,10 @@ import {
   compararPrioridadeEData,
   getDataEntregaParaOrdenacao,
   formatarDataProgramadaAmigavel,
-  normalizarPrioridadeNivelNumerico
+  normalizarPrioridadeNivelNumerico,
+  pertenceAFilaDaMaquinaNoDia,
+  compararFilaMaquinaAJL,
+  CategoriaDiaBadge
 } from "@/lib/prioridadeHelper";
 import AlterarDataPedidoMaquinaModal from "@/components/maquinas/AlterarDataPedidoMaquinaModal";
 import { normalizarTextoBusca, calcularFiltrosTipoECor, pedidoAtendeFiltroTipoECor } from "@/lib/bobinaStatusHelper";
@@ -720,40 +723,17 @@ export default function MaquinaPanel({ maquina }) {
         return false;
       }
 
-      // 1. Data planejada do pedido bate com o dia selecionado
-      if (p.data === selectedDay) return true;
-      // 2. Data em que as peças foram perfiladas nesta máquina bate com o dia selecionado
-      if (p.data_perfilacao === selectedDay) return true;
-      if (p.hora_perfilacao && p.hora_perfilacao.startsWith(selectedDay)) return true;
-      // 3. Data de finalização bate com o dia selecionado
-      if (p.data_finalizacao === selectedDay) return true;
-      // 4. Status ativo hoje
-      if (p.status === "pausado" || p.status === "em_producao") return true;
-
-      // 4b. OP pendente atribuída a esta máquina é fila real dela, mesmo que a
-      // data planejada seja de outro dia (evita sumir do painel no dia seguinte).
-      if (p.status === "pendente" && maquinaNorm(p.maquina) === targetNorm && (!p.data || p.data <= selectedDay)) {
-        return true;
-      }
-
-      // 5. Se hoje: pedidos pendentes ou atrasados (somente se ainda NÃO foram concluídos/expedidos)
-      if (isHoje && p.data && p.data < hoje && !isPedidoTotalmenteConcluido(p)) {
-        return true;
-      }
-
-      // 6. Se hoje e houve movimentação/trabalho registrado no histórico hoje
-      if (isHoje) {
-        try {
-          const hist = JSON.parse(p.historico_alteracoes || "[]");
-          if (hist.some(h => h.data && h.data.startsWith(hoje))) {
-            return true;
-          }
-        } catch {}
-      }
-
-      return false;
+      // Regra Unificada AJL para Perfiladeiras:
+      // - Pedidos de hoje
+      // - Atrasados / dias anteriores
+      // - D+1 (Amanhã / antecipação)
+      // - Cliente Retira (Balcão)
+      // - Sem data definida na Central PCP
+      // - Em produção ou pausados
+      // - Finalizados hoje
+      return pertenceAFilaDaMaquinaNoDia(p, selectedDay, targetNorm, (ped) => isPedidoConcluidoNaMaquina(ped, maquina));
     });
-  }, [pedidos, selectedDay]);
+  }, [pedidos, selectedDay, targetNorm, maquina]);
 
   const hoje = isToday(new Date(selectedDay + "T12:00:00"));
 
@@ -992,14 +972,11 @@ export default function MaquinaPanel({ maquina }) {
     }
 
     // 3. Ordenação rigorosa dos PEDIDOS A FAZER:
-    //    - 1º: Status imediato (em_producao em 1º absoluto, depois pausado, depois pendente)
-    //    - 2º: Regra de Ouro AJL (1. as rotas, 2. P1, 3. P2, 4. P3, 5. P4, 6. P5, 7. Por data mais próxima de entrega)
+    //    - 1º: Status imediato (em_producao em 1º absoluto, depois pausado)
+    //    - 2º: Hierarquia AJL por Categoria (Retira Balcão -> Atrasados -> Hoje -> D+1 -> Sem Data)
+    //    - 3º: Regra de Ouro AJL (Rotas -> Prioridades com data -> FIFO)
     const sortedAFazer = aFazer.sort((a, b) => {
-      const statusA = orderAtivo[a.status] ?? 2;
-      const statusB = orderAtivo[b.status] ?? 2;
-      if (statusA !== statusB) return statusA - statusB;
-
-      return compararPrioridadeEData(a, b);
+      return compararFilaMaquinaAJL(a, b, selectedDay);
     });
 
     // 4. Ordenação dos PEDIDOS FINALIZADOS:
@@ -1907,6 +1884,16 @@ export default function MaquinaPanel({ maquina }) {
                     : ""
                 }`}
               >
+                {/* Badge de Destaque da Categoria do Dia (Retira, Atrasado, Hoje, D+1, Sem Data) */}
+                <div className="flex items-center justify-between gap-2 mb-2 px-0.5">
+                  <CategoriaDiaBadge pedido={p} selectedDay={selectedDay} />
+                  {p.data && p.data !== selectedDay && (
+                    <span className="text-[11px] font-semibold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded border">
+                      Data PCP: {p.data.split("-").reverse().join("/")}
+                    </span>
+                  )}
+                </div>
+
                 {/* Banner de Chegada e Foco Imediato na Frente do Pedido */}
                 {isFocado && (
                   <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white px-4 py-2.5 rounded-xl flex items-center justify-between font-bold text-xs sm:text-sm shadow-md mb-2.5 animate-pulse">

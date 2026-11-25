@@ -573,6 +573,22 @@ export function extrairInfoBobinasPedido(p) {
   if (p.chapa_descricao) textos.push(String(p.chapa_descricao));
   if (p.espessura_utilizada) textos.push(String(p.espessura_utilizada));
   if (p.tipo_peca) textos.push(String(p.tipo_peca));
+  if (p.observacoes) textos.push(String(p.observacoes));
+  if (p.observacoes_odoo) textos.push(String(p.observacoes_odoo));
+  if (p.obs) textos.push(String(p.obs));
+  if (p.item_produto) textos.push(String(p.item_produto));
+  if (p.especificacao) textos.push(String(p.especificacao));
+  if (p.acabamento) textos.push(String(p.acabamento));
+  if (p.cor_tinta) textos.push(String(p.cor_tinta));
+
+  if (p._presets) {
+    if (p._presets.cor) textos.push(String(p._presets.cor));
+    if (p._presets.produto) textos.push(String(p._presets.produto));
+    if (p._presets.modelo) textos.push(String(p._presets.modelo));
+    if (p._presets.observacoes) textos.push(String(p._presets.observacoes));
+    if (p._presets.chapa_descricao) textos.push(String(p._presets.chapa_descricao));
+    if (p._presets.bobina_descricao) textos.push(String(p._presets.bobina_descricao));
+  }
 
   try {
     const vars = JSON.parse(p.variacoes_telhas || "[]");
@@ -590,15 +606,15 @@ export function extrairInfoBobinasPedido(p) {
   const fullText = normalizarTextoBusca(textos.join(" "));
 
   // 1. Cores
-  const temPreta = fullText.includes("pret");
-  const temBranca = fullText.includes("branc");
-  const temAzul = fullText.includes("azul");
-  const temCinza = fullText.includes("cinza") || fullText.includes("grafite");
-  const temCeramica = fullText.includes("ceramica") || fullText.includes("terracota");
-  const temBege = fullText.includes("bege") || fullText.includes("areia");
-  const temVermelha = fullText.includes("vermelh");
-  const temVerde = fullText.includes("verd");
-  const temMarrom = fullText.includes("marrom");
+  const temPreta = fullText.includes("pret") || fullText.includes("black");
+  const temBranca = fullText.includes("branc") || fullText.includes("white");
+  const temAzul = fullText.includes("azul") || fullText.includes("blue");
+  const temCinza = fullText.includes("cinza") || fullText.includes("grafite") || fullText.includes("gray") || fullText.includes("grey");
+  const temCeramica = fullText.includes("ceramica") || fullText.includes("cerâmica") || fullText.includes("terracota");
+  const temBege = fullText.includes("bege") || fullText.includes("areia") || fullText.includes("sand");
+  const temVermelha = fullText.includes("vermelh") || fullText.includes("red");
+  const temVerde = fullText.includes("verd") || fullText.includes("green");
+  const temMarrom = fullText.includes("marrom") || fullText.includes("brown");
 
   const temCor = temPreta || temBranca || temAzul || temCinza || temCeramica || temBege || temVermelha || temVerde || temMarrom;
 

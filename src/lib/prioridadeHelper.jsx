@@ -409,6 +409,193 @@ export function compararPrioridadeEData(a, b) {
 }
 
 /**
+ * 🏷️ Classifica a relação de data do pedido com o dia selecionado na máquina:
+ * 1. RETIRA (Cliente Retira no Balcão) -> 1º Lugar Absoluto
+ * 2. ATRASADO (Dias anteriores a selectedDay) -> 2º Lugar
+ * 3. HOJE (data === selectedDay) -> 3º Lugar
+ * 4. D_MAIS_1 (data === selectedDay + 1 dia) -> 4º Lugar
+ * 5. SEM_DATA (atribuído à máquina mas sem agendamento no PCP) -> 5º Lugar
+ */
+export function classificarCategoriaDiaPedido(pedido, selectedDay) {
+  if (!pedido) return null;
+  const hoje = selectedDay || format(new Date(), "yyyy-MM-dd");
+
+  let diaSeguinte = hoje;
+  try {
+    diaSeguinte = format(addDays(new Date(hoje + "T12:00:00"), 1), "yyyy-MM-dd");
+  } catch {
+    diaSeguinte = hoje;
+  }
+
+  // 1. Cliente Retira Balcão
+  if (isPedidoRetiraAgora(pedido)) {
+    return {
+      categoria: "RETIRA",
+      label: "⚡ RETIRA BALCÃO",
+      badgeCls: "bg-red-600 text-white border-red-500 shadow-sm animate-pulse font-black",
+      pesoVisual: 1
+    };
+  }
+
+  const dataRaw = getDataProgramadaPcp(pedido) || (pedido.data ? String(pedido.data).slice(0, 10) : "") || (pedido.data_entrega ? String(pedido.data_entrega).slice(0, 10) : "");
+
+  // 5. Sem Data Definida
+  if (!dataRaw || dataRaw === "") {
+    return {
+      categoria: "SEM_DATA",
+      label: "⏳ SEM DATA PCP",
+      badgeCls: "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 font-semibold",
+      pesoVisual: 5
+    };
+  }
+
+  const dataLimpa = dataRaw.slice(0, 10);
+
+  // 2. Atrasado (Dias Anteriores)
+  if (dataLimpa < hoje) {
+    let diaMes = dataLimpa;
+    try {
+      const p = dataLimpa.split("-");
+      if (p.length === 3) diaMes = `${p[2]}/${p[1]}`;
+    } catch {}
+    return {
+      categoria: "ATRASADO",
+      label: `🚨 ATRASADO (${diaMes})`,
+      badgeCls: "bg-amber-600 text-white border-amber-500 shadow-sm font-black",
+      pesoVisual: 2
+    };
+  }
+
+  // 3. Hoje
+  if (dataLimpa === hoje) {
+    return {
+      categoria: "HOJE",
+      label: "📅 HOJE",
+      badgeCls: "bg-emerald-600/15 text-emerald-800 dark:text-emerald-300 border-emerald-400 font-bold",
+      pesoVisual: 3
+    };
+  }
+
+  // 4. D+1 (Amanhã / Antecipação)
+  if (dataLimpa === diaSeguinte) {
+    return {
+      categoria: "D_MAIS_1",
+      label: "⏩ D+1 (AMANHÃ)",
+      badgeCls: "bg-blue-600/15 text-blue-800 dark:text-blue-300 border-blue-400 font-bold",
+      pesoVisual: 4
+    };
+  }
+
+  // Futuro além de D+1
+  let diaMesFuturo = dataLimpa;
+  try {
+    const p = dataLimpa.split("-");
+    if (p.length === 3) diaMesFuturo = `${p[2]}/${p[1]}`;
+  } catch {}
+  return {
+    categoria: "FUTURO",
+    label: `📅 ${diaMesFuturo}`,
+    badgeCls: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 font-medium",
+    pesoVisual: 6
+  };
+}
+
+/**
+ * 🏭 Checa se um item (Pedido ou Ordem CD) pertence à fila de exibição da máquina no dia selecionado:
+ * - Pedidos do dia
+ * - Dias anteriores (atrasados/pendentes que não foram concluídos)
+ * - D+1 (dia seguinte, antecipação)
+ * - Cliente retira balcão (sempre visível)
+ * - Sem data cadastrada no PCP (atribuídos à máquina)
+ * - Em produção ou pausados agora
+ */
+export function pertenceAFilaDaMaquinaNoDia(item, selectedDay, targetNorm = "", isConcluidoFn = null) {
+  if (!item) return false;
+  if (item.status === "cancelado" || item.status_pcp === "cancelado") return false;
+
+  const hoje = selectedDay || format(new Date(), "yyyy-MM-dd");
+  let diaSeguinte = hoje;
+  try {
+    diaSeguinte = format(addDays(new Date(hoje + "T12:00:00"), 1), "yyyy-MM-dd");
+  } catch {
+    diaSeguinte = hoje;
+  }
+
+  // Se já está concluído:
+  const concluido = isConcluidoFn ? isConcluidoFn(item) : (item.status === "finalizado");
+  if (concluido) {
+    const dataConcl = item.data_finalizacao || item.data_perfilacao || (item.hora_perfilacao ? item.hora_perfilacao.slice(0, 10) : "");
+    const dataItem = getDataProgramadaPcp(item) || (item.data ? String(item.data).slice(0, 10) : "");
+    return dataConcl === hoje || dataItem === hoje;
+  }
+
+  // Se está ativo no momento (em produção ou pausado)
+  if (item.status === "em_producao" || item.status === "pausado") return true;
+
+  // 1. Cliente Retira Balcão
+  if (isPedidoRetiraAgora(item)) return true;
+
+  const dataItem = getDataProgramadaPcp(item) || (item.data ? String(item.data).slice(0, 10) : "");
+
+  // 2. Pedido do dia selecionado
+  if (dataItem === hoje) return true;
+  if (item.data_perfilacao === hoje) return true;
+  if (item.hora_perfilacao && item.hora_perfilacao.startsWith(hoje)) return true;
+
+  // 3. Atrasados / Dias anteriores
+  if (dataItem && dataItem < hoje) return true;
+
+  // 4. D+1 (Amanhã)
+  if (dataItem === diaSeguinte) return true;
+
+  // 5. Sem data definida na Central PCP
+  if (!dataItem || dataItem === "") return true;
+
+  return false;
+}
+
+/**
+ * 🎯 Comparador hierárquico oficial AJL para a fila da máquina:
+ * 1º: Status ativo imediato (em_producao, pausado)
+ * 2º: Categoria do Dia (Retira -> Atrasados -> Hoje -> D+1 -> Sem Data)
+ * 3º: Prioridade Logística AJL (Rotas agendadas -> Prioridade com data -> FIFO)
+ */
+export function compararFilaMaquinaAJL(a, b, selectedDay) {
+  if (!a && !b) return 0;
+  if (!a) return 1;
+  if (!b) return -1;
+
+  const orderAtivo = { em_producao: 0, pausado: 1 };
+  const stA = orderAtivo[a.status] ?? 2;
+  const stB = orderAtivo[b.status] ?? 2;
+  if (stA !== stB && (stA <= 1 || stB <= 1)) return stA - stB;
+
+  const catA = classificarCategoriaDiaPedido(a, selectedDay);
+  const catB = classificarCategoriaDiaPedido(b, selectedDay);
+  const pA = catA?.pesoVisual ?? 99;
+  const pB = catB?.pesoVisual ?? 99;
+
+  if (pA !== pB) {
+    return pA - pB;
+  }
+
+  return compararPrioridadeEData(a, b);
+}
+
+/**
+ * Badge de Categoria de Dia para Cards de Máquina (Exibe "⚡ RETIRA BALCÃO", "🚨 ATRASADO (24/11)", "📅 HOJE", "⏩ D+1 (AMANHÃ)", "⏳ SEM DATA PCP")
+ */
+export function CategoriaDiaBadge({ pedido, selectedDay, className = "" }) {
+  const info = classificarCategoriaDiaPedido(pedido, selectedDay);
+  if (!info) return null;
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] md:text-xs border tracking-tight uppercase ${info.badgeCls} ${className}`}>
+      {info.label}
+    </span>
+  );
+}
+
+/**
  * Badge de Prioridade de Alta Visibilidade para Tablets de Máquina e Telas do PCP
  */
 export function PrioridadeBadge({ pedido, prioridade, dataProgramada, className = "" }) {

@@ -19,7 +19,15 @@ import { calcularFiltrosTipoECor, pedidoAtendeFiltroTipoECor } from "@/lib/bobin
 import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
 import TimerProducao from "@/components/producao/TimerProducao";
-import { getPesoOrdenacaoPrioridade, SeletorPrioridadeDropdown, compararPrioridadeEData, normalizarPrioridadeNivelNumerico } from "@/lib/prioridadeHelper";
+import {
+  getPesoOrdenacaoPrioridade,
+  SeletorPrioridadeDropdown,
+  compararPrioridadeEData,
+  normalizarPrioridadeNivelNumerico,
+  pertenceAFilaDaMaquinaNoDia,
+  compararFilaMaquinaAJL,
+  CategoriaDiaBadge
+} from "@/lib/prioridadeHelper";
 import { isOperadorDestaMaquina } from "@/lib/somPermissaoHelper";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
@@ -267,27 +275,18 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
         (o.bobina_descricao || "").toLowerCase().includes(q)
       ));
     }
-    const hoje = format(new Date(), "yyyy-MM-dd");
-    const isHoje = selectedDay === hoje;
-    const doDia = ordens.filter(o => o.data === selectedDay && o.status !== "aguardando_material" && o.status !== "cancelado");
-    const ordAtivo = { em_producao: 0, pausado: 1, pendente: 2, finalizado: 3, cancelado: 4 };
-
-    if (!isHoje) {
-      return doDia.sort((a, b) => {
-        const sA = ordAtivo[a.status] ?? 2;
-        const sB = ordAtivo[b.status] ?? 2;
-        if (sA !== sB && (sA <= 1 || sB <= 1)) return sA - sB;
-        return compararPrioridadeEData(a, b);
-      });
-    }
-    const atrasadas = ordens.filter(o => o.data < hoje && o.status !== "finalizado" && o.status !== "cancelado" && o.status !== "aguardando_material");
-    return [...atrasadas, ...doDia].sort((a, b) => {
-      const sA = ordAtivo[a.status] ?? 2;
-      const sB = ordAtivo[b.status] ?? 2;
-      if (sA !== sB && (sA <= 1 || sB <= 1)) return sA - sB;
-      return compararPrioridadeEData(a, b);
-    });
-  }, [ordens, selectedDay, buscaPedido]);
+    // Regra Unificada AJL:
+    // - Pedidos do dia
+    // - Atrasados / dias anteriores
+    // - D+1 (Amanhã / antecipação)
+    // - Cliente Retira (Balcão)
+    // - Sem data definida na Central PCP
+    // - Em produção ou pausados
+    // - Finalizados hoje
+    return ordens
+      .filter(o => o.status !== "aguardando_material" && pertenceAFilaDaMaquinaNoDia(o, selectedDay, maquinaSelecionada, (item) => item.status === "finalizado"))
+      .sort((a, b) => compararFilaMaquinaAJL(a, b, selectedDay));
+  }, [ordens, selectedDay, buscaPedido, maquinaSelecionada]);
 
   const ordensCanceladasDesb = useMemo(
     () => ordens.filter(o => o.status === "cancelado"),
@@ -1012,6 +1011,15 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
             <div className="p-4 space-y-3">
               {ordensDiaFiltradas.map(o => (
                 <div key={o.id}>
+                  {/* Badge de Destaque da Categoria do Dia (Retira, Atrasado, Hoje, D+1, Sem Data) */}
+                  <div className="flex items-center justify-between gap-2 mb-2 px-0.5">
+                    <CategoriaDiaBadge pedido={o} selectedDay={selectedDay} />
+                    {o.data && o.data !== selectedDay && (
+                      <span className="text-[11px] font-semibold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded border">
+                        Data PCP: {o.data.split("-").reverse().join("/")}
+                      </span>
+                    )}
+                  </div>
                   <OrdemDesbobinadiraRow
                     ordem={o}
                     onUpdate={(id, data) => updateOrdem.mutate({ id, data })}

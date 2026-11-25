@@ -20,7 +20,15 @@ import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import FinalizarExpedienteButton from "@/components/expediente/FinalizarExpedienteButton";
 import CapacidadeDiariaIA from "@/components/pcp/CapacidadeDiariaIA";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
-import { getPesoOrdenacaoPrioridade, SeletorPrioridadeDropdown, compararPrioridadeEData, normalizarPrioridadeNivelNumerico } from "@/lib/prioridadeHelper";
+import {
+  getPesoOrdenacaoPrioridade,
+  SeletorPrioridadeDropdown,
+  compararPrioridadeEData,
+  normalizarPrioridadeNivelNumerico,
+  pertenceAFilaDaMaquinaNoDia,
+  compararFilaMaquinaAJL,
+  CategoriaDiaBadge
+} from "@/lib/prioridadeHelper";
 import TimerProducao from "@/components/producao/TimerProducao";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
 import { salvarCacheLocal, obterCacheLocal, enfileirarAcaoOffline } from "@/lib/offlineStorage";
@@ -291,28 +299,18 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
         (o.chapa_descricao || "").toLowerCase().includes(q)
       );
     }
-    const hoje = format(new Date(), "yyyy-MM-dd");
-    const isHoje = selectedDay === hoje;
-    const doDia = ordensDaMaquina.filter(o => o.data === selectedDay);
-    const ordAtivo = { em_producao: 0, pausado: 1, aguardando_corte: 2, pendente: 3, finalizado: 4, cancelado: 5 };
-
-    if (!isHoje) {
-      return doDia.sort((a, b) => {
-        const sA = ordAtivo[a.status] ?? 3;
-        const sB = ordAtivo[b.status] ?? 3;
-        if (sA !== sB && (sA <= 1 || sB <= 1)) return sA - sB;
-        return compararPrioridadeEData(a, b);
-      });
-    }
-
-    const atrasadas = ordensDaMaquina.filter(o => o.data < hoje && o.status !== "finalizado" && o.status !== "cancelado");
-    return [...atrasadas, ...doDia].sort((a, b) => {
-      const sA = ordAtivo[a.status] ?? 3;
-      const sB = ordAtivo[b.status] ?? 3;
-      if (sA !== sB && (sA <= 1 || sB <= 1)) return sA - sB;
-      return compararPrioridadeEData(a, b);
-    });
-  }, [ordensDaMaquina, selectedDay, buscaPedido]);
+    // Regra Unificada AJL:
+    // - Pedidos do dia
+    // - Atrasados / dias anteriores
+    // - D+1 (Amanhã / antecipação)
+    // - Cliente Retira (Balcão)
+    // - Sem data definida na Central PCP
+    // - Em produção ou pausados
+    // - Finalizados hoje
+    return ordensDaMaquina
+      .filter(o => pertenceAFilaDaMaquinaNoDia(o, selectedDay, maquinaLabel, (item) => item.status === "finalizado"))
+      .sort((a, b) => compararFilaMaquinaAJL(a, b, selectedDay));
+  }, [ordensDaMaquina, selectedDay, buscaPedido, maquinaLabel]);
 
   const ordensDiaCanceladas = useMemo(() => {
     if (buscaPedido.trim()) {
@@ -679,6 +677,16 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
             : ""
         }`}
       >
+        {/* Badge de Destaque da Categoria do Dia (Retira, Atrasado, Hoje, D+1, Sem Data) */}
+        <div className="flex items-center justify-between gap-2 mb-2 px-0.5">
+          <CategoriaDiaBadge pedido={o} selectedDay={selectedDay} />
+          {o.data && o.data !== selectedDay && (
+            <span className="text-[11px] font-semibold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded border">
+              Data PCP: {o.data.split("-").reverse().join("/")}
+            </span>
+          )}
+        </div>
+
         {isFocado && (
           <div className="bg-gradient-to-r from-orange-600 via-amber-600 to-orange-700 text-white px-4 py-2.5 rounded-xl flex items-center justify-between font-bold text-xs sm:text-sm shadow-md mb-2.5 animate-pulse">
             <span className="flex items-center gap-2">
