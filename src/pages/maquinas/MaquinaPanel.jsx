@@ -43,6 +43,8 @@ import { calcularMetrosPedido } from "@/lib/metrosHelper";
 import useFilaPaginada from "@/hooks/useFilaPaginada";
 import FilaPagination from "@/components/pcp/FilaPagination";
 import { sincronizarStatusOpPcp } from "@/lib/sincronizarOpPcpSeguro";
+import { validarTransicaoStatus } from "@/lib/travaStatusDefinitivo";
+import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import { isTelhaBandeja } from "@/lib/bandejaHelper";
 import PedidoMiniCard from "@/components/producao/PedidoMiniCard";
 import MaquinaSwitcherAdmin from "@/components/maquinas/MaquinaSwitcherAdmin";
@@ -500,19 +502,16 @@ export default function MaquinaPanel({ maquina }) {
   }, [pedidos]);
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }) => {
+    mutationFn: async ({ id, data, reaberturaAutorizada = false }) => {
       if (typeof navigator !== "undefined" && !navigator.onLine) {
         throw new Error("OFFLINE_TRIGGERED");
       }
       const payloadLimpo = { ...data };
       const atual = pedidos.find(p => p.id === id) || null;
 
-      if (payloadLimpo.status && atual) {
-        // FINALIZADO É TERMINAL: OP concluída não retorna para a fila da máquina
-        if (atual?.status === "finalizado" && ["pendente", "em_producao", "pausado"].includes(payloadLimpo.status)) {
-          throw new Error(`A OP #${atual.numero_pedido || ""} já foi finalizada e não volta para a máquina. Reabra somente pelo PCP, se necessário.`);
-        }
-      }
+      // 🔒 TRAVA DEFINITIVA: OP finalizada é terminal. Não volta para a máquina,
+      // não muda de etapa e não é reprocessada por nenhuma ação da tela.
+      validarTransicaoStatus(atual, payloadLimpo, { reaberturaAutorizada });
 
       // 🛡️ AUTO-CURA & SANITIZAÇÃO DE prioridade_nivel:
       // O schema do Base44 para Pedido exige number (1..5). Se o payload ou banco tiver string (ex: "ROTA")
@@ -632,6 +631,12 @@ export default function MaquinaPanel({ maquina }) {
       return;
     }
 
+    // 🔒 FINALIZADO É DEFINITIVO: reabrir uma OP já finalizada só com PIN do gestor.
+    if (pedido.status === "finalizado" && novoStatus !== "finalizado" && !extraData?._reaberturaAutorizada) {
+      setReaberturaPendente({ pedido, novoStatus, extraData });
+      return;
+    }
+
     const hojeStr = format(new Date(), "yyyy-MM-dd");
     const agoraIso = new Date().toISOString();
 
@@ -685,11 +690,14 @@ export default function MaquinaPanel({ maquina }) {
     } : {};
 
     const data = { status: novoStatus, ...colagemUpdates, ...histData, ...extraData };
+    // 🔒 A autorização de reabertura serve só para a trava: nunca é gravada no banco.
+    const reaberturaAutorizada = Boolean(data._reaberturaAutorizada);
+    delete data._reaberturaAutorizada;
     if (novoStatus === "finalizado") {
       playFinishSound();
       speakOpFinalizada(pedido.maquina, pedido.numero_pedido);
     }
-    return await updateMutation.mutateAsync({ id: pedido.id, data });
+    return await updateMutation.mutateAsync({ id: pedido.id, data, reaberturaAutorizada });
 
     // PCP e Odoo são sincronizados no onSuccess, apenas após a gravação confirmada da OP.
   };
@@ -939,6 +947,8 @@ export default function MaquinaPanel({ maquina }) {
     toast.success(`${count} pedido(s) trazido(s) para a fila da Máquina de Colagem com sucesso!`);
   };
   const [finalizadosAbertos, setFinalizadosAbertos] = useState(false);
+  // 🔒 Reabertura de OP finalizada exige PIN do gestor (finalizado é definitivo)
+  const [reaberturaPendente, setReaberturaPendente] = useState(null);
 
   const {
     ordenadosAFazer,
@@ -2003,6 +2013,23 @@ export default function MaquinaPanel({ maquina }) {
         open={guiaModalOpen}
         onClose={() => setGuiaModalOpen(false)}
         maquinaNome={maquina}
+      />
+
+      {/* 🔒 Trava de reabertura: OP finalizada só volta com PIN do gestor */}
+      <SenhaGestorDialog
+        open={!!reaberturaPendente}
+        onOpenChange={(v) => { if (!v) setReaberturaPendente(null); }}
+        titulo="🔒 Reabrir OP finalizada"
+        descricao={`A OP #${reaberturaPendente?.pedido?.numero_pedido || ""} já está finalizada nesta máquina. Reabrir devolve o pedido para a fila e permite reprocessar a etapa.`}
+        aviso="Finalizado é definitivo. Digite o PIN do gestor para autorizar a reabertura."
+        erroTexto="PIN incorreto. Reabertura bloqueada."
+        onAutorizado={() => {
+          const alvo = reaberturaPendente;
+          setReaberturaPendente(null);
+          if (alvo) {
+            handleStatusChange(alvo.pedido, alvo.novoStatus, { ...alvo.extraData, _reaberturaAutorizada: true });
+          }
+        }}
       />
     </div>
   );

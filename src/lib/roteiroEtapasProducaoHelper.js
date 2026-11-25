@@ -563,6 +563,9 @@ export async function processarConclusaoEtapas({
 
         if (opsCDVivas.length > 0) {
           for (const op of opsCDVivas) {
+            // 🔒 OP já em produção ou pausada não é movida de máquina nem volta para
+            // "pendente": isso reprocessaria uma etapa que já está rodando.
+            if (op.status === "em_producao" || op.status === "pausado") continue;
             await base44.entities.OrdemMaquinaCD.update(op.id, {
               maquina: maquinaCanonica,
               status: "pendente",

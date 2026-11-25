@@ -34,6 +34,7 @@ import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
 import AlertaCancelamentoPcpBanner from "@/components/maquinas/AlertaCancelamentoPcpBanner";
 import StatusRedeBadge from "@/components/common/StatusRedeBadge";
 import { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
+import { validarTransicaoStatus, finalizacaoJaProcessada } from "@/lib/travaStatusDefinitivo";
 
 export function getMaquinaOrdemDesb(ordem) {
   if (!ordem) return "DESBOBINADEIRA 01";
@@ -308,12 +309,17 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
   const updateOrdem = useMutation({
     mutationFn: async ({ id, data }) => {
       const payloadLimpo = { ...data };
+      const anterior = todasOrdens.find(o => o.id === id) || null;
+      // 🔒 TRAVA DEFINITIVA: OP finalizada é terminal. Não volta para a máquina,
+      // não muda de etapa e não é reprocessada por nenhuma ação da tela.
+      validarTransicaoStatus(anterior, payloadLimpo);
       if (typeof payloadLimpo.prioridade_nivel === "string") {
         payloadLimpo.prioridade_nivel = normalizarPrioridadeNivelNumerico(payloadLimpo.prioridade_nivel, payloadLimpo.tipo_prioridade);
       }
       const res = await base44.entities.OrdemDesbobinadeira.update(id, payloadLimpo);
-      // Se a ordem foi finalizada, aciona a criação de ChapaCD e o desconto na Bobina em segundo plano (não bloqueia a UI)
-      if (data?.status === "finalizado") {
+      // Se a ordem foi finalizada AGORA, aciona a criação de ChapaCD e o desconto na Bobina
+      // em segundo plano. Reedições de uma OP já finalizada não repetem a baixa.
+      if (data?.status === "finalizado" && !finalizacaoJaProcessada(anterior, data)) {
         avancarProximaEtapaRoteiroCD(res, "OrdemDesbobinadeira").then((avanco) => {
           if (avanco?.avancou && avanco.proximaMaquina) {
             toast.success(`OP avançada automaticamente para ${avanco.proximaMaquina}!`);
