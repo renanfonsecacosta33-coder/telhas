@@ -4,7 +4,7 @@ import { avancarProximaEtapaRoteiroCD } from "@/lib/roteamentoCorteDobraHelper";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Layers, AlertTriangle, Search, X, Star, Ban, Trash2, History, FileText, GitBranch, RefreshCw } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Layers, AlertTriangle, Search, X, Ban, History, FileText, GitBranch, RefreshCw } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -20,9 +20,7 @@ import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
 import TimerProducao from "@/components/producao/TimerProducao";
 import {
-  getPesoOrdenacaoPrioridade,
   SeletorPrioridadeDropdown,
-  compararPrioridadeEData,
   normalizarPrioridadeNivelNumerico,
   pertenceAFilaDaMaquinaNoDia,
   compararFilaMaquinaAJL,
@@ -284,9 +282,9 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
     // - Em produção ou pausados
     // - Finalizados hoje
     return ordens
-      .filter(o => o.status !== "aguardando_material" && pertenceAFilaDaMaquinaNoDia(o, selectedDay, maquinaSelecionada, (item) => item.status === "finalizado"))
+      .filter(o => o.status !== "aguardando_material" && pertenceAFilaDaMaquinaNoDia(o, selectedDay, maquinaAtiva, (item) => item.status === "finalizado"))
       .sort((a, b) => compararFilaMaquinaAJL(a, b, selectedDay));
-  }, [ordens, selectedDay, buscaPedido, maquinaSelecionada]);
+  }, [ordens, selectedDay, buscaPedido, maquinaAtiva]);
 
   const ordensCanceladasDesb = useMemo(
     () => ordens.filter(o => o.status === "cancelado"),

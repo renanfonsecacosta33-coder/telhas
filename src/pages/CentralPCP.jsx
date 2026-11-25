@@ -45,7 +45,7 @@ import {
 import useDistribuicaoPcp from "@/hooks/useDistribuicaoPcp"; import useProgramacaoPcp from "@/hooks/useProgramacaoPcp";
 import useFilaPaginada from "@/hooks/useFilaPaginada";
 import FilaPagination from "@/components/pcp/FilaPagination";
-import { montarConsultaPcp, buscarOpsDasOfs } from "@/lib/consultaFilaPcp"; import useFecharProduzidosPcp from "@/hooks/useFecharProduzidosPcp";
+import { montarConsultaPcp, buscarOpsDasOfs } from "@/lib/consultaFilaPcp"; import useFecharProduzidosPcp from "@/hooks/useFecharProduzidosPcp"; import useReconciliarDistribuicaoPcp from "@/hooks/useReconciliarDistribuicaoPcp";
 import { getPesoOrdenacaoPrioridade, formatarDataProgramadaAmigavel, hasPrioridadeDefinida, montarUpdatesPrioridade, normalizarPrioridadeNivelNumerico } from "@/lib/prioridadeHelper";
 import ModalPrioridadeObrigatoria from "@/components/pcp/ModalPrioridadeObrigatoria";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
@@ -435,7 +435,7 @@ export default function CentralPCP() {
     refetchOnWindowFocus: false
   });
 
-  useFecharProduzidosPcp({ pedidos, pedidosProducao, ordensCD, queryKey: filaPcp.queryKey });
+  useFecharProduzidosPcp({ pedidos, pedidosProducao, ordensCD, queryKey: filaPcp.queryKey }); useReconciliarDistribuicaoPcp({ pedidos, pedidosProducao, ordensCD, queryKey: filaPcp.queryKey });
   // Consultas de Matéria-Prima em Tempo Real para Análise de Disponibilidade no PCP
   const { data: bobinasEstoque = EMPTY_LIST } = useQuery({
     queryKey: ["bobinas-estoque-pcp"],

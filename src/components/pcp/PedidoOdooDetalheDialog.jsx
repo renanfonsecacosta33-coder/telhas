@@ -45,6 +45,7 @@ import { hojeLocalISO } from "@/lib/dataLocal";
 import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import PedidoItensLista from "@/components/pcp/PedidoItensLista";
 import CroquiThumb from "@/components/pcp/CroquiThumb";
+import FotosProducaoPedido from "@/components/pcp/FotosProducaoPedido";
 import { extrairAnexosLista } from "@/lib/croquiExtractor";
 import MaquinaSequenceCD from "@/components/pcp/MaquinaSequenceCD";
 import EtapasTelhaSequence from "@/components/pcp/EtapasTelhaSequence";
@@ -62,7 +63,8 @@ export default function PedidoOdooDetalheDialog({
   onExcluirOS, onRetirarFila, onTogglePrioridade, onSetPrioridade, onToggleItem,
   onDevolverPCP, onTransferir, onVerHistorico, showTracking = false, progressoReal, onAtualizado,
   onProgramarItem, onProgramarTodosItens,
-  estoqueContext = null
+  estoqueContext = null,
+  pedidosProducao = [], ordensCD = []
 }) {
   const [confirmaExcluir, setConfirmaExcluir] = useState(false);
   const [senhaDevolverOpen, setSenhaDevolverOpen] = useState(false);
@@ -521,6 +523,9 @@ export default function PedidoOdooDetalheDialog({
               </div>
             </div>
           )}
+
+          {/* Fotos tiradas pelos operadores nas máquinas (OPs vinculadas a esta OF) */}
+          <FotosProducaoPedido pedido={pedidoLocal || pedido} pedidosProducao={pedidosProducao} ordensCD={ordensCD} />
 
           {/* 1. FIM DA DUPLICAÇÃO DE ITENS (Lista Única Definitiva com Controles Integrados) */}
           <div className="space-y-2">
