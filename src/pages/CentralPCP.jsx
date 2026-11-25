@@ -1768,7 +1768,7 @@ export default function CentralPCP() {
     return {
       total,
       ativos: total - countConcluidos - countEntregues - count("cancelado"),
-      pendentes: count("pendente_distribuicao"),
+      pendentes: Math.max(0, count("pendente_distribuicao") - pedidosDaLoja.filter(p => { const d = mapaExecucaoPorId.get(p.id); return p.status_pcp === "pendente_distribuicao" && d && d.statusChave !== "pendente_distribuicao"; }).length),
       distribuidos: count("distribuido"),
       produzindo_agora: produzindoAgora,
       aguardando_maquina: aguardandoMaquina,
@@ -1915,7 +1915,7 @@ export default function CentralPCP() {
     } else if (filtro === "aguardando_maquina") {
       if (concluido || entregue || !diag?.aguardandoInicio) return false;
     } else if (filtro === "pendente_distribuicao") {
-      if (concluido || entregue || p.status_pcp !== "pendente_distribuicao") return false;
+      if (concluido || entregue || p.status_pcp !== "pendente_distribuicao" || (diag && diag.statusChave !== "pendente_distribuicao")) return false;
     } else if (filtro === "distribuido") {
       if (concluido || entregue || p.status_pcp !== "distribuido") return false;
     } else if (filtro === "em_producao") {

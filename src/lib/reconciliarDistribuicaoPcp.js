@@ -15,6 +15,7 @@ import { opDaMesmaOf } from "@/lib/opVinculoSeguro";
 export async function reconciliarDistribuicaoPendentes({ pedidos = [], pedidosProducao = [], ordensCD = [], usuario = "Conciliação Automática PCP" } = {}) {
   const candidatos = (pedidos || []).filter(p => p && p.status_pcp === "pendente_distribuicao" && !p.retirado_manualmente_ts);
   const ids = [];
+  const atualizados = [];
 
   for (const pedido of candidatos) {
     const itens = getItens(pedido);
@@ -40,14 +41,16 @@ export async function reconciliarDistribuicaoPendentes({ pedidos = [], pedidosPr
     try { log = JSON.parse(pedido.historico_log || "[]"); } catch { log = []; }
     log.push({ data: new Date().toISOString(), usuario, acao: "distribuicao", detalhes: "Status corrigido para distribuído: OPs já estavam nas máquinas." });
 
-    await base44.entities.PedidoOdoo.update(pedido.id, {
+    const percentual = calcularProgressoRealPedido({ ...pedido, itens_json: jsonFinal }, telhas, cd);
+    const atualizado = await base44.entities.PedidoOdoo.update(pedido.id, {
       itens_json: jsonFinal,
       status_pcp: "distribuido",
-      percentual_concluido: calcularProgressoRealPedido({ ...pedido, itens_json: jsonFinal }, telhas, cd),
+      percentual_concluido: percentual,
       historico_log: JSON.stringify(log)
     });
     ids.push(pedido.id);
+    atualizados.push({ id: pedido.id, status_pcp: "distribuido", percentual_concluido: percentual, itens_json: jsonFinal });
   }
 
-  return { ids, total: ids.length };
+  return { ids, atualizados, total: ids.length };
 }

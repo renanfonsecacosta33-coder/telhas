@@ -22,10 +22,11 @@ export default function useReconciliarDistribuicaoPcp({ pedidos = [], pedidosPro
     rodando.current = true;
     (async () => {
       try {
-        const { ids } = await reconciliarDistribuicaoPendentes({ pedidos, pedidosProducao, ordensCD });
+        const { ids, atualizados = [] } = await reconciliarDistribuicaoPendentes({ pedidos, pedidosProducao, ordensCD });
         if (ids.length) {
+          const porId = new Map(atualizados.map(a => [a.id, a]));
           queryClient.setQueryData(chaveFila.current, (antigos = []) =>
-            antigos.map(p => (ids.includes(p.id) ? { ...p, status_pcp: "distribuido" } : p))
+            antigos.map(p => (porId.has(p.id) ? { ...p, ...porId.get(p.id) } : p))
           );
           queryClient.invalidateQueries({ queryKey: ["resumo-pcp"] });
         }
