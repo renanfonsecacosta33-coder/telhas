@@ -73,7 +73,10 @@ export default function RotasEntregaSection({
         "-data_criacao",
         50
       ),
-    refetchInterval: 20000,
+    placeholderData: (prev) => prev,
+    staleTime: 30000,
+    refetchInterval: 60000,
+    refetchOnWindowFocus: false,
   });
 
   // Arquiva automaticamente rotas cuja data de ENTREGA já passou (no dia seguinte)

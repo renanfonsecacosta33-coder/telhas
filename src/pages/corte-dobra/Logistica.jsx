@@ -46,27 +46,39 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
   const { data: pedidosTelhas = [], isLoading: loadingTelhas } = useQuery({
     queryKey: ["logistica-telhas", filialAtiva],
     queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva, status: { $in: ["pendente", "em_producao", "finalizado"] } }, "-data_finalizacao", 250),
+    placeholderData: (prev) => prev,
+    staleTime: 30000,
     refetchInterval: 60000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch orders from CD — pendente, em_producao, finalizado (not cancelado)
   const { data: ordensMaq = [], isLoading: loadingMaq } = useQuery({
     queryKey: ["logistica-cd-maq", filialAtiva],
     queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva, status: { $in: ["pendente", "aguardando_corte", "em_producao", "finalizado"] } }, "-data_finalizacao", 250),
+    placeholderData: (prev) => prev,
+    staleTime: 30000,
     refetchInterval: 60000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: ordensDesb = [], isLoading: loadingDesb } = useQuery({
     queryKey: ["logistica-cd-desb", filialAtiva],
     queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva, status: { $in: ["pendente", "em_producao", "finalizado"] } }, "-data_finalizacao", 250),
+    placeholderData: (prev) => prev,
+    staleTime: 30000,
     refetchInterval: 60000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch all cargas
   const { data: cargas = [], isLoading: loadingCargas } = useQuery({
     queryKey: ["cargas", filialAtiva],
     queryFn: () => base44.entities.Carga.filter({ unidade: filialAtiva }, "-data_criacao", 100),
+    placeholderData: (prev) => prev,
+    staleTime: 30000,
     refetchInterval: 60000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch rotas de entrega para o DateNavigatorStrip
@@ -78,7 +90,10 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
         "-data_criacao",
         50
       ),
+    placeholderData: (prev) => prev,
+    staleTime: 30000,
     refetchInterval: 60000,
+    refetchOnWindowFocus: false,
   });
 
   // Normalize all items

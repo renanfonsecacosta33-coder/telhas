@@ -341,7 +341,7 @@ export function processarMapaBarracoes({
  */
 export function useInvestigacaoBarracoes(filialAtiva) {
   const query = useQuery({
-    queryKey: ["investigacao-barracoes-realtime", filialAtiva || "todas"],
+    queryKey: ["investigacao-barracoes-realtime-global"],
     queryFn: async () => {
       // PedidoOdoo e ordens das fábricas são pesquisados globalmente para permitir que rotas de qualquer cidade
       // encontrem os pedidos gerados na Matriz AJL ou filiais.
@@ -360,9 +360,10 @@ export function useInvestigacaoBarracoes(filialAtiva) {
         pedidosOdoo,
       });
     },
+    placeholderData: (prev) => prev,
     refetchInterval: () => (typeof document !== "undefined" && document.hidden ? false : 45000),
     staleTime: 30000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const mapa = query.data || {};

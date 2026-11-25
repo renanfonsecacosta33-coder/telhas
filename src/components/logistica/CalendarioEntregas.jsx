@@ -115,7 +115,10 @@ export default function CalendarioEntregas({ filial = null }) {
         return [];
       }
     },
-    refetchInterval: 15000
+    placeholderData: (prev) => prev,
+    staleTime: 30000,
+    refetchInterval: 60000,
+    refetchOnWindowFocus: false,
   });
 
   // Mapear rotas por chave de data "YYYY-MM-DD"

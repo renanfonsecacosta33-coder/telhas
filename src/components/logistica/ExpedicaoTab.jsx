@@ -21,21 +21,30 @@ export default function ExpedicaoTab({ tipo, filialAtiva }) {
     queryKey: ["expedicao-telhas", filialAtiva],
     queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva, status: "finalizado" }, "-data_finalizacao", 200),
     enabled: !isCD,
-    refetchInterval: 15000,
+    placeholderData: (prev) => prev,
+    staleTime: 30000,
+    refetchInterval: 60000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: ordensMaq = [], isLoading: loadingMaq } = useQuery({
     queryKey: ["expedicao-cd-maq", filialAtiva],
     queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva, status: "finalizado" }, "-data_finalizacao", 200),
     enabled: isCD,
-    refetchInterval: 15000,
+    placeholderData: (prev) => prev,
+    staleTime: 30000,
+    refetchInterval: 60000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: ordensDesb = [], isLoading: loadingDesb } = useQuery({
     queryKey: ["expedicao-cd-desb", filialAtiva],
     queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva, status: "finalizado" }, "-data_finalizacao", 200),
     enabled: isCD,
-    refetchInterval: 15000,
+    placeholderData: (prev) => prev,
+    staleTime: 30000,
+    refetchInterval: 60000,
+    refetchOnWindowFocus: false,
   });
 
   const itens = useMemo(() => {

@@ -62,10 +62,13 @@ export async function buscarOpsDasOfs(base44, entidade, pedidos) {
 
   const records = [];
   let cursor;
+  let paginas = 0;
   do {
     const page = await base44.entities[entidade].filter(query, { limit: 250, ...(cursor ? { cursor } : {}) });
     records.push(...page.items);
     cursor = page.has_more ? page.next_cursor : null;
+    paginas++;
+    if (paginas >= 3) break; // Trava de segurança: máximo 3 páginas (750 registros) para nunca travar a fila de rede
   } while (cursor);
   return records;
 }

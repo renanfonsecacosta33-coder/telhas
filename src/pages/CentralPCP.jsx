@@ -413,6 +413,7 @@ export default function CentralPCP() {
     queryKey: ["pedidos-producao-todos", pedidos.map(p => p.id).join(",")],
     enabled: pedidos.length > 0,
     queryFn: () => buscarOpsDasOfs(base44, "Pedido", pedidos),
+    placeholderData: (prev) => prev,
     staleTime: 30000,
     retry: false,
     refetchOnWindowFocus: false
@@ -428,6 +429,7 @@ export default function CentralPCP() {
       ]);
       return [...maquinasCD, ...desbCD];
     },
+    placeholderData: (prev) => prev,
     staleTime: 30000,
     retry: false,
     refetchOnWindowFocus: false

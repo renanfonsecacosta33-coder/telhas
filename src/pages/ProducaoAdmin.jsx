@@ -124,7 +124,10 @@ export default function ProducaoAdmin() {
       if (!filialAtiva || filialAtiva === "todas") return todos;
       return todos.filter(p => (p.unidade || "Matriz AJL") === filialAtiva);
     },
+    placeholderData: (prev) => prev,
+    staleTime: 30000,
     refetchInterval: 30000,
+    refetchOnWindowFocus: false,
   });
 
   // Reage à alteração de parâmetros da URL (ex: clique no Dashboard para ir ao pedido)

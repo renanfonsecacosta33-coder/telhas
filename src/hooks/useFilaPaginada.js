@@ -36,7 +36,10 @@ export default function useFilaPaginada({ entidade, query, prefixo, sort = "data
       salvarCacheLocal(cacheKey, records);
       return records;
     },
-    staleTime: 60000, refetchOnWindowFocus: false, retry: false
+    placeholderData: (prev) => prev,
+    staleTime: 60000,
+    refetchOnWindowFocus: false,
+    retry: false
   });
   const total = useQuery({
     queryKey: [...queryKey, "total"],
